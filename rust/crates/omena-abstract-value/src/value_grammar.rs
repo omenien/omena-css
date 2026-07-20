@@ -4,7 +4,9 @@ use std::sync::{Arc, OnceLock, RwLock};
 use omena_evidence_graph::{
     EvidenceNodeKeyV0, EvidenceNodeSeedV0, ExternalToolRunWitnessV0, FamilyStampV0, GuaranteeKindV0,
 };
-use omena_spec_audit::{SpecGrammarRegistryV0, spec_grammar_registry};
+use omena_spec_audit::{
+    SpecGrammarBoundaryClassificationV0, SpecGrammarRegistryV0, spec_grammar_registry,
+};
 use omena_value_lattice::{
     CssValueComponentKindV0, CssValueComponentV0, DeclarationValueLensV0, ValueNodeV0,
     css_value_component_stream, declaration_value_lens, parse_numeric_value_with_unit,
@@ -97,6 +99,7 @@ pub enum CssValueValidationReasonV0 {
     MatchBudgetExhausted,
     DeferredSubstitution,
     VendorExtension,
+    ForwardTierGrammar,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -113,6 +116,7 @@ pub struct CssValueValidationConsumerPolicyV0 {
     pub consumer: &'static str,
     pub matched: &'static str,
     pub unmatched: &'static str,
+    pub forward_tier_unmatched: &'static str,
     pub grammar_defect: &'static str,
     pub budget_exhausted: &'static str,
 }
@@ -122,6 +126,7 @@ pub const CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0: [CssValueValidationConsumer
         consumer: "checker.registeredPropertyTypeMismatch",
         matched: "accept",
         unmatched: "diagnostic",
+        forward_tier_unmatched: "not-applicable",
         grammar_defect: "silent",
         budget_exhausted: "silent",
     },
@@ -129,6 +134,7 @@ pub const CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0: [CssValueValidationConsumer
         consumer: "checker.invalidPropertyValue",
         matched: "accept",
         unmatched: "diagnostic",
+        forward_tier_unmatched: "not-validatable",
         grammar_defect: "silent",
         budget_exhausted: "silent",
     },
@@ -136,6 +142,7 @@ pub const CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0: [CssValueValidationConsumer
         consumer: "scss.nativeCssFunctionParameter",
         matched: "accept",
         unmatched: "reject",
+        forward_tier_unmatched: "not-applicable",
         grammar_defect: "unknown",
         budget_exhausted: "unknown",
     },
@@ -143,6 +150,7 @@ pub const CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0: [CssValueValidationConsumer
         consumer: "scss.nativeCssFunctionReturn",
         matched: "accept",
         unmatched: "reject",
+        forward_tier_unmatched: "not-applicable",
         grammar_defect: "unknown",
         budget_exhausted: "unknown",
     },
@@ -380,7 +388,15 @@ pub fn match_registered_property_value_v0(syntax: &str, value: &str) -> CssValue
 }
 
 pub fn validate_standard_property_value_v0(property: &str, value: &str) -> CssValueValidationV0 {
-    adjudicate_css_value_validation(value, match_standard_property_value_v0(property, value))
+    let classification = spec_grammar_registry()
+        .entry("properties", property)
+        .map(|entry| entry.boundary.classification)
+        .unwrap_or(SpecGrammarBoundaryClassificationV0::InBoundary);
+    adjudicate_css_value_validation_with_boundary(
+        value,
+        match_standard_property_value_v0(property, value),
+        classification,
+    )
 }
 
 pub fn validate_registered_property_value_v0(syntax: &str, value: &str) -> CssValueValidationV0 {
@@ -390,6 +406,18 @@ pub fn validate_registered_property_value_v0(syntax: &str, value: &str) -> CssVa
 fn adjudicate_css_value_validation(
     value: &str,
     verdict: CssValueGrammarVerdictV0,
+) -> CssValueValidationV0 {
+    adjudicate_css_value_validation_with_boundary(
+        value,
+        verdict,
+        SpecGrammarBoundaryClassificationV0::InBoundary,
+    )
+}
+
+fn adjudicate_css_value_validation_with_boundary(
+    value: &str,
+    verdict: CssValueGrammarVerdictV0,
+    classification: SpecGrammarBoundaryClassificationV0,
 ) -> CssValueValidationV0 {
     let (class, reason) = if contains_deferred_css_value(value) {
         (
@@ -407,6 +435,14 @@ fn adjudicate_css_value_validation(
                 CssValueValidationClassV0::Valid,
                 CssValueValidationReasonV0::GrammarMatched,
             ),
+            CssValueGrammarVerdictV0::Unmatched { .. }
+                if classification == SpecGrammarBoundaryClassificationV0::ForwardTier =>
+            {
+                (
+                    CssValueValidationClassV0::NotValidatable,
+                    CssValueValidationReasonV0::ForwardTierGrammar,
+                )
+            }
             CssValueGrammarVerdictV0::Unmatched { .. } => (
                 CssValueValidationClassV0::Invalid,
                 CssValueValidationReasonV0::GrammarUnmatched,
@@ -2127,6 +2163,40 @@ mod tests {
     }
 
     #[test]
+    fn reviewed_compatibility_syntax_and_boundary_policy_are_applied_independently() {
+        let compatibility_value =
+            validate_standard_property_value_v0("-webkit-background-clip", "text");
+        assert_eq!(compatibility_value.class, CssValueValidationClassV0::Valid);
+        assert_eq!(
+            compatibility_value.reason,
+            CssValueValidationReasonV0::GrammarMatched
+        );
+        let compatibility_entry = spec_grammar_registry()
+            .entry("properties", "-webkit-background-clip")
+            .unwrap_or_else(|| panic!("compatibility property must remain registered"));
+        assert!(compatibility_entry.override_provenance.is_some());
+
+        let forward_tier =
+            validate_standard_property_value_v0("background", "definitely-not-a-background");
+        assert_eq!(
+            forward_tier.class,
+            CssValueValidationClassV0::NotValidatable
+        );
+        assert_eq!(
+            forward_tier.reason,
+            CssValueValidationReasonV0::ForwardTierGrammar
+        );
+        assert!(forward_tier.verdict.is_definite_mismatch());
+
+        let in_boundary = validate_standard_property_value_v0("border-top", "1px nonsense red");
+        assert_eq!(in_boundary.class, CssValueValidationClassV0::Invalid);
+        assert_eq!(
+            in_boundary.reason,
+            CssValueValidationReasonV0::GrammarUnmatched
+        );
+    }
+
+    #[test]
     fn pinned_registry_rows_are_all_accounted_for_by_the_grammar_parser() {
         const MIN_PINNED_REGISTRY_ENTRY_COUNT: usize = 1_700;
 
@@ -2317,6 +2387,10 @@ mod tests {
         for policy in CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0 {
             assert_eq!(policy.matched, "accept");
             assert!(matches!(policy.unmatched, "diagnostic" | "reject"));
+            assert!(matches!(
+                policy.forward_tier_unmatched,
+                "not-applicable" | "not-validatable"
+            ));
             assert!(matches!(policy.grammar_defect, "silent" | "unknown"));
             assert!(matches!(policy.budget_exhausted, "silent" | "unknown"));
         }

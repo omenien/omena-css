@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-spec-audit.value-grammar-overrides",
+  "humanReviewRequired": true,
+  "entries": [
+    {
+      "category": "properties",
+      "name": "-webkit-background-clip",
+      "expectedSyntax": "<visual-box>#",
+      "replacementSyntax": "[ <visual-box> | text ]#",
+      "sourceUrl": "https://compat.spec.whatwg.org/#propdef--webkit-background-clip",
+      "decision": "replace-syntax",
+      "reason": "compatibility-spec-text-value",
+      "reviewer": "maintainer",
+      "reviewedAt": "2026-07-21"
+    }
+  ]
+}

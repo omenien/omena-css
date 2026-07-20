@@ -21,6 +21,7 @@ pub const SPEC_AUDIT_PASS_MARKER: &str = "color-compression";
 const SPEC_SOURCE_PINS_SOURCE: &str = include_str!("../data/spec-sources.json");
 const OMENA_SPEC_MANIFEST_SOURCE: &str = include_str!("../data/omena-spec-manifest.json");
 const WEBREF_GRAMMAR_SOURCE: &str = include_str!("../data/webref-grammar.json");
+const VALUE_GRAMMAR_OVERRIDES_SOURCE: &str = include_str!("../data/value-grammar-overrides.json");
 const PACKAGE_JSON_SOURCE: &str = include_str!("../../../../package.json");
 const SASS_SPEC_CORPUS_MANIFEST_SOURCE: &str =
     include_str!("../../omena-diff-test/sass-spec-corpus/manifest.json");
@@ -558,7 +559,32 @@ struct WebrefGrammarSourceV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 struct WebrefGrammarEntryV0 {
     name: String,
+    href: String,
     syntax: Option<String>,
+    boundary: SpecGrammarBoundaryV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ValueGrammarOverrideSetV0 {
+    schema_version: String,
+    product: String,
+    human_review_required: bool,
+    entries: Vec<ValueGrammarOverrideRowV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ValueGrammarOverrideRowV0 {
+    category: String,
+    name: String,
+    expected_syntax: String,
+    replacement_syntax: String,
+    source_url: String,
+    decision: String,
+    reason: String,
+    reviewer: String,
+    reviewed_at: String,
 }
 
 /// Coarse classification of a webref value-definition-syntax string. The consumer
@@ -639,14 +665,56 @@ pub struct SpecVocabularyV0 {
     closed_terms: BTreeMap<String, BTreeMap<String, Vec<String>>>,
 }
 
-/// One value-definition-syntax record from the pinned Webref snapshot.
+/// One effective value-definition-syntax record from the pinned Webref snapshot.
 ///
-/// The registry preserves missing syntax as data. Consumers must distinguish a
-/// known record with no grammar from a name that is absent from the snapshot.
+/// The base record retains its source boundary and URL. A reviewed syntax delta,
+/// when present, replaces only the effective syntax and records its provenance.
+/// Missing syntax remains data, so consumers must distinguish a known record with
+/// no grammar from a name that is absent from the snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpecGrammarEntryV0 {
     pub name: String,
     pub syntax: Option<String>,
+    pub source_url: String,
+    pub boundary: SpecGrammarBoundaryV0,
+    pub override_provenance: Option<SpecGrammarOverrideProvenanceV0>,
+}
+
+/// Source-boundary policy attached to one pinned grammar entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SpecGrammarBoundaryClassificationV0 {
+    InBoundary,
+    ForwardTier,
+}
+
+/// Provenance for the specification tier represented by one grammar entry.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpecGrammarBoundaryV0 {
+    pub classification: SpecGrammarBoundaryClassificationV0,
+    pub reason: String,
+    pub rule_id: String,
+    pub browser_spec_shortname: Option<String>,
+}
+
+/// Human-reviewed provenance for a syntax delta composed over pinned data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpecGrammarOverrideProvenanceV0 {
+    pub source_url: String,
+    pub source_syntax: String,
+    pub decision: String,
+    pub reason: String,
+    pub reviewer: String,
+    pub reviewed_at: String,
+}
+
+/// Audit summary for reviewed grammar overrides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpecGrammarOverrideAuditV0 {
+    pub entry_count: usize,
+    pub applied_entry_count: usize,
+    pub all_entries_valid: bool,
 }
 
 /// Full grammar authority over every axis in the pinned Webref snapshot.
@@ -749,20 +817,76 @@ pub fn spec_grammar_registry() -> &'static SpecGrammarRegistryV0 {
     DATA.get_or_init(build_spec_grammar_registry)
 }
 
+/// Audits the reviewed syntax deltas composed over the pinned Webref registry.
+pub fn audit_value_grammar_overrides_v0() -> SpecGrammarOverrideAuditV0 {
+    let Some((snapshot, overrides)) =
+        parse_value_grammar_override_sources(WEBREF_GRAMMAR_SOURCE, VALUE_GRAMMAR_OVERRIDES_SOURCE)
+    else {
+        return SpecGrammarOverrideAuditV0 {
+            entry_count: 0,
+            applied_entry_count: 0,
+            all_entries_valid: false,
+        };
+    };
+    let all_entries_valid = value_grammar_override_set_is_valid(&snapshot, &overrides);
+    let applied_entry_count = spec_grammar_registry()
+        .categories
+        .values()
+        .flatten()
+        .filter(|entry| entry.override_provenance.is_some())
+        .count();
+    SpecGrammarOverrideAuditV0 {
+        entry_count: overrides.entries.len(),
+        applied_entry_count,
+        all_entries_valid,
+    }
+}
+
 fn build_spec_grammar_registry() -> SpecGrammarRegistryV0 {
     let Ok(snapshot) = serde_json::from_str::<WebrefGrammarSnapshotV0>(WEBREF_GRAMMAR_SOURCE)
     else {
         return SpecGrammarRegistryV0::default();
     };
+    let overrides =
+        serde_json::from_str::<ValueGrammarOverrideSetV0>(VALUE_GRAMMAR_OVERRIDES_SOURCE).ok();
+    let overrides_are_valid = overrides
+        .as_ref()
+        .is_some_and(|overrides| value_grammar_override_set_is_valid(&snapshot, overrides));
+    let override_by_key = overrides
+        .as_ref()
+        .filter(|_| overrides_are_valid)
+        .into_iter()
+        .flat_map(|overrides| overrides.entries.iter())
+        .map(|entry| ((entry.category.clone(), entry.name.clone()), entry))
+        .collect::<BTreeMap<_, _>>();
     let categories = snapshot
         .categories
         .into_iter()
         .map(|(category, entries)| {
             let mut entries = entries
                 .into_iter()
-                .map(|entry| SpecGrammarEntryV0 {
-                    name: entry.name.trim().to_ascii_lowercase(),
-                    syntax: entry.syntax,
+                .map(|entry| {
+                    let name = entry.name.trim().to_ascii_lowercase();
+                    let grammar_override = override_by_key.get(&(category.clone(), name.clone()));
+                    let syntax = grammar_override
+                        .map(|grammar_override| grammar_override.replacement_syntax.clone())
+                        .or(entry.syntax.clone());
+                    let override_provenance =
+                        grammar_override.map(|grammar_override| SpecGrammarOverrideProvenanceV0 {
+                            source_url: grammar_override.source_url.clone(),
+                            source_syntax: grammar_override.expected_syntax.clone(),
+                            decision: grammar_override.decision.clone(),
+                            reason: grammar_override.reason.clone(),
+                            reviewer: grammar_override.reviewer.clone(),
+                            reviewed_at: grammar_override.reviewed_at.clone(),
+                        });
+                    SpecGrammarEntryV0 {
+                        name,
+                        syntax,
+                        source_url: entry.href,
+                        boundary: entry.boundary,
+                        override_provenance,
+                    }
                 })
                 .collect::<Vec<_>>();
             entries.sort_by(|left, right| left.name.cmp(&right.name));
@@ -770,6 +894,54 @@ fn build_spec_grammar_registry() -> SpecGrammarRegistryV0 {
         })
         .collect();
     SpecGrammarRegistryV0 { categories }
+}
+
+fn parse_value_grammar_override_sources(
+    snapshot_source: &str,
+    override_source: &str,
+) -> Option<(WebrefGrammarSnapshotV0, ValueGrammarOverrideSetV0)> {
+    Some((
+        serde_json::from_str(snapshot_source).ok()?,
+        serde_json::from_str(override_source).ok()?,
+    ))
+}
+
+fn value_grammar_override_set_is_valid(
+    snapshot: &WebrefGrammarSnapshotV0,
+    overrides: &ValueGrammarOverrideSetV0,
+) -> bool {
+    if overrides.schema_version != "0"
+        || overrides.product != "omena-spec-audit.value-grammar-overrides"
+        || !overrides.human_review_required
+        || overrides.entries.is_empty()
+    {
+        return false;
+    }
+    let mut keys = BTreeSet::new();
+    overrides.entries.iter().all(|entry| {
+        let key = (entry.category.as_str(), entry.name.as_str());
+        let normalized = entry.category == entry.category.trim().to_ascii_lowercase()
+            && entry.name == entry.name.trim().to_ascii_lowercase();
+        let unique = keys.insert(key);
+        let source_entry = snapshot
+            .categories
+            .get(entry.category.as_str())
+            .and_then(|entries| entries.iter().find(|source| source.name == entry.name));
+        normalized
+            && unique
+            && entry.decision == "replace-syntax"
+            && !entry.expected_syntax.trim().is_empty()
+            && !entry.replacement_syntax.trim().is_empty()
+            && entry.expected_syntax != entry.replacement_syntax
+            && entry.source_url.starts_with("https://")
+            && !entry.reason.trim().is_empty()
+            && !entry.reviewer.trim().is_empty()
+            && is_yyyy_mm_dd(entry.reviewed_at.as_str())
+            && source_entry.is_some_and(|source| {
+                source.href == entry.source_url
+                    && source.syntax.as_deref() == Some(entry.expected_syntax.as_str())
+            })
+    })
 }
 
 fn build_spec_vocabulary() -> SpecVocabularyV0 {
@@ -862,10 +1034,13 @@ mod tests {
     use super::{
         OMENA_SPEC_MANIFEST_SOURCE, OmenaSpecAuditBoundarySummaryV0, SPEC_AUDIT_COLOR_MARKER,
         SPEC_AUDIT_PASS_MARKER, SPEC_SOURCE_PINS_SOURCE, SpecGeneratedDataReviewGateV0,
-        SpecSourcePinsV0, SpecSourceRefreshPolicyV0, WebrefGrammarTermV0, classify_webref_syntax,
-        generated_data_review_gate_is_valid, source_freshness_policy_is_valid,
-        spec_grammar_registry, spec_vocabulary, summarize_omena_spec_audit_boundary,
-        summarize_omena_spec_audit_boundary_from_sources,
+        SpecGrammarBoundaryClassificationV0, SpecSourcePinsV0, SpecSourceRefreshPolicyV0,
+        VALUE_GRAMMAR_OVERRIDES_SOURCE, WEBREF_GRAMMAR_SOURCE, WebrefGrammarTermV0,
+        audit_value_grammar_overrides_v0, classify_webref_syntax,
+        generated_data_review_gate_is_valid, parse_value_grammar_override_sources,
+        source_freshness_policy_is_valid, spec_grammar_registry, spec_vocabulary,
+        summarize_omena_spec_audit_boundary, summarize_omena_spec_audit_boundary_from_sources,
+        value_grammar_override_set_is_valid,
     };
     use serde_json::{Value, json};
 
@@ -1315,6 +1490,48 @@ mod tests {
         assert!(registry.entry("types", "length").is_some());
         assert!(registry.syntax("types", "length").is_none());
         assert!(registry.entry("types", "not-a-webref-type").is_none());
+    }
+
+    #[test]
+    fn reviewed_value_grammar_override_preserves_source_and_decision_provenance() {
+        let audit = audit_value_grammar_overrides_v0();
+        assert_eq!(audit.entry_count, 1);
+        assert_eq!(audit.applied_entry_count, 1);
+        assert!(audit.all_entries_valid);
+
+        let entry = spec_grammar_registry()
+            .entry("properties", "-webkit-background-clip")
+            .unwrap_or_else(|| panic!("compatibility property must remain in the registry"));
+        assert_eq!(entry.syntax.as_deref(), Some("[ <visual-box> | text ]#"));
+        assert_eq!(
+            entry.boundary.classification,
+            SpecGrammarBoundaryClassificationV0::InBoundary
+        );
+        let provenance = entry
+            .override_provenance
+            .as_ref()
+            .unwrap_or_else(|| panic!("reviewed syntax delta must retain provenance"));
+        assert_eq!(provenance.source_url, entry.source_url);
+        assert_eq!(provenance.source_syntax, "<visual-box>#");
+        assert_eq!(provenance.decision, "replace-syntax");
+        assert_eq!(provenance.reason, "compatibility-spec-text-value");
+        assert_eq!(provenance.reviewer, "maintainer");
+        assert_eq!(provenance.reviewed_at, "2026-07-21");
+    }
+
+    #[test]
+    fn reviewed_value_grammar_override_rejects_drift_and_missing_review_metadata() {
+        let (snapshot, mut overrides) = parse_value_grammar_override_sources(
+            WEBREF_GRAMMAR_SOURCE,
+            VALUE_GRAMMAR_OVERRIDES_SOURCE,
+        )
+        .unwrap_or_else(|| panic!("embedded grammar override sources must parse"));
+        overrides.entries[0].reviewer.clear();
+        assert!(!value_grammar_override_set_is_valid(&snapshot, &overrides));
+
+        overrides.entries[0].reviewer = "maintainer".to_string();
+        overrides.entries[0].expected_syntax = "<drifted-visual-box>#".to_string();
+        assert!(!value_grammar_override_set_is_valid(&snapshot, &overrides));
     }
 
     #[test]

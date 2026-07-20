@@ -234,6 +234,16 @@ mod tests {
         .collect()
     }
 
+    #[test]
+    fn standard_valid_value_fixture_has_no_invalid_property_diagnostics() {
+        let source = include_str!("../../tests/fixtures/standard-value-grammar.css");
+        let codes = diagnostic_codes(source);
+        assert!(
+            !codes.contains(&"invalidPropertyValue"),
+            "valid declarations produced invalid-property-value diagnostics: {codes:?}"
+        );
+    }
+
     fn diagnostic_codes_with_deep_analysis(source: &str, deep_analysis: bool) -> Vec<&'static str> {
         summarize_query_cascade_checker_diagnostics_with_deep_analysis(
             "file:///tmp/test.scss",
