@@ -4,7 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     OmenaQueryCrossFileSummaryEdgeKindCountV0, OmenaQuerySourceDocumentInputV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTsconfigPathMappingV0,
     read_workspace_cross_file_summary_direct_recompute_count_for_test,
     recompute_cross_file_summary_raw_edge_kind_counts_v0,
     reset_workspace_cross_file_summary_direct_recompute_count_for_test,
@@ -12,6 +13,7 @@ use crate::{
     summarize_omena_query_categorical_design_system_cross_project_summary,
     summarize_omena_query_m4_axis_c_readiness,
     summarize_omena_query_source_selector_reference_cross_file_summary,
+    summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs,
     summarize_omena_query_style_document,
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_workspace_cross_file_summary,
@@ -200,6 +202,39 @@ fn source_selector_references_emit_cross_file_summary_edges() {
     assert_eq!(edge.linear_provenance.semiring_identifier(), "naturalCount");
     assert_eq!(edge.linear_provenance.semiring_identifier, "naturalCount");
     assert!(summary.capabilities.linear_provenance_semiring_laws_hold);
+}
+
+#[test]
+fn source_selector_cross_file_summary_resolves_alias_imports() {
+    let style_path = "/workspace/src/styles/Button.module.scss";
+    let summary =
+        summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs(
+            &[OmenaQueryStyleSourceInputV0 {
+                style_path: style_path.to_string(),
+                style_source: ".root { color: red; }".to_string(),
+            }],
+            &[OmenaQuerySourceDocumentInputV0 {
+                source_path: "/workspace/src/Button.tsx".to_string(),
+                source_source: r#"import styles from "@styles/Button.module.scss";
+const cls = styles.root;"#
+                    .to_string(),
+                source_syntax_index: None,
+                has_unresolved_style_import: false,
+            }],
+            &[],
+            &OmenaQueryStyleResolutionInputsV0 {
+                tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+                    base_path: "/workspace".to_string(),
+                    pattern: "@styles/*".to_string(),
+                    target_patterns: vec!["src/styles/*".to_string()],
+                }],
+                ..OmenaQueryStyleResolutionInputsV0::default()
+            },
+        );
+
+    assert_eq!(summary.summary_edge_count, 1, "{summary:?}");
+    assert_eq!(summary.edges[0].target_path.as_deref(), Some(style_path));
+    assert_eq!(summary.edges[0].local_name.as_deref(), Some("root"));
 }
 
 #[test]

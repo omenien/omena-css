@@ -351,11 +351,33 @@ pub fn summarize_omena_query_refs_for_workspace_class(
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryRefsForClassV0 {
+    summarize_omena_query_refs_for_workspace_class_with_resolution_inputs(
+        selector_name,
+        target_style_uri,
+        include_declaration,
+        style_sources,
+        source_documents,
+        package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_refs_for_workspace_class_with_resolution_inputs(
+    selector_name: &str,
+    target_style_uri: Option<&str>,
+    include_declaration: bool,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryRefsForClassV0 {
     let definitions = summarize_omena_query_style_selector_definitions(style_sources);
     let references = collect_omena_query_source_selector_reference_candidates(
         style_sources,
         source_documents,
         package_manifests,
+        resolution_inputs,
     );
     summarize_omena_query_refs_for_class(
         selector_name,
@@ -374,11 +396,33 @@ pub fn summarize_omena_query_rename_plan_for_workspace_class(
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryRenamePlanV0 {
+    summarize_omena_query_rename_plan_for_workspace_class_with_resolution_inputs(
+        selector_name,
+        new_name,
+        target_style_uri,
+        style_sources,
+        source_documents,
+        package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_rename_plan_for_workspace_class_with_resolution_inputs(
+    selector_name: &str,
+    new_name: &str,
+    target_style_uri: Option<&str>,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryRenamePlanV0 {
     let definitions = summarize_omena_query_style_selector_definitions(style_sources);
     let references = collect_omena_query_source_selector_reference_edit_targets(
         style_sources,
         source_documents,
         package_manifests,
+        resolution_inputs,
     );
     summarize_omena_query_rename_plan(
         selector_name,
@@ -1093,11 +1137,13 @@ fn collect_omena_query_source_selector_reference_candidates(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQuerySourceSelectorReferenceCandidateV0> {
-    collect_omena_query_source_selector_references(
+    collect_omena_query_source_selector_references_with_resolution_inputs(
         style_sources,
         source_documents,
         package_manifests,
+        resolution_inputs,
     )
     .into_iter()
     .map(|reference| reference.candidate)
@@ -1108,11 +1154,13 @@ fn collect_omena_query_source_selector_reference_edit_targets(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQuerySourceSelectorReferenceEditTargetV0> {
-    collect_omena_query_source_selector_references(
+    collect_omena_query_source_selector_references_with_resolution_inputs(
         style_sources,
         source_documents,
         package_manifests,
+        resolution_inputs,
     )
     .into_iter()
     .filter_map(|reference| {
@@ -1128,10 +1176,11 @@ fn collect_omena_query_source_selector_reference_edit_targets(
     .collect()
 }
 
-pub(super) fn collect_omena_query_source_selector_references(
+pub(super) fn collect_omena_query_source_selector_references_with_resolution_inputs(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQueryWorkspaceSourceReferenceCandidateV0> {
     let available_style_paths = style_sources
         .iter()
@@ -1144,6 +1193,7 @@ pub(super) fn collect_omena_query_source_selector_references(
             document,
             &available_style_paths,
             package_manifests,
+            resolution_inputs,
         ) else {
             continue;
         };
@@ -1198,6 +1248,7 @@ fn source_selector_reference_index_for_document(
     document: &OmenaQuerySourceDocumentInputV0,
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<OmenaQuerySourceSyntaxIndexV0> {
     if let Some(index) = document.source_syntax_index.clone()
         && (!index.imported_style_bindings.is_empty()
@@ -1222,11 +1273,14 @@ fn source_selector_reference_index_for_document(
             classnames_bind_bindings.push(import.binding);
             continue;
         }
-        let Some(style_uri) = resolve_style_module_source(
+        let Some(style_uri) = resolve_style_module_source_with_path_mappings(
             &document.source_path,
             &import.specifier,
             available_style_paths,
             package_manifests,
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            resolution_inputs.disk_style_path_identities.as_slice(),
         ) else {
             continue;
         };

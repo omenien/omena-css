@@ -3,12 +3,14 @@ use crate::{
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceCandidateV0,
     OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQuerySourceSelectorReferenceFactV0,
     OmenaQuerySourceSelectorReferenceMatchKindV0, OmenaQuerySourceSyntaxIndexV0,
-    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSelectorDefinitionV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTsconfigPathMappingV0, ParserByteSpanV0,
     ParserPositionV0, ParserRangeV0, resolve_omena_query_style_uri_for_specifier,
     summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_refs_for_class,
     summarize_omena_query_refs_for_class_from_occurrence_index,
-    summarize_omena_query_refs_for_workspace_class, summarize_omena_query_rename_plan,
-    summarize_omena_query_rename_plan_from_occurrence_index,
+    summarize_omena_query_refs_for_workspace_class,
+    summarize_omena_query_refs_for_workspace_class_with_resolution_inputs,
+    summarize_omena_query_rename_plan, summarize_omena_query_rename_plan_from_occurrence_index,
     summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_selector_occurrence_index,
     summarize_omena_query_style_completion_at_position,
@@ -1084,6 +1086,46 @@ fn workspace_refs_consume_precomputed_source_syntax_index() -> Result<(), &'stat
         "omenaQuerySourceSelectorReferences"
     );
     Ok(())
+}
+
+#[test]
+fn workspace_refs_resolve_alias_imports_from_explicit_inputs() {
+    let style_path = "/workspace/src/styles/Component.module.scss";
+    let source_path = "/workspace/src/App.tsx";
+    let refs = summarize_omena_query_refs_for_workspace_class_with_resolution_inputs(
+        "root",
+        Some(style_path),
+        false,
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: style_path.to_string(),
+            style_source: ".root { color: red; }".to_string(),
+        }],
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: source_path.to_string(),
+            source_source: r#"import styles from "@styles/Component.module.scss";
+export const app = <div className={styles.root} />;"#
+                .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
+        }],
+        &[],
+        &OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@styles/*".to_string(),
+                target_patterns: vec!["src/styles/*".to_string()],
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        },
+    );
+
+    assert_eq!(refs.location_count, 1, "{refs:?}");
+    assert_eq!(refs.locations[0].uri, source_path);
+    assert_eq!(refs.locations[0].name, "root");
+    assert_eq!(
+        refs.locations[0].source,
+        "omenaQuerySourceSelectorReferences"
+    );
 }
 
 #[test]

@@ -503,12 +503,27 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary(
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCrossFileSummaryV0 {
+    summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs(
+        style_sources,
+        source_documents,
+        package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+}
+
+pub fn summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryCrossFileSummaryV0 {
     let definitions =
         super::source_refs::summarize_omena_query_style_selector_definitions(style_sources);
     summarize_omena_query_source_selector_reference_cross_file_summary_with_definitions(
         style_sources,
         source_documents,
         package_manifests,
+        resolution_inputs,
         definitions.as_slice(),
     )
 }
@@ -517,6 +532,7 @@ fn summarize_omena_query_source_selector_reference_cross_file_summary_from_modul
     module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCrossFileSummaryV0 {
     let style_sources = module_interfaces
         .iter()
@@ -544,6 +560,7 @@ fn summarize_omena_query_source_selector_reference_cross_file_summary_from_modul
         style_sources.as_slice(),
         source_documents,
         package_manifests,
+        resolution_inputs,
         definitions.as_slice(),
     )
 }
@@ -552,13 +569,16 @@ fn summarize_omena_query_source_selector_reference_cross_file_summary_with_defin
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
 ) -> OmenaQueryCrossFileSummaryV0 {
-    let references = super::source_refs::collect_omena_query_source_selector_references(
-        style_sources,
-        source_documents,
-        package_manifests,
-    );
+    let references =
+        super::source_refs::collect_omena_query_source_selector_references_with_resolution_inputs(
+            style_sources,
+            source_documents,
+            package_manifests,
+            resolution_inputs,
+        );
     let mut edges = references
         .into_iter()
         .map(|reference| {
@@ -747,6 +767,7 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_module_int
             module_interfaces,
             source_documents,
             package_manifests,
+            &OmenaQueryStyleResolutionInputsV0::default(),
         );
 
     merge_omena_query_cross_file_summaries(
