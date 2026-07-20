@@ -2078,9 +2078,13 @@ mod tests {
             spec_grammar_registry(),
             CssValueGrammarBudgetV0::default(),
         );
-        let calc_bytes = match serde_json::to_vec(&calc_verdict) {
-            Ok(bytes) => bytes,
-            Err(error) => panic!("failed to serialize calc matcher verdict: {error}"),
+        let calc_bytes = serde_json::to_vec(&calc_verdict);
+        assert!(
+            calc_bytes.is_ok(),
+            "calc matcher verdict must remain serializable: {calc_bytes:?}"
+        );
+        let Ok(calc_bytes) = calc_bytes else {
+            return;
         };
         assert_eq!(
             calc_bytes,
@@ -2171,9 +2175,15 @@ mod tests {
             compatibility_value.reason,
             CssValueValidationReasonV0::GrammarMatched
         );
-        let compatibility_entry = spec_grammar_registry()
-            .entry("properties", "-webkit-background-clip")
-            .unwrap_or_else(|| panic!("compatibility property must remain registered"));
+        let registry = spec_grammar_registry();
+        let compatibility_entry = registry.entry("properties", "-webkit-background-clip");
+        assert!(
+            compatibility_entry.is_some(),
+            "compatibility property must remain registered"
+        );
+        let Some(compatibility_entry) = compatibility_entry else {
+            return;
+        };
         assert!(compatibility_entry.override_provenance.is_some());
 
         let forward_tier =
