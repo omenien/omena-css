@@ -71,6 +71,22 @@ pub fn summarize_omena_query_style_inline_code_actions(
     range: ParserRangeV0,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCodeActionPlanV0 {
+    summarize_omena_query_style_inline_code_actions_with_resolution_inputs(
+        style_uri,
+        style_sources,
+        range,
+        package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+}
+
+pub fn summarize_omena_query_style_inline_code_actions_with_resolution_inputs(
+    style_uri: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    range: ParserRangeV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryCodeActionPlanV0 {
     let Some(target_source) = style_sources
         .iter()
         .find(|source| source.style_path == style_uri)
@@ -115,6 +131,7 @@ pub fn summarize_omena_query_style_inline_code_actions(
             style_source_by_path: &style_source_by_path,
             available_style_paths: &available_style_paths,
             package_manifests,
+            resolution_inputs,
             emitted: BTreeSet::new(),
             visiting: BTreeSet::new(),
         };
@@ -125,6 +142,7 @@ pub fn summarize_omena_query_style_inline_code_actions(
                 &edge,
                 &available_style_paths,
                 package_manifests,
+                resolution_inputs,
             ) else {
                 return empty_style_code_action_plan(style_uri, "styleInlineRefactorActions");
             };
@@ -197,11 +215,30 @@ pub fn summarize_omena_query_style_refactor_code_actions(
     range: ParserRangeV0,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCodeActionPlanV0 {
-    let inline = summarize_omena_query_style_inline_code_actions(
+    summarize_omena_query_style_refactor_code_actions_with_resolution_inputs(
+        style_uri,
+        style_sources,
+        source,
+        range,
+        package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+}
+
+pub fn summarize_omena_query_style_refactor_code_actions_with_resolution_inputs(
+    style_uri: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source: &str,
+    range: ParserRangeV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryCodeActionPlanV0 {
+    let inline = summarize_omena_query_style_inline_code_actions_with_resolution_inputs(
         style_uri,
         style_sources,
         range,
         package_manifests,
+        resolution_inputs,
     );
     if inline.action_count > 0 {
         return inline;
@@ -219,6 +256,7 @@ struct InlineDeclarationContext<'a> {
     style_source_by_path: &'a BTreeMap<&'a str, &'a str>,
     available_style_paths: &'a BTreeSet<&'a str>,
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
     emitted: BTreeSet<(String, String)>,
     visiting: BTreeSet<(String, String)>,
 }
@@ -254,6 +292,7 @@ fn collect_inline_declarations(
             edge,
             context.available_style_paths,
             context.package_manifests,
+            context.resolution_inputs,
         )?;
         for target_name in &edge.target_names {
             declarations.extend(collect_inline_declarations(
@@ -275,16 +314,18 @@ fn resolve_inline_target_style_path(
     edge: &omena_parser::ParsedCssModuleComposesEdgeFact,
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<String> {
     if edge.kind == ParsedCssModuleComposesEdgeKind::Local {
         return Some(owner_style_path.to_string());
     }
     let source = edge.import_source.as_deref()?;
-    resolve_style_module_source(
+    resolve_style_module_source_with_resolution_inputs(
         owner_style_path,
         source,
         available_style_paths,
         package_manifests,
+        resolution_inputs,
     )
     .or_else(|| {
         resolve_file_uri_relative_style_module_source(

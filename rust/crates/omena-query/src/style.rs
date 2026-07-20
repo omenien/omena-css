@@ -1167,6 +1167,24 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     input: &EngineInputV2,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: package_manifests.to_vec(),
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+    summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs(
+        styles,
+        input,
+        package_manifests,
+        &resolution_inputs,
+    )
+}
+
+pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_resolution_inputs<'a>(
+    styles: impl IntoIterator<Item = (&'a str, &'a str)>,
+    input: &EngineInputV2,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
     let style_sources = styles
         .into_iter()
         .map(|(style_path, style_source)| OmenaQueryStyleSourceInputV0 {
@@ -1187,15 +1205,18 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
             &[],
             package_manifests,
             &[],
-            &OmenaQueryStyleResolutionInputsV0::default(),
+            resolution_inputs,
         ) {
             return selector.style_semantic_graph_batch(input, package_manifests);
         }
     }
 
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
-    let css_modules_resolution =
-        summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
+    let css_modules_resolution = summarize_css_modules_cross_file_resolution_with_resolution_inputs(
+        &style_fact_entries,
+        package_manifests,
+        resolution_inputs,
+    );
     let sass_module_resolution = summarize_sass_module_cross_file_resolution(
         &style_fact_entries,
         package_manifests,
@@ -1209,24 +1230,38 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     );
     summarize_omena_query_style_semantic_graph_batch_from_committed_parts(
         style_sources.as_slice(),
-        style_fact_entries.as_slice(),
         input,
         package_manifests,
-        cross_file_summary,
-        css_modules_resolution,
-        sass_module_resolution,
+        resolution_inputs,
+        OmenaQueryStyleSemanticGraphCommittedParts {
+            style_fact_entries: style_fact_entries.as_slice(),
+            cross_file_summary,
+            css_modules_resolution,
+            sass_module_resolution,
+        },
     )
+}
+
+pub(in crate::style) struct OmenaQueryStyleSemanticGraphCommittedParts<'a> {
+    pub style_fact_entries: &'a [OmenaQueryStyleFactEntry],
+    pub cross_file_summary: OmenaQueryCrossFileSummaryV0,
+    pub css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
+    pub sass_module_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
 }
 
 pub(in crate::style) fn summarize_omena_query_style_semantic_graph_batch_from_committed_parts(
     style_sources: &[OmenaQueryStyleSourceInputV0],
-    style_fact_entries: &[OmenaQueryStyleFactEntry],
     input: &EngineInputV2,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
-    cross_file_summary: OmenaQueryCrossFileSummaryV0,
-    css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
-    sass_module_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    committed_parts: OmenaQueryStyleSemanticGraphCommittedParts<'_>,
 ) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
+    let OmenaQueryStyleSemanticGraphCommittedParts {
+        style_fact_entries,
+        cross_file_summary,
+        css_modules_resolution,
+        sass_module_resolution,
+    } = committed_parts;
     let workspace_declarations = style_fact_entries
         .iter()
         .flat_map(|entry| {
@@ -1247,6 +1282,9 @@ pub(in crate::style) fn summarize_omena_query_style_semantic_graph_batch_from_co
                             style_fact_entries,
                             &workspace_declarations,
                             package_manifests,
+                            resolution_inputs.bundler_path_mappings.as_slice(),
+                            resolution_inputs.tsconfig_path_mappings.as_slice(),
+                            resolution_inputs.disk_style_path_identities.as_slice(),
                         );
                     summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations(
                         source.style_path.as_str(),
@@ -2371,9 +2409,24 @@ fn summarize_css_modules_cross_file_resolution(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCssModulesCrossFileResolutionV0 {
+    summarize_css_modules_cross_file_resolution_with_resolution_inputs(
+        style_fact_entries,
+        package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+}
+
+fn summarize_css_modules_cross_file_resolution_with_resolution_inputs(
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryCssModulesCrossFileResolutionV0 {
     let semantic_facts = css_modules_cross_file_style_facts_for_query(style_fact_entries);
-    let style_import_edges =
-        style_import_reachability_edges_for_query(style_fact_entries, package_manifests);
+    let style_import_edges = style_import_reachability_edges_for_query(
+        style_fact_entries,
+        package_manifests,
+        resolution_inputs,
+    );
     summarize_css_modules_cross_file_resolution_from_semantic_inputs(
         semantic_facts.as_slice(),
         style_import_edges.as_slice(),
@@ -2464,6 +2517,7 @@ fn summarize_css_modules_import_edge_resolutions_for_module_interface(
     available_style_paths: &BTreeSet<&str>,
     style_import_edges: &[omena_semantic::StyleImportReachabilityEdgeFactV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<OmenaQueryCssModulesImportEdgeResolutionV0> {
     let mut facts_by_path = target_interfaces
         .iter()
@@ -2492,6 +2546,7 @@ fn summarize_css_modules_import_edge_resolutions_for_module_interface(
             &facts_by_path,
             &reachable,
             package_manifests,
+            resolution_inputs,
             |target| target.class_selector_names.as_slice(),
         ));
     }
@@ -2506,6 +2561,7 @@ fn summarize_css_modules_import_edge_resolutions_for_module_interface(
             &facts_by_path,
             &reachable,
             package_manifests,
+            resolution_inputs,
             |target| target.css_module_value_definition_names.as_slice(),
         ));
     }
@@ -2520,6 +2576,7 @@ fn summarize_css_modules_import_edge_resolutions_for_module_interface(
             &facts_by_path,
             &reachable,
             package_manifests,
+            resolution_inputs,
             |target| target.icss_export_names.as_slice(),
         ));
     }
@@ -2749,13 +2806,15 @@ fn resolve_css_modules_import_edge_for_query(
     facts_by_path: &BTreeMap<&str, &omena_semantic::CssModulesCrossFileStyleFactsV0>,
     reachable: &BTreeMap<String, CssModulesImportReachabilityForQuery>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     exported_names_for_kind: fn(&omena_semantic::CssModulesCrossFileStyleFactsV0) -> &[String],
 ) -> OmenaQueryCssModulesImportEdgeResolutionV0 {
-    let resolved_style_path = resolve_style_module_source(
+    let resolved_style_path = resolve_style_module_source_with_resolution_inputs(
         from_style_path,
         source,
         available_style_paths,
         package_manifests,
+        resolution_inputs,
     );
     let reachability = resolved_style_path
         .as_ref()
@@ -2895,6 +2954,7 @@ fn semantic_package_manifests_for_query(
 fn style_import_reachability_edges_for_query(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<omena_semantic::StyleImportReachabilityEdgeFactV0> {
     let available_style_paths = style_fact_entries
         .iter()
@@ -2905,11 +2965,12 @@ fn style_import_reachability_edges_for_query(
         let targets = collect_style_module_dependency_sources_from_facts(&entry.facts)
             .into_iter()
             .filter_map(|source| {
-                resolve_style_module_source(
+                resolve_style_module_source_with_resolution_inputs(
                     entry.style_path.as_str(),
                     &source,
                     &available_style_paths,
                     package_manifests,
+                    resolution_inputs,
                 )
             })
             .collect::<BTreeSet<_>>();
@@ -3026,11 +3087,17 @@ fn filter_import_reachable_design_token_workspace_declarations(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
 ) -> Vec<DesignTokenWorkspaceDeclarationFactV0> {
     let reachable_style_paths = collect_import_reachable_style_path_metadata(
         target_style_path,
         style_fact_entries,
         package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+        disk_style_path_identities,
     );
     workspace_declarations
         .iter()
@@ -3057,6 +3124,9 @@ fn collect_import_reachable_style_path_metadata(
     target_style_path: &str,
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
 ) -> BTreeMap<String, ImportReachability> {
     let available_style_paths = style_fact_entries
         .iter()
@@ -3067,11 +3137,14 @@ fn collect_import_reachable_style_path_metadata(
         let targets = collect_style_module_dependency_sources_from_facts(&entry.facts)
             .into_iter()
             .filter_map(|source| {
-                resolve_style_module_source(
+                resolve_style_module_source_with_path_mappings(
                     entry.style_path.as_str(),
                     &source,
                     &available_style_paths,
                     package_manifests,
+                    bundler_path_mappings,
+                    tsconfig_path_mappings,
+                    disk_style_path_identities,
                 )
             })
             .collect::<BTreeSet<_>>();
@@ -3129,32 +3202,26 @@ fn collect_style_module_dependency_sources_from_facts(
     sources
 }
 
-fn resolve_style_module_source(
+fn resolve_style_module_source_with_resolution_inputs(
     from_style_path: &str,
     source: &str,
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<String> {
-    let resolver_package_manifests = package_manifests
-        .iter()
-        .map(|manifest| OmenaResolverStylePackageManifestV0 {
-            package_json_path: manifest.package_json_path.clone(),
-            package_json_source: manifest.package_json_source.clone(),
-        })
-        .collect::<Vec<_>>();
-    resolve_omena_resolver_style_module_source(
+    resolve_style_module_source_with_path_mappings(
         from_style_path,
         source,
         available_style_paths,
-        &resolver_package_manifests,
+        package_manifests,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        resolution_inputs.disk_style_path_identities.as_slice(),
     )
 }
 
-/// Alias-aware style-module resolution: the same routing as `resolve_style_module_source`, plus
-/// tsconfig/bundler path-mapping resolution so a workspace-alias specifier (`@/styles/a.module.scss`)
-/// resolves when the workspace's `paths`/`alias` config is wired in. RFC-0007-J (#50): the
-/// unused-selector usage collector must use this so it agrees with the reference/goto path, which
-/// already resolves aliases — otherwise an alias import leaves every selector dimmed `unusedSelector`.
+/// Resolves style-module specifiers through the shared package, alias, load-path, and disk-identity
+/// authority so every query surface observes the same workspace routing inputs.
 fn resolve_style_module_source_with_path_mappings(
     from_style_path: &str,
     source: &str,

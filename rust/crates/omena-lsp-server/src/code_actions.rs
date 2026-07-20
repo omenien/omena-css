@@ -5,9 +5,11 @@ use crate::{
         byte_offset_for_parser_position, document_uri_from_params, file_label_from_uri,
         is_style_document_uri, lsp_range_from_value,
     },
+    resolution_inputs_for_workspace_uri,
 };
 use omena_query::{
-    OmenaQueryCodeActionV0, ParserPositionV0, summarize_omena_query_style_refactor_code_actions,
+    OmenaQueryCodeActionV0, ParserPositionV0,
+    summarize_omena_query_style_refactor_code_actions_with_resolution_inputs,
 };
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -302,12 +304,15 @@ fn resolve_lsp_refactor_code_actions(state: &LspShellState, params: Option<&Valu
         document.workspace_folder_uri.as_deref(),
         Some(document.uri.as_str()),
     );
-    let actions = summarize_omena_query_style_refactor_code_actions(
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+    let actions = summarize_omena_query_style_refactor_code_actions_with_resolution_inputs(
         document.uri.as_str(),
         style_sources.as_slice(),
         document.text.as_str(),
         range,
         &[],
+        &resolution_inputs,
     )
     .actions;
     render_omena_query_lsp_code_actions(actions)

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-query.style-resolution-authority-census",
+  "policy": {
+    "direction": "decrease-only",
+    "floor": 0,
+    "owningCheck": "rust/omena-style-resolution-authority",
+    "packageScript": "check:rust-omena-style-resolution-authority"
+  },
+  "sourceRoot": "rust/crates/omena-query/src",
+  "resolver": "resolve_style_module_source",
+  "baselinePlainCallerCount": 0,
+  "currentPlainCallerCount": 0,
+  "namedExemptions": [],
+  "sites": [],
+  "siteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+}

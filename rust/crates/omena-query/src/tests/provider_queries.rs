@@ -18,6 +18,7 @@ use crate::{
     summarize_omena_query_style_hover_render_parts,
     summarize_omena_query_style_hover_render_parts_for_hover_position,
     summarize_omena_query_style_inline_code_actions,
+    summarize_omena_query_style_inline_code_actions_with_resolution_inputs,
     summarize_omena_query_style_insight_code_actions, summarize_omena_query_style_insights,
 };
 
@@ -587,6 +588,49 @@ fn style_inline_code_actions_are_query_owned() {
         "color: blue;\n  margin: 1rem;"
     );
     assert!(plan.ready_surfaces.contains(&"styleInlineRefactorActions"));
+}
+
+#[test]
+fn style_inline_code_actions_resolve_workspace_aliases() {
+    let style_uri = "/workspace/src/App.module.scss";
+    let target_uri = "/workspace/src/styles/Base.module.scss";
+    let plan = summarize_omena_query_style_inline_code_actions_with_resolution_inputs(
+        style_uri,
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: style_uri.to_string(),
+                style_source: ".button {\n  composes: base from \"@styles/Base.module.scss\";\n}"
+                    .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: target_uri.to_string(),
+                style_source: ".base { color: blue; }".to_string(),
+            },
+        ],
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 1,
+                character: 12,
+            },
+            end: ParserPositionV0 {
+                line: 1,
+                character: 16,
+            },
+        },
+        &[],
+        &OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@styles/*".to_string(),
+                target_patterns: vec!["src/styles/*".to_string()],
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        },
+    );
+
+    assert_eq!(plan.action_count, 1, "{plan:?}");
+    assert_eq!(plan.actions[0].title, "Inline composed class 'base'");
+    assert_eq!(plan.actions[0].edits[0].new_text, "color: blue;");
 }
 
 #[test]

@@ -5,7 +5,7 @@ use std::collections::{BTreeSet, VecDeque};
 pub(super) fn derive_design_token_routes_for_transform_context(
     entry: &OmenaQueryStyleFactEntry,
     entries: &[OmenaQueryStyleFactEntry],
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_context: TransformResolutionContext<'_>,
 ) -> Vec<TransformDesignTokenRouteV0> {
     let workspace_declarations = entries
         .iter()
@@ -20,7 +20,10 @@ pub(super) fn derive_design_token_routes_for_transform_context(
         entry.style_path.as_str(),
         entries,
         &workspace_declarations,
-        package_manifests,
+        resolution_context.package_manifests,
+        resolution_context.bundler_path_mappings,
+        resolution_context.tsconfig_path_mappings,
+        resolution_context.disk_style_path_identities,
     );
     let (local_decl_names, local_ref_names) = local_custom_property_index_names(entry);
 

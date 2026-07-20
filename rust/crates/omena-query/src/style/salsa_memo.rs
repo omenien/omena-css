@@ -542,12 +542,15 @@ impl OmenaQueryStyleRevisionSelectorV0 {
             .collect::<Vec<_>>();
         summarize_omena_query_style_semantic_graph_batch_from_committed_parts(
             style_sources.as_slice(),
-            self.committed_graph.style_fact_entries.as_slice(),
             input,
             package_manifests,
-            self.committed_graph.style_cross_file_summary.clone(),
-            self.committed_graph.css_modules_resolution.clone(),
-            self.committed_graph.sass_module_resolution.clone(),
+            self.workspace.resolution_inputs(&self.db),
+            OmenaQueryStyleSemanticGraphCommittedParts {
+                style_fact_entries: self.committed_graph.style_fact_entries.as_slice(),
+                cross_file_summary: self.committed_graph.style_cross_file_summary.clone(),
+                css_modules_resolution: self.committed_graph.css_modules_resolution.clone(),
+                sass_module_resolution: self.committed_graph.sass_module_resolution.clone(),
+            },
         )
     }
 
@@ -1002,6 +1005,7 @@ fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
         return Vec::new();
     };
     let package_manifests = workspace.package_manifests(db);
+    let resolution_inputs = workspace.resolution_inputs(db);
     let origin = memo_module_interface_projection(db, origin_file);
     let available_style_paths = style_paths_for_workspace(db, workspace);
     let available_style_path_refs = available_style_paths
@@ -1013,11 +1017,12 @@ fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
         .style_dependency_sources
         .iter()
         .filter_map(|source| {
-            resolve_style_module_source(
+            resolve_style_module_source_with_resolution_inputs(
                 origin.style_path.as_str(),
                 source,
                 &available_style_path_refs,
                 package_manifests.as_slice(),
+                resolution_inputs,
             )
         })
         .collect::<BTreeSet<_>>()
@@ -1031,6 +1036,7 @@ fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
         &available_style_path_refs,
         style_import_edges.as_slice(),
         package_manifests.as_slice(),
+        resolution_inputs,
     )
 }
 
@@ -1080,6 +1086,7 @@ fn memo_sass_configurable_variable_names_from_module_interface(
         package_manifests.as_slice(),
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
+        resolution_inputs.disk_style_path_identities.as_slice(),
         &mut visiting,
     )
 }
@@ -1105,6 +1112,7 @@ fn memo_sass_configurable_variable_names_without_manifests_from_module_interface
         &[],
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
+        resolution_inputs.disk_style_path_identities.as_slice(),
         &mut visiting,
     )
 }
@@ -1128,6 +1136,7 @@ fn memo_sass_configurable_variable_names_without_path_mappings_from_module_inter
         style_path.as_str(),
         &available_style_path_refs,
         package_manifests.as_slice(),
+        &[],
         &[],
         &[],
         &mut visiting,
@@ -1482,6 +1491,7 @@ fn memo_style_import_reachability_edges(
         module_dependency_surfaces_for_workspace(db, workspace).as_slice(),
         &available_style_paths,
         workspace.package_manifests(db).as_slice(),
+        workspace.resolution_inputs(db),
     )
 }
 
@@ -1526,6 +1536,7 @@ fn style_import_reachability_edges_from_dependency_surfaces(
     dependency_surfaces: &[OmenaQueryModuleDependencySurfaceV0],
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Vec<omena_semantic::StyleImportReachabilityEdgeFactV0> {
     let mut edges = Vec::new();
     for surface in dependency_surfaces {
@@ -1533,11 +1544,12 @@ fn style_import_reachability_edges_from_dependency_surfaces(
             .style_dependency_sources
             .iter()
             .filter_map(|source| {
-                resolve_style_module_source(
+                resolve_style_module_source_with_resolution_inputs(
                     surface.style_path.as_str(),
                     source,
                     available_style_paths,
                     package_manifests,
+                    resolution_inputs,
                 )
             })
             .collect::<BTreeSet<_>>();
@@ -1613,6 +1625,7 @@ fn sass_configurable_variable_names_for_module_interface_tracked(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
     visiting: &mut BTreeSet<String>,
 ) -> BTreeSet<String> {
     if !visiting.insert(style_path.to_string()) {
@@ -1633,36 +1646,15 @@ fn sass_configurable_variable_names_for_module_interface_tracked(
         .enumerate()
         .collect::<Vec<_>>();
     for (forward_rule_ordinal, edge) in forward_edges {
-        let Some(resolved) = resolve_style_module_source(
+        let Some(resolved) = resolve_style_module_source_with_path_mappings(
             projection_style_path.as_str(),
             edge.source.as_str(),
             available_style_paths,
             package_manifests,
-        )
-        .or_else(|| {
-            let resolver_package_manifests = package_manifests
-                .iter()
-                .map(|manifest| OmenaResolverStylePackageManifestV0 {
-                    package_json_path: manifest.package_json_path.clone(),
-                    package_json_source: manifest.package_json_source.clone(),
-                })
-                .collect::<Vec<_>>();
-            let load_path_roots = collect_load_path_roots(available_style_paths);
-            let load_path_root_refs = load_path_roots
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>();
-            summarize_omena_resolver_style_module_resolution_with_load_path_roots(
-                resolver_style_path(projection_style_path.as_str()).as_str(),
-                edge.source.as_str(),
-                available_style_paths,
-                &resolver_package_manifests,
-                bundler_path_mappings,
-                tsconfig_path_mappings,
-                &load_path_root_refs,
-            )
-            .resolved_style_path
-        }) else {
+            bundler_path_mappings,
+            tsconfig_path_mappings,
+            disk_style_path_identities,
+        ) else {
             continue;
         };
         let Some(resolved) =
@@ -1678,6 +1670,7 @@ fn sass_configurable_variable_names_for_module_interface_tracked(
             package_manifests,
             bundler_path_mappings,
             tsconfig_path_mappings,
+            disk_style_path_identities,
             visiting,
         );
         let non_default_forward_overrides = sass_module_forward_variable_overrides_from_interface(
@@ -2935,6 +2928,93 @@ mod tests {
                 .to_string(),
             },
         ]
+    }
+
+    #[test]
+    fn committed_css_modules_graph_resolves_alias_targets_and_reachability()
+    -> Result<(), &'static str> {
+        let corpus = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/styles/base.module.css".to_string(),
+                style_source: ".base { color: red; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/Card.module.css".to_string(),
+                style_source: ".card { composes: base from \"@styles/base.module.css\"; }"
+                    .to_string(),
+            },
+        ];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![OmenaResolverTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@styles/*".to_string(),
+                target_patterns: vec!["src/styles/*".to_string()],
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        };
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let selector = host
+            .workspace_revision_selector(corpus.as_slice(), &[], &[], &[], &resolution_inputs)
+            .ok_or("alias corpus must commit a selector")?;
+        let edge = selector
+            .css_modules_cross_file_resolution()
+            .edges
+            .iter()
+            .find(|edge| edge.import_kind == "composes")
+            .ok_or("alias composes edge must be present")?;
+
+        assert_eq!(
+            edge.resolved_style_path.as_deref(),
+            Some("/workspace/src/styles/base.module.css"),
+        );
+        assert_eq!(edge.matched_names, vec!["base"]);
+        assert_eq!(edge.import_graph_distance, Some(1));
+        Ok(())
+    }
+
+    #[test]
+    fn committed_sass_graph_propagates_configurable_names_through_alias_forwards()
+    -> Result<(), &'static str> {
+        let corpus = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/styles/_tokens.scss".to_string(),
+                style_source: "$brand: red !default;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/_theme.scss".to_string(),
+                style_source: "@forward \"@styles/tokens\";".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/src/app.scss".to_string(),
+                style_source: "@use \"./theme\" with ($brand: blue);".to_string(),
+            },
+        ];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![OmenaResolverTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@styles/*".to_string(),
+                target_patterns: vec!["src/styles/*".to_string()],
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        };
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let selector = host
+            .workspace_revision_selector(corpus.as_slice(), &[], &[], &[], &resolution_inputs)
+            .ok_or("alias Sass corpus must commit a selector")?;
+        let app_edge = selector
+            .sass_module_cross_file_resolution()
+            .edges
+            .iter()
+            .find(|edge| edge.from_style_path == "/workspace/src/app.scss")
+            .ok_or("configured app edge must be present")?;
+
+        assert_eq!(app_edge.status, "resolved");
+        assert_eq!(app_edge.configuration_variable_count, 1);
+        assert_eq!(
+            app_edge.invalid_configuration_variable_names,
+            Vec::<String>::new(),
+        );
+        Ok(())
     }
 
     fn set_of(paths: impl IntoIterator<Item = &'static str>) -> BTreeSet<String> {

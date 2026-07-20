@@ -1799,6 +1799,36 @@ fn derives_transform_context_with_transitive_design_token_routes() {
 }
 
 #[test]
+fn derives_transform_context_design_tokens_through_workspace_aliases() {
+    let summary = summarize_omena_query_transform_context_from_sources_with_resolution_inputs(
+        "/workspace/src/Button.module.css",
+        [
+            (
+                "/workspace/src/Button.module.css",
+                r#"@import "@styles/tokens.css"; .button { color: var(--brand); }"#,
+            ),
+            (
+                "/workspace/src/styles/tokens.css",
+                r#":root { --brand: red; }"#,
+            ),
+        ],
+        &OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@styles/*".to_string(),
+                target_patterns: vec!["src/styles/*".to_string()],
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        },
+    );
+
+    assert_eq!(summary.import_inline_count, 1, "{summary:?}");
+    assert_eq!(summary.design_token_route_count, 1, "{summary:?}");
+    assert_eq!(summary.context.design_token_routes[0].token_name, "--brand");
+    assert_eq!(summary.context.design_token_routes[0].routed_value, "red");
+}
+
+#[test]
 fn derives_transform_context_with_transitive_import_inlines() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.css",

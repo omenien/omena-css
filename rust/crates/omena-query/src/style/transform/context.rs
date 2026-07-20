@@ -348,7 +348,7 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
         context.design_token_routes = derive_design_token_routes_for_transform_context(
             entry,
             &style_fact_entries,
-            resolution_context.package_manifests,
+            resolution_context,
         );
     }
 

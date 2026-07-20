@@ -301,7 +301,8 @@ export const app = <div className={styles.ghost} />;"#;
 }
 
 #[test]
-fn workspace_source_diagnostics_do_not_claim_nonexistence_without_disk_evidence() {
+fn workspace_source_diagnostics_do_not_claim_nonexistence_without_disk_evidence()
+-> Result<(), &'static str> {
     let summary =
         summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
             "/workspace/src/App.tsx",
@@ -321,10 +322,11 @@ fn workspace_source_diagnostics_do_not_claim_nonexistence_without_disk_evidence(
         .diagnostics
         .iter()
         .find(|diagnostic| diagnostic.code == "missingModule")
-        .expect("the unresolved module must remain diagnostic");
+        .ok_or("the unresolved module must remain diagnostic")?;
 
     assert!(diagnostic.message.contains("provided workspace inputs"));
     assert!(!diagnostic.message.contains("does not exist"));
+    Ok(())
 }
 
 #[test]
