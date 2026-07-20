@@ -70,7 +70,7 @@
     "omena-scss-eval": 178,
     "omena-semantic": 122,
     "omena-sif": 41,
-    "omena-spec-audit": 16,
+    "omena-spec-audit": 22,
     "omena-syntax": 12,
     "omena-testkit": 32,
     "omena-transform-cst": 56,
@@ -241,7 +241,7 @@
       "crate": "omena-abstract-value",
       "typeName": "CachedVdsExpression",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 720
+      "line": 756
     },
     {
       "crate": "omena-abstract-value",
@@ -379,79 +379,79 @@
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarBudgetKindV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 40
+      "line": 42
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarBudgetV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 22
+      "line": 24
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarCategoryAuditV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 193
+      "line": 201
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarDefectV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 203
+      "line": 211
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarLocusV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 48
+      "line": 50
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarRegistryAuditV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 182
+      "line": 190
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarTypedMatchV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 212
+      "line": 220
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueGrammarVerdictV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 59
+      "line": 61
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueTypedProjectionV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 219
+      "line": 227
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueValidationClassV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 85
+      "line": 87
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueValidationConsumerPolicyV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 112
+      "line": 115
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueValidationReasonV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 93
+      "line": 95
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "CssValueValidationV0",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 104
+      "line": 107
     },
     {
       "crate": "omena-abstract-value",
@@ -559,13 +559,13 @@
       "crate": "omena-abstract-value",
       "typeName": "MatchContext",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 1289
+      "line": 1325
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "MatchStop",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 1276
+      "line": 1312
     },
     {
       "crate": "omena-abstract-value",
@@ -577,7 +577,7 @@
       "crate": "omena-abstract-value",
       "typeName": "NumericRange",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 708
+      "line": 744
     },
     {
       "crate": "omena-abstract-value",
@@ -721,7 +721,7 @@
       "crate": "omena-abstract-value",
       "typeName": "ReferenceCategory",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 701
+      "line": 737
     },
     {
       "crate": "omena-abstract-value",
@@ -763,7 +763,7 @@
       "crate": "omena-abstract-value",
       "typeName": "RepeatMatchPlan",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 1299
+      "line": 1335
     },
     {
       "crate": "omena-abstract-value",
@@ -823,37 +823,37 @@
       "crate": "omena-abstract-value",
       "typeName": "VdsExpression",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 673
+      "line": 709
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsParseError",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 714
+      "line": 750
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsParser",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 769
+      "line": 805
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsReference",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 694
+      "line": 730
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsToken",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 743
+      "line": 779
     },
     {
       "crate": "omena-abstract-value",
       "typeName": "VdsTokenKind",
       "sourcePath": "rust/crates/omena-abstract-value/src/value_grammar.rs",
-      "line": 749
+      "line": 785
     },
     {
       "crate": "omena-abstract-value",
@@ -9583,97 +9583,133 @@
       "crate": "omena-spec-audit",
       "typeName": "OmenaSpecAuditBoundarySummaryV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 31
+      "line": 32
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "OmenaSpecManifestEntryV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 156
+      "line": 157
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "OmenaSpecManifestSourceCoverageV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 147
+      "line": 148
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "OmenaSpecManifestV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 137
+      "line": 138
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "SpecGeneratedDataReviewGateV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 109
+      "line": 110
+    },
+    {
+      "crate": "omena-spec-audit",
+      "typeName": "SpecGrammarBoundaryClassificationV0",
+      "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
+      "line": 686
+    },
+    {
+      "crate": "omena-spec-audit",
+      "typeName": "SpecGrammarBoundaryV0",
+      "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
+      "line": 694
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "SpecGrammarEntryV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 647
+      "line": 675
+    },
+    {
+      "crate": "omena-spec-audit",
+      "typeName": "SpecGrammarOverrideAuditV0",
+      "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
+      "line": 714
+    },
+    {
+      "crate": "omena-spec-audit",
+      "typeName": "SpecGrammarOverrideProvenanceV0",
+      "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
+      "line": 703
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "SpecGrammarRegistryV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 658
+      "line": 726
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "SpecSourcePinsV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 91
+      "line": 92
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "SpecSourcePinV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 118
+      "line": 119
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "SpecSourceRefreshPolicyV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 102
+      "line": 103
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "SpecVocabularyV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 638
+      "line": 664
+    },
+    {
+      "crate": "omena-spec-audit",
+      "typeName": "ValueGrammarOverrideRowV0",
+      "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
+      "line": 578
+    },
+    {
+      "crate": "omena-spec-audit",
+      "typeName": "ValueGrammarOverrideSetV0",
+      "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
+      "line": 569
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "WebrefGrammarConsumerSummaryV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 575
+      "line": 601
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "WebrefGrammarEntryV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 559
+      "line": 560
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "WebrefGrammarSnapshotV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 542
+      "line": 543
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "WebrefGrammarSourceV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 552
+      "line": 553
     },
     {
       "crate": "omena-spec-audit",
       "typeName": "WebrefGrammarTermV0",
       "sourcePath": "rust/crates/omena-spec-audit/src/lib.rs",
-      "line": 568
+      "line": 594
     },
     {
       "crate": "omena-syntax",
