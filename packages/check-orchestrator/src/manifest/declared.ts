@@ -664,6 +664,17 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-css/spec-boundary", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-value-grammar-evidence", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-value-grammar-differential", "gate", "rust"),
+  {
+    id: "rust/omena-value-grammar-corpus:update",
+    kind: "command",
+    scope: "rust",
+    packageTarget: "rust/omena-value-grammar-corpus:update",
+    tags: ["rust", "value-grammar", "corpus", "update"],
+    ciTier: "manual",
+    ciGroup: "rust",
+    ciReason:
+      "Pinned real-declaration corpus regeneration changes committed data and requires review.",
+  },
   declaredClosurePackageGate("release/check/release-tag-grammar", "gate", "release"),
   declaredClosurePackageGate("rust/closure-fast-aggregation-complete", "gate", "rust"),
   {
