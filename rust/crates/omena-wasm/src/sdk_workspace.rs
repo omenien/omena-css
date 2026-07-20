@@ -1,8 +1,9 @@
 use omena_query::{
     OmenaError, OmenaErrorClassV0, OmenaErrorContextV0, OmenaErrorRecoverabilityV0,
-    OmenaErrorSeverityV0, OmenaQueryStyleSourceInputV0, OmenaSdkBuildRequestV0,
-    OmenaSdkDiagnosticsRequestV0, OmenaSdkErrorEnvelopeV0, OmenaSdkExplainRequestV0,
-    OmenaSdkQueryRequestV0, OmenaSdkSnapshotRequestV0, OmenaSdkWorkspaceV0,
+    OmenaErrorSeverityV0, OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
+    OmenaSdkBuildRequestV0, OmenaSdkDiagnosticsRequestV0, OmenaSdkErrorEnvelopeV0,
+    OmenaSdkExplainRequestV0, OmenaSdkQueryRequestV0, OmenaSdkSnapshotRequestV0,
+    OmenaSdkWorkspaceV0,
 };
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -42,6 +43,23 @@ impl OmenaWasmWorkspaceV0 {
             .replace_style_sources(style_sources)
             .map_err(browser_error)?;
         to_value(&snapshot)
+    }
+
+    /// Replaces caller-discovered mappings and disk identities without browser-side filesystem use.
+    #[wasm_bindgen(js_name = replaceStyleResolutionInputs)]
+    pub fn replace_style_resolution_inputs(
+        &mut self,
+        resolution_inputs: JsValue,
+    ) -> Result<JsValue, JsValue> {
+        let resolution_inputs = parse_value::<OmenaQueryStyleResolutionInputsV0>(
+            resolution_inputs,
+            "style resolution inputs",
+        )?;
+        to_value(
+            &self
+                .inner
+                .replace_style_resolution_inputs(resolution_inputs),
+        )
     }
 
     #[wasm_bindgen(js_name = query)]

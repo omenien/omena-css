@@ -1,6 +1,7 @@
 use omena_query::{
-    IncrementalRevisionV0, OmenaError, OmenaErrorClassV0, OmenaQueryStyleSourceInputV0,
-    OmenaSdkBuildRequestV0, OmenaSdkBuildVerificationProfileV0, OmenaSdkBuildVerificationReasonV0,
+    IncrementalRevisionV0, OmenaError, OmenaErrorClassV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTsconfigPathMappingV0, OmenaSdkBuildRequestV0,
+    OmenaSdkBuildVerificationProfileV0, OmenaSdkBuildVerificationReasonV0,
     OmenaSdkDiagnosticsRequestV0, OmenaSdkExplainPositionV0, OmenaSdkExplainRequestV0,
     OmenaSdkQueryRequestV0, OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0,
     OmenaSdkSnapshotResponseV0, OmenaSdkWorkspaceV0, OmenaWorkspaceSnapshotIdV0,
@@ -258,5 +259,43 @@ fn workspace_runtime_normalizes_empty_style_paths() -> Result<(), OmenaError> {
         style_source: ".root { color: red; }".to_string(),
     })?;
     assert_eq!(response.summary.style_path, "style.css");
+    Ok(())
+}
+
+#[test]
+fn workspace_alias_resolution_surface_uses_snapshot_inputs() -> Result<(), OmenaError> {
+    let workspace = OmenaSdkWorkspaceV0::open_with_resolution_inputs(
+        OmenaSdkSnapshotRequestV0 {
+            workspace_root: "/workspace".to_string(),
+        },
+        [OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/styles/Card.module.css".to_string(),
+            style_source: ".card {}".to_string(),
+        }],
+        OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@styles/*".to_string(),
+                target_patterns: vec!["src/styles/*".to_string()],
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        },
+    )?;
+
+    let summary = workspace.execute_source_diagnostics(
+        workspace.snapshot_id(),
+        "/workspace/src/App.tsx",
+        r#"import styles from "@styles/Card.module.css";
+export const app = <div className={styles.card} />;"#,
+        &[],
+    )?;
+
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingModule"),
+        "{summary:?}"
+    );
     Ok(())
 }

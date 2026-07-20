@@ -8,20 +8,20 @@ use crate::{
     OmenaErrorRecoverabilityV0, OmenaErrorSeverityV0, OmenaQueryBuildVerificationProfileV0,
     OmenaQueryConsumerBuildOptionsV0, OmenaQueryExplainInputV0,
     OmenaQuerySourceDiagnosticsForFileV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTransformStrictPolicyEventV0,
-    OmenaQueryTransformStrictPolicyReasonV0, OmenaQueryTransformStrictPolicySummaryV0,
-    OmenaSdkBuildRequestV0, OmenaSdkBuildResponseV0, OmenaSdkBuildVerificationEventV0,
-    OmenaSdkBuildVerificationProfileV0, OmenaSdkBuildVerificationReasonV0,
-    OmenaSdkBuildVerificationSummaryV0, OmenaSdkDiagnosticsRequestV0,
-    OmenaSdkDiagnosticsResponseV0, OmenaSdkExplainRequestV0, OmenaSdkExplainResponseV0,
-    OmenaSdkQueryRequestV0, OmenaSdkQueryResponseV0, OmenaSdkResponsePartitionV0,
-    OmenaSdkSnapshotRequestV0, OmenaSdkSnapshotResponseV0, OmenaWorkspaceSnapshotIdV0,
-    ParserPositionV0, attach_omena_query_consumer_build_source_map_v3,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTransformStrictPolicyEventV0, OmenaQueryTransformStrictPolicyReasonV0,
+    OmenaQueryTransformStrictPolicySummaryV0, OmenaSdkBuildRequestV0, OmenaSdkBuildResponseV0,
+    OmenaSdkBuildVerificationEventV0, OmenaSdkBuildVerificationProfileV0,
+    OmenaSdkBuildVerificationReasonV0, OmenaSdkBuildVerificationSummaryV0,
+    OmenaSdkDiagnosticsRequestV0, OmenaSdkDiagnosticsResponseV0, OmenaSdkExplainRequestV0,
+    OmenaSdkExplainResponseV0, OmenaSdkQueryRequestV0, OmenaSdkQueryResponseV0,
+    OmenaSdkResponsePartitionV0, OmenaSdkSnapshotRequestV0, OmenaSdkSnapshotResponseV0,
+    OmenaWorkspaceSnapshotIdV0, ParserPositionV0, attach_omena_query_consumer_build_source_map_v3,
     execute_omena_query_consumer_build_style_source_with_context_and_options,
     execute_omena_sdk_diagnostics_workflow, explain_omena_query,
     read_omena_query_cascade_at_position, resolve_omena_bundler_host_module_v0,
     summarize_omena_query_consumer_check_style_source,
-    summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
 };
 
@@ -29,6 +29,7 @@ use crate::{
 pub struct OmenaSdkWorkspaceV0 {
     workspace_root: String,
     style_sources: BTreeMap<String, String>,
+    style_resolution_inputs: OmenaQueryStyleResolutionInputsV0,
     revision: IncrementalRevisionV0,
 }
 
@@ -37,10 +38,23 @@ impl OmenaSdkWorkspaceV0 {
         request: OmenaSdkSnapshotRequestV0,
         style_sources: impl IntoIterator<Item = OmenaQueryStyleSourceInputV0>,
     ) -> Result<Self, OmenaError> {
-        Self::open_at_snapshot(
+        Self::open_with_resolution_inputs(
+            request,
+            style_sources,
+            OmenaQueryStyleResolutionInputsV0::default(),
+        )
+    }
+
+    pub fn open_with_resolution_inputs(
+        request: OmenaSdkSnapshotRequestV0,
+        style_sources: impl IntoIterator<Item = OmenaQueryStyleSourceInputV0>,
+        style_resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    ) -> Result<Self, OmenaError> {
+        Self::open_at_snapshot_with_resolution_inputs(
             request,
             style_sources,
             OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 1 }),
+            style_resolution_inputs,
         )
     }
 
@@ -48,6 +62,20 @@ impl OmenaSdkWorkspaceV0 {
         request: OmenaSdkSnapshotRequestV0,
         style_sources: impl IntoIterator<Item = OmenaQueryStyleSourceInputV0>,
         snapshot_id: OmenaWorkspaceSnapshotIdV0,
+    ) -> Result<Self, OmenaError> {
+        Self::open_at_snapshot_with_resolution_inputs(
+            request,
+            style_sources,
+            snapshot_id,
+            OmenaQueryStyleResolutionInputsV0::default(),
+        )
+    }
+
+    pub fn open_at_snapshot_with_resolution_inputs(
+        request: OmenaSdkSnapshotRequestV0,
+        style_sources: impl IntoIterator<Item = OmenaQueryStyleSourceInputV0>,
+        snapshot_id: OmenaWorkspaceSnapshotIdV0,
+        style_resolution_inputs: OmenaQueryStyleResolutionInputsV0,
     ) -> Result<Self, OmenaError> {
         if request.workspace_root.trim().is_empty() {
             return Err(sdk_error(
@@ -75,6 +103,7 @@ impl OmenaSdkWorkspaceV0 {
         Ok(Self {
             workspace_root: request.workspace_root,
             style_sources: sources,
+            style_resolution_inputs,
             revision: snapshot_id.revision(),
         })
     }
@@ -115,6 +144,17 @@ impl OmenaSdkWorkspaceV0 {
             self.revision.value = self.revision.value.saturating_add(1);
         }
         Ok(self.snapshot())
+    }
+
+    pub fn replace_style_resolution_inputs(
+        &mut self,
+        style_resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    ) -> OmenaSdkSnapshotResponseV0 {
+        if style_resolution_inputs != self.style_resolution_inputs {
+            self.style_resolution_inputs = style_resolution_inputs;
+            self.revision.value = self.revision.value.saturating_add(1);
+        }
+        self.snapshot()
     }
 
     pub fn execute_query(
@@ -206,12 +246,15 @@ impl OmenaSdkWorkspaceV0 {
     ) -> Result<OmenaQuerySourceDiagnosticsForFileV0, OmenaError> {
         self.ensure_snapshot(snapshot_id, "source diagnostics")?;
         let style_sources = self.style_source_inputs();
-        Ok(summarize_omena_query_source_diagnostics_for_workspace_file(
-            source_path,
-            source,
-            style_sources.as_slice(),
-            package_manifests,
-        ))
+        Ok(
+            summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
+                source_path,
+                source,
+                style_sources.as_slice(),
+                package_manifests,
+                &self.style_resolution_inputs,
+            ),
+        )
     }
 
     pub fn execute_bundler_resolve(

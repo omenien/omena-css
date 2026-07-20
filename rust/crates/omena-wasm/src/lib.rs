@@ -55,7 +55,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_binding_index_for_source_language,
     summarize_omena_query_source_diagnostics_for_file,
-    summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
     summarize_omena_query_style_completion_at_position,
@@ -393,6 +393,34 @@ pub fn read_workspace_style_diagnostics(
     )?)
 }
 
+#[wasm_bindgen(js_name = readWorkspaceStyleDiagnosticsWithResolutionInputs)]
+pub fn read_workspace_style_diagnostics_with_resolution_inputs(
+    target_path: &str,
+    style_sources: JsValue,
+    source_documents: JsValue,
+    package_manifests: JsValue,
+    resolution_inputs: JsValue,
+    external_sifs: JsValue,
+    external_mode: Option<String>,
+) -> Result<JsValue, JsValue> {
+    let sources = parse_style_sources_value(style_sources)?;
+    let source_documents = parse_source_documents_value(source_documents)?;
+    let package_manifests = parse_package_manifests_value(package_manifests)?;
+    let resolution_inputs = parse_style_resolution_inputs_value(resolution_inputs)?;
+    let external_sifs = parse_external_sifs_value(external_sifs)?;
+    to_js_value(
+        &read_workspace_style_diagnostics_summary_with_resolution_inputs(
+            target_path,
+            &sources,
+            &source_documents,
+            &package_manifests,
+            &resolution_inputs,
+            &external_sifs,
+            external_mode.as_deref(),
+        )?,
+    )
+}
+
 #[wasm_bindgen(js_name = readStyleHoverCandidates)]
 pub fn read_style_hover_candidates(source: &str, path: &str) -> Result<JsValue, JsValue> {
     to_js_value(&read_style_hover_candidates_summary(source, path)?)
@@ -437,6 +465,30 @@ pub fn read_workspace_source_diagnostics(
         &style_sources,
         &package_manifests,
     ))
+}
+
+/// Resolves workspace style imports from caller-supplied mappings and disk identities.
+/// Browser hosts remain responsible for discovering and refreshing these inputs.
+#[wasm_bindgen(js_name = readWorkspaceSourceDiagnosticsWithResolutionInputs)]
+pub fn read_workspace_source_diagnostics_with_resolution_inputs(
+    source_uri: &str,
+    source: &str,
+    style_sources: JsValue,
+    package_manifests: JsValue,
+    resolution_inputs: JsValue,
+) -> Result<JsValue, JsValue> {
+    let style_sources = parse_style_sources_value(style_sources)?;
+    let package_manifests = parse_package_manifests_value(package_manifests)?;
+    let resolution_inputs = parse_style_resolution_inputs_value(resolution_inputs)?;
+    to_js_value(
+        &read_workspace_source_diagnostics_summary_with_resolution_inputs(
+            source_uri,
+            source,
+            &style_sources,
+            &package_manifests,
+            &resolution_inputs,
+        ),
+    )
 }
 
 #[wasm_bindgen(js_name = readSourceSyntaxIndex)]
@@ -807,12 +859,34 @@ pub fn read_workspace_style_diagnostics_summary(
     external_sifs: &[OmenaWasmExternalSifInputV0],
     external_mode: Option<&str>,
 ) -> Result<OmenaWasmStyleDiagnosticsForFileV0, JsValue> {
-    let target_path = effective_path(target_path);
-    let external_mode = parse_external_module_mode(external_mode)?;
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
         package_manifests: package_manifests.to_vec(),
         ..Default::default()
     };
+    read_workspace_style_diagnostics_summary_with_resolution_inputs(
+        target_path,
+        sources,
+        source_documents,
+        package_manifests,
+        &resolution_inputs,
+        external_sifs,
+        external_mode,
+    )
+}
+
+pub fn read_workspace_style_diagnostics_summary_with_resolution_inputs(
+    target_path: &str,
+    sources: &[OmenaWasmStyleSourceInputV0],
+    source_documents: &[OmenaWasmSourceDocumentInputV0],
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    external_sifs: &[OmenaWasmExternalSifInputV0],
+    external_mode: Option<&str>,
+) -> Result<OmenaWasmStyleDiagnosticsForFileV0, JsValue> {
+    let target_path = effective_path(target_path);
+    let external_mode = parse_external_module_mode(external_mode)?;
+    let mut resolution_inputs = resolution_inputs.clone();
+    resolution_inputs.package_manifests = package_manifests.to_vec();
     let mut host = OmenaQueryStyleMemoHostV0::new();
     host.workspace_revision_selector(
         sources,
@@ -869,11 +943,28 @@ pub fn read_workspace_source_diagnostics_summary(
     style_sources: &[OmenaWasmStyleSourceInputV0],
     package_manifests: &[OmenaWasmStylePackageManifestV0],
 ) -> OmenaWasmSourceDiagnosticsForFileV0 {
-    summarize_omena_query_source_diagnostics_for_workspace_file(
+    read_workspace_source_diagnostics_summary_with_resolution_inputs(
         source_uri,
         source,
         style_sources,
         package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+}
+
+pub fn read_workspace_source_diagnostics_summary_with_resolution_inputs(
+    source_uri: &str,
+    source: &str,
+    style_sources: &[OmenaWasmStyleSourceInputV0],
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaWasmSourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
+        source_uri,
+        source,
+        style_sources,
+        package_manifests,
+        resolution_inputs,
     )
 }
 
@@ -999,6 +1090,20 @@ fn parse_package_manifests_value(
     serde_wasm_bindgen::from_value(value).map_err(|error| {
         JsValue::from_str(&format!(
             "packageManifests must be an array of package manifest objects: {error}"
+        ))
+    })
+}
+
+fn parse_style_resolution_inputs_value(
+    value: JsValue,
+) -> Result<OmenaQueryStyleResolutionInputsV0, JsValue> {
+    if value.is_null() || value.is_undefined() {
+        return Ok(OmenaQueryStyleResolutionInputsV0::default());
+    }
+
+    serde_wasm_bindgen::from_value(value).map_err(|error| {
+        JsValue::from_str(&format!(
+            "resolutionInputs must be an explicit style-resolution input object: {error}"
         ))
     })
 }
@@ -1566,6 +1671,38 @@ export function App() {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingResolvedClassValues")
+        );
+    }
+
+    #[test]
+    fn workspace_alias_resolution_surface_accepts_explicit_browser_inputs() {
+        let sources = vec![OmenaWasmStyleSourceInputV0 {
+            style_path: "/workspace/src/styles/Card.module.css".to_string(),
+            style_source: ".card {}".to_string(),
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![omena_query::OmenaQueryTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@styles/*".to_string(),
+                target_patterns: vec!["src/styles/*".to_string()],
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        };
+        let summary = read_workspace_source_diagnostics_summary_with_resolution_inputs(
+            "/workspace/src/App.tsx",
+            r#"import styles from "@styles/Card.module.css";
+export const app = <div className={styles.card} />;"#,
+            &sources,
+            &[],
+            &resolution_inputs,
+        );
+
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "missingModule"),
+            "{summary:?}"
         );
     }
 

@@ -88,7 +88,10 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
   ["style-semantic-graph", ["summarize_omena_query_style_semantic_graph_from_source"]],
   ["read-cascade-at-position", ["read_omena_query_cascade_at_position"]],
   ["style-diagnostics-for-file", ["summarize_style_diagnostics_from_committed_selector"]],
-  ["source-diagnostics-for-file", ["summarize_omena_query_source_diagnostics_for_workspace_file"]],
+  [
+    "source-diagnostics-for-file",
+    ["summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs"],
+  ],
   [
     "completion-at",
     [

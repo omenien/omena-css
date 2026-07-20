@@ -8,10 +8,10 @@ use std::{
 use napi_derive::napi;
 use omena_query::{
     OmenaError, OmenaErrorClassV0, OmenaErrorContextV0, OmenaErrorRecoverabilityV0,
-    OmenaErrorSeverityV0, OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
-    OmenaSdkBuildRequestV0, OmenaSdkDiagnosticsRequestV0, OmenaSdkErrorEnvelopeV0,
-    OmenaSdkExplainRequestV0, OmenaSdkQueryRequestV0, OmenaSdkSnapshotRequestV0,
-    OmenaSdkWorkspaceV0,
+    OmenaErrorSeverityV0, OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaSdkBuildRequestV0, OmenaSdkDiagnosticsRequestV0,
+    OmenaSdkErrorEnvelopeV0, OmenaSdkExplainRequestV0, OmenaSdkQueryRequestV0,
+    OmenaSdkSnapshotRequestV0, OmenaSdkWorkspaceV0,
 };
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -79,6 +79,22 @@ impl OmenaNapiWorkspaceV0 {
             .replace_style_sources(style_sources)
             .map_err(native_error)?;
         to_json(&snapshot)
+    }
+
+    #[napi(js_name = "replaceStyleResolutionInputsJson")]
+    pub fn replace_style_resolution_inputs_json(
+        &mut self,
+        resolution_inputs_json: String,
+    ) -> napi::Result<String> {
+        let resolution_inputs = parse_json::<OmenaQueryStyleResolutionInputsV0>(
+            resolution_inputs_json.as_str(),
+            "style resolution inputs",
+        )?;
+        to_json(
+            &self
+                .inner
+                .replace_style_resolution_inputs(resolution_inputs),
+        )
     }
 
     #[napi(js_name = "queryJson")]
@@ -149,6 +165,20 @@ impl OmenaNapiCachedWorkspaceV0 {
         let snapshot = lock_workspace(&self.inner)?
             .replace_style_sources(style_sources)
             .map_err(native_error)?;
+        to_json(&snapshot)
+    }
+
+    #[napi(js_name = "replaceStyleResolutionInputsJson")]
+    pub fn replace_style_resolution_inputs_json(
+        &self,
+        resolution_inputs_json: String,
+    ) -> napi::Result<String> {
+        let resolution_inputs = parse_json::<OmenaQueryStyleResolutionInputsV0>(
+            resolution_inputs_json.as_str(),
+            "style resolution inputs",
+        )?;
+        let snapshot =
+            lock_workspace(&self.inner)?.replace_style_resolution_inputs(resolution_inputs);
         to_json(&snapshot)
     }
 

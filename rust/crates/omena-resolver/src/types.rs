@@ -123,7 +123,7 @@ pub struct OmenaResolverStylePackageManifestV0 {
     pub package_json_source: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaResolverTsconfigPathMappingV0 {
     pub base_path: String,
@@ -131,14 +131,14 @@ pub struct OmenaResolverTsconfigPathMappingV0 {
     pub target_patterns: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaResolverBundlerPathAliasMappingV0 {
     pub pattern: String,
     pub target_path: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaResolverStyleModuleDiskCandidateIdentityV0 {
     pub style_path: String,

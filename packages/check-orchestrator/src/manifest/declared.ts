@@ -462,6 +462,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-syntax-authority-raw-scan-census",
       "rust/omena-keyword-case-authority-census",
       "rust/omena-style-resolution-authority",
+      "rust/omena-alias-resolution-surfaces",
       "rust/omena-verification-targets",
       "rust/omena-cli-migration",
       "rust/omenad-substrate-inventory",
@@ -584,6 +585,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-syntax-authority-raw-scan-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-keyword-case-authority-census", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-style-resolution-authority", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-alias-resolution-surfaces", "gate", "rust"),
   {
     id: "rust/omena-syntax-authority-raw-scan-census:update",
     kind: "command",

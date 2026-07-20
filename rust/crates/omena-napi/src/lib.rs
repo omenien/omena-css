@@ -62,7 +62,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_binding_index_for_source_language,
     summarize_omena_query_source_diagnostics_for_file,
-    summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
     summarize_omena_query_style_completion_at_position,
@@ -394,6 +394,34 @@ pub fn read_workspace_style_diagnostics_json(
     )?)
 }
 
+#[napi(js_name = "readWorkspaceStyleDiagnosticsWithResolutionInputsJson")]
+pub fn read_workspace_style_diagnostics_with_resolution_inputs_json(
+    target_path: String,
+    sources_json: String,
+    source_documents_json: String,
+    package_manifests_json: String,
+    resolution_inputs_json: String,
+    external_sifs_json: Option<String>,
+    external_mode: Option<String>,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let source_documents = parse_source_documents_json(&source_documents_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    let resolution_inputs = parse_style_resolution_inputs_json(&resolution_inputs_json)?;
+    let external_sifs = parse_external_sifs_json(external_sifs_json.as_deref())?;
+    to_json_string(
+        &read_workspace_style_diagnostics_summary_with_resolution_inputs(
+            &target_path,
+            &sources,
+            &source_documents,
+            &package_manifests,
+            &resolution_inputs,
+            &external_sifs,
+            external_mode.as_deref(),
+        )?,
+    )
+}
+
 #[napi(js_name = "readStyleHoverCandidatesJson")]
 pub fn read_style_hover_candidates_json(source: String, path: String) -> napi::Result<String> {
     to_json_string(&read_style_hover_candidates_summary(&source, &path)?)
@@ -441,6 +469,28 @@ pub fn read_workspace_source_diagnostics_json(
         &sources,
         &package_manifests,
     ))
+}
+
+#[napi(js_name = "readWorkspaceSourceDiagnosticsWithResolutionInputsJson")]
+pub fn read_workspace_source_diagnostics_with_resolution_inputs_json(
+    source_uri: String,
+    source: String,
+    sources_json: String,
+    package_manifests_json: String,
+    resolution_inputs_json: String,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    let resolution_inputs = parse_style_resolution_inputs_json(&resolution_inputs_json)?;
+    to_json_string(
+        &read_workspace_source_diagnostics_summary_with_resolution_inputs(
+            &source_uri,
+            &source,
+            &sources,
+            &package_manifests,
+            &resolution_inputs,
+        ),
+    )
 }
 
 #[napi(js_name = "readSourceSyntaxIndexJson")]
@@ -809,12 +859,34 @@ pub fn read_workspace_style_diagnostics_summary(
     external_sifs: &[OmenaNapiExternalSifInputV0],
     external_mode: Option<&str>,
 ) -> napi::Result<OmenaNapiStyleDiagnosticsForFileV0> {
-    let target_path = effective_path(target_path);
-    let external_mode = parse_external_module_mode(external_mode)?;
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
         package_manifests: package_manifests.to_vec(),
         ..Default::default()
     };
+    read_workspace_style_diagnostics_summary_with_resolution_inputs(
+        target_path,
+        sources,
+        source_documents,
+        package_manifests,
+        &resolution_inputs,
+        external_sifs,
+        external_mode,
+    )
+}
+
+pub fn read_workspace_style_diagnostics_summary_with_resolution_inputs(
+    target_path: &str,
+    sources: &[OmenaNapiStyleSourceInputV0],
+    source_documents: &[OmenaNapiSourceDocumentInputV0],
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    external_sifs: &[OmenaNapiExternalSifInputV0],
+    external_mode: Option<&str>,
+) -> napi::Result<OmenaNapiStyleDiagnosticsForFileV0> {
+    let target_path = effective_path(target_path);
+    let external_mode = parse_external_module_mode(external_mode)?;
+    let mut resolution_inputs = resolution_inputs.clone();
+    resolution_inputs.package_manifests = package_manifests.to_vec();
     let mut host = OmenaQueryStyleMemoHostV0::new();
     host.workspace_revision_selector(
         sources,
@@ -872,11 +944,28 @@ pub fn read_workspace_source_diagnostics_summary(
     style_sources: &[OmenaNapiStyleSourceInputV0],
     package_manifests: &[OmenaNapiStylePackageManifestV0],
 ) -> OmenaNapiSourceDiagnosticsForFileV0 {
-    summarize_omena_query_source_diagnostics_for_workspace_file(
+    read_workspace_source_diagnostics_summary_with_resolution_inputs(
         source_uri,
         source,
         style_sources,
         package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+}
+
+pub fn read_workspace_source_diagnostics_summary_with_resolution_inputs(
+    source_uri: &str,
+    source: &str,
+    style_sources: &[OmenaNapiStyleSourceInputV0],
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaNapiSourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
+        source_uri,
+        source,
+        style_sources,
+        package_manifests,
+        resolution_inputs,
     )
 }
 
@@ -973,6 +1062,19 @@ fn parse_package_manifests_json(
     }
     serde_json::from_str(package_manifests_json).map_err(|error| {
         napi::Error::from_reason(format!("failed to parse package manifests JSON: {error}"))
+    })
+}
+
+fn parse_style_resolution_inputs_json(
+    resolution_inputs_json: &str,
+) -> napi::Result<OmenaQueryStyleResolutionInputsV0> {
+    if json_argument_is_absent(resolution_inputs_json) {
+        return Ok(OmenaQueryStyleResolutionInputsV0::default());
+    }
+    serde_json::from_str(resolution_inputs_json).map_err(|error| {
+        napi::Error::from_reason(format!(
+            "failed to parse style resolution inputs JSON: {error}"
+        ))
     })
 }
 
@@ -2313,6 +2415,24 @@ export function App() {
         .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
 
         assert_query_diagnostics_json_shape(&json, "source", "missingResolvedClassValues")?;
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_alias_resolution_surface_accepts_explicit_node_inputs() -> napi::Result<()> {
+        let json = read_workspace_source_diagnostics_with_resolution_inputs_json(
+            "/workspace/src/App.tsx".to_string(),
+            r#"import styles from "@styles/Card.module.css";
+export const app = <div className={styles.card} />;"#
+                .to_string(),
+            r#"[{"stylePath":"/workspace/src/styles/Card.module.css","styleSource":".card {}"}]"#
+                .to_string(),
+            "[]".to_string(),
+            r#"{"tsconfigPathMappings":[{"basePath":"/workspace","pattern":"@styles/*","targetPatterns":["src/styles/*"]}]}"#
+                .to_string(),
+        )?;
+
+        assert!(!json.contains("\"code\":\"missingModule\""), "{json}");
         Ok(())
     }
 

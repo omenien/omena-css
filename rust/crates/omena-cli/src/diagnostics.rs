@@ -16,7 +16,7 @@ use omena_query::{
     resolve_omena_query_bridge_external_sifs_for_style_sources,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_source_diagnostics_for_file,
-    summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
     summarize_omena_query_style_hover_candidates,
     summarize_omena_query_unified_cross_file_hypergraph,
@@ -528,12 +528,20 @@ pub(crate) fn source_diagnostics_summary(
         let source_source = read_source(&source_path)?;
         let style_sources = read_style_sources(&source_paths)?;
         let package_manifests = read_package_manifests(&package_manifest_paths)?;
-        Ok(summarize_omena_query_source_diagnostics_for_workspace_file(
-            source_uri.as_str(),
-            source_source.as_str(),
-            style_sources.as_slice(),
+        let workspace_folder_uri = style_resolution_workspace_uri_for_path(&source_path);
+        let resolution_inputs = load_omena_query_workspace_style_resolution_inputs(
+            workspace_folder_uri.as_deref(),
             package_manifests.as_slice(),
-        ))
+        );
+        Ok(
+            summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
+                source_uri.as_str(),
+                source_source.as_str(),
+                style_sources.as_slice(),
+                package_manifests.as_slice(),
+                &resolution_inputs,
+            ),
+        )
     }
 }
 

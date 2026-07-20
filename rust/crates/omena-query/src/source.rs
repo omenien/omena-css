@@ -3,7 +3,7 @@ use omena_query_core::{
     AbstractClassValueV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
     abstract_class_value_kind, join_abstract_class_values, top_class_value,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub type OmenaQueryTsconfigPathMappingV0 = omena_resolver::OmenaResolverTsconfigPathMappingV0;
@@ -12,8 +12,8 @@ pub type OmenaQueryBundlerPathAliasMappingV0 =
 pub type OmenaQueryStyleModuleDiskCandidateIdentityV0 =
     omena_resolver::OmenaResolverStyleModuleDiskCandidateIdentityV0;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct OmenaQueryStyleResolutionInputsV0 {
     pub package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     pub tsconfig_path_mappings: Vec<OmenaQueryTsconfigPathMappingV0>,

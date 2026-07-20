@@ -3469,6 +3469,63 @@ export function App() {
 }
 
 #[test]
+fn workspace_alias_resolution_surface_uses_project_config() -> Result<(), String> {
+    let examples_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../examples");
+    let source_path = examples_root.join("src/scenarios/11-ts-path/TsPathScenario.tsx");
+    let style_path = examples_root.join("src/scenarios/11-ts-path/TsPath.module.scss");
+    let summary = source_diagnostics_summary(
+        path_string(&source_path),
+        None,
+        Some(source_path.clone()),
+        vec![style_path],
+        Vec::new(),
+    )?;
+
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingModule"),
+        "existing tsconfig alias target was reported missing: {summary:?}"
+    );
+
+    let control_root = temp_dir("missing-tsconfig-alias-control");
+    let control_source_dir = control_root.join("src");
+    fs::create_dir_all(&control_source_dir)
+        .map_err(|error| format!("control source dir should be writable: {error}"))?;
+    fs::write(
+        control_root.join("tsconfig.json"),
+        r#"{"compilerOptions":{"baseUrl":".","paths":{"@styles/*":["src/styles/*"]}}}"#,
+    )
+    .map_err(|error| format!("control tsconfig should be writable: {error}"))?;
+    let control_source_path = control_source_dir.join("App.tsx");
+    fs::write(
+        &control_source_path,
+        r#"import styles from "@styles/Missing.module.scss";
+export const app = <div className={styles.root} />;"#,
+    )
+    .map_err(|error| format!("control source should be writable: {error}"))?;
+
+    let control = source_diagnostics_summary(
+        path_string(&control_source_path),
+        None,
+        Some(control_source_path),
+        Vec::new(),
+        Vec::new(),
+    )?;
+    assert!(
+        control
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "missingModule"),
+        "genuinely absent alias target must remain diagnostic: {control:?}"
+    );
+
+    cleanup_dir(&control_root);
+    Ok(())
+}
+
+#[test]
 fn perceptual_check_command_emits_exact_color_wcag_witness_from_query_facts() -> Result<(), String>
 {
     let source_path = temp_path("perceptual.module.css");

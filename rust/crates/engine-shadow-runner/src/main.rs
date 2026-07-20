@@ -111,7 +111,7 @@ use omena_query::{
     summarize_omena_query_selector_usage_canonical_producer_signal,
     summarize_omena_query_selector_usage_query_fragments,
     summarize_omena_query_source_completion_for_workspace_file,
-    summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_source_resolution_canonical_producer_signal,
     summarize_omena_query_source_resolution_query_fragments,
     summarize_omena_query_source_resolution_runtime,
@@ -220,6 +220,8 @@ struct SourceDiagnosticsForFileInputV0 {
     styles: Vec<OmenaQueryStyleSourceInputV0>,
     #[serde(default)]
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+    #[serde(default)]
+    resolution_inputs: OmenaQueryStyleResolutionInputsV0,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1987,12 +1989,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("source-diagnostics-for-file") => {
             let input: SourceDiagnosticsForFileInputV0 = serde_json::from_str(&stdin)?;
-            let summary = summarize_omena_query_source_diagnostics_for_workspace_file(
-                &input.source_path,
-                &input.source_source,
-                &input.styles,
-                &input.package_manifests,
-            );
+            let summary =
+                summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
+                    &input.source_path,
+                    &input.source_source,
+                    &input.styles,
+                    &input.package_manifests,
+                    &input.resolution_inputs,
+                );
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("completion-at") => {
@@ -2742,11 +2746,12 @@ fn run_daemon_selected_query_command(
         "source-diagnostics-for-file" => {
             let input: SourceDiagnosticsForFileInputV0 = serde_json::from_value(input)?;
             Ok(serde_json::to_value(
-                summarize_omena_query_source_diagnostics_for_workspace_file(
+                summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
                     &input.source_path,
                     &input.source_source,
                     &input.styles,
                     &input.package_manifests,
+                    &input.resolution_inputs,
                 ),
             )?)
         }
