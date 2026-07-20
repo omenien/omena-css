@@ -98,6 +98,9 @@ importers:
       postcss:
         specifier: ^8.5.19
         version: 8.5.19
+      postcss-less:
+        specifier: 6.0.0
+        version: 6.0.0(postcss@8.5.19)
       postcss-safe-parser:
         specifier: 7.0.1
         version: 7.0.1(postcss@8.5.19)

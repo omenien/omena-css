@@ -47,11 +47,48 @@
   ],
   "differentialCases": [
     {
+      "id": "padding-unitless-zero-valid",
+      "property": "padding",
+      "value": "0",
+      "expectedValid": true
+    },
+    {
+      "id": "margin-unitless-zero-auto-valid",
+      "property": "margin",
+      "value": "0 auto",
+      "expectedValid": true
+    },
+    {
+      "id": "border-width-mixed-zero-valid",
+      "property": "border-width",
+      "value": "0 4px 6px",
+      "expectedValid": true
+    },
+    {
+      "id": "box-shadow-none-valid",
+      "property": "box-shadow",
+      "value": "none",
+      "expectedValid": true
+    },
+    {
+      "id": "background-transparent-valid",
+      "property": "background",
+      "value": "transparent",
+      "expectedValid": true
+    },
+    {
+      "id": "webkit-background-clip-text-valid",
+      "property": "-webkit-background-clip",
+      "value": "text",
+      "expectedValid": true
+    },
+    {
       "id": "width-anchor-size-known-divergence",
       "property": "width",
       "value": "anchor-size(width)",
       "adjudication": "omenaMatcherDefect",
-      "reason": "the pinned width grammar references anchor-size() but the bounded matcher does not yet recognize that function family"
+      "reason": "the pinned width grammar references anchor-size() but the bounded matcher does not yet recognize that function family",
+      "owner": "value-grammar-function-matching"
     },
     {
       "id": "custom-property-not-comparable",
