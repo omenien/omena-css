@@ -3186,6 +3186,11 @@ fn resolve_style_module_source_with_path_mappings_and_identity_index(
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
     identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Option<String> {
+    let load_path_roots = collect_load_path_roots(available_style_paths);
+    let load_path_root_refs = load_path_roots
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
     let resolver_package_manifests = package_manifests
         .iter()
         .map(|manifest| OmenaResolverStylePackageManifestV0 {
@@ -3201,7 +3206,7 @@ fn resolve_style_module_source_with_path_mappings_and_identity_index(
         &resolver_package_manifests,
         bundler_path_mappings,
         tsconfig_path_mappings,
-        &[],
+        load_path_root_refs.as_slice(),
         OmenaResolverStyleModuleConfirmationOptionsV0 {
             allow_disk_confirmation: true,
             identity_index,

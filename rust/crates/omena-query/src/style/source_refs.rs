@@ -512,26 +512,38 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
-    summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth(
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
         source_path,
         source_source,
         style_sources,
         package_manifests,
-        OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
+        &OmenaQueryStyleResolutionInputsV0::default(),
     )
 }
 
-/// Workspace source diagnostics with an explicit call-string bound `k` for the
-/// harvested dynamic-className M-tier flow. The default LSP entry pins
-/// `k = OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH`; this variant
-/// exposes `k` so the context-sensitivity of the harvested k-CFA flow is
-/// observable (a context-insensitive `k = 0` run joins call sites that share a
-/// callee binding and emits a different M-tier diagnostic set).
-pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth(
+pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
     source_path: &str,
     source_source: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth(
+        source_path,
+        source_source,
+        style_sources,
+        package_manifests,
+        resolution_inputs,
+        OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
+    )
+}
+
+fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth(
+    source_path: &str,
+    source_source: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     max_context_depth: usize,
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
     let available_style_paths = style_sources
@@ -558,11 +570,14 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
             continue;
         }
 
-        match resolve_style_module_source(
+        match resolve_style_module_source_with_path_mappings(
             source_path,
             import.specifier.as_str(),
             &available_style_paths,
             package_manifests,
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            resolution_inputs.disk_style_path_identities.as_slice(),
         ) {
             Some(style_path) => {
                 imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
@@ -578,10 +593,17 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
                     "omena-resolver.style-module-resolution",
                 ],
                 range: parser_range_for_byte_span(source_source, import.specifier_byte_span),
-                message: format!(
-                    "Cannot resolve CSS Module '{}'. The file does not exist.",
-                    import.specifier
-                ),
+                message: if resolution_inputs.disk_style_path_identities.is_empty() {
+                    format!(
+                        "Cannot resolve CSS Module '{}' from the provided workspace inputs.",
+                        import.specifier
+                    )
+                } else {
+                    format!(
+                        "Cannot resolve CSS Module '{}'. The file does not exist.",
+                        import.specifier
+                    )
+                },
                 precision: Some(source_diagnostic_precision(
                     "styleModuleResolution",
                     "sourceImportResolution",
@@ -620,6 +642,29 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
             ],
             include_dynamic_classname_m_tier: true,
         },
+    )
+}
+
+/// Workspace source diagnostics with an explicit call-string bound `k` for the
+/// harvested dynamic-className M-tier flow. The default LSP entry pins
+/// `k = OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH`; this variant
+/// exposes `k` so the context-sensitivity of the harvested k-CFA flow is
+/// observable (a context-insensitive `k = 0` run joins call sites that share a
+/// callee binding and emits a different M-tier diagnostic set).
+pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth(
+    source_path: &str,
+    source_source: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    max_context_depth: usize,
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs_and_context_depth(
+        source_path,
+        source_source,
+        style_sources,
+        package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+        max_context_depth,
     )
 }
 

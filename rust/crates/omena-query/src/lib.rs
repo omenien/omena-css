@@ -553,6 +553,7 @@ pub use style::{
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_context_depth,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index_and_definitions,

@@ -3,11 +3,12 @@ use crate::{
     OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
     OmenaQuerySourceSelectorReferenceFactV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
     OmenaQuerySourceSyntaxIndexV0, OmenaQuerySourceTypeFactProviderUnavailableFactV0,
-    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserByteSpanV0,
-    ParserPositionV0, ParserRangeV0, canonicalize_omena_query_source_selector_references,
-    is_omena_query_sass_symbol_candidate_kind, is_omena_query_sass_symbol_reference_kind,
-    omena_query_sass_symbol_kind_from_candidate_kind, omena_query_sass_symbol_target_matches,
-    resolve_omena_query_sass_forward_sources,
+    OmenaQueryStyleModuleDiskCandidateIdentityV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTsconfigPathMappingV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
+    canonicalize_omena_query_source_selector_references, is_omena_query_sass_symbol_candidate_kind,
+    is_omena_query_sass_symbol_reference_kind, omena_query_sass_symbol_kind_from_candidate_kind,
+    omena_query_sass_symbol_target_matches, resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations, resolve_omena_query_selector_rename_edits,
     resolve_omena_query_source_candidate_selector_names,
@@ -17,6 +18,7 @@ use crate::{
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_source_syntax_index,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_hover_candidates,
@@ -242,6 +244,115 @@ export function App({ suffix }) {
             .contains(&"checkerProductDiagnosticGate")
     );
     Ok(())
+}
+
+#[test]
+fn workspace_source_diagnostics_resolve_aliases_and_preserve_missing_targets() {
+    let source_path = "/workspace/src/App.tsx";
+    let style_path = "/workspace/src/styles/App.module.scss";
+    let source = r#"import styles from "@styles/App.module.scss";
+import missing from "@styles/Missing.module.scss";
+export const app = <div className={styles.ghost} />;"#;
+    let style_sources = [OmenaQueryStyleSourceInputV0 {
+        style_path: style_path.to_string(),
+        style_source: ".root {}\n".to_string(),
+    }];
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+            base_path: "/workspace".to_string(),
+            pattern: "@styles/*".to_string(),
+            target_patterns: vec!["src/styles/*".to_string()],
+        }],
+        disk_style_path_identities: vec![OmenaQueryStyleModuleDiskCandidateIdentityV0 {
+            style_path: style_path.to_string(),
+            metadata_identity: "fixture|app-module".to_string(),
+        }],
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+
+    let summary =
+        summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
+            source_path,
+            source,
+            &style_sources,
+            &[],
+            &resolution_inputs,
+        );
+    let missing_modules = summary
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingModule")
+        .collect::<Vec<_>>();
+
+    assert_eq!(missing_modules.len(), 1, "{summary:?}");
+    assert!(missing_modules[0].message.contains("Missing.module.scss"));
+    assert!(
+        missing_modules[0]
+            .message
+            .contains("The file does not exist.")
+    );
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "missingStaticClass"),
+        "the resolved alias binding must feed selector diagnostics: {summary:?}"
+    );
+}
+
+#[test]
+fn workspace_source_diagnostics_do_not_claim_nonexistence_without_disk_evidence() {
+    let summary =
+        summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
+            "/workspace/src/App.tsx",
+            r#"import missing from "@styles/Missing.module.scss";"#,
+            &[],
+            &[],
+            &OmenaQueryStyleResolutionInputsV0 {
+                tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+                    base_path: "/workspace".to_string(),
+                    pattern: "@styles/*".to_string(),
+                    target_patterns: vec!["src/styles/*".to_string()],
+                }],
+                ..OmenaQueryStyleResolutionInputsV0::default()
+            },
+        );
+    let diagnostic = summary
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "missingModule")
+        .expect("the unresolved module must remain diagnostic");
+
+    assert!(diagnostic.message.contains("provided workspace inputs"));
+    assert!(!diagnostic.message.contains("does not exist"));
+}
+
+#[test]
+fn legacy_workspace_source_diagnostics_delegate_neutrally_for_relative_imports() {
+    let source_path = "/workspace/src/App.tsx";
+    let source = r#"import styles from "./App.module.scss";
+export const app = <div className={styles.ghost} />;"#;
+    let style_sources = [OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.scss".to_string(),
+        style_source: ".root {}\n".to_string(),
+    }];
+
+    let legacy = summarize_omena_query_source_diagnostics_for_workspace_file(
+        source_path,
+        source,
+        &style_sources,
+        &[],
+    );
+    let explicit =
+        summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
+            source_path,
+            source,
+            &style_sources,
+            &[],
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+
+    assert_eq!(legacy, explicit);
 }
 
 #[test]
