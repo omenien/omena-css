@@ -1499,18 +1499,28 @@ mod tests {
         assert_eq!(audit.applied_entry_count, 1);
         assert!(audit.all_entries_valid);
 
-        let entry = spec_grammar_registry()
-            .entry("properties", "-webkit-background-clip")
-            .unwrap_or_else(|| panic!("compatibility property must remain in the registry"));
+        let registry = spec_grammar_registry();
+        let entry = registry.entry("properties", "-webkit-background-clip");
+        assert!(
+            entry.is_some(),
+            "compatibility property must remain in the registry"
+        );
+        let Some(entry) = entry else {
+            return;
+        };
         assert_eq!(entry.syntax.as_deref(), Some("[ <visual-box> | text ]#"));
         assert_eq!(
             entry.boundary.classification,
             SpecGrammarBoundaryClassificationV0::InBoundary
         );
-        let provenance = entry
-            .override_provenance
-            .as_ref()
-            .unwrap_or_else(|| panic!("reviewed syntax delta must retain provenance"));
+        let provenance = entry.override_provenance.as_ref();
+        assert!(
+            provenance.is_some(),
+            "reviewed syntax delta must retain provenance"
+        );
+        let Some(provenance) = provenance else {
+            return;
+        };
         assert_eq!(provenance.source_url, entry.source_url);
         assert_eq!(provenance.source_syntax, "<visual-box>#");
         assert_eq!(provenance.decision, "replace-syntax");
@@ -1521,11 +1531,17 @@ mod tests {
 
     #[test]
     fn reviewed_value_grammar_override_rejects_drift_and_missing_review_metadata() {
-        let (snapshot, mut overrides) = parse_value_grammar_override_sources(
+        let parsed = parse_value_grammar_override_sources(
             WEBREF_GRAMMAR_SOURCE,
             VALUE_GRAMMAR_OVERRIDES_SOURCE,
-        )
-        .unwrap_or_else(|| panic!("embedded grammar override sources must parse"));
+        );
+        assert!(
+            parsed.is_some(),
+            "embedded grammar override sources must parse"
+        );
+        let Some((snapshot, mut overrides)) = parsed else {
+            return;
+        };
         overrides.entries[0].reviewer.clear();
         assert!(!value_grammar_override_set_is_valid(&snapshot, &overrides));
 
