@@ -38,9 +38,9 @@
       "surface": "computedValueResolution",
       "fixture": "inexact-specificity-ranked-set",
       "before": "status=valid;value=red;winner=inexact",
-      "after": "status=invalidAtComputedValueTime;value=guaranteedInvalid;winner=none",
+      "after": "status=indeterminate;value=indeterminate;winner=none",
       "adjudication": "intendedCorrection",
-      "downstreamDisposition": "registeredValueResolutionFollowUp"
+      "downstreamDisposition": "typedIndeterminateContract"
     }
   ]
 }

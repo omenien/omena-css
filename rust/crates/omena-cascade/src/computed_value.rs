@@ -6,9 +6,9 @@
 use crate::{
     CascadeComputedValueInputV0, CascadeComputedValueResultV0, CascadeOutcome,
     CascadeRegisteredCustomPropertyV0, CascadeRegisteredValueVerdictV0, CascadeValue,
-    ComputedCascadeValueStatusV0, CssPropertyInheritanceV0, CssPropertyInitialValueV0,
-    cascade_property, css_property_initial_value, css_property_is_inherited,
-    substitute_custom_properties,
+    ComputedCascadeIndeterminateReasonV0, ComputedCascadeValueStatusV0, CssPropertyInheritanceV0,
+    CssPropertyInitialValueV0, cascade_property, css_property_initial_value,
+    css_property_is_inherited, substitute_custom_properties,
 };
 
 pub fn compute_cascade_computed_value(
@@ -24,6 +24,9 @@ pub fn compute_cascade_computed_value(
     let registered_custom_property =
         registered_custom_property.filter(|registration| registration.name == property);
     let outcome = cascade_property(declarations, &property);
+    if let Some(result) = computed_value_from_indeterminate_cascade_outcome(&property, &outcome) {
+        return result;
+    }
     let (winner_declaration_id, cascaded_value, registered_value_verdict, mut derivation_steps) =
         match outcome {
             CascadeOutcome::Definite { winner, .. } => {
@@ -60,24 +63,14 @@ pub fn compute_cascade_computed_value(
                         return computed_value_from_unknown_metadata(
                             property,
                             None,
+                            ComputedCascadeIndeterminateReasonV0::PropertyInheritanceMetadataUnavailable,
                             vec!["noCascadeWinner", "propertyInheritanceMetadataUnavailable"],
                         );
                     }
                 }
             }
             CascadeOutcome::RankedSet(_) | CascadeOutcome::Top => {
-                return CascadeComputedValueResultV0 {
-                    schema_version: "0",
-                    product: "omena-cascade.computed-value",
-                    property,
-                    status: ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
-                    value: CascadeValue::GuaranteedInvalid,
-                    winner_declaration_id: None,
-                    inherited: false,
-                    used_initial_value: false,
-                    invalid_at_computed_value_time: true,
-                    derivation_steps: vec!["cascadeOutcomeIndeterminate"],
-                };
+                unreachable!("indeterminate cascade outcomes return before winner resolution")
             }
         };
 
@@ -99,6 +92,7 @@ pub fn compute_cascade_computed_value(
             return computed_value_from_unknown_metadata(
                 property,
                 winner_declaration_id,
+                ComputedCascadeIndeterminateReasonV0::RegisteredPropertySyntaxIndeterminate,
                 derivation_steps,
             );
         }
@@ -162,6 +156,7 @@ pub fn compute_cascade_computed_value(
                 inherited: false,
                 used_initial_value: false,
                 invalid_at_computed_value_time: false,
+                indeterminate_reason: None,
                 derivation_steps,
             }
         }
@@ -193,8 +188,10 @@ fn computed_value_from_unset(
             return computed_value_from_unknown_metadata(
                 property,
                 winner_declaration_id,
+                ComputedCascadeIndeterminateReasonV0::PropertyInheritanceMetadataUnavailable,
                 derivation_steps,
-            );
+            )
+            .with_invalid_at_computed_value_time(invalid_at_computed_value_time);
         }
         CssPropertyInheritanceV0::NotInherited => {}
     }
@@ -217,6 +214,15 @@ fn computed_value_from_inherit(
     registered_custom_property: Option<&CascadeRegisteredCustomPropertyV0>,
 ) -> CascadeComputedValueResultV0 {
     match parent_computed_value {
+        Some(CascadeValue::Indeterminate) => {
+            derivation_steps.push("inheritedFromIndeterminateParent");
+            computed_value_from_unknown_metadata(
+                property,
+                winner_declaration_id,
+                ComputedCascadeIndeterminateReasonV0::InheritedFromIndeterminateParent,
+                derivation_steps,
+            )
+        }
         Some(value) => {
             derivation_steps.push("parentComputedValueUsed");
             CascadeComputedValueResultV0 {
@@ -229,6 +235,7 @@ fn computed_value_from_inherit(
                 inherited: true,
                 used_initial_value: false,
                 invalid_at_computed_value_time: false,
+                indeterminate_reason: None,
                 derivation_steps,
             }
         }
@@ -262,6 +269,7 @@ fn computed_value_from_initial(
             inherited: false,
             used_initial_value: true,
             invalid_at_computed_value_time: false,
+            indeterminate_reason: None,
             derivation_steps,
         };
     }
@@ -277,6 +285,7 @@ fn computed_value_from_initial(
             inherited: false,
             used_initial_value: true,
             invalid_at_computed_value_time: false,
+            indeterminate_reason: None,
             derivation_steps,
         },
         CssPropertyInitialValueV0::GuaranteedInvalid => CascadeComputedValueResultV0 {
@@ -289,11 +298,17 @@ fn computed_value_from_initial(
             inherited: false,
             used_initial_value: true,
             invalid_at_computed_value_time: false,
+            indeterminate_reason: None,
             derivation_steps,
         },
         CssPropertyInitialValueV0::Unknown => {
             derivation_steps.push("propertyInitialValueMetadataUnavailable");
-            computed_value_from_unknown_metadata(property, winner_declaration_id, derivation_steps)
+            computed_value_from_unknown_metadata(
+                property,
+                winner_declaration_id,
+                ComputedCascadeIndeterminateReasonV0::PropertyInitialValueMetadataUnavailable,
+                derivation_steps,
+            )
         }
     }
 }
@@ -313,19 +328,38 @@ fn property_inheritance(
 fn computed_value_from_unknown_metadata(
     property: String,
     winner_declaration_id: Option<String>,
+    reason: ComputedCascadeIndeterminateReasonV0,
     derivation_steps: Vec<&'static str>,
 ) -> CascadeComputedValueResultV0 {
     CascadeComputedValueResultV0 {
         schema_version: "0",
         product: "omena-cascade.computed-value",
         property,
-        status: ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
-        value: CascadeValue::GuaranteedInvalid,
+        status: ComputedCascadeValueStatusV0::Indeterminate,
+        value: CascadeValue::Indeterminate,
         winner_declaration_id,
         inherited: false,
         used_initial_value: false,
-        invalid_at_computed_value_time: true,
+        invalid_at_computed_value_time: false,
+        indeterminate_reason: Some(reason),
         derivation_steps,
+    }
+}
+
+pub(crate) fn computed_value_from_indeterminate_cascade_outcome(
+    property: &str,
+    outcome: &CascadeOutcome,
+) -> Option<CascadeComputedValueResultV0> {
+    match outcome {
+        CascadeOutcome::RankedSet(_) | CascadeOutcome::Top => {
+            Some(computed_value_from_unknown_metadata(
+                property.to_string(),
+                None,
+                ComputedCascadeIndeterminateReasonV0::CascadeOutcomeIndeterminate,
+                vec!["cascadeOutcomeIndeterminate"],
+            ))
+        }
+        CascadeOutcome::Definite { .. } | CascadeOutcome::Inherit => None,
     }
 }
 
@@ -334,6 +368,10 @@ impl CascadeComputedValueResultV0 {
         if invalid_at_computed_value_time {
             self.status = ComputedCascadeValueStatusV0::InvalidAtComputedValueTime;
             self.invalid_at_computed_value_time = true;
+            if self.value == CascadeValue::Indeterminate {
+                self.value = CascadeValue::GuaranteedInvalid;
+                self.indeterminate_reason = None;
+            }
         }
         self
     }

@@ -830,7 +830,7 @@ fn property_metadata_lookup_respects_the_supplied_sorted_registry() {
 }
 
 #[test]
-fn unknown_property_metadata_fails_closed_with_provenance() {
+fn unknown_property_metadata_is_typed_as_indeterminate() {
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
         property: "future-property".to_string(),
         declarations: Vec::new(),
@@ -838,16 +838,139 @@ fn unknown_property_metadata_fails_closed_with_provenance() {
         parent_computed_value: None,
         registered_custom_property: None,
     });
+    assert_eq!(result.status, ComputedCascadeValueStatusV0::Indeterminate);
+    assert_eq!(result.value, CascadeValue::Indeterminate);
+    assert!(!result.invalid_at_computed_value_time);
     assert_eq!(
-        result.status,
-        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+        result.indeterminate_reason,
+        Some(ComputedCascadeIndeterminateReasonV0::PropertyInheritanceMetadataUnavailable)
     );
-    assert_eq!(result.value, CascadeValue::GuaranteedInvalid);
     assert!(
         result
             .derivation_steps
             .contains(&"propertyInheritanceMetadataUnavailable")
     );
+}
+
+#[test]
+fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
+    let cascade_outcome = crate::computed_value::computed_value_from_indeterminate_cascade_outcome(
+        "color",
+        &CascadeOutcome::RankedSet(Vec::new()),
+    );
+    assert!(cascade_outcome.is_some());
+    let Some(cascade_outcome) = cascade_outcome else {
+        return;
+    };
+
+    let unknown_inheritance = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "future-property".to_string(),
+        declarations: Vec::new(),
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+    });
+
+    let unknown_initial_value = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "background".to_string(),
+        declarations: Vec::new(),
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+    });
+
+    let unknown_declaration = property_declaration(
+        "unknown-gap",
+        "--gap",
+        CascadeValue::Literal("12px".to_string()),
+        1,
+    );
+    let unknown_registered_syntax = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "--gap".to_string(),
+        declarations: vec![unknown_declaration],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: Some(CascadeRegisteredCustomPropertyV0 {
+            name: "--gap".to_string(),
+            inherits: false,
+            initial_value: CascadeValue::Literal("8px".to_string()),
+            declaration_value_verdicts: BTreeMap::from([(
+                "unknown-gap".to_string(),
+                CascadeRegisteredValueVerdictV0::Unknown,
+            )]),
+        }),
+    });
+
+    let inherited_from_indeterminate =
+        compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: "color".to_string(),
+            declarations: Vec::new(),
+            custom_property_env: CustomPropertyEnv::new(),
+            parent_computed_value: Some(CascadeValue::Indeterminate),
+            registered_custom_property: None,
+        });
+
+    let fixtures = [
+        cascade_outcome,
+        unknown_inheritance,
+        unknown_initial_value,
+        unknown_registered_syntax,
+        inherited_from_indeterminate,
+    ];
+    for fixture in &fixtures {
+        assert_eq!(fixture.status, ComputedCascadeValueStatusV0::Indeterminate);
+        assert_eq!(fixture.value, CascadeValue::Indeterminate);
+        assert!(!fixture.invalid_at_computed_value_time);
+        assert!(fixture.indeterminate_reason.is_some());
+    }
+
+    let observed = fixtures
+        .iter()
+        .filter_map(|fixture| fixture.indeterminate_reason)
+        .collect::<BTreeSet<_>>();
+    let expected = ComputedCascadeIndeterminateReasonV0::ALL
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(observed, expected);
+}
+
+#[test]
+fn genuine_substitution_failure_survives_unknown_metadata_fallbacks() {
+    for property in ["future-prop", "background"] {
+        let mut env = CustomPropertyEnv::new();
+        env.insert(
+            "--cyclic".to_string(),
+            CascadeValue::Var {
+                name: "--cyclic".to_string(),
+                fallback: None,
+            },
+        );
+        let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: property.to_string(),
+            declarations: vec![property_declaration(
+                "cyclic-value",
+                property,
+                CascadeValue::Var {
+                    name: "--cyclic".to_string(),
+                    fallback: None,
+                },
+                1,
+            )],
+            custom_property_env: env,
+            parent_computed_value: None,
+            registered_custom_property: None,
+        });
+
+        assert_eq!(
+            result.status,
+            ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
+            "{property}"
+        );
+        assert_eq!(result.value, CascadeValue::GuaranteedInvalid, "{property}");
+        assert!(result.invalid_at_computed_value_time, "{property}");
+        assert_eq!(result.indeterminate_reason, None, "{property}");
+    }
 }
 
 #[test]
@@ -1782,11 +1905,12 @@ fn inexact_specificity_reaches_computed_value_as_indeterminate() {
         registered_custom_property: None,
     });
 
+    assert_eq!(result.status, ComputedCascadeValueStatusV0::Indeterminate);
+    assert_eq!(result.value, CascadeValue::Indeterminate);
     assert_eq!(
-        result.status,
-        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+        result.indeterminate_reason,
+        Some(ComputedCascadeIndeterminateReasonV0::CascadeOutcomeIndeterminate)
     );
-    assert_eq!(result.value, CascadeValue::GuaranteedInvalid);
     assert_eq!(result.winner_declaration_id, None);
     assert!(
         result
@@ -1795,11 +1919,11 @@ fn inexact_specificity_reaches_computed_value_as_indeterminate() {
     );
 
     let status = match result.status {
-        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime => "invalidAtComputedValueTime",
+        ComputedCascadeValueStatusV0::Indeterminate => "indeterminate",
         _ => "unexpected",
     };
     let value = match result.value {
-        CascadeValue::GuaranteedInvalid => "guaranteedInvalid",
+        CascadeValue::Indeterminate => "indeterminate",
         _ => "unexpected",
     };
     let winner = result.winner_declaration_id.as_deref().unwrap_or("none");
@@ -1818,7 +1942,7 @@ fn inexact_specificity_reaches_computed_value_as_indeterminate() {
     );
     assert_eq!(
         row.and_then(|row| row["downstreamDisposition"].as_str()),
-        Some("registeredValueResolutionFollowUp")
+        Some("typedIndeterminateContract")
     );
 }
 
@@ -1933,8 +2057,7 @@ fn specificity_exactness_divergence_census_is_fully_adjudicated() {
         rows.map(|rows| {
             rows.iter()
                 .filter(|row| {
-                    row["downstreamDisposition"].as_str()
-                        == Some("registeredValueResolutionFollowUp")
+                    row["downstreamDisposition"].as_str() == Some("typedIndeterminateContract")
                 })
                 .count()
         }),

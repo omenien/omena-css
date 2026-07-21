@@ -240,6 +240,7 @@ pub enum CascadeValue {
     },
     Initial,
     Inherit,
+    Indeterminate,
     GuaranteedInvalid,
     Unset,
 }
@@ -250,7 +251,37 @@ pub enum ComputedCascadeValueStatusV0 {
     Resolved,
     Inherited,
     Initial,
+    Indeterminate,
     InvalidAtComputedValueTime,
+}
+
+macro_rules! define_computed_cascade_indeterminate_reasons {
+    ($($variant:ident => $wire_name:literal),+ $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+        #[serde(rename_all = "camelCase")]
+        pub enum ComputedCascadeIndeterminateReasonV0 {
+            $($variant),+
+        }
+
+        impl ComputedCascadeIndeterminateReasonV0 {
+            #[cfg(test)]
+            pub(crate) const ALL: &'static [Self] = &[$(Self::$variant),+];
+
+            pub const fn wire_name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $wire_name),+
+                }
+            }
+        }
+    };
+}
+
+define_computed_cascade_indeterminate_reasons! {
+    CascadeOutcomeIndeterminate => "cascadeOutcomeIndeterminate",
+    PropertyInheritanceMetadataUnavailable => "propertyInheritanceMetadataUnavailable",
+    PropertyInitialValueMetadataUnavailable => "propertyInitialValueMetadataUnavailable",
+    RegisteredPropertySyntaxIndeterminate => "registeredPropertySyntaxIndeterminate",
+    InheritedFromIndeterminateParent => "inheritedFromIndeterminateParent",
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -293,6 +324,8 @@ pub struct CascadeComputedValueResultV0 {
     pub inherited: bool,
     pub used_initial_value: bool,
     pub invalid_at_computed_value_time: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indeterminate_reason: Option<ComputedCascadeIndeterminateReasonV0>,
     pub derivation_steps: Vec<&'static str>,
 }
 

@@ -166,6 +166,7 @@ fn cascade_value_contains_var_reference(value: &CascadeValue) -> bool {
         CascadeValue::Literal(_)
         | CascadeValue::Initial
         | CascadeValue::Inherit
+        | CascadeValue::Indeterminate
         | CascadeValue::GuaranteedInvalid
         | CascadeValue::Unset => false,
     }
@@ -198,6 +199,7 @@ fn substitute_custom_properties_inner(
         CascadeValue::Literal(_)
         | CascadeValue::Initial
         | CascadeValue::Inherit
+        | CascadeValue::Indeterminate
         | CascadeValue::GuaranteedInvalid
         | CascadeValue::Unset => value.clone(),
         CascadeValue::Composite(parts) => {
@@ -246,6 +248,7 @@ fn cascade_value_is_resolved(value: &CascadeValue) -> bool {
         CascadeValue::Var { .. }
         | CascadeValue::Initial
         | CascadeValue::Inherit
+        | CascadeValue::Indeterminate
         | CascadeValue::GuaranteedInvalid
         | CascadeValue::Unset => false,
     }
