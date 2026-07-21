@@ -521,6 +521,20 @@ export function App() {
         "fixtureWitnessedScenarioJoin"
     );
     assert_eq!(runtime_state.confidence_tier, "conditionalDefinite");
+    assert_eq!(
+        runtime_state.confidence_tier_within_modeled_environment,
+        "conditionalDefiniteWithinModeledEnvironment"
+    );
+    let serialized_runtime_state =
+        serde_json::to_value(runtime_state).map_err(|_| "serialize runtime state")?;
+    assert_eq!(
+        serialized_runtime_state["confidenceTier"],
+        "conditionalDefinite"
+    );
+    assert_eq!(
+        serialized_runtime_state["confidenceTierWithinModeledEnvironment"],
+        "conditionalDefiniteWithinModeledEnvironment"
+    );
     assert!(
         runtime_state
             .driver_summaries

@@ -20,6 +20,8 @@ use super::super::{
     OmenaQueryRuntimeStateStaticBoundaryV0, OmenaQueryStaticConditionPruningEvidenceV0,
 };
 
+const RUNTIME_STATE_STATIC_BOUNDARY_KIND: &str = "staticValueAssumingNoRuntimeOverride";
+
 pub(super) fn summarize_query_runtime_state_for_evaluation(
     evaluation: &OmenaCheckerCascadeEvaluationV0,
     declarations: &[OmenaCheckerCascadeDeclarationInputV0],
@@ -75,6 +77,18 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
         .iter()
         .filter(|context| !context.is_empty())
         .count();
+    let static_boundary = OmenaQueryRuntimeStateStaticBoundaryV0 {
+        boundary_kind: RUNTIME_STATE_STATIC_BOUNDARY_KIND,
+        static_value_assuming_no_runtime_override: true,
+        tracks_dom_mutation: false,
+        tracks_class_list_mutation: false,
+    };
+    let (confidence_tier, confidence_tier_within_modeled_environment) =
+        query_runtime_state_confidence_tier(
+            scenarios.as_slice(),
+            &[],
+            static_boundary.boundary_kind,
+        );
 
     Some(OmenaQueryRuntimeStateScenarioEvidenceV0 {
         schema_version: "0",
@@ -83,13 +97,9 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
         selector_class_names,
         property_name: anchor.property.clone(),
         scenario_join_kind: "fixtureWitnessedScenarioJoin",
-        confidence_tier: query_runtime_state_confidence_tier(scenarios.as_slice(), &[]),
-        static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0 {
-            boundary_kind: "staticValueAssumingNoRuntimeOverride",
-            static_value_assuming_no_runtime_override: true,
-            tracks_dom_mutation: false,
-            tracks_class_list_mutation: false,
-        },
+        confidence_tier,
+        confidence_tier_within_modeled_environment,
+        static_boundary,
         driver_summaries: vec![
             OmenaQueryRuntimeStateDriverSummaryV0 {
                 driver: "pseudoStateScenarioSweep",
@@ -145,18 +155,28 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
 pub(crate) fn query_runtime_state_confidence_tier(
     scenarios: &[OmenaQueryRuntimeStateScenarioV0],
     inline_style_overrides: &[OmenaQueryInlineStyleRuntimeOverrideV0],
-) -> &'static str {
-    if !inline_style_overrides.is_empty()
+    static_boundary_kind: &'static str,
+) -> (&'static str, &'static str) {
+    assert_eq!(
+        static_boundary_kind, RUNTIME_STATE_STATIC_BOUNDARY_KIND,
+        "runtime-state confidence requires the modeled static boundary"
+    );
+
+    let (tier, tier_within_modeled_environment) = if !inline_style_overrides.is_empty()
         || scenarios.iter().any(|scenario| {
             scenario.pseudo_state.is_some()
                 || !scenario.condition_context.is_empty()
                 || scenario.scenario_kind == "inlineStyleOverride"
-        })
-    {
-        "conditionalDefinite"
+        }) {
+        (
+            "conditionalDefinite",
+            "conditionalDefiniteWithinModeledEnvironment",
+        )
     } else {
-        "staticDefinite"
-    }
+        ("staticDefinite", "staticDefiniteWithinModeledEnvironment")
+    };
+
+    (tier, tier_within_modeled_environment)
 }
 
 pub(super) fn query_runtime_selector_matches_anchor_classes(
@@ -631,5 +651,54 @@ mod tests {
             declaration.specificity_exactness,
             SpecificityExactnessV0::Inexact
         );
+    }
+
+    #[test]
+    fn confidence_tiers_are_derived_within_the_declared_static_boundary() {
+        let (static_tier, static_tier_within_modeled_environment) =
+            query_runtime_state_confidence_tier(&[], &[], RUNTIME_STATE_STATIC_BOUNDARY_KIND);
+        assert_eq!(static_tier, "staticDefinite");
+        assert_eq!(
+            static_tier_within_modeled_environment,
+            "staticDefiniteWithinModeledEnvironment"
+        );
+
+        let inline_style_overrides = [OmenaQueryInlineStyleRuntimeOverrideV0 {
+            source_path: "file:///workspace/src/App.tsx".to_string(),
+            range: Default::default(),
+            property_name: "color".to_string(),
+            value: Some("red".to_string()),
+            cascade_tier: "authorInlineStyle",
+            static_value: true,
+        }];
+        let (conditional_tier, conditional_tier_within_modeled_environment) =
+            query_runtime_state_confidence_tier(
+                &[],
+                inline_style_overrides.as_slice(),
+                RUNTIME_STATE_STATIC_BOUNDARY_KIND,
+            );
+        assert_eq!(conditional_tier, "conditionalDefinite");
+        assert_eq!(
+            conditional_tier_within_modeled_environment,
+            "conditionalDefiniteWithinModeledEnvironment"
+        );
+
+        for qualified_tier in [
+            static_tier_within_modeled_environment,
+            conditional_tier_within_modeled_environment,
+        ] {
+            assert!(qualified_tier.ends_with("WithinModeledEnvironment"));
+            assert!(
+                !["proven", "verified", "certified", "complete"]
+                    .iter()
+                    .any(|claim| qualified_tier.to_ascii_lowercase().contains(claim))
+            );
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "runtime-state confidence requires the modeled static boundary")]
+    fn confidence_tiers_reject_an_unrelated_boundary() {
+        let _ = query_runtime_state_confidence_tier(&[], &[], "tracksDomMutation");
     }
 }

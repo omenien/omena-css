@@ -1385,6 +1385,7 @@ pub omena_query::OmenaQueryRuntimeStateDriverSummaryV0::scenario_count: usize
 pub omena_query::OmenaQueryRuntimeStateDriverSummaryV0::status: &'static str
 pub struct omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::confidence_tier: &'static str
+pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::confidence_tier_within_modeled_environment: &'static str
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::driver_summaries: alloc::vec::Vec<omena_query::OmenaQueryRuntimeStateDriverSummaryV0>
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::inline_style_overrides: alloc::vec::Vec<omena_query::OmenaQueryInlineStyleRuntimeOverrideV0>
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::product: &'static str

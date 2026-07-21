@@ -1236,6 +1236,7 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub property_name: String,
     pub scenario_join_kind: &'static str,
     pub confidence_tier: &'static str,
+    pub confidence_tier_within_modeled_environment: &'static str,
     pub static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0,
     pub driver_summaries: Vec<OmenaQueryRuntimeStateDriverSummaryV0>,
     pub scenarios: Vec<OmenaQueryRuntimeStateScenarioV0>,

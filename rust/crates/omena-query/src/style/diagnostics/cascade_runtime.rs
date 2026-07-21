@@ -163,10 +163,15 @@ fn attach_omena_query_runtime_state_inline_overrides_from_overrides(
                     .count();
             }
         }
-        runtime_state.confidence_tier = query_runtime_state_confidence_tier(
-            runtime_state.scenarios.as_slice(),
-            runtime_state.inline_style_overrides.as_slice(),
-        );
+        let (confidence_tier, confidence_tier_within_modeled_environment) =
+            query_runtime_state_confidence_tier(
+                runtime_state.scenarios.as_slice(),
+                runtime_state.inline_style_overrides.as_slice(),
+                runtime_state.static_boundary.boundary_kind,
+            );
+        runtime_state.confidence_tier = confidence_tier;
+        runtime_state.confidence_tier_within_modeled_environment =
+            confidence_tier_within_modeled_environment;
     }
 }
 
