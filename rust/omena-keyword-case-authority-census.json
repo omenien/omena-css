@@ -758,7 +758,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2966,
+      "line": 2967,
       "function": "committed_css_modules_graph_resolves_alias_targets_and_reachability",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -769,7 +769,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 4427,
+      "line": 4428,
       "function": "css_modules_import_edges_from_module_interface_projection_recompute_only_import_dependents",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -1968,7 +1968,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 278,
+      "line": 289,
       "function": "winner_for_pair",
       "idiom": "contains",
       "keyword": "@scope",
@@ -1979,7 +1979,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 575,
+      "line": 607,
       "function": "conditional_context_is_open",
       "idiom": "contains",
       "keyword": "@supports",
@@ -2033,7 +2033,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:6cbada4b47ad7c3807084e37a44673292e908367add6c51ca28ad57afbcc5c7c",
+  "siteDigest": "sha256:e9cfab12fc47204bca877ee0e3e10d2d48b163870d00daef056f7851de9f63da",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
