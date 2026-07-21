@@ -39,6 +39,7 @@ const sources = [
   "rust/crates/omena-napi/src/lib.rs",
   "rust/crates/omena-napi/src/sdk_workspace.rs",
   "rust/crates/omena-wasm/src/lib.rs",
+  "rust/crates/omena-wasm/src/sdk_workspace.rs",
 ] as const;
 
 const census = buildCensus();
@@ -71,7 +72,10 @@ function buildCensus(): BoundaryCensus {
     ...scanNapiSource("rust/crates/omena-napi/src/lib.rs"),
     ...scanNapiSource("rust/crates/omena-napi/src/sdk_workspace.rs"),
   ].map((row, index) => ({ ...row, ordinal: index + 1 }));
-  const wasmRows = scanWasmSource("rust/crates/omena-wasm/src/lib.rs");
+  const wasmRows = [
+    ...scanWasmSource("rust/crates/omena-wasm/src/lib.rs"),
+    ...scanWasmSource("rust/crates/omena-wasm/src/sdk_workspace.rs"),
+  ].map((row, index) => ({ ...row, ordinal: index + 1 }));
   const rows = [...napiRows, ...wasmRows];
   const jsonStringCount = rows.filter((row) => row.boundaryClass === "json-string").length;
   const jsValueAnyCount = rows.filter((row) => row.boundaryClass === "jsvalue-any").length;
@@ -163,7 +167,10 @@ function scanWasmSource(sourcePath: string): CensusRow[] {
           crateName: "omena-wasm",
           rows,
           jsName,
-          exportKind: isInsideExpressionRuntime(lines, index) ? "method" : "function",
+          exportKind:
+            isIndentedAttribute(lines[index]) || isInsideExpressionRuntime(lines, index)
+              ? "method"
+              : "function",
           sourcePath,
           attrLine: index + 1,
           signature,
