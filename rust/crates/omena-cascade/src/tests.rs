@@ -2312,10 +2312,18 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
     let report = run_cascade_conformance_seed_corpus();
 
     assert_eq!(report.product, "omena-cascade.conformance-seed-corpus");
-    assert_eq!(report.case_count, 6);
+    assert_eq!(report.case_count, 17);
     assert_eq!(report.passed_count, report.case_count);
     assert_eq!(report.failed_count, 0);
     assert!(report.results.iter().all(|result| result.passed));
+
+    let inversion_pin = report
+        .results
+        .iter()
+        .find(|result| result.name == "complex-functional-specificity-beats-source-order")
+        .unwrap_or_else(|| panic!("complex functional specificity case must remain in the corpus"));
+    assert_eq!(inversion_pin.actual_outcome, "definite");
+    assert_eq!(inversion_pin.actual_winner_id.as_deref(), Some("complex"));
 }
 
 #[test]

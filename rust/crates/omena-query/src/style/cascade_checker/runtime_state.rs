@@ -621,4 +621,15 @@ mod tests {
         assert_eq!(scenario.winner_declaration_id, None);
         assert_eq!(scenario.winner_value, None);
     }
+
+    #[test]
+    fn unsupported_selector_declaration_preserves_inexact_specificity() {
+        let input = selector_declaration("unsupported", ":unknown(.item)", "red", 0);
+        let declaration = query_runtime_cascade_declaration_from_input(&input);
+
+        assert_eq!(
+            declaration.specificity_exactness,
+            SpecificityExactnessV0::Inexact
+        );
+    }
 }
