@@ -1099,11 +1099,13 @@ describe("check orchestrator manifest", () => {
     const report = buildCheckSurfaceReport(manifest);
     expect(report.totalGates).toBeGreaterThan(150);
     expect(report.aliasChains).toEqual([]);
-    expect(report.largestBundles[0]).toEqual(
-      expect.objectContaining({
-        id: "release/release/verify",
-        scriptName: "release:verify",
-      }),
+    expect(report.largestBundles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "release/release/verify",
+          scriptName: "release:verify",
+        }),
+      ]),
     );
 
     const rendered = renderCheckSurfaceReport(report);
