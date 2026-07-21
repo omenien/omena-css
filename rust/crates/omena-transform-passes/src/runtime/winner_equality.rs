@@ -283,7 +283,7 @@ fn winner_for_pair(
         if conditional_context_is_open(candidate.context_key.as_str()) {
             reasons.push(TransformWinnerEqualityAbsenceV0 {
                 axis: TransformWinnerEqualityAxisV0::CascadeLevel,
-                reason: TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact,
+                reason: TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite,
             });
         }
         if css_keyword(candidate.context_key.as_str()).contains("@scope") {
@@ -313,7 +313,7 @@ fn winner_for_pair(
         if signature.specificity_exactness == SpecificityExactnessV0::Inexact {
             reasons.push(TransformWinnerEqualityAbsenceV0 {
                 axis: TransformWinnerEqualityAxisV0::Specificity,
-                reason: TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite,
+                reason: TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact,
             });
         }
         let specificity = signature.specificity;
@@ -369,14 +369,14 @@ fn winner_for_pair(
             else {
                 reasons.push(TransformWinnerEqualityAbsenceV0 {
                     axis: TransformWinnerEqualityAxisV0::Specificity,
-                    reason: TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact,
+                    reason: TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite,
                 });
                 continue;
             };
             if signature.specificity_exactness == SpecificityExactnessV0::Inexact {
                 reasons.push(TransformWinnerEqualityAbsenceV0 {
                     axis: TransformWinnerEqualityAxisV0::Specificity,
-                    reason: TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite,
+                    reason: TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact,
                 });
             }
             let raw_layer_rank = declaration.layer_rank;
@@ -765,6 +765,184 @@ mod tests {
             },
         );
 
+        assert!(!result.unresolved_reasons.iter().any(|absence| {
+            absence.reason == TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact
+        }));
+    }
+
+    #[test]
+    fn conditional_context_does_not_relabel_exact_specificity() {
+        let source = "@media (min-width: 1px) { .a { color: red; } }";
+        let input_ir =
+            lower_transform_ir_from_source(source, StyleDialect::Css, "conditional-input");
+        let output_ir =
+            lower_transform_ir_from_source(source, StyleDialect::Css, "conditional-output");
+        let result = evaluate_transform_winner_equality(
+            TransformPassKind::RuleMerging,
+            &input_ir,
+            &output_ir,
+            &[mutation_span(source, source)],
+            StyleDialect::Css,
+            TransformWinnerEqualityContextV0 {
+                input_scope: SemanticObservationScopeV0::default(),
+                output_scope: SemanticObservationScopeV0::default(),
+                cascade_environment: Some(&TransformCascadeEnvironmentV0::default()),
+            },
+        );
+
+        assert!(result.unresolved_reasons.iter().any(|absence| {
+            absence.axis == TransformWinnerEqualityAxisV0::CascadeLevel
+                && absence.reason == TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite
+        }));
+        assert!(!result.unresolved_reasons.iter().any(|absence| {
+            absence.reason == TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact
+        }));
+    }
+
+    #[test]
+    fn inexact_environment_selector_reports_specificity_cause() {
+        let source_selector = ":is(.a)";
+        let environment_selector = ":is(:unknown(.a), .a)";
+        let source = ":is(.a) { color: red; }";
+        assert_eq!(
+            parse_simple_selector_signature(source_selector)
+                .map(|signature| signature.specificity_exactness),
+            Some(SpecificityExactnessV0::Exact)
+        );
+        assert_eq!(
+            parse_simple_selector_signature(environment_selector)
+                .map(|signature| signature.specificity_exactness),
+            Some(SpecificityExactnessV0::Inexact)
+        );
+        let input_ir =
+            lower_transform_ir_from_source(source, StyleDialect::Css, "environment-input");
+        let output_ir =
+            lower_transform_ir_from_source(source, StyleDialect::Css, "environment-output");
+        let environment = TransformCascadeEnvironmentV0 {
+            stylesheet_source_order_base: 0,
+            declarations: vec![TransformCascadeEnvironmentDeclarationV0 {
+                declaration_id: "environment-inexact".to_string(),
+                selector: environment_selector.to_string(),
+                property: "color".to_string(),
+                value: "blue".to_string(),
+                origin: omena_cascade::CascadeOriginV0::Author,
+                important: false,
+                layer_rank: None,
+                scope_proximity: None,
+                source_order: 1,
+            }],
+        };
+        let result = evaluate_transform_winner_equality(
+            TransformPassKind::RuleMerging,
+            &input_ir,
+            &output_ir,
+            &[mutation_span(source, source)],
+            StyleDialect::Css,
+            TransformWinnerEqualityContextV0 {
+                input_scope: SemanticObservationScopeV0::default(),
+                output_scope: SemanticObservationScopeV0::default(),
+                cascade_environment: Some(&environment),
+            },
+        );
+
+        assert!(result.unresolved_reasons.iter().any(|absence| {
+            absence.axis == TransformWinnerEqualityAxisV0::Specificity
+                && absence.reason == TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact
+        }));
+    }
+
+    #[test]
+    fn inexact_candidate_reports_specificity_cause_inside_winner_selection() {
+        let selector = ":is(:unknown(.a), .b)";
+        assert_eq!(
+            parse_simple_selector_signature(selector)
+                .map(|signature| signature.specificity_exactness),
+            Some(SpecificityExactnessV0::Inexact)
+        );
+        let pair = TransformWinnerEqualityAffectedPairV0 {
+            element_signature: ElementSignature {
+                tag: None,
+                id: None,
+                classes: BTreeSet::new(),
+                attributes: BTreeSet::new(),
+                pseudo_states: BTreeSet::from(["is".to_string()]),
+                classes_are_exact: true,
+                attributes_are_exact: true,
+                pseudo_states_are_exact: true,
+                tag_is_exact: true,
+                id_is_exact: true,
+            },
+            property: "color".to_string(),
+        };
+        let candidates = vec![SemanticCascadeCandidateV0 {
+            selector: selector.to_string(),
+            property: "color".to_string(),
+            value: "red".to_string(),
+            important: false,
+            source_span_start: 0,
+            source_span_end: selector.len(),
+            context_key: String::new(),
+        }];
+        let layer_index = summarize_style_layer_order_from_source("", StyleDialect::Css);
+        let driven_levels = cascade_driven_levels_v0()
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        let environment = TransformCascadeEnvironmentV0::default();
+        let mut reasons = Vec::new();
+
+        let winner = winner_for_pair(
+            &pair,
+            candidates.as_slice(),
+            &layer_index,
+            &driven_levels,
+            &mut reasons,
+            Some(&environment),
+        );
+
+        assert!(winner.is_none());
+        assert!(reasons.iter().any(|absence| {
+            absence.axis == TransformWinnerEqualityAxisV0::Specificity
+                && absence.reason == TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact
+        }));
+    }
+
+    #[test]
+    fn unparsed_environment_selector_keeps_nonspecific_winner_absence() {
+        let source = ".a { color: red; }";
+        let input_ir = lower_transform_ir_from_source(source, StyleDialect::Css, "unparsed-input");
+        let output_ir =
+            lower_transform_ir_from_source(source, StyleDialect::Css, "unparsed-output");
+        let environment = TransformCascadeEnvironmentV0 {
+            stylesheet_source_order_base: 0,
+            declarations: vec![TransformCascadeEnvironmentDeclarationV0 {
+                declaration_id: "environment-unparsed".to_string(),
+                selector: ".a, :unknown(".to_string(),
+                property: "color".to_string(),
+                value: "blue".to_string(),
+                origin: omena_cascade::CascadeOriginV0::Author,
+                important: false,
+                layer_rank: None,
+                scope_proximity: None,
+                source_order: 1,
+            }],
+        };
+        let result = evaluate_transform_winner_equality(
+            TransformPassKind::RuleMerging,
+            &input_ir,
+            &output_ir,
+            &[mutation_span(source, source)],
+            StyleDialect::Css,
+            TransformWinnerEqualityContextV0 {
+                input_scope: SemanticObservationScopeV0::default(),
+                output_scope: SemanticObservationScopeV0::default(),
+                cascade_environment: Some(&environment),
+            },
+        );
+
+        assert!(result.unresolved_reasons.iter().any(|absence| {
+            absence.axis == TransformWinnerEqualityAxisV0::Specificity
+                && absence.reason == TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite
+        }));
         assert!(!result.unresolved_reasons.iter().any(|absence| {
             absence.reason == TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact
         }));
