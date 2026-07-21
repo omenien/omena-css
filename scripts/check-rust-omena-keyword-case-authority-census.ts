@@ -42,6 +42,7 @@ interface KeywordCaseCensus {
   readonly helperAuthority?: {
     readonly helper: "css_keyword";
     readonly functionKeys: readonly string[];
+    readonly functionKeyDigest: string;
     readonly adHocCaseOperationCount: number;
     readonly adHocCaseOperations: readonly AdHocCaseOperation[];
   };
@@ -80,6 +81,7 @@ const censusPath = path.join(repoRoot, "rust/omena-keyword-case-authority-census
 const writeMode = process.argv.includes("--write");
 const injectRawCaseMatch = process.env.OMENA_KEYWORD_CASE_TEST_INJECT_RAW_MATCH === "1";
 const injectAdHocCaseFold = process.env.OMENA_KEYWORD_CASE_TEST_INJECT_AD_HOC_FOLD === "1";
+const injectHelperFunction = process.env.OMENA_KEYWORD_CASE_TEST_INJECT_HELPER_FUNCTION === "1";
 
 const sourceCrates = [
   "omena-cascade",
@@ -97,14 +99,8 @@ const excludedAuthority = [
   "rust/crates/omena-parser/src/extension.rs#at_rule_is_vendor_prefixed_keyframes",
 ] as const;
 
-const additionalHelperAuthorityFunctionKeys = [
-  "rust/crates/omena-parser/src/facts/css_modules.rs#collect_css_module_value_import_edges",
-  "rust/crates/omena-parser/src/facts/css_modules.rs#collect_css_module_value_import_names",
-  "rust/crates/omena-parser/src/facts/css_modules.rs#css_module_value_name_token_can_define",
-  "rust/crates/omena-parser/src/parse.rs#parse_import_prelude",
-  "rust/crates/omena-parser/src/public_product.rs#sass_module_forward_prefix_from_statement",
-  "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#conditional_context_is_open",
-  "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair",
+const bridgedHelperAuthorityFunctionKeys = [
+  "rust/crates/omena-cascade/src/proofs.rs#prove_scope_flatten_candidate",
 ] as const;
 
 const namedClassificationRules: readonly NamedClassificationRule[] = [
@@ -213,16 +209,7 @@ const targetKeywords = new Set([
 
 const existing = readExistingCensus();
 const sites = scanKeywordCaseSites();
-const helperAuthorityFunctionKeys = [
-  ...new Set([
-    ...(existing?.helperAuthority?.functionKeys ??
-      existing?.sites
-        .filter((site) => site.classification === "DEFECT-REACHABLE")
-        .map((site) => `${site.path}#${site.function}`) ??
-      []),
-    ...additionalHelperAuthorityFunctionKeys,
-  ]),
-].toSorted();
+const helperAuthorityFunctionKeys = scanHelperAuthorityFunctionKeys();
 const adHocCaseOperations = scanAdHocCaseOperations(helperAuthorityFunctionKeys);
 const currentDefectReachableCount = sites.filter(
   (site) => site.classification === "DEFECT-REACHABLE",
@@ -308,6 +295,9 @@ const census: KeywordCaseCensus = {
   helperAuthority: {
     helper: "css_keyword",
     functionKeys: helperAuthorityFunctionKeys,
+    functionKeyDigest: `sha256:${createHash("sha256")
+      .update(JSON.stringify(helperAuthorityFunctionKeys))
+      .digest("hex")}`,
     adHocCaseOperationCount: adHocCaseOperations.length,
     adHocCaseOperations,
   },
@@ -316,7 +306,7 @@ const census: KeywordCaseCensus = {
 const expected = `${JSON.stringify(census, null, 2)}\n`;
 if (writeMode) {
   assert.equal(
-    injectRawCaseMatch || injectAdHocCaseFold,
+    injectRawCaseMatch || injectAdHocCaseFold || injectHelperFunction,
     false,
     "test injection cannot be combined with census regeneration",
   );
@@ -373,6 +363,15 @@ function readExistingCensus(): KeywordCaseCensus | undefined {
     `sha256:${createHash("sha256").update(JSON.stringify(parsed.sites)).digest("hex")}`,
     "committed keyword-case site digest",
   );
+  if (parsed.helperAuthority?.functionKeyDigest !== undefined) {
+    assert.equal(
+      parsed.helperAuthority.functionKeyDigest,
+      `sha256:${createHash("sha256")
+        .update(JSON.stringify(parsed.helperAuthority.functionKeys))
+        .digest("hex")}`,
+      "committed helper-authority function-key digest",
+    );
+  }
   return parsed;
 }
 
@@ -460,6 +459,25 @@ function trackedSources(): string[] {
     }
   }
   return [...files].toSorted();
+}
+
+function scanHelperAuthorityFunctionKeys(): string[] {
+  const keys = new Set<string>(bridgedHelperAuthorityFunctionKeys);
+  for (const relativePath of trackedSources()) {
+    let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+    if (injectHelperFunction && relativePath === "rust/crates/omena-semantic/src/layer_tree.rs") {
+      source = `${source}\nfn injected_helper_consumer(text: &str) { let _ = css_keyword(text).equals("layer"); let _ = text.to_ascii_lowercase(); }\n`;
+    }
+    const rustSource = scanRustSource(source);
+    for (const sourceFunction of sourceFunctions(rustSource.code)) {
+      if (sourceFunction.testOnly) continue;
+      const body = rustSource.code.slice(sourceFunction.start, sourceFunction.end);
+      if (/\bcss_keyword\s*\(/u.test(body)) {
+        keys.add(`${relativePath}#${sourceFunction.name}`);
+      }
+    }
+  }
+  return [...keys].toSorted();
 }
 
 function canonicalKeyword(raw: string): string | undefined {
@@ -562,6 +580,9 @@ function scanAdHocCaseOperations(functionKeys: readonly string[]): AdHocCaseOper
       const injected = `${anchor}\n    let _local_case_authority = text.to_ascii_lowercase();`;
       assert.ok(source.includes(anchor), "ad-hoc case-fold injection anchor");
       source = source.replace(anchor, injected);
+    }
+    if (injectHelperFunction && relativePath === "rust/crates/omena-semantic/src/layer_tree.rs") {
+      source = `${source}\nfn injected_helper_consumer(text: &str) { let _ = css_keyword(text).equals("layer"); let _ = text.to_ascii_lowercase(); }\n`;
     }
     const rustSource = scanRustSource(source);
     for (const sourceFunction of sourceFunctions(rustSource.code)) {

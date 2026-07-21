@@ -681,7 +681,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1103,
+      "line": 1104,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -747,7 +747,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/diagnostics/cross_file_scc.rs",
-      "line": 80,
+      "line": 84,
       "function": "summarize_omena_query_unified_cross_file_scc_diagnostics_from_report",
       "idiom": "starts-with",
       "keyword": "composes",
@@ -758,7 +758,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2963,
+      "line": 2966,
       "function": "committed_css_modules_graph_resolves_alias_targets_and_reachability",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -769,7 +769,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 4369,
+      "line": 4427,
       "function": "css_modules_import_edges_from_module_interface_projection_recompute_only_import_dependents",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -2033,23 +2033,27 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:ec121a5c2ce66071f99cf584360296a3cd49a6121d7cc92b03d3a43391b71af2",
+  "siteDigest": "sha256:6cbada4b47ad7c3807084e37a44673292e908367add6c51ca28ad57afbcc5c7c",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
+      "rust/crates/omena-cascade/src/lib.rs#prove_scope_flatten_candidate",
       "rust/crates/omena-cascade/src/proofs.rs#prove_scope_flatten_candidate",
       "rust/crates/omena-cli/src/perceptual.rs#strip_declaration_priority_v0",
       "rust/crates/omena-parser/src/facts/css_modules.rs#collect_css_module_value_import_edges",
       "rust/crates/omena-parser/src/facts/css_modules.rs#collect_css_module_value_import_names",
       "rust/crates/omena-parser/src/facts/css_modules.rs#css_module_value_name_token_can_define",
+      "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs#source_spelling_guarded_facts",
       "rust/crates/omena-parser/src/parse.rs#current_composes_value_has_multiple_from_clauses",
       "rust/crates/omena-parser/src/parse.rs#current_is_css_module_value_rule",
+      "rust/crates/omena-parser/src/parse.rs#find_keyword_before_recovery",
       "rust/crates/omena-parser/src/parse.rs#parse_composes_value_until",
       "rust/crates/omena-parser/src/parse.rs#parse_css_module_token_definitions_until",
       "rust/crates/omena-parser/src/parse.rs#parse_css_module_value_rule",
       "rust/crates/omena-parser/src/parse.rs#parse_declaration",
       "rust/crates/omena-parser/src/parse.rs#parse_import_prelude",
       "rust/crates/omena-parser/src/public_product.rs#sass_module_forward_prefix_from_statement",
+      "rust/crates/omena-parser/src/syntax_helpers.rs#matches_ignore_ascii_case",
       "rust/crates/omena-query/src/style.rs#hover_layer_name_from_prelude",
       "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs#query_at_root_selector_from_prelude",
       "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs#query_layer_name_from_prelude",
@@ -2071,6 +2075,7 @@
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#conditional_context_is_open",
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair"
     ],
+    "functionKeyDigest": "sha256:5dc53fbe052df4857125ce3912f7681af5dfc1ad10733578e5697ba7235eb2a5",
     "adHocCaseOperationCount": 0,
     "adHocCaseOperations": []
   }
