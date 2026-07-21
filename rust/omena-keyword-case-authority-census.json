@@ -26,7 +26,7 @@
   "classificationCounts": {
     "DEFECT-REACHABLE": 0,
     "PROTECTED-BY-PARSER": 157,
-    "TEST-ONLY": 23,
+    "TEST-ONLY": 24,
     "ORACLE-DEMOTED": 1
   },
   "sites": [
@@ -681,7 +681,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1102,
+      "line": 1103,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -736,7 +736,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/code_actions.rs",
-      "line": 369,
+      "line": 410,
       "function": "selector_inline_declarations",
       "idiom": "strip-prefix",
       "keyword": "composes",
@@ -758,7 +758,18 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 4289,
+      "line": 2963,
+      "function": "committed_css_modules_graph_resolves_alias_targets_and_reachability",
+      "idiom": "direct-equality",
+      "keyword": "composes",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": ".find(|edge| edge.import_kind == \"composes\")"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 4369,
       "function": "css_modules_import_edges_from_module_interface_projection_recompute_only_import_dependents",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -2022,7 +2033,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:76fa6d02127ed13f4a517dc99c6c524371c4d61aec37a09cc5c6365558105831",
+  "siteDigest": "sha256:ec121a5c2ce66071f99cf584360296a3cd49a6121d7cc92b03d3a43391b71af2",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
