@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeOutcome, CascadeValue, LayerRank, ModuleRank,
-    SelectorMatchVerdict, Specificity, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
-    cascade_level_for_origin, cascade_property, evaluate_static_supports_condition,
-    parse_simple_selector_signature, selector_co_match_verdict,
+    SelectorMatchVerdict, Specificity, SpecificityExactnessV0, StaticSupportsAssumptionV0,
+    StaticSupportsEvalVerdictV0, cascade_level_for_origin, cascade_property,
+    evaluate_static_supports_condition, parse_simple_selector_signature, selector_co_match_verdict,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
@@ -429,9 +429,11 @@ pub(in crate::style) fn query_runtime_cascade_declaration_from_input(
 ) -> CascadeDeclaration {
     let level = cascade_level_for_origin(input.origin, input.important);
     let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
-    let specificity = parse_simple_selector_signature(input.selector.as_str())
-        .map(|signature| signature.specificity)
-        .unwrap_or(Specificity::ZERO);
+    let (specificity, specificity_exactness) =
+        parse_simple_selector_signature(input.selector.as_str()).map_or(
+            (Specificity::ZERO, SpecificityExactnessV0::Inexact),
+            |signature| (signature.specificity, signature.specificity_exactness),
+        );
     let value = input.value.trim().to_string();
 
     CascadeDeclaration {
@@ -446,6 +448,7 @@ pub(in crate::style) fn query_runtime_cascade_declaration_from_input(
             ModuleRank::ZERO,
             input.source_order,
         ),
+        specificity_exactness,
     }
 }
 
@@ -526,6 +529,27 @@ mod tests {
         }
     }
 
+    fn selector_declaration(
+        id: &str,
+        selector: &str,
+        value: &str,
+        source_order: u32,
+    ) -> OmenaCheckerCascadeDeclarationInputV0 {
+        OmenaCheckerCascadeDeclarationInputV0 {
+            declaration_id: id.to_string(),
+            selector: CanonicalSelector::from_canonical(selector),
+            property: "color".to_string(),
+            value: value.to_string(),
+            source_order,
+            condition_context: Vec::new(),
+            layer_name: None,
+            layer_order: None,
+            origin: CascadeOriginV0::Author,
+            important: false,
+            var_references: Vec::new(),
+        }
+    }
+
     #[test]
     fn drives_the_origin_ladder_from_checker_inputs() {
         let declarations = [
@@ -568,5 +592,33 @@ mod tests {
             normal_scenario.winner_declaration_id.as_deref(),
             Some("author-normal")
         );
+    }
+
+    #[test]
+    fn complex_functional_specificity_selects_the_browser_winner() {
+        let declarations = [
+            selector_declaration("complex", ":is(#root .item)", "red", 0),
+            selector_declaration("simple", ".item", "blue", 1),
+        ];
+        let references = declarations.iter().collect::<Vec<_>>();
+        let scenario = query_runtime_state_scenario("color", None, &[], &references);
+
+        assert_eq!(scenario.winner_declaration_id.as_deref(), Some("complex"));
+        assert_eq!(scenario.winner_value.as_deref(), Some("red"));
+    }
+
+    #[test]
+    fn unsupported_selector_specificity_does_not_claim_a_winner() {
+        let declarations = [selector_declaration(
+            "unsupported",
+            ":unknown(.item)",
+            "red",
+            0,
+        )];
+        let references = declarations.iter().collect::<Vec<_>>();
+        let scenario = query_runtime_state_scenario("color", None, &[], &references);
+
+        assert_eq!(scenario.winner_declaration_id, None);
+        assert_eq!(scenario.winner_value, None);
     }
 }

@@ -2511,6 +2511,7 @@ mod tests {
                             omena_cascade::ModuleRank::ZERO
                         },
                     ),
+                    specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
                 }
             })
             .collect::<Vec<_>>();
@@ -2575,6 +2576,7 @@ mod tests {
                             omena_cascade::ModuleRank::ZERO
                         },
                     ),
+                    specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
                 }
             })
             .collect::<Vec<_>>();

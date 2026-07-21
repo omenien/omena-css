@@ -7,7 +7,7 @@
 use crate::{
     CascadeConformanceSeedCase, CascadeConformanceSeedReport, CascadeConformanceSeedResult,
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    ModuleRank, Specificity, cascade_property,
+    ModuleRank, Specificity, SpecificityExactnessV0, cascade_property,
 };
 
 pub fn run_cascade_conformance_seed_corpus() -> CascadeConformanceSeedReport {
@@ -496,5 +496,6 @@ fn conformance_decl(id: &str, property: &str, value: &str, key: CascadeKey) -> C
         property: property.to_string(),
         value: CascadeValue::Literal(value.to_string()),
         key,
+        specificity_exactness: SpecificityExactnessV0::Exact,
     }
 }

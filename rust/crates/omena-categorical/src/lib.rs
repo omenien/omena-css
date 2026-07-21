@@ -731,6 +731,7 @@ fn omega_color_declaration(id: &str, value: &str, source_order: u32) -> CascadeD
             ModuleRank::ZERO,
             source_order,
         ),
+        specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
     }
 }
 

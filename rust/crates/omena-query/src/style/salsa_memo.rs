@@ -2695,6 +2695,7 @@ fn memo_source_element_static_declarations(
                 ModuleRank::ZERO,
                 declaration.byte_span.start.min(u32::MAX as usize) as u32,
             ),
+            specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
         });
     }
 

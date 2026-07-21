@@ -3682,6 +3682,7 @@ fn replica_ensemble_definite_outcome(winner: &str, source_order: u32) -> Cascade
             module_rank: ModuleRank::ZERO,
             source_order,
         },
+        specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
     };
     CascadeOutcome::Definite {
         proof: Box::new(CascadeProof::from_declaration(&declaration)),

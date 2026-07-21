@@ -55,8 +55,11 @@ impl Specificity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Whether a specificity estimate is complete enough for exact cascade ordering.
 pub enum SpecificityExactnessV0 {
+    /// Every selector component that contributes specificity was modeled.
     Exact,
+    /// The numeric specificity is only a lower bound because some syntax was unmodeled.
     Inexact,
 }
 
@@ -176,6 +179,8 @@ pub struct CascadeDeclaration {
     pub property: String,
     pub value: CascadeValue,
     pub key: CascadeKey,
+    /// Trust boundary for using `key.specificity` to mint an exact winner.
+    pub specificity_exactness: SpecificityExactnessV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -193,6 +198,11 @@ pub struct CascadeProof {
 
 impl CascadeProof {
     pub fn from_declaration(declaration: &CascadeDeclaration) -> Self {
+        assert_eq!(
+            declaration.specificity_exactness,
+            SpecificityExactnessV0::Exact,
+            "cascade proofs require exact specificity"
+        );
         Self {
             declaration_id: declaration.id.clone(),
             property: declaration.property.clone(),

@@ -401,6 +401,7 @@ fn definite_outcome(id: &str) -> CascadeOutcome {
             module_rank: ModuleRank::ZERO,
             source_order: 0,
         },
+        specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
     };
     CascadeOutcome::Definite {
         proof: Box::new(CascadeProof::from_declaration(&declaration)),

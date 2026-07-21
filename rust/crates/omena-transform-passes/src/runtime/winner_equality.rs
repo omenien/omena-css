@@ -292,7 +292,8 @@ fn winner_for_pair(
             });
         }
         let layer_rank = layer_rank_for_candidate(candidate, layer_index, reasons);
-        let specificity = parse_simple_selector_signature(candidate.selector.as_str())?.specificity;
+        let signature = parse_simple_selector_signature(candidate.selector.as_str())?;
+        let specificity = signature.specificity;
         let source_order = stylesheet_source_order_base
             .saturating_add(u32::try_from(matched_ordinal).unwrap_or(u32::MAX));
         matched_ordinal = matched_ordinal.saturating_add(1);
@@ -311,6 +312,7 @@ fn winner_for_pair(
                 ModuleRank::ZERO,
                 source_order,
             ),
+            specificity_exactness: signature.specificity_exactness,
         });
     }
 
@@ -367,6 +369,7 @@ fn winner_for_pair(
                     ModuleRank::ZERO,
                     declaration.source_order,
                 ),
+                specificity_exactness: signature.specificity_exactness,
             });
         }
     }

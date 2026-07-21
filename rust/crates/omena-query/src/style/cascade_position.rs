@@ -289,6 +289,7 @@ fn compute_referenced_declaration_cascade_value_seed(
                 ModuleRank::ZERO,
                 declaration.source_order.min(u32::MAX as usize) as u32,
             ),
+            specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
         }],
         custom_property_env: custom_property_env.clone(),
         parent_computed_value: None,

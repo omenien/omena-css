@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cascade.specificity-exactness-divergence-census",
+  "rows": [
+    {
+      "surface": "selectorSignature",
+      "fixture": "complex-functional-argument",
+      "before": "specificity=0,0,0;exactness=absent",
+      "after": "specificity=1,1,0;exactness=exact",
+      "adjudication": "fix"
+    },
+    {
+      "surface": "queryRuntimeState",
+      "fixture": "complex-functional-winner-inversion",
+      "before": "definite:simple:blue",
+      "after": "definite:complex:red",
+      "adjudication": "fix"
+    },
+    {
+      "surface": "closedCascadeRanking",
+      "fixture": "unmodeled-functional-argument",
+      "before": "definite:simple",
+      "after": "rankedSet",
+      "adjudication": "intendedCorrection"
+    },
+    {
+      "surface": "queryRuntimeState",
+      "fixture": "unsupported-whole-selector",
+      "before": "definite:unsupported",
+      "after": "rankedSet:noWinner",
+      "adjudication": "intendedCorrection"
+    }
+  ]
+}

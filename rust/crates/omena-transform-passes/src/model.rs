@@ -1406,6 +1406,7 @@ mod evidence_graph_tests {
                 ModuleRank::ZERO,
                 source_order,
             ),
+            specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
         }
     }
 

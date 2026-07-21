@@ -81,9 +81,14 @@ fn query_cascade_declaration_from_input(
 ) -> CascadeDeclaration {
     let level = cascade_level_for_origin(input.origin, input.important);
     let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
-    let specificity = parse_simple_selector_signature(input.selector.as_str())
-        .map(|signature| signature.specificity)
-        .unwrap_or(Specificity::ZERO);
+    let (specificity, specificity_exactness) =
+        parse_simple_selector_signature(input.selector.as_str()).map_or(
+            (
+                Specificity::ZERO,
+                omena_cascade::SpecificityExactnessV0::Inexact,
+            ),
+            |signature| (signature.specificity, signature.specificity_exactness),
+        );
     let value = input.value.trim().to_string();
 
     CascadeDeclaration {
@@ -98,5 +103,6 @@ fn query_cascade_declaration_from_input(
             ModuleRank::ZERO,
             input.source_order,
         ),
+        specificity_exactness,
     }
 }

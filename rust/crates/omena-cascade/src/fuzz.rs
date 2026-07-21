@@ -167,6 +167,7 @@ fn generated_cascade_fuzz_declarations(
                     ),
                     index as u32,
                 ),
+                specificity_exactness: crate::SpecificityExactnessV0::Exact,
             }
         })
         .collect()

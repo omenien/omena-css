@@ -1,12 +1,26 @@
 use super::*;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::{Path, PathBuf},
+};
 
 fn declaration(id: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {
+    declaration_with_specificity_exactness(id, value, key, SpecificityExactnessV0::Exact)
+}
+
+fn declaration_with_specificity_exactness(
+    id: &str,
+    value: &str,
+    key: CascadeKey,
+    specificity_exactness: SpecificityExactnessV0,
+) -> CascadeDeclaration {
     CascadeDeclaration {
         id: id.to_string(),
         property: "color".to_string(),
         value: CascadeValue::Literal(value.to_string()),
         key,
+        specificity_exactness,
     }
 }
 
@@ -27,6 +41,7 @@ fn property_declaration(
             Specificity::new(0, 1, 0),
             source_order,
         ),
+        specificity_exactness: SpecificityExactnessV0::Exact,
     }
 }
 
@@ -1702,6 +1717,148 @@ fn functional_pseudo_specificity_distinguishes_exact_and_lower_bound_estimates()
         inexact.specificity_exactness,
         SpecificityExactnessV0::Inexact
     );
+}
+
+#[test]
+fn inexact_specificity_cannot_produce_a_definite_winner() {
+    let Some(inexact_signature) = parse_simple_selector_signature(":is(:unknown(.a), .b)") else {
+        unreachable!("forgiving selector list keeps the modeled branch")
+    };
+    assert_eq!(
+        inexact_signature.specificity_exactness,
+        SpecificityExactnessV0::Inexact
+    );
+
+    let outcome = cascade_property(
+        [
+            declaration_with_specificity_exactness(
+                "inexact",
+                "red",
+                key(
+                    CascadeLevel::AuthorNormal,
+                    0,
+                    0,
+                    inexact_signature.specificity,
+                    0,
+                ),
+                SpecificityExactnessV0::Inexact,
+            ),
+            declaration(
+                "simple",
+                "blue",
+                key(
+                    CascadeLevel::AuthorNormal,
+                    0,
+                    0,
+                    Specificity::new(0, 1, 0),
+                    1,
+                ),
+            ),
+        ],
+        "color",
+    );
+
+    assert!(matches!(outcome, CascadeOutcome::RankedSet(_)));
+}
+
+#[test]
+fn open_world_inexact_specificity_cannot_be_promoted() {
+    let inexact = declaration_with_specificity_exactness(
+        "inexact",
+        "red",
+        key(
+            CascadeLevel::AuthorImportant,
+            0,
+            0,
+            Specificity::new(1, 0, 0),
+            0,
+        ),
+        SpecificityExactnessV0::Inexact,
+    );
+
+    assert!(matches!(
+        cascade_property_open_world([inexact.clone()], "color"),
+        CascadeOutcome::RankedSet(_)
+    ));
+    assert!(matches!(
+        cascade_property_open_world(
+            [
+                inexact,
+                declaration(
+                    "exact-weaker",
+                    "blue",
+                    key(CascadeLevel::AuthorNormal, 0, 0, Specificity::ZERO, 1,),
+                ),
+            ],
+            "color",
+        ),
+        CascadeOutcome::RankedSet(_)
+    ));
+}
+
+#[test]
+fn cascade_ordering_sources_have_no_silent_zero_specificity_fallback() {
+    let crates_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap_or_else(|| unreachable!("workspace crates directory"));
+    let mut offenders = Vec::new();
+    for crate_name in ["omena-cascade", "omena-query", "omena-transform-passes"] {
+        collect_rust_sources(
+            crates_dir.join(crate_name).join("src").as_path(),
+            &mut offenders,
+        );
+    }
+    assert!(
+        offenders.is_empty(),
+        "silent specificity fallbacks bypass exactness: {offenders:?}"
+    );
+}
+
+fn collect_rust_sources(directory: &Path, offenders: &mut Vec<PathBuf>) {
+    let entries = fs::read_dir(directory).unwrap_or_else(|error| {
+        panic!("failed to read {}: {error}", directory.display());
+    });
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|error| panic!("failed to read directory entry: {error}"))
+            .path();
+        if path.is_dir() {
+            collect_rust_sources(path.as_path(), offenders);
+            continue;
+        }
+        if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+            continue;
+        }
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        let compact = source.split_whitespace().collect::<String>();
+        let direct_fallback = [".unwrap", "_or(Specificity::ZERO)"].concat();
+        let lazy_fallback = [".unwrap", "_or_else(||Specificity::ZERO)"].concat();
+        if compact.contains(direct_fallback.as_str()) || compact.contains(lazy_fallback.as_str()) {
+            offenders.push(path);
+        }
+    }
+}
+
+#[test]
+fn specificity_exactness_divergence_census_is_fully_adjudicated() {
+    let census: serde_json::Value = serde_json::from_str(include_str!(
+        "../data/specificity-exactness-divergences.json"
+    ))
+    .unwrap_or_else(|error| panic!("invalid specificity divergence census: {error}"));
+    let rows = census["rows"]
+        .as_array()
+        .unwrap_or_else(|| panic!("specificity divergence census rows"));
+    assert_eq!(rows.len(), 4);
+    assert!(rows.iter().all(|row| {
+        matches!(
+            row["adjudication"].as_str(),
+            Some("fix" | "intendedCorrection")
+        ) && row["surface"].as_str().is_some()
+            && row["fixture"].as_str().is_some()
+            && row["before"].as_str().is_some()
+            && row["after"].as_str().is_some()
+    }));
 }
 
 #[test]
