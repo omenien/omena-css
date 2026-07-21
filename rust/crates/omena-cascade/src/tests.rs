@@ -1802,35 +1802,40 @@ fn cascade_ordering_sources_have_no_silent_zero_specificity_fallback() {
         .parent()
         .unwrap_or_else(|| unreachable!("workspace crates directory"));
     let mut offenders = Vec::new();
-    for crate_name in ["omena-cascade", "omena-query", "omena-transform-passes"] {
-        collect_rust_sources(
-            crates_dir.join(crate_name).join("src").as_path(),
-            &mut offenders,
-        );
-    }
+    let scan_result = ["omena-cascade", "omena-query", "omena-transform-passes"]
+        .into_iter()
+        .try_for_each(|crate_name| {
+            collect_rust_sources(
+                crates_dir.join(crate_name).join("src").as_path(),
+                &mut offenders,
+            )
+        });
+    assert!(
+        scan_result.is_ok(),
+        "specificity source scan failed: {scan_result:?}"
+    );
     assert!(
         offenders.is_empty(),
         "silent specificity fallbacks bypass exactness: {offenders:?}"
     );
 }
 
-fn collect_rust_sources(directory: &Path, offenders: &mut Vec<PathBuf>) {
-    let entries = fs::read_dir(directory).unwrap_or_else(|error| {
-        panic!("failed to read {}: {error}", directory.display());
-    });
+fn collect_rust_sources(directory: &Path, offenders: &mut Vec<PathBuf>) -> Result<(), String> {
+    let entries = fs::read_dir(directory)
+        .map_err(|error| format!("failed to read {}: {error}", directory.display()))?;
     for entry in entries {
         let path = entry
-            .unwrap_or_else(|error| panic!("failed to read directory entry: {error}"))
+            .map_err(|error| format!("failed to read directory entry: {error}"))?
             .path();
         if path.is_dir() {
-            collect_rust_sources(path.as_path(), offenders);
+            collect_rust_sources(path.as_path(), offenders)?;
             continue;
         }
         if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
             continue;
         }
         let source = fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+            .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
         let compact = source.split_whitespace().collect::<String>();
         let direct_fallback = [".unwrap", "_or(Specificity::ZERO)"].concat();
         let lazy_fallback = [".unwrap", "_or_else(||Specificity::ZERO)"].concat();
@@ -1838,19 +1843,22 @@ fn collect_rust_sources(directory: &Path, offenders: &mut Vec<PathBuf>) {
             offenders.push(path);
         }
     }
+    Ok(())
 }
 
 #[test]
 fn specificity_exactness_divergence_census_is_fully_adjudicated() {
-    let census: serde_json::Value = serde_json::from_str(include_str!(
+    let census_result = serde_json::from_str::<serde_json::Value>(include_str!(
         "../data/specificity-exactness-divergences.json"
-    ))
-    .unwrap_or_else(|error| panic!("invalid specificity divergence census: {error}"));
-    let rows = census["rows"]
-        .as_array()
-        .unwrap_or_else(|| panic!("specificity divergence census rows"));
-    assert_eq!(rows.len(), 4);
-    assert!(rows.iter().all(|row| {
+    ));
+    assert!(
+        census_result.is_ok(),
+        "invalid specificity divergence census"
+    );
+    let census = census_result.unwrap_or(serde_json::Value::Null);
+    let rows = census["rows"].as_array();
+    assert_eq!(rows.map(Vec::len), Some(4));
+    assert!(rows.is_some_and(|rows| rows.iter().all(|row| {
         matches!(
             row["adjudication"].as_str(),
             Some("fix" | "intendedCorrection")
@@ -1858,7 +1866,7 @@ fn specificity_exactness_divergence_census_is_fully_adjudicated() {
             && row["fixture"].as_str().is_some()
             && row["before"].as_str().is_some()
             && row["after"].as_str().is_some()
-    }));
+    })));
 }
 
 #[test]
@@ -2321,9 +2329,8 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
         .results
         .iter()
         .find(|result| result.name == "complex-functional-specificity-beats-source-order")
-        .unwrap_or_else(|| panic!("complex functional specificity case must remain in the corpus"));
-    assert_eq!(inversion_pin.actual_outcome, "definite");
-    assert_eq!(inversion_pin.actual_winner_id.as_deref(), Some("complex"));
+        .map(|result| (result.actual_outcome, result.actual_winner_id.as_deref()));
+    assert_eq!(inversion_pin, Some(("definite", Some("complex"))));
 }
 
 #[test]
