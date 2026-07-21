@@ -138,7 +138,7 @@ pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omena_cascade::ComputedCascadeValueStatusV0;
+    use omena_cascade::{ComputedCascadeIndeterminateReasonV0, ComputedCascadeValueStatusV0};
 
     #[test]
     fn registered_properties_use_typed_syntax_inheritance_and_initial_values() {
@@ -205,6 +205,38 @@ mod tests {
         assert_eq!(
             absent.computed_value.value,
             CascadeValue::Literal("8px".to_string())
+        );
+    }
+
+    #[test]
+    fn indeterminate_registered_syntax_has_a_typed_reason() {
+        let source = r#"
+@property --gap {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 8px;
+}
+.deferred { --gap: var(--runtime-value); }
+"#;
+
+        let result = summarize_omena_query_registered_custom_property_computed_value_v0(
+            "tokens.css",
+            source,
+            ".deferred",
+            "--gap",
+            None,
+        );
+
+        assert_eq!(result.unknown_value_count, 1);
+        assert_eq!(
+            result.computed_value.status,
+            ComputedCascadeValueStatusV0::Indeterminate
+        );
+        assert_eq!(result.computed_value.value, CascadeValue::Indeterminate);
+        assert!(!result.computed_value.invalid_at_computed_value_time);
+        assert_eq!(
+            result.computed_value.indeterminate_reason,
+            Some(ComputedCascadeIndeterminateReasonV0::RegisteredPropertySyntaxIndeterminate)
         );
     }
 

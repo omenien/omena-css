@@ -148,6 +148,8 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             referenced_declaration_computed_value_status: None,
             referenced_declaration_computed_value: None,
             referenced_declaration_invalid_at_computed_value_time: false,
+            referenced_declaration_computed_value_indeterminate: false,
+            referenced_declaration_computed_value_indeterminate_reason: None,
             referenced_declaration_computed_value_derivation_steps: Vec::new(),
             custom_property_fixed_point_iteration_count: fixed_point.iteration_count,
             custom_property_fixed_point_guaranteed_invalid_count: fixed_point
@@ -233,6 +235,12 @@ pub fn read_omena_query_cascade_at_position_from_graph(
         referenced_declaration_invalid_at_computed_value_time: computed
             .as_ref()
             .is_some_and(|computed| computed.invalid_at_computed_value_time),
+        referenced_declaration_computed_value_indeterminate: computed
+            .as_ref()
+            .is_some_and(|computed| computed.indeterminate),
+        referenced_declaration_computed_value_indeterminate_reason: computed
+            .as_ref()
+            .and_then(|computed| computed.indeterminate_reason),
         referenced_declaration_computed_value_derivation_steps: computed
             .map(|computed| computed.derivation_steps)
             .unwrap_or_default(),
@@ -253,6 +261,8 @@ struct ReferencedDeclarationComputedValueSeed {
     status: &'static str,
     computed_value: Option<String>,
     invalid_at_computed_value_time: bool,
+    indeterminate: bool,
+    indeterminate_reason: Option<&'static str>,
     derivation_steps: Vec<&'static str>,
 }
 
@@ -302,6 +312,8 @@ fn compute_referenced_declaration_cascade_value_seed(
         status: query_computed_cascade_value_status(&result.status),
         computed_value: render_query_cascade_value(&result.value),
         invalid_at_computed_value_time: result.invalid_at_computed_value_time,
+        indeterminate: result.status == ComputedCascadeValueStatusV0::Indeterminate,
+        indeterminate_reason: result.indeterminate_reason.map(|reason| reason.wire_name()),
         derivation_steps: result.derivation_steps,
     })
 }
@@ -440,6 +452,7 @@ fn query_computed_cascade_value_status(status: &ComputedCascadeValueStatusV0) ->
         ComputedCascadeValueStatusV0::Resolved => "resolved",
         ComputedCascadeValueStatusV0::Inherited => "inherited",
         ComputedCascadeValueStatusV0::Initial => "initial",
+        ComputedCascadeValueStatusV0::Indeterminate => "indeterminate",
         ComputedCascadeValueStatusV0::InvalidAtComputedValueTime => "invalidAtComputedValueTime",
     }
 }
@@ -456,6 +469,7 @@ fn render_query_cascade_value(value: &CascadeValue) -> Option<String> {
         }
         CascadeValue::Initial => Some("initial".to_string()),
         CascadeValue::Inherit => Some("inherit".to_string()),
+        CascadeValue::Indeterminate => None,
         CascadeValue::GuaranteedInvalid => Some("guaranteed-invalid".to_string()),
         CascadeValue::Unset => Some("unset".to_string()),
         CascadeValue::Var { .. } => None,

@@ -1608,6 +1608,9 @@ pub struct OmenaQueryCascadeAtPositionV0 {
     pub referenced_declaration_computed_value_status: Option<&'static str>,
     pub referenced_declaration_computed_value: Option<String>,
     pub referenced_declaration_invalid_at_computed_value_time: bool,
+    pub referenced_declaration_computed_value_indeterminate: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub referenced_declaration_computed_value_indeterminate_reason: Option<&'static str>,
     pub referenced_declaration_computed_value_derivation_steps: Vec<&'static str>,
     pub custom_property_fixed_point_iteration_count: usize,
     pub custom_property_fixed_point_guaranteed_invalid_count: usize,

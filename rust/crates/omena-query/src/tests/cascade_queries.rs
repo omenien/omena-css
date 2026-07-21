@@ -408,3 +408,33 @@ fn read_cascade_at_position_reports_iacvt_seed() {
         "Unsatisfiable"
     );
 }
+
+#[test]
+fn read_cascade_at_position_reports_unknown_metadata_as_indeterminate() {
+    let source = ".target { future-property: var(--missing, unset); }\n";
+    let cascade = read_omena_query_cascade_at_position(
+        "Component.module.css",
+        source,
+        &sample_input(),
+        ParserPositionV0 {
+            line: 0,
+            character: 34,
+        },
+    );
+    assert!(cascade.is_some());
+    let Some(cascade) = cascade else {
+        return;
+    };
+
+    assert_eq!(
+        cascade.referenced_declaration_computed_value_status,
+        Some("indeterminate")
+    );
+    assert!(cascade.referenced_declaration_computed_value.is_none());
+    assert!(!cascade.referenced_declaration_invalid_at_computed_value_time);
+    assert!(cascade.referenced_declaration_computed_value_indeterminate);
+    assert_eq!(
+        cascade.referenced_declaration_computed_value_indeterminate_reason,
+        Some("propertyInitialValueMetadataUnavailable")
+    );
+}

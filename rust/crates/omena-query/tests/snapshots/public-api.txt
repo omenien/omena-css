@@ -826,6 +826,8 @@ pub omena_query::OmenaQueryCascadeAtPositionV0::reference_name: core::option::Op
 pub omena_query::OmenaQueryCascadeAtPositionV0::reference_range: core::option::Option<omena_parser::spans::ParserRangeV0>
 pub omena_query::OmenaQueryCascadeAtPositionV0::referenced_declaration_computed_value: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQueryCascadeAtPositionV0::referenced_declaration_computed_value_derivation_steps: alloc::vec::Vec<&'static str>
+pub omena_query::OmenaQueryCascadeAtPositionV0::referenced_declaration_computed_value_indeterminate: bool
+pub omena_query::OmenaQueryCascadeAtPositionV0::referenced_declaration_computed_value_indeterminate_reason: core::option::Option<&'static str>
 pub omena_query::OmenaQueryCascadeAtPositionV0::referenced_declaration_computed_value_status: core::option::Option<&'static str>
 pub omena_query::OmenaQueryCascadeAtPositionV0::referenced_declaration_invalid_at_computed_value_time: bool
 pub omena_query::OmenaQueryCascadeAtPositionV0::referenced_declaration_property: core::option::Option<alloc::string::String>

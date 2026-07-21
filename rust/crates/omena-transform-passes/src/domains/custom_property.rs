@@ -2368,7 +2368,21 @@ fn render_static_cascade_value(value: &CascadeValue) -> Option<String> {
         CascadeValue::Var { .. }
         | CascadeValue::Initial
         | CascadeValue::Inherit
+        | CascadeValue::Indeterminate
         | CascadeValue::GuaranteedInvalid
         | CascadeValue::Unset => None,
+    }
+}
+
+#[cfg(test)]
+mod static_cascade_value_rendering_tests {
+    use super::*;
+
+    #[test]
+    fn indeterminate_values_are_not_rendered_as_static_css() {
+        assert_eq!(
+            render_static_cascade_value(&CascadeValue::Indeterminate),
+            None
+        );
     }
 }
