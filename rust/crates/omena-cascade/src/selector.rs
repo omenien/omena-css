@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 use crate::{
     ElementIdentityV0, ElementSignature, ScopeProximityStatusV0, ScopeProximityV0,
     SelectorContextMatchKind, SelectorContextWitness, SelectorMatchReason, SelectorMatchVerdict,
-    SelectorMatchWitness, SelectorSignature, Specificity,
+    SelectorMatchWitness, SelectorSignature, Specificity, SpecificityExactnessV0,
 };
 
 pub fn scope_proximity_from_ancestor_signatures(
@@ -453,6 +453,7 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
     let mut required_attributes = BTreeSet::new();
     let mut required_pseudo_states = BTreeSet::new();
     let mut specificity = Specificity::ZERO;
+    let mut specificity_exactness = SpecificityExactnessV0::Exact;
     let chars = selector.chars().collect::<Vec<_>>();
     let mut index = 0;
 
@@ -496,11 +497,14 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
                         // Selectors L4 §15 instead of bailing out of the whole selector.
                         let close = find_closing_paren(&chars, next)?;
                         let arguments = chars[next + 1..close].iter().collect::<String>();
-                        let argument_specificity =
+                        let (argument_specificity, argument_exactness) =
                             functional_pseudo_specificity(name.as_str(), arguments.as_str())?;
                         specificity.ids += argument_specificity.ids;
                         specificity.classes += argument_specificity.classes;
                         specificity.elements += argument_specificity.elements;
+                        if argument_exactness == SpecificityExactnessV0::Inexact {
+                            specificity_exactness = SpecificityExactnessV0::Inexact;
+                        }
                         required_pseudo_states.insert(name);
                         index = close + 1;
                     } else {
@@ -531,6 +535,7 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
         required_attributes,
         required_pseudo_states,
         specificity,
+        specificity_exactness,
     })
 }
 
@@ -619,27 +624,61 @@ fn find_closing_paren(chars: &[char], open_index: usize) -> Option<usize> {
 // `:has` pair (e.g. `a:has(.x)` vs `b:has(.x)`) from `Maybe` to `No`. That is an
 // intentional precision gain: it only drops a spurious proof-obligation candidate,
 // never turns an unsafe pair into a safe one.
-fn functional_pseudo_specificity(name: &str, arguments: &str) -> Option<Specificity> {
+fn functional_pseudo_specificity(
+    name: &str,
+    arguments: &str,
+) -> Option<(Specificity, SpecificityExactnessV0)> {
     match name.to_ascii_lowercase().as_str() {
-        "where" => Some(Specificity::ZERO),
+        "where" => Some((Specificity::ZERO, SpecificityExactnessV0::Exact)),
         "is" | "not" | "matches" | "has" => Some(most_specific_argument_specificity(arguments)),
         _ => None,
     }
 }
 
-/// Highest specificity among a comma-separated argument selector list. Arguments
-/// that the conservative parser cannot model contribute `Specificity::ZERO`,
-/// which keeps the estimate sound (never over-counts) without dropping the rule.
-fn most_specific_argument_specificity(arguments: &str) -> Specificity {
-    split_selector_list(arguments)
-        .iter()
-        .map(|argument| {
-            parse_simple_selector_signature_inner(argument.trim())
-                .map(|signature| signature.specificity)
-                .unwrap_or(Specificity::ZERO)
-        })
-        .max()
-        .unwrap_or(Specificity::ZERO)
+/// Highest specificity among a comma-separated complex-selector argument list.
+/// The numeric estimate remains a useful lower bound for conservative filtering,
+/// while exact ordering must also inspect the returned exactness marker.
+fn most_specific_argument_specificity(arguments: &str) -> (Specificity, SpecificityExactnessV0) {
+    let branches = split_selector_list(arguments);
+    if branches.is_empty() {
+        return (Specificity::ZERO, SpecificityExactnessV0::Inexact);
+    }
+
+    let mut highest = Specificity::ZERO;
+    let mut exactness = SpecificityExactnessV0::Exact;
+    for branch in branches {
+        let (specificity, branch_exactness) = complex_selector_specificity(branch.as_str());
+        highest = highest.max(specificity);
+        if branch_exactness == SpecificityExactnessV0::Inexact {
+            exactness = SpecificityExactnessV0::Inexact;
+        }
+    }
+    (highest, exactness)
+}
+
+fn complex_selector_specificity(selector: &str) -> (Specificity, SpecificityExactnessV0) {
+    let components = split_complex_selector_components(selector);
+    if components.is_empty() {
+        return (Specificity::ZERO, SpecificityExactnessV0::Inexact);
+    }
+
+    let mut total = Specificity::ZERO;
+    let mut exactness = SpecificityExactnessV0::Exact;
+    for component in components {
+        let Some(signature) = parse_simple_selector_signature_inner(component.as_str()) else {
+            exactness = SpecificityExactnessV0::Inexact;
+            continue;
+        };
+        total.ids = total.ids.saturating_add(signature.specificity.ids);
+        total.classes = total.classes.saturating_add(signature.specificity.classes);
+        total.elements = total
+            .elements
+            .saturating_add(signature.specificity.elements);
+        if signature.specificity_exactness == SpecificityExactnessV0::Inexact {
+            exactness = SpecificityExactnessV0::Inexact;
+        }
+    }
+    (total, exactness)
 }
 
 fn read_attribute_name(attribute: &str) -> Option<String> {

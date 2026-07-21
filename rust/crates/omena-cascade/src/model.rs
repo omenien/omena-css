@@ -53,6 +53,13 @@ impl Specificity {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SpecificityExactnessV0 {
+    Exact,
+    Inexact,
+}
+
 impl Ord for Specificity {
     fn cmp(&self, other: &Self) -> Ordering {
         (self.ids, self.classes, self.elements).cmp(&(other.ids, other.classes, other.elements))
@@ -438,6 +445,7 @@ pub struct SelectorSignature {
     pub required_attributes: BTreeSet<String>,
     pub required_pseudo_states: BTreeSet<String>,
     pub specificity: Specificity,
+    pub specificity_exactness: SpecificityExactnessV0,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]

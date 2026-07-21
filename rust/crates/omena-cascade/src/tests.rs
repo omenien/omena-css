@@ -1652,6 +1652,59 @@ fn is_pseudo_takes_most_specific_argument_specificity() {
 }
 
 #[test]
+fn is_pseudo_counts_complex_argument_specificity() {
+    let Some(signature) = parse_simple_selector_signature(":is(#root .item)") else {
+        unreachable!(":is(...) parses")
+    };
+
+    // Selectors L4: the argument is a complex selector, so both compounds
+    // contribute to the functional pseudo-class specificity.
+    assert_eq!(signature.specificity, Specificity::new(1, 1, 0));
+    assert_eq!(
+        signature.specificity_exactness,
+        SpecificityExactnessV0::Exact
+    );
+}
+
+#[test]
+fn functional_pseudo_specificity_distinguishes_exact_and_lower_bound_estimates() {
+    let cases = [
+        (":not(.a.b)", Specificity::new(0, 2, 0)),
+        (":has(> .x)", Specificity::new(0, 1, 0)),
+        (":is(ul > li.active)", Specificity::new(0, 1, 2)),
+    ];
+    for (selector, expected) in cases {
+        let Some(signature) = parse_simple_selector_signature(selector) else {
+            unreachable!("standard functional pseudo parses")
+        };
+        assert_eq!(signature.specificity, expected, "{selector}");
+        assert_eq!(
+            signature.specificity_exactness,
+            SpecificityExactnessV0::Exact,
+            "{selector}"
+        );
+    }
+
+    let Some(where_signature) = parse_simple_selector_signature(":where(#a .b)") else {
+        unreachable!(":where(...) parses")
+    };
+    assert_eq!(where_signature.specificity, Specificity::ZERO);
+    assert_eq!(
+        where_signature.specificity_exactness,
+        SpecificityExactnessV0::Exact
+    );
+
+    let Some(inexact) = parse_simple_selector_signature(":is(:unknown(.a), .b)") else {
+        unreachable!("forgiving selector list keeps the modeled branch")
+    };
+    assert_eq!(inexact.specificity, Specificity::new(0, 1, 0));
+    assert_eq!(
+        inexact.specificity_exactness,
+        SpecificityExactnessV0::Inexact
+    );
+}
+
+#[test]
 fn not_pseudo_takes_most_specific_argument_specificity() {
     // RFC-0007-B B3: `:not()` mirrors `:is()` for specificity.
     let Some(signature) = parse_simple_selector_signature(":not(.a, #b)") else {
