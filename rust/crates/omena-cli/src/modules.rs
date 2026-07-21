@@ -6,12 +6,13 @@ use std::{
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use omena_query::{
     OmenaQueryCssModulesInterfaceBundleV0, OmenaQueryCssModulesInterfaceSummaryViewV0,
+    load_omena_query_workspace_style_resolution_inputs,
     render_omena_query_css_module_typescript_declaration,
     render_omena_query_css_modules_interface_json, summarize_cross_file_summary_view_v0,
     summarize_omena_query_css_modules_export_usage,
     summarize_omena_query_css_modules_interface_bundle,
     summarize_omena_query_css_modules_interface_summary_view,
-    summarize_omena_query_workspace_cross_file_summary,
+    summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -22,7 +23,7 @@ use crate::{
     io::{read_package_manifests, read_source_documents, read_style_sources},
     lint::discover_workspace_files,
     output::{CliOutputMetadataV0, print_json},
-    paths::path_string,
+    paths::{path_string, style_resolution_workspace_uri_for_path},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -212,6 +213,13 @@ fn build_modules_execution(options: ModulesOptions) -> Result<ModulesExecutionV0
     let style_sources = read_style_sources(module_paths.as_slice())?;
     let source_documents = read_source_documents(files.source_paths.as_slice())?;
     let package_manifests = read_package_manifests(files.package_manifest_paths.as_slice())?;
+    let workspace_folder_uri = module_paths
+        .first()
+        .and_then(|path| style_resolution_workspace_uri_for_path(path));
+    let resolution_inputs = load_omena_query_workspace_style_resolution_inputs(
+        workspace_folder_uri.as_deref(),
+        package_manifests.as_slice(),
+    );
     let bundle = summarize_omena_query_css_modules_interface_bundle(
         style_sources.as_slice(),
         package_manifests.as_slice(),
@@ -222,11 +230,13 @@ fn build_modules_execution(options: ModulesOptions) -> Result<ModulesExecutionV0
         package_manifests.as_slice(),
         None,
     );
-    let workspace_summary = summarize_omena_query_workspace_cross_file_summary(
-        style_sources.as_slice(),
-        source_documents.as_slice(),
-        package_manifests.as_slice(),
-    );
+    let workspace_summary =
+        summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs(
+            style_sources.as_slice(),
+            source_documents.as_slice(),
+            package_manifests.as_slice(),
+            &resolution_inputs,
+        );
     let cross_file_summary_view = summarize_cross_file_summary_view_v0(&workspace_summary);
     let summary_view = summarize_omena_query_css_modules_interface_summary_view(
         &cross_file_summary_view,

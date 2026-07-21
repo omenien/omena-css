@@ -608,6 +608,7 @@ pub use style::{
     summarize_omena_query_unused_selector_style_diagnostics,
     summarize_omena_query_unused_selector_style_diagnostics_with_path_mappings,
     summarize_omena_query_workspace_cross_file_summary,
+    summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
     summarize_omena_query_workspace_occurrence_index_from_occurrences,
     summarize_omena_query_workspace_occurrence_index_from_source_occurrences,
     validate_omena_query_closed_world_decision_parity,

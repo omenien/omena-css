@@ -654,7 +654,7 @@ fn summarize_omena_query_source_selector_reference_cross_file_summary_with_defin
             linear_provenance_semiring_laws_hold:
                 summarize_omena_query_linear_provenance_semiring_laws().all_fixture_laws_hold,
         },
-        next_priorities: vec!["sourceSelectorReferenceSummaryEquivalenceGate"],
+        next_priorities: Vec::new(),
     }
 }
 
@@ -662,6 +662,20 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryCrossFileSummaryV0 {
+    summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs(
+        style_sources,
+        source_documents,
+        package_manifests,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )
+}
+
+pub fn summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCrossFileSummaryV0 {
     #[cfg(feature = "salsa-memo")]
     {
@@ -671,7 +685,7 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
             source_documents,
             package_manifests,
             &[],
-            &OmenaQueryStyleResolutionInputsV0::default(),
+            resolution_inputs,
         ) {
             return selector.workspace_cross_file_summary().clone();
         }
@@ -700,6 +714,7 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
         &style_fact_entries,
         &css_modules_resolution,
         &sass_module_resolution,
+        resolution_inputs,
     )
 }
 
@@ -716,6 +731,7 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_with_substrate(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
     sass_module_resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCrossFileSummaryV0 {
     let style_summary = summarize_omena_query_cross_file_summary(
         style_fact_entries,
@@ -727,6 +743,7 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_with_substrate(
         source_documents,
         package_manifests,
         style_summary,
+        resolution_inputs,
     )
 }
 
@@ -735,15 +752,18 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_style_summ
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     style_summary: OmenaQueryCrossFileSummaryV0,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCrossFileSummaryV0 {
     #[cfg(any(test, feature = "test-support"))]
     record_workspace_cross_file_summary_internal_compute_for_test();
 
-    let source_summary = summarize_omena_query_source_selector_reference_cross_file_summary(
-        style_sources,
-        source_documents,
-        package_manifests,
-    );
+    let source_summary =
+        summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs(
+            style_sources,
+            source_documents,
+            package_manifests,
+            resolution_inputs,
+        );
 
     merge_omena_query_cross_file_summaries(
         "workspaceSummaryEdgeSeed",
@@ -758,6 +778,7 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_module_int
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     style_summary: OmenaQueryCrossFileSummaryV0,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryCrossFileSummaryV0 {
     #[cfg(any(test, feature = "test-support"))]
     record_workspace_cross_file_summary_internal_compute_for_test();
@@ -767,7 +788,7 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_module_int
             module_interfaces,
             source_documents,
             package_manifests,
-            &OmenaQueryStyleResolutionInputsV0::default(),
+            resolution_inputs,
         );
 
     merge_omena_query_cross_file_summaries(

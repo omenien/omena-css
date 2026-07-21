@@ -494,6 +494,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
                 style_sources,
                 source_documents,
                 package_manifests,
+                resolution_inputs,
                 substrate,
             ),
         ),
@@ -506,6 +507,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             style_sources,
             source_documents,
             package_manifests,
+            resolution_inputs,
             substrate,
         ),
     );

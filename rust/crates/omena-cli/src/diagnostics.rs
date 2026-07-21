@@ -24,7 +24,7 @@ use omena_query::{
 #[cfg(test)]
 use omena_query::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
-    summarize_omena_query_workspace_cross_file_summary,
+    summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
 };
 use omena_sif::{read_omena_lock_json_v1, read_omena_sif_json_v1};
 use omena_streaming_ifds::summarize_streaming_ifds_cross_file_reachability_v0;
@@ -259,10 +259,17 @@ pub(crate) fn summarize_cross_file_streaming_reachability_diagnostics(
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let summary = summarize_omena_query_workspace_cross_file_summary(
+    let workspace_folder_uri =
+        style_resolution_workspace_uri_for_path(Path::new(target_style_path));
+    let resolution_inputs = load_omena_query_workspace_style_resolution_inputs(
+        workspace_folder_uri.as_deref(),
+        package_manifests,
+    );
+    let summary = summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs(
         workspace_sources,
         source_documents,
         package_manifests,
+        &resolution_inputs,
     );
     summarize_cross_file_streaming_reachability_diagnostics_from_summary(
         target_style_path,

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "0",
+  "schemaVersion": "1",
   "product": "omena-query.style-resolution-authority-census",
   "policy": {
     "direction": "decrease-only",
@@ -7,11 +7,28 @@
     "owningCheck": "rust/omena-style-resolution-authority",
     "packageScript": "check:rust-omena-style-resolution-authority"
   },
-  "sourceRoot": "rust/crates/omena-query/src",
-  "resolver": "resolve_style_module_source",
-  "baselinePlainCallerCount": 0,
-  "currentPlainCallerCount": 0,
-  "namedExemptions": [],
-  "sites": [],
-  "siteDigest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  "sourceRoots": ["rust/crates/omena-query/src", "rust/crates/omena-cli/src"],
+  "authorities": [
+    "resolve_style_module_source",
+    "summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs"
+  ],
+  "baselinePlainCallerCount": 1,
+  "currentPlainCallerCount": 1,
+  "namedExemptions": [
+    {
+      "siteKey": "rust/crates/omena-query/src/style/cross_file_summary.rs#summarize_omena_query_workspace_cross_file_summary#summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs#0",
+      "reason": "The compatibility entry point preserves mapping-free behavior while product callers use the resolution-aware sibling."
+    }
+  ],
+  "sites": [
+    {
+      "path": "rust/crates/omena-query/src/style/cross_file_summary.rs",
+      "line": 666,
+      "function": "summarize_omena_query_workspace_cross_file_summary",
+      "authority": "summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs",
+      "callOrdinal": 0,
+      "evidence": "summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs("
+    }
+  ],
+  "siteDigest": "sha256:551bea6671f379f02024bcb794b7be5a328ad858008489a7edd54cb744f37dfa"
 }

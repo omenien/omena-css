@@ -46,6 +46,7 @@ pub use cross_file_summary::{
     summarize_omena_query_source_selector_reference_cross_file_summary,
     summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs,
     summarize_omena_query_workspace_cross_file_summary,
+    summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
 };
 #[cfg(test)]
 pub(crate) use diagnostics::collect_omena_query_visible_sass_symbol_keys_for_workspace_file;

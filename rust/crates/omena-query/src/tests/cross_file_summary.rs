@@ -17,6 +17,7 @@ use crate::{
     summarize_omena_query_style_document,
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_workspace_cross_file_summary,
+    summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
 };
 #[cfg(feature = "hypergraph-ifds")]
 use crate::{
@@ -235,6 +236,56 @@ const cls = styles.root;"#
     assert_eq!(summary.summary_edge_count, 1, "{summary:?}");
     assert_eq!(summary.edges[0].target_path.as_deref(), Some(style_path));
     assert_eq!(summary.edges[0].local_name.as_deref(), Some("root"));
+}
+
+#[test]
+fn workspace_cross_file_summary_matches_alias_aware_source_projection() {
+    let style_path = "/workspace/src/styles/Button.module.scss";
+    let style_sources = [OmenaQueryStyleSourceInputV0 {
+        style_path: style_path.to_string(),
+        style_source: ".root { color: red; }".to_string(),
+    }];
+    let source_documents = [OmenaQuerySourceDocumentInputV0 {
+        source_path: "/workspace/src/Button.tsx".to_string(),
+        source_source: r#"import styles from "@styles/Button.module.scss";
+const cls = styles.root;"#
+            .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
+    }];
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        tsconfig_path_mappings: vec![OmenaQueryTsconfigPathMappingV0 {
+            base_path: "/workspace".to_string(),
+            pattern: "@styles/*".to_string(),
+            target_patterns: vec!["src/styles/*".to_string()],
+        }],
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+
+    let source_summary =
+        summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs(
+            &style_sources,
+            &source_documents,
+            &[],
+            &resolution_inputs,
+        );
+    let workspace_summary =
+        summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs(
+            &style_sources,
+            &source_documents,
+            &[],
+            &resolution_inputs,
+        );
+    let mapping_free =
+        summarize_omena_query_workspace_cross_file_summary(&style_sources, &source_documents, &[]);
+
+    assert_eq!(source_summary.summary_edge_count, 1);
+    assert_eq!(workspace_summary.edges, source_summary.edges);
+    assert_eq!(
+        workspace_summary.edges[0].target_path.as_deref(),
+        Some(style_path)
+    );
+    assert!(mapping_free.edges.is_empty());
 }
 
 #[test]

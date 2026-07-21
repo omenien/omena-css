@@ -1,8 +1,9 @@
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use omena_query::{
-    OmenaQueryClosedWorldOutcomeV0, summarize_omena_query_consumer_check_style_source,
-    summarize_omena_query_workspace_cross_file_summary,
+    OmenaQueryClosedWorldOutcomeV0, load_omena_query_workspace_style_resolution_inputs,
+    summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
 };
 use serde_json::{Value, json};
 
@@ -13,7 +14,7 @@ use crate::{
     io::{read_package_manifests, read_source, read_source_documents, read_style_sources},
     lint::{discover_style_paths, discover_workspace_files},
     modules::{has_css_module_sources, modules_check_report},
-    paths::path_string,
+    paths::{path_string, style_resolution_workspace_uri_for_path},
     sass::sass_compile_report,
 };
 
@@ -300,10 +301,19 @@ fn verify_module_graph_consistency(
     let style_sources = read_style_sources(context.style_paths.as_slice())?;
     let source_documents = read_source_documents(context.source_paths.as_slice())?;
     let package_manifests = read_package_manifests(context.package_manifest_paths.as_slice())?;
-    let summary = summarize_omena_query_workspace_cross_file_summary(
+    let workspace_folder_uri = context
+        .style_paths
+        .first()
+        .and_then(|path| style_resolution_workspace_uri_for_path(path));
+    let resolution_inputs = load_omena_query_workspace_style_resolution_inputs(
+        workspace_folder_uri.as_deref(),
+        package_manifests.as_slice(),
+    );
+    let summary = summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs(
         style_sources.as_slice(),
         source_documents.as_slice(),
         package_manifests.as_slice(),
+        &resolution_inputs,
     );
     let unresolved_edges = summary
         .edges

@@ -11,12 +11,14 @@ pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_works
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let report = collect_omena_query_unified_cross_file_scc_report_shared(
         style_sources,
         source_documents,
         package_manifests,
+        resolution_inputs,
         substrate,
     );
     summarize_omena_query_unified_cross_file_scc_diagnostics_from_report(
@@ -34,6 +36,7 @@ pub(in crate::style) fn collect_omena_query_unified_cross_file_scc_report_shared
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> crate::OmenaQueryUnifiedCrossFileSccReportV0 {
     let summary = super::super::cross_file_summary::summarize_omena_query_workspace_cross_file_summary_with_substrate(
@@ -43,6 +46,7 @@ pub(in crate::style) fn collect_omena_query_unified_cross_file_scc_report_shared
         &substrate.style_fact_entries,
         &substrate.css_modules_resolution,
         &substrate.sass_resolution_without_path_mappings,
+        resolution_inputs,
     );
     let hypergraph = super::super::summarize_omena_query_unified_cross_file_hypergraph(&summary);
     super::super::summarize_omena_query_unified_cross_file_scc_report(&hypergraph)
@@ -117,6 +121,7 @@ pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_works
     _style_sources: &[OmenaQueryStyleSourceInputV0],
     _source_documents: &[OmenaQuerySourceDocumentInputV0],
     _package_manifests: &[OmenaQueryStylePackageManifestV0],
+    _resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     _substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     Vec::new()

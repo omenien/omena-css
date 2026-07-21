@@ -786,6 +786,7 @@ pub fn prepare_committed_workspace_wave_substrate(
                 corpus.as_slice(),
                 source_documents.as_slice(),
                 package_manifests.as_slice(),
+                resolution_inputs,
                 &substrate,
             ),
         ),
@@ -1364,6 +1365,7 @@ fn memo_workspace_cross_file_summary_from_module_interfaces(
         workspace.source_documents(db).as_slice(),
         workspace.package_manifests(db).as_slice(),
         style_cross_file_summary,
+        workspace.resolution_inputs(db),
     )
 }
 
@@ -2806,6 +2808,7 @@ pub(crate) fn build_committed_style_semantic_graph_monolith(
         source_documents,
         package_manifests,
         style_cross_file_summary.clone(),
+        resolution_inputs,
     );
     OmenaQueryCommittedStyleSemanticGraphV0 {
         style_fact_entries,
@@ -2969,6 +2972,61 @@ mod tests {
         );
         assert_eq!(edge.matched_names, vec!["base"]);
         assert_eq!(edge.import_graph_distance, Some(1));
+        Ok(())
+    }
+
+    #[test]
+    fn committed_workspace_summary_matches_alias_aware_source_projection()
+    -> Result<(), &'static str> {
+        let style_path = "/workspace/src/styles/Button.module.scss";
+        let corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: style_path.to_string(),
+            style_source: ".root { color: red; }".to_string(),
+        }];
+        let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+            source_path: "/workspace/src/Button.tsx".to_string(),
+            source_source: r#"import styles from "@styles/Button.module.scss";
+const cls = styles.root;"#
+                .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+            tsconfig_path_mappings: vec![OmenaResolverTsconfigPathMappingV0 {
+                base_path: "/workspace".to_string(),
+                pattern: "@styles/*".to_string(),
+                target_patterns: vec!["src/styles/*".to_string()],
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        };
+        let source_summary =
+            crate::summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs(
+                corpus.as_slice(),
+                source_documents.as_slice(),
+                &[],
+                &resolution_inputs,
+            );
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let selector = host
+            .workspace_revision_selector(
+                corpus.as_slice(),
+                source_documents.as_slice(),
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("alias source corpus must commit a selector")?;
+        let workspace_summary = selector.workspace_cross_file_summary();
+        let source_edges = workspace_summary
+            .edges
+            .iter()
+            .filter(|edge| edge.edge_kind == "sourceSelectorReference")
+            .cloned()
+            .collect::<Vec<_>>();
+
+        assert_eq!(source_summary.summary_edge_count, 1);
+        assert_eq!(source_edges, source_summary.edges);
+        assert_eq!(source_edges[0].target_path.as_deref(), Some(style_path));
         Ok(())
     }
 
