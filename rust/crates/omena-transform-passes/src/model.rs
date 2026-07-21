@@ -504,6 +504,7 @@ pub enum TransformWinnerEqualityAxisV0 {
 pub enum TransformWinnerEqualityAbsenceReasonV0 {
     DriverUnavailable { level: Option<CascadeLevel> },
     AffectedPairUnavailable,
+    SpecificityInexact,
     WinnerNotDefinite,
     WinnerChanged,
 }
