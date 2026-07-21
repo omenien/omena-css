@@ -275,8 +275,8 @@ function classifySite(site: DiscoveredSite): ErrorClass {
     return "internal";
   }
   if (text.includes("parse") || text.includes("from_value")) return "input";
-  if (text.includes("resolve") || text.includes("resolution")) return "resolution";
   if (text.includes("diagnostic") || text.includes("analy")) return "analysis";
+  if (text.includes("resolve") || text.includes("resolution")) return "resolution";
   if (text.includes("transform") || text.includes("build") || text.includes("bundle")) {
     return "transform";
   }
