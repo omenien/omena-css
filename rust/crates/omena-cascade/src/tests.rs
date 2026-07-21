@@ -1762,6 +1762,67 @@ fn inexact_specificity_cannot_produce_a_definite_winner() {
 }
 
 #[test]
+fn inexact_specificity_reaches_computed_value_as_indeterminate() {
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![declaration_with_specificity_exactness(
+            "inexact",
+            "red",
+            key(
+                CascadeLevel::AuthorNormal,
+                0,
+                0,
+                Specificity::new(0, 1, 0),
+                0,
+            ),
+            SpecificityExactnessV0::Inexact,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+    });
+
+    assert_eq!(
+        result.status,
+        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+    );
+    assert_eq!(result.value, CascadeValue::GuaranteedInvalid);
+    assert_eq!(result.winner_declaration_id, None);
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"cascadeOutcomeIndeterminate")
+    );
+
+    let status = match result.status {
+        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime => "invalidAtComputedValueTime",
+        _ => "unexpected",
+    };
+    let value = match result.value {
+        CascadeValue::GuaranteedInvalid => "guaranteedInvalid",
+        _ => "unexpected",
+    };
+    let winner = result.winner_declaration_id.as_deref().unwrap_or("none");
+    let observation = format!("status={status};value={value};winner={winner}");
+    let census = serde_json::from_str::<serde_json::Value>(include_str!(
+        "../data/specificity-exactness-divergences.json"
+    ))
+    .unwrap_or(serde_json::Value::Null);
+    let row = census["rows"].as_array().and_then(|rows| {
+        rows.iter()
+            .find(|row| row["fixture"] == "inexact-specificity-ranked-set")
+    });
+    assert_eq!(
+        row.and_then(|row| row["after"].as_str()),
+        Some(observation.as_str())
+    );
+    assert_eq!(
+        row.and_then(|row| row["downstreamDisposition"].as_str()),
+        Some("registeredValueResolutionFollowUp")
+    );
+}
+
+#[test]
 fn open_world_inexact_specificity_cannot_be_promoted() {
     let inexact = declaration_with_specificity_exactness(
         "inexact",
@@ -1857,7 +1918,7 @@ fn specificity_exactness_divergence_census_is_fully_adjudicated() {
     );
     let census = census_result.unwrap_or(serde_json::Value::Null);
     let rows = census["rows"].as_array();
-    assert_eq!(rows.map(Vec::len), Some(4));
+    assert_eq!(rows.map(Vec::len), Some(5));
     assert!(rows.is_some_and(|rows| rows.iter().all(|row| {
         matches!(
             row["adjudication"].as_str(),
@@ -1866,7 +1927,19 @@ fn specificity_exactness_divergence_census_is_fully_adjudicated() {
             && row["fixture"].as_str().is_some()
             && row["before"].as_str().is_some()
             && row["after"].as_str().is_some()
+            && row["downstreamDisposition"].as_str().is_some()
     })));
+    assert_eq!(
+        rows.map(|rows| {
+            rows.iter()
+                .filter(|row| {
+                    row["downstreamDisposition"].as_str()
+                        == Some("registeredValueResolutionFollowUp")
+                })
+                .count()
+        }),
+        Some(1)
+    );
 }
 
 #[test]

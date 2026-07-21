@@ -7,28 +7,40 @@
       "fixture": "complex-functional-argument",
       "before": "specificity=0,0,0;exactness=absent",
       "after": "specificity=1,1,0;exactness=exact",
-      "adjudication": "fix"
+      "adjudication": "fix",
+      "downstreamDisposition": "none"
     },
     {
       "surface": "queryRuntimeState",
       "fixture": "complex-functional-winner-inversion",
       "before": "definite:simple:blue",
       "after": "definite:complex:red",
-      "adjudication": "fix"
+      "adjudication": "fix",
+      "downstreamDisposition": "none"
     },
     {
       "surface": "closedCascadeRanking",
       "fixture": "unmodeled-functional-argument",
       "before": "definite:simple",
       "after": "rankedSet",
-      "adjudication": "intendedCorrection"
+      "adjudication": "intendedCorrection",
+      "downstreamDisposition": "none"
     },
     {
       "surface": "queryRuntimeState",
       "fixture": "unsupported-whole-selector",
       "before": "definite:unsupported",
       "after": "rankedSet:noWinner",
-      "adjudication": "intendedCorrection"
+      "adjudication": "intendedCorrection",
+      "downstreamDisposition": "none"
+    },
+    {
+      "surface": "computedValueResolution",
+      "fixture": "inexact-specificity-ranked-set",
+      "before": "status=valid;value=red;winner=inexact",
+      "after": "status=invalidAtComputedValueTime;value=guaranteedInvalid;winner=none",
+      "adjudication": "intendedCorrection",
+      "downstreamDisposition": "registeredValueResolutionFollowUp"
     }
   ]
 }
