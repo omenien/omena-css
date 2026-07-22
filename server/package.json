@@ -9,7 +9,7 @@
   "dependencies": {
     "@omena/shared": "workspace:*",
     "fast-glob": "^3.3.3",
-    "postcss": "^8.5.19",
+    "postcss": "^8.5.22",
     "postcss-less": "^6.0.0",
     "postcss-scss": "^4.0.9",
     "typescript": "^6.0.3",
