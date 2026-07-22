@@ -2,6 +2,62 @@
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-07-23
+
+### Added
+
+- **Coordinated product surface** - ships the expanded Rust CLI command family,
+  language server, workspace daemon, bundler host, and NAPI/WASM/TypeScript SDK
+  adapters against shared semantic query and error boundaries.
+- **Explicit advanced paths** - exposes linked-order emission, external SIF trust
+  tiers, strict minification, and closed-world transforms as explicit choices;
+  the established byte-producing paths remain the defaults.
+
+### Changed
+
+- **Rust and npm binding train** - advances publishable Rust crates and generated
+  `@omena/wasm`, `@omena/napi`, and `@omena/napi-*` packages to `0.3.0` in
+  exact lockstep. Build-tool integration packages remain separate first-publish
+  decisions at their package-local `0.0.x` versions.
+- **Static SIF generator identity** - `omena-sifgen-static@0.2.0` intentionally
+  rekeys interface, transitive, and artifact hashes produced by the earlier
+  `0.1.0` identity while preserving the source leaf hash.
+
+### Fixed
+
+- **CSS keyword case** - mixed-case CSS keywords were previously interpreted
+  inconsistently after parsing, silently dropping facts on some layer,
+  CSS Modules, keyframe, and priority paths. They now use the shared
+  ASCII-insensitive keyword authority.
+- **Property value grammar** - valid declarations containing unitless zero,
+  nullable branches, or all-in-any-order grammar constructs were previously
+  reported as definitely invalid. They now follow the pinned grammar matcher,
+  while malformed declarations continue to produce findings.
+- **Style alias resolution** - existing style files reached through tsconfig,
+  jsconfig, or bundler aliases were previously reported as missing on some
+  workspace paths, and related selector checks could be skipped. Resolution
+  inputs now reach those paths; genuinely absent targets still produce findings.
+
+### Upgrade Notes
+
+Static SIF lock entries authored for generator identity `0.1.0` must be refreshed
+after regenerating their artifacts. The following command sequence was executed
+against a legacy-identity fixture; frozen checking reported all three expected
+generator-bound hash mismatches before the update and passed afterward:
+
+```sh
+omena sif generate tokens.scss \
+  --canonical-url pkg:release-fixture/tokens.scss \
+  --output tokens.sif.json
+omena lock update pkg:release-fixture/tokens.scss \
+  --lockfile omena.lock \
+  --sif tokens.sif.json
+omena lock verify --lockfile omena.lock --frozen
+```
+
+See [the full release notes](docs/releases/5.3.0.md) for product scope and
+version-policy details.
+
 ## [5.2.0] - 2026-05-26
 
 ### Changed
@@ -214,8 +270,8 @@
 
 ### Added
 
-- **tsgo-backed typed `cx()` projection** - Rust LSP source requests now consume `omena-tsgo-client` type facts for finite literal unions and template holes, projecting typed `classnames/bind` arguments such as `size` and ``font-size-${fontSize}`` onto canonical selector definitions.
-- **Sass partial-evaluation selector catalog** - Rust LSP style indexing now surfaces map + `$prefix` Sass include outputs such as `color-green` / `color-blue` as generated selector candidates, allowing source prefix lookups like ``color-${color}`` to resolve instead of returning silently.
+- **tsgo-backed typed `cx()` projection** - Rust LSP source requests now consume `omena-tsgo-client` type facts for finite literal unions and template holes, projecting typed `classnames/bind` arguments such as `size` and `font-size-${fontSize}` onto canonical selector definitions.
+- **Sass partial-evaluation selector catalog** - Rust LSP style indexing now surfaces map + `$prefix` Sass include outputs such as `color-green` / `color-blue` as generated selector candidates, allowing source prefix lookups like `color-${color}` to resolve instead of returning silently.
 
 ### Fixed
 
@@ -746,6 +802,7 @@
 ### Fixed
 
 - **Local packaging from development checkouts** — `.worktrees/` and `.pnpm-store/` are now excluded from the VSIX, preventing `vsce package` failures and accidental bundling of local development artifacts.
+
 ## [3.1.1] — 2026-04-14
 
 ### Added
@@ -961,7 +1018,7 @@ this project adheres to
   completion work on `styles.className` property access in any
   file, independent of whether `classnames/bind` is imported.
 - **Template reverse-index expansion** — template-literal and
-  variable-kind call sites (e.g. `` cx(`btn-${weight}`) ``) are
+  variable-kind call sites (e.g. ``cx(`btn-${weight}`)``) are
   expanded against the class map at index time, so Find
   References on a selector surfaces every dynamically-referenced
   site.

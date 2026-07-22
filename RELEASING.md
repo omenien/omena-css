@@ -14,9 +14,13 @@ The project has three independent version lines:
 | VS Code extension          | root `package.json`                 | `vscode-vX.Y.Z`  | Marketplace, Open VSX, VSIX, SBOM, attestation |
 | Private TypeScript tooling | package-local manifests             | none             | not published                                  |
 
-The published crate/npm baseline is `0.2.0`; the workspace may carry the next
-unpublished crate-train version. `5.2.0` is the published extension baseline,
-with tag `vscode-v5.2.0`.
+The machine-checked axis and reservation policy is documented in
+[`docs/governance/version-governance.md`](docs/governance/version-governance.md).
+The registry crate baseline is `0.2.0` and the published npm binding baseline is
+`0.2.1`; the source workspace may carry the next unpublished crate-train
+version. `5.2.0` is the published extension baseline, with tag
+`vscode-v5.2.0`. The coordinated source candidate is crate/npm `0.3.0` and
+extension `5.3.0` until channel publication is accepted.
 
 Earlier releases must not be reused as closure artifacts. The `5.0.0` and
 `5.1.x` tags remain historical records.
@@ -33,7 +37,9 @@ is historical evidence, not a list of reusable versions.
 2. Put user-visible changes under the matching version in `CHANGELOG.md` and
    review any changeset-generated version commit.
 3. Confirm `package.json`, `rust/Cargo.toml`, exact inter-crate pins, lockfiles,
-   package manifests, and intended tags agree with the selected release axis.
+   generated package manifests, and intended tags agree with the selected
+   release axis. Run `pnpm omena-check run docs/version-governance` to check the
+   documented policy against those authorities.
 4. Install the committed dependency graph and run the release bundle:
 
 ```bash
@@ -125,9 +131,10 @@ in README, CHANGELOG, release notes, and registry descriptions.
   workspace/paradigm RFC as complete without separate product evidence.
 - Automation and testkit surfaces are release-framed only when their fixture
   grammar, schema, known-failure policy, and failure modes are gated.
-- Cargo crate versioning stays on the gradual `0.2.x` line for this release
-  chapter. Do not publish or describe a Cargo `1.0.0` API-freeze line until its
-  evidence exists.
+- Cargo crate versioning stays on the gradual `0.x` line. Breaking public
+  contracts advance the minor version; compatible fixes may advance the patch.
+  Do not publish or describe a Cargo `1.0.0` API-freeze line until a train-wide
+  public API freeze artifact and review exist.
 
 `pnpm check:release-m5-class-value-universe-matrix` is the release-facing
 fixture matrix for the issue #61 Finding-D slice. It verifies CSS Modules finite
