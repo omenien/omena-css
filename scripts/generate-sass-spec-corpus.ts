@@ -16,6 +16,7 @@ interface ExternalCorpusEnvelopeV1 {
   readonly stage: "stage1-advisory" | "stage2-blocking";
   readonly dialect?: SassDialectV0;
   readonly source: {
+    readonly kind: "pinned-repository";
     readonly repository: string;
     readonly pin: string;
     readonly sparsePaths: readonly string[];
@@ -109,6 +110,7 @@ const selectedInputPathsByArchive = new Map<string, readonly string[]>([
 const baseManifest = readJson<ExistingSassSpecManifestV0>(baseManifestPath);
 assert.equal(baseManifest.schemaVersion, "0");
 assert.equal(baseManifest.product, "omena-diff-test.sass-spec-seed-corpus.manifest");
+assert.equal(baseManifest.source.kind, "pinned-repository");
 assert.match(baseManifest.source.pin, /^sass\/sass-spec@[0-9a-f]{40}$/u);
 const importedSourcePolicy = {
   ...baseManifest.source,

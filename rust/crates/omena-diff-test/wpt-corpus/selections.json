@@ -5,6 +5,7 @@
   "chunkId": "css-values-seed-v0",
   "chunkPath": "css-values.json",
   "source": {
+    "kind": "pinned-repository",
     "repository": "https://github.com/web-platform-tests/wpt",
     "pin": "web-platform-tests/wpt@37b7cece2910dfe0d7f1cf872bbb1df32c21f07f",
     "sparsePaths": [

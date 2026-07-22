@@ -22,14 +22,27 @@ enum ExternalCorpusExpectationKindV1 {
   expectedSoundBail: "expected-sound-bail",
   parserRecovery: "parser-recovery",
   outOfScope: "out-of-scope",
+  findingCensus: "finding-census",
 }
 
 model ExternalCorpusSourcePinV1 {
+  kind: "pinned-repository";
   repository: string;
   pin: string;
   sparsePaths: string[];
   helperClasses: string[];
   layoutDependentHelpersExcluded: string[];
+}
+
+model ExternalCorpusLocalWorkspaceSourceV1 {
+  kind: "local-workspace";
+  workspacePath: string;
+}
+
+@oneOf
+union ExternalCorpusSourceV1 {
+  pinnedRepository: ExternalCorpusSourcePinV1,
+  localWorkspace: ExternalCorpusLocalWorkspaceSourceV1,
 }
 
 model ExternalCorpusKnownFailurePolicyRefV1 {
@@ -55,7 +68,7 @@ model ExternalCorpusChunkV1 {
   stage: ExternalCorpusStageV1;
   sha256: string;
   fixtureCount: int32;
-  sparsePathFixtureCounts: ExternalCorpusSparsePathFixtureCountV1[];
+  sparsePathFixtureCounts?: ExternalCorpusSparsePathFixtureCountV1[];
 }
 
 model ExternalCorpusProvenanceV1 {
@@ -80,11 +93,11 @@ model ExternalCorpusEnvelopeV1 {
   stage: ExternalCorpusStageV1;
   dialect?: ExternalCorpusDialectV1;
   expectationKind?: ExternalCorpusExpectationKindV1;
-  source: ExternalCorpusSourcePinV1;
-  knownFailurePolicy: ExternalCorpusKnownFailurePolicyRefV1;
+  source: ExternalCorpusSourceV1;
+  knownFailurePolicy?: ExternalCorpusKnownFailurePolicyRefV1;
   generation: ExternalCorpusGenerationProvenanceV1;
   provenance?: ExternalCorpusProvenanceV1;
-  sparsePathFixtureCounts: ExternalCorpusSparsePathFixtureCountV1[];
+  sparsePathFixtureCounts?: ExternalCorpusSparsePathFixtureCountV1[];
   chunks: ExternalCorpusChunkV1[];
   greenRuns?: ExternalCorpusGreenRunV1[];
 }

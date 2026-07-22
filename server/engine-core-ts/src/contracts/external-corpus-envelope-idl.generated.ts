@@ -8,7 +8,11 @@ export type ExternalCorpusExpectationKindV1Json =
   | "static-must-match"
   | "expected-sound-bail"
   | "parser-recovery"
-  | "out-of-scope";
+  | "out-of-scope"
+  | "finding-census";
+export type ExternalCorpusSourceV1Json =
+  | ExternalCorpusSourcePinV1Json
+  | ExternalCorpusLocalWorkspaceSourceV1Json;
 
 export interface ExternalCorpusEnvelopeV1Json {
   readonly schemaVersion: string;
@@ -16,20 +20,25 @@ export interface ExternalCorpusEnvelopeV1Json {
   readonly stage: ExternalCorpusStageV1Json;
   readonly dialect?: ExternalCorpusDialectV1Json;
   readonly expectationKind?: ExternalCorpusExpectationKindV1Json;
-  readonly source: ExternalCorpusSourcePinV1Json;
-  readonly knownFailurePolicy: ExternalCorpusKnownFailurePolicyRefV1Json;
+  readonly source: ExternalCorpusSourceV1Json;
+  readonly knownFailurePolicy?: ExternalCorpusKnownFailurePolicyRefV1Json;
   readonly generation: ExternalCorpusGenerationProvenanceV1Json;
   readonly provenance?: ExternalCorpusProvenanceV1Json;
-  readonly sparsePathFixtureCounts: readonly ExternalCorpusSparsePathFixtureCountV1Json[];
+  readonly sparsePathFixtureCounts?: readonly ExternalCorpusSparsePathFixtureCountV1Json[];
   readonly chunks: readonly ExternalCorpusChunkV1Json[];
   readonly greenRuns?: readonly ExternalCorpusGreenRunV1Json[];
 }
 export interface ExternalCorpusSourcePinV1Json {
+  readonly kind: "pinned-repository";
   readonly repository: string;
   readonly pin: string;
   readonly sparsePaths: readonly string[];
   readonly helperClasses: readonly string[];
   readonly layoutDependentHelpersExcluded: readonly string[];
+}
+export interface ExternalCorpusLocalWorkspaceSourceV1Json {
+  readonly kind: "local-workspace";
+  readonly workspacePath: string;
 }
 export interface ExternalCorpusKnownFailurePolicyRefV1Json {
   readonly path: string;
@@ -56,7 +65,7 @@ export interface ExternalCorpusChunkV1Json {
   readonly stage: ExternalCorpusStageV1Json;
   readonly sha256: string;
   readonly fixtureCount: number;
-  readonly sparsePathFixtureCounts: readonly ExternalCorpusSparsePathFixtureCountV1Json[];
+  readonly sparsePathFixtureCounts?: readonly ExternalCorpusSparsePathFixtureCountV1Json[];
 }
 export interface ExternalCorpusGreenRunV1Json {
   readonly date: string;

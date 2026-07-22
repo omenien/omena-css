@@ -3,6 +3,7 @@
   "product": "omena-diff-test.less-seed-corpus.manifest",
   "stage": "stage1-advisory",
   "source": {
+    "kind": "pinned-repository",
     "repository": "https://github.com/less/less.js",
     "pin": "less/less.js@8ae2cc3bfa79f0718ad6fe5f263a1d6819fe9d5c",
     "sparsePaths": [

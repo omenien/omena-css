@@ -36,16 +36,29 @@ pub enum ExternalCorpusExpectationKindV1Json {
     ParserRecovery,
     #[serde(rename = "out-of-scope")]
     OutOfScope,
+    #[serde(rename = "finding-census")]
+    FindingCensus,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExternalCorpusSourcePinV1Json {
-    pub repository: String,
-    pub pin: String,
-    pub sparse_paths: Vec<String>,
-    pub helper_classes: Vec<String>,
-    pub layout_dependent_helpers_excluded: Vec<String>,
+#[serde(tag = "kind")]
+pub enum ExternalCorpusSourceV1Json {
+    #[serde(rename = "pinned-repository")]
+    PinnedRepository {
+        repository: String,
+        pin: String,
+        #[serde(rename = "sparsePaths")]
+        sparse_paths: Vec<String>,
+        #[serde(rename = "helperClasses")]
+        helper_classes: Vec<String>,
+        #[serde(rename = "layoutDependentHelpersExcluded")]
+        layout_dependent_helpers_excluded: Vec<String>,
+    },
+    #[serde(rename = "local-workspace")]
+    LocalWorkspace {
+        #[serde(rename = "workspacePath")]
+        workspace_path: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +93,7 @@ pub struct ExternalCorpusChunkV1Json {
     pub stage: ExternalCorpusStageV1Json,
     pub sha256: String,
     pub fixture_count: i32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sparse_path_fixture_counts: Vec<ExternalCorpusSparsePathFixtureCountV1Json>,
 }
 
@@ -114,11 +128,13 @@ pub struct ExternalCorpusEnvelopeV1Json {
     pub dialect: Option<ExternalCorpusDialectV1Json>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expectation_kind: Option<ExternalCorpusExpectationKindV1Json>,
-    pub source: ExternalCorpusSourcePinV1Json,
-    pub known_failure_policy: ExternalCorpusKnownFailurePolicyRefV1Json,
+    pub source: ExternalCorpusSourceV1Json,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub known_failure_policy: Option<ExternalCorpusKnownFailurePolicyRefV1Json>,
     pub generation: ExternalCorpusGenerationProvenanceV1Json,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provenance: Option<ExternalCorpusProvenanceV1Json>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sparse_path_fixture_counts: Vec<ExternalCorpusSparsePathFixtureCountV1Json>,
     pub chunks: Vec<ExternalCorpusChunkV1Json>,
     #[serde(skip_serializing_if = "Option::is_none")]

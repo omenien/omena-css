@@ -20,6 +20,7 @@ interface WptSeedManifestV0 {
   readonly product: string;
   readonly stage: string;
   readonly source: {
+    readonly kind: "pinned-repository";
     readonly repository: string;
     readonly pin: string;
     readonly sparsePaths: readonly string[];
@@ -353,6 +354,7 @@ process.stdout.write(
 function validateSelections(candidate: WptSeedSelectionsV0): void {
   assert.equal(candidate.schemaVersion, "0");
   assert.equal(candidate.product, "omena-diff-test.wpt-seed-corpus.selections");
+  assert.equal(candidate.source.kind, "pinned-repository");
   assert.equal(candidate.source.pin, candidate.sourcePin);
   assert.ok(isPinnedWptSha(candidate.sourcePin), "sourcePin must be a full WPT SHA");
   assert.ok(candidate.source.repository.endsWith("/web-platform-tests/wpt"));

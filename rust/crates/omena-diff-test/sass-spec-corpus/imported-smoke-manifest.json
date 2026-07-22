@@ -3,6 +3,7 @@
   "product": "omena-diff-test.sass-spec-imported-corpus.manifest",
   "stage": "stage1-advisory",
   "source": {
+    "kind": "pinned-repository",
     "repository": "https://github.com/sass/sass-spec",
     "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
     "sparsePaths": [

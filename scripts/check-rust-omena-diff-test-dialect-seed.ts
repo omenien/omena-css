@@ -8,6 +8,7 @@ interface DialectSeedManifestV0 {
   readonly product: string;
   readonly stage: string;
   readonly source: {
+    readonly kind: "pinned-repository";
     readonly repository: string;
     readonly pin: string;
     readonly sparsePaths: readonly string[];
@@ -103,6 +104,7 @@ const manifest = readJson<DialectSeedManifestV0>(manifestPath);
 
 assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, config.manifestProduct);
+assert.equal(manifest.source.kind, "pinned-repository");
 assert.equal(
   manifest.stage,
   manifest.knownFailurePolicy.stage2Blocking ? "stage2-blocking" : "stage1-advisory",

@@ -9,7 +9,8 @@ use sha2::{Digest, Sha256};
 
 use crate::external_corpus_envelope_idl_generated::{
     ExternalCorpusDialectV1Json, ExternalCorpusDifferentialManifestV1Json,
-    ExternalCorpusEnvelopeV1Json, ExternalCorpusExpectationKindV1Json, ExternalCorpusStageV1Json,
+    ExternalCorpusEnvelopeV1Json, ExternalCorpusExpectationKindV1Json, ExternalCorpusSourceV1Json,
+    ExternalCorpusStageV1Json,
 };
 
 const OSS_CORPUS_FARM_MANIFEST_SOURCE: &str = include_str!("../oss-corpus-farm/manifest.json");
@@ -21,14 +22,15 @@ pub struct OmenaDiffOssCorpusFarmManifestReportV0 {
     pub product: &'static str,
     pub entry_count: usize,
     pub repository_count: usize,
+    pub local_workspace_count: usize,
     pub dialect_count: usize,
     pub all_entries_follow_generated_envelope_shape: bool,
-    pub all_entries_stage1_advisory: bool,
-    pub all_entries_out_of_scope: bool,
-    pub all_entries_have_permissive_spdx: bool,
-    pub all_entry_pins_are_sha_locked: bool,
-    pub all_recorded_shas_match_source_pins: bool,
-    pub all_sparse_paths_are_bounded: bool,
+    pub all_entries_follow_source_policy: bool,
+    pub all_pinned_entries_have_permissive_spdx: bool,
+    pub all_pinned_entry_pins_are_sha_locked: bool,
+    pub all_pinned_recorded_shas_match_source_pins: bool,
+    pub all_source_paths_are_bounded: bool,
+    pub all_local_workspace_refs_match_sources: bool,
     pub all_chunk_hashes_match: bool,
     pub dialects: Vec<&'static str>,
 }
@@ -61,35 +63,45 @@ pub fn summarize_oss_corpus_farm_manifest_v0() -> OmenaDiffOssCorpusFarmManifest
     let all_entries_follow_generated_envelope_shape = entries.len() == manifest.fixtures.len();
     let repositories = entries
         .iter()
-        .map(|entry| entry.source.repository.as_str())
+        .filter_map(pinned_repository)
         .collect::<BTreeSet<_>>();
+    let local_workspace_count = entries
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry.source,
+                ExternalCorpusSourceV1Json::LocalWorkspace { .. }
+            )
+        })
+        .count();
     let dialects = entries
         .iter()
         .filter_map(|entry| entry.dialect.as_ref())
         .map(dialect_label)
         .collect::<BTreeSet<_>>();
-    let all_entries_stage1_advisory = entries
+    let all_entries_follow_source_policy = entries.iter().all(entry_follows_source_policy);
+    let all_pinned_entries_have_permissive_spdx = entries
         .iter()
-        .all(|entry| matches!(entry.stage, ExternalCorpusStageV1Json::Stage1Advisory));
-    let all_entries_out_of_scope = entries.iter().all(|entry| {
-        matches!(
-            entry.expectation_kind,
-            Some(ExternalCorpusExpectationKindV1Json::OutOfScope)
-        )
-    });
-    let all_entries_have_permissive_spdx = entries.iter().all(entry_records_permissive_license);
-    let all_entry_pins_are_sha_locked = entries
+        .filter(|entry| is_pinned_repository_entry(entry))
+        .all(entry_records_permissive_license);
+    let all_pinned_entry_pins_are_sha_locked = entries
         .iter()
+        .filter(|entry| is_pinned_repository_entry(entry))
         .all(|entry| source_pin_sha(entry).is_some_and(is_sha));
-    let all_recorded_shas_match_source_pins = entries.iter().all(recorded_sha_matches_source_pin);
-    let all_sparse_paths_are_bounded = entries.iter().all(|entry| {
-        !entry.source.sparse_paths.is_empty()
-            && entry
-                .source
-                .sparse_paths
-                .iter()
-                .all(|path| is_bounded_sparse_path(path))
-    });
+    let all_pinned_recorded_shas_match_source_pins = entries
+        .iter()
+        .filter(|entry| is_pinned_repository_entry(entry))
+        .all(recorded_sha_matches_source_pin);
+    let all_source_paths_are_bounded = entries.iter().all(entry_source_paths_are_bounded);
+    let all_local_workspace_refs_match_sources = entries
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry.source,
+                ExternalCorpusSourceV1Json::LocalWorkspace { .. }
+            )
+        })
+        .all(local_workspace_ref_matches_source);
     let all_chunk_hashes_match = entries.iter().all(entry_chunk_hashes_match);
 
     OmenaDiffOssCorpusFarmManifestReportV0 {
@@ -97,14 +109,15 @@ pub fn summarize_oss_corpus_farm_manifest_v0() -> OmenaDiffOssCorpusFarmManifest
         product: "omena-diff-test.oss-corpus-farm.manifest-report",
         entry_count: entries.len(),
         repository_count: repositories.len(),
+        local_workspace_count,
         dialect_count: dialects.len(),
         all_entries_follow_generated_envelope_shape,
-        all_entries_stage1_advisory,
-        all_entries_out_of_scope,
-        all_entries_have_permissive_spdx,
-        all_entry_pins_are_sha_locked,
-        all_recorded_shas_match_source_pins,
-        all_sparse_paths_are_bounded,
+        all_entries_follow_source_policy,
+        all_pinned_entries_have_permissive_spdx,
+        all_pinned_entry_pins_are_sha_locked,
+        all_pinned_recorded_shas_match_source_pins,
+        all_source_paths_are_bounded,
+        all_local_workspace_refs_match_sources,
         all_chunk_hashes_match,
         dialects: dialects.into_iter().collect(),
     }
@@ -116,14 +129,15 @@ fn empty_oss_corpus_farm_manifest_report() -> OmenaDiffOssCorpusFarmManifestRepo
         product: "omena-diff-test.oss-corpus-farm.manifest-report",
         entry_count: 0,
         repository_count: 0,
+        local_workspace_count: 0,
         dialect_count: 0,
         all_entries_follow_generated_envelope_shape: false,
-        all_entries_stage1_advisory: false,
-        all_entries_out_of_scope: false,
-        all_entries_have_permissive_spdx: false,
-        all_entry_pins_are_sha_locked: false,
-        all_recorded_shas_match_source_pins: false,
-        all_sparse_paths_are_bounded: false,
+        all_entries_follow_source_policy: false,
+        all_pinned_entries_have_permissive_spdx: false,
+        all_pinned_entry_pins_are_sha_locked: false,
+        all_pinned_recorded_shas_match_source_pins: false,
+        all_source_paths_are_bounded: false,
+        all_local_workspace_refs_match_sources: false,
         all_chunk_hashes_match: false,
         dialects: vec![],
     }
@@ -146,7 +160,79 @@ fn parse_oss_corpus_farm_entries(
 }
 
 fn source_pin_sha(entry: &ExternalCorpusEnvelopeV1Json) -> Option<&str> {
-    entry.source.pin.rsplit_once('@').map(|(_, sha)| sha)
+    match &entry.source {
+        ExternalCorpusSourceV1Json::PinnedRepository { pin, .. } => {
+            pin.rsplit_once('@').map(|(_, sha)| sha)
+        }
+        ExternalCorpusSourceV1Json::LocalWorkspace { .. } => None,
+    }
+}
+
+fn pinned_repository(entry: &ExternalCorpusEnvelopeV1Json) -> Option<&str> {
+    match &entry.source {
+        ExternalCorpusSourceV1Json::PinnedRepository { repository, .. } => {
+            Some(repository.as_str())
+        }
+        ExternalCorpusSourceV1Json::LocalWorkspace { .. } => None,
+    }
+}
+
+fn is_pinned_repository_entry(entry: &ExternalCorpusEnvelopeV1Json) -> bool {
+    matches!(
+        entry.source,
+        ExternalCorpusSourceV1Json::PinnedRepository { .. }
+    )
+}
+
+fn entry_follows_source_policy(entry: &ExternalCorpusEnvelopeV1Json) -> bool {
+    match &entry.source {
+        ExternalCorpusSourceV1Json::PinnedRepository { repository, .. } => {
+            repository.starts_with("https://github.com/")
+                && matches!(entry.stage, ExternalCorpusStageV1Json::Stage1Advisory)
+                && matches!(
+                    entry.expectation_kind,
+                    Some(ExternalCorpusExpectationKindV1Json::OutOfScope)
+                )
+                && entry
+                    .known_failure_policy
+                    .as_ref()
+                    .is_some_and(|policy| !policy.stage2_blocking)
+        }
+        ExternalCorpusSourceV1Json::LocalWorkspace { .. } => {
+            matches!(entry.stage, ExternalCorpusStageV1Json::Stage2Blocking)
+                && matches!(
+                    entry.expectation_kind,
+                    Some(ExternalCorpusExpectationKindV1Json::FindingCensus)
+                )
+                && entry.known_failure_policy.is_none()
+        }
+    }
+}
+
+fn entry_source_paths_are_bounded(entry: &ExternalCorpusEnvelopeV1Json) -> bool {
+    match &entry.source {
+        ExternalCorpusSourceV1Json::PinnedRepository { sparse_paths, .. } => {
+            !sparse_paths.is_empty() && sparse_paths.iter().all(|path| is_bounded_sparse_path(path))
+        }
+        ExternalCorpusSourceV1Json::LocalWorkspace { workspace_path } => {
+            is_bounded_sparse_path(workspace_path)
+        }
+    }
+}
+
+fn local_workspace_ref_matches_source(entry: &ExternalCorpusEnvelopeV1Json) -> bool {
+    let ExternalCorpusSourceV1Json::LocalWorkspace { workspace_path } = &entry.source else {
+        return false;
+    };
+    let expected = format!("repo-path:{workspace_path}");
+    let generation_refs = entry.generation.oracle_pin_refs.as_deref().unwrap_or(&[]);
+    let provenance_refs = entry
+        .provenance
+        .as_ref()
+        .map(|provenance| provenance.oracle_pin_refs.as_slice())
+        .unwrap_or(&[]);
+    generation_refs.iter().any(|value| value == &expected)
+        && provenance_refs.iter().any(|value| value == &expected)
 }
 
 fn is_sha(value: &str) -> bool {
@@ -238,17 +324,18 @@ mod tests {
         let report = summarize_oss_corpus_farm_manifest_v0();
         assert!(report.entry_count >= 3);
         assert!(report.repository_count >= 1);
+        assert!(report.local_workspace_count >= 2);
         assert!(report.dialect_count >= 3);
         assert!(report.dialects.contains(&"css"));
         assert!(report.dialects.contains(&"scss"));
         assert!(report.dialects.contains(&"less"));
         assert!(report.all_entries_follow_generated_envelope_shape);
-        assert!(report.all_entries_stage1_advisory);
-        assert!(report.all_entries_out_of_scope);
-        assert!(report.all_entries_have_permissive_spdx);
-        assert!(report.all_entry_pins_are_sha_locked);
-        assert!(report.all_recorded_shas_match_source_pins);
-        assert!(report.all_sparse_paths_are_bounded);
+        assert!(report.all_entries_follow_source_policy);
+        assert!(report.all_pinned_entries_have_permissive_spdx);
+        assert!(report.all_pinned_entry_pins_are_sha_locked);
+        assert!(report.all_pinned_recorded_shas_match_source_pins);
+        assert!(report.all_source_paths_are_bounded);
+        assert!(report.all_local_workspace_refs_match_sources);
         assert!(report.all_chunk_hashes_match);
     }
 }

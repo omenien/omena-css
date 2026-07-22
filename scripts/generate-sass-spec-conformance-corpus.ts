@@ -9,6 +9,7 @@ interface ExistingSassSpecManifestV0 {
   readonly schemaVersion: string;
   readonly product: string;
   readonly source: {
+    readonly kind: "pinned-repository";
     readonly repository: string;
     readonly pin: string;
     readonly sparsePaths: readonly string[];
@@ -57,6 +58,7 @@ const chunkId = "sass-spec-conformance-smoke";
 const baseManifest = readJson<ExistingSassSpecManifestV0>(baseManifestPath);
 assert.equal(baseManifest.schemaVersion, "0");
 assert.equal(baseManifest.product, "omena-diff-test.sass-spec-seed-corpus.manifest");
+assert.equal(baseManifest.source.kind, "pinned-repository");
 assert.match(baseManifest.source.pin, /^sass\/sass-spec@[0-9a-f]{40}$/u);
 
 const archivePaths = findFiles(sourceRoot, ".hrx");

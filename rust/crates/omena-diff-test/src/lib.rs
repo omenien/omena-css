@@ -3725,14 +3725,16 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let scss_eval_public_summary_equivalence_report =
         summarize_scss_eval_public_summary_equivalence_v0();
     let oss_corpus_farm_manifest_report = summarize_oss_corpus_farm_manifest_v0();
-    let all_oss_corpus_farm_manifest_checks_hold = oss_corpus_farm_manifest_report
-        .all_entries_follow_generated_envelope_shape
-        && oss_corpus_farm_manifest_report.all_entries_stage1_advisory
-        && oss_corpus_farm_manifest_report.all_entries_out_of_scope
-        && oss_corpus_farm_manifest_report.all_entries_have_permissive_spdx
-        && oss_corpus_farm_manifest_report.all_entry_pins_are_sha_locked
-        && oss_corpus_farm_manifest_report.all_recorded_shas_match_source_pins
-        && oss_corpus_farm_manifest_report.all_sparse_paths_are_bounded
+    let all_oss_corpus_farm_manifest_checks_hold = oss_corpus_farm_manifest_report.repository_count
+        >= 1
+        && oss_corpus_farm_manifest_report.local_workspace_count >= 2
+        && oss_corpus_farm_manifest_report.all_entries_follow_generated_envelope_shape
+        && oss_corpus_farm_manifest_report.all_entries_follow_source_policy
+        && oss_corpus_farm_manifest_report.all_pinned_entries_have_permissive_spdx
+        && oss_corpus_farm_manifest_report.all_pinned_entry_pins_are_sha_locked
+        && oss_corpus_farm_manifest_report.all_pinned_recorded_shas_match_source_pins
+        && oss_corpus_farm_manifest_report.all_source_paths_are_bounded
+        && oss_corpus_farm_manifest_report.all_local_workspace_refs_match_sources
         && oss_corpus_farm_manifest_report.all_chunk_hashes_match;
     let deletion_stale_reuse_corpus_report = summarize_deletion_stale_reuse_corpus_v0();
     let typed_graph_summary_plane_foundation_report =
@@ -3993,7 +3995,9 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
 
 /// Summarize imported sass-spec expectation buckets.
 pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
-    use external_corpus_envelope_idl_generated::ExternalCorpusEnvelopeV1Json;
+    use external_corpus_envelope_idl_generated::{
+        ExternalCorpusEnvelopeV1Json, ExternalCorpusSourceV1Json,
+    };
 
     let seed_manifest = match serde_json::from_str::<ExternalCorpusEnvelopeV1Json>(
         SASS_SPEC_SEED_MANIFEST_SOURCE,
@@ -4018,6 +4022,24 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
         Ok(artifact) => artifact,
         Err(_) => return empty_sass_spec_import_scale_report(),
     };
+    let (seed_source_pin, imported_source_repository, imported_source_pin, imported_sparse_paths) =
+        match (&seed_manifest.source, &imported_manifest.source) {
+            (
+                ExternalCorpusSourceV1Json::PinnedRepository { pin: seed_pin, .. },
+                ExternalCorpusSourceV1Json::PinnedRepository {
+                    repository,
+                    pin,
+                    sparse_paths,
+                    ..
+                },
+            ) => (
+                seed_pin.as_str(),
+                repository.as_str(),
+                pin.as_str(),
+                sparse_paths.as_slice(),
+            ),
+            _ => return empty_sass_spec_import_scale_report(),
+        };
     let expectation_report = summarize_sass_spec_expectation_buckets();
     let seed_fixture_count = seed_manifest
         .chunks
@@ -4030,10 +4052,7 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
         .map(|chunk| chunk.fixtures.len())
         .sum::<usize>();
     let source_archive_root = imported_manifest.generation.selection_path.clone();
-    let scan = sass_spec_scan_source_archives(
-        &source_archive_root,
-        imported_manifest.source.sparse_paths.as_slice(),
-    );
+    let scan = sass_spec_scan_source_archives(&source_archive_root, imported_sparse_paths);
     let chunks = imported_manifest
         .chunks
         .iter()
@@ -4092,16 +4111,16 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
     let upstream_scale_artifact_matches_manifest = upstream_scale_artifact.schema_version == "0"
         && upstream_scale_artifact.product == "omena-diff-test.sass-spec-upstream-scale"
         && upstream_scale_artifact.archive_extension == ".hrx"
-        && upstream_scale_artifact.source.repository == imported_manifest.source.repository
-        && upstream_scale_artifact.source.pin == imported_manifest.source.pin
-        && upstream_scale_artifact.source.sparse_paths == imported_manifest.source.sparse_paths
+        && upstream_scale_artifact.source.repository == imported_source_repository
+        && upstream_scale_artifact.source.pin == imported_source_pin
+        && upstream_scale_artifact.source.sparse_paths == imported_sparse_paths
         && upstream_archive_count == upstream_sparse_path_archive_count
         && upstream_scale_artifact
             .sparse_path_archive_counts
             .iter()
             .map(|entry| entry.sparse_path.clone())
             .collect::<Vec<_>>()
-            == imported_manifest.source.sparse_paths
+            == imported_sparse_paths
         && upstream_scale_artifact.imported_source_archive_count == scan.archive_count
         && upstream_scale_artifact.imported_source_archive_byte_match_count == scan.archive_count
         && upstream_scale_artifact.all_imported_source_archives_match_upstream;
@@ -4119,8 +4138,8 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
         && imported_chunk.schema_version == "0"
         && imported_chunk.product == "omena-diff-test.sass-spec-imported-corpus.chunk"
         && imported_chunk.chunk_id == "sass-spec-import-smoke"
-        && imported_chunk.source_pin == imported_manifest.source.pin
-        && imported_manifest.source.pin == seed_manifest.source.pin
+        && imported_chunk.source_pin == imported_source_pin
+        && imported_source_pin == seed_source_pin
         && !chunks.is_empty()
         && scan.succeeded
         && all_imported_counts_match_manifest
@@ -4136,7 +4155,7 @@ pub fn summarize_sass_spec_import_scale() -> SassSpecImportScaleReportV0 {
     SassSpecImportScaleReportV0 {
         schema_version: "0",
         product: "omena-diff-test.sass-spec-import-scale",
-        source_pin: imported_manifest.source.pin,
+        source_pin: imported_source_pin.to_string(),
         source_archive_root,
         source_archive_count: scan.archive_count,
         source_archive_scan_succeeded: scan.succeeded,
@@ -4345,6 +4364,9 @@ pub fn summarize_sass_spec_expectation_buckets() -> SassSpecExpectationBucketRep
                 if kind != &expected_kind {
                     criteria_mismatch_fixture_ids.push(fixture.id.clone());
                 }
+            }
+            Some(ExternalCorpusExpectationKindV1Json::FindingCensus) => {
+                criteria_mismatch_fixture_ids.push(fixture.id.clone());
             }
             None => missing_expectation_kind_fixture_ids.push(fixture.id.clone()),
         }
@@ -4886,6 +4908,7 @@ fn sass_spec_expectation_kind_label(
         ExternalCorpusExpectationKindV1Json::ExpectedSoundBail => "expected-sound-bail",
         ExternalCorpusExpectationKindV1Json::ParserRecovery => "parser-recovery",
         ExternalCorpusExpectationKindV1Json::OutOfScope => "out-of-scope",
+        ExternalCorpusExpectationKindV1Json::FindingCensus => "finding-census",
     }
 }
 
@@ -6981,7 +7004,7 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         use crate::external_corpus_envelope_idl_generated::{
             ExternalCorpusDifferentialManifestV1Json, ExternalCorpusEnvelopeV1Json,
-            ExternalCorpusSeedPolicyV1Toml, ExternalCorpusStageV1Json,
+            ExternalCorpusSeedPolicyV1Toml, ExternalCorpusSourceV1Json, ExternalCorpusStageV1Json,
         };
 
         for (label, source) in [
@@ -6993,12 +7016,18 @@ mod tests {
             let envelope = serde_json::from_str::<ExternalCorpusEnvelopeV1Json>(source)?;
             assert_eq!(envelope.schema_version, "0", "{label} schema version");
             assert!(envelope.product.contains("manifest"), "{label} product");
+            let ExternalCorpusSourceV1Json::PinnedRepository {
+                pin, sparse_paths, ..
+            } = &envelope.source
+            else {
+                return Err(format!("{label} must retain a pinned repository source").into());
+            };
             assert!(
-                envelope.source.pin.contains('@'),
+                pin.contains('@'),
                 "{label} source pin must include repo@sha"
             );
             assert!(
-                !envelope.source.sparse_paths.is_empty(),
+                !sparse_paths.is_empty(),
                 "{label} sparse paths must not be empty"
             );
             assert!(
@@ -7012,8 +7041,12 @@ mod tests {
                     .all(|chunk| !chunk.sha256.is_empty() && chunk.fixture_count >= 0),
                 "{label} chunks must carry hash and fixture count"
             );
+            let failure_policy = envelope
+                .known_failure_policy
+                .as_ref()
+                .ok_or_else(|| format!("{label} pinned corpus must declare its failure policy"))?;
             assert_eq!(
-                envelope.known_failure_policy.stage2_blocking,
+                failure_policy.stage2_blocking,
                 matches!(envelope.stage, ExternalCorpusStageV1Json::Stage2Blocking),
                 "{label} stage and policy blocking flag must agree"
             );

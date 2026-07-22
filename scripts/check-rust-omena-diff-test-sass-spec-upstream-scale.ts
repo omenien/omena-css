@@ -6,6 +6,7 @@ import path from "node:path";
 
 interface ExternalCorpusEnvelopeV1 {
   readonly source: {
+    readonly kind: "pinned-repository";
     readonly repository: string;
     readonly pin: string;
     readonly sparsePaths: readonly string[];
@@ -27,6 +28,7 @@ interface SassSpecUpstreamScaleArtifactV0 {
   readonly schemaVersion: string;
   readonly product: string;
   readonly source: {
+    readonly kind: "pinned-repository";
     readonly repository: string;
     readonly pin: string;
     readonly sparsePaths: readonly string[];
@@ -58,6 +60,7 @@ const artifactPath = path.join(corpusRoot, "upstream-scale.json");
 const conformanceManifestPath = path.join(corpusRoot, "conformance-smoke-manifest.json");
 
 const manifest = readJson<ExternalCorpusEnvelopeV1>(manifestPath);
+assert.equal(manifest.source.kind, "pinned-repository");
 assert.match(manifest.source.pin, /^sass\/sass-spec@[0-9a-f]{40}$/u);
 assert.ok(manifest.source.sparsePaths.length > 0, "sass-spec sparse path list must not be empty");
 
