@@ -89,12 +89,10 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
       - uses: ./.github/actions/setup-pnpm
-      - name: Run release integrity gates
-        run: |
-          pnpm omena-check run release/check/release-m5-class-value-universe-matrix
-          pnpm omena-check run release/check/release-m5-api-freeze-audit
-          pnpm omena-check run core/check
-          pnpm omena-check run test/test
+      - uses: ./.github/actions/cache-rust
+        with:
+          shared-key: release-integrity
+      - uses: ./.github/actions/release-integrity
 
   # --- 1. Build napi .node binaries across the 5-target genesis matrix --------
   # These match release-cli.yml's target set. Each host emits index.<triple>.node

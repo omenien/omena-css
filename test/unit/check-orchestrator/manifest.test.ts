@@ -1167,6 +1167,28 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("routes publish integrity through a shared NAPI-ready action", () => {
+    const actionPath = path.join(repoRoot, ".github/actions/release-integrity/action.yml");
+    const action = readFileSync(actionPath, "utf8");
+    const napiBuildIndex = action.indexOf("pnpm omena-check run core/build/omena-napi");
+    const productTestIndex = action.indexOf("pnpm omena-check run test/test");
+
+    expect(napiBuildIndex).toBeGreaterThan(-1);
+    expect(productTestIndex).toBeGreaterThan(napiBuildIndex);
+
+    for (const workflowName of ["_publish-crate-train.yml", "_publish-npm.yml"]) {
+      const workflow = readFileSync(path.join(repoRoot, ".github/workflows", workflowName), "utf8");
+      const setupIndex = workflow.indexOf("uses: ./.github/actions/setup-pnpm");
+      const cacheIndex = workflow.indexOf("uses: ./.github/actions/cache-rust");
+      const integrityIndex = workflow.indexOf("uses: ./.github/actions/release-integrity");
+
+      expect(setupIndex, workflowName).toBeGreaterThan(-1);
+      expect(cacheIndex, workflowName).toBeGreaterThan(setupIndex);
+      expect(integrityIndex, workflowName).toBeGreaterThan(cacheIndex);
+      expect(workflow, workflowName).not.toContain("pnpm omena-check run test/test");
+    }
+  });
+
   it("requires scheduled workflows to declare a failure escalation path", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
     mkdirSync(path.join(root, ".github/workflows"), { recursive: true });

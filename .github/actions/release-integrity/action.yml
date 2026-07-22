@@ -1,0 +1,17 @@
+name: Release integrity
+description: Run the shared release contract, native frontend, and product-test gates.
+runs:
+  using: composite
+  steps:
+    - name: Run release contract gates
+      shell: bash
+      run: |
+        pnpm omena-check run release/check/release-m5-class-value-universe-matrix
+        pnpm omena-check run release/check/release-m5-api-freeze-audit
+        pnpm omena-check run core/check
+    - name: Build required Rust source frontend binding
+      shell: bash
+      run: pnpm omena-check run core/build/omena-napi
+    - name: Run product tests
+      shell: bash
+      run: pnpm omena-check run test/test

@@ -81,12 +81,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - name: Run release integrity gates
-        run: |
-          pnpm omena-check run release/check/release-m5-class-value-universe-matrix
-          pnpm omena-check run release/check/release-m5-api-freeze-audit
-          pnpm omena-check run core/check
-          pnpm omena-check run test/test
+      - uses: ./.github/actions/cache-rust
+        with:
+          shared-key: release-integrity
+      - uses: ./.github/actions/release-integrity
 
   publish:
     name: publish crate train
