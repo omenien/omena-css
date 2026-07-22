@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": {
+      "$styles/*": ["src/styles/*"]
+    }
+  },
+  "include": ["src"]
+}

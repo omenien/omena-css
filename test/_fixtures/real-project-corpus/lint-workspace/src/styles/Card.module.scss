@@ -1,0 +1,18 @@
+@use "./tokens";
+@import "./legacy";
+
+.card {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  color: var(--fixture-text-color);
+}
+
+.title {
+  color: definitely-not-a-color;
+}
+
+.utility {
+  display: flex;
+  gap: 0;
+}
