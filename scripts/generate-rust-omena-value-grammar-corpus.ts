@@ -20,14 +20,24 @@ interface FarmManifestV0 {
   readonly fixtures: readonly FarmEntryV0[];
 }
 
-interface FarmEntryV0 {
+interface PinnedFarmEntryV0 {
   readonly dialect: Dialect;
   readonly source: {
+    readonly kind: "pinned-repository";
     readonly repository: string;
     readonly pin: string;
     readonly sparsePaths: readonly string[];
   };
 }
+
+interface LocalFarmEntryV0 {
+  readonly source: {
+    readonly kind: "local-workspace";
+    readonly workspacePath: string;
+  };
+}
+
+type FarmEntryV0 = PinnedFarmEntryV0 | LocalFarmEntryV0;
 
 interface WebrefGrammarV0 {
   readonly categories: {
@@ -92,6 +102,8 @@ async function main(): Promise<void> {
   assert.equal(manifest.schemaVersion, "0");
   assert.equal(manifest.product, "omena-diff-test.oss-corpus-farm.manifest");
   assert.ok(manifest.fixtures.length > 0);
+  const pinnedFixtures = manifest.fixtures.filter(isPinnedFarmEntry);
+  assert.ok(pinnedFixtures.length > 0);
   const standardProperties = new Set(
     readJson<WebrefGrammarV0>(registryPath).categories.properties.map((entry) => entry.name),
   );
@@ -103,7 +115,7 @@ async function main(): Promise<void> {
   const harvested: HarvestedDeclaration[] = [];
 
   try {
-    for (const group of sourceGroups(manifest.fixtures)) {
+    for (const group of sourceGroups(pinnedFixtures)) {
       const checkoutDir = path.join(
         tempRoot,
         sha256(`${group.repository}\0${group.pin}`).slice(0, 16),
@@ -175,7 +187,7 @@ async function main(): Promise<void> {
       harvestedDeclarationCount,
       uniqueDeclarationCount: unique.length,
       caseCount: selected.length,
-      sourcePins: sourceGroups(manifest.fixtures).map((group) => ({
+      sourcePins: sourceGroups(pinnedFixtures).map((group) => ({
         repository: group.repository,
         pin: group.pin,
         sparsePaths: [
@@ -191,13 +203,17 @@ async function main(): Promise<void> {
   }
 }
 
-function sourceGroups(fixtures: readonly FarmEntryV0[]) {
+function isPinnedFarmEntry(entry: FarmEntryV0): entry is PinnedFarmEntryV0 {
+  return entry.source.kind === "pinned-repository";
+}
+
+function sourceGroups(fixtures: readonly PinnedFarmEntryV0[]) {
   const groups = new Map<
     string,
     {
       repository: string;
       pin: string;
-      fixtures: FarmEntryV0[];
+      fixtures: PinnedFarmEntryV0[];
     }
   >();
   for (const fixture of fixtures) {
@@ -216,7 +232,7 @@ function sourceGroups(fixtures: readonly FarmEntryV0[]) {
 }
 
 function checkoutPinnedSource(
-  group: { repository: string; pin: string; fixtures: readonly FarmEntryV0[] },
+  group: { repository: string; pin: string; fixtures: readonly PinnedFarmEntryV0[] },
   checkoutDir: string,
 ): void {
   const sha = group.pin.split("@").at(-1) ?? "";
@@ -231,7 +247,7 @@ function checkoutPinnedSource(
   assert.equal(run("git", ["-C", checkoutDir, "rev-parse", "HEAD"]), sha);
 }
 
-function selectedStyleFiles(checkoutDir: string, fixture: FarmEntryV0): string[] {
+function selectedStyleFiles(checkoutDir: string, fixture: PinnedFarmEntryV0): string[] {
   const extension = `.${fixture.dialect}`;
   return run("git", ["-C", checkoutDir, "ls-files", "--", ...fixture.source.sparsePaths])
     .split(/\r?\n/u)

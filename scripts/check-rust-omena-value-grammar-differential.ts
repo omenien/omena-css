@@ -71,11 +71,17 @@ type CorpusFarmManifest = {
   schemaVersion: string;
   product: string;
   fixtures: {
-    source: {
-      repository: string;
-      pin: string;
-      sparsePaths: string[];
-    };
+    source:
+      | {
+          kind: "pinned-repository";
+          repository: string;
+          pin: string;
+          sparsePaths: string[];
+        }
+      | {
+          kind: "local-workspace";
+          workspacePath: string;
+        };
   }[];
 };
 
@@ -395,6 +401,7 @@ function validateRealDeclarationCorpus(
 function sourcePinsFromFarmManifest(manifest: CorpusFarmManifest) {
   const groups = new Map<string, { repository: string; pin: string; sparsePaths: Set<string> }>();
   for (const fixture of manifest.fixtures) {
+    if (fixture.source.kind !== "pinned-repository") continue;
     const key = `${fixture.source.repository}\0${fixture.source.pin}`;
     const group = groups.get(key) ?? {
       repository: fixture.source.repository,
