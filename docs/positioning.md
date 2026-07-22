@@ -35,8 +35,6 @@ Role source anchors:
 - Research-facing semantic substrates remain bounded by their product paths and
   executable gates; their presence alone does not establish a stronger claim.
 
-Publication evidence requirements: docs/paper-draft.md ([research outline](paper-draft.md)).
-
 ## Current Non-Claims
 
 - No direct speed ranking against Lightning CSS, PostCSS, Dart Sass, or Biome.
