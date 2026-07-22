@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.real-workspace-lint-census",
+  "generatedBy": "scripts/oss-corpus-farm.ts",
+  "coverageDigest": "00c55ce204a4ff5a0689c28a2b6154c7b4b56f1c5093a10ce08ed3d88b81f0da",
+  "policyDigest": "0c2acc5526b378d40d2cfa162519921695e7db95d235c3a7ba60d28521c18d17",
+  "entryCount": 2,
+  "totalFindingCount": 12,
+  "truePositiveCount": 5,
+  "knownFalsePositiveCount": 7,
+  "unclassifiedCount": 0,
+  "zeroBudgetViolationCount": 0,
+  "entries": [
+    {
+      "id": "local-examples-lint-census",
+      "corpusDigest": "28b53027cef0adb9e1f2008dabfc1cd0712351711d564fe723929b441c1fccf1",
+      "styleFileCount": 27,
+      "sourceFileCount": 30,
+      "findingCount": 10,
+      "truePositiveCount": 3,
+      "knownFalsePositiveCount": 7,
+      "unclassifiedCount": 0,
+      "zeroBudgetViolationCount": 0,
+      "findingCountsByRule": {
+        "invalid-property-value": 7,
+        "missing-composed-module": 1,
+        "missing-composed-selector": 1,
+        "missing-static-class": 1
+      },
+      "knownFalsePositiveCountsByClass": {
+        "invalid-property-value/icss-value-references-not-expanded": 5,
+        "invalid-property-value/less-function-values-not-expanded": 2
+      }
+    },
+    {
+      "id": "local-real-workspace-lint-census",
+      "corpusDigest": "cb3f7ec500f180ccc39ea4c3241304736458c221ce4c4bdbe81f6b14801e4296",
+      "styleFileCount": 3,
+      "sourceFileCount": 2,
+      "findingCount": 2,
+      "truePositiveCount": 2,
+      "knownFalsePositiveCount": 0,
+      "unclassifiedCount": 0,
+      "zeroBudgetViolationCount": 0,
+      "findingCountsByRule": {
+        "invalid-property-value": 1,
+        "missing-module": 1
+      },
+      "knownFalsePositiveCountsByClass": {}
+    }
+  ]
+}

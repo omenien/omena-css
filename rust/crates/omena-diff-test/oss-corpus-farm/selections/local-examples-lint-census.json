@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.oss-corpus-farm.selection",
+  "id": "local-examples-lint-census",
+  "sourceKind": "local-workspace",
+  "workspacePath": "examples",
+  "includedExtensions": ["css", "scss", "less", "js", "jsx", "ts", "tsx", "json"],
+  "selectedFileCount": 58
+}

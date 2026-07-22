@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.real-workspace-lint-census-policy",
+  "generatedBy": "reviewed finding adjudication",
+  "entries": [
+    {
+      "id": "local-examples-lint-census",
+      "truePositivePins": [
+        {
+          "ruleId": "missing-composed-module",
+          "filePath": "src/scenarios/16-diagnostics-recovery/BrokenComposes.module.scss",
+          "range": {
+            "start": { "line": 1, "character": 2 },
+            "end": { "line": 1, "character": 64 }
+          },
+          "messageSha256": "1eb0be218d076aec05a4ed9e5b8a9e550a9082229c6e85fd5847fd4bf1a4bf05"
+        },
+        {
+          "ruleId": "missing-composed-selector",
+          "filePath": "src/scenarios/16-diagnostics-recovery/BrokenComposes.module.scss",
+          "range": {
+            "start": { "line": 5, "character": 2 },
+            "end": { "line": 5, "character": 81 }
+          },
+          "messageSha256": "5028c89d9619141e36537932295084643a82c857d2a1d8dd3b6b1485fcfb37b5"
+        },
+        {
+          "ruleId": "missing-static-class",
+          "filePath": "src/scenarios/02-multi-binding/StyleAccessDemo.tsx",
+          "range": {
+            "start": { "line": 18, "character": 46 },
+            "end": { "line": 18, "character": 59 }
+          },
+          "messageSha256": "210cb372f9166d73b1b156f0f0bb76dc3c322265c249af25c29f7de61f0dc9b7"
+        }
+      ],
+      "knownFalsePositivePins": [
+        {
+          "ruleId": "invalid-property-value",
+          "causeClass": "icss-value-references-not-expanded",
+          "filePath": "plugin-consumers/src/App.module.scss",
+          "range": {
+            "start": { "line": 13, "character": 2 },
+            "end": { "line": 13, "character": 14 }
+          },
+          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
+        },
+        {
+          "ruleId": "invalid-property-value",
+          "causeClass": "less-function-values-not-expanded",
+          "filePath": "src/scenarios/18-less-module/LessModule.module.less",
+          "range": {
+            "start": { "line": 7, "character": 2 },
+            "end": { "line": 7, "character": 38 }
+          },
+          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
+        },
+        {
+          "ruleId": "invalid-property-value",
+          "causeClass": "less-function-values-not-expanded",
+          "filePath": "src/scenarios/18-less-module/LessModule.module.less",
+          "range": {
+            "start": { "line": 12, "character": 4 },
+            "end": { "line": 12, "character": 50 }
+          },
+          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
+        },
+        {
+          "ruleId": "invalid-property-value",
+          "causeClass": "icss-value-references-not-expanded",
+          "filePath": "src/scenarios/20-value/Value.module.scss",
+          "range": {
+            "start": { "line": 16, "character": 2 },
+            "end": { "line": 16, "character": 34 }
+          },
+          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
+        },
+        {
+          "ruleId": "invalid-property-value",
+          "causeClass": "icss-value-references-not-expanded",
+          "filePath": "src/scenarios/20-value/Value.module.scss",
+          "range": {
+            "start": { "line": 19, "character": 2 },
+            "end": { "line": 19, "character": 23 }
+          },
+          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
+        },
+        {
+          "ruleId": "invalid-property-value",
+          "causeClass": "icss-value-references-not-expanded",
+          "filePath": "src/scenarios/20-value/Value.module.scss",
+          "range": {
+            "start": { "line": 28, "character": 2 },
+            "end": { "line": 28, "character": 36 }
+          },
+          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
+        },
+        {
+          "ruleId": "invalid-property-value",
+          "causeClass": "icss-value-references-not-expanded",
+          "filePath": "src/scenarios/20-value/Value.module.scss",
+          "range": {
+            "start": { "line": 37, "character": 2 },
+            "end": { "line": 37, "character": 23 }
+          },
+          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
+        }
+      ]
+    },
+    {
+      "id": "local-real-workspace-lint-census",
+      "truePositivePins": [
+        {
+          "ruleId": "invalid-property-value",
+          "filePath": "src/styles/Card.module.scss",
+          "range": {
+            "start": { "line": 11, "character": 2 },
+            "end": { "line": 11, "character": 31 }
+          },
+          "messageSha256": "506229c3b2dcae73c2eb24722dcdeb2827f61c3a4e66ff9f2a864bcae101e068"
+        },
+        {
+          "ruleId": "missing-module",
+          "filePath": "src/BrokenImport.tsx",
+          "range": {
+            "start": { "line": 0, "character": 19 },
+            "end": { "line": 0, "character": 42 }
+          },
+          "messageSha256": "2e4f2c34d544db519e4a4aec64fd5fff04d4d3bed65c0df44cb1e2eb533edd64"
+        }
+      ],
+      "knownFalsePositivePins": []
+    }
+  ],
+  "knownFalsePositiveClasses": [
+    {
+      "ruleId": "invalid-property-value",
+      "causeClass": "less-function-values-not-expanded",
+      "baselineCount": 2,
+      "firstSeen": "2026-07-22",
+      "owner": "follow-up:less-function-evaluation",
+      "adjudicationNote": "The lint surface validates raw Less fade() expressions before Less function evaluation. Keep the findings visible and decrease-only until that evaluator reaches the product path."
+    },
+    {
+      "ruleId": "invalid-property-value",
+      "causeClass": "icss-value-references-not-expanded",
+      "baselineCount": 5,
+      "firstSeen": "2026-07-22",
+      "owner": "follow-up:icss-value-reference-evaluation",
+      "adjudicationNote": "The lint surface validates ICSS @value references before substituting their declarations. The exact findings remain reviewed data until the value-resolution path is integrated."
+    }
+  ],
+  "zeroBudgetClasses": [
+    {
+      "ruleId": "invalid-property-value",
+      "causeClass": "unitless-zero-and-standard-keyword-values",
+      "ownerCommits": [
+        "a76c2dae78984e0428ae29c5c2e40fd8f5e32212",
+        "7b1fec1f7180f6a62551bb8d9515b1d512611f6b",
+        "8bdc8173c3c5495771fc6066e6f92fa9c4ce38d7"
+      ],
+      "matcher": {
+        "kind": "declaration-pairs",
+        "values": [
+          "background:transparent",
+          "border-width:0 4px 6px",
+          "box-shadow:none",
+          "gap:0",
+          "margin:0",
+          "margin:0 auto",
+          "margin:0 0 4px",
+          "margin:0 0 8px",
+          "margin:0 0 14px",
+          "margin:0 0 20px",
+          "padding:0",
+          "width:0",
+          "-webkit-background-clip:text"
+        ]
+      }
+    },
+    {
+      "ruleId": "missing-module",
+      "causeClass": "tsconfig-path-alias",
+      "ownerCommits": [
+        "4d201deb7af5a1a290a10f39e28868f63a8a16db",
+        "9b292ce496e5cbd240f4605155cc5c41dcb5f8f7"
+      ],
+      "matcher": {
+        "kind": "specifier-prefixes",
+        "prefixes": ["$scenarios/", "$styles/"]
+      }
+    }
+  ]
+}

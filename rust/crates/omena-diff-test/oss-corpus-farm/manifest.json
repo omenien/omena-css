@@ -9,7 +9,14 @@
     "maxSelectedWorktreeFiles": 256,
     "maxSelectedWorktreeBytes": 1048576
   },
-  "lastVerified": "2026-07-06",
+  "lintCensus": {
+    "policyPath": "lint-census-policy.json",
+    "coveragePath": "lint-census-coverage.json",
+    "reportPath": "lint-census-report.json",
+    "fixedTimeBudgetSeconds": 10,
+    "perSourceFileBudgetSeconds": 0.75
+  },
+  "lastVerified": "2026-07-22",
   "fixtures": [
     {
       "schemaVersion": "0",
@@ -18,6 +25,7 @@
       "dialect": "css",
       "expectationKind": "out-of-scope",
       "source": {
+        "kind": "pinned-repository",
         "repository": "https://github.com/Viijay-Kr/react-ts-css",
         "pin": "Viijay-Kr/react-ts-css@8bf4e2091a6ca1fe28e8517d1c059691337ece74",
         "sparsePaths": [
@@ -88,6 +96,7 @@
       "dialect": "scss",
       "expectationKind": "out-of-scope",
       "source": {
+        "kind": "pinned-repository",
         "repository": "https://github.com/Viijay-Kr/react-ts-css",
         "pin": "Viijay-Kr/react-ts-css@8bf4e2091a6ca1fe28e8517d1c059691337ece74",
         "sparsePaths": [
@@ -158,6 +167,7 @@
       "dialect": "less",
       "expectationKind": "out-of-scope",
       "source": {
+        "kind": "pinned-repository",
         "repository": "https://github.com/SolidZORO/mkn",
         "pin": "SolidZORO/mkn@b51ee2faa4e9b23862ebd532759f8ef860b9fb15",
         "sparsePaths": [
@@ -218,6 +228,64 @@
               "fixtureCount": 6
             }
           ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": "0",
+      "product": "omena-diff-test.oss-corpus-farm.entry",
+      "stage": "stage2-blocking",
+      "expectationKind": "finding-census",
+      "source": {
+        "kind": "local-workspace",
+        "workspacePath": "examples"
+      },
+      "generation": {
+        "tool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/local-examples-lint-census.json",
+        "oraclePinRefs": ["repo-path:examples"]
+      },
+      "provenance": {
+        "generationTool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/local-examples-lint-census.json",
+        "oraclePinRefs": ["repo-path:examples"]
+      },
+      "chunks": [
+        {
+          "chunkId": "local-examples-lint-census",
+          "path": "selections/local-examples-lint-census.json",
+          "stage": "stage2-blocking",
+          "sha256": "3bc272499ce2ebf8cdd13ab13134b053327ba99223e3fbfb105c8d7639caf483",
+          "fixtureCount": 58
+        }
+      ]
+    },
+    {
+      "schemaVersion": "0",
+      "product": "omena-diff-test.oss-corpus-farm.entry",
+      "stage": "stage2-blocking",
+      "expectationKind": "finding-census",
+      "source": {
+        "kind": "local-workspace",
+        "workspacePath": "test/_fixtures/real-project-corpus/lint-workspace"
+      },
+      "generation": {
+        "tool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/local-real-workspace-lint-census.json",
+        "oraclePinRefs": ["repo-path:test/_fixtures/real-project-corpus/lint-workspace"]
+      },
+      "provenance": {
+        "generationTool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/local-real-workspace-lint-census.json",
+        "oraclePinRefs": ["repo-path:test/_fixtures/real-project-corpus/lint-workspace"]
+      },
+      "chunks": [
+        {
+          "chunkId": "local-real-workspace-lint-census",
+          "path": "selections/local-real-workspace-lint-census.json",
+          "stage": "stage2-blocking",
+          "sha256": "5d58cfb5b806235f8d20470a81f98e1d2c3df9e90187abc801b75aad688bd584",
+          "fixtureCount": 7
         }
       ]
     }

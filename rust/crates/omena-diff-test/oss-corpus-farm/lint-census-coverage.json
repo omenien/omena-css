@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.real-workspace-lint-census-coverage",
+  "entries": [
+    {
+      "id": "local-examples-lint-census",
+      "workspacePath": "examples",
+      "scope": "mixed CSS, SCSS, Less, CSS Modules, React source, and tsconfig path mappings"
+    },
+    {
+      "id": "local-real-workspace-lint-census",
+      "workspacePath": "test/_fixtures/real-project-corpus/lint-workspace",
+      "scope": "CSS Modules, Sass module and legacy imports, React source, utility classes, and tsconfig path mappings"
+    }
+  ],
+  "covered": [
+    {
+      "shape": "tsconfig path aliases",
+      "evidence": [
+        "examples/tsconfig.json",
+        "test/_fixtures/real-project-corpus/lint-workspace/tsconfig.json"
+      ]
+    },
+    {
+      "shape": "CSS Modules",
+      "evidence": [
+        "examples/src/scenarios",
+        "test/_fixtures/real-project-corpus/lint-workspace/src/styles/Card.module.scss"
+      ]
+    },
+    {
+      "shape": "Sass import graph",
+      "evidence": ["test/_fixtures/real-project-corpus/lint-workspace/src/styles/Card.module.scss"]
+    },
+    {
+      "shape": "utility classes",
+      "evidence": ["test/_fixtures/real-project-corpus/lint-workspace/src/App.tsx"]
+    },
+    {
+      "shape": "unitless-zero and keyword values",
+      "evidence": [
+        "examples/src/scenarios/06-alias/Alias.module.scss",
+        "test/_fixtures/real-project-corpus/lint-workspace/src/styles/Card.module.scss"
+      ]
+    }
+  ],
+  "notCovered": [
+    {
+      "shape": "Less workspace semantics beyond the examples fixture",
+      "reentry": "add a local-workspace entry with imports, mixins, variables, and nested rules"
+    },
+    {
+      "shape": "monorepo multi-tsconfig resolution",
+      "reentry": "add a bounded multi-package fixture with independently rooted tsconfig files"
+    },
+    {
+      "shape": "pnpm workspace roots",
+      "reentry": "add a local-workspace entry rooted at a pnpm-workspace manifest"
+    },
+    {
+      "shape": "CSS-in-JS",
+      "reentry": "add a source-language entry when the product lint surface admits CSS-in-JS"
+    },
+    {
+      "shape": "Tailwind directives",
+      "reentry": "add a workspace entry with a pinned utility-provider configuration"
+    },
+    {
+      "shape": "Vue single-file components",
+      "reentry": "add a Vue workspace entry when the lint source frontend is product-routed"
+    }
+  ]
+}
