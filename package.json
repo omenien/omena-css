@@ -178,7 +178,7 @@
     "update:rust-omena-diff-test-wpt-extraction": "node --import tsx ./scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts --write",
     "check:rust-omena-wpt-attribution": "node --import tsx ./scripts/check-rust-omena-wpt-attribution.ts",
     "check:rust-omena-meta-macros-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-meta-macros",
-    "check:rust-omena-spec-audit-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-spec-audit && cargo run --manifest-path rust/Cargo.toml -p omena-spec-audit --bin omena-spec-audit-boundary --quiet",
+    "check:rust-omena-spec-audit-boundary": "node --import tsx ./scripts/check-rust-omena-spec-audit-oracle-lock.ts && cargo test --manifest-path rust/Cargo.toml -p omena-spec-audit && cargo run --manifest-path rust/Cargo.toml -p omena-spec-audit --bin omena-spec-audit-boundary --quiet",
     "check:rust-omena-css-spec-boundary": "node --import tsx ./scripts/check-rust-omena-css-spec-boundary.ts",
     "check:rust-omena-coverage-gap-report": "node --import tsx ./scripts/generate-rust-omena-coverage-gap.ts --check",
     "check:rust-omena-conformance-dashboard": "node --import tsx ./scripts/generate-rust-omena-conformance-dashboard.ts --check",

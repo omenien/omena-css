@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-spec-audit.oracle-source-lock",
+  "npmPackages": {
+    "lightningcss": {
+      "version": "1.32.0",
+      "declaredVersionSource": "package.json#devDependencies.lightningcss"
+    },
+    "sass": {
+      "version": "1.101.0",
+      "declaredVersionSource": "package.json#devDependencies.sass"
+    }
+  },
+  "sassSpecArchive": {
+    "pin": "sass/sass-spec@a2ead9225786d49e91f5cc36755b7713596a2338",
+    "declaredVersionSource": "rust/crates/omena-diff-test/sass-spec-corpus/manifest.json#source.pin"
+  }
+}
