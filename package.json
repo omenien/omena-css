@@ -163,6 +163,8 @@
     "update:rust-oss-corpus-farm": "node --import tsx ./scripts/oss-corpus-farm.ts --write-baseline",
     "check:rust-oss-corpus-farm-determinism": "node --import tsx ./scripts/oss-corpus-farm.ts --determinism-fixture test/_fixtures/real-project-corpus",
     "check:rust-oss-corpus-farm-regressions": "node --import tsx ./scripts/check-rust-oss-corpus-farm-regressions.ts",
+    "check:rust-lint-finding-census": "node --import tsx ./scripts/oss-corpus-farm.ts --lint-census",
+    "update:rust-lint-finding-census": "node --import tsx ./scripts/oss-corpus-farm.ts --write-lint-census",
     "check:rust-omena-diff-test-wpt-generator": "node --import tsx ./scripts/generate-rust-omena-diff-test-wpt-corpus.ts --check",
     "check:rust-omena-diff-test-wpt-seed": "node --import tsx ./scripts/check-rust-omena-diff-test-wpt-seed.ts",
     "check:rust-omena-diff-test-wpt-extractor": "node --import tsx ./scripts/extract-rust-omena-diff-test-wpt-tier-zero.ts --self-test",

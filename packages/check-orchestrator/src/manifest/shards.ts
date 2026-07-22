@@ -23,6 +23,7 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
       "rust/verification-plane-closure",
       "rust/oss-corpus-farm-determinism",
       "rust/oss-corpus-farm-regressions",
+      "rust/lint-finding-census",
     ],
   },
 };
