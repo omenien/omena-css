@@ -8,6 +8,7 @@ use crate::{
     diagnostics::{
         dynamic_classname_diagnostics_summary, resolve_in_process_external_sifs,
         source_diagnostics_summary, summarize_cross_file_streaming_reachability_diagnostics,
+        workspace_source_diagnostics_summaries,
     },
     dispatch::{run, run_with_exit},
     io::read_source,
@@ -3264,6 +3265,62 @@ export function App() {
     );
 
     cleanup(&source_path);
+    cleanup(&style_path);
+    Ok(())
+}
+
+#[test]
+fn workspace_source_diagnostics_summaries_match_per_file_summaries() -> Result<(), String> {
+    let first_source_path = temp_path("BatchA.tsx");
+    let second_source_path = temp_path("BatchB.tsx");
+    let style_path = temp_path("Batch.module.scss");
+    let style_file_name = style_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "style fixture should have a UTF-8 filename".to_string())?;
+    let source_template = r#"import styles from "./__STYLE_FILE_NAME__";
+export function Component() {
+  return <div className={styles.chip} />;
+}
+"#
+    .replace("__STYLE_FILE_NAME__", style_file_name);
+    fs::write(&first_source_path, &source_template)
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+    fs::write(&second_source_path, &source_template)
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+    fs::write(&style_path, ".chip {}\n")
+        .map_err(|error| format!("fixture style should be writable: {error}"))?;
+
+    let source_paths = vec![first_source_path.clone(), second_source_path.clone()];
+    let batch = workspace_source_diagnostics_summaries(
+        source_paths.as_slice(),
+        std::slice::from_ref(&style_path),
+        &[],
+    )?;
+    assert_eq!(batch.len(), source_paths.len());
+    for (source_path, batch_summary) in source_paths.iter().zip(batch.iter()) {
+        let per_file = source_diagnostics_summary(
+            path_string(source_path),
+            None,
+            Some(source_path.clone()),
+            vec![style_path.clone()],
+            Vec::new(),
+        )?;
+        let batch_json = serde_json::to_value(batch_summary)
+            .map_err(|error| format!("batch summary should serialize: {error}"))?;
+        let per_file_json = serde_json::to_value(&per_file)
+            .map_err(|error| format!("per-file summary should serialize: {error}"))?;
+        assert_eq!(
+            batch_json,
+            per_file_json,
+            "workspace batch path must match the per-file path for {}",
+            path_string(source_path)
+        );
+    }
+    assert!(workspace_source_diagnostics_summaries(&[], &[], &[])?.is_empty());
+
+    cleanup(&first_source_path);
+    cleanup(&second_source_path);
     cleanup(&style_path);
     Ok(())
 }

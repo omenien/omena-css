@@ -15,7 +15,7 @@ use serde::Serialize;
 use crate::{
     commands::LintProfile,
     config::find_omena_config_for_path,
-    diagnostics::{source_diagnostics_summary, workspace_style_diagnostics_summaries},
+    diagnostics::{workspace_source_diagnostics_summaries, workspace_style_diagnostics_summaries},
     output::{CliOutputMetadataV0, print_json},
     paths::path_string,
 };
@@ -268,14 +268,12 @@ fn build_lint_report(
         }
     }
 
-    for source_path in &files.source_paths {
-        let summary = source_diagnostics_summary(
-            path_string(source_path),
-            None,
-            Some(source_path.clone()),
-            files.style_paths.clone(),
-            files.package_manifest_paths.clone(),
-        )?;
+    let source_summaries = workspace_source_diagnostics_summaries(
+        files.source_paths.as_slice(),
+        files.style_paths.as_slice(),
+        files.package_manifest_paths.as_slice(),
+    )?;
+    for summary in source_summaries {
         for diagnostic in summary.diagnostics {
             let Some(rule_id) = checker_rule_id_for_diagnostic(diagnostic.code) else {
                 unmapped_diagnostic_codes.insert(diagnostic.code.to_string());

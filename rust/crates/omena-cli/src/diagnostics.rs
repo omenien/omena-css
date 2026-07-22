@@ -552,6 +552,39 @@ pub(crate) fn source_diagnostics_summary(
     }
 }
 
+pub(crate) fn workspace_source_diagnostics_summaries(
+    source_paths: &[PathBuf],
+    style_paths: &[PathBuf],
+    package_manifest_paths: &[PathBuf],
+) -> Result<Vec<OmenaQuerySourceDiagnosticsForFileV0>, String> {
+    let Some(first_source_path) = source_paths.first() else {
+        return Ok(Vec::new());
+    };
+    let style_sources = read_style_sources(style_paths)?;
+    let package_manifests = read_package_manifests(package_manifest_paths)?;
+    // Loaded once per workspace: the disk-identity scan behind these inputs is a
+    // full workspace walk (rfcs#121 — per-file loading made lint O(sources × walk)).
+    let workspace_folder_uri = style_resolution_workspace_uri_for_path(first_source_path);
+    let resolution_inputs = load_omena_query_workspace_style_resolution_inputs(
+        workspace_folder_uri.as_deref(),
+        package_manifests.as_slice(),
+    );
+    let mut summaries = Vec::with_capacity(source_paths.len());
+    for source_path in source_paths {
+        let source_source = read_source(source_path)?;
+        summaries.push(
+            summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs(
+                path_string(source_path).as_str(),
+                source_source.as_str(),
+                style_sources.as_slice(),
+                package_manifests.as_slice(),
+                &resolution_inputs,
+            ),
+        );
+    }
+    Ok(summaries)
+}
+
 pub(crate) fn dynamic_classname_diagnostics_summary(
     input_json: &Path,
 ) -> Result<OmenaQuerySourceDiagnosticsForFileV0, String> {
