@@ -12,7 +12,7 @@
     "postcss": "^8.5.19",
     "postcss-less": "^6.0.0",
     "postcss-scss": "^4.0.9",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vscode-languageserver": "^10.1.0",
     "vscode-languageserver-textdocument": "^1.0.12"
   }
