@@ -247,10 +247,11 @@ jobs:
 
       - name: Publish crate train
         id: publish
-        # Skip publish only when the resume/tag pass ran AND nothing remains. When
-        # the resume step did not run (plain dispatch), remaining_count is empty
-        # ('' != '0' -> true), so a full --workspace publish proceeds as before.
-        if: ${{ steps.resume.outputs.remaining_count != '0' }}
+        # Plain dispatch always publishes the requested full workspace. Resume and
+        # tag runs skip only when registry classification proves nothing remains.
+        # Keep the plain-dispatch branch explicit: GitHub expressions coerce an
+        # absent output and the string '0' to the same numeric value.
+        if: ${{ (env.RESUME != 'true' && !startsWith(github.ref, 'refs/tags/release-v')) || steps.resume.outputs.remaining_count != '0' }}
         uses: ./.github/actions/cargo-publish-workspace-oidc
         with:
           mode: ${{ steps.registry.outputs.effective_mode }}

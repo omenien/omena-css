@@ -139,6 +139,9 @@ describe("crate publish registry contract", () => {
     expect(workflow).toContain("steps.registry.outputs.effective_mode");
     expect(workflow).toContain(".semverEligible | index($crate) != null");
     expect(workflow).toContain("startsWith(github.ref, 'refs/tags/release-v') && 'auto'");
+    expect(workflow).toContain(
+      "(env.RESUME != 'true' && !startsWith(github.ref, 'refs/tags/release-v')) || steps.resume.outputs.remaining_count != '0'",
+    );
     expect(action).toContain("inputs.mode == 'trusted' && inputs.dry-run != 'true'");
     expect(action).toContain('if [ "${{ inputs.dry-run }}" != "true" ]');
   });
