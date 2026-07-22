@@ -7,6 +7,10 @@ import {
   resolveCratePublishMode,
   semverCheckableLibraryPath,
 } from "../../../scripts/crate-registry-state";
+import {
+  renderCargoPublishWorkspaceConfig,
+  selectPublishableWorkspaceCrates,
+} from "../../../scripts/generate-cargo-publish-workspace-config";
 
 describe("crate publish registry contract", () => {
   it("separates semver baselines from first-publish crate names", async () => {
@@ -118,6 +122,41 @@ describe("crate publish registry contract", () => {
     ).toEqual({ effectiveMode: "trusted", authenticationRequired: false });
   });
 
+  it("derives a local publish resolution config from publishable workspace members", () => {
+    const crates = selectPublishableWorkspaceCrates({
+      workspace_members: [
+        "omena-a 0.3.0 (path+file:///repo/a)",
+        "omena-b 0.3.0 (path+file:///repo/b)",
+      ],
+      packages: [
+        {
+          id: "omena-b 0.3.0 (path+file:///repo/b)",
+          name: "omena-b",
+          manifest_path: "/repo/b/Cargo.toml",
+          publish: [],
+        },
+        {
+          id: "omena-a 0.3.0 (path+file:///repo/a)",
+          name: "omena-a",
+          manifest_path: "/repo/a/Cargo.toml",
+          publish: null,
+        },
+        {
+          id: "external 1.0.0 (registry+https://example.invalid)",
+          name: "external",
+          manifest_path: "/registry/external/Cargo.toml",
+          publish: null,
+        },
+      ],
+    });
+
+    expect(crates).toEqual([{ name: "omena-a", crateRoot: "/repo/a" }]);
+    expect(renderCargoPublishWorkspaceConfig(crates)).toBe(
+      "# Generated from cargo metadata for local resolution during workspace publish verification.\n" +
+        '[patch.crates-io]\n"omena-a" = { path = "/repo/a" }\n',
+    );
+  });
+
   it("wires registry-aware semver and authentication before cargo publish", () => {
     const repoRoot = process.cwd();
     const workflow = readFileSync(
@@ -144,5 +183,10 @@ describe("crate publish registry contract", () => {
     );
     expect(action).toContain("inputs.mode == 'trusted' && inputs.dry-run != 'true'");
     expect(action).toContain('if [ "${{ inputs.dry-run }}" != "true" ]');
+    expect(action).toContain("scripts/generate-cargo-publish-workspace-config.ts");
+    expect(action).toContain('args+=(--config "${patch_config}")');
+    expect(action.indexOf("generate-cargo-publish-workspace-config.ts")).toBeLessThan(
+      action.indexOf('if [ "${{ inputs.dry-run }}" = "true" ]'),
+    );
   });
 });

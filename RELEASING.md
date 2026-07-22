@@ -64,6 +64,12 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   verification.
 - Dispatch `_Publish Crate Train` with `mode=oidc`, `dry_run=true`, and
   `resume=false`. Review the canonical publish order and every package dry-run.
+- Cargo packages and verifies every selected workspace member before its
+  dependency-ordered upload loop. Both dry-run and real publish therefore use a
+  temporary `[patch.crates-io]` map derived from workspace metadata so the new
+  exact-pin train resolves locally before its first member exists on crates.io.
+  This command-scoped map is not packaged: uploaded manifests retain their exact
+  crates.io version requirements and contain no local dependency paths.
 - Push `release-vX.Y.Z` only after the dry-run is green. The tag starts the crate
   publish and the five-target `Release CLI` archive/checksum workflow.
 - Existing crate names use crates.io Trusted Publishing. A never-published name
