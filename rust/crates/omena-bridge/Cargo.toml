@@ -25,7 +25,7 @@ omena-sif = { path = "../omena-sif", version = "=0.2.1" }
 oxc_allocator = "0.140.0"
 oxc_ast = "0.140.0"
 oxc_ast_visit = "0.140.0"
-oxc_parser = "0.140.0"
+oxc_parser = "0.141.0"
 oxc_semantic = "0.140.0"
 oxc_span = "0.140.0"
 serde.workspace = true
