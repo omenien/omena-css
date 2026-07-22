@@ -9,7 +9,7 @@
     },
     {
       "id": "local-real-workspace-lint-census",
-      "workspacePath": "test/_fixtures/real-project-corpus/lint-workspace",
+      "workspacePath": "scripts/fixtures/real-workspace-lint-corpus",
       "scope": "CSS Modules, Sass module and legacy imports, React source, utility classes, and tsconfig path mappings"
     }
   ],
@@ -18,29 +18,29 @@
       "shape": "tsconfig path aliases",
       "evidence": [
         "examples/tsconfig.json",
-        "test/_fixtures/real-project-corpus/lint-workspace/tsconfig.json"
+        "scripts/fixtures/real-workspace-lint-corpus/tsconfig.json"
       ]
     },
     {
       "shape": "CSS Modules",
       "evidence": [
         "examples/src/scenarios",
-        "test/_fixtures/real-project-corpus/lint-workspace/src/styles/Card.module.scss"
+        "scripts/fixtures/real-workspace-lint-corpus/src/styles/Card.module.scss"
       ]
     },
     {
       "shape": "Sass import graph",
-      "evidence": ["test/_fixtures/real-project-corpus/lint-workspace/src/styles/Card.module.scss"]
+      "evidence": ["scripts/fixtures/real-workspace-lint-corpus/src/styles/Card.module.scss"]
     },
     {
       "shape": "utility classes",
-      "evidence": ["test/_fixtures/real-project-corpus/lint-workspace/src/App.tsx"]
+      "evidence": ["scripts/fixtures/real-workspace-lint-corpus/src/App.tsx"]
     },
     {
       "shape": "unitless-zero and keyword values",
       "evidence": [
         "examples/src/scenarios/06-alias/Alias.module.scss",
-        "test/_fixtures/real-project-corpus/lint-workspace/src/styles/Card.module.scss"
+        "scripts/fixtures/real-workspace-lint-corpus/src/styles/Card.module.scss"
       ]
     }
   ],

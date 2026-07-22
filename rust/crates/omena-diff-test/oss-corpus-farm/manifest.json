@@ -267,24 +267,24 @@
       "expectationKind": "finding-census",
       "source": {
         "kind": "local-workspace",
-        "workspacePath": "test/_fixtures/real-project-corpus/lint-workspace"
+        "workspacePath": "scripts/fixtures/real-workspace-lint-corpus"
       },
       "generation": {
         "tool": "scripts/oss-corpus-farm.ts",
         "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/local-real-workspace-lint-census.json",
-        "oraclePinRefs": ["repo-path:test/_fixtures/real-project-corpus/lint-workspace"]
+        "oraclePinRefs": ["repo-path:scripts/fixtures/real-workspace-lint-corpus"]
       },
       "provenance": {
         "generationTool": "scripts/oss-corpus-farm.ts",
         "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/local-real-workspace-lint-census.json",
-        "oraclePinRefs": ["repo-path:test/_fixtures/real-project-corpus/lint-workspace"]
+        "oraclePinRefs": ["repo-path:scripts/fixtures/real-workspace-lint-corpus"]
       },
       "chunks": [
         {
           "chunkId": "local-real-workspace-lint-census",
           "path": "selections/local-real-workspace-lint-census.json",
           "stage": "stage2-blocking",
-          "sha256": "5d58cfb5b806235f8d20470a81f98e1d2c3df9e90187abc801b75aad688bd584",
+          "sha256": "3885c1b76d0045dd9867dc356bd79ecf3c0159c3f94ef8b1dafdbc0ba136bfbf",
           "fixtureCount": 7
         }
       ]

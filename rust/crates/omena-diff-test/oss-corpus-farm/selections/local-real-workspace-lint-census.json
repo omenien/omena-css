@@ -3,7 +3,7 @@
   "product": "omena-diff-test.oss-corpus-farm.selection",
   "id": "local-real-workspace-lint-census",
   "sourceKind": "local-workspace",
-  "workspacePath": "test/_fixtures/real-project-corpus/lint-workspace",
+  "workspacePath": "scripts/fixtures/real-workspace-lint-corpus",
   "includedExtensions": ["scss", "ts", "tsx", "json"],
   "selectedFileCount": 7
 }
