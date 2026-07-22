@@ -58,6 +58,7 @@ train moves to `0.3.0` instead.
 | Surface                                             | Release policy                                                                                                       |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Publishable Rust crates                             | One exact workspace version and one dependency-ordered `release-vX.Y.Z` train.                                       |
+| Never-published Rust crate names                    | Explicit first-publish members of the same train; they select protected bootstrap authentication until registered.   |
 | `@omena/wasm`, `@omena/napi`, `@omena/napi-*`       | Generated from the Rust workspace version and selected explicitly in the npm publish workflow.                       |
 | Changeset-ignored tooling packages                  | Excluded from this coordinated train; their package-local `0.0.x` versions do not follow the root extension version. |
 | `@omena/css-build-adapter`, `@omena/postcss-plugin` | Private, package-local `0.0.x` surfaces. Their first public publish requires a separate decision.                    |

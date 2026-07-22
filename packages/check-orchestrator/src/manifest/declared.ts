@@ -69,6 +69,16 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "verify",
   },
   {
+    id: "release/check/release-crate-registry-state",
+    kind: "gate",
+    scope: "release",
+    packageTarget: "release/check/release-crate-registry-state",
+    tags: ["release", "registry"],
+    ciTier: "manual",
+    ciGroup: "release",
+    ciReason: "Live crates.io registry classification is an operator-time release preflight.",
+  },
+  {
     id: "docs/reference-surface:update",
     kind: "command",
     scope: "docs",

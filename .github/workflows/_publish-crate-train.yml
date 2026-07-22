@@ -8,10 +8,10 @@ name: _Publish Crate Train
 # non-publishable crates self-skip via `publish = false`), then cuts the
 # crate-train GitHub release at the exact published commit.
 #
-# RFC-3691: Trusted Publishing CANNOT do a crate's FIRST publish, so genesis (0.2.0)
-# uses mode=bootstrap (a manual CRATES_IO_TOKEN in the protected `release`
-# environment). Steady state (0.3.0+) uses mode=oidc (rust-lang/crates-io-auth-action
-# inside the cargo-publish-workspace-oidc composite — no stored token).
+# RFC-3691: Trusted Publishing CANNOT do a crate's FIRST publish. Registry state
+# is therefore resolved before semver checking and publication. A tag-triggered
+# mixed train selects the protected bootstrap token while any never-published
+# names remain; a fully registered train uses OIDC Trusted Publishing.
 #
 # DORMANT: this workflow only runs on manual workflow_dispatch, on workflow_call from
 # a release entrypoint, or on a pushed `release-v*` tag. It is NOT part of per-push CI.
@@ -99,8 +99,8 @@ jobs:
       contents: write # cut the crate-train GitHub release at the published commit.
     env:
       # workflow_call passes inputs.*; a raw `push: tags` trigger has no inputs, so
-      # fall back to the steady-state defaults (oidc / no dry-run) on a tag push.
-      PUBLISH_MODE: ${{ inputs.mode || 'oidc' }}
+      # tag publication derives bootstrap vs OIDC from the live registry state.
+      PUBLISH_MODE: ${{ startsWith(github.ref, 'refs/tags/release-v') && 'auto' || inputs.mode || 'oidc' }}
       DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
       RESUME: ${{ inputs.resume && 'true' || 'false' }}
     steps:
@@ -165,10 +165,24 @@ jobs:
           echo "Canonical publish order (${count} crates, deps first):"
           cat canonical-publish-order.txt
 
-      # 4. cargo-semver-checks is SKIPPED for 0.2.x genesis-line releases, which
-      #    may still introduce first-published train crates. From the first
-      #    steady-state bump (0.3.0+) every publishable train member must compare
-      #    against its crates.io baseline before publish proceeds.
+      # 4. Resolve the live registry boundary once. Registered names have a
+      #    semver baseline; never-published names do not and require bootstrap
+      #    authentication for the irreversible publish. Registry/API ambiguity
+      #    fails closed rather than silently weakening either rule.
+      - name: Resolve crates.io registry state
+        id: registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm omena-check run release/check/release-crate-registry-state -- \
+            --manifest-path rust/Cargo.toml \
+            --order-file canonical-publish-order.txt \
+            --output-file crate-registry-state.json
+
+      # 4b. cargo-semver-checks is SKIPPED for 0.2.x genesis-line releases. From
+      #     0.3.0 onward every registered train member with a semver-checkable
+      #     library API at the baseline tag is compared against crates.io.
+      #     First-publish names and non-checkable baselines are reported instead.
       - name: cargo-semver-checks steady-state gate
         shell: bash
         run: |
@@ -183,6 +197,19 @@ jobs:
           cargo install cargo-semver-checks --version 0.48.0 --locked
           while IFS= read -r crate; do
             if [ -z "${crate}" ]; then
+              continue
+            fi
+            if ! jq -e --arg crate "${crate}" '.semverEligible | index($crate) != null' crate-registry-state.json >/dev/null; then
+              if jq -e --arg crate "${crate}" '.unregistered | index($crate) != null' crate-registry-state.json >/dev/null; then
+                echo "::notice::Skipping cargo-semver-checks for first-publish crate ${crate}; no registry baseline exists."
+              elif jq -e --arg crate "${crate}" '.semverNoCheckableLibraryBaseline | index($crate) != null' crate-registry-state.json >/dev/null; then
+                echo "::notice::Skipping cargo-semver-checks for ${crate}; its published baseline has no semver-checkable library API."
+              elif jq -e --arg crate "${crate}" '.semverAlreadyPublished | index($crate) != null' crate-registry-state.json >/dev/null; then
+                echo "::notice::Skipping cargo-semver-checks for ${crate}; this exact version is already published."
+              else
+                echo "::error::${crate} has no classified semver disposition"
+                exit 1
+              fi
               continue
             fi
             echo "::group::cargo-semver-checks ${crate}"
@@ -211,7 +238,12 @@ jobs:
         id: resume
         if: ${{ env.RESUME == 'true' || startsWith(github.ref, 'refs/tags/release-v') }}
         shell: bash
-        run: node scripts/genesis-publish-resume-exclude.mjs
+        run: |
+          set -euo pipefail
+          echo "exclude_args=${{ steps.registry.outputs.exclude_args }}" >> "$GITHUB_OUTPUT"
+          echo "remaining_count=${{ steps.registry.outputs.remaining_count }}" >> "$GITHUB_OUTPUT"
+          echo "remaining=${{ steps.registry.outputs.remaining }}" >> "$GITHUB_OUTPUT"
+          echo "remaining crates: ${{ steps.registry.outputs.remaining }}"
 
       - name: Publish crate train
         id: publish
@@ -221,7 +253,7 @@ jobs:
         if: ${{ steps.resume.outputs.remaining_count != '0' }}
         uses: ./.github/actions/cargo-publish-workspace-oidc
         with:
-          mode: ${{ env.PUBLISH_MODE == 'bootstrap' && 'bootstrap' || 'trusted' }}
+          mode: ${{ steps.registry.outputs.effective_mode }}
           dry-run: ${{ env.DRY_RUN }}
           locked: "true"
           # Empty unless resuming; on resume, excludes the already-published crates.

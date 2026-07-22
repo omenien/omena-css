@@ -44,7 +44,7 @@ runs:
     # OIDC path: mint a short-lived (~30 min, auto-revoked) crates.io token.
     # Requires the CALLER job to grant `permissions: id-token: write`.
     - id: auth
-      if: inputs.mode == 'trusted'
+      if: inputs.mode == 'trusted' && inputs.dry-run != 'true'
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
       with:
         url: ${{ inputs.registry-url }}
@@ -61,7 +61,7 @@ runs:
           echo "::error::mode must be 'trusted' or 'bootstrap' (got '${{ inputs.mode }}')" >&2
           exit 1
         fi
-        if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+        if [ "${{ inputs.dry-run }}" != "true" ] && [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
           echo "::error::no crates.io token available for mode='${{ inputs.mode }}'" >&2
           echo "::error::trusted mode needs id-token:write + the auth step; bootstrap mode needs CRATES_IO_TOKEN env" >&2
           exit 1

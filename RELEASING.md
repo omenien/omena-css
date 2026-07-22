@@ -68,7 +68,10 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   publish and the five-target `Release CLI` archive/checksum workflow.
 - Existing crate names use crates.io Trusted Publishing. A never-published name
   requires one `mode=bootstrap` run with the protected `CRATES_IO_TOKEN`, then
-  registration for OIDC.
+  registration for OIDC. Because Cargo publishes the workspace as one train, a
+  release containing any never-published name uses bootstrap authentication for
+  that whole run; tag-triggered releases derive this choice from live registry
+  state and return to OIDC once every name is registered.
 - Confirm every publishable crate at the exact version, the sparse-index poll,
   install smoke, GitHub release, CLI archives, and checksums.
 - Publishing is non-atomic and irreversible. If a train stops after partial

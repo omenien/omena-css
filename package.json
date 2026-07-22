@@ -55,6 +55,7 @@
     "check:docs-readme-example": "node --import tsx ./scripts/check-docs-readme-example.ts",
     "check:docs-version-strings": "node --import tsx ./scripts/check-docs-version-strings.ts",
     "check:docs-version-governance": "node --import tsx ./scripts/check-docs-version-governance.ts",
+    "check:release-crate-registry-state": "node --import tsx ./scripts/crate-registry-state.ts",
     "check:docs-publication-material": "node --import tsx ./scripts/check-docs-publication-material.ts",
     "changeset": "changeset",
     "typecheck": "tsc -b",
