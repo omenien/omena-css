@@ -17,10 +17,13 @@ workspace = true
 
 [features]
 default = []
-test-support = []
+test-support = ["dep:omena-testkit"]
 
 [dependencies]
 omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.3.0" }
-omena-testkit = { path = "../omena-testkit", version = "=0.3.0" }
+omena-testkit = { path = "../omena-testkit", version = "=0.3.0", optional = true }
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+omena-testkit = { path = "../omena-testkit", version = "=0.3.0" }
