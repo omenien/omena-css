@@ -566,7 +566,7 @@
     "ovsx": "^1.0.2",
     "oxfmt": "0.59.0",
     "oxlint": "1.74.0",
-    "parse5": "7.3.0",
+    "parse5": "8.0.1",
     "postcss": "^8.5.19",
     "postcss-less": "6.0.0",
     "postcss-safe-parser": "7.0.1",
