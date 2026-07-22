@@ -17,8 +17,9 @@ import { fileURLToPath } from "node:url";
  *
  * The expected requirement is DERIVED from `[workspace.package].version`, so a
  * version bump only needs the pins re-stamped (the release tooling does that) and
- * this gate follows automatically. dev-dependencies are exempt (cargo strips their
- * path at publish and does not require a version), but pinning them too is allowed.
+ * this gate follows automatically. Workspace dev-dependencies must remain path-only:
+ * Cargo strips versionless path dev-dependencies during publication, while versioned
+ * dev edges participate in publish ordering and can create otherwise artificial cycles.
  *
  * A self-test guards the detection predicate itself.
  */
@@ -68,10 +69,28 @@ function requiresExactPin(
   return typeof dep.path === "string" && dep.kind !== "dev" && members.has(dep.name);
 }
 
+function requiresPathOnlyDevDependency(
+  members: ReadonlySet<string>,
+  dep: { readonly name: string; readonly kind: string | null; readonly path?: string },
+): boolean {
+  return typeof dep.path === "string" && dep.kind === "dev" && members.has(dep.name);
+}
+
 const violations: string[] = [];
+const devDependencyViolations: string[] = [];
 let interCrateNonDevDeps = 0;
+let interCrateDevDeps = 0;
 for (const pkg of metadata.packages) {
   for (const dep of pkg.dependencies) {
+    if (requiresPathOnlyDevDependency(memberNames, dep)) {
+      interCrateDevDeps += 1;
+      if (dep.req !== "*") {
+        devDependencyViolations.push(
+          `${pkg.name} -> ${dep.name}: dev req "${dep.req}" must be path-only`,
+        );
+      }
+      continue;
+    }
     if (!requiresExactPin(memberNames, dep)) {
       continue;
     }
@@ -90,6 +109,14 @@ assert.equal(
     `Re-stamp the offending \`{ path = ... }\` deps with \`version = "${expectedReq}"\`.`,
 );
 
+assert.equal(
+  devDependencyViolations.length,
+  0,
+  `workspace dev-dependencies must omit registry versions so Cargo strips them from the ` +
+    `published manifest and publish ordering remains acyclic:\n  ${devDependencyViolations.join("\n  ")}\n` +
+    "Remove the version field from the offending path dev-dependencies.",
+);
+
 // Self-test: the predicate flags a non-dev workspace path-dep, ignores a dev-dep,
 // ignores a registry (non-path) dep, and ignores a path-dep to a non-member.
 {
@@ -103,6 +130,15 @@ assert.equal(
     requiresExactPin(members, { name: "probe-member", kind: "dev", path: "/x" }),
     false,
     "self-test: predicate must ignore a dev inter-crate path-dep",
+  );
+  assert.equal(
+    requiresPathOnlyDevDependency(members, {
+      name: "probe-member",
+      kind: "dev",
+      path: "/x",
+    }),
+    true,
+    "self-test: dev predicate must flag a workspace path dev-dependency",
   );
   assert.equal(
     requiresExactPin(members, { name: "probe-member", kind: null }),
@@ -124,7 +160,9 @@ process.stdout.write(
       workspaceVersion,
       expectedReq,
       interCrateNonDevDeps,
+      interCrateDevDeps,
       pinViolations: 0,
+      devDependencyVersionViolations: 0,
     },
     null,
     2,

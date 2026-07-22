@@ -48,5 +48,5 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-omena-query = { path = "../omena-query", version = "=0.3.0", features = ["test-support"] }
-omena-testkit = { path = "../omena-testkit", version = "=0.3.0" }
+omena-query = { path = "../omena-query", features = ["test-support"] }
+omena-testkit = { path = "../omena-testkit" }

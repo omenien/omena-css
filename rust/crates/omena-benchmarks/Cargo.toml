@@ -31,8 +31,8 @@ sha2.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 iai-callgrind = { workspace = true, features = ["client_requests_defs"] }
-omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.3.0" }
-omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.3.0" }
+omena-cross-file-summary = { path = "../omena-cross-file-summary" }
+omena-streaming-ifds = { path = "../omena-streaming-ifds" }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 iai-callgrind = { workspace = true, features = ["client_requests"] }
