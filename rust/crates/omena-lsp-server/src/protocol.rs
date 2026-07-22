@@ -313,11 +313,15 @@ pub(crate) fn include_declaration_from_params(params: Option<&Value>) -> bool {
         .unwrap_or(false)
 }
 
-pub(crate) fn file_label_from_uri(uri: &str) -> &str {
-    uri.rsplit('/')
+pub(crate) fn file_label_from_uri(uri: &str) -> String {
+    let label = uri
+        .rsplit('/')
         .next()
         .filter(|label| !label.is_empty())
-        .unwrap_or(uri)
+        .unwrap_or(uri);
+    // Decode AFTER splitting so an encoded %2F cannot change segment boundaries;
+    // fall back to the raw label on invalid percent sequences (rfcs#122).
+    percent_decode_uri_path(label).unwrap_or_else(|| label.to_string())
 }
 
 pub(crate) fn document_uri_from_params(params: Option<&Value>) -> String {
@@ -436,5 +440,37 @@ pub(crate) fn style_language_label(language: StyleLanguage) -> &'static str {
         StyleLanguage::Css => "css",
         StyleLanguage::Scss => "scss",
         StyleLanguage::Less => "less",
+    }
+}
+
+#[cfg(test)]
+mod file_label_tests {
+    use super::file_label_from_uri;
+
+    #[test]
+    fn decodes_percent_encoded_non_ascii_labels() {
+        assert_eq!(
+            file_label_from_uri("file:///ws/src/%EC%83%98%ED%94%8C%EB%B0%B0%EB%84%88.module.scss"),
+            "샘플배너.module.scss"
+        );
+    }
+
+    #[test]
+    fn decodes_after_splitting_so_encoded_slashes_stay_in_the_label() {
+        assert_eq!(file_label_from_uri("file:///ws/a%2Fb.css"), "a/b.css");
+    }
+
+    #[test]
+    fn falls_back_to_the_raw_label_on_invalid_percent_sequences() {
+        assert_eq!(file_label_from_uri("file:///ws/bad%GG.css"), "bad%GG.css");
+    }
+
+    #[test]
+    fn passes_plain_ascii_labels_through_unchanged() {
+        assert_eq!(
+            file_label_from_uri("file:///ws/App.module.css"),
+            "App.module.css"
+        );
+        assert_eq!(file_label_from_uri("no-slash"), "no-slash");
     }
 }

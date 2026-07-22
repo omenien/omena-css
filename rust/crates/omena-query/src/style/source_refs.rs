@@ -484,10 +484,15 @@ pub fn summarize_omena_query_global_class_fallthrough_diagnostic(
     target_style_source: &str,
     source_reference_range: ParserRangeV0,
 ) -> OmenaQuerySourceDiagnosticV0 {
-    let global_file = global_definition_uri
+    let global_file_label = global_definition_uri
         .rsplit('/')
         .next()
+        .filter(|label| !label.is_empty())
         .unwrap_or(global_definition_uri);
+    // LSP-provided URIs percent-encode non-ASCII filenames; decode after the
+    // split so the user-facing message shows the readable name (rfcs#122).
+    let global_file =
+        percent_decode_uri_path(global_file_label).unwrap_or_else(|| global_file_label.to_string());
     // The one action that changes the scoping fact: adding the selector to
     // the bound module makes the reference module-scoped again. Reuses the
     // missing-selector machinery so the edit shape cannot drift.
@@ -1862,4 +1867,31 @@ fn normalize_path(path: PathBuf) -> PathBuf {
         }
     }
     normalized
+}
+
+#[cfg(test)]
+mod global_class_fallthrough_label_tests {
+    use super::summarize_omena_query_global_class_fallthrough_diagnostic;
+    use crate::ParserRangeV0;
+
+    #[test]
+    fn message_shows_decoded_non_ascii_global_filename() {
+        let diagnostic = summarize_omena_query_global_class_fallthrough_diagnostic(
+            "chip",
+            "file:///ws/%EC%83%98%ED%94%8C%EB%B0%B0%EB%84%88.css",
+            "file:///ws/App.module.css",
+            ".root {}\n",
+            ParserRangeV0::default(),
+        );
+        assert!(
+            diagnostic.message.contains("샘플배너.css"),
+            "{}",
+            diagnostic.message
+        );
+        assert!(
+            !diagnostic.message.contains("%EC"),
+            "{}",
+            diagnostic.message
+        );
+    }
 }

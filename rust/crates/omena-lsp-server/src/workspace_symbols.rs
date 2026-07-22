@@ -4,7 +4,10 @@
 //! query never builds an index or touches disk. Cmd+T for "where is this
 //! class/token defined?".
 
-use crate::{LspDocumentOrigin, LspQueryReadView, protocol::is_style_document_uri};
+use crate::{
+    LspDocumentOrigin, LspQueryReadView,
+    protocol::{file_label_from_uri, is_style_document_uri},
+};
 use serde_json::{Value, json};
 
 /// Bounded so a one-letter query cannot flood the client; VS Code refines
@@ -46,11 +49,7 @@ pub(crate) fn resolve_lsp_workspace_symbols(
                     "uri": document.uri,
                     "range": candidate.range,
                 },
-                "containerName": document
-                    .uri
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or(document.uri.as_str()),
+                "containerName": file_label_from_uri(document.uri.as_str()),
             }));
             if symbols.len() >= MAX_WORKSPACE_SYMBOLS {
                 break 'documents;
