@@ -54,6 +54,7 @@
     "update:docs-reference-surface": "node --import tsx ./scripts/check-docs-reference-surface.ts --write",
     "check:docs-readme-example": "node --import tsx ./scripts/check-docs-readme-example.ts",
     "check:docs-version-strings": "node --import tsx ./scripts/check-docs-version-strings.ts",
+    "check:docs-version-governance": "node --import tsx ./scripts/check-docs-version-governance.ts",
     "check:docs-publication-material": "node --import tsx ./scripts/check-docs-publication-material.ts",
     "changeset": "changeset",
     "typecheck": "tsc -b",

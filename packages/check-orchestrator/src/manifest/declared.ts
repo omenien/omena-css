@@ -51,6 +51,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "verify",
   },
   {
+    id: "docs/version-governance",
+    kind: "gate",
+    scope: "docs",
+    packageTarget: "docs/version-governance",
+    tags: ["docs", "version", "release"],
+    ciTier: "verify",
+    ciGroup: "verify",
+  },
+  {
     id: "docs/publication-material",
     kind: "gate",
     scope: "docs",
@@ -203,6 +212,8 @@ export const DECLARED_CHECK_GATES = [
     replacesPackageTarget: "release/release/verify",
     deps: [
       "release/sync-server-version",
+      "docs/version-strings",
+      "docs/version-governance",
       "release/check/release-m5-api-freeze-audit",
       "core/build",
       "core/check",
