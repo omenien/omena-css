@@ -3,8 +3,8 @@
 //! This crate is additive: it reads cascade public summaries and emits
 //! V0 categorical evidence without changing cascade winner selection.
 //!
-//! claim_level: product-wired additive evidence, not a completed categorical
-//! theorem or proof system.
+//! claim_level: lab-only additive evidence, not a completed categorical theorem
+//! or proof system.
 
 pub mod beck_chevalley;
 pub mod colimit;

@@ -31,7 +31,7 @@ const TARGETS = [
   },
   {
     path: "rust/crates/omena-categorical/src/lib.rs",
-    required: ["claim_level:", "product-wired additive evidence", "not a completed categorical"],
+    required: ["claim_level:", "lab-only additive evidence", "not a completed categorical"],
   },
   {
     path: "rust/crates/omena-smt/src/lib.rs",
@@ -39,7 +39,7 @@ const TARGETS = [
   },
   {
     path: "rust/crates/omena-variational/src/lib.rs",
-    required: ["claim_level:", "product-wired posterior inference", "not a corpus-calibrated"],
+    required: ["claim_level:", "lab-only posterior inference", "not a corpus-calibrated"],
   },
   {
     path: "rust/crates/omena-zk-audit/src/lib.rs",
@@ -74,7 +74,7 @@ const TARGETS = [
     path: "rust/crates/omena-ensemble/src/lib.rs",
     required: [
       "claim_level:",
-      "product-wired cross-file consistency hint substrate",
+      "lab-only cross-file consistency hint substrate",
       "not a default product",
     ],
   },
