@@ -24,20 +24,20 @@ smt-z3 = ["omena-query-checker-orchestrator/smt-z3"]
 test-support = ["omena-resolver/test-support"]
 
 [dependencies]
-omena-bridge = { path = "../omena-bridge", version = "=0.2.1" }
-omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
-omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
-omena-cst-typed = { path = "../omena-cst-typed", version = "=0.2.1" }
-omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.2.1" }
-omena-parser = { path = "../omena-parser", version = "=0.2.1" }
-omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator", version = "=0.2.1" }
-omena-query-core = { path = "../omena-query-core", version = "=0.2.1" }
-omena-query-transform-runner = { path = "../omena-query-transform-runner", version = "=0.2.1" }
-omena-resolver = { path = "../omena-resolver", version = "=0.2.1" }
-omena-scss-eval = { path = "../omena-scss-eval", version = "=0.2.1" }
-omena-semantic = { path = "../omena-semantic", version = "=0.2.1" }
-omena-sif = { path = "../omena-sif", version = "=0.2.1" }
-omena-syntax = { path = "../omena-syntax", version = "=0.2.1" }
+omena-bridge = { path = "../omena-bridge", version = "=0.3.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.3.0" }
+omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.3.0" }
+omena-cst-typed = { path = "../omena-cst-typed", version = "=0.3.0" }
+omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.3.0" }
+omena-parser = { path = "../omena-parser", version = "=0.3.0" }
+omena-query-checker-orchestrator = { path = "../omena-query-checker-orchestrator", version = "=0.3.0" }
+omena-query-core = { path = "../omena-query-core", version = "=0.3.0" }
+omena-query-transform-runner = { path = "../omena-query-transform-runner", version = "=0.3.0" }
+omena-resolver = { path = "../omena-resolver", version = "=0.3.0" }
+omena-scss-eval = { path = "../omena-scss-eval", version = "=0.3.0" }
+omena-semantic = { path = "../omena-semantic", version = "=0.3.0" }
+omena-sif = { path = "../omena-sif", version = "=0.3.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }
 salsa = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true

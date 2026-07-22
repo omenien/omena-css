@@ -16,11 +16,11 @@ role = "R1"
 workspace = true
 
 [dependencies]
-omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
-omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.2.1" }
+omena-cascade = { path = "../omena-cascade", version = "=0.3.0" }
+omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.3.0" }
 serde.workspace = true
 salsa.workspace = true
 
 [dev-dependencies]
-omena-testkit = { path = "../omena-testkit", version = "=0.2.1" }
+omena-testkit = { path = "../omena-testkit", version = "=0.3.0" }
 serde_json.workspace = true

@@ -16,13 +16,13 @@ role = "R2"
 workspace = true
 
 [dependencies]
-omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.2.1" }
-omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
-omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
-omena-interner = { path = "../omena-interner", version = "=0.2.1" }
-omena-parser = { path = "../omena-parser", version = "=0.2.1" }
-omena-resolver = { path = "../omena-resolver", version = "=0.2.1" }
-omena-syntax = { path = "../omena-syntax", version = "=0.2.1" }
+omena-engine-input-producers = { path = "../omena-engine-input-producers", version = "=0.3.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.3.0" }
+omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.3.0" }
+omena-interner = { path = "../omena-interner", version = "=0.3.0" }
+omena-parser = { path = "../omena-parser", version = "=0.3.0" }
+omena-resolver = { path = "../omena-resolver", version = "=0.3.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }
 salsa.workspace = true
 serde.workspace = true
 serde_json.workspace = true

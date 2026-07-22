@@ -15,15 +15,15 @@ role = "I"
 workspace = true
 
 [dependencies]
-engine-style-parser = { path = "../engine-style-parser", version = "=0.2.1" }
-omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
-omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
-omena-parser = { path = "../omena-parser", version = "=0.2.1" }
-omena-query = { path = "../omena-query", version = "=0.2.1", features = ["salsa-memo"] }
-omena-semantic = { path = "../omena-semantic", version = "=0.2.1" }
-omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }
-omena-transform-passes = { path = "../omena-transform-passes", version = "=0.2.1" }
-omena-transform-print = { path = "../omena-transform-print", version = "=0.2.1" }
+engine-style-parser = { path = "../engine-style-parser", version = "=0.3.0" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.3.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.3.0" }
+omena-parser = { path = "../omena-parser", version = "=0.3.0" }
+omena-query = { path = "../omena-query", version = "=0.3.0", features = ["salsa-memo"] }
+omena-semantic = { path = "../omena-semantic", version = "=0.3.0" }
+omena-transform-cst = { path = "../omena-transform-cst", version = "=0.3.0" }
+omena-transform-passes = { path = "../omena-transform-passes", version = "=0.3.0" }
+omena-transform-print = { path = "../omena-transform-print", version = "=0.3.0" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -31,8 +31,8 @@ sha2.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 iai-callgrind = { workspace = true, features = ["client_requests_defs"] }
-omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
-omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.2.1" }
+omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.3.0" }
+omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.3.0" }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 iai-callgrind = { workspace = true, features = ["client_requests"] }

@@ -22,8 +22,8 @@ streaming-ifds = []
 with-frame-rule = []
 
 [dependencies]
-omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
-omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.2.1" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.3.0" }
+omena-cross-file-summary = { path = "../omena-cross-file-summary", version = "=0.3.0" }
 serde.workspace = true
 sha2.workspace = true
 
