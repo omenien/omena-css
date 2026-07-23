@@ -420,18 +420,27 @@ fn adjudicate_css_value_validation_with_boundary(
     verdict: CssValueGrammarVerdictV0,
     classification: SpecGrammarBoundaryClassificationV0,
 ) -> CssValueValidationV0 {
+    let components = css_value_component_stream(value, 0).ok();
     let has_unvalidated_standard_function = matches!(
         &verdict,
         CssValueGrammarVerdictV0::Unmatched { locus, .. }
             if classification == SpecGrammarBoundaryClassificationV0::InBoundary
-                && recognized_standard_function_owns_unmatched_locus(value, *locus)
+                && components.as_deref().is_some_and(|components| {
+                    recognized_standard_function_owns_unmatched_locus(components, *locus)
+                })
     );
-    let (class, reason) = if contains_deferred_css_value(value) {
+    let (class, reason) = if components
+        .as_deref()
+        .is_some_and(contains_deferred_css_value)
+    {
         (
             CssValueValidationClassV0::NotValidatable,
             CssValueValidationReasonV0::DeferredSubstitution,
         )
-    } else if has_leading_vendor_identifier(value) {
+    } else if components
+        .as_deref()
+        .is_some_and(has_leading_vendor_identifier)
+    {
         (
             CssValueValidationClassV0::NotValidatable,
             CssValueValidationReasonV0::VendorExtension,
@@ -477,12 +486,9 @@ fn adjudicate_css_value_validation_with_boundary(
 }
 
 fn recognized_standard_function_owns_unmatched_locus(
-    value: &str,
+    components: &[CssValueComponentV0],
     locus: CssValueGrammarLocusV0,
 ) -> bool {
-    let Ok(components) = css_value_component_stream(value, 0) else {
-        return false;
-    };
     // Exact ownership prevents a recognized function from hiding an adjacent invalid component.
     components.iter().any(|component| {
         component.span.start == locus.start
@@ -518,25 +524,31 @@ fn is_deferred_css_function_name(name: &str) -> bool {
     )
 }
 
-fn contains_deferred_css_value(value: &str) -> bool {
-    let compact = value
-        .chars()
-        .filter(|character| !character.is_ascii_whitespace())
-        .flat_map(char::to_lowercase)
-        .collect::<String>();
-    ["var(", "env(", "attr(", "calc(", "min(", "max(", "clamp("]
-        .iter()
-        .any(|function| compact.contains(function))
+fn contains_deferred_css_value(components: &[CssValueComponentV0]) -> bool {
+    components.iter().any(|component| match &component.kind {
+        CssValueComponentKindV0::Function { name, arguments } => {
+            is_deferred_css_function_name(name) || contains_deferred_css_value(arguments)
+        }
+        CssValueComponentKindV0::Parenthesized { values }
+        | CssValueComponentKindV0::Bracketed { values }
+        | CssValueComponentKindV0::Braced { values } => contains_deferred_css_value(values),
+        CssValueComponentKindV0::Ident
+        | CssValueComponentKindV0::Number
+        | CssValueComponentKindV0::Percentage
+        | CssValueComponentKindV0::Dimension
+        | CssValueComponentKindV0::Hash
+        | CssValueComponentKindV0::String
+        | CssValueComponentKindV0::Url
+        | CssValueComponentKindV0::Comma
+        | CssValueComponentKindV0::Slash
+        | CssValueComponentKindV0::Delimiter => false,
+    })
 }
 
-fn has_leading_vendor_identifier(value: &str) -> bool {
-    css_value_component_stream(value, 0)
-        .ok()
-        .and_then(|components| components.into_iter().next())
-        .is_some_and(|component| {
-            matches!(component.kind, CssValueComponentKindV0::Ident)
-                && component.text.starts_with('-')
-        })
+fn has_leading_vendor_identifier(components: &[CssValueComponentV0]) -> bool {
+    components.first().is_some_and(|component| {
+        matches!(component.kind, CssValueComponentKindV0::Ident) && component.text.starts_with('-')
+    })
 }
 
 /// Matches and projects a standard property value into the existing scalar
@@ -2447,24 +2459,22 @@ mod tests {
         assert!(math_function.verdict.is_definite_mismatch());
 
         let quoted_text = validate_standard_property_value_v0("content", "\"var(\"");
-        // Raw source scanning mistakes the quoted text for a substitution function.
-        assert_eq!(quoted_text.class, CssValueValidationClassV0::NotValidatable);
+        assert_eq!(quoted_text.class, CssValueValidationClassV0::Valid);
         assert_eq!(
             quoted_text.reason,
-            CssValueValidationReasonV0::DeferredSubstitution
+            CssValueValidationReasonV0::GrammarMatched
         );
         assert!(quoted_text.verdict.is_matched());
 
         let grid_function =
             validate_standard_property_value_v0("grid-template-columns", "minmax(101px, 1fr)");
-        // The `max(` substring masks the underlying incomplete grid grammar.
         assert_eq!(
             grid_function.class,
             CssValueValidationClassV0::NotValidatable
         );
         assert_eq!(
             grid_function.reason,
-            CssValueValidationReasonV0::DeferredSubstitution
+            CssValueValidationReasonV0::GrammarDefect
         );
         assert!(matches!(
             grid_function.verdict,
@@ -2514,6 +2524,39 @@ mod tests {
         assert_eq!(
             unregistered_function.reason,
             CssValueValidationReasonV0::GrammarUnmatched
+        );
+    }
+
+    #[test]
+    fn deferred_validation_uses_parsed_function_names() {
+        for value in [
+            "var(--width)",
+            "env(safe-area-inset-top)",
+            "attr(data-width type(<length>))",
+            "calc(1px + 2px)",
+            "min(1px, 2px)",
+            "max(1px, 2px)",
+            "clamp(1px, 2px, 3px)",
+            "round(up, calc(101px), 10px)",
+        ] {
+            let validation = validate_standard_property_value_v0("width", value);
+            assert_eq!(
+                validation.class,
+                CssValueValidationClassV0::NotValidatable,
+                "{value} must remain deferred"
+            );
+            assert_eq!(
+                validation.reason,
+                CssValueValidationReasonV0::DeferredSubstitution,
+                "{value} must be attributed to an actual deferred function component"
+            );
+        }
+
+        let similarly_named =
+            validate_standard_property_value_v0("grid-template-columns", "minmax(101px, 1fr)");
+        assert_eq!(
+            similarly_named.reason,
+            CssValueValidationReasonV0::GrammarDefect
         );
     }
 
