@@ -100,6 +100,7 @@ pub enum CssValueValidationReasonV0 {
     DeferredSubstitution,
     VendorExtension,
     ForwardTierGrammar,
+    UnvalidatedStandardFunction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -419,6 +420,12 @@ fn adjudicate_css_value_validation_with_boundary(
     verdict: CssValueGrammarVerdictV0,
     classification: SpecGrammarBoundaryClassificationV0,
 ) -> CssValueValidationV0 {
+    let has_unvalidated_standard_function = matches!(
+        &verdict,
+        CssValueGrammarVerdictV0::Unmatched { locus, .. }
+            if classification == SpecGrammarBoundaryClassificationV0::InBoundary
+                && recognized_standard_function_owns_unmatched_locus(value, *locus)
+    );
     let (class, reason) = if contains_deferred_css_value(value) {
         (
             CssValueValidationClassV0::NotValidatable,
@@ -428,6 +435,11 @@ fn adjudicate_css_value_validation_with_boundary(
         (
             CssValueValidationClassV0::NotValidatable,
             CssValueValidationReasonV0::VendorExtension,
+        )
+    } else if has_unvalidated_standard_function {
+        (
+            CssValueValidationClassV0::NotValidatable,
+            CssValueValidationReasonV0::UnvalidatedStandardFunction,
         )
     } else {
         match verdict {
@@ -462,6 +474,48 @@ fn adjudicate_css_value_validation_with_boundary(
         reason,
         verdict,
     }
+}
+
+fn recognized_standard_function_owns_unmatched_locus(
+    value: &str,
+    locus: CssValueGrammarLocusV0,
+) -> bool {
+    let Ok(components) = css_value_component_stream(value, 0) else {
+        return false;
+    };
+    // Exact ownership prevents a recognized function from hiding an adjacent invalid component.
+    components.iter().any(|component| {
+        component.span.start == locus.start
+            && component.span.end == locus.end
+            && matches!(
+                &component.kind,
+                CssValueComponentKindV0::Function { name, .. }
+                    if recognized_standard_function_names().contains(name)
+            )
+    })
+}
+
+fn recognized_standard_function_names() -> &'static BTreeSet<String> {
+    static NAMES: OnceLock<BTreeSet<String>> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        spec_grammar_registry()
+            .entries("functions")
+            .iter()
+            .filter(|entry| {
+                entry.boundary.classification == SpecGrammarBoundaryClassificationV0::InBoundary
+            })
+            .filter_map(|entry| entry.name.strip_suffix("()"))
+            .filter(|name| !name.starts_with('-') && !is_deferred_css_function_name(name))
+            .map(str::to_string)
+            .collect()
+    })
+}
+
+fn is_deferred_css_function_name(name: &str) -> bool {
+    matches!(
+        name,
+        "var" | "env" | "attr" | "calc" | "min" | "max" | "clamp"
+    )
 }
 
 fn contains_deferred_css_value(value: &str) -> bool {
@@ -2380,13 +2434,15 @@ mod tests {
     }
 
     #[test]
-    fn function_tokens_expose_current_validation_outcomes() {
+    fn function_tokens_preserve_validation_boundaries() {
         let math_function = validate_standard_property_value_v0("width", "round(up, 101px, 10px)");
-        // An unsupported recognized function currently becomes a definite invalid value.
-        assert_eq!(math_function.class, CssValueValidationClassV0::Invalid);
+        assert_eq!(
+            math_function.class,
+            CssValueValidationClassV0::NotValidatable
+        );
         assert_eq!(
             math_function.reason,
-            CssValueValidationReasonV0::GrammarUnmatched
+            CssValueValidationReasonV0::UnvalidatedStandardFunction
         );
         assert!(math_function.verdict.is_definite_mismatch());
 
@@ -2414,6 +2470,51 @@ mod tests {
             grid_function.verdict,
             CssValueGrammarVerdictV0::GrammarDefect { .. }
         ));
+    }
+
+    #[test]
+    fn recognized_functions_do_not_mask_adjacent_invalid_components() {
+        for value in [
+            "round(up, 101px, 10px)",
+            "mod(10px, 3px)",
+            "rem(10px, 3px)",
+            "sin(45deg)",
+            "pow(2, 3)",
+            "sqrt(4)",
+            "hypot(3px, 4px)",
+            "abs(-10px)",
+        ] {
+            let validation = validate_standard_property_value_v0("width", value);
+            assert_eq!(
+                validation.class,
+                CssValueValidationClassV0::NotValidatable,
+                "{value} must remain non-definite until its function semantics are modeled"
+            );
+            assert_eq!(
+                validation.reason,
+                CssValueValidationReasonV0::UnvalidatedStandardFunction,
+                "{value} must be attributed to the unvalidated standard-function channel"
+            );
+        }
+
+        let adjacent_scalar =
+            validate_standard_property_value_v0("width", "round(1, 2) totally-bogus");
+        assert_eq!(adjacent_scalar.class, CssValueValidationClassV0::Invalid);
+        assert_eq!(
+            adjacent_scalar.reason,
+            CssValueValidationReasonV0::GrammarUnmatched
+        );
+
+        let unregistered_function =
+            validate_standard_property_value_v0("width", "totally-unknown(1px)");
+        assert_eq!(
+            unregistered_function.class,
+            CssValueValidationClassV0::Invalid
+        );
+        assert_eq!(
+            unregistered_function.reason,
+            CssValueValidationReasonV0::GrammarUnmatched
+        );
     }
 
     #[test]

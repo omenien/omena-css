@@ -3205,7 +3205,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_property_value_reports_unmatched_math_functions() {
+    fn invalid_property_value_skips_unvalidated_math_functions() {
         let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
             declarations: vec![cascade_declaration(CascadeDeclarationFixture {
                 declaration_id: "unmatched-math-function",
@@ -3229,8 +3229,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].declaration_ids, vec!["unmatched-math-function"]);
+        assert!(findings.is_empty());
     }
 
     #[test]
