@@ -67,7 +67,7 @@ captured finding, so the example changes when product behavior changes.
 | Sass and SIF | [Compatibility and provenance](docs/sass-compat.md)                                                             |
 | Codemods     | [Using `omena migrate`](docs/migrate-verb.md)                                                                   |
 | VS Code      | [Extension behavior and settings](docs/vscode-extension.md)                                                     |
-| Positioning  | [Claims and non-claims](docs/positioning.md)                                                                    |
+| Positioning  | [Scope, comparisons, and non-goals](docs/positioning.md)                                                        |
 | Architecture | [Current codemap](ARCHITECTURE.md)                                                                              |
 | Performance  | [Reproduction and evidence](docs/performance.md)                                                                |
 | Releases     | [Changelog](CHANGELOG.md)                                                                                       |
