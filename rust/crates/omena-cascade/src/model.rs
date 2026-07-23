@@ -655,16 +655,29 @@ pub struct CustomPropertyLeastFixedPointSummaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
+/// Historical compatibility shape for the bounded custom-property computation witness.
+///
+/// New code should prefer [`CustomPropertyBoundedFixedPointComputationWitnessV0`].
+/// The proof-oriented name and fields remain available for 0.x consumers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomPropertyLeastFixedPointProofV0 {
     pub finite_domain: &'static str,
     pub transfer_function: &'static str,
+    #[serde(skip_serializing)]
+    pub bounded_fixed_point_computation_witness: &'static str,
+    /// Compatibility wording; prefer [`Self::monotonic_progress_witness`].
     pub monotone_witness: &'static str,
+    #[serde(skip_serializing)]
+    pub monotonic_progress_witness: &'static str,
     pub iteration_bound_formula: &'static str,
     pub cycle_policy: &'static str,
+    /// Compatibility wording retained alongside the computation-witness fields.
     pub proof_obligations: Vec<&'static str>,
 }
+
+/// Preferred machine-readable name for the bounded custom-property computation witness.
+pub type CustomPropertyBoundedFixedPointComputationWitnessV0 = CustomPropertyLeastFixedPointProofV0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

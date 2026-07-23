@@ -2514,6 +2514,34 @@ fn summarizes_custom_property_least_fixed_point() {
             .proof_obligations
             .contains(&"nondecreasing settled-value trace")
     );
+    assert_eq!(
+        summary.proof.bounded_fixed_point_computation_witness,
+        "iteration stops on environment equality or the explicit env-size bound"
+    );
+    assert_eq!(
+        summary.proof.monotonic_progress_witness,
+        "settled-value count never decreases between recorded iterations"
+    );
+    let preferred_witness = custom_property_bounded_fixed_point_computation_witness();
+    let legacy_witness: CustomPropertyLeastFixedPointProofV0 = preferred_witness.clone();
+    assert_eq!(preferred_witness, legacy_witness);
+    let serialized_witness =
+        serde_json::to_value(&preferred_witness).unwrap_or(serde_json::Value::Null);
+    let serialized_keys = serialized_witness
+        .as_object()
+        .map(|object| object.keys().cloned().collect::<BTreeSet<_>>())
+        .unwrap_or_default();
+    assert_eq!(
+        serialized_keys,
+        BTreeSet::from([
+            "cyclePolicy".to_string(),
+            "finiteDomain".to_string(),
+            "iterationBoundFormula".to_string(),
+            "monotoneWitness".to_string(),
+            "proofObligations".to_string(),
+            "transferFunction".to_string(),
+        ])
+    );
     assert!(
         summary
             .ready_surfaces
