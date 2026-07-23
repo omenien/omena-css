@@ -242,7 +242,7 @@ function verifyArchitectureCodemap(): number {
   }
 
   for (const requiredDoc of [
-    "docs/workspace-session-routing.md",
+    "docs/internals/workspace-session-routing.md",
     "server/engine-core-ts/src/contracts/engine-v2-contract-idl-decisions.md",
   ]) {
     assert.equal(

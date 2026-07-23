@@ -177,10 +177,16 @@ under revision/coalescing rules. A stale worker cannot overwrite a newer edit,
 and a read view cannot become a live mutable-host escape hatch. These are
 correctness properties first and latency optimizations second.
 
+Session hosting follows the same contract: `omena-query` is the single semantic
+authority, and the resident `omenad` process is an optional transport that is
+never a second engine and never mandatory. Session identity is the workspace
+root plus the resolved-config digest, and snapshot-named requests fail closed
+when the snapshot is stale.
+
 Workspace routing, crate ownership, and wire ownership are documented in these
 gate-backed maps:
 
-- [Workspace session routing](docs/workspace-session-routing.md)
+- [Workspace session routing](docs/internals/workspace-session-routing.md)
 - [Crate boundary review](CONTRIBUTING.md#proposing-a-new-crate-boundary)
 - [Engine V2 contract IDL decisions](server/engine-core-ts/src/contracts/engine-v2-contract-idl-decisions.md)
 
