@@ -130,6 +130,21 @@
         }
       ],
       "knownFalsePositivePins": []
+    },
+    {
+      "id": "local-unused-selector-fanout-lint-census",
+      "truePositivePins": [
+        {
+          "ruleId": "missing-static-class",
+          "filePath": "src/Component000.tsx",
+          "range": {
+            "start": { "line": 122, "character": 9 },
+            "end": { "line": 122, "character": 19 }
+          },
+          "messageSha256": "3d1c163b07782a052af325fcbcd7844d992d9b3b5652bfcdb0769e711fab8027"
+        }
+      ],
+      "knownFalsePositivePins": []
     }
   ],
   "knownFalsePositiveClasses": [

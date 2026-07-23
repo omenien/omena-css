@@ -2,11 +2,11 @@
   "schemaVersion": "0",
   "product": "omena-diff-test.real-workspace-lint-census",
   "generatedBy": "scripts/oss-corpus-farm.ts",
-  "coverageDigest": "f6dffdea8c3284c4d432cd0129da90021c47b0196e1bf55a2c329808502002d7",
-  "policyDigest": "0c2acc5526b378d40d2cfa162519921695e7db95d235c3a7ba60d28521c18d17",
-  "entryCount": 2,
-  "totalFindingCount": 12,
-  "truePositiveCount": 5,
+  "coverageDigest": "3ce331612a698e1e92371d673e7bd874427736de008f611f66022dbb05177ab5",
+  "policyDigest": "f09d97143f20cd65e0a41143ffe7c912022ca2902d3ed08ca708700b08c5923f",
+  "entryCount": 3,
+  "totalFindingCount": 13,
+  "truePositiveCount": 6,
   "knownFalsePositiveCount": 7,
   "unclassifiedCount": 0,
   "zeroBudgetViolationCount": 0,
@@ -45,6 +45,21 @@
       "findingCountsByRule": {
         "invalid-property-value": 1,
         "missing-module": 1
+      },
+      "knownFalsePositiveCountsByClass": {}
+    },
+    {
+      "id": "local-unused-selector-fanout-lint-census",
+      "corpusDigest": "5f253189344c10ac485aa3d1a9416b938ca730b264e057edb6adfcef17335421",
+      "styleFileCount": 100,
+      "sourceFileCount": 100,
+      "findingCount": 1,
+      "truePositiveCount": 1,
+      "knownFalsePositiveCount": 0,
+      "unclassifiedCount": 0,
+      "zeroBudgetViolationCount": 0,
+      "findingCountsByRule": {
+        "missing-static-class": 1
       },
       "knownFalsePositiveCountsByClass": {}
     }

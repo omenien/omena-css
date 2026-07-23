@@ -40,6 +40,7 @@ interface RealWorkspaceLintCensusManifestV0 {
   readonly reportPath: string;
   readonly fixedTimeBudgetSeconds: number;
   readonly perSourceFileBudgetSeconds: number;
+  readonly perStyleFileBudgetSeconds: number;
 }
 
 interface OssCorpusFarmSelectionCriteriaV0 {
@@ -56,6 +57,10 @@ interface ExternalCorpusEnvelopeV1 {
   readonly stage: Stage;
   readonly dialect?: Dialect;
   readonly expectationKind?: ExpectationKind;
+  readonly lintScaleFloor?: {
+    readonly styleFileCount: number;
+    readonly sourceFileCount: number;
+  };
   readonly source: PinnedRepositoryCorpusSourceV1 | LocalWorkspaceCorpusSourceV1;
   readonly generation: {
     readonly tool: string;
@@ -388,6 +393,7 @@ function runRealWorkspaceLintCensus(
   manifest: ExternalCorpusDifferentialManifestV1,
 ): RealWorkspaceLintCensusReportV0 {
   assertWorkspaceLintScanShape();
+  assertWorkspaceStyleDiagnosticsSharedWalkShape();
   const policyPath = resolveFarmPath(manifest.lintCensus.policyPath);
   const coveragePath = resolveFarmPath(manifest.lintCensus.coveragePath);
   const policy = readJson<RealWorkspaceLintCensusPolicyV0>(policyPath);
@@ -506,7 +512,18 @@ function runRealWorkspaceLintCensusEntry(
   );
   const elapsedBudgetSeconds =
     budget.fixedTimeBudgetSeconds +
-    budget.perSourceFileBudgetSeconds * productReport.sourceFileCount;
+    budget.perSourceFileBudgetSeconds * productReport.sourceFileCount +
+    budget.perStyleFileBudgetSeconds * productReport.styleFileCount;
+  if (entry.lintScaleFloor) {
+    assert.ok(
+      productReport.styleFileCount >= entry.lintScaleFloor.styleFileCount,
+      `${id} style-file count ${productReport.styleFileCount} fell below its ${entry.lintScaleFloor.styleFileCount} scale floor`,
+    );
+    assert.ok(
+      productReport.sourceFileCount >= entry.lintScaleFloor.sourceFileCount,
+      `${id} source-file count ${productReport.sourceFileCount} fell below its ${entry.lintScaleFloor.sourceFileCount} scale floor`,
+    );
+  }
   assert.ok(
     elapsedSeconds <= elapsedBudgetSeconds,
     `${id} lint took ${elapsedSeconds.toFixed(2)}s, exceeding the ${elapsedBudgetSeconds.toFixed(2)}s linear budget`,
@@ -877,6 +894,87 @@ function assertWorkspaceLintScanShape(): void {
   );
 }
 
+function assertWorkspaceStyleDiagnosticsSharedWalkShape(): void {
+  const memoSource = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-query/src/style/salsa_memo.rs"),
+    "utf8",
+  );
+  const diagnosticsSource = readFileSync(
+    path.join(repoRoot, "rust/crates/omena-query/src/style/diagnostics/mod.rs"),
+    "utf8",
+  );
+  const resolverBody = extractDelimitedBody(
+    memoSource,
+    "fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
+  );
+  assert.equal(
+    (resolverBody.match(/\bmemo_workspace_unused_selector_shared\(/gu) ?? []).length,
+    1,
+    "committed style diagnostics must consume the workspace-shared selector walk once",
+  );
+  assert.equal(
+    (
+      resolverBody.match(
+        /\bsummarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared\(/gu,
+      ) ?? []
+    ).length,
+    1,
+    "committed style diagnostics must dispatch through the shared-pass consumer",
+  );
+  assert.equal(
+    (
+      resolverBody.match(
+        /\bsummarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate\(/gu,
+      ) ?? []
+    ).length,
+    0,
+    "committed style diagnostics must not reopen the target-local source walk",
+  );
+  assert.equal(
+    (resolverBody.match(/\bclassname_transform\.is_none\(\)/gu) ?? []).length,
+    1,
+    "the shared selector walk must be gated by the classname transform axis",
+  );
+  assert.equal(
+    (resolverBody.match(/\bresolver_identity_index\.is_none\(\)/gu) ?? []).length,
+    1,
+    "the shared selector walk must be gated by the resolver identity axis",
+  );
+
+  const sharedConsumerBody = extractDelimitedBody(
+    diagnosticsSource,
+    "fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared",
+  );
+  assert.equal(
+    (
+      sharedConsumerBody.match(
+        /\bshared_passes\.map\(\|shared\| shared\.unused_selector\(\)\)/gu,
+      ) ?? []
+    ).length,
+    1,
+    "the shared-pass consumer must borrow the workspace selector result",
+  );
+  const memoProviderBody = extractDelimitedBody(
+    diagnosticsSource,
+    "impl OmenaQueryWorkspaceSharedDiagnosticsV0 for Option<OmenaQueryUnusedSelectorSharedV0>",
+  );
+  const unusedSelectorMethod = extractDelimitedBody(memoProviderBody, "fn unused_selector");
+  assert.match(
+    unusedSelectorMethod,
+    /^\s*self\s*$/u,
+    "the workspace memo provider must return its selector result without cloning",
+  );
+  assert.equal(
+    (
+      sharedConsumerBody.match(
+        /\bsource_usage::summarize_omena_query_unused_selector_style_diagnostics_with_shared\(/gu,
+      ) ?? []
+    ).length,
+    1,
+    "the borrowed workspace result must reach the selector diagnostic renderer",
+  );
+}
+
 function assertHonestCensusVocabulary(value: string): void {
   for (const forbidden of ["FP-free", "verified clean", "zero false positives"]) {
     assert.ok(!value.includes(forbidden), `census artifacts must not claim ${forbidden}`);
@@ -1134,6 +1232,7 @@ function assertManifest(manifest: ExternalCorpusDifferentialManifestV1): void {
   assert.ok(isBoundedPath(manifest.lintCensus.reportPath));
   assert.ok(manifest.lintCensus.fixedTimeBudgetSeconds > 0);
   assert.ok(manifest.lintCensus.perSourceFileBudgetSeconds > 0);
+  assert.ok(manifest.lintCensus.perStyleFileBudgetSeconds > 0);
   const dialects = new Set(
     manifest.fixtures.filter(isPinnedRepositoryEntry).map((entry) => entry.dialect),
   );
@@ -1170,6 +1269,16 @@ function assertManifest(manifest: ExternalCorpusDifferentialManifestV1): void {
         existsSync(path.resolve(repoRoot, entry.source.workspacePath)),
         `${entryId(entry)} local workspace must exist`,
       );
+      if (entry.lintScaleFloor) {
+        assert.ok(
+          entry.lintScaleFloor.styleFileCount >= 50,
+          `${entryId(entry)} style-file scale floor must exercise target fan-out`,
+        );
+        assert.ok(
+          entry.lintScaleFloor.sourceFileCount >= 100,
+          `${entryId(entry)} source-file scale floor must exercise workspace fan-out`,
+        );
+      }
     }
     const refs = [
       ...(entry.generation.oraclePinRefs ?? []),

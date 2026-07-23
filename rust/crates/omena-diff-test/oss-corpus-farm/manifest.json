@@ -14,9 +14,10 @@
     "coveragePath": "lint-census-coverage.json",
     "reportPath": "lint-census-report.json",
     "fixedTimeBudgetSeconds": 10,
-    "perSourceFileBudgetSeconds": 0.75
+    "perSourceFileBudgetSeconds": 0.69,
+    "perStyleFileBudgetSeconds": 0.03
   },
-  "lastVerified": "2026-07-22",
+  "lastVerified": "2026-07-23",
   "fixtures": [
     {
       "schemaVersion": "0",
@@ -286,6 +287,39 @@
           "stage": "stage2-blocking",
           "sha256": "3885c1b76d0045dd9867dc356bd79ecf3c0159c3f94ef8b1dafdbc0ba136bfbf",
           "fixtureCount": 7
+        }
+      ]
+    },
+    {
+      "schemaVersion": "0",
+      "product": "omena-diff-test.oss-corpus-farm.entry",
+      "stage": "stage2-blocking",
+      "expectationKind": "finding-census",
+      "lintScaleFloor": {
+        "styleFileCount": 100,
+        "sourceFileCount": 100
+      },
+      "source": {
+        "kind": "local-workspace",
+        "workspacePath": "scripts/fixtures/unused-selector-fanout"
+      },
+      "generation": {
+        "tool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/local-unused-selector-fanout-lint-census.json",
+        "oraclePinRefs": ["repo-path:scripts/fixtures/unused-selector-fanout"]
+      },
+      "provenance": {
+        "generationTool": "scripts/oss-corpus-farm.ts",
+        "selectionPath": "rust/crates/omena-diff-test/oss-corpus-farm/selections/local-unused-selector-fanout-lint-census.json",
+        "oraclePinRefs": ["repo-path:scripts/fixtures/unused-selector-fanout"]
+      },
+      "chunks": [
+        {
+          "chunkId": "local-unused-selector-fanout-lint-census",
+          "path": "selections/local-unused-selector-fanout-lint-census.json",
+          "stage": "stage2-blocking",
+          "sha256": "f4d8d45510423a7d970a6e6de86cc3092fadc5cac89a85b59adabbfe7889abb8",
+          "fixtureCount": 201
         }
       ]
     }
