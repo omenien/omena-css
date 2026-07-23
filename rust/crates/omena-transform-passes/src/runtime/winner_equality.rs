@@ -272,6 +272,12 @@ fn winner_for_pair(
         match witness.verdict {
             SelectorMatchVerdict::No => continue,
             SelectorMatchVerdict::Maybe => {
+                if witness.specificity_exactness == SpecificityExactnessV0::Inexact {
+                    reasons.push(TransformWinnerEqualityAbsenceV0 {
+                        axis: TransformWinnerEqualityAxisV0::Specificity,
+                        reason: TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact,
+                    });
+                }
                 reasons.push(TransformWinnerEqualityAbsenceV0 {
                     axis: TransformWinnerEqualityAxisV0::Specificity,
                     reason: TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite,
@@ -348,6 +354,12 @@ fn winner_for_pair(
             match witness.verdict {
                 SelectorMatchVerdict::No => continue,
                 SelectorMatchVerdict::Maybe => {
+                    if witness.specificity_exactness == SpecificityExactnessV0::Inexact {
+                        reasons.push(TransformWinnerEqualityAbsenceV0 {
+                            axis: TransformWinnerEqualityAxisV0::Specificity,
+                            reason: TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact,
+                        });
+                    }
                     reasons.push(TransformWinnerEqualityAbsenceV0 {
                         axis: TransformWinnerEqualityAxisV0::Specificity,
                         reason: TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite,
@@ -991,6 +1003,81 @@ mod tests {
             obligation.observation,
             TransformWinnerEqualityObservationV0::ObservedDifferent { .. }
         )));
+    }
+
+    #[test]
+    fn functional_pseudo_reordering_reports_an_inexact_winner() {
+        let input = ".foo { color: red; } :is(.foo) { color: blue; }";
+        let output = ":is(.foo) { color: blue; } .foo { color: red; }";
+        let obligations = compare_transform_winner_equality_for_conformance_v0(
+            input,
+            output,
+            StyleDialect::Css,
+            TransformPassKind::SelectorIsWhereCompression,
+        );
+
+        assert!(obligations.iter().any(|obligation| matches!(
+            &obligation.observation,
+            TransformWinnerEqualityObservationV0::Absent { reasons }
+                if reasons.iter().any(|absence| {
+                    absence.reason
+                        == TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite
+                })
+        )));
+    }
+
+    #[test]
+    fn lossy_selector_pairs_do_not_mask_base_element_changes() {
+        let cases = [
+            (
+                "[type=\"text\"] { color: red; } [type=\"number\"] { color: blue; }",
+                "[type=\"text\"] { color: green; } [type=\"number\"] { color: blue; }",
+            ),
+            (
+                ".button { color: red; } .button::before { color: blue; }",
+                ".button { color: green; } .button::before { color: blue; }",
+            ),
+        ];
+
+        for (input, output) in cases {
+            let obligations = compare_transform_winner_equality_for_conformance_v0(
+                input,
+                output,
+                StyleDialect::Css,
+                TransformPassKind::ColorCompression,
+            );
+            assert!(obligations.iter().any(|obligation| matches!(
+                &obligation.observation,
+                TransformWinnerEqualityObservationV0::Absent { reasons }
+                    if reasons.iter().any(|absence| {
+                        absence.reason
+                            == TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite
+                    })
+            )));
+        }
+    }
+
+    #[test]
+    fn definite_non_matches_remain_silent_in_winner_comparison() {
+        let input = ".foo { color: red; } .bar { color: blue; }";
+        let output = ".foo { color: red; } .bar { color: green; }";
+        let obligations = compare_transform_winner_equality_for_conformance_v0(
+            input,
+            output,
+            StyleDialect::Css,
+            TransformPassKind::ColorCompression,
+        );
+
+        assert!(obligations.iter().all(|obligation| {
+            !matches!(
+                &obligation.observation,
+                TransformWinnerEqualityObservationV0::Absent { reasons }
+                    if reasons.iter().any(|absence| {
+                        absence.reason
+                            == TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite
+                    })
+            )
+        }));
     }
 
     #[test]
