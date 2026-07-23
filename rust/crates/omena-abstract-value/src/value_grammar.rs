@@ -2380,6 +2380,43 @@ mod tests {
     }
 
     #[test]
+    fn function_tokens_expose_current_validation_outcomes() {
+        let math_function = validate_standard_property_value_v0("width", "round(up, 101px, 10px)");
+        // An unsupported recognized function currently becomes a definite invalid value.
+        assert_eq!(math_function.class, CssValueValidationClassV0::Invalid);
+        assert_eq!(
+            math_function.reason,
+            CssValueValidationReasonV0::GrammarUnmatched
+        );
+        assert!(math_function.verdict.is_definite_mismatch());
+
+        let quoted_text = validate_standard_property_value_v0("content", "\"var(\"");
+        // Raw source scanning mistakes the quoted text for a substitution function.
+        assert_eq!(quoted_text.class, CssValueValidationClassV0::NotValidatable);
+        assert_eq!(
+            quoted_text.reason,
+            CssValueValidationReasonV0::DeferredSubstitution
+        );
+        assert!(quoted_text.verdict.is_matched());
+
+        let grid_function =
+            validate_standard_property_value_v0("grid-template-columns", "minmax(101px, 1fr)");
+        // The `max(` substring masks the underlying incomplete grid grammar.
+        assert_eq!(
+            grid_function.class,
+            CssValueValidationClassV0::NotValidatable
+        );
+        assert_eq!(
+            grid_function.reason,
+            CssValueValidationReasonV0::DeferredSubstitution
+        );
+        assert!(matches!(
+            grid_function.verdict,
+            CssValueGrammarVerdictV0::GrammarDefect { .. }
+        ));
+    }
+
+    #[test]
     fn validation_consumer_policy_table_covers_every_live_consumer() {
         assert_eq!(CSS_VALUE_VALIDATION_CONSUMER_POLICIES_V0.len(), 4);
         assert_eq!(

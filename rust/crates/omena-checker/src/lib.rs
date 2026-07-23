@@ -3205,6 +3205,35 @@ mod tests {
     }
 
     #[test]
+    fn invalid_property_value_reports_unmatched_math_functions() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![cascade_declaration(CascadeDeclarationFixture {
+                declaration_id: "unmatched-math-function",
+                selector: ".s",
+                property: "width",
+                value: "round(up, 101px, 10px)",
+                source_order: 1,
+                condition_context: &[],
+                layer_name: None,
+                layer_order: None,
+                important: false,
+                var_references: &[],
+            })],
+            custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
+        });
+        let findings = evaluations
+            .iter()
+            .filter(|evaluation| {
+                evaluation.rule_code == OmenaCheckerRuleCodeV0::InvalidPropertyValue
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].declaration_ids, vec!["unmatched-math-function"]);
+    }
+
+    #[test]
     fn invalid_property_value_keeps_valid_and_undecidable_values_silent() {
         let decl = |id: &'static str, property: &'static str, value: &'static str, order: u32| {
             cascade_declaration(CascadeDeclarationFixture {
