@@ -640,10 +640,12 @@ pub use style::{
     read_css_modules_cross_file_resolution_compute_count_for_test,
     read_css_modules_import_edge_resolution_probe_for_test,
     read_sass_module_edge_resolution_probe_for_test,
+    read_unused_selector_shared_walk_count_for_test,
     reset_committed_style_semantic_graph_compute_count_for_test,
     reset_css_modules_cross_file_resolution_compute_count_for_test,
     reset_css_modules_import_edge_resolution_probe_for_test,
     reset_sass_module_edge_resolution_probe_for_test,
+    reset_unused_selector_shared_walk_count_for_test,
 };
 #[cfg(all(feature = "salsa-memo", feature = "test-support"))]
 pub use style::{

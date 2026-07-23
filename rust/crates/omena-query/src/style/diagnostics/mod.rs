@@ -21,12 +21,71 @@ mod single_file;
 mod source_usage;
 mod substrate;
 
+#[cfg(feature = "salsa-memo")]
 pub(in crate::style) use cascade_runtime::collect_omena_query_inline_style_runtime_overrides_by_style;
 #[cfg(feature = "hypergraph-ifds")]
 pub(in crate::style) use cross_file_scc::collect_omena_query_unified_cross_file_scc_report_shared;
+pub(in crate::style) use source_usage::OmenaQueryUnusedSelectorSharedV0;
+#[cfg(feature = "salsa-memo")]
 pub(in crate::style) use source_usage::collect_omena_query_unused_selector_shared;
+#[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
+pub use source_usage::{
+    read_unused_selector_shared_walk_count_for_test,
+    reset_unused_selector_shared_walk_count_for_test,
+};
 pub(in crate::style) use substrate::OmenaQueryWorkspaceSharedPassProductsV0;
 mod types;
+
+pub(in crate::style) trait OmenaQueryWorkspaceSharedDiagnosticsV0 {
+    fn unused_selector(&self) -> &Option<OmenaQueryUnusedSelectorSharedV0>;
+
+    fn inline_style_overrides_by_style(
+        &self,
+    ) -> Option<
+        &std::collections::BTreeMap<String, Vec<crate::OmenaQueryInlineStyleRuntimeOverrideV0>>,
+    >;
+
+    #[cfg(feature = "hypergraph-ifds")]
+    fn cross_file_scc_report(&self) -> Option<&crate::OmenaQueryUnifiedCrossFileSccReportV0>;
+}
+
+impl OmenaQueryWorkspaceSharedDiagnosticsV0 for OmenaQueryWorkspaceSharedPassProductsV0 {
+    fn unused_selector(&self) -> &Option<OmenaQueryUnusedSelectorSharedV0> {
+        &self.unused_selector
+    }
+
+    fn inline_style_overrides_by_style(
+        &self,
+    ) -> Option<
+        &std::collections::BTreeMap<String, Vec<crate::OmenaQueryInlineStyleRuntimeOverrideV0>>,
+    > {
+        self.inline_style_overrides_by_style.as_ref()
+    }
+
+    #[cfg(feature = "hypergraph-ifds")]
+    fn cross_file_scc_report(&self) -> Option<&crate::OmenaQueryUnifiedCrossFileSccReportV0> {
+        self.cross_file_scc_report.as_ref()
+    }
+}
+
+impl OmenaQueryWorkspaceSharedDiagnosticsV0 for Option<OmenaQueryUnusedSelectorSharedV0> {
+    fn unused_selector(&self) -> &Option<OmenaQueryUnusedSelectorSharedV0> {
+        self
+    }
+
+    fn inline_style_overrides_by_style(
+        &self,
+    ) -> Option<
+        &std::collections::BTreeMap<String, Vec<crate::OmenaQueryInlineStyleRuntimeOverrideV0>>,
+    > {
+        None
+    }
+
+    #[cfg(feature = "hypergraph-ifds")]
+    fn cross_file_scc_report(&self) -> Option<&crate::OmenaQueryUnifiedCrossFileSccReportV0> {
+        None
+    }
+}
 
 use cascade_runtime::{
     attach_omena_query_module_graph_property_value_narrowing_for_workspace,
@@ -394,7 +453,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         suppression_mode,
         substrate,
         resolver_identity_index,
-        None,
+        None::<&substrate::OmenaQueryWorkspaceSharedPassProductsV0>,
     )
 }
 
@@ -417,7 +476,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
     suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
-    shared_passes: Option<&substrate::OmenaQueryWorkspaceSharedPassProductsV0>,
+    shared_passes: Option<&impl OmenaQueryWorkspaceSharedDiagnosticsV0>,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
@@ -479,7 +538,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         ),
     );
     #[cfg(feature = "hypergraph-ifds")]
-    match shared_passes.and_then(|shared| shared.cross_file_scc_report.as_ref()) {
+    match shared_passes.and_then(|shared| shared.cross_file_scc_report()) {
         Some(report) => summary.diagnostics.extend(
             cross_file_scc::summarize_omena_query_unified_cross_file_scc_diagnostics_from_report(
                 target_style_path,
@@ -525,11 +584,12 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             &substrate.sass_resolution,
         ),
     );
-    match shared_passes {
+    let shared_unused_selector = shared_passes.map(|shared| shared.unused_selector());
+    match shared_unused_selector {
         Some(shared) => {
-            // `None` means no source documents — the same emptiness the
-            // per-call arm's early return produces.
-            if let Some(unused_selector) = shared.unused_selector.as_ref() {
+            // A precomputed `None` records the same no-source-document result
+            // as the direct collector without reopening the workspace walk.
+            if let Some(unused_selector) = shared.as_ref() {
                 summary.diagnostics.extend(
                     source_usage::summarize_omena_query_unused_selector_style_diagnostics_with_shared(
                         target_style_path,
@@ -673,7 +733,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         );
         push_omena_query_ready_surface(&mut summary.ready_surfaces, "strictnessSigilGating");
     }
-    match shared_passes.and_then(|shared| shared.inline_style_overrides_by_style.as_ref()) {
+    match shared_passes.and_then(|shared| shared.inline_style_overrides_by_style()) {
         Some(overrides_by_style) => {
             cascade_runtime::attach_omena_query_runtime_state_inline_overrides_with_shared(
                 target_style_path,

@@ -277,16 +277,33 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mapping
     )
 }
 
-/// Substrate-threaded core of the unused-selector pass (RFC 0009 Pillar B stage-2,
-/// #65). `style_fact_entries` is the substrate's ENTRIES slot; source usage now
-/// consumes precomputed source syntax indexes when callers provide them, while
-/// retaining the text-backed import/syntax fallback for non-indexed callers.
-#[allow(clippy::too_many_arguments)]
-/// Target-INDEPENDENT core of the unused-selector pass (rfcs#111 C1 slice
-/// 2): source-side import resolution across every source document, selector
-/// usage attribution, and composes propagation — the wave computes this ONCE
-/// and every target consumes it. Owned types by construction, so the product
-/// shares behind an `Arc` without borrowing the substrate.
+#[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
+thread_local! {
+    static UNUSED_SELECTOR_SHARED_WALK_COUNT: std::cell::Cell<u64> =
+        const { std::cell::Cell::new(0) };
+}
+
+#[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
+pub fn reset_unused_selector_shared_walk_count_for_test() {
+    UNUSED_SELECTOR_SHARED_WALK_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
+pub fn read_unused_selector_shared_walk_count_for_test() -> u64 {
+    UNUSED_SELECTOR_SHARED_WALK_COUNT.with(|count| count.get())
+}
+
+#[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
+fn record_unused_selector_shared_walk_for_test() {
+    UNUSED_SELECTOR_SHARED_WALK_COUNT.with(|count| count.set(count.get() + 1));
+}
+
+/// Source-side import resolution, selector attribution, and composes
+/// propagation shared by every style target in a workspace revision.
+///
+/// All fields are owned so fixed-revision readers can borrow one computed
+/// result without retaining the diagnostics substrate or cloning its maps.
+#[derive(Clone, PartialEq, Eq)]
 pub(in crate::style) struct OmenaQueryUnusedSelectorSharedV0 {
     used_selectors: BTreeMap<String, BTreeSet<String>>,
     unresolved_dynamic_usage: BTreeSet<String>,
@@ -304,6 +321,9 @@ pub(in crate::style) fn collect_omena_query_unused_selector_shared(
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Option<OmenaQueryUnusedSelectorSharedV0> {
+    #[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
+    record_unused_selector_shared_walk_for_test();
+
     if source_documents.is_empty() {
         return None;
     }

@@ -603,3 +603,80 @@ pub(crate) fn dynamic_classname_diagnostics_summary(
         })?;
     Ok(summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth(&input))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omena_query::{
+        read_unused_selector_shared_walk_count_for_test,
+        reset_unused_selector_shared_walk_count_for_test,
+    };
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn workspace_style_diagnostics_share_source_usage_across_targets() -> Result<(), String> {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|error| format!("system clock must follow the Unix epoch: {error}"))?
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "omena-cli-unused-selector-workspace-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root)
+            .map_err(|error| format!("failed to create {}: {error}", root.display()))?;
+
+        let style_specs = [
+            ("A.module.css", "usedA", "ghostA"),
+            ("B.module.css", "usedB", "ghostB"),
+            ("C.module.css", "usedC", "ghostC"),
+        ];
+        let mut style_paths = Vec::new();
+        for (file_name, used, unused) in style_specs {
+            let path = root.join(file_name);
+            fs::write(
+                &path,
+                format!(".{used} {{ color: red; }}\n.{unused} {{ color: blue; }}\n"),
+            )
+            .map_err(|error| format!("failed to write {}: {error}", path.display()))?;
+            style_paths.push(path);
+        }
+        let source_path = root.join("App.tsx");
+        fs::write(
+            &source_path,
+            r#"import a from "./A.module.css";
+import b from "./B.module.css";
+import c from "./C.module.css";
+export const classes = [a.usedA, b.usedB, c.usedC];
+"#,
+        )
+        .map_err(|error| format!("failed to write {}: {error}", source_path.display()))?;
+
+        reset_unused_selector_shared_walk_count_for_test();
+        let summaries = workspace_style_diagnostics_summaries(&style_paths, &[source_path], &[])?;
+        let walk_count = read_unused_selector_shared_walk_count_for_test();
+        let unused_messages = summaries
+            .iter()
+            .flat_map(|summary| summary.diagnostics.iter())
+            .filter(|diagnostic| diagnostic.code == "unusedSelector")
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>();
+        fs::remove_dir_all(&root)
+            .map_err(|error| format!("failed to remove {}: {error}", root.display()))?;
+
+        assert_eq!(summaries.len(), 3);
+        assert_eq!(
+            unused_messages,
+            [
+                "Selector '.ghostA' is declared but never used.",
+                "Selector '.ghostB' is declared but never used.",
+                "Selector '.ghostC' is declared but never used.",
+            ]
+        );
+        assert_eq!(
+            walk_count, 1,
+            "one committed workspace revision must share one source-usage walk across style targets"
+        );
+        Ok(())
+    }
+}
