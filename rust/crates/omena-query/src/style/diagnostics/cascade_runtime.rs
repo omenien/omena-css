@@ -209,7 +209,6 @@ fn omena_query_inline_style_runtime_override_scenario(
             override_fact.range.start.line,
             override_fact.range.start.character
         )],
-        unknown_activation_declaration_ids: Vec::new(),
         winner_declaration_id: Some("inline-style-author-tier".to_string()),
         winner_value: Some(value),
         property_value_narrowing,

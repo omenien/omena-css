@@ -6,6 +6,11 @@ use omena_evidence_graph::{
 use omena_sif::OmenaSifV1;
 use std::collections::BTreeMap;
 
+mod runtime_state_serialization;
+#[cfg(test)]
+pub(crate) use runtime_state_serialization::runtime_state_result_certainty_labels;
+pub(crate) use runtime_state_serialization::runtime_state_unknown_activation_declaration_id;
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesignSystemMinimumDescriptionV0 {
@@ -1226,8 +1231,7 @@ pub struct OmenaQueryStaticConditionPruningEvidenceV0 {
     pub anchor_context: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -1240,9 +1244,7 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0,
     pub driver_summaries: Vec<OmenaQueryRuntimeStateDriverSummaryV0>,
     pub scenarios: Vec<OmenaQueryRuntimeStateScenarioV0>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub static_condition_pruning: Vec<OmenaQueryStaticConditionPruningEvidenceV0>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub inline_style_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
 }
 
@@ -1264,19 +1266,13 @@ pub struct OmenaQueryRuntimeStateDriverSummaryV0 {
     pub provenance: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryRuntimeStateScenarioV0 {
     pub scenario_kind: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub pseudo_state: Option<String>,
     pub condition_context: Vec<String>,
     pub declaration_ids: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub unknown_activation_declaration_ids: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_declaration_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_value: Option<String>,
     pub property_value_narrowing: AbstractPropertyValueNarrowingV0,
 }

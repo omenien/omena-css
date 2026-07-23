@@ -477,6 +477,9 @@ fn workspace_cascade_diagnostics_join_runtime_state_scenarios_and_inline_overrid
     color: green;
   }
 }
+@supports not (display: grid) {
+  .btn { color: orange; }
+}
 "#
         .to_string(),
     }];
@@ -525,6 +528,11 @@ export function App() {
         runtime_state.confidence_tier_within_modeled_environment,
         "conditionalDefiniteWithinModeledEnvironment"
     );
+    assert_eq!(runtime_state.result_certainty(), "conditionalIndeterminate");
+    assert_eq!(
+        runtime_state.result_certainty_within_modeled_environment(),
+        "conditionalIndeterminateWithinModeledEnvironment"
+    );
     let serialized_runtime_state =
         serde_json::to_value(runtime_state).map_err(|_| "serialize runtime state")?;
     assert_eq!(
@@ -534,6 +542,39 @@ export function App() {
     assert_eq!(
         serialized_runtime_state["confidenceTierWithinModeledEnvironment"],
         "conditionalDefiniteWithinModeledEnvironment"
+    );
+    assert_eq!(
+        serialized_runtime_state["resultCertainty"],
+        "conditionalIndeterminate"
+    );
+    assert_eq!(
+        serialized_runtime_state["resultCertaintyWithinModeledEnvironment"],
+        "conditionalIndeterminateWithinModeledEnvironment"
+    );
+    assert_eq!(
+        serialized_runtime_state
+            .as_object()
+            .ok_or("runtime state object")?
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec![
+            "schemaVersion",
+            "product",
+            "selector",
+            "selectorClassNames",
+            "propertyName",
+            "scenarioJoinKind",
+            "confidenceTier",
+            "confidenceTierWithinModeledEnvironment",
+            "resultCertainty",
+            "resultCertaintyWithinModeledEnvironment",
+            "staticBoundary",
+            "driverSummaries",
+            "scenarios",
+            "staticConditionPruning",
+            "inlineStyleOverrides",
+        ]
     );
     assert!(
         runtime_state
@@ -602,22 +643,91 @@ fn runtime_state_payload_preserves_unknown_complex_selector_activation() -> Resu
     )?;
 
     assert_eq!(runtime_state["confidenceTier"], "staticDefinite");
+    assert_eq!(runtime_state["resultCertainty"], "staticUnknown");
+    assert_eq!(
+        runtime_state["resultCertaintyWithinModeledEnvironment"],
+        "staticUnknownWithinModeledEnvironment"
+    );
     let scenarios = runtime_state["scenarios"]
         .as_array()
         .ok_or("runtime state scenarios")?;
-    assert!(
-        scenarios.iter().any(|scenario| {
+    let unknown_scenario = scenarios
+        .iter()
+        .find(|scenario| {
             scenario["unknownActivationDeclarationIds"]
                 .as_array()
                 .is_some_and(|ids| !ids.is_empty())
-        }),
-        "complex selectors must remain visible as Unknown activation candidates: {runtime_state}"
+        })
+        .ok_or("Unknown activation scenario")?;
+    let unknown_ids = unknown_scenario["unknownActivationDeclarationIds"]
+        .as_array()
+        .ok_or("Unknown activation declaration IDs")?;
+    let declaration_ids = unknown_scenario["declarationIds"]
+        .as_array()
+        .ok_or("scenario declaration IDs")?;
+    assert!(
+        unknown_ids
+            .iter()
+            .all(|unknown_id| declaration_ids.contains(unknown_id)),
+        "Unknown activations must remain members of the scenario universe: {runtime_state}"
+    );
+    assert!(
+        declaration_ids
+            .iter()
+            .all(|declaration_id| !declaration_id.as_str().is_some_and(|id| id.contains('\0'))),
+        "internal activation markers must not cross the JSON boundary: {runtime_state}"
+    );
+    assert_eq!(
+        unknown_scenario
+            .as_object()
+            .ok_or("Unknown activation scenario object")?
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec![
+            "scenarioKind",
+            "conditionContext",
+            "declarationIds",
+            "unknownActivationDeclarationIds",
+            "propertyValueNarrowing",
+        ],
+        "Unknown activation schema names and order must remain exact"
     );
     assert!(
         scenarios
             .iter()
             .all(|scenario| scenario["winnerValue"] != "navy"),
         "Unknown activation must forbid the previous definite winner: {runtime_state}"
+    );
+    Ok(())
+}
+
+#[test]
+fn runtime_state_payload_separates_static_result_certainty() -> Result<(), &'static str> {
+    let runtime_state = runtime_state_payload_for_unreachable_declaration(
+        ":is(.target, :unknown(.fallback)) { color: red; color: blue; }",
+    )?;
+
+    assert_eq!(runtime_state["confidenceTier"], "staticDefinite");
+    assert_eq!(runtime_state["resultCertainty"], "staticIndeterminate");
+    assert_eq!(
+        runtime_state["resultCertaintyWithinModeledEnvironment"],
+        "staticIndeterminateWithinModeledEnvironment"
+    );
+    let scenarios = runtime_state["scenarios"]
+        .as_array()
+        .ok_or("runtime state scenarios")?;
+    assert!(
+        scenarios
+            .iter()
+            .all(|scenario| scenario["winnerDeclarationId"].is_null()),
+        "inexact specificity must not claim a winner: {runtime_state}"
+    );
+    assert!(
+        scenarios
+            .iter()
+            .all(|scenario| scenario.get("unknownActivationDeclarationIds").is_none()),
+        "parse-successful inexact specificity is Indeterminate, not Unknown: {runtime_state}"
     );
     Ok(())
 }

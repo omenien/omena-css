@@ -14,6 +14,10 @@ use omena_query_core::{
     narrow_abstract_property_value_for_cascade_branch, prefix_suffix_class_value,
 };
 
+#[cfg(test)]
+use crate::types::runtime_state_result_certainty_labels;
+use crate::types::runtime_state_unknown_activation_declaration_id;
+
 use super::super::{
     OmenaQueryInlineStyleRuntimeOverrideV0, OmenaQueryRuntimeStateDriverSummaryV0,
     OmenaQueryRuntimeStateScenarioEvidenceV0, OmenaQueryRuntimeStateScenarioV0,
@@ -96,7 +100,6 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
             &[],
             static_boundary.boundary_kind,
         );
-
     Some(OmenaQueryRuntimeStateScenarioEvidenceV0 {
         schema_version: "0",
         product: "omena-query.runtime-state-scenario-evidence",
@@ -361,25 +364,25 @@ fn query_runtime_state_scenario(
         .iter()
         .copied()
         .filter(|declaration| declaration.condition_context == condition_context)
-        .filter_map(|declaration| {
+        .map(|declaration| {
             let activation =
                 query_runtime_selector_active_for_pseudo_state(declaration, pseudo_state);
-            match activation {
-                ScenarioActivation::Active | ScenarioActivation::Unknown => {
-                    Some((declaration, activation))
-                }
-                ScenarioActivation::Inactive => None,
-            }
+            (declaration, activation)
         })
         .collect::<Vec<_>>();
-    let unknown_activation_declaration_ids = scenario_declarations
-        .iter()
-        .filter(|(_, activation)| *activation == ScenarioActivation::Unknown)
-        .map(|(declaration, _)| declaration.declaration_id.clone())
-        .collect::<Vec<_>>();
+    let has_unknown_activation =
+        scenario_declarations
+            .iter()
+            .any(|(_, activation)| match activation {
+                ScenarioActivation::Active | ScenarioActivation::Inactive => false,
+                ScenarioActivation::Unknown => true,
+            });
     let active_declarations = scenario_declarations
         .iter()
-        .map(|(declaration, _)| *declaration)
+        .filter_map(|(declaration, activation)| match activation {
+            ScenarioActivation::Active | ScenarioActivation::Unknown => Some(*declaration),
+            ScenarioActivation::Inactive => None,
+        })
         .collect::<Vec<_>>();
     let property_candidates = active_declarations
         .iter()
@@ -415,7 +418,9 @@ fn query_runtime_state_scenario(
             property_name,
         )
     };
-    let (winner_declaration_id, winner_value) = if unknown_activation_declaration_ids.is_empty() {
+    let (winner_declaration_id, winner_value) = if has_unknown_activation {
+        (None, None)
+    } else {
         match outcome {
             CascadeOutcome::Definite { winner, .. } => {
                 let value = match winner.value {
@@ -426,8 +431,6 @@ fn query_runtime_state_scenario(
             }
             _ => (None, None),
         }
-    } else {
-        (None, None)
     };
 
     OmenaQueryRuntimeStateScenarioV0 {
@@ -438,11 +441,18 @@ fn query_runtime_state_scenario(
         },
         pseudo_state: pseudo_state.map(str::to_string),
         condition_context: condition_context.to_vec(),
-        declaration_ids: active_declarations
-            .into_iter()
-            .map(|declaration| declaration.declaration_id.clone())
+        declaration_ids: scenario_declarations
+            .iter()
+            .filter_map(|(declaration, activation)| match activation {
+                ScenarioActivation::Active => Some(declaration.declaration_id.clone()),
+                ScenarioActivation::Inactive => None,
+                ScenarioActivation::Unknown => {
+                    Some(runtime_state_unknown_activation_declaration_id(
+                        declaration.declaration_id.as_str(),
+                    ))
+                }
+            })
             .collect(),
-        unknown_activation_declaration_ids,
         winner_declaration_id,
         winner_value,
         property_value_narrowing,
@@ -719,9 +729,84 @@ mod tests {
             "conditionalDefiniteWithinModeledEnvironment"
         );
 
+        let definite_declarations = [selector_declaration("decl-0", ".target", "red", 0)];
+        let definite_references = definite_declarations.iter().collect::<Vec<_>>();
+        let definite_scenario =
+            query_runtime_state_scenario("color", None, &[], &definite_references);
+        let unknown_scenario = OmenaQueryRuntimeStateScenarioV0 {
+            declaration_ids: vec![runtime_state_unknown_activation_declaration_id("decl-1")],
+            winner_declaration_id: None,
+            winner_value: None,
+            ..definite_scenario.clone()
+        };
+        assert_eq!(
+            unknown_scenario.unknown_activation_declaration_ids(),
+            vec!["decl-1"]
+        );
+        let indeterminate_scenario = OmenaQueryRuntimeStateScenarioV0 {
+            winner_declaration_id: None,
+            winner_value: None,
+            ..definite_scenario.clone()
+        };
+        let certainty_tiers = [
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&definite_scenario),
+                static_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&indeterminate_scenario),
+                static_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&unknown_scenario),
+                static_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&definite_scenario),
+                conditional_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&indeterminate_scenario),
+                conditional_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&unknown_scenario),
+                conditional_tier,
+            ),
+        ];
+        assert_eq!(
+            certainty_tiers,
+            [
+                ("staticDefinite", "staticDefiniteWithinModeledEnvironment"),
+                (
+                    "staticIndeterminate",
+                    "staticIndeterminateWithinModeledEnvironment",
+                ),
+                ("staticUnknown", "staticUnknownWithinModeledEnvironment"),
+                (
+                    "conditionalDefinite",
+                    "conditionalDefiniteWithinModeledEnvironment",
+                ),
+                (
+                    "conditionalIndeterminate",
+                    "conditionalIndeterminateWithinModeledEnvironment",
+                ),
+                (
+                    "conditionalUnknown",
+                    "conditionalUnknownWithinModeledEnvironment",
+                ),
+            ]
+        );
+
         for qualified_tier in [
             static_tier_within_modeled_environment,
             conditional_tier_within_modeled_environment,
+            certainty_tiers[0].1,
+            certainty_tiers[1].1,
+            certainty_tiers[2].1,
+            certainty_tiers[3].1,
+            certainty_tiers[4].1,
+            certainty_tiers[5].1,
         ] {
             assert!(qualified_tier.ends_with("WithinModeledEnvironment"));
             assert!(

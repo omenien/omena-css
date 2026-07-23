@@ -1397,6 +1397,11 @@ pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::selector: alloc::stri
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::selector_class_names: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::static_boundary: omena_query::OmenaQueryRuntimeStateStaticBoundaryV0
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::static_condition_pruning: alloc::vec::Vec<omena_query::OmenaQueryStaticConditionPruningEvidenceV0>
+impl omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
+pub fn omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::result_certainty(&self) -> &'static str
+pub fn omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::result_certainty_within_modeled_environment(&self) -> &'static str
+impl serde_core::ser::Serialize for omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
+pub fn omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
 pub struct omena_query::OmenaQueryRuntimeStateScenarioV0
 pub omena_query::OmenaQueryRuntimeStateScenarioV0::condition_context: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryRuntimeStateScenarioV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
@@ -1405,6 +1410,10 @@ pub omena_query::OmenaQueryRuntimeStateScenarioV0::pseudo_state: core::option::O
 pub omena_query::OmenaQueryRuntimeStateScenarioV0::scenario_kind: &'static str
 pub omena_query::OmenaQueryRuntimeStateScenarioV0::winner_declaration_id: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQueryRuntimeStateScenarioV0::winner_value: core::option::Option<alloc::string::String>
+impl omena_query::OmenaQueryRuntimeStateScenarioV0
+pub fn omena_query::OmenaQueryRuntimeStateScenarioV0::unknown_activation_declaration_ids(&self) -> alloc::vec::Vec<&str>
+impl serde_core::ser::Serialize for omena_query::OmenaQueryRuntimeStateScenarioV0
+pub fn omena_query::OmenaQueryRuntimeStateScenarioV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
 pub struct omena_query::OmenaQueryRuntimeStateStaticBoundaryV0
 pub omena_query::OmenaQueryRuntimeStateStaticBoundaryV0::boundary_kind: &'static str
 pub omena_query::OmenaQueryRuntimeStateStaticBoundaryV0::static_value_assuming_no_runtime_override: bool
