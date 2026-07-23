@@ -15,7 +15,7 @@ const readDoc = (relativePath: string): string =>
   readFileSync(path.join(repoRoot, relativePath), "utf8");
 
 const positioning = readDoc("docs/positioning.md");
-const benchmarks = readDoc("docs/benchmarks.md");
+const benchmarks = readDoc("docs/performance.md");
 
 for (const tool of ["Lightning CSS", "PostCSS", "Dart Sass", "Biome CSS"]) {
   assertIncludes(positioning, tool);
