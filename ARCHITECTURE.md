@@ -181,7 +181,7 @@ Workspace routing, crate ownership, and wire ownership are documented in these
 gate-backed maps:
 
 - [Workspace session routing](docs/workspace-session-routing.md)
-- [Crate boundary review](docs/governance/crate-boundary-review.md)
+- [Crate boundary review](CONTRIBUTING.md#proposing-a-new-crate-boundary)
 - [Engine V2 contract IDL decisions](docs/engine-v2-contract-idl-decisions.md)
 
 ## Invariants As Absence

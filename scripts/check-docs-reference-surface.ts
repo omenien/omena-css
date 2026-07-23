@@ -243,7 +243,6 @@ function verifyArchitectureCodemap(): number {
 
   for (const requiredDoc of [
     "docs/workspace-session-routing.md",
-    "docs/governance/crate-boundary-review.md",
     "docs/engine-v2-contract-idl-decisions.md",
   ]) {
     assert.equal(

@@ -80,6 +80,34 @@ pnpm update:docs-reference-surface
 pnpm omena-check run docs/reference-surface
 ```
 
+## Proposing A New Crate Boundary
+
+Omena product capabilities begin behind the shared query and product egress. A
+capability becomes a separate crate only when measured ownership pressure
+justifies the additional public API, dependency, build, and release boundary.
+Every boundary review provides all four measurements below; a decision without
+executable measurements is incomplete.
+
+| Criterion             | Required measurement                                                                                                                                                               | Required response                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| API surface stability | Count commits touching the candidate boundary from a named base revision and identify the public-surface snapshot or manifest that detects drift.                                  | Explain how accepted API churn will be reviewed and which gate fails on unreviewed drift.                                    |
+| Dependency direction  | Derive direct workspace dependencies and consumers from `cargo metadata` or an equivalent source graph. Report cycles and dependencies that point back into a higher-level facade. | Explain why the boundary improves directionality or name the condition that will cause it to be folded.                      |
+| Build cost            | Record a reproducible warm command sample and a successful CI job envelope. Warm timings are diagnostic, not portable performance claims.                                          | Explain how the boundary contains rebuild cost or define the threshold that triggers a new review.                           |
+| Consumer count        | Derive consumers from Cargo metadata or source imports and record the complete set.                                                                                                | Explain why the number and diversity of consumers warrants the boundary or define the migration needed before consolidation. |
+
+Each review ends in exactly one state: `promote` (introduce the boundary in a
+separately reviewed change), `retain` (the measurements justify the current
+boundary), or `revisit` (keep the current topology until every named re-review
+condition is measurable and satisfied). An unfavorable measurement cannot be
+omitted, and `revisit` requires concrete conditions. The review records a
+topology decision only; it never performs the topology change itself.
+
+The machine-readable authority is
+[`rust/product-surface-boundary-reviews.json`](rust/product-surface-boundary-reviews.json).
+Run `pnpm omena-check run rust/product-surface-boundary-reviews` to recompute
+deterministic measurements; pass `--measure` to its underlying script when
+refreshing local timing samples.
+
 ## Generated Documentation
 
 Run `pnpm update:docs-reference-surface` after changing CLI commands, personas,
