@@ -548,7 +548,7 @@
     "@omena/stylelint-plugin": "workspace:*",
     "@types/node": "^26.1.1",
     "@types/vscode": "~1.115.0",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@typespec/compiler": "1.14.0",
     "@typespec/json-schema": "1.14.0",
     "@vitest/coverage-v8": "^4.1.10",
