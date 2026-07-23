@@ -43,6 +43,7 @@ const releasing = read("RELEASING.md");
 const cargoToml = read("rust/Cargo.toml");
 const cargoWorkspaceVersion = cargoToml.match(/^version = "([^"]+)"/m)?.[1];
 const publishScript = read("scripts/publish-extension.sh");
+const publishWorkflow = read(".github/workflows/publish-extension.yml");
 
 const M5_AUDIT_TARGET = "release/check/release-m5-api-freeze-audit";
 const M5_AUDIT_SCRIPT = "check:release-m5-api-freeze-audit";
@@ -165,6 +166,8 @@ assertReleaseVerifyPlanIncludes(M5_AUDIT_TARGET);
 assertIncludes(read("scripts/package-extension-vsix.ts"), 'copyRequiredFile(".vscodeignore")');
 assertIncludes(publishScript, `pnpm ${M5_CLASS_VALUE_MATRIX_SCRIPT}`);
 assertIncludes(publishScript, `pnpm ${M5_AUDIT_SCRIPT}`);
+assertBefore(publishScript, "core/build/omena-napi", "pnpm test");
+assertBefore(publishWorkflow, "core/build/omena-napi", "./scripts/publish-extension.sh");
 assertIncludes(publishScript, "package-extension-vsix.ts");
 assertIncludes(publishScript, "vsce publish --packagePath");
 assertIncludes(
@@ -261,6 +264,17 @@ function assertReleaseVerifyPlanIncludes(target: string): void {
 function assertIncludes(source: string | undefined, marker: string): void {
   assert.equal(typeof source, "string", `expected source containing ${marker}`);
   assert.ok(source.includes(marker), `missing marker: ${marker}`);
+}
+
+function assertBefore(source: string, prerequisite: string, dependent: string): void {
+  const prerequisiteIndex = source.indexOf(prerequisite);
+  const dependentIndex = source.indexOf(dependent);
+  assert.ok(prerequisiteIndex >= 0, `missing prerequisite marker: ${prerequisite}`);
+  assert.ok(dependentIndex >= 0, `missing dependent marker: ${dependent}`);
+  assert.ok(
+    prerequisiteIndex < dependentIndex,
+    `${prerequisite} must appear before ${dependent}`,
+  );
 }
 
 function assertSemver(version: string): void {
