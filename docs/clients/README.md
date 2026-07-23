@@ -11,8 +11,10 @@ One language server, several hosts. Pick your editor:
 
 Host resolution environment variables (all hosts):
 
-- `OMENA_LSP_SERVER_PATH` — absolute path to a server binary, checked first.
-- `OMENA_LSP_SERVER_COMMAND` — command name resolved from `PATH`.
+- `OMENA_LSP_SERVER_COMMAND` — command name resolved from `PATH`; checked
+  first and wins when both variables are set.
+- `OMENA_LSP_SERVER_PATH` — path to a server binary, absolute or resolved
+  relative to the host root; used when no command override is set.
 
 Smoke-check a standalone install against the thin-client boundary:
 

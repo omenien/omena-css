@@ -45,13 +45,16 @@ TOML fences in these docs are executed against the real config parser in CI.
 ## 4. Ask The Workspace Questions
 
 ```bash
-omena modules src/
-omena explain src/button.module.css
+omena modules emit
+omena explain cascade --line 0 --character 8 src/button.module.css
 ```
 
-`modules` reports CSS Modules structure — exports, `composes` closure, and
-cross-file usage. `explain` shows why a diagnostic or transform decision was
-made, including the guarantee tier the evidence earns.
+`modules emit` writes deterministic TypeScript declarations and a
+module-interface manifest for the workspace (`modules check` verifies the
+committed output byte-for-byte). `omena explain` answers "why" questions —
+`explain cascade` shows which declaration wins at a source position and the
+evidence behind it; other subcommands explain diagnostics, transform
+decisions, precision, and tree-shaking retention.
 
 ## 5. Where To Go Next
 

@@ -164,6 +164,8 @@ The current benchmark surface is retained rather than deleted:
 - Headline-axis fidelity coverage is a measurement gate only. It checks
   source-map decodeability, provenance overhead, and CSS Modules preservation;
   it does not publish a cross-tool speed claim.
+- Fuzz checks cover parser, cascade, incremental, and transform safety targets.
+  They are safety coverage, not benchmark surfaces.
 
 ### Reporting Template
 
