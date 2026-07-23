@@ -89,8 +89,8 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   Select `publish_wasm`, `publish_napi`, and `publish_plugins` deliberately.
 - Inspect packed names, versions, repository URLs, native optional-dependency
   names, and the five NAPI target artifacts before setting `dry_run=false`.
-- `@omena/wasm` and `@omena/napi` use Trusted Publishing where configured.
-  First-publish platform packages and build-tool packages use the protected
+- `@omena/wasm`, `@omena/napi`, and the established NAPI platform packages use
+  Trusted Publishing. First-publish build-tool packages use the protected
   `NPM_AUTO_TOKEN`; all uploads include npm provenance.
 - Confirm `@omena/napi` declares every published platform package. An immutable
   main package with an incomplete optional-dependency map requires a new
