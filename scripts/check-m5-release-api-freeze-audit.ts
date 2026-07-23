@@ -271,10 +271,7 @@ function assertBefore(source: string, prerequisite: string, dependent: string): 
   const dependentIndex = source.indexOf(dependent);
   assert.ok(prerequisiteIndex >= 0, `missing prerequisite marker: ${prerequisite}`);
   assert.ok(dependentIndex >= 0, `missing dependent marker: ${dependent}`);
-  assert.ok(
-    prerequisiteIndex < dependentIndex,
-    `${prerequisite} must appear before ${dependent}`,
-  );
+  assert.ok(prerequisiteIndex < dependentIndex, `${prerequisite} must appear before ${dependent}`);
 }
 
 function assertSemver(version: string): void {
