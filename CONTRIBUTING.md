@@ -1,5 +1,15 @@
 # Contributing
 
+## Prerequisites
+
+- Rust `1.94` (workspace MSRV, edition 2024 — pinned in `rust/Cargo.toml`).
+- Node `>=22` with pnpm `10` (pinned via `packageManager` in `package.json`);
+  run `pnpm install` once at the repo root.
+- Checks run through the `pnpm omena-check` orchestrator: every gate has a
+  stable id, `pnpm omena-check list` enumerates them, and the generated
+  [check inventory](packages/check-orchestrator/CHECKS.md) maps ids to scripts.
+  Task recipes below name the smallest relevant target.
+
 ## Commit Messages
 
 Use plain imperative commit subjects:
