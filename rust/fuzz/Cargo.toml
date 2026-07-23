@@ -57,3 +57,10 @@ path = "fuzz_targets/smt_bisimulation.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "selector_matching_precision"
+path = "fuzz_targets/selector_matching_precision.rs"
+test = false
+doc = false
+bench = false
