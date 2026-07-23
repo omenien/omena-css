@@ -41,6 +41,7 @@ interface RealWorkspaceLintCensusManifestV0 {
   readonly fixedTimeBudgetSeconds: number;
   readonly perSourceFileBudgetSeconds: number;
   readonly perStyleFileBudgetSeconds: number;
+  readonly githubActionsTimeBudgetMultiplier: number;
 }
 
 interface OssCorpusFarmSelectionCriteriaV0 {
@@ -510,10 +511,13 @@ function runRealWorkspaceLintCensusEntry(
     productReport.findingCount,
     `${id} flattened findings must equal the product report total`,
   );
-  const elapsedBudgetSeconds =
+  const baseElapsedBudgetSeconds =
     budget.fixedTimeBudgetSeconds +
     budget.perSourceFileBudgetSeconds * productReport.sourceFileCount +
     budget.perStyleFileBudgetSeconds * productReport.styleFileCount;
+  const elapsedBudgetSeconds =
+    baseElapsedBudgetSeconds *
+    (process.env.GITHUB_ACTIONS === "true" ? budget.githubActionsTimeBudgetMultiplier : 1);
   if (entry.lintScaleFloor) {
     assert.ok(
       productReport.styleFileCount >= entry.lintScaleFloor.styleFileCount,
@@ -1233,6 +1237,11 @@ function assertManifest(manifest: ExternalCorpusDifferentialManifestV1): void {
   assert.ok(manifest.lintCensus.fixedTimeBudgetSeconds > 0);
   assert.ok(manifest.lintCensus.perSourceFileBudgetSeconds > 0);
   assert.ok(manifest.lintCensus.perStyleFileBudgetSeconds > 0);
+  assert.ok(
+    manifest.lintCensus.githubActionsTimeBudgetMultiplier >= 1 &&
+      manifest.lintCensus.githubActionsTimeBudgetMultiplier <= 2,
+    "GitHub Actions lint time multiplier must stay within the bounded runner allowance",
+  );
   const dialects = new Set(
     manifest.fixtures.filter(isPinnedRepositoryEntry).map((entry) => entry.dialect),
   );

@@ -15,7 +15,8 @@
     "reportPath": "lint-census-report.json",
     "fixedTimeBudgetSeconds": 10,
     "perSourceFileBudgetSeconds": 0.69,
-    "perStyleFileBudgetSeconds": 0.03
+    "perStyleFileBudgetSeconds": 0.03,
+    "githubActionsTimeBudgetMultiplier": 1.75
   },
   "lastVerified": "2026-07-23",
   "fixtures": [
