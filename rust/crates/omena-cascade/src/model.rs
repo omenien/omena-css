@@ -480,6 +480,13 @@ impl ElementSignature {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SelectorFunctionalPseudoConstraintV0 {
+    pub name: String,
+    pub arguments: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SelectorSignature {
     pub selector: String,
     pub required_tag: Option<String>,
@@ -487,6 +494,7 @@ pub struct SelectorSignature {
     pub required_classes: BTreeSet<String>,
     pub required_attributes: BTreeSet<String>,
     pub required_pseudo_states: BTreeSet<String>,
+    pub functional_pseudo_constraints: Vec<SelectorFunctionalPseudoConstraintV0>,
     pub specificity: Specificity,
     pub specificity_exactness: SpecificityExactnessV0,
 }
@@ -521,6 +529,7 @@ pub struct SelectorMatchWitness {
     pub verdict: SelectorMatchVerdict,
     pub reason: SelectorMatchReason,
     pub specificity: Specificity,
+    pub specificity_exactness: SpecificityExactnessV0,
     pub missing_tag: Option<String>,
     pub missing_id: Option<String>,
     pub missing_classes: BTreeSet<String>,
@@ -537,6 +546,7 @@ impl SelectorMatchWitness {
             verdict: SelectorMatchVerdict::Maybe,
             reason: SelectorMatchReason::UnsupportedSelector,
             specificity: Specificity::ZERO,
+            specificity_exactness: SpecificityExactnessV0::Inexact,
             missing_tag: None,
             missing_id: None,
             missing_classes: BTreeSet::new(),

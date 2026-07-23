@@ -1775,7 +1775,15 @@ fn where_pseudo_contributes_zero_specificity() {
 
     assert_eq!(where_box.specificity, Specificity::ZERO);
     assert!(plain.specificity > where_box.specificity);
-    assert!(where_box.required_pseudo_states.contains("where"));
+    assert_eq!(
+        where_box
+            .functional_pseudo_constraints
+            .iter()
+            .map(|constraint| constraint.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["where"]
+    );
+    assert!(!where_box.required_pseudo_states.contains("where"));
 }
 
 #[test]
@@ -1786,7 +1794,15 @@ fn is_pseudo_takes_most_specific_argument_specificity() {
         unreachable!(":is(...) parses")
     };
     assert_eq!(signature.specificity, Specificity::new(1, 0, 0));
-    assert!(signature.required_pseudo_states.contains("is"));
+    assert_eq!(
+        signature
+            .functional_pseudo_constraints
+            .iter()
+            .map(|constraint| (constraint.name.as_str(), constraint.arguments.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("is", ".a, #b")]
+    );
+    assert!(!signature.required_pseudo_states.contains("is"));
 }
 
 #[test]
@@ -1840,6 +1856,75 @@ fn functional_pseudo_specificity_distinguishes_exact_and_lower_bound_estimates()
         inexact.specificity_exactness,
         SpecificityExactnessV0::Inexact
     );
+}
+
+#[test]
+fn functional_pseudo_matching_does_not_invent_a_definite_non_match() {
+    let class_element = ElementSignature::concrete(None::<String>, None::<String>, ["foo"]);
+    let class_witness = selector_match_witness(":is(.foo)", &class_element);
+    assert_ne!(class_witness.verdict, SelectorMatchVerdict::No);
+
+    let complex_element = ElementSignature::concrete(None::<String>, Some("root"), ["item"]);
+    let complex_witness = selector_match_witness(":is(#root .item)", &complex_element);
+    assert_ne!(complex_witness.verdict, SelectorMatchVerdict::No);
+
+    let plain_witness = selector_match_witness(".foo", &class_element);
+    assert_eq!(plain_witness.verdict, SelectorMatchVerdict::Yes);
+}
+
+#[test]
+fn lossy_selector_matching_does_not_invent_a_definite_match() {
+    let mut attribute_element =
+        ElementSignature::concrete(None::<String>, None::<String>, Vec::<String>::new());
+    attribute_element.attributes.insert("type".to_string());
+    let attribute_witness = selector_match_witness("[type=\"text\"]", &attribute_element);
+    assert_eq!(attribute_witness.verdict, SelectorMatchVerdict::Maybe);
+
+    let class_element = ElementSignature::concrete(None::<String>, None::<String>, ["button"]);
+    let pseudo_element_witness = selector_match_witness(".button::before", &class_element);
+    assert_eq!(pseudo_element_witness.verdict, SelectorMatchVerdict::Maybe);
+}
+
+#[test]
+fn selector_match_witness_reports_specificity_exactness() {
+    let element = ElementSignature::concrete(None::<String>, None::<String>, ["b"]);
+    let witness = selector_match_witness(":is(:unknown(.a), .b)", &element);
+
+    assert_eq!(witness.verdict, SelectorMatchVerdict::Maybe);
+    assert_eq!(
+        witness.specificity_exactness,
+        SpecificityExactnessV0::Inexact
+    );
+    let serialized = serde_json::to_value(&witness).unwrap_or(serde_json::Value::Null);
+    assert_eq!(
+        serialized["specificityExactness"],
+        serde_json::Value::String("inexact".to_string())
+    );
+}
+
+#[test]
+fn selector_matching_fuzz_seed_corpus_respects_the_co_match_ceiling() {
+    let cases = [
+        (":is(.foo)", vec!["foo"], Vec::<&str>::new()),
+        (":where(.foo)", vec!["foo"], Vec::<&str>::new()),
+        (":not(.bar)", vec!["foo"], Vec::<&str>::new()),
+        ("[type=\"text\"]", Vec::<&str>::new(), vec!["type"]),
+        ("[data-kind^=\"x\"]", Vec::<&str>::new(), vec!["data-kind"]),
+        (".button::before", vec!["button"], Vec::<&str>::new()),
+        (".button::after", vec!["button"], Vec::<&str>::new()),
+        (".parent > .child", vec!["child"], Vec::<&str>::new()),
+    ];
+
+    for (selector, classes, attributes) in cases {
+        let mut element = ElementSignature::concrete(None::<String>, None::<String>, classes);
+        element.attributes = attributes.into_iter().map(str::to_string).collect();
+        let ceiling = selector_co_match_verdict(selector, selector);
+        let direct = selector_match_witness(selector, &element).verdict;
+
+        if ceiling == SelectorMatchVerdict::Maybe {
+            assert_eq!(direct, SelectorMatchVerdict::Maybe, "{selector}");
+        }
+    }
 }
 
 #[test]
@@ -2072,7 +2157,15 @@ fn not_pseudo_takes_most_specific_argument_specificity() {
         unreachable!(":not(...) parses")
     };
     assert_eq!(signature.specificity, Specificity::new(1, 0, 0));
-    assert!(signature.required_pseudo_states.contains("not"));
+    assert_eq!(
+        signature
+            .functional_pseudo_constraints
+            .iter()
+            .map(|constraint| constraint.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["not"]
+    );
+    assert!(!signature.required_pseudo_states.contains("not"));
 }
 
 #[test]
@@ -2083,7 +2176,15 @@ fn has_pseudo_takes_most_specific_argument_specificity() {
         unreachable!(":has(...) parses")
     };
     assert_eq!(signature.specificity, Specificity::new(1, 0, 0));
-    assert!(signature.required_pseudo_states.contains("has"));
+    assert_eq!(
+        signature
+            .functional_pseudo_constraints
+            .iter()
+            .map(|constraint| constraint.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["has"]
+    );
+    assert!(!signature.required_pseudo_states.contains("has"));
 }
 
 #[test]

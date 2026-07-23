@@ -8,8 +8,9 @@ use std::collections::BTreeSet;
 
 use crate::{
     ElementIdentityV0, ElementSignature, ScopeProximityStatusV0, ScopeProximityV0,
-    SelectorContextMatchKind, SelectorContextWitness, SelectorMatchReason, SelectorMatchVerdict,
-    SelectorMatchWitness, SelectorSignature, Specificity, SpecificityExactnessV0,
+    SelectorContextMatchKind, SelectorContextWitness, SelectorFunctionalPseudoConstraintV0,
+    SelectorMatchReason, SelectorMatchVerdict, SelectorMatchWitness, SelectorSignature,
+    Specificity, SpecificityExactnessV0,
 };
 
 pub fn scope_proximity_from_ancestor_signatures(
@@ -317,6 +318,7 @@ pub fn selector_signature_co_match_verdict(
 
 fn selector_signature_has_lossy_co_match_constraints(signature: &SelectorSignature) -> bool {
     selector_has_attribute_value_or_modifier(signature.selector.as_str())
+        || !signature.functional_pseudo_constraints.is_empty()
         || selector_has_functional_pseudo(signature.selector.as_str())
         || selector_has_pseudo_element(signature.selector.as_str())
 }
@@ -338,12 +340,14 @@ fn selector_match_branch_witness(
             && signature.required_classes.is_empty()
             && signature.required_attributes.is_empty()
             && signature.required_pseudo_states.is_empty()
+            && signature.functional_pseudo_constraints.is_empty()
         {
             SelectorMatchReason::Universal
         } else {
             SelectorMatchReason::SimpleCompound
         },
         specificity: signature.specificity,
+        specificity_exactness: signature.specificity_exactness,
         missing_tag: None,
         missing_id: None,
         missing_classes: BTreeSet::new(),
@@ -427,6 +431,12 @@ fn selector_match_branch_witness(
             .insert(required_pseudo_state.clone());
     }
 
+    if selector_signature_has_lossy_co_match_constraints(&signature) {
+        witness.verdict = SelectorMatchVerdict::Maybe;
+        witness.reason = SelectorMatchReason::UnsupportedSelector;
+        witness.unsupported_branches.push(selector.to_string());
+    }
+
     witness
 }
 
@@ -452,6 +462,7 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
     let mut required_classes = BTreeSet::new();
     let mut required_attributes = BTreeSet::new();
     let mut required_pseudo_states = BTreeSet::new();
+    let mut functional_pseudo_constraints = Vec::new();
     let mut specificity = Specificity::ZERO;
     let mut specificity_exactness = SpecificityExactnessV0::Exact;
     let chars = selector.chars().collect::<Vec<_>>();
@@ -505,7 +516,8 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
                         if argument_exactness == SpecificityExactnessV0::Inexact {
                             specificity_exactness = SpecificityExactnessV0::Inexact;
                         }
-                        required_pseudo_states.insert(name);
+                        functional_pseudo_constraints
+                            .push(SelectorFunctionalPseudoConstraintV0 { name, arguments });
                         index = close + 1;
                     } else {
                         specificity.classes += 1;
@@ -534,6 +546,7 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
         required_classes,
         required_attributes,
         required_pseudo_states,
+        functional_pseudo_constraints,
         specificity,
         specificity_exactness,
     })
