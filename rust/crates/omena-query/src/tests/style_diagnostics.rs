@@ -595,6 +595,61 @@ export function App() {
 }
 
 #[test]
+fn runtime_state_payload_preserves_unknown_complex_selector_activation() -> Result<(), &'static str>
+{
+    let runtime_state = runtime_state_payload_for_unreachable_declaration(
+        ".b { color: blue; color: navy; }\n.a:hover .b { color: red; }",
+    )?;
+
+    assert_eq!(runtime_state["confidenceTier"], "staticDefinite");
+    let scenarios = runtime_state["scenarios"]
+        .as_array()
+        .ok_or("runtime state scenarios")?;
+    assert!(
+        scenarios.iter().any(|scenario| {
+            scenario["unknownActivationDeclarationIds"]
+                .as_array()
+                .is_some_and(|ids| !ids.is_empty())
+        }),
+        "complex selectors must remain visible as Unknown activation candidates: {runtime_state}"
+    );
+    assert!(
+        scenarios
+            .iter()
+            .all(|scenario| scenario["winnerValue"] != "navy"),
+        "Unknown activation must forbid the previous definite winner: {runtime_state}"
+    );
+    Ok(())
+}
+
+fn runtime_state_payload_for_unreachable_declaration(
+    source: &str,
+) -> Result<serde_json::Value, &'static str> {
+    let target_style_path = "file:///workspace/src/RuntimeState.module.scss";
+    let style_sources = [OmenaQueryStyleSourceInputV0 {
+        style_path: target_style_path.to_string(),
+        style_source: source.to_string(),
+    }];
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_style_path,
+        style_sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .ok_or("runtime state scenario evidence")?;
+
+    serde_json::to_value(runtime_state).map_err(|_| "serialize runtime state")
+}
+
+#[test]
 fn runtime_state_prunes_statically_false_supports_contexts() -> Result<(), &'static str> {
     let target_style_path = "file:///workspace/src/App.module.scss";
     let style_sources = vec![OmenaQueryStyleSourceInputV0 {

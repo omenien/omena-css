@@ -22,6 +22,13 @@ use super::super::{
 
 const RUNTIME_STATE_STATIC_BOUNDARY_KIND: &str = "staticValueAssumingNoRuntimeOverride";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScenarioActivation {
+    Active,
+    Inactive,
+    Unknown,
+}
+
 pub(super) fn summarize_query_runtime_state_for_evaluation(
     evaluation: &OmenaCheckerCascadeEvaluationV0,
     declarations: &[OmenaCheckerCascadeDeclarationInputV0],
@@ -189,14 +196,23 @@ pub(super) fn query_runtime_selector_matches_anchor_classes(
 fn query_runtime_candidate_pseudo_states(
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
 ) -> Vec<String> {
-    declarations
-        .iter()
-        .filter_map(|declaration| parse_simple_selector_signature(declaration.selector.as_str()))
-        .flat_map(|signature| signature.required_pseudo_states.into_iter())
-        .filter(|pseudo_state| query_runtime_pseudo_state_is_dynamic(pseudo_state.as_str()))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
+    let mut pseudo_states = BTreeSet::new();
+    for declaration in declarations {
+        let Some(signature) = parse_simple_selector_signature(declaration.selector.as_str()) else {
+            // The selector remains represented as an Unknown activation in the
+            // default scenario; do not fabricate a pseudo-state name from text.
+            continue;
+        };
+        pseudo_states.extend(
+            signature
+                .required_pseudo_states
+                .into_iter()
+                .filter(|pseudo_state| {
+                    query_runtime_pseudo_state_is_dynamic(pseudo_state.as_str())
+                }),
+        );
+    }
+    pseudo_states.into_iter().collect()
 }
 
 fn query_runtime_pseudo_state_is_dynamic(pseudo_state: &str) -> bool {
@@ -341,13 +357,29 @@ fn query_runtime_state_scenario(
     condition_context: &[String],
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
 ) -> OmenaQueryRuntimeStateScenarioV0 {
-    let active_declarations = declarations
+    let scenario_declarations = declarations
         .iter()
         .copied()
         .filter(|declaration| declaration.condition_context == condition_context)
-        .filter(|declaration| {
-            query_runtime_selector_active_for_pseudo_state(declaration, pseudo_state)
+        .filter_map(|declaration| {
+            let activation =
+                query_runtime_selector_active_for_pseudo_state(declaration, pseudo_state);
+            match activation {
+                ScenarioActivation::Active | ScenarioActivation::Unknown => {
+                    Some((declaration, activation))
+                }
+                ScenarioActivation::Inactive => None,
+            }
         })
+        .collect::<Vec<_>>();
+    let unknown_activation_declaration_ids = scenario_declarations
+        .iter()
+        .filter(|(_, activation)| *activation == ScenarioActivation::Unknown)
+        .map(|(declaration, _)| declaration.declaration_id.clone())
+        .collect::<Vec<_>>();
+    let active_declarations = scenario_declarations
+        .iter()
+        .map(|(declaration, _)| *declaration)
         .collect::<Vec<_>>();
     let property_candidates = active_declarations
         .iter()
@@ -383,15 +415,19 @@ fn query_runtime_state_scenario(
             property_name,
         )
     };
-    let (winner_declaration_id, winner_value) = match outcome {
-        CascadeOutcome::Definite { winner, .. } => {
-            let value = match winner.value {
-                CascadeValue::Literal(value) => Some(value),
-                _ => None,
-            };
-            (Some(winner.id), value)
+    let (winner_declaration_id, winner_value) = if unknown_activation_declaration_ids.is_empty() {
+        match outcome {
+            CascadeOutcome::Definite { winner, .. } => {
+                let value = match winner.value {
+                    CascadeValue::Literal(value) => Some(value),
+                    _ => None,
+                };
+                (Some(winner.id), value)
+            }
+            _ => (None, None),
         }
-        _ => (None, None),
+    } else {
+        (None, None)
     };
 
     OmenaQueryRuntimeStateScenarioV0 {
@@ -406,6 +442,7 @@ fn query_runtime_state_scenario(
             .into_iter()
             .map(|declaration| declaration.declaration_id.clone())
             .collect(),
+        unknown_activation_declaration_ids,
         winner_declaration_id,
         winner_value,
         property_value_narrowing,
@@ -415,23 +452,22 @@ fn query_runtime_state_scenario(
 fn query_runtime_selector_active_for_pseudo_state(
     declaration: &OmenaCheckerCascadeDeclarationInputV0,
     pseudo_state: Option<&str>,
-) -> bool {
+) -> ScenarioActivation {
     let Some(signature) = parse_simple_selector_signature(declaration.selector.as_str()) else {
-        return declaration
-            .selector
-            .as_str()
-            .split(':')
-            .nth(1)
-            .is_none_or(|required| Some(required) == pseudo_state);
+        return ScenarioActivation::Unknown;
     };
     let required = signature
         .required_pseudo_states
         .into_iter()
         .filter(|state| query_runtime_pseudo_state_is_dynamic(state.as_str()))
         .collect::<BTreeSet<_>>();
-    match pseudo_state {
+    let active = match pseudo_state {
         Some(pseudo_state) => required.is_empty() || required.contains(pseudo_state),
         None => required.is_empty(),
+    };
+    match active {
+        true => ScenarioActivation::Active,
+        false => ScenarioActivation::Inactive,
     }
 }
 

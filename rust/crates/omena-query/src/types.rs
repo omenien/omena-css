@@ -1272,6 +1272,8 @@ pub struct OmenaQueryRuntimeStateScenarioV0 {
     pub pseudo_state: Option<String>,
     pub condition_context: Vec<String>,
     pub declaration_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unknown_activation_declaration_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_declaration_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
