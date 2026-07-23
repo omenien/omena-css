@@ -182,7 +182,7 @@ gate-backed maps:
 
 - [Workspace session routing](docs/workspace-session-routing.md)
 - [Crate boundary review](CONTRIBUTING.md#proposing-a-new-crate-boundary)
-- [Engine V2 contract IDL decisions](docs/engine-v2-contract-idl-decisions.md)
+- [Engine V2 contract IDL decisions](server/engine-core-ts/src/contracts/engine-v2-contract-idl-decisions.md)
 
 ## Invariants As Absence
 

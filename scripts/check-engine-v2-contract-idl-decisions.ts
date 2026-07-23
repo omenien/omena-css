@@ -19,7 +19,7 @@ function assertDoesNotMatch(file: string, content: string, pattern: RegExp): voi
   assert.ok(!pattern.test(content), `${file} must not match ${pattern}`);
 }
 
-const decisionDocPath = "docs/engine-v2-contract-idl-decisions.md";
+const decisionDocPath = "server/engine-core-ts/src/contracts/engine-v2-contract-idl-decisions.md";
 const coreContractPath = "server/engine-core-ts/src/contracts/engine-v2.ts";
 const generatedInputContractPath =
   "server/engine-core-ts/src/contracts/engine-v2-input-idl.generated.ts";
