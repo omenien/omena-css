@@ -65,7 +65,7 @@
     },
     {
       "path": "rust/crates/omena-cascade/src/selector.rs",
-      "line": 84,
+      "line": 85,
       "function": "selector_context_witness_for_declaration",
       "idiom": "direct-equality",
       "keyword": ":root",
@@ -1968,7 +1968,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 289,
+      "line": 295,
       "function": "winner_for_pair",
       "idiom": "contains",
       "keyword": "@scope",
@@ -1979,7 +1979,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 607,
+      "line": 619,
       "function": "conditional_context_is_open",
       "idiom": "contains",
       "keyword": "@supports",
@@ -2033,7 +2033,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:1526faf8a3ef2b0d476a73b6ed785ffec060093891fca06e730f280ed71cc6cf",
+  "siteDigest": "sha256:466be838c205e87fc543499456a5daf748de7e3ff0c1c1c2bf899379d81e8016",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
