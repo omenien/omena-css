@@ -236,7 +236,7 @@ function verifyArchitectureCodemap(): number {
     .filter(({ surface }) => !excludedSurfaces.has(surface))
     .map(({ crate }) => crate)
     .toSorted();
-  assert.equal(productCrates.length, 41, "the architecture product-path family count changed");
+  assert.equal(productCrates.length, 42, "the architecture product-path family count changed");
   for (const crateName of productCrates) {
     assert.ok(architecture.includes(`\`${crateName}\``), `${architecturePath} omits ${crateName}`);
   }

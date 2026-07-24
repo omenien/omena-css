@@ -1,6 +1,6 @@
 # Architecture
 
-Last code-level revisit: 2026-07-19.
+Last code-level revisit: 2026-07-24.
 
 omena-css has one architectural problem: CSS-family facts, source-language
 bindings, diagnostics, transforms, and editor features must answer the same
@@ -30,7 +30,7 @@ consumption. It is not a second semantic authority.
 ## Crate Families
 
 `rust/omena-product-path-matrix.json` is the machine-checked role inventory. Its
-current product path spans 41 crates; names are grouped here by responsibility,
+current product path spans 42 crates; names are grouped here by responsibility,
 not by dependency order.
 
 Syntax, identity, and fact authority:
@@ -51,7 +51,7 @@ Transform, build, and editor runtime:
 
 - `omena-transform-cst`, `omena-transform-passes`, `omena-transform-target`
 - `omena-transform-print`, `omena-transform-egg`, `omena-bundler`
-- `omena-lsp-server`
+- `omena-reactive`, `omena-lsp-server`
 
 Shipped entry points and bindings:
 
