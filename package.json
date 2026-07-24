@@ -341,6 +341,7 @@
     "check:rust-omena-lsp-server-cancellation": "node --import tsx ./scripts/check-rust-omena-lsp-server-cancellation.ts",
     "check:rust-omena-lsp-server-query-read-boundary": "node --import tsx ./scripts/check-rust-omena-lsp-server-query-read-boundary.ts",
     "check:rust-omena-lsp-server-tide-sole-authority": "node --import tsx ./scripts/check-rust-omena-lsp-server-tide-sole-authority.ts && cargo test --manifest-path rust/Cargo.toml -p omena-lsp-server tests::tide_kernel:: && cargo test --manifest-path rust/Cargo.toml -p omena-lsp-server tests::tide_republish_executor::",
+    "check:rust-omena-lsp-server-reactive-shadow-parity": "node --import tsx ./scripts/check-rust-omena-lsp-server-reactive-shadow-parity.ts",
     "check:rust-omena-lsp-server-provider-parity": "node --import tsx ./scripts/check-rust-omena-lsp-server-style-provider-parity.ts && node --import tsx ./scripts/check-rust-omena-lsp-server-examples-regression.ts",
     "check:rust-omena-lsp-server-parser-consumer": "node --import tsx ./scripts/check-rust-omena-lsp-server-parser-consumer.ts",
     "check:rust-omena-lsp-server-type-fact-protocol": "pnpm omena-check run core/build/omena-lsp-server && pnpm omena-check run core/build/tsgo-binary && node --import tsx ./scripts/check-rust-omena-lsp-server-type-fact-protocol.ts",
