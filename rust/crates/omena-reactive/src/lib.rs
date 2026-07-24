@@ -14,11 +14,15 @@
 //! graph.add_input(ReactiveStateV0::available(ReactiveValueV0::Counter(1)));
 //! ```
 
+mod divergence;
 mod engine;
 mod graph;
 mod policy;
 mod value;
 
+pub use divergence::{
+    ReactiveDivergenceClassV0, ReactiveDivergenceDispositionV0, ReactiveObservationPhaseV0,
+};
 pub use engine::{
     DeltaFoldParityErrorV0, EffectReceiptV0, ReactiveEngineErrorV0, ReactiveEngineV0,
     StabilizeStatusV0,

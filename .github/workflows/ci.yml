@@ -85,6 +85,7 @@ jobs:
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/workspace
       - run: pnpm omena-check run rust/omena-reactive/contract
+      - run: pnpm omena-check run rust/omena-lsp-server/tide-sole-authority
       - run: pnpm omena-check run rust/omena-cascade/property-metadata
       - run: pnpm omena-check run rust/omena-transform-cst/observation-census
       - run: pnpm omena-check run rust/transform-winner-equality-audit
