@@ -1,6 +1,120 @@
 use super::*;
 
 #[test]
+fn narrows_finite_template_interpolations_without_a_type_provider() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let style_uri = "file:///workspace-a/src/App.module.scss";
+    let source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function App({ active }: { active: boolean }) {
+  return <div className={cx(`theme-${active ? "a" : "legacy"}`)} />;
+}"#;
+    let style_text =
+        ".theme-a {}\n.theme-legacy {}\n.theme-extra { color: var(--should-not-appear); }";
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": "file:///workspace-a",
+                        "name": "workspace-a",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": source_text,
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": style_text,
+                },
+            },
+        }),
+    );
+
+    let expression_offset = source_text
+        .find("active ?")
+        .ok_or_else(|| std::io::Error::other("fixture should contain a conditional"))?;
+    let hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, expression_offset),
+            },
+        }),
+    );
+    let hover_text = hover
+        .as_ref()
+        .and_then(|value| value.pointer("/result/contents/value"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| std::io::Error::other("conditional hover should render markdown"))?;
+
+    assert!(hover_text.contains("`.theme-a`"));
+    assert!(hover_text.contains("`.theme-legacy`"));
+    assert!(!hover_text.contains("`.theme-extra`"));
+    let explain_hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, expression_offset),
+            },
+        }),
+    );
+    let mut definition_names = explain_hover
+        .as_ref()
+        .and_then(|value| value.pointer("/result/definitions"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("explain hover should list definitions"))?
+        .iter()
+        .filter_map(|definition| definition.get("name").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    definition_names.sort();
+    assert_eq!(definition_names, vec!["theme-a", "theme-legacy"]);
+    Ok(())
+}
+
+#[test]
 fn projects_tsgo_type_facts_for_typed_cx_identifiers_and_template_holes() -> TestResult {
     let source_uri = "file:///workspace-a/src/App.tsx";
     let style_uri = "file:///workspace-a/src/App.module.scss";

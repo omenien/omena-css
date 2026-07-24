@@ -1073,3 +1073,37 @@ export function App({{ variant }}) {{
          (scoped to the bound module, not cross-matched against the union)"
     );
 }
+
+#[test]
+fn workspace_source_diagnostics_report_unmatched_finite_template_arms() {
+    let source_path = "/workspace/src/App.tsx";
+    let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function App({ active }: { active: boolean }) {
+  return <div className={cx(`theme-${active ? "a" : "legacy"}`)} />;
+}"#;
+    let style_sources = [OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.scss".to_string(),
+        style_source: ".theme-legacy {}\n".to_string(),
+    }];
+
+    let summary = summarize_omena_query_source_diagnostics_for_workspace_file(
+        source_path,
+        source,
+        &style_sources,
+        &[],
+    );
+    let unknown_dynamic_classes = summary
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "noUnknownDynamicClass")
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        unknown_dynamic_classes.len(),
+        1,
+        "the unmatched theme-a arm should produce exactly one dynamic-class diagnostic"
+    );
+    assert_eq!(unknown_dynamic_classes[0].range.start.line, 4);
+}

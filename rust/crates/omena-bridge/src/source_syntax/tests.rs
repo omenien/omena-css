@@ -1207,6 +1207,113 @@ export function View({ active }: { active: boolean }) {
 }
 
 #[test]
+fn narrows_finite_conditional_template_interpolations_without_a_type_provider() {
+    let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function View({ active }: { active: boolean }) {
+  return <div className={cx(`theme-${active ? "a" : "legacy"}`)} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        vec!["bind".to_string()],
+    );
+    let exact = index
+        .selector_references
+        .iter()
+        .filter(|reference| reference.match_kind == SourceSelectorReferenceMatchKindV0::Exact)
+        .filter_map(|reference| reference.selector_name.as_deref())
+        .collect::<Vec<_>>();
+
+    assert!(exact.contains(&"theme-a"));
+    assert!(exact.contains(&"theme-legacy"));
+    assert_eq!(index.type_fact_target_skipped_count, 1);
+}
+
+#[test]
+fn keeps_template_prefixes_when_a_conditional_arm_is_not_fully_enumerable() {
+    let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+declare function resolveTheme(): string;
+export function View({ active }: { active: boolean }) {
+  return <div className={cx(`theme-${active ? "a" : resolveTheme()}`)} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        vec!["bind".to_string()],
+    );
+
+    assert!(index.selector_references.iter().any(|reference| {
+        reference.match_kind == SourceSelectorReferenceMatchKindV0::Prefix
+            && reference.selector_name.as_deref() == Some("theme-")
+    }));
+    assert!(!index.selector_references.iter().any(|reference| {
+        reference.match_kind == SourceSelectorReferenceMatchKindV0::Exact
+            && reference
+                .selector_name
+                .as_deref()
+                .is_some_and(|name| name.starts_with("theme-"))
+    }));
+}
+
+#[test]
+fn preserves_bare_and_multi_interpolation_reference_shapes() {
+    let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function View({ value, left, right }: Record<string, string>) {
+  return <div className={cx(`${value}`, `theme-${left}-${right}`)} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        vec!["bind".to_string()],
+    );
+    let references = index
+        .selector_references
+        .iter()
+        .map(|reference| {
+            (
+                &source[reference.byte_span.start..reference.byte_span.end],
+                reference.selector_name.as_deref(),
+                reference.match_kind,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        references,
+        vec![(
+            "theme-",
+            Some("theme-"),
+            SourceSelectorReferenceMatchKindV0::Prefix,
+        )],
+    );
+    assert_eq!(index.type_fact_targets.len(), 1);
+    assert_eq!(
+        &source
+            [index.type_fact_targets[0].byte_span.start..index.type_fact_targets[0].byte_span.end],
+        "value"
+    );
+    assert_eq!(index.type_fact_target_skipped_count, 0);
+}
+
+#[test]
 fn walks_expression_like_oxc_argument_array_and_property_key_variants() {
     let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";

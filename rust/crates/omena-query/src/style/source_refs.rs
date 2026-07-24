@@ -898,7 +898,7 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
             diagnostics.extend(harvest_omena_query_dynamic_classname_m_tier_diagnostics(
                 source_path,
                 source_source,
-                index.type_fact_targets.as_slice(),
+                index,
                 selector_universe.as_slice(),
                 &selector_universe_by_uri,
                 options.max_context_depth,

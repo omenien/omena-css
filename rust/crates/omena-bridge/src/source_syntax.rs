@@ -1,3 +1,7 @@
+use omena_abstract_value::{
+    AbstractClassValueV0, concatenate_abstract_class_values, exact_class_value,
+    finite_set_class_value,
+};
 use omena_parser::ParserByteSpanV0;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::TSModuleReference;
@@ -464,6 +468,7 @@ impl TemplateScanScope {
 struct SourceClassValue {
     exact: Vec<String>,
     prefixes: Vec<String>,
+    fragment_domain_complete: bool,
 }
 
 impl SourceClassValue {
@@ -474,7 +479,23 @@ impl SourceClassValue {
     fn merge(&mut self, other: SourceClassValue) {
         self.exact.extend(other.exact);
         self.prefixes.extend(other.prefixes);
+        self.fragment_domain_complete &= other.fragment_domain_complete;
         self.canonicalize();
+    }
+
+    fn complete_fragment_domain() -> Self {
+        Self {
+            fragment_domain_complete: true,
+            ..Self::default()
+        }
+    }
+
+    fn mark_fragment_domain_incomplete(&mut self) {
+        self.fragment_domain_complete = false;
+    }
+
+    fn is_fully_enumerated_fragment_domain(&self) -> bool {
+        self.fragment_domain_complete && !self.exact.is_empty() && self.prefixes.is_empty()
     }
 
     fn canonicalize(&mut self) {
@@ -4044,6 +4065,8 @@ fn collect_selector_references_from_js_expression(
                 literal_start,
                 literal_end,
                 target_style_uri,
+                local_class_values,
+                references,
                 type_fact_targets,
                 type_fact_target_skipped,
             );
@@ -4268,14 +4291,23 @@ fn collect_local_class_value_reassignments(
         }
         let expression_start = skip_js_trivia(source, equals_offset + 1);
         let expression_end = js_statement_expression_end(source, expression_start);
-        if let Some(value) =
-            source_class_value_from_js_expression(source, expression_start, expression_end, values)
-            && !value.is_empty()
-        {
-            values
-                .entry(identifier.text.to_string())
-                .or_default()
-                .merge(value);
+        match source_class_value_from_js_expression(
+            source,
+            expression_start,
+            expression_end,
+            values,
+        ) {
+            Some(value) if !value.is_empty() => {
+                values
+                    .entry(identifier.text.to_string())
+                    .or_default()
+                    .merge(value);
+            }
+            _ => {
+                if let Some(value) = values.get_mut(identifier.text) {
+                    value.mark_fragment_domain_incomplete();
+                }
+            }
         }
         cursor = expression_end.min(source.len());
     }
@@ -4370,19 +4402,24 @@ fn source_class_value_from_js_expression(
     if let Some((_, true_start, true_end, false_start, false_end)) =
         top_level_conditional_parts(source, start, end)
     {
-        let mut value = SourceClassValue::default();
-        if let Some(true_value) =
-            source_class_value_from_js_expression(source, true_start, true_end, local_class_values)
-        {
-            value.merge(true_value);
+        let mut value = SourceClassValue::complete_fragment_domain();
+        match source_class_value_from_js_expression(
+            source,
+            true_start,
+            true_end,
+            local_class_values,
+        ) {
+            Some(true_value) => value.merge(true_value),
+            None => value.mark_fragment_domain_incomplete(),
         }
-        if let Some(false_value) = source_class_value_from_js_expression(
+        match source_class_value_from_js_expression(
             source,
             false_start,
             false_end,
             local_class_values,
         ) {
-            value.merge(false_value);
+            Some(false_value) => value.merge(false_value),
+            None => value.mark_fragment_domain_incomplete(),
         }
         return Some(value);
     }
@@ -4390,12 +4427,14 @@ fn source_class_value_from_js_expression(
     if let Some(operator_offset) = find_top_level_js_operator(source, start, end, "&&")
         .or_else(|| find_top_level_js_operator(source, start, end, "||"))
     {
-        return source_class_value_from_js_expression(
+        let mut value = source_class_value_from_js_expression(
             source,
             operator_offset + 2,
             end,
             local_class_values,
-        );
+        )?;
+        value.mark_fragment_domain_incomplete();
+        return Some(value);
     }
 
     if let Some(path) = js_expression_path(source, start, end)
@@ -4426,9 +4465,12 @@ fn source_class_value_from_js_literal(
         let prefix_end = literal_start + relative_interpolation;
         push_template_prefix_value(source, literal_start, prefix_end, &mut value);
     } else {
-        value
-            .exact
-            .extend(class_token_strings(source, literal_start, literal_end));
+        let exact = class_token_strings(source, literal_start, literal_end);
+        value.fragment_domain_complete = exact.len() == 1
+            && source
+                .get(literal_start..literal_end)
+                .is_some_and(|literal| literal == exact[0]);
+        value.exact.extend(exact);
     }
     value.canonicalize();
     value
@@ -4610,6 +4652,8 @@ fn collect_selector_references_from_object_key(
                 literal_start,
                 literal_end,
                 target_style_uri,
+                local_class_values,
+                references,
                 type_fact_targets,
                 type_fact_target_skipped,
             );
@@ -4714,10 +4758,12 @@ fn collect_template_type_fact_targets(
     literal_start: usize,
     literal_end: usize,
     target_style_uri: Option<&str>,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+    references: &mut Vec<SourceSelectorReferenceFactV0>,
     type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
     type_fact_target_skipped: &mut Vec<SourceTypeFactTargetSkippedFactV0>,
 ) {
-    let Some((prefix, expression_span, suffix)) =
+    let Some((prefix, expression_span, suffix, selector_span)) =
         single_template_interpolation_projection(source, literal_start, literal_end)
     else {
         return;
@@ -4731,6 +4777,24 @@ fn collect_template_type_fact_targets(
         };
         if !type_fact_target_skipped.contains(&skipped) {
             type_fact_target_skipped.push(skipped);
+        }
+        if let Some(value) = source_class_value_from_js_expression(
+            source,
+            expression_span.start,
+            expression_span.end,
+            local_class_values,
+        ) && let Some(selector_names) =
+            finite_template_selector_names(prefix.as_str(), &value, suffix.as_str())
+        {
+            for selector_name in selector_names {
+                push_selector_reference(
+                    selector_span,
+                    Some(selector_name),
+                    SourceSelectorReferenceMatchKindV0::Exact,
+                    target_style_uri,
+                    references,
+                );
+            }
         }
         return;
     };
@@ -4755,7 +4819,7 @@ fn single_template_interpolation_projection(
     source: &str,
     literal_start: usize,
     literal_end: usize,
-) -> Option<(String, ParserByteSpanV0, String)> {
+) -> Option<(String, ParserByteSpanV0, String, ParserByteSpanV0)> {
     let relative_open = source.get(literal_start..literal_end)?.find("${")?;
     let open = literal_start + relative_open;
     if source.get(open + 2..literal_end)?.contains("${") {
@@ -4786,7 +4850,60 @@ fn single_template_interpolation_projection(
             end: expression_end,
         },
         suffix,
+        ParserByteSpanV0 {
+            start: prefix_start,
+            end: suffix_end,
+        },
     ))
+}
+
+fn finite_template_selector_names(
+    prefix: &str,
+    value: &SourceClassValue,
+    suffix: &str,
+) -> Option<Vec<String>> {
+    if !value.is_fully_enumerated_fragment_domain() {
+        return None;
+    }
+    let prefix_value = exact_class_value(prefix);
+    let finite_value = finite_set_class_value(value.exact.clone());
+    let suffix_value = exact_class_value(suffix);
+    let prefixed = concatenate_abstract_class_values(&prefix_value, &finite_value);
+    let composed = concatenate_abstract_class_values(&prefixed, &suffix_value);
+    let mut selector_names = match composed {
+        AbstractClassValueV0::Exact { value } => vec![value],
+        AbstractClassValueV0::FiniteSet { values } => values,
+        _ => return None,
+    };
+    if selector_names
+        .iter()
+        .any(|selector_name| !is_safe_css_identifier(selector_name))
+    {
+        return None;
+    }
+    selector_names.sort();
+    selector_names.dedup();
+    (!selector_names.is_empty()).then_some(selector_names)
+}
+
+fn is_safe_css_identifier(value: &str) -> bool {
+    let mut characters = value.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+    match first {
+        character if character.is_ascii_alphabetic() || character == '_' => {}
+        '-' => {
+            let Some(second) = characters.next() else {
+                return false;
+            };
+            if !(second.is_ascii_alphabetic() || matches!(second, '-' | '_')) {
+                return false;
+            }
+        }
+        _ => return false,
+    }
+    characters.all(is_css_identifier_continue)
 }
 
 fn template_token_start(source: &str, literal_start: usize, prefix_end: usize) -> usize {
