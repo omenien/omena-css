@@ -1,5 +1,7 @@
 use super::*;
-use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
+use omena_parser::{
+    ParsedSassIncludeFact, ParsedSelectorFact, ParsedStyleFacts, ParsedVariableFact,
+};
 use omena_syntax::css_keyword;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -1315,6 +1317,9 @@ struct OmenaQueryStyleFactEntry {
     facts: OmenaQueryOmenaParserStyleFactsV0,
     icss_export_values: BTreeMap<String, String>,
     semantic_runtime_index: Option<omena_semantic::StyleRuntimeIndexFactsV0>,
+    sass_module_public_variable_names: BTreeSet<String>,
+    sass_module_public_mixin_names: BTreeSet<String>,
+    sass_module_public_function_names: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1328,6 +1333,21 @@ pub struct OmenaQueryModuleInterfaceProjectionV0 {
     pub sass_module_edges: Vec<OmenaQuerySassModuleEdgeFactV0>,
     pub sass_module_configurable_variable_names: BTreeSet<String>,
     pub sass_module_rule_configurations: Vec<OmenaQuerySassModuleRuleConfigurationSurfaceV0>,
+}
+
+/// Complete equality surface for deciding whether a style edit can affect
+/// downstream module consumers.
+///
+/// `module_interface` preserves the established compatibility projection,
+/// while the Sass member sets keep variable, mixin, and function namespaces
+/// distinct for invalidation decisions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct OmenaQueryModuleInterfaceChangeProjectionV0 {
+    pub module_interface: OmenaQueryModuleInterfaceProjectionV0,
+    pub sass_module_public_variable_names: BTreeSet<String>,
+    pub sass_module_public_mixin_names: BTreeSet<String>,
+    pub sass_module_public_function_names: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1398,6 +1418,11 @@ fn collect_omena_query_style_fact_entry(
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let (raw_facts, icss_export_values) =
         collect_omena_query_style_facts_with_icss_values_raw(style_source, dialect);
+    let (
+        sass_module_public_variable_names,
+        sass_module_public_mixin_names,
+        sass_module_public_function_names,
+    ) = sass_module_public_member_names_from_parser_facts(&raw_facts);
     let facts = summarize_omena_query_omena_parser_style_facts_from_facts(raw_facts, dialect);
     let semantic_runtime_index = semantic_runtime_index_from_query_style_facts(style_path, &facts);
     OmenaQueryStyleFactEntry {
@@ -1406,19 +1431,33 @@ fn collect_omena_query_style_fact_entry(
         semantic_runtime_index,
         facts,
         icss_export_values,
+        sass_module_public_variable_names,
+        sass_module_public_mixin_names,
+        sass_module_public_function_names,
     }
 }
 
-/// Per-document module-interface projection from source text alone — the
-/// SAME projection the workspace transaction compares to populate
-/// `changed_module_interface_paths`, so callers can decide "this edit
-/// preserved the module interface" from one single-file parse instead of a
-/// workspace selector build.
+/// Per-document compatibility projection used by existing CSS Modules and
+/// Sass resolution consumers. Call
+/// [`summarize_omena_query_module_interface_change_projection`] when deciding
+/// whether an edit can invalidate downstream module consumers.
 pub fn summarize_omena_query_module_interface_projection(
     style_path: &str,
     style_source: &str,
 ) -> OmenaQueryModuleInterfaceProjectionV0 {
     module_interface_projection_for_query(&collect_omena_query_style_fact_entry(
+        style_path,
+        style_source,
+    ))
+}
+
+/// Parse one style document and project every interface fact that can
+/// invalidate a downstream module consumer.
+pub fn summarize_omena_query_module_interface_change_projection(
+    style_path: &str,
+    style_source: &str,
+) -> OmenaQueryModuleInterfaceChangeProjectionV0 {
+    module_interface_change_projection_for_query(&collect_omena_query_style_fact_entry(
         style_path,
         style_source,
     ))
@@ -1479,6 +1518,49 @@ fn module_interface_projection_for_query(
         ),
         sass_module_rule_configurations: sass_module_rule_configuration_surfaces_for_query(entry),
     }
+}
+
+fn module_interface_change_projection_for_query(
+    entry: &OmenaQueryStyleFactEntry,
+) -> OmenaQueryModuleInterfaceChangeProjectionV0 {
+    OmenaQueryModuleInterfaceChangeProjectionV0 {
+        module_interface: module_interface_projection_for_query(entry),
+        sass_module_public_variable_names: entry.sass_module_public_variable_names.clone(),
+        sass_module_public_mixin_names: entry.sass_module_public_mixin_names.clone(),
+        sass_module_public_function_names: entry.sass_module_public_function_names.clone(),
+    }
+}
+
+fn sass_module_public_member_names_from_parser_facts(
+    facts: &ParsedStyleFacts,
+) -> (BTreeSet<String>, BTreeSet<String>, BTreeSet<String>) {
+    let variable_names = facts
+        .variables
+        .iter()
+        .filter(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration && fact.is_top_level)
+        .filter_map(|fact| canonical_public_sass_member_name(fact.name.as_str()))
+        .collect();
+    let mixin_names = facts
+        .sass_symbols
+        .iter()
+        .filter(|fact| fact.kind == ParsedSassSymbolFactKind::MixinDeclaration && fact.is_top_level)
+        .filter_map(|fact| canonical_public_sass_member_name(fact.name.as_str()))
+        .collect();
+    let function_names = facts
+        .sass_symbols
+        .iter()
+        .filter(|fact| {
+            fact.kind == ParsedSassSymbolFactKind::FunctionDeclaration && fact.is_top_level
+        })
+        .filter_map(|fact| canonical_public_sass_member_name(fact.name.as_str()))
+        .collect();
+    (variable_names, mixin_names, function_names)
+}
+
+fn canonical_public_sass_member_name(name: &str) -> Option<String> {
+    let name = name.trim().strip_prefix('$').unwrap_or_else(|| name.trim());
+    (!name.is_empty() && !name.starts_with('-') && !name.starts_with('_'))
+        .then(|| name.replace('_', "-"))
 }
 
 fn style_selector_definitions_for_query(

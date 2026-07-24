@@ -648,9 +648,10 @@ pub struct LspShellState {
     /// fan-outs saw. A didChange whose projection compares equal is an
     /// interface-preserving edit, while a disk-backed close compares the
     /// restored on-disk projection against the retained open-buffer projection.
-    /// Loop-owned and retained across close so lifecycle equality stays observable.
+    /// Entries are retained across disk-backed close, removed with documents
+    /// that leave the state, and capped by the diagnostics scheduler.
     pub(crate) style_module_interface_memo:
-        RefCell<BTreeMap<String, omena_query::OmenaQueryModuleInterfaceProjectionV0>>,
+        RefCell<BTreeMap<String, omena_query::OmenaQueryModuleInterfaceChangeProjectionV0>>,
     /// Shared with delayed diagnostics workers and updated only after a payload
     /// reaches the client writer, so stale or failed work cannot suppress a retry.
     pub(crate) diagnostics_publish_digest_registry: DiagnosticsPublishDigestRegistryV0,
@@ -771,7 +772,11 @@ impl LspShellState {
 
     pub(crate) fn remove_document_uri(&mut self, uri: &str) -> Option<LspTextDocumentState> {
         let file_id = self.file_identity.file_id_for_uri(uri)?;
-        self.documents.remove(&file_id).map(Arc::unwrap_or_clone)
+        let document = self.documents.remove(&file_id).map(Arc::unwrap_or_clone)?;
+        let memo = self.style_module_interface_memo.get_mut();
+        memo.remove(uri);
+        memo.remove(document.uri.as_str());
+        Some(document)
     }
 
     pub(crate) fn contains_document_uri(&self, uri: &str) -> bool {

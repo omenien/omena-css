@@ -989,9 +989,17 @@ pub fn memo_module_interface_projection(
     db: &dyn salsa::Database,
     file: OmenaQueryStyleFileInputV0,
 ) -> OmenaQueryModuleInterfaceProjectionV0 {
+    memo_module_interface_change_projection(db, file).module_interface
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_module_interface_change_projection(
+    db: &dyn salsa::Database,
+    file: OmenaQueryStyleFileInputV0,
+) -> OmenaQueryModuleInterfaceChangeProjectionV0 {
     #[cfg(any(test, feature = "test-support"))]
     module_interface_projection_probe::record(file.style_path(db));
-    module_interface_projection_for_query(&memo_style_fact_entry(db, file))
+    module_interface_change_projection_for_query(&memo_style_fact_entry(db, file))
 }
 
 #[salsa::tracked(returns(clone))]
@@ -2200,7 +2208,7 @@ impl OmenaQueryStyleMemoHostV0 {
         &self,
         workspace: OmenaQueryStyleWorkspaceInputV0,
         style_paths: &BTreeSet<String>,
-    ) -> BTreeMap<String, OmenaQueryModuleInterfaceProjectionV0> {
+    ) -> BTreeMap<String, OmenaQueryModuleInterfaceChangeProjectionV0> {
         workspace
             .files(&self.db)
             .iter()
@@ -2209,7 +2217,7 @@ impl OmenaQueryStyleMemoHostV0 {
                 style_paths.contains(style_path).then(|| {
                     (
                         style_path.clone(),
-                        memo_module_interface_projection(&self.db, *file),
+                        memo_module_interface_change_projection(&self.db, *file),
                     )
                 })
             })
@@ -3314,6 +3322,41 @@ const cls = styles.root;"#
             export_commit.selector.changed_module_interface_paths(),
             &export_commit.changed_module_interface_paths,
         );
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_transaction_reports_public_sass_member_changes() -> Result<(), &'static str> {
+        let style_path = "/workspace/src/_tokens.scss";
+        let mut corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: style_path.to_string(),
+            style_source: "$tone: red;\n".to_string(),
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        for source in ["$tone: red;\n", "$tone: blue;\n", "$accent: blue;\n"] {
+            corpus[0].style_source = source.to_string();
+            let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+            transaction
+                .register_style_sources(corpus.as_slice())
+                .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+            let commit = transaction
+                .commit_revision(&mut host)
+                .map_err(|_| "Sass module transaction must commit")?;
+
+            match source {
+                "$tone: blue;\n" => assert!(
+                    commit.changed_module_interface_paths.is_empty(),
+                    "changing a public variable value must preserve its member interface"
+                ),
+                _ => assert_eq!(
+                    commit.changed_module_interface_paths,
+                    set_of([style_path]),
+                    "adding or removing a public Sass variable must change the module interface"
+                ),
+            }
+        }
         Ok(())
     }
 
@@ -4540,6 +4583,57 @@ export const classes = [a.ghostA, b.usedB, c.usedC];
             module_interface_projection_probe::read(),
             set_of(["/workspace/src/Card.module.scss"]),
             "the interface query should re-run only for the edited file",
+        );
+    }
+
+    #[test]
+    fn module_interface_projection_tracks_public_sass_members_by_namespace() {
+        let initial = summarize_omena_query_module_interface_change_projection(
+            "/workspace/src/_tokens.scss",
+            r#"
+$tone_value: red;
+$_private-token: hidden;
+@mixin paint_card($color) { color: $color; }
+@mixin _private-mixin { color: red; }
+@function scale_value($value) { @return $value * 2; }
+@function -private-function() { @return 0; }
+"#,
+        );
+        let body_only = summarize_omena_query_module_interface_change_projection(
+            "/workspace/src/_tokens.scss",
+            r#"
+$tone-value: blue;
+$_private-token: changed;
+@mixin paint-card($color) { background: $color; }
+@mixin _private-mixin { color: blue; }
+@function scale-value($value) { @return $value * 3; }
+@function -private-function() { @return 1; }
+"#,
+        );
+        let removed = summarize_omena_query_module_interface_change_projection(
+            "/workspace/src/_tokens.scss",
+            "$accent: blue;\n",
+        );
+
+        assert_eq!(
+            initial.sass_module_public_variable_names,
+            set_of(["tone-value"])
+        );
+        assert_eq!(
+            initial.sass_module_public_mixin_names,
+            set_of(["paint-card"])
+        );
+        assert_eq!(
+            initial.sass_module_public_function_names,
+            set_of(["scale-value"])
+        );
+        assert_eq!(
+            initial, body_only,
+            "body edits and Sass hyphen/underscore spelling must preserve the public interface"
+        );
+        assert_ne!(
+            initial, removed,
+            "removing public Sass members must change the module interface projection"
         );
     }
 

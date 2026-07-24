@@ -762,7 +762,7 @@ fn style_peer_republish_requires_a_module_interface_change() -> TestResult {
                     "version": 3,
                 },
                 "contentChanges": [{
-                    "text": "$tone: blue;\n.token { color: currentColor; }\n",
+                    "text": "$accent: blue;\n",
                 }],
             },
         }),
@@ -777,9 +777,75 @@ fn style_peer_republish_requires_a_module_interface_change() -> TestResult {
         crate::diagnostics_scheduler::read_peer_change_republish_fanout_for_test() >= 1,
         "an interface-affecting edit must retain conservative style-peer fanout"
     );
+    assert!(
+        interface_outputs.iter().any(|output| {
+            output.pointer("/params/uri") == Some(&json!(consumer_uri))
+                && output
+                    .pointer("/params/diagnostics")
+                    .and_then(Value::as_array)
+                    .is_some_and(|diagnostics| {
+                        diagnostics.iter().any(|diagnostic| {
+                            diagnostic.pointer("/code") == Some(&json!("missingSassSymbol"))
+                        })
+                    })
+        }),
+        "removing a referenced Sass variable must refresh the importer with a missing-symbol diagnostic"
+    );
 
     let _ = fs::remove_dir_all(workspace_path.as_path());
     Ok(())
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
+fn removing_a_style_document_evicts_its_module_interface_projection() {
+    let style_uri = "file:///workspace-style-interface-lifecycle/_tokens.scss";
+    let mut state = LspShellState::default();
+
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": "$tone: red;\n",
+                },
+            },
+        }),
+    );
+    assert!(
+        state
+            .style_module_interface_memo
+            .borrow()
+            .contains_key(style_uri),
+        "opening a style document must record the interface projection used by fanout"
+    );
+
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+            },
+        }),
+    );
+
+    assert!(state.document(style_uri).is_none());
+    assert!(
+        !state
+            .style_module_interface_memo
+            .borrow()
+            .contains_key(style_uri),
+        "a projection must not outlive a document that leaves the server state"
+    );
 }
 
 #[test]

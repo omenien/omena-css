@@ -1261,6 +1261,11 @@ pub omena_query::OmenaQueryM4AxisCSummaryHashSamplesV0::baseline: alloc::string:
 pub omena_query::OmenaQueryM4AxisCSummaryHashSamplesV0::package_manifest_change: alloc::string::String
 pub omena_query::OmenaQueryM4AxisCSummaryHashSamplesV0::source_selector_change: alloc::string::String
 pub omena_query::OmenaQueryM4AxisCSummaryHashSamplesV0::style_edge_change: alloc::string::String
+#[non_exhaustive] pub struct omena_query::OmenaQueryModuleInterfaceChangeProjectionV0
+pub omena_query::OmenaQueryModuleInterfaceChangeProjectionV0::module_interface: omena_query::OmenaQueryModuleInterfaceProjectionV0
+pub omena_query::OmenaQueryModuleInterfaceChangeProjectionV0::sass_module_public_function_names: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_query::OmenaQueryModuleInterfaceChangeProjectionV0::sass_module_public_mixin_names: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_query::OmenaQueryModuleInterfaceChangeProjectionV0::sass_module_public_variable_names: alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub struct omena_query::OmenaQueryModuleInterfaceProjectionV0
 pub omena_query::OmenaQueryModuleInterfaceProjectionV0::css_modules_style_facts: omena_semantic::css_modules_cross_file::CssModulesCrossFileStyleFactsV0
 pub omena_query::OmenaQueryModuleInterfaceProjectionV0::custom_property_decl_names: alloc::collections::btree::set::BTreeSet<alloc::string::String>
@@ -2415,6 +2420,7 @@ pub fn omena_query::summarize_omena_query_missing_keyframes_diagnostics(&str, &s
 pub fn omena_query::summarize_omena_query_missing_sass_symbol_diagnostics(&str, &str) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_missing_selector_diagnostic(&str, &str, &str, omena_parser::spans::ParserRangeV0) -> omena_query::OmenaQuerySourceDiagnosticV0
+pub fn omena_query::summarize_omena_query_module_interface_change_projection(&str, &str) -> omena_query::OmenaQueryModuleInterfaceChangeProjectionV0
 pub fn omena_query::summarize_omena_query_module_interface_projection(&str, &str) -> omena_query::OmenaQueryModuleInterfaceProjectionV0
 pub fn omena_query::summarize_omena_query_native_css_evaluator_from_engine_input(&engine_input_producers::EngineInputV2, &str) -> core::option::Option<omena_query::OmenaQueryNativeCssEvaluatorSummaryV0>
 pub fn omena_query::summarize_omena_query_native_css_evaluator_from_source(&str, omena_syntax::StyleDialect) -> omena_query::OmenaQueryNativeCssEvaluatorSummaryV0

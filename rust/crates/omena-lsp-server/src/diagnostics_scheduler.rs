@@ -17,7 +17,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 #[cfg(any(test, feature = "test-support"))]
 use std::cell::Cell;
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs;
 
 /// rfcs#61 FIX-1: per peer-recompute walk, the maximum number of style files whose
@@ -25,6 +25,7 @@ use std::fs;
 /// (transitively) imports the changed one. Mirrors the workspace-index budgeting
 /// philosophy so a pathological import graph cannot stall the loop.
 const STYLE_PEER_DISK_WALK_MAX_FILES: usize = 64;
+const STYLE_MODULE_INTERFACE_MEMO_ENTRY_LIMIT: usize = 2_048;
 
 #[cfg(any(test, feature = "test-support"))]
 thread_local! {
@@ -535,12 +536,13 @@ fn source_uris_for_text_style_change_diagnostics(
 /// mean an interface-preserving edit — the transaction commit would report
 /// no `changed_module_interface_paths`, so no open source document's
 /// diagnostics can move. One single-file parse; never a selector build.
-/// First sight of a document (didOpen, post-close reopen) reads as changed.
+/// First sight reads as changed. Disk-backed close keeps the projection for
+/// restored-text comparison; documents removed from state evict it.
 fn style_module_interface_changed_for_text_event(state: &LspShellState, style_uri: &str) -> bool {
     let Some(document) = state.document(style_uri) else {
         return true;
     };
-    let projection = omena_query::summarize_omena_query_module_interface_projection(
+    let projection = omena_query::summarize_omena_query_module_interface_change_projection(
         style_uri,
         document.text.as_str(),
     );
@@ -548,9 +550,34 @@ fn style_module_interface_changed_for_text_event(state: &LspShellState, style_ur
     match memo.get(style_uri) {
         Some(previous) if *previous == projection => false,
         _ => {
-            memo.insert(style_uri.to_string(), projection);
+            insert_style_module_interface_projection(
+                &mut memo,
+                style_uri,
+                projection,
+                STYLE_MODULE_INTERFACE_MEMO_ENTRY_LIMIT,
+            );
             true
         }
+    }
+}
+
+fn insert_style_module_interface_projection(
+    memo: &mut BTreeMap<String, omena_query::OmenaQueryModuleInterfaceChangeProjectionV0>,
+    style_uri: &str,
+    projection: omena_query::OmenaQueryModuleInterfaceChangeProjectionV0,
+    entry_limit: usize,
+) {
+    memo.insert(style_uri.to_string(), projection);
+    while memo.len() > entry_limit {
+        let evicted_uri = memo
+            .keys()
+            .find(|candidate| candidate.as_str() != style_uri)
+            .cloned()
+            .or_else(|| memo.keys().next().cloned());
+        let Some(evicted_uri) = evicted_uri else {
+            break;
+        };
+        memo.remove(evicted_uri.as_str());
     }
 }
 
@@ -1281,6 +1308,31 @@ fn annotate_diagnostic_pipeline_tier(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn module_interface_memo_evicts_deterministically_at_its_entry_limit() {
+        let mut memo = BTreeMap::new();
+        for uri in [
+            "file:///workspace/b.scss",
+            "file:///workspace/a.scss",
+            "file:///workspace/c.scss",
+        ] {
+            insert_style_module_interface_projection(
+                &mut memo,
+                uri,
+                omena_query::summarize_omena_query_module_interface_change_projection(
+                    uri,
+                    "$tone: red;\n",
+                ),
+                2,
+            );
+        }
+
+        assert_eq!(memo.len(), 2);
+        assert!(!memo.contains_key("file:///workspace/a.scss"));
+        assert!(memo.contains_key("file:///workspace/b.scss"));
+        assert!(memo.contains_key("file:///workspace/c.scss"));
+    }
 
     #[test]
     fn maps_lsp_events_to_diagnostics_schedule_events() {
