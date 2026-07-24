@@ -84,6 +84,7 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/workspace
+      - run: pnpm omena-check run rust/omena-reactive/contract
       - run: pnpm omena-check run rust/omena-cascade/property-metadata
       - run: pnpm omena-check run rust/omena-transform-cst/observation-census
       - run: pnpm omena-check run rust/transform-winner-equality-audit
@@ -136,6 +137,7 @@ jobs:
       - run: pnpm omena-check run rust/z5-perf-warmup-wave-count
       - run: pnpm omena-check run rust/z5-perf-no-regression
       - run: pnpm omena-check run rust/bundler-productization-benchmark
+      - run: pnpm omena-check run rust/omena-reactive/performance
 
   omena-napi-install:
     # omena-ci-tier: native

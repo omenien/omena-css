@@ -2826,6 +2826,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-reactive"
+version = "0.3.0"
+dependencies = [
+ "blake3",
+]
+
+[[package]]
 name = "omena-refinement"
 version = "0.3.0"
 dependencies = [
