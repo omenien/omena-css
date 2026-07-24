@@ -423,10 +423,14 @@ fn adjudicate_css_value_validation_with_boundary(
     let components = css_value_component_stream(value, 0).ok();
     let has_unvalidated_standard_function = matches!(
         &verdict,
-        CssValueGrammarVerdictV0::Unmatched { locus, .. }
+        CssValueGrammarVerdictV0::Unmatched { grammar, locus }
             if classification == SpecGrammarBoundaryClassificationV0::InBoundary
                 && components.as_deref().is_some_and(|components| {
-                    recognized_standard_function_owns_unmatched_locus(components, *locus)
+                    recognized_standard_functions_explain_unmatched_value(
+                        grammar,
+                        components,
+                        *locus,
+                    )
                 })
     );
     let (class, reason) = if components
@@ -485,20 +489,44 @@ fn adjudicate_css_value_validation_with_boundary(
     }
 }
 
-fn recognized_standard_function_owns_unmatched_locus(
+fn recognized_standard_functions_explain_unmatched_value(
+    grammar: &str,
     components: &[CssValueComponentV0],
     locus: CssValueGrammarLocusV0,
 ) -> bool {
-    // Exact ownership prevents a recognized function from hiding an adjacent invalid component.
-    components.iter().any(|component| {
-        component.span.start == locus.start
-            && component.span.end == locus.end
-            && matches!(
-                &component.kind,
-                CssValueComponentKindV0::Function { name, .. }
-                    if recognized_standard_function_names().contains(name)
-            )
-    })
+    let has_locus_function = components.iter().any(|component| {
+        component.span.start < locus.end
+            && locus.start < component.span.end
+            && component_is_recognized_standard_function(component)
+    });
+    if !has_locus_function {
+        return false;
+    }
+
+    let normalized = strip_matching_quotes(grammar.trim());
+    let Ok(expression) = cached_pinned_vds_expression(normalized) else {
+        return false;
+    };
+    let mut context = MatchContext {
+        registry: spec_grammar_registry(),
+        budget: CssValueGrammarBudgetV0::default(),
+        match_steps: 0,
+        first_stop: None,
+        grammar_cache: HashMap::new(),
+        cache_registered_grammars: true,
+        allow_unvalidated_standard_function_references: true,
+    };
+    context
+        .match_expression(expression.as_ref(), components, 0, 0)
+        .contains(&components.len())
+}
+
+fn component_is_recognized_standard_function(component: &CssValueComponentV0) -> bool {
+    matches!(
+        &component.kind,
+        CssValueComponentKindV0::Function { name, .. }
+            if recognized_standard_function_names().contains(name)
+    )
 }
 
 fn recognized_standard_function_names() -> &'static BTreeSet<String> {
@@ -737,6 +765,7 @@ fn match_css_value_grammar_components_with_expression_v0(
         first_stop: None,
         grammar_cache: HashMap::new(),
         cache_registered_grammars,
+        allow_unvalidated_standard_function_references: false,
     };
     let ends = context.match_expression(expression, components, 0, 0);
     if ends.contains(&components.len()) {
@@ -1395,6 +1424,7 @@ struct MatchContext<'a> {
     first_stop: Option<MatchStop>,
     grammar_cache: HashMap<(ReferenceCategory, String), CachedVdsExpression>,
     cache_registered_grammars: bool,
+    allow_unvalidated_standard_function_references: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1633,6 +1663,14 @@ impl MatchContext<'_> {
         position: usize,
         reference_depth: usize,
     ) -> BTreeSet<usize> {
+        if self.allow_unvalidated_standard_function_references
+            && reference.category != ReferenceCategory::Function
+            && components
+                .get(position)
+                .is_some_and(component_is_recognized_standard_function)
+        {
+            return BTreeSet::from([position + 1]);
+        }
         if let Some(positions) = match_builtin_reference(reference, components, position) {
             return positions;
         }
@@ -2524,6 +2562,17 @@ mod tests {
         assert_eq!(
             unregistered_function.reason,
             CssValueValidationReasonV0::GrammarUnmatched
+        );
+
+        let compound_value =
+            validate_standard_property_value_v0("margin", "round(up, 10px, 1px) auto");
+        assert_eq!(
+            compound_value.class,
+            CssValueValidationClassV0::NotValidatable
+        );
+        assert_eq!(
+            compound_value.reason,
+            CssValueValidationReasonV0::UnvalidatedStandardFunction
         );
     }
 
