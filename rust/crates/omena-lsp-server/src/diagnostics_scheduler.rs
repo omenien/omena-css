@@ -29,6 +29,7 @@ const STYLE_PEER_DISK_WALK_MAX_FILES: usize = 64;
 #[cfg(any(test, feature = "test-support"))]
 thread_local! {
     static SOURCE_CHANGE_REPUBLISH_FANOUT: Cell<u64> = const { Cell::new(0) };
+    static PEER_CHANGE_REPUBLISH_FANOUT: Cell<u64> = const { Cell::new(0) };
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -52,6 +53,28 @@ fn record_source_change_republish_fanout_for_test(count: usize) {
 
 #[cfg(not(any(test, feature = "test-support")))]
 fn record_source_change_republish_fanout_for_test(_count: usize) {}
+
+#[cfg(any(test, feature = "test-support"))]
+#[allow(dead_code)]
+pub(crate) fn reset_peer_change_republish_fanout_for_test() {
+    PEER_CHANGE_REPUBLISH_FANOUT.with(|cell| cell.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[allow(dead_code)]
+pub(crate) fn read_peer_change_republish_fanout_for_test() -> u64 {
+    PEER_CHANGE_REPUBLISH_FANOUT.with(Cell::get)
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_peer_change_republish_fanout_for_test(count: usize) {
+    PEER_CHANGE_REPUBLISH_FANOUT.with(|cell| {
+        cell.set(cell.get() + count as u64);
+    });
+}
+
+#[cfg(not(any(test, feature = "test-support")))]
+fn record_peer_change_republish_fanout_for_test(_count: usize) {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -245,7 +268,10 @@ fn diagnostics_for_text_document_event(
     // below exist for content changes, and even their scoping pays a
     // committed-selector build on the loop.
     if is_style_document_uri(uri) && content_changed {
-        for source_uri in source_uris_for_text_style_change_diagnostics(state, uri) {
+        let module_interface_changed = style_module_interface_changed_for_text_event(state, uri);
+        for source_uri in
+            source_uris_for_text_style_change_diagnostics(state, uri, module_interface_changed)
+        {
             effects.extend(
                 if enable_deferred_style_diagnostics {
                     deferred_diagnostics_for_uri(state, source_uri.as_str())
@@ -271,7 +297,13 @@ fn diagnostics_for_text_document_event(
             phase_started.elapsed().as_millis()
         );
         let phase_started = std::time::Instant::now();
-        for peer_uri in style_uris_for_style_peer_change_diagnostics(state, uri) {
+        let peer_uris = if module_interface_changed {
+            style_uris_for_style_peer_change_diagnostics(state, uri)
+        } else {
+            Vec::new()
+        };
+        record_peer_change_republish_fanout_for_test(peer_uris.len());
+        for peer_uri in peer_uris {
             effects.extend(
                 if enable_deferred_style_diagnostics {
                     deferred_diagnostics_for_uri(state, peer_uri.as_str())
@@ -473,8 +505,9 @@ pub(crate) fn open_document_uris_for_diagnostics(state: &LspShellState) -> Vec<S
 fn source_uris_for_text_style_change_diagnostics(
     state: &LspShellState,
     style_uri: &str,
+    module_interface_changed: bool,
 ) -> Vec<String> {
-    let source_uris = if style_module_interface_changed_for_text_event(state, style_uri) {
+    let source_uris = if module_interface_changed {
         let broad_source_uris = state
             .documents
             .values()

@@ -643,11 +643,11 @@ pub struct LspShellState {
     pub(crate) document_color_cache: Arc<Mutex<LspDocumentColorCacheV0>>,
     #[cfg(feature = "salsa-style-diagnostics")]
     pub(crate) reverse_dependency_index_memo: RefCell<Option<LspReverseDependencyIndexMemo>>,
-    /// Module-interface projection of the LAST text the source fan-out saw.
-    /// A didChange whose projection compares equal is an interface-preserving
-    /// edit, while a disk-backed close compares the restored on-disk projection
-    /// against the retained open-buffer projection. Loop-owned and retained
-    /// across close so lifecycle equality stays observable.
+    /// Module-interface projection of the LAST text the source and style-peer
+    /// fan-outs saw. A didChange whose projection compares equal is an
+    /// interface-preserving edit, while a disk-backed close compares the
+    /// restored on-disk projection against the retained open-buffer projection.
+    /// Loop-owned and retained across close so lifecycle equality stays observable.
     pub(crate) style_module_interface_memo:
         RefCell<BTreeMap<String, omena_query::OmenaQueryModuleInterfaceProjectionV0>>,
     pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,

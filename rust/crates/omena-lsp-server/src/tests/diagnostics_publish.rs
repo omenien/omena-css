@@ -651,6 +651,128 @@ fn disk_backed_style_close_and_identical_reopen_skip_source_fanout() -> TestResu
     Ok(())
 }
 
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
+fn style_peer_republish_requires_a_module_interface_change() -> TestResult {
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-lsp-style-peer-interface-{}-{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let src_dir = workspace_path.join("src");
+    fs::create_dir_all(src_dir.as_path())?;
+    let consumer_path = src_dir.join("App.module.scss");
+    let partial_path = src_dir.join("_tokens.scss");
+    let consumer_text = "@use \"./tokens\";\n.app { color: tokens.$tone; }\n";
+    let partial_text = "$tone: red;\n";
+    fs::write(consumer_path.as_path(), consumer_text)?;
+    fs::write(partial_path.as_path(), partial_text)?;
+    let consumer_uri = path_to_file_uri(consumer_path.as_path());
+    let partial_uri = path_to_file_uri(partial_path.as_path());
+
+    let mut state = LspShellState::default();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{
+                    "uri": path_to_file_uri(workspace_path.as_path()),
+                    "name": "style-peer-interface",
+                }],
+            },
+        }),
+    );
+    for (uri, text) in [
+        (consumer_uri.as_str(), consumer_text),
+        (partial_uri.as_str(), partial_text),
+    ] {
+        let _ = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    crate::diagnostics_scheduler::reset_peer_change_republish_fanout_for_test();
+    let body_only_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": partial_uri,
+                    "version": 2,
+                },
+                "contentChanges": [{
+                    "text": "$tone: blue;\n",
+                }],
+            },
+        }),
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_peer_change_republish_fanout_for_test(),
+        0,
+        "a body-only edit must have zero style-peer fanout"
+    );
+    assert!(
+        !body_only_outputs
+            .iter()
+            .any(|output| output.pointer("/params/uri") == Some(&json!(consumer_uri))),
+        "a body-only partial edit must not republish importer diagnostics"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        0,
+        "evaluating the shared interface verdict must not create source fanout without sources"
+    );
+
+    crate::diagnostics_scheduler::reset_peer_change_republish_fanout_for_test();
+    let interface_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": partial_uri,
+                    "version": 3,
+                },
+                "contentChanges": [{
+                    "text": "$tone: blue;\n.token { color: currentColor; }\n",
+                }],
+            },
+        }),
+    );
+    assert!(
+        interface_outputs
+            .iter()
+            .any(|output| output.pointer("/params/uri") == Some(&json!(consumer_uri))),
+        "an interface-affecting partial edit must republish importer diagnostics"
+    );
+    assert!(
+        crate::diagnostics_scheduler::read_peer_change_republish_fanout_for_test() >= 1,
+        "an interface-affecting edit must retain conservative style-peer fanout"
+    );
+
+    let _ = fs::remove_dir_all(workspace_path.as_path());
+    Ok(())
+}
+
 #[test]
 fn watched_style_change_fails_open_when_dependency_scope_is_unavailable() {
     let workspace_uri = "file:///workspace-source-republish-fail-open";
