@@ -31,6 +31,7 @@
     "omena-query-core",
     "omena-query-transform-runner",
     "omena-reachability-datalog-lab",
+    "omena-reactive",
     "omena-refinement",
     "omena-refinement-trait",
     "omena-resolver",

@@ -42,12 +42,9 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     let source_documents =
         source_documents_from_open_documents(state, document.workspace_folder_uri.as_deref());
     let external_sifs = state.resolution.external_sifs.as_slice();
-    // RFC-0007-J (#50): pass the workspace's tsconfig/bundler path mappings so the unused-selector
-    // usage collector resolves alias style imports (`@/styles/...`) the same way the reference/goto
-    // path does — otherwise an alias import dims every selector as `unusedSelector`.
+    // Resolve aliases identically across usage collection and navigation.
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
-    // RFC 0009 Pillar C (rfcs#66) stage 2 verifying-trace cache (disk_cache.rs).
     let disk_cache_slot = crate::disk_cache::disk_diagnostics_cache_slot_for_serial_resolve(
         state,
         document.workspace_folder_uri.as_deref(),
@@ -150,8 +147,7 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
             cached == diagnostics,
         );
     }
-    // RFC 0009 Pillar C (rfcs#66): write-behind after the compute, carrying
-    // the read-set declared over the committed summary's edges.
+    // Cache only the full result and its committed cross-file read set.
     crate::disk_cache::store_disk_diagnostics_shard_for_serial_resolve(
         state,
         disk_cache_slot,
