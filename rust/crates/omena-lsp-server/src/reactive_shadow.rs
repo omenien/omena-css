@@ -10,10 +10,11 @@ use omena_reactive::{
 };
 
 const STABILIZATION_RECOMPUTE_LIMIT: usize = 64;
+const MODULE_INTERFACE_MEMO_ENTRY_LIMIT: usize = 2_048;
 const DELIVERY_EFFECT_CHANNEL: &str = "lspDiagnosticsDeliveryDecision";
 pub const REACTIVE_SHADOW_ENV: &str = "OMENA_LSP_REACTIVE_SHADOW";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ReactiveShadowPublishTierV0 {
     Baseline,
     Optimizing,
@@ -95,6 +96,8 @@ struct ReactiveShadowPublishCandidateV0 {
     flush_id: u64,
     uri: String,
     tier: Option<ReactiveShadowPublishTierV0>,
+    digest: Option<String>,
+    terminal_for_revision: bool,
 }
 
 #[derive(Clone)]
@@ -116,6 +119,10 @@ impl ReactiveShadowPublishReceiptV0 {
     pub(crate) fn record_delivery_decision(&self, should_deliver: bool) {
         self.observer
             .record_delivery_decision(&self.candidate, should_deliver);
+    }
+
+    pub(crate) fn record_delivered(&self) {
+        self.observer.record_delivered(&self.candidate);
     }
 }
 
@@ -155,13 +162,16 @@ impl ReactiveShadowObserverV0 {
         uri: &str,
         tier: ReactiveShadowPublishTierV0,
         digest: &str,
+        terminal_for_revision: bool,
     ) -> Option<ReactiveShadowPublishReceiptV0> {
-        self.with_driver(|driver| driver.record_tier_digest(flush_id?, uri, tier, digest))
-            .flatten()
-            .map(|candidate| ReactiveShadowPublishReceiptV0 {
-                observer: self.clone(),
-                candidate,
-            })
+        self.with_driver(|driver| {
+            driver.record_tier_digest(flush_id?, uri, tier, digest, terminal_for_revision)
+        })
+        .flatten()
+        .map(|candidate| ReactiveShadowPublishReceiptV0 {
+            observer: self.clone(),
+            candidate,
+        })
     }
 
     pub(crate) fn record_clear(
@@ -180,11 +190,33 @@ impl ReactiveShadowObserverV0 {
     pub(crate) fn complete_flush(
         &self,
         flush_id: u64,
-        target_uris: BTreeSet<String>,
+        expected_target_uris: BTreeSet<String>,
+        independently_projected_target_uris: BTreeSet<String>,
         final_stamps: ReactiveShadowStampsV0,
     ) {
-        let _ =
-            self.with_driver(|driver| driver.complete_flush(flush_id, target_uris, final_stamps));
+        let _ = self.with_driver(|driver| {
+            driver.complete_flush(
+                flush_id,
+                expected_target_uris,
+                independently_projected_target_uris,
+                final_stamps,
+            );
+        });
+    }
+
+    pub(crate) fn module_interface_changed(
+        &self,
+        uri: &str,
+        projection: Option<omena_query::OmenaQueryModuleInterfaceChangeProjectionV0>,
+    ) -> bool {
+        self.with_driver(|driver| driver.module_interface_changed(uri, projection))
+            .unwrap_or(true)
+    }
+
+    pub(crate) fn forget_module_interface(&self, uri: &str) {
+        let _ = self.with_driver(|driver| {
+            driver.module_interface_projections.remove(uri);
+        });
     }
 
     #[cfg(test)]
@@ -224,6 +256,10 @@ impl ReactiveShadowObserverV0 {
         });
     }
 
+    fn record_delivered(&self, candidate: &ReactiveShadowPublishCandidateV0) {
+        let _ = self.with_driver(|driver| driver.record_delivered(candidate));
+    }
+
     fn with_driver<T>(
         &self,
         operation: impl FnOnce(&mut ReactiveShadowDriverV0) -> T,
@@ -250,6 +286,10 @@ struct ReactiveShadowDriverV0 {
     next_candidate_id: u64,
     baseline_digests: BTreeMap<String, String>,
     optimizing_digests: BTreeMap<String, String>,
+    delivered_by_tier: BTreeMap<(String, ReactiveShadowPublishTierV0), String>,
+    delivered_current_by_uri: BTreeMap<String, String>,
+    module_interface_projections:
+        BTreeMap<String, omena_query::OmenaQueryModuleInterfaceChangeProjectionV0>,
     latest_flush_by_uri: BTreeMap<String, u64>,
     flushes: BTreeMap<u64, ReactiveShadowFlushReportV0>,
     failures: Vec<String>,
@@ -343,6 +383,9 @@ impl ReactiveShadowDriverV0 {
             next_candidate_id: 0,
             baseline_digests: BTreeMap::new(),
             optimizing_digests: BTreeMap::new(),
+            delivered_by_tier: BTreeMap::new(),
+            delivered_current_by_uri: BTreeMap::new(),
+            module_interface_projections: BTreeMap::new(),
             latest_flush_by_uri: BTreeMap::new(),
             flushes: BTreeMap::new(),
             failures: Vec::new(),
@@ -370,6 +413,7 @@ impl ReactiveShadowDriverV0 {
         uri: &str,
         tier: ReactiveShadowPublishTierV0,
         digest: &str,
+        terminal_for_revision: bool,
     ) -> Option<ReactiveShadowPublishCandidateV0> {
         if !self.flushes.contains_key(&flush_id) {
             self.failures
@@ -392,6 +436,8 @@ impl ReactiveShadowDriverV0 {
             flush_id,
             uri: uri.to_string(),
             tier: Some(tier),
+            digest: Some(digest.to_string()),
+            terminal_for_revision,
         };
         if self.active_flush_id != Some(flush_id) {
             self.sync_digest_projection(flush_id);
@@ -417,13 +463,16 @@ impl ReactiveShadowDriverV0 {
             flush_id,
             uri: uri.to_string(),
             tier: None,
+            digest: None,
+            terminal_for_revision: true,
         })
     }
 
     fn complete_flush(
         &mut self,
         flush_id: u64,
-        target_uris: BTreeSet<String>,
+        expected_target_uris: BTreeSet<String>,
+        independently_projected_target_uris: BTreeSet<String>,
         final_stamps: ReactiveShadowStampsV0,
     ) {
         if self.active_flush_id != Some(flush_id) {
@@ -437,7 +486,10 @@ impl ReactiveShadowDriverV0 {
             self.active_flush_id = None;
             return;
         }
-        self.deposit(self.target_set_input, string_set_state(target_uris.clone()));
+        self.deposit(
+            self.target_set_input,
+            string_set_state(independently_projected_target_uris),
+        );
         self.deposit(self.stamp_input, final_stamps.as_state());
         self.deposit(
             self.baseline_digest_input,
@@ -468,11 +520,11 @@ impl ReactiveShadowDriverV0 {
         .into_iter()
         .all(|node| self.engine.is_necessary(node).unwrap_or(false));
 
-        for uri in &target_uris {
+        for uri in &expected_target_uris {
             self.latest_flush_by_uri.insert(uri.clone(), flush_id);
         }
         if let Some(flush) = self.flushes.get_mut(&flush_id) {
-            flush.expected_target_uris = target_uris;
+            flush.expected_target_uris = expected_target_uris;
             flush.projected_target_uris = projected_target_uris;
             flush.expected_stamps = final_stamps;
             flush.projected_stamps = projected_stamps;
@@ -495,11 +547,16 @@ impl ReactiveShadowDriverV0 {
         candidate: &ReactiveShadowPublishCandidateV0,
         should_deliver: bool,
     ) {
-        let decision = ReactiveShadowDeliveryDecisionV0 {
+        let expected_decision = ReactiveShadowDeliveryDecisionV0 {
             candidate_id: candidate.candidate_id,
             uri: candidate.uri.clone(),
             tier: candidate.tier,
             should_deliver,
+        };
+        let projected_should_deliver = self.project_delivery_decision(candidate);
+        let projected_decision = ReactiveShadowDeliveryDecisionV0 {
+            should_deliver: projected_should_deliver,
+            ..expected_decision.clone()
         };
         let Some(flush) = self.flushes.get_mut(&candidate.flush_id) else {
             self.failures.push(format!(
@@ -523,20 +580,20 @@ impl ReactiveShadowDriverV0 {
         {
             flush.stale_live_demand_count = flush.stale_live_demand_count.saturating_add(1);
         }
-        flush.expected_delivery_decisions.push(decision.clone());
+        flush.expected_delivery_decisions.push(expected_decision);
         self.deposit(
             self.delivery_decision_input,
-            delivery_state(candidate.candidate_id, should_deliver),
+            delivery_state(candidate.candidate_id, projected_should_deliver),
         );
         self.settle();
         let receipts = self.engine.drain_effect_receipts();
         let observed = receipts.iter().any(|receipt| {
             receipt.channel == DELIVERY_EFFECT_CHANNEL
-                && receipt.state == delivery_state(candidate.candidate_id, should_deliver)
+                && receipt.state == delivery_state(candidate.candidate_id, projected_should_deliver)
         });
         if observed {
             if let Some(flush) = self.flushes.get_mut(&candidate.flush_id) {
-                flush.projected_delivery_decisions.push(decision);
+                flush.projected_delivery_decisions.push(projected_decision);
                 flush.settled_without_pending_work = !self.engine.has_pending_work();
             }
         } else {
@@ -545,6 +602,66 @@ impl ReactiveShadowDriverV0 {
                 candidate.candidate_id
             ));
         }
+    }
+
+    fn project_delivery_decision(&self, candidate: &ReactiveShadowPublishCandidateV0) -> bool {
+        let (Some(tier), Some(digest)) = (candidate.tier, candidate.digest.as_ref()) else {
+            return true;
+        };
+        if self.delivered_by_tier.get(&(candidate.uri.clone(), tier)) != Some(digest) {
+            return true;
+        }
+        candidate.terminal_for_revision
+            && self.delivered_current_by_uri.get(candidate.uri.as_str()) != Some(digest)
+    }
+
+    fn record_delivered(&mut self, candidate: &ReactiveShadowPublishCandidateV0) {
+        match (candidate.tier, candidate.digest.as_ref()) {
+            (Some(tier), Some(digest)) => {
+                self.delivered_by_tier
+                    .insert((candidate.uri.clone(), tier), digest.clone());
+                self.delivered_current_by_uri
+                    .insert(candidate.uri.clone(), digest.clone());
+            }
+            _ => {
+                self.delivered_by_tier
+                    .retain(|(uri, _), _| uri != candidate.uri.as_str());
+                self.delivered_current_by_uri.remove(candidate.uri.as_str());
+            }
+        }
+    }
+
+    fn module_interface_changed(
+        &mut self,
+        uri: &str,
+        projection: Option<omena_query::OmenaQueryModuleInterfaceChangeProjectionV0>,
+    ) -> bool {
+        let Some(projection) = projection else {
+            return true;
+        };
+        if self
+            .module_interface_projections
+            .get(uri)
+            .is_some_and(|previous| *previous == projection)
+        {
+            return false;
+        }
+        self.module_interface_projections
+            .insert(uri.to_string(), projection);
+        while self.module_interface_projections.len() > MODULE_INTERFACE_MEMO_ENTRY_LIMIT {
+            let evicted_uri = self
+                .module_interface_projections
+                .keys()
+                .find(|candidate| candidate.as_str() != uri)
+                .cloned()
+                .or_else(|| self.module_interface_projections.keys().next().cloned());
+            let Some(evicted_uri) = evicted_uri else {
+                break;
+            };
+            self.module_interface_projections
+                .remove(evicted_uri.as_str());
+        }
+        true
     }
 
     fn sync_digest_projection(&mut self, flush_id: u64) {

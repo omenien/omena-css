@@ -15,12 +15,24 @@ use omena_query::{
     OmenaQueryStyleSourceInputV0,
 };
 use serde_json::Value;
+#[cfg(test)]
+use std::cell::Cell;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
 };
 
 pub const OPTIMIZING_DIAGNOSTICS_DELAY_MS: u64 = 200;
+
+#[cfg(test)]
+thread_local! {
+    static REACTIVE_SHADOW_DELIVERY_PERTURBATION: Cell<bool> = const { Cell::new(false) };
+}
+
+#[cfg(test)]
+pub(crate) fn set_reactive_shadow_delivery_perturbation_for_test(enabled: bool) {
+    REACTIVE_SHADOW_DELIVERY_PERTURBATION.with(|cell| cell.set(enabled));
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DiagnosticsPublishTierV0 {
@@ -106,6 +118,7 @@ impl DiagnosticsPublishDigestRegistryV0 {
                     DiagnosticsPublishTierV0::Optimizing => ReactiveShadowPublishTierV0::Optimizing,
                 },
                 digest.as_str(),
+                terminal_for_revision,
             )
         });
         Some(DiagnosticsPublishReceiptV0 {
@@ -151,11 +164,33 @@ impl DiagnosticsPublishDigestRegistryV0 {
     pub(crate) fn complete_reactive_shadow_flush(
         &self,
         flush_id: Option<u64>,
-        target_uris: BTreeSet<String>,
+        expected_target_uris: BTreeSet<String>,
+        independently_projected_target_uris: BTreeSet<String>,
         final_stamps: ReactiveShadowStampsV0,
     ) {
         if let (Some(observer), Some(flush_id)) = (&self.reactive_shadow, flush_id) {
-            observer.complete_flush(flush_id, target_uris, final_stamps);
+            observer.complete_flush(
+                flush_id,
+                expected_target_uris,
+                independently_projected_target_uris,
+                final_stamps,
+            );
+        }
+    }
+
+    pub(crate) fn reactive_shadow_module_interface_changed(
+        &self,
+        uri: &str,
+        projection: Option<omena_query::OmenaQueryModuleInterfaceChangeProjectionV0>,
+    ) -> Option<bool> {
+        self.reactive_shadow
+            .as_ref()
+            .map(|observer| observer.module_interface_changed(uri, projection))
+    }
+
+    pub(crate) fn forget_reactive_shadow_module_interface(&self, uri: &str) {
+        if let Some(observer) = &self.reactive_shadow {
+            observer.forget_module_interface(uri);
         }
     }
 
@@ -208,7 +243,9 @@ impl DiagnosticsPublishReceiptV0 {
             DiagnosticsPublishReceiptActionV0::ClearDocument { .. } => true,
         };
         if let Some(receipt) = &self.reactive_shadow_receipt {
-            receipt.record_delivery_decision(should_deliver);
+            let observed_should_deliver =
+                reactive_shadow_observed_delivery_decision(should_deliver);
+            receipt.record_delivery_decision(observed_should_deliver);
         }
         should_deliver
     }
@@ -235,6 +272,25 @@ impl DiagnosticsPublishReceiptV0 {
                 delivered.current_by_uri.remove(uri);
             }
         }
+        drop(delivered);
+        if let Some(receipt) = &self.reactive_shadow_receipt {
+            receipt.record_delivered();
+        }
+    }
+}
+
+fn reactive_shadow_observed_delivery_decision(should_deliver: bool) -> bool {
+    #[cfg(test)]
+    {
+        if REACTIVE_SHADOW_DELIVERY_PERTURBATION.with(|cell| cell.get()) {
+            !should_deliver
+        } else {
+            should_deliver
+        }
+    }
+    #[cfg(not(test))]
+    {
+        should_deliver
     }
 }
 

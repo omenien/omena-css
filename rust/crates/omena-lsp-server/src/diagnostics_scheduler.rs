@@ -32,6 +32,7 @@ const STYLE_MODULE_INTERFACE_MEMO_ENTRY_LIMIT: usize = 2_048;
 thread_local! {
     static SOURCE_CHANGE_REPUBLISH_FANOUT: Cell<u64> = const { Cell::new(0) };
     static PEER_CHANGE_REPUBLISH_FANOUT: Cell<u64> = const { Cell::new(0) };
+    static REACTIVE_SHADOW_TARGET_PERTURBATION: Cell<bool> = const { Cell::new(false) };
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -66,6 +67,11 @@ pub(crate) fn reset_peer_change_republish_fanout_for_test() {
 #[allow(dead_code)]
 pub(crate) fn read_peer_change_republish_fanout_for_test() -> u64 {
     PEER_CHANGE_REPUBLISH_FANOUT.with(Cell::get)
+}
+
+#[cfg(test)]
+pub(crate) fn set_reactive_shadow_target_perturbation_for_test(enabled: bool) {
+    REACTIVE_SHADOW_TARGET_PERTURBATION.with(|cell| cell.set(enabled));
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -215,6 +221,9 @@ fn run_diagnostics_schedule_effects_with_deferral(
     let reactive_shadow_flush_id = state
         .diagnostics_publish_digest_registry
         .begin_reactive_shadow_flush(reactive_shadow_stamps(state));
+    let independently_projected_target_uris = reactive_shadow_flush_id
+        .map(|_| independently_project_reactive_shadow_targets(state, &event))
+        .unwrap_or_default();
     let effects = match event {
         DiagnosticsScheduleEvent::TextDocument {
             uri,
@@ -240,9 +249,75 @@ fn run_diagnostics_schedule_effects_with_deferral(
         .complete_reactive_shadow_flush(
             reactive_shadow_flush_id,
             target_uris,
+            independently_projected_target_uris,
             reactive_shadow_stamps(state),
         );
     effects
+}
+
+fn independently_project_reactive_shadow_targets(
+    state: &LspShellState,
+    event: &DiagnosticsScheduleEvent,
+) -> BTreeSet<String> {
+    match event {
+        DiagnosticsScheduleEvent::TextDocument {
+            uri,
+            is_close: _,
+            content_changed,
+        } => {
+            let mut target_uris = BTreeSet::from([uri.clone()]);
+            if !is_style_document_uri(uri.as_str()) || !content_changed {
+                return target_uris;
+            }
+            let projection = state.document(uri.as_str()).map(|document| {
+                omena_query::summarize_omena_query_module_interface_change_projection(
+                    uri.as_str(),
+                    document.text.as_str(),
+                )
+            });
+            let module_interface_changed = state
+                .diagnostics_publish_digest_registry
+                .reactive_shadow_module_interface_changed(uri.as_str(), projection)
+                .unwrap_or(true);
+            target_uris.extend(source_uris_for_text_style_change_projection(
+                state,
+                uri.as_str(),
+                module_interface_changed,
+            ));
+            if module_interface_changed {
+                target_uris.extend(style_uris_for_style_peer_change_diagnostics(
+                    state,
+                    uri.as_str(),
+                ));
+            }
+            target_uris
+        }
+        DiagnosticsScheduleEvent::WatchedFiles { uris } => {
+            let mut target_uris = BTreeSet::new();
+            for uri in uris {
+                if is_style_document_uri(uri.as_str()) {
+                    target_uris.insert(uri.clone());
+                    target_uris
+                        .extend(source_uris_for_style_change_projection(state, uri.as_str()));
+                    target_uris.extend(style_uris_for_style_peer_change_diagnostics(
+                        state,
+                        uri.as_str(),
+                    ));
+                } else if is_resolution_config_document_uri(uri.as_str()) {
+                    target_uris.extend(document_uris_for_resolution_config_change_diagnostics(
+                        state,
+                        uri.as_str(),
+                    ));
+                }
+            }
+            target_uris
+        }
+        DiagnosticsScheduleEvent::ConfigurationChanged | DiagnosticsScheduleEvent::Initialized => {
+            open_document_uris_for_diagnostics(state)
+                .into_iter()
+                .collect()
+        }
+    }
 }
 
 fn reactive_shadow_stamps(state: &LspShellState) -> ReactiveShadowStampsV0 {
@@ -259,7 +334,7 @@ fn reactive_shadow_stamps(state: &LspShellState) -> ReactiveShadowStampsV0 {
 }
 
 fn reactive_shadow_target_uris(effects: &DiagnosticsScheduleEffectsV0) -> BTreeSet<String> {
-    effects
+    let target_uris = effects
         .outputs
         .iter()
         .filter(|output| {
@@ -279,7 +354,19 @@ fn reactive_shadow_target_uris(effects: &DiagnosticsScheduleEffectsV0) -> BTreeS
                 .iter()
                 .map(|dispatch| dispatch.uri.clone()),
         )
-        .collect()
+        .collect::<BTreeSet<_>>();
+    #[cfg(test)]
+    {
+        let mut target_uris = target_uris;
+        REACTIVE_SHADOW_TARGET_PERTURBATION.with(|cell| {
+            if cell.get() {
+                target_uris.insert("file:///workspace/Unplanned.module.scss".to_string());
+            }
+        });
+        target_uris
+    }
+    #[cfg(not(test))]
+    target_uris
 }
 
 fn diagnostics_for_text_document_event(
@@ -557,7 +644,18 @@ fn source_uris_for_text_style_change_diagnostics(
     style_uri: &str,
     module_interface_changed: bool,
 ) -> Vec<String> {
-    let source_uris = if module_interface_changed {
+    let source_uris =
+        source_uris_for_text_style_change_projection(state, style_uri, module_interface_changed);
+    record_source_change_republish_fanout_for_test(source_uris.len());
+    source_uris
+}
+
+fn source_uris_for_text_style_change_projection(
+    state: &LspShellState,
+    style_uri: &str,
+    module_interface_changed: bool,
+) -> Vec<String> {
+    if module_interface_changed {
         let broad_source_uris = state
             .documents
             .values()
@@ -576,9 +674,7 @@ fn source_uris_for_text_style_change_diagnostics(
         scoped_source_republish_uris_for_style_change(state, style_uri, broad_source_uris)
     } else {
         Vec::new()
-    };
-    record_source_change_republish_fanout_for_test(source_uris.len());
-    source_uris
+    }
 }
 
 /// Compare the style document's CURRENT module-interface projection against
@@ -632,6 +728,12 @@ fn insert_style_module_interface_projection(
 }
 
 fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &str) -> Vec<String> {
+    let source_uris = source_uris_for_style_change_projection(state, style_uri);
+    record_source_change_republish_fanout_for_test(source_uris.len());
+    source_uris
+}
+
+fn source_uris_for_style_change_projection(state: &LspShellState, style_uri: &str) -> Vec<String> {
     let workspace_folder_uri = state
         .document(style_uri)
         .and_then(|document| document.workspace_folder_uri.clone())
@@ -648,9 +750,7 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
         })
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
-    let source_uris = scoped_source_republish_uris_for_style_change(state, style_uri, source_uris);
-    record_source_change_republish_fanout_for_test(source_uris.len());
-    source_uris
+    scoped_source_republish_uris_for_style_change(state, style_uri, source_uris)
 }
 
 /// Keep a source document iff it can DEPEND on the changed style module:

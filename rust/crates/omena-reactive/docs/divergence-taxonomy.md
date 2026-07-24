@@ -31,4 +31,6 @@ before flush, may not cause an external effect, and must converge at flush.
 Tide remains the sole scheduling and publishing authority. The reactive graph
 only records observations and receipts. Any future authority handoff is a
 separately gated change that must re-establish the 19 Tide tests without edits,
-prove flush-time cone closure, and accept the measured zero-interface overhead.
+prove flush-time cone closure, and measure both interface-changing and
+interface-preserving edits on a pinned product corpus. The synthetic engine-step
+envelope is a bounded-work smoke test, not product-path performance evidence.

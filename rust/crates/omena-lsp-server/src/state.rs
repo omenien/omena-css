@@ -776,6 +776,10 @@ impl LspShellState {
         let memo = self.style_module_interface_memo.get_mut();
         memo.remove(uri);
         memo.remove(document.uri.as_str());
+        self.diagnostics_publish_digest_registry
+            .forget_reactive_shadow_module_interface(uri);
+        self.diagnostics_publish_digest_registry
+            .forget_reactive_shadow_module_interface(document.uri.as_str());
         Some(document)
     }
 

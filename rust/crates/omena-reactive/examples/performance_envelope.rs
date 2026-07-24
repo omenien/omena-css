@@ -58,12 +58,12 @@ fn graph() -> Result<(ReactiveEngineV0, Vec<ReactiveNodeIdV0>), Box<dyn Error>> 
     Ok((engine, inputs))
 }
 
-fn measure(interface_active: bool) -> Result<Vec<Duration>, Box<dyn Error>> {
+fn measure(changes_input: bool) -> Result<Vec<Duration>, Box<dyn Error>> {
     let (mut engine, inputs) = graph()?;
     let mut samples = Vec::with_capacity(EVENT_COUNT);
     for event in 0..EVENT_COUNT {
         let index = event % INPUT_COUNT;
-        let value = if interface_active {
+        let value = if changes_input {
             (index + event + 1) as u64
         } else {
             index as u64
@@ -96,37 +96,37 @@ fn milliseconds(duration: Duration) -> f64 {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let interface_active = measure(true)?;
-    let zero_interface = measure(false)?;
-    let active_p95 = percentile(&interface_active, 95);
-    let active_max = maximum(&interface_active);
-    let zero_p95 = percentile(&zero_interface, 95);
-    let zero_max = maximum(&zero_interface);
+    let changed_input = measure(true)?;
+    let unchanged_input = measure(false)?;
+    let changed_p95 = percentile(&changed_input, 95);
+    let changed_max = maximum(&changed_input);
+    let unchanged_p95 = percentile(&unchanged_input, 95);
+    let unchanged_max = maximum(&unchanged_input);
 
     println!(
         concat!(
-            "{{\"schemaVersion\":\"omena.reactive-performance-envelope.v0\",",
+            "{{\"schemaVersion\":\"omena.reactive-engine-step-envelope.v0\",",
             "\"inputCount\":{},\"eventCount\":{},",
             "\"p95CeilingMs\":{:.3},\"maxCeilingMs\":{:.3},",
-            "\"interfaceActive\":{{\"p95Ms\":{:.3},\"maxMs\":{:.3}}},",
-            "\"zeroInterface\":{{\"p95Ms\":{:.3},\"maxMs\":{:.3}}}}}"
+            "\"changedInput\":{{\"p95Ms\":{:.3},\"maxMs\":{:.3}}},",
+            "\"unchangedInput\":{{\"p95Ms\":{:.3},\"maxMs\":{:.3}}}}}"
         ),
         INPUT_COUNT,
         EVENT_COUNT,
         milliseconds(P95_CEILING),
         milliseconds(MAX_CEILING),
-        milliseconds(active_p95),
-        milliseconds(active_max),
-        milliseconds(zero_p95),
-        milliseconds(zero_max),
+        milliseconds(changed_p95),
+        milliseconds(changed_max),
+        milliseconds(unchanged_p95),
+        milliseconds(unchanged_max),
     );
 
-    if active_p95 > P95_CEILING
-        || active_max > MAX_CEILING
-        || zero_p95 > P95_CEILING
-        || zero_max > MAX_CEILING
+    if changed_p95 > P95_CEILING
+        || changed_max > MAX_CEILING
+        || unchanged_p95 > P95_CEILING
+        || unchanged_max > MAX_CEILING
     {
-        return Err("reactive stabilization exceeded the per-push latency envelope".into());
+        return Err("reactive engine stepping exceeded its latency envelope".into());
     }
     Ok(())
 }

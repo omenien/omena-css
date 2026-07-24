@@ -3,8 +3,12 @@ use std::collections::BTreeSet;
 use omena_reactive::{ReactiveDivergenceDispositionV0, ReactiveObservationPhaseV0};
 use serde_json::{Value, json};
 
+#[cfg(feature = "salsa-style-diagnostics")]
+use crate::LspLoopTurnV0;
 use crate::{
-    LspLoopTurnV0, LspShellState, ScheduledLspOutput,
+    LspShellState, ScheduledLspOutput,
+    diagnostics_scheduler::set_reactive_shadow_target_perturbation_for_test,
+    lsp_output::set_reactive_shadow_delivery_perturbation_for_test,
     reactive_shadow::{
         ReactiveShadowFlushReportV0, ReactiveShadowObserverV0, ReactiveShadowPublishTierV0,
         ReactiveShadowStampsV0,
@@ -37,14 +41,12 @@ fn four_projection_arena_settles_without_external_effects() -> Result<(), Box<dy
         "file:///workspace/App.module.scss",
         ReactiveShadowPublishTierV0::Baseline,
         "blake3:baseline",
+        false,
     ) else {
         return Err(std::io::Error::other("observer did not issue a receipt").into());
     };
-    observer.complete_flush(
-        flush_id,
-        BTreeSet::from(["file:///workspace/App.module.scss".to_string()]),
-        stamps,
-    );
+    let target_uris = BTreeSet::from(["file:///workspace/App.module.scss".to_string()]);
+    observer.complete_flush(flush_id, target_uris.clone(), target_uris, stamps);
     receipt.record_delivery_decision(true);
 
     let reports = observer.reports();
@@ -69,6 +71,65 @@ fn four_projection_arena_settles_without_external_effects() -> Result<(), Box<dy
     assert!(report.settled_without_pending_work);
     assert!(report.observer_liveness_grounded);
     assert!(observer.failures().is_empty());
+    Ok(())
+}
+
+#[test]
+fn delivery_projection_rejects_an_inverted_writer_decision()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut state = LspShellState::default();
+    state
+        .enable_reactive_shadow_observer()
+        .map_err(std::io::Error::other)?;
+    set_reactive_shadow_delivery_perturbation_for_test(true);
+    let _ = run_message_stream(
+        &mut state,
+        &[open_message(
+            "file:///workspace/App.module.scss",
+            1,
+            ".root { color: red; }",
+        )],
+    );
+    set_reactive_shadow_delivery_perturbation_for_test(false);
+
+    let reports = state
+        .diagnostics_publish_digest_registry
+        .reactive_shadow_reports_for_test()
+        .unwrap_or_default();
+    let parity = evaluate_reactive_shadow_parity(reports.as_slice());
+    assert_eq!(
+        parity.unclassified_divergences,
+        vec![ReactiveShadowParityDimensionV0::DeliveryDecision]
+    );
+    Ok(())
+}
+
+#[test]
+fn target_projection_rejects_an_unplanned_reported_uri() -> Result<(), Box<dyn std::error::Error>> {
+    let mut state = LspShellState::default();
+    state
+        .enable_reactive_shadow_observer()
+        .map_err(std::io::Error::other)?;
+    set_reactive_shadow_target_perturbation_for_test(true);
+    let _ = run_message_stream(
+        &mut state,
+        &[open_message(
+            "file:///workspace/App.module.scss",
+            1,
+            ".root { color: red; }",
+        )],
+    );
+    set_reactive_shadow_target_perturbation_for_test(false);
+
+    let reports = state
+        .diagnostics_publish_digest_registry
+        .reactive_shadow_reports_for_test()
+        .unwrap_or_default();
+    let parity = evaluate_reactive_shadow_parity(reports.as_slice());
+    assert_eq!(
+        parity.unclassified_divergences,
+        vec![ReactiveShadowParityDimensionV0::TargetSet]
+    );
     Ok(())
 }
 
@@ -150,6 +211,62 @@ fn observer_enabled_and_disabled_paths_emit_identical_lsp_values()
             .diagnostics_publish_digest_registry
             .reactive_shadow_failures_for_test(),
         Some(Vec::new())
+    );
+    Ok(())
+}
+
+#[test]
+fn interface_projection_distinguishes_fanout_from_body_only_edits()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut state = LspShellState::default();
+    state
+        .enable_reactive_shadow_observer()
+        .map_err(std::io::Error::other)?;
+    let style_uri = "file:///workspace/Theme.module.scss";
+    let source_uri = "file:///workspace/App.tsx";
+
+    let _ = run_message_stream(
+        &mut state,
+        &[
+            open_message(style_uri, 1, ".token { color: red; }"),
+            open_message_with_language(
+                source_uri,
+                "typescriptreact",
+                1,
+                "import styles from './Theme.module.scss';\nexport const App = () => <div className={styles.token} />;",
+            ),
+            change_message(style_uri, 2, ".renamed { color: red; }"),
+            change_message(style_uri, 3, ".renamed { color: blue; }"),
+        ],
+    );
+
+    let Some(reports) = state
+        .diagnostics_publish_digest_registry
+        .reactive_shadow_reports_for_test()
+    else {
+        return Err(std::io::Error::other("missing observer reports").into());
+    };
+    let Some(interface_change) = reports.get(2) else {
+        return Err(std::io::Error::other("missing interface-change report").into());
+    };
+    let Some(body_change) = reports.get(3) else {
+        return Err(std::io::Error::other("missing body-change report").into());
+    };
+    assert_eq!(
+        interface_change.expected_target_uris,
+        BTreeSet::from([source_uri.to_string(), style_uri.to_string()])
+    );
+    assert_eq!(
+        interface_change.projected_target_uris,
+        interface_change.expected_target_uris
+    );
+    assert_eq!(
+        body_change.expected_target_uris,
+        BTreeSet::from([style_uri.to_string()])
+    );
+    assert_eq!(
+        body_change.projected_target_uris,
+        body_change.expected_target_uris
     );
     Ok(())
 }
@@ -432,11 +549,8 @@ fn proposed_authority_reduction_rejects_stale_live_demand() -> Result<(), Box<dy
     let Some(next_flush) = stale_observer.begin_flush(next_stamps) else {
         return Err(std::io::Error::other("observer did not begin replacement flush").into());
     };
-    stale_observer.complete_flush(
-        next_flush,
-        BTreeSet::from(["file:///fixture.scss".to_string()]),
-        next_stamps,
-    );
+    let target_uris = BTreeSet::from(["file:///fixture.scss".to_string()]);
+    stale_observer.complete_flush(next_flush, target_uris.clone(), target_uris, next_stamps);
     stale_receipt.record_delivery_decision(true);
     let stale_reports = stale_observer.reports();
     let Some(stale_report) = stale_reports
@@ -493,14 +607,12 @@ fn observer_flush_with_final_stamps(
         "file:///fixture.scss",
         ReactiveShadowPublishTierV0::Baseline,
         "digest",
+        false,
     ) else {
         return Err(std::io::Error::other("observer did not issue fixture receipt").into());
     };
-    observer.complete_flush(
-        flush_id,
-        BTreeSet::from(["file:///fixture.scss".to_string()]),
-        final_stamps,
-    );
+    let target_uris = BTreeSet::from(["file:///fixture.scss".to_string()]);
+    observer.complete_flush(flush_id, target_uris.clone(), target_uris, final_stamps);
     Ok((observer, flush_id, receipt))
 }
 
@@ -546,13 +658,17 @@ fn run_message_stream(state: &mut LspShellState, messages: &[Value]) -> Vec<Valu
 }
 
 fn open_message(uri: &str, version: i64, text: &str) -> Value {
+    open_message_with_language(uri, "scss", version, text)
+}
+
+fn open_message_with_language(uri: &str, language_id: &str, version: i64, text: &str) -> Value {
     json!({
         "jsonrpc": "2.0",
         "method": "textDocument/didOpen",
         "params": {
             "textDocument": {
                 "uri": uri,
-                "languageId": "scss",
+                "languageId": language_id,
                 "version": version,
                 "text": text,
             },
