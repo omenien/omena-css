@@ -2570,7 +2570,7 @@ const view = button({ intent: "ghost" });
 
         impl Write for FailingWriter {
             fn write(&mut self, _buffer: &[u8]) -> io::Result<usize> {
-                Err(io::Error::other("injected write failure"))
+                Err(io::Error::from(io::ErrorKind::BrokenPipe))
             }
 
             fn flush(&mut self) -> io::Result<()> {

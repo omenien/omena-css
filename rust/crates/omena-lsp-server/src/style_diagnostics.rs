@@ -3,7 +3,6 @@ use crate::style_diagnostics_snapshot::{
     LspStyleDiagnosticsRenderInputsV0, attach_workspace_snapshot_id_to_diagnostics,
     current_style_workspace_snapshot_id,
 };
-
 pub(crate) fn resolve_style_diagnostics(state: &LspShellState, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     resolve_style_diagnostics_for_uri(state, document_uri.as_str())
