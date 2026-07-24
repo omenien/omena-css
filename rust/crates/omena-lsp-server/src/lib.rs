@@ -27,6 +27,10 @@ mod provider_tier_feedback;
 mod query_adapter;
 mod query_reuse;
 mod reactive_shadow;
+#[cfg(test)]
+mod reactive_shadow_contract;
+#[cfg(test)]
+mod reactive_shadow_tests;
 mod sdk_workflow;
 mod settings;
 mod source_completion;

@@ -237,7 +237,11 @@ fn run_diagnostics_schedule_effects_with_deferral(
     let target_uris = reactive_shadow_target_uris(&effects);
     state
         .diagnostics_publish_digest_registry
-        .complete_reactive_shadow_flush(reactive_shadow_flush_id, target_uris);
+        .complete_reactive_shadow_flush(
+            reactive_shadow_flush_id,
+            target_uris,
+            reactive_shadow_stamps(state),
+        );
     effects
 }
 

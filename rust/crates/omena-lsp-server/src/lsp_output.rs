@@ -1,4 +1,4 @@
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(test)]
 use crate::reactive_shadow::ReactiveShadowFlushReportV0;
 use crate::{
     LspQuerySnapshotV0, LspStyleHoverCandidate,
@@ -152,9 +152,10 @@ impl DiagnosticsPublishDigestRegistryV0 {
         &self,
         flush_id: Option<u64>,
         target_uris: BTreeSet<String>,
+        final_stamps: ReactiveShadowStampsV0,
     ) {
         if let (Some(observer), Some(flush_id)) = (&self.reactive_shadow, flush_id) {
-            observer.complete_flush(flush_id, target_uris);
+            observer.complete_flush(flush_id, target_uris, final_stamps);
         }
     }
 
@@ -163,7 +164,7 @@ impl DiagnosticsPublishDigestRegistryV0 {
         Ok(())
     }
 
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(test)]
     pub(crate) fn reactive_shadow_reports_for_test(
         &self,
     ) -> Option<Vec<ReactiveShadowFlushReportV0>> {
@@ -172,7 +173,7 @@ impl DiagnosticsPublishDigestRegistryV0 {
             .map(ReactiveShadowObserverV0::reports)
     }
 
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(test)]
     pub(crate) fn reactive_shadow_failures_for_test(&self) -> Option<Vec<String>> {
         self.reactive_shadow
             .as_ref()

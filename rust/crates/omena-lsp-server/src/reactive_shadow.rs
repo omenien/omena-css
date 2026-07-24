@@ -59,10 +59,14 @@ pub(crate) struct ReactiveShadowFlushReportV0 {
     pub(crate) projected_delivery_decisions: Vec<ReactiveShadowDeliveryDecisionV0>,
     pub(crate) delta_fold_matches_full_rebuild: bool,
     pub(crate) settled_without_pending_work: bool,
+    pub(crate) corpus_revision_reads: Vec<u64>,
+    pub(crate) snapshot_read_side_effect_count: u64,
+    pub(crate) stale_live_demand_count: u64,
+    pub(crate) observer_liveness_grounded: bool,
 }
 
 impl ReactiveShadowFlushReportV0 {
-    fn new(flush_id: u64, stamps: ReactiveShadowStampsV0) -> Self {
+    pub(crate) fn new(flush_id: u64, stamps: ReactiveShadowStampsV0) -> Self {
         Self {
             flush_id,
             expected_target_uris: BTreeSet::new(),
@@ -77,6 +81,10 @@ impl ReactiveShadowFlushReportV0 {
             projected_delivery_decisions: Vec::new(),
             delta_fold_matches_full_rebuild: false,
             settled_without_pending_work: false,
+            corpus_revision_reads: vec![stamps.corpus_revision],
+            snapshot_read_side_effect_count: 0,
+            stale_live_demand_count: 0,
+            observer_liveness_grounded: false,
         }
     }
 }
@@ -169,20 +177,41 @@ impl ReactiveShadowObserverV0 {
             })
     }
 
-    pub(crate) fn complete_flush(&self, flush_id: u64, target_uris: BTreeSet<String>) {
-        let _ = self.with_driver(|driver| driver.complete_flush(flush_id, target_uris));
+    pub(crate) fn complete_flush(
+        &self,
+        flush_id: u64,
+        target_uris: BTreeSet<String>,
+        final_stamps: ReactiveShadowStampsV0,
+    ) {
+        let _ =
+            self.with_driver(|driver| driver.complete_flush(flush_id, target_uris, final_stamps));
     }
 
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(test)]
     pub(crate) fn reports(&self) -> Vec<ReactiveShadowFlushReportV0> {
         self.with_driver(|driver| driver.flushes.values().cloned().collect())
             .unwrap_or_default()
     }
 
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(test)]
     pub(crate) fn failures(&self) -> Vec<String> {
         self.with_driver(|driver| driver.failures.clone())
             .unwrap_or_else(|| vec!["reactive shadow observer lock was poisoned".to_string()])
+    }
+
+    #[cfg(test)]
+    pub(crate) fn inject_snapshot_read_side_effect_for_test(&self, flush_id: u64) {
+        let _ = self.with_driver(|driver| {
+            let snapshot_state = driver.engine.state(driver.stamp_input).cloned().ok();
+            if let Some(snapshot_state) = snapshot_state {
+                driver.deposit(driver.stamp_input, snapshot_state);
+                driver.settle();
+                if let Some(flush) = driver.flushes.get_mut(&flush_id) {
+                    flush.snapshot_read_side_effect_count =
+                        flush.snapshot_read_side_effect_count.saturating_add(1);
+                }
+            }
+        });
     }
 
     fn record_delivery_decision(
@@ -215,11 +244,13 @@ struct ReactiveShadowDriverV0 {
     optimizing_digest_projection: ReactiveNodeIdV0,
     digest_fold: ReactiveNodeIdV0,
     delivery_decision_input: ReactiveNodeIdV0,
+    delivery_effect: ReactiveNodeIdV0,
     active_flush_id: Option<u64>,
     next_flush_id: u64,
     next_candidate_id: u64,
     baseline_digests: BTreeMap<String, String>,
     optimizing_digests: BTreeMap<String, String>,
+    latest_flush_by_uri: BTreeMap<String, u64>,
     flushes: BTreeMap<u64, ReactiveShadowFlushReportV0>,
     failures: Vec<String>,
 }
@@ -306,11 +337,13 @@ impl ReactiveShadowDriverV0 {
             optimizing_digest_projection,
             digest_fold,
             delivery_decision_input,
+            delivery_effect,
             active_flush_id: None,
             next_flush_id: 0,
             next_candidate_id: 0,
             baseline_digests: BTreeMap::new(),
             optimizing_digests: BTreeMap::new(),
+            latest_flush_by_uri: BTreeMap::new(),
             flushes: BTreeMap::new(),
             failures: Vec::new(),
         })
@@ -387,24 +420,25 @@ impl ReactiveShadowDriverV0 {
         })
     }
 
-    fn complete_flush(&mut self, flush_id: u64, target_uris: BTreeSet<String>) {
+    fn complete_flush(
+        &mut self,
+        flush_id: u64,
+        target_uris: BTreeSet<String>,
+        final_stamps: ReactiveShadowStampsV0,
+    ) {
         if self.active_flush_id != Some(flush_id) {
             self.failures
                 .push(format!("flush {flush_id} completed out of order"));
             return;
         }
-        let Some(expected_stamps) = self
-            .flushes
-            .get(&flush_id)
-            .map(|flush| flush.expected_stamps)
-        else {
+        if !self.flushes.contains_key(&flush_id) {
             self.failures
                 .push(format!("flush {flush_id} completed without a record"));
             self.active_flush_id = None;
             return;
-        };
+        }
         self.deposit(self.target_set_input, string_set_state(target_uris.clone()));
-        self.deposit(self.stamp_input, expected_stamps.as_state());
+        self.deposit(self.stamp_input, final_stamps.as_state());
         self.deposit(
             self.baseline_digest_input,
             text_map_state(self.baseline_digests.clone()),
@@ -425,10 +459,22 @@ impl ReactiveShadowDriverV0 {
         let delta_fold_matches_full_rebuild =
             self.engine.verify_delta_fold(self.digest_fold).is_ok();
         let settled_without_pending_work = !self.engine.has_pending_work();
+        let observer_liveness_grounded = [
+            self.target_set_projection,
+            self.stamp_input,
+            self.digest_fold,
+            self.delivery_effect,
+        ]
+        .into_iter()
+        .all(|node| self.engine.is_necessary(node).unwrap_or(false));
 
+        for uri in &target_uris {
+            self.latest_flush_by_uri.insert(uri.clone(), flush_id);
+        }
         if let Some(flush) = self.flushes.get_mut(&flush_id) {
             flush.expected_target_uris = target_uris;
             flush.projected_target_uris = projected_target_uris;
+            flush.expected_stamps = final_stamps;
             flush.projected_stamps = projected_stamps;
             flush.expected_baseline_digests = self.baseline_digests.clone();
             flush.projected_baseline_digests = projected_baseline_digests;
@@ -436,6 +482,10 @@ impl ReactiveShadowDriverV0 {
             flush.projected_optimizing_digests = projected_optimizing_digests;
             flush.delta_fold_matches_full_rebuild = delta_fold_matches_full_rebuild;
             flush.settled_without_pending_work = settled_without_pending_work;
+            flush
+                .corpus_revision_reads
+                .push(final_stamps.corpus_revision);
+            flush.observer_liveness_grounded = observer_liveness_grounded;
         }
         self.active_flush_id = None;
     }
@@ -464,6 +514,14 @@ impl ReactiveShadowDriverV0 {
             .any(|existing| existing.candidate_id == candidate.candidate_id)
         {
             return;
+        }
+        if self
+            .latest_flush_by_uri
+            .get(candidate.uri.as_str())
+            .is_some_and(|latest_flush_id| *latest_flush_id != candidate.flush_id)
+            && should_deliver
+        {
+            flush.stale_live_demand_count = flush.stale_live_demand_count.saturating_add(1);
         }
         flush.expected_delivery_decisions.push(decision.clone());
         self.deposit(
@@ -594,234 +652,4 @@ fn stamps_from_state(state: Option<&ReactiveStateV0>) -> Option<ReactiveShadowSt
         style_snapshot_revision: *style_snapshot_revision,
         demand_generation: *demand_generation,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::{Value, json};
-
-    #[test]
-    fn four_projection_arena_settles_without_external_effects()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let observer = ReactiveShadowObserverV0::new().map_err(std::io::Error::other)?;
-        let stamps = ReactiveShadowStampsV0 {
-            corpus_revision: 7,
-            style_snapshot_revision: 11,
-            demand_generation: 3,
-        };
-        let Some(flush_id) = observer.begin_flush(stamps) else {
-            return Err(std::io::Error::other("observer did not begin a flush").into());
-        };
-        let Some(receipt) = observer.record_tier_digest(
-            Some(flush_id),
-            "file:///workspace/App.module.scss",
-            ReactiveShadowPublishTierV0::Baseline,
-            "blake3:baseline",
-        ) else {
-            return Err(std::io::Error::other("observer did not issue a receipt").into());
-        };
-        observer.complete_flush(
-            flush_id,
-            BTreeSet::from(["file:///workspace/App.module.scss".to_string()]),
-        );
-        receipt.record_delivery_decision(true);
-
-        let reports = observer.reports();
-        let Some(report) = reports.first() else {
-            return Err(std::io::Error::other("observer produced no report").into());
-        };
-        assert_eq!(report.expected_target_uris, report.projected_target_uris);
-        assert_eq!(report.projected_stamps, Some(stamps));
-        assert_eq!(
-            report.expected_baseline_digests,
-            report.projected_baseline_digests
-        );
-        assert_eq!(
-            report.expected_optimizing_digests,
-            report.projected_optimizing_digests
-        );
-        assert_eq!(
-            report.expected_delivery_decisions,
-            report.projected_delivery_decisions
-        );
-        assert!(report.delta_fold_matches_full_rebuild);
-        assert!(report.settled_without_pending_work);
-        assert!(observer.failures().is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn observer_enabled_and_disabled_paths_emit_identical_lsp_values()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let mut disabled = crate::LspShellState::default();
-        let mut enabled = crate::LspShellState::default();
-        enabled
-            .enable_reactive_shadow_observer()
-            .map_err(std::io::Error::other)?;
-
-        let messages = [
-            json!({
-                "jsonrpc": "2.0",
-                "method": "textDocument/didOpen",
-                "params": {
-                    "textDocument": {
-                        "uri": "file:///workspace/App.module.scss",
-                        "languageId": "scss",
-                        "version": 1,
-                        "text": ".root { color: red; }",
-                    },
-                },
-            }),
-            json!({
-                "jsonrpc": "2.0",
-                "method": "textDocument/didChange",
-                "params": {
-                    "textDocument": {
-                        "uri": "file:///workspace/App.module.scss",
-                        "version": 2,
-                    },
-                    "contentChanges": [
-                        {
-                            "text": ".root { color: blue; }",
-                        },
-                    ],
-                },
-            }),
-            json!({
-                "jsonrpc": "2.0",
-                "method": "textDocument/didClose",
-                "params": {
-                    "textDocument": {
-                        "uri": "file:///workspace/App.module.scss",
-                    },
-                },
-            }),
-        ];
-
-        let disabled_values = run_message_stream(&mut disabled, &messages);
-        let enabled_values = run_message_stream(&mut enabled, &messages);
-        assert_eq!(enabled_values, disabled_values);
-        assert!(
-            disabled
-                .diagnostics_publish_digest_registry
-                .reactive_shadow_reports_for_test()
-                .is_none()
-        );
-
-        let Some(reports) = enabled
-            .diagnostics_publish_digest_registry
-            .reactive_shadow_reports_for_test()
-        else {
-            return Err(std::io::Error::other("enabled observer produced no reports").into());
-        };
-        assert_eq!(reports.len(), messages.len());
-        assert!(reports.iter().all(|report| {
-            report.expected_target_uris == report.projected_target_uris
-                && report.projected_stamps == Some(report.expected_stamps)
-                && report.expected_baseline_digests == report.projected_baseline_digests
-                && report.expected_optimizing_digests == report.projected_optimizing_digests
-                && report.expected_delivery_decisions == report.projected_delivery_decisions
-                && report.delta_fold_matches_full_rebuild
-                && report.settled_without_pending_work
-        }));
-        assert!(
-            reports
-                .iter()
-                .flat_map(|report| report.expected_delivery_decisions.iter())
-                .any(|decision| !decision.should_deliver),
-            "the stream must exercise the writer-level suppression decision"
-        );
-        assert_eq!(
-            enabled
-                .diagnostics_publish_digest_registry
-                .reactive_shadow_failures_for_test(),
-            Some(Vec::new())
-        );
-        Ok(())
-    }
-
-    #[cfg(feature = "salsa-style-diagnostics")]
-    #[test]
-    fn deferred_digest_receipt_stays_attached_to_its_scheduler_flush()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let mut state = crate::LspShellState::default();
-        state
-            .enable_reactive_shadow_observer()
-            .map_err(std::io::Error::other)?;
-        let turn = crate::handle_lsp_message_scheduled_outputs_or_dispatch(
-            &mut state,
-            json!({
-                "jsonrpc": "2.0",
-                "method": "textDocument/didOpen",
-                "params": {
-                    "textDocument": {
-                        "uri": "file:///workspace/Deferred.module.scss",
-                        "languageId": "scss",
-                        "version": 1,
-                        "text": ".root { color: red; }",
-                    },
-                },
-            }),
-        );
-        let crate::LspLoopTurnV0::OutputsAndDeferredDiagnostics {
-            deferred_diagnostics,
-            ..
-        } = turn
-        else {
-            return Err(std::io::Error::other("expected deferred diagnostics turn").into());
-        };
-        let Some(dispatch) = deferred_diagnostics.first() else {
-            return Err(std::io::Error::other("missing deferred diagnostics dispatch").into());
-        };
-        let notification = json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/publishDiagnostics",
-            "params": {
-                "uri": dispatch.uri,
-                "diagnostics": [{"code": "deferred-proof"}],
-            },
-        });
-        let Some(receipt) = dispatch.optimizing_publish_receipt(&notification) else {
-            return Err(std::io::Error::other("missing optimizing receipt").into());
-        };
-        assert!(receipt.should_deliver());
-        receipt.record_delivered();
-
-        let Some(reports) = state
-            .diagnostics_publish_digest_registry
-            .reactive_shadow_reports_for_test()
-        else {
-            return Err(std::io::Error::other("missing observer reports").into());
-        };
-        let Some(report) = reports.first() else {
-            return Err(std::io::Error::other("missing scheduler flush report").into());
-        };
-        assert!(
-            report
-                .projected_optimizing_digests
-                .contains_key("file:///workspace/Deferred.module.scss")
-        );
-        assert_eq!(
-            report.expected_optimizing_digests,
-            report.projected_optimizing_digests
-        );
-        assert_eq!(
-            report.expected_delivery_decisions,
-            report.projected_delivery_decisions
-        );
-        assert!(report.settled_without_pending_work);
-        Ok(())
-    }
-
-    fn run_message_stream(state: &mut crate::LspShellState, messages: &[Value]) -> Vec<Value> {
-        messages
-            .iter()
-            .flat_map(|message| {
-                crate::handle_lsp_message_scheduled_outputs(state, message.clone())
-                    .into_iter()
-                    .filter_map(crate::ScheduledLspOutput::into_delivered_value)
-            })
-            .collect()
-    }
 }
