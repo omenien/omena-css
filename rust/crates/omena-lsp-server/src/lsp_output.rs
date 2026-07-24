@@ -1,4 +1,12 @@
-use crate::{LspQuerySnapshotV0, LspStyleHoverCandidate};
+#[cfg(any(test, feature = "test-support"))]
+use crate::reactive_shadow::ReactiveShadowFlushReportV0;
+use crate::{
+    LspQuerySnapshotV0, LspStyleHoverCandidate,
+    reactive_shadow::{
+        ReactiveShadowObserverV0, ReactiveShadowPublishReceiptV0, ReactiveShadowPublishTierV0,
+        ReactiveShadowStampsV0,
+    },
+};
 use omena_query::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQuerySourceSyntaxIndexV0,
@@ -8,7 +16,7 @@ use omena_query::{
 };
 use serde_json::Value;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
 };
 
@@ -23,6 +31,7 @@ pub enum DiagnosticsPublishTierV0 {
 #[derive(Debug, Clone, Default)]
 pub struct DiagnosticsPublishDigestRegistryV0 {
     delivered: Arc<Mutex<DiagnosticsPublishDigestStateV0>>,
+    reactive_shadow: Option<ReactiveShadowObserverV0>,
 }
 
 #[derive(Debug, Default)]
@@ -50,6 +59,7 @@ enum DiagnosticsPublishReceiptActionV0 {
 pub struct DiagnosticsPublishReceiptV0 {
     registry: DiagnosticsPublishDigestRegistryV0,
     action: DiagnosticsPublishReceiptActionV0,
+    reactive_shadow_receipt: Option<ReactiveShadowPublishReceiptV0>,
 }
 
 impl PartialEq for DiagnosticsPublishReceiptV0 {
@@ -68,31 +78,111 @@ impl DiagnosticsPublishDigestRegistryV0 {
         diagnostics: &Value,
         terminal_for_revision: bool,
     ) -> Option<DiagnosticsPublishReceiptV0> {
+        self.tier_receipt_for_shadow_flush(
+            uri,
+            tier,
+            diagnostics,
+            terminal_for_revision,
+            self.current_reactive_shadow_flush_id(),
+        )
+    }
+
+    fn tier_receipt_for_shadow_flush(
+        &self,
+        uri: &str,
+        tier: DiagnosticsPublishTierV0,
+        diagnostics: &Value,
+        terminal_for_revision: bool,
+        reactive_shadow_flush_id: Option<u64>,
+    ) -> Option<DiagnosticsPublishReceiptV0> {
         let bytes = serde_json::to_vec(diagnostics).ok()?;
+        let digest = omena_sif::compute_omena_sif_leaf_hash_v1(bytes.as_slice());
+        let reactive_shadow_receipt = self.reactive_shadow.as_ref().and_then(|observer| {
+            observer.record_tier_digest(
+                reactive_shadow_flush_id,
+                uri,
+                match tier {
+                    DiagnosticsPublishTierV0::Baseline => ReactiveShadowPublishTierV0::Baseline,
+                    DiagnosticsPublishTierV0::Optimizing => ReactiveShadowPublishTierV0::Optimizing,
+                },
+                digest.as_str(),
+            )
+        });
         Some(DiagnosticsPublishReceiptV0 {
             registry: self.clone(),
             action: DiagnosticsPublishReceiptActionV0::Tier {
                 uri: uri.to_string(),
                 tier,
-                digest: omena_sif::compute_omena_sif_leaf_hash_v1(bytes.as_slice()),
+                digest,
                 terminal_for_revision,
             },
+            reactive_shadow_receipt,
         })
     }
 
     pub fn clear_document_receipt(&self, uri: &str) -> DiagnosticsPublishReceiptV0 {
+        let reactive_shadow_receipt = self.reactive_shadow.as_ref().and_then(|observer| {
+            observer.record_clear(self.current_reactive_shadow_flush_id(), uri)
+        });
         DiagnosticsPublishReceiptV0 {
             registry: self.clone(),
             action: DiagnosticsPublishReceiptActionV0::ClearDocument {
                 uri: uri.to_string(),
             },
+            reactive_shadow_receipt,
         }
+    }
+
+    pub(crate) fn begin_reactive_shadow_flush(
+        &self,
+        stamps: ReactiveShadowStampsV0,
+    ) -> Option<u64> {
+        self.reactive_shadow
+            .as_ref()
+            .and_then(|observer| observer.begin_flush(stamps))
+    }
+
+    pub(crate) fn current_reactive_shadow_flush_id(&self) -> Option<u64> {
+        self.reactive_shadow
+            .as_ref()
+            .and_then(ReactiveShadowObserverV0::current_flush_id)
+    }
+
+    pub(crate) fn complete_reactive_shadow_flush(
+        &self,
+        flush_id: Option<u64>,
+        target_uris: BTreeSet<String>,
+    ) {
+        if let (Some(observer), Some(flush_id)) = (&self.reactive_shadow, flush_id) {
+            observer.complete_flush(flush_id, target_uris);
+        }
+    }
+
+    pub(crate) fn enable_reactive_shadow(&mut self) -> Result<(), String> {
+        self.reactive_shadow = Some(ReactiveShadowObserverV0::new()?);
+        Ok(())
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn reactive_shadow_reports_for_test(
+        &self,
+    ) -> Option<Vec<ReactiveShadowFlushReportV0>> {
+        self.reactive_shadow
+            .as_ref()
+            .map(ReactiveShadowObserverV0::reports)
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn reactive_shadow_failures_for_test(&self) -> Option<Vec<String>> {
+        self.reactive_shadow
+            .as_ref()
+            .map(ReactiveShadowObserverV0::failures)
     }
 }
 
 impl DiagnosticsPublishReceiptV0 {
     pub fn should_deliver(&self) -> bool {
-        match &self.action {
+        let should_deliver = match &self.action {
             DiagnosticsPublishReceiptActionV0::Tier {
                 uri,
                 tier,
@@ -105,16 +195,21 @@ impl DiagnosticsPublishReceiptV0 {
                     .lock()
                     .unwrap_or_else(|error| error.into_inner());
                 if delivered.by_tier.get(&(uri.clone(), *tier)) != Some(digest) {
-                    return true;
+                    true
+                } else {
+                    // An unchanged non-terminal baseline can be omitted because
+                    // the following optimizing tier owns the final revision
+                    // state. A terminal tier may be omitted only when the client
+                    // already holds the same bytes.
+                    *terminal_for_revision && delivered.current_by_uri.get(uri) != Some(digest)
                 }
-                // An unchanged non-terminal baseline can be omitted because
-                // the following optimizing tier owns the final revision
-                // state. A terminal tier may be omitted only when the client
-                // already holds the same bytes.
-                *terminal_for_revision && delivered.current_by_uri.get(uri) != Some(digest)
             }
             DiagnosticsPublishReceiptActionV0::ClearDocument { .. } => true,
+        };
+        if let Some(receipt) = &self.reactive_shadow_receipt {
+            receipt.record_delivery_decision(should_deliver);
         }
+        should_deliver
     }
 
     pub fn record_delivered(&self) {
@@ -272,6 +367,7 @@ pub struct LspDeferredDiagnosticsDispatchV0 {
     pub coalesce_key: String,
     pub tier_plan: DiagnosticsPipelineTierPlanV0,
     pub diagnostics_publish_registry: DiagnosticsPublishDigestRegistryV0,
+    pub(crate) reactive_shadow_flush_id: Option<u64>,
     pub workspace_snapshot_id: Option<omena_query::OmenaWorkspaceSnapshotIdV0>,
     pub render_inputs: DeferredDiagnosticsRenderInputsV0,
     /// Tide-ledger epoch at dispatch time: the reverse-dependency refresh
@@ -285,12 +381,14 @@ impl LspDeferredDiagnosticsDispatchV0 {
         &self,
         notification: &Value,
     ) -> Option<DiagnosticsPublishReceiptV0> {
-        self.diagnostics_publish_registry.tier_receipt(
-            self.uri.as_str(),
-            DiagnosticsPublishTierV0::Optimizing,
-            notification.pointer("/params/diagnostics")?,
-            true,
-        )
+        self.diagnostics_publish_registry
+            .tier_receipt_for_shadow_flush(
+                self.uri.as_str(),
+                DiagnosticsPublishTierV0::Optimizing,
+                notification.pointer("/params/diagnostics")?,
+                true,
+                self.reactive_shadow_flush_id,
+            )
     }
 }
 

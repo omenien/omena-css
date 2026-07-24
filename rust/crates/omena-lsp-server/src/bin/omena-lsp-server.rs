@@ -12,11 +12,11 @@ use omena_lsp_server::tide_workspace_republish_flush_effects;
 use omena_lsp_server::{
     DiagnosticsPublishReceiptV0, LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
     LspLoopTurnV0, LspQueryDispatchV0, LspShellState, LspWorkspaceIndexJobV0,
-    LspWorkspaceIndexResultV0, ScheduledLspOutput, apply_background_workspace_index_result,
-    apply_deferred_external_sif_refresh_result, collect_background_workspace_index,
-    collect_deferred_external_sif_refresh, complete_dispatched_query_response,
-    dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
-    handle_lsp_message_scheduled_outputs_or_dispatch,
+    LspWorkspaceIndexResultV0, REACTIVE_SHADOW_ENV, ScheduledLspOutput,
+    apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
+    collect_background_workspace_index, collect_deferred_external_sif_refresh,
+    complete_dispatched_query_response, dispatched_query_internal_error_response,
+    enable_deferred_external_sif_refresh, handle_lsp_message_scheduled_outputs_or_dispatch,
     prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
     resolve_dispatched_query_response, workspace_index_progress_end_output,
 };
@@ -69,6 +69,9 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
     enable_deferred_external_sif_refresh(&mut state);
+    if std::env::var(REACTIVE_SHADOW_ENV).as_deref() == Ok("1") {
+        state.enable_reactive_shadow_observer()?;
+    }
     let writer = Arc::new(Mutex::new(writer));
     let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
     let mut delayed_outputs: Vec<JoinHandle<Result<(), String>>> = Vec::new();

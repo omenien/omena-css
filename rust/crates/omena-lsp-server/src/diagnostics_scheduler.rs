@@ -4,6 +4,7 @@ use crate::{
     is_resolution_config_document_uri, is_style_document_uri,
     prepare_deferred_source_diagnostics_for_uri, prepare_deferred_style_diagnostics_for_uri,
     protocol::{canonical_file_uri, file_uri_equivalent, file_uri_to_path},
+    reactive_shadow::ReactiveShadowStampsV0,
     resolution_inputs_for_workspace_uri, resolve_document_diagnostics_for_uri,
     resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
 };
@@ -211,7 +212,10 @@ fn run_diagnostics_schedule_effects_with_deferral(
     event: DiagnosticsScheduleEvent,
     enable_deferred_style_diagnostics: bool,
 ) -> DiagnosticsScheduleEffectsV0 {
-    match event {
+    let reactive_shadow_flush_id = state
+        .diagnostics_publish_digest_registry
+        .begin_reactive_shadow_flush(reactive_shadow_stamps(state));
+    let effects = match event {
         DiagnosticsScheduleEvent::TextDocument {
             uri,
             is_close,
@@ -229,7 +233,49 @@ fn run_diagnostics_schedule_effects_with_deferral(
         DiagnosticsScheduleEvent::ConfigurationChanged | DiagnosticsScheduleEvent::Initialized => {
             diagnostics_for_open_documents(state, enable_deferred_style_diagnostics)
         }
+    };
+    let target_uris = reactive_shadow_target_uris(&effects);
+    state
+        .diagnostics_publish_digest_registry
+        .complete_reactive_shadow_flush(reactive_shadow_flush_id, target_uris);
+    effects
+}
+
+fn reactive_shadow_stamps(state: &LspShellState) -> ReactiveShadowStampsV0 {
+    #[cfg(feature = "salsa-style-diagnostics")]
+    let style_snapshot_revision = state.style_workspace_snapshot_revision_hint.max(1);
+    #[cfg(not(feature = "salsa-style-diagnostics"))]
+    let style_snapshot_revision = state.workspace_index_revision.max(1);
+
+    ReactiveShadowStampsV0 {
+        corpus_revision: state.tide_ledger.epoch(),
+        style_snapshot_revision,
+        demand_generation: state.tide_republish_lane.generation(),
     }
+}
+
+fn reactive_shadow_target_uris(effects: &DiagnosticsScheduleEffectsV0) -> BTreeSet<String> {
+    effects
+        .outputs
+        .iter()
+        .filter(|output| {
+            output.value.get("method").and_then(Value::as_str)
+                == Some("textDocument/publishDiagnostics")
+        })
+        .filter_map(|output| {
+            output
+                .value
+                .pointer("/params/uri")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .chain(
+            effects
+                .deferred_diagnostics
+                .iter()
+                .map(|dispatch| dispatch.uri.clone()),
+        )
+        .collect()
 }
 
 fn diagnostics_for_text_document_event(

@@ -75,6 +75,9 @@ pub(crate) fn prepare_deferred_source_diagnostics_for_uri(
         coalesce_key: String::new(),
         tier_plan,
         diagnostics_publish_registry: state.diagnostics_publish_digest_registry.clone(),
+        reactive_shadow_flush_id: state
+            .diagnostics_publish_digest_registry
+            .current_reactive_shadow_flush_id(),
         workspace_snapshot_id: None,
         render_inputs: DeferredDiagnosticsRenderInputsV0::Source(Box::new(render_inputs)),
     };

@@ -2708,6 +2708,7 @@ dependencies = [
  "omena-cascade",
  "omena-incremental",
  "omena-query",
+ "omena-reactive",
  "omena-sif",
  "omena-streaming-ifds",
  "omena-testkit",

@@ -26,6 +26,7 @@ mod protocol;
 mod provider_tier_feedback;
 mod query_adapter;
 mod query_reuse;
+mod reactive_shadow;
 mod sdk_workflow;
 mod settings;
 mod source_completion;
@@ -170,6 +171,7 @@ use query_reuse::{
     cascade_narrowing_substrate_for_style_sources, effective_style_package_manifests,
     refresh_document_reusable_indexes,
 };
+pub use reactive_shadow::REACTIVE_SHADOW_ENV;
 use serde_json::{Value, json};
 pub(crate) use settings::{
     apply_diagnostic_settings, apply_feature_settings, apply_resolution_settings,
