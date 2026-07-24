@@ -192,6 +192,7 @@ pub(crate) fn refresh_document_reusable_indexes(
         source_selector_candidates_from_index(document, &source_syntax_index);
     document.source_syntax_index = source_syntax_index;
     document.source_type_fact_selector_references.clear();
+    document.source_type_fact_retired_prefix_references.clear();
 }
 
 fn collect_vue_embedded_module_style_indexes(

@@ -22,7 +22,7 @@ use omena_tsgo_client::{
     TsgoTypeFactResultEntryV0, TsgoTypeFactTargetV0, build_tsgo_process_command,
 };
 use serde_json::json;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 const SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES: usize = 128;
@@ -268,6 +268,12 @@ pub(crate) fn apply_source_type_fact_results_to_document(
     };
     let targets = document.source_syntax_index.type_fact_targets.clone();
     let mut references = document.source_syntax_index.selector_references.clone();
+    restore_source_type_fact_prefix_references(
+        &mut references,
+        document
+            .source_type_fact_retired_prefix_references
+            .as_slice(),
+    );
     remove_source_type_fact_selector_references(
         &mut references,
         document.source_type_fact_selector_references.as_slice(),
@@ -275,12 +281,20 @@ pub(crate) fn apply_source_type_fact_results_to_document(
     let unavailable_facts =
         tsgo_provider_unavailable_facts_for_type_targets(targets.as_slice(), entries);
     ensure_referenced_style_documents_loaded_for_type_facts(state, targets.as_slice());
+    let projections =
+        project_source_type_fact_targets_with_query(state, &document, targets.as_slice(), entries);
+    let complete_projection_ids = complete_tsgo_projection_expression_ids(
+        targets.as_slice(),
+        entries,
+        projections.as_slice(),
+    );
     let mut next_type_fact_references = Vec::new();
-    for (target, selector_name) in
-        project_source_type_fact_targets_with_query(state, &document, targets.as_slice(), entries)
-    {
+    for (target, selector_name) in projections {
+        let reference_span = type_fact_template_spans(document.text.as_str(), &target)
+            .map(|spans| spans.selector_span)
+            .unwrap_or(target.byte_span);
         let reference = source_selector_reference(
-            target.byte_span,
+            reference_span,
             Some(selector_name),
             SourceSelectorReferenceMatchKind::Exact,
             target.target_style_uri.as_deref(),
@@ -289,12 +303,28 @@ pub(crate) fn apply_source_type_fact_results_to_document(
         references.push(reference.clone());
         next_type_fact_references.push(reference);
     }
+    let mut next_retired_prefix_references = Vec::new();
+    for target in targets
+        .iter()
+        .filter(|target| complete_projection_ids.contains(target.expression_id.as_str()))
+    {
+        let Some(spans) = type_fact_template_spans(document.text.as_str(), target) else {
+            continue;
+        };
+        next_retired_prefix_references.extend(take_type_fact_prefix_references(
+            &mut references,
+            spans.prefix_span,
+            target.prefix.as_str(),
+            target.target_style_uri.as_deref(),
+        ));
+    }
     canonicalize_omena_query_source_selector_references(&mut references);
     let Some(document) = state.document_mut(uri) else {
         return;
     };
     document.source_syntax_index.selector_references = references;
     document.source_type_fact_selector_references = next_type_fact_references;
+    document.source_type_fact_retired_prefix_references = next_retired_prefix_references;
     document
         .source_syntax_index
         .type_fact_provider_unavailable
@@ -317,11 +347,20 @@ fn replace_tsgo_provider_unavailable_for_document(
     let Some(document) = state.document_mut(uri) else {
         return;
     };
+    let retired_prefix_references =
+        std::mem::take(&mut document.source_type_fact_retired_prefix_references);
+    restore_source_type_fact_prefix_references(
+        &mut document.source_syntax_index.selector_references,
+        retired_prefix_references.as_slice(),
+    );
     remove_source_type_fact_selector_references(
         &mut document.source_syntax_index.selector_references,
         document.source_type_fact_selector_references.as_slice(),
     );
     document.source_type_fact_selector_references.clear();
+    canonicalize_omena_query_source_selector_references(
+        &mut document.source_syntax_index.selector_references,
+    );
     document
         .source_syntax_index
         .type_fact_provider_unavailable
@@ -350,6 +389,177 @@ fn remove_source_type_fact_selector_references(
     type_fact_references: &[SourceSelectorReferenceFact],
 ) {
     references.retain(|reference| !type_fact_references.contains(reference));
+}
+
+fn restore_source_type_fact_prefix_references(
+    references: &mut Vec<SourceSelectorReferenceFact>,
+    retired_prefix_references: &[SourceSelectorReferenceFact],
+) {
+    for reference in retired_prefix_references {
+        if !references.contains(reference) {
+            references.push(reference.clone());
+        }
+    }
+}
+
+fn take_type_fact_prefix_references(
+    references: &mut Vec<SourceSelectorReferenceFact>,
+    prefix_span: ParserByteSpanV0,
+    prefix: &str,
+    target_style_uri: Option<&str>,
+) -> Vec<SourceSelectorReferenceFact> {
+    if prefix.is_empty() {
+        return Vec::new();
+    }
+    let mut retired = Vec::new();
+    references.retain(|reference| {
+        let matches = reference.match_kind == SourceSelectorReferenceMatchKind::Prefix
+            && reference.surface == SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex
+            && reference.byte_span == prefix_span
+            && reference.selector_name.as_deref() == Some(prefix)
+            && reference.target_style_uri.as_deref() == target_style_uri;
+        if matches {
+            retired.push(reference.clone());
+        }
+        !matches
+    });
+    retired
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TypeFactTemplateSpans {
+    selector_span: ParserByteSpanV0,
+    prefix_span: ParserByteSpanV0,
+}
+
+fn type_fact_template_spans(
+    source: &str,
+    target: &SourceTypeFactTarget,
+) -> Option<TypeFactTemplateSpans> {
+    if target.prefix.is_empty() {
+        return None;
+    }
+    let before_expression = source.get(..target.byte_span.start)?;
+    let interpolation_start = before_expression.rfind("${")?;
+    if !source
+        .get(interpolation_start + 2..target.byte_span.start)?
+        .chars()
+        .all(char::is_whitespace)
+    {
+        return None;
+    }
+    let prefix_start = interpolation_start.checked_sub(target.prefix.len())?;
+    if source.get(prefix_start..interpolation_start)? != target.prefix {
+        return None;
+    }
+    let after_expression = source.get(target.byte_span.end..)?;
+    let relative_interpolation_end = after_expression.find('}')?;
+    let interpolation_end = target.byte_span.end + relative_interpolation_end;
+    if !source
+        .get(target.byte_span.end..interpolation_end)?
+        .chars()
+        .all(char::is_whitespace)
+    {
+        return None;
+    }
+    let suffix_start = interpolation_end + 1;
+    let suffix_end = suffix_start.checked_add(target.suffix.len())?;
+    if source.get(suffix_start..suffix_end)? != target.suffix {
+        return None;
+    }
+    Some(TypeFactTemplateSpans {
+        selector_span: ParserByteSpanV0 {
+            start: prefix_start,
+            end: suffix_end,
+        },
+        prefix_span: ParserByteSpanV0 {
+            start: prefix_start,
+            end: interpolation_start,
+        },
+    })
+}
+
+fn complete_tsgo_projection_expression_ids(
+    targets: &[SourceTypeFactTarget],
+    entries: &[TsgoTypeFactResultEntryV0],
+    projections: &[(SourceTypeFactTarget, String)],
+) -> BTreeSet<String> {
+    let entries_by_id = entries
+        .iter()
+        .map(|entry| (entry.expression_id.as_str(), entry))
+        .collect::<BTreeMap<_, _>>();
+    let mut projected_names_by_id = BTreeMap::<&str, Vec<&str>>::new();
+    for (target, selector_name) in projections {
+        projected_names_by_id
+            .entry(target.expression_id.as_str())
+            .or_default()
+            .push(selector_name.as_str());
+    }
+
+    targets
+        .iter()
+        .filter_map(|target| {
+            let entry = entries_by_id.get(target.expression_id.as_str())?;
+            if entry.resolved_type.kind != "union" || entry.resolved_type.values.is_empty() {
+                return None;
+            }
+            if entry
+                .resolved_type
+                .values
+                .iter()
+                .any(|value| !value.chars().all(is_css_identifier_continue))
+            {
+                return None;
+            }
+            let mut expected = entry
+                .resolved_type
+                .values
+                .iter()
+                .map(|value| format!("{}{}{}", target.prefix, value, target.suffix))
+                .collect::<Vec<_>>();
+            if expected.is_empty()
+                || expected
+                    .iter()
+                    .any(|selector_name| !is_safe_css_identifier(selector_name))
+            {
+                return None;
+            }
+            expected.sort();
+            expected.dedup();
+            let mut projected = projected_names_by_id
+                .get(target.expression_id.as_str())
+                .cloned()
+                .unwrap_or_default();
+            projected.sort();
+            projected.dedup();
+            (projected.len() == expected.len()
+                && projected
+                    .iter()
+                    .zip(expected.iter())
+                    .all(|(projected, expected)| *projected == expected))
+            .then(|| target.expression_id.clone())
+        })
+        .collect()
+}
+
+fn is_safe_css_identifier(value: &str) -> bool {
+    let mut characters = value.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+    match first {
+        character if character.is_ascii_alphabetic() || character == '_' => {}
+        '-' => {
+            let Some(second) = characters.next() else {
+                return false;
+            };
+            if !(second.is_ascii_alphabetic() || matches!(second, '-' | '_')) {
+                return false;
+            }
+        }
+        _ => return false,
+    }
+    characters.all(is_css_identifier_continue)
 }
 
 fn tsgo_provider_unavailable_facts_for_type_targets(

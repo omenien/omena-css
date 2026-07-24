@@ -59,6 +59,8 @@ pub struct LspTextDocumentState {
     pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
     #[serde(skip)]
     pub(crate) source_type_fact_selector_references: Vec<SourceSelectorReferenceFact>,
+    #[serde(skip)]
+    pub(crate) source_type_fact_retired_prefix_references: Vec<SourceSelectorReferenceFact>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

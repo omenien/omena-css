@@ -1171,7 +1171,8 @@ export function View({ fontSize }: { fontSize: 10 | 12 }) {
 }
 
 #[test]
-fn records_template_interpolations_that_cannot_reach_the_type_fact_provider() {
+fn records_template_interpolations_that_cannot_reach_the_type_fact_provider()
+-> Result<(), Box<dyn std::error::Error>> {
     let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";
 const cx = bind.bind(styles);
@@ -1187,11 +1188,15 @@ export function View({ active }: { active: boolean }) {
         }],
         vec!["bind".to_string()],
     );
-    let value = serde_json::to_value(index).expect("source syntax index should serialize");
+    let value = serde_json::to_value(index)?;
     let skipped = value
         .get("typeFactTargetSkipped")
         .and_then(serde_json::Value::as_array)
-        .expect("unsupported template interpolation should produce a structured skipped fact");
+        .ok_or_else(|| {
+            std::io::Error::other(
+                "unsupported template interpolation should produce a structured skipped fact",
+            )
+        })?;
 
     assert_eq!(skipped.len(), 1);
     assert_eq!(
@@ -1204,6 +1209,7 @@ export function View({ active }: { active: boolean }) {
             .and_then(serde_json::Value::as_u64),
         Some(1)
     );
+    Ok(())
 }
 
 #[test]

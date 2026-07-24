@@ -111,6 +111,51 @@ export function App({ active }: { active: boolean }) {
         .collect::<Vec<_>>();
     definition_names.sort();
     assert_eq!(definition_names, vec!["theme-a", "theme-legacy"]);
+
+    let prefix_offset = source_text
+        .find("theme-")
+        .ok_or_else(|| std::io::Error::other("fixture should contain a template prefix"))?;
+    let prefix_explain_hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, prefix_offset),
+            },
+        }),
+    );
+    let mut prefix_definition_names = prefix_explain_hover
+        .as_ref()
+        .and_then(|value| value.pointer("/result/definitions"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("prefix hover should list definitions"))?
+        .iter()
+        .filter_map(|definition| definition.get("name").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    prefix_definition_names.sort();
+    assert_eq!(
+        prefix_definition_names,
+        vec!["theme-a", "theme-legacy"],
+        "the retired prefix must not widen a fully enumerated template"
+    );
+    assert!(
+        !state
+            .document(source_uri)
+            .ok_or_else(|| std::io::Error::other("source document should remain indexed"))?
+            .source_syntax_index
+            .selector_references
+            .iter()
+            .any(|reference| {
+                reference.match_kind == SourceSelectorReferenceMatchKind::Prefix
+                    && reference.selector_name.as_deref() == Some("theme-")
+            }),
+        "a fully enumerated native template must not retain its broader prefix fact"
+    );
     Ok(())
 }
 
@@ -125,7 +170,7 @@ interface BadgeProps { size: "medium" | "small"; fontSize?: 10 | 12; }
 export function Badge({ size, fontSize }: BadgeProps) {
   return <span className={cx(size, `font-size-${fontSize}`)} />;
 }"#;
-    let style_text = ".medium { color: red; }\n.small { color: blue; }\n.font-size-10 { font-size: 10px; }\n.font-size-12 { font-size: 12px; }";
+    let style_text = ".medium { color: red; }\n.small { color: blue; }\n.font-size-10 { font-size: 10px; }\n.font-size-12 { font-size: 12px; }\n.font-size-extra { font-size: inherit; }";
 
     let mut state = LspShellState::default();
     handle_lsp_message(
@@ -189,28 +234,25 @@ export function Badge({ size, fontSize }: BadgeProps) {
         .iter()
         .find(|target| &source_text[target.byte_span.start..target.byte_span.end] == "fontSize")
         .ok_or_else(|| std::io::Error::other("fontSize type fact target should exist"))?;
-    apply_source_type_fact_results_to_document(
-        &mut state,
-        source_uri,
-        &[
-            TsgoTypeFactResultEntryV0 {
-                file_path: "/workspace-a/src/App.tsx".to_string(),
-                expression_id: size_target.expression_id.clone(),
-                resolved_type: TsgoResolvedTypeV0 {
-                    kind: "union",
-                    values: vec!["medium".to_string(), "small".to_string()],
-                },
+    let entries = vec![
+        TsgoTypeFactResultEntryV0 {
+            file_path: "/workspace-a/src/App.tsx".to_string(),
+            expression_id: size_target.expression_id.clone(),
+            resolved_type: TsgoResolvedTypeV0 {
+                kind: "union",
+                values: vec!["medium".to_string(), "small".to_string()],
             },
-            TsgoTypeFactResultEntryV0 {
-                file_path: "/workspace-a/src/App.tsx".to_string(),
-                expression_id: font_size_target.expression_id.clone(),
-                resolved_type: TsgoResolvedTypeV0 {
-                    kind: "union",
-                    values: vec!["10".to_string(), "12".to_string()],
-                },
+        },
+        TsgoTypeFactResultEntryV0 {
+            file_path: "/workspace-a/src/App.tsx".to_string(),
+            expression_id: font_size_target.expression_id.clone(),
+            resolved_type: TsgoResolvedTypeV0 {
+                kind: "union",
+                values: vec!["10".to_string(), "12".to_string()],
             },
-        ],
-    );
+        },
+    ];
+    apply_source_type_fact_results_to_document(&mut state, source_uri, entries.as_slice());
 
     let size_definition = handle_lsp_message(
         &mut state,
@@ -338,6 +380,37 @@ export function Badge({ size, fontSize }: BadgeProps) {
             }),
         "tsgo-projected references should retain their serialized provenance"
     );
+    let font_prefix_offset = source_text
+        .find("font-size-")
+        .ok_or_else(|| std::io::Error::other("source fixture should contain a template prefix"))?;
+    let prefix_explain_hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, font_prefix_offset),
+            },
+        }),
+    );
+    let mut prefix_definition_names = prefix_explain_hover
+        .as_ref()
+        .and_then(|value| value.pointer("/result/definitions"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("prefix hover should list definitions"))?
+        .iter()
+        .filter_map(|definition| definition.get("name").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    prefix_definition_names.sort();
+    assert_eq!(
+        prefix_definition_names,
+        vec!["font-size-10", "font-size-12"],
+        "a complete provider projection should supersede the template prefix"
+    );
 
     let size_references = handle_lsp_message(
         &mut state,
@@ -415,6 +488,91 @@ export function Badge({ size, fontSize }: BadgeProps) {
         .and_then(Value::as_array)
         .ok_or_else(|| std::io::Error::other("size rename should produce style edits"))?;
     assert!(!style_edits.is_empty());
+
+    apply_source_type_fact_results_to_document(
+        &mut state,
+        source_uri,
+        &[
+            TsgoTypeFactResultEntryV0 {
+                file_path: "/workspace-a/src/App.tsx".to_string(),
+                expression_id: size_target.expression_id.clone(),
+                resolved_type: TsgoResolvedTypeV0 {
+                    kind: "union",
+                    values: vec!["medium".to_string(), "small".to_string()],
+                },
+            },
+            TsgoTypeFactResultEntryV0 {
+                file_path: "/workspace-a/src/App.tsx".to_string(),
+                expression_id: font_size_target.expression_id.clone(),
+                resolved_type: TsgoResolvedTypeV0 {
+                    kind: "union",
+                    values: vec!["10".to_string(), "14".to_string()],
+                },
+            },
+        ],
+    );
+    let partial_prefix_hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, font_prefix_offset),
+            },
+        }),
+    );
+    let mut partial_definition_names = partial_prefix_hover
+        .as_ref()
+        .and_then(|value| value.pointer("/result/definitions"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            std::io::Error::other("partial provider projection should retain prefix definitions")
+        })?
+        .iter()
+        .filter_map(|definition| definition.get("name").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    partial_definition_names.sort();
+    assert_eq!(
+        partial_definition_names,
+        vec!["font-size-10", "font-size-12", "font-size-extra"],
+        "an incomplete projection must retain the conservative prefix"
+    );
+
+    apply_source_type_fact_results_to_document(&mut state, source_uri, &[]);
+    let unavailable_prefix_hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, font_prefix_offset),
+            },
+        }),
+    );
+    let mut unavailable_definition_names = unavailable_prefix_hover
+        .as_ref()
+        .and_then(|value| value.pointer("/result/definitions"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            std::io::Error::other("unavailable provider prefix hover should list definitions")
+        })?
+        .iter()
+        .filter_map(|definition| definition.get("name").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    unavailable_definition_names.sort();
+    assert_eq!(
+        unavailable_definition_names,
+        vec!["font-size-10", "font-size-12", "font-size-extra"],
+        "provider failure must restore the conservative prefix rather than under-approximate"
+    );
     Ok(())
 }
 

@@ -2,6 +2,7 @@ use omena_query::{
     OmenaQueryCompletionItemV0,
     OmenaQuerySourceDomainClassReferenceFactV0 as SourceDomainClassReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
+    OmenaQuerySourceSelectorReferenceSurfaceV0 as SourceSelectorReferenceSurface,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
     OmenaQueryStyleIntelligenceSnapshotV0 as StyleIntelligenceSnapshot, ParserByteSpanV0,
     ParserPositionV0, ParserRangeV0, omena_query_style_intelligence_completions_at_offset,
@@ -224,7 +225,13 @@ fn source_completion_value_domain_selectors_for_target(
         .source_syntax_index
         .selector_references
         .iter()
-        .filter(|reference| reference.byte_span == byte_span)
+        .filter(|reference| {
+            reference.byte_span == byte_span
+                || (reference.surface
+                    == SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection
+                    && reference.byte_span.start <= byte_span.start
+                    && reference.byte_span.end >= byte_span.end)
+        })
         .filter(|reference| reference.match_kind == SourceSelectorReferenceMatchKind::Exact)
         .filter(|reference| {
             target_style_uri.is_none_or(|target_uri| {

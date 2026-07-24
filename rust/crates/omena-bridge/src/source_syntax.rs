@@ -332,6 +332,11 @@ pub struct SourceTypeFactTargetSkippedFactV0 {
     pub reason: &'static str,
 }
 
+struct SourceTypeFactCollection<'a> {
+    targets: &'a mut Vec<SourceTypeFactTargetV0>,
+    skipped: &'a mut Vec<SourceTypeFactTargetSkippedFactV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceClassValueUniverseEntryV0 {
@@ -581,6 +586,10 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         );
     }
     for span in class_name_expression_spans {
+        let mut type_facts = SourceTypeFactCollection {
+            targets: &mut index.type_fact_targets,
+            skipped: &mut index.type_fact_target_skipped,
+        };
         collect_selector_references_from_js_expression(
             source,
             span.start,
@@ -588,8 +597,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
             None,
             &local_class_values,
             &mut index.selector_references,
-            &mut index.type_fact_targets,
-            &mut index.type_fact_target_skipped,
+            &mut type_facts,
         );
     }
     for access in &index.style_property_accesses {
@@ -608,6 +616,10 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
             .iter()
             .find(|binding| binding.binding_symbol_id == argument.binding_symbol_id)
         {
+            let mut type_facts = SourceTypeFactCollection {
+                targets: &mut index.type_fact_targets,
+                skipped: &mut index.type_fact_target_skipped,
+            };
             collect_selector_references_from_js_expression(
                 source,
                 argument.byte_span.start,
@@ -615,8 +627,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
                 Some(binding.style_uri.as_str()),
                 &local_class_values,
                 &mut index.selector_references,
-                &mut index.type_fact_targets,
-                &mut index.type_fact_target_skipped,
+                &mut type_facts,
             );
         }
     }
@@ -4038,8 +4049,7 @@ fn collect_selector_references_from_js_expression(
     target_style_uri: Option<&str>,
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
-    type_fact_target_skipped: &mut Vec<SourceTypeFactTargetSkippedFactV0>,
+    type_facts: &mut SourceTypeFactCollection<'_>,
 ) {
     let (start, end) = trim_js_expression(source, start, end);
     let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
@@ -4067,8 +4077,7 @@ fn collect_selector_references_from_js_expression(
                 target_style_uri,
                 local_class_values,
                 references,
-                type_fact_targets,
-                type_fact_target_skipped,
+                type_facts,
             );
         }
         return;
@@ -4084,8 +4093,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
-            type_fact_target_skipped,
+            type_facts,
         );
         return;
     }
@@ -4109,8 +4117,7 @@ fn collect_selector_references_from_js_expression(
                 target_style_uri,
                 local_class_values,
                 references,
-                type_fact_targets,
-                type_fact_target_skipped,
+                type_facts,
             );
         }
         return;
@@ -4128,8 +4135,7 @@ fn collect_selector_references_from_js_expression(
                 target_style_uri,
                 local_class_values,
                 references,
-                type_fact_targets,
-                type_fact_target_skipped,
+                type_facts,
             );
         }
         return;
@@ -4145,8 +4151,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
-            type_fact_target_skipped,
+            type_facts,
         );
         collect_selector_references_from_js_expression(
             source,
@@ -4155,8 +4160,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
-            type_fact_target_skipped,
+            type_facts,
         );
         return;
     }
@@ -4171,8 +4175,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
-            type_fact_target_skipped,
+            type_facts,
         );
         return;
     }
@@ -4189,7 +4192,7 @@ fn collect_selector_references_from_js_expression(
                 target_style_uri,
                 "",
                 "",
-                type_fact_targets,
+                type_facts.targets,
             );
         }
         push_source_class_value_reference(
@@ -4222,7 +4225,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             "",
             "",
-            type_fact_targets,
+            type_facts.targets,
         );
     }
 }
@@ -4542,8 +4545,7 @@ fn collect_object_literal_selector_references(
     target_style_uri: Option<&str>,
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
-    type_fact_target_skipped: &mut Vec<SourceTypeFactTargetSkippedFactV0>,
+    type_facts: &mut SourceTypeFactCollection<'_>,
 ) {
     for (property_start, property_end) in
         split_top_level_js_segments(source, start + 1, end - 1, b',')
@@ -4561,8 +4563,7 @@ fn collect_object_literal_selector_references(
                 target_style_uri,
                 local_class_values,
                 references,
-                type_fact_targets,
-                type_fact_target_skipped,
+                type_facts,
             );
             continue;
         }
@@ -4575,8 +4576,7 @@ fn collect_object_literal_selector_references(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
-            type_fact_target_skipped,
+            type_facts,
         );
     }
 }
@@ -4612,8 +4612,7 @@ fn collect_selector_references_from_object_key(
     target_style_uri: Option<&str>,
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
-    type_fact_target_skipped: &mut Vec<SourceTypeFactTargetSkippedFactV0>,
+    type_facts: &mut SourceTypeFactCollection<'_>,
 ) {
     let (start, end) = trim_js_expression(source, start, end);
     if start >= end {
@@ -4629,8 +4628,7 @@ fn collect_selector_references_from_object_key(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
-            type_fact_target_skipped,
+            type_facts,
         );
         return;
     }
@@ -4654,8 +4652,7 @@ fn collect_selector_references_from_object_key(
                 target_style_uri,
                 local_class_values,
                 references,
-                type_fact_targets,
-                type_fact_target_skipped,
+                type_facts,
             );
         }
         return;
@@ -4760,8 +4757,7 @@ fn collect_template_type_fact_targets(
     target_style_uri: Option<&str>,
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
-    type_fact_target_skipped: &mut Vec<SourceTypeFactTargetSkippedFactV0>,
+    type_facts: &mut SourceTypeFactCollection<'_>,
 ) {
     let Some((prefix, expression_span, suffix, selector_span)) =
         single_template_interpolation_projection(source, literal_start, literal_end)
@@ -4775,8 +4771,8 @@ fn collect_template_type_fact_targets(
             target_style_uri: target_style_uri.map(ToString::to_string),
             reason: SOURCE_TYPE_FACT_TARGET_SKIPPED_UNSUPPORTED_EXPRESSION_SHAPE,
         };
-        if !type_fact_target_skipped.contains(&skipped) {
-            type_fact_target_skipped.push(skipped);
+        if !type_facts.skipped.contains(&skipped) {
+            type_facts.skipped.push(skipped);
         }
         if let Some(value) = source_class_value_from_js_expression(
             source,
@@ -4786,6 +4782,15 @@ fn collect_template_type_fact_targets(
         ) && let Some(selector_names) =
             finite_template_selector_names(prefix.as_str(), &value, suffix.as_str())
         {
+            retire_template_prefix_reference(
+                references,
+                ParserByteSpanV0 {
+                    start: selector_span.start,
+                    end: selector_span.start + prefix.len(),
+                },
+                prefix.as_str(),
+                target_style_uri,
+            );
             for selector_name in selector_names {
                 push_selector_reference(
                     selector_span,
@@ -4804,7 +4809,7 @@ fn collect_template_type_fact_targets(
         target_style_uri,
         prefix.as_str(),
         suffix.as_str(),
-        type_fact_targets,
+        type_facts.targets,
     );
 }
 
@@ -4884,6 +4889,24 @@ fn finite_template_selector_names(
     selector_names.sort();
     selector_names.dedup();
     (!selector_names.is_empty()).then_some(selector_names)
+}
+
+fn retire_template_prefix_reference(
+    references: &mut Vec<SourceSelectorReferenceFactV0>,
+    prefix_span: ParserByteSpanV0,
+    prefix: &str,
+    target_style_uri: Option<&str>,
+) {
+    if prefix.is_empty() {
+        return;
+    }
+    references.retain(|reference| {
+        reference.match_kind != SourceSelectorReferenceMatchKindV0::Prefix
+            || reference.surface != SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+            || reference.byte_span != prefix_span
+            || reference.selector_name.as_deref() != Some(prefix)
+            || reference.target_style_uri.as_deref() != target_style_uri
+    });
 }
 
 fn is_safe_css_identifier(value: &str) -> bool {
