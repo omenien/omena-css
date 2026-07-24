@@ -1,4 +1,5 @@
 use crate::disk_cache::DiskDiagnosticsCacheSessionV0;
+use crate::lsp_output::DiagnosticsPublishDigestRegistryV0;
 use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -650,6 +651,9 @@ pub struct LspShellState {
     /// Loop-owned and retained across close so lifecycle equality stays observable.
     pub(crate) style_module_interface_memo:
         RefCell<BTreeMap<String, omena_query::OmenaQueryModuleInterfaceProjectionV0>>,
+    /// Shared with delayed diagnostics workers and updated only after a payload
+    /// reaches the client writer, so stale or failed work cannot suppress a retry.
+    pub(crate) diagnostics_publish_digest_registry: DiagnosticsPublishDigestRegistryV0,
     pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind

@@ -244,6 +244,7 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
             uri: document_uri.to_string(),
             coalesce_key: String::new(),
             tier_plan,
+            diagnostics_publish_registry: state.diagnostics_publish_digest_registry.clone(),
             workspace_snapshot_id: snapshot_id,
             render_inputs: DeferredDiagnosticsRenderInputsV0::StyleSnapshot(Box::new(
                 state.query_snapshot(),

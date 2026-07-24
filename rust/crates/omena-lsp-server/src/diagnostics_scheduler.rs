@@ -1,6 +1,6 @@
 use crate::{
-    DiagnosticsPipelineTierPlanV0, LspDeferredDiagnosticsDispatchV0, LspOptimizingTierFeedback,
-    LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
+    DiagnosticsPipelineTierPlanV0, DiagnosticsPublishTierV0, LspDeferredDiagnosticsDispatchV0,
+    LspOptimizingTierFeedback, LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
     is_resolution_config_document_uri, is_style_document_uri,
     prepare_deferred_source_diagnostics_for_uri, prepare_deferred_style_diagnostics_for_uri,
     protocol::{canonical_file_uri, file_uri_equivalent, file_uri_to_path},
@@ -240,9 +240,8 @@ fn diagnostics_for_text_document_event(
 ) -> DiagnosticsScheduleEffectsV0 {
     let phase_started = std::time::Instant::now();
     let mut effects = if is_close {
-        DiagnosticsScheduleEffectsV0::from_outputs(vec![publish_immediate_diagnostics_output(
-            uri,
-            json!([]),
+        DiagnosticsScheduleEffectsV0::from_outputs(vec![publish_diagnostics_clear_output(
+            state, uri,
         )])
     } else if enable_deferred_style_diagnostics
         && let Some(effects) = deferred_diagnostics_for_uri(state, uri)
@@ -929,20 +928,23 @@ pub(crate) fn publish_tiered_diagnostics_notifications(
     let baseline_diagnostics = baseline_diagnostics_for_slice(diagnostics, tier_plan);
     let full_diagnostics = full_diagnostics_for_slice(diagnostics, tier_plan);
 
-    let mut outputs = if baseline_diagnostics.is_empty() && full_diagnostics != baseline_diagnostics
-    {
+    let has_optimizing_transition = full_diagnostics != baseline_diagnostics;
+    let mut outputs = if baseline_diagnostics.is_empty() && has_optimizing_transition {
         Vec::new()
     } else {
-        vec![publish_immediate_diagnostics_output(
+        vec![publish_immediate_tier_diagnostics_output(
+            state,
             uri,
             json!(baseline_diagnostics),
+            DiagnosticsPublishTierV0::Baseline,
+            !has_optimizing_transition,
         )]
     };
-    if full_diagnostics != baseline_diagnostics {
-        outputs.push(ScheduledLspOutput::delayed_coalesced(
-            publish_diagnostics_notification(uri, json!(full_diagnostics)),
-            OPTIMIZING_DIAGNOSTICS_DELAY_MS,
-            diagnostics_coalesce_key(uri),
+    if has_optimizing_transition {
+        outputs.push(publish_delayed_optimizing_diagnostics_output(
+            state,
+            uri,
+            json!(full_diagnostics),
         ));
     }
     outputs
@@ -967,9 +969,12 @@ fn deferred_diagnostics_for_uri(
     let outputs = if baseline_diagnostics.is_empty() {
         Vec::new()
     } else {
-        vec![publish_immediate_diagnostics_output(
+        vec![publish_immediate_tier_diagnostics_output(
+            state,
             uri,
             json!(baseline_diagnostics),
+            DiagnosticsPublishTierV0::Baseline,
+            false,
         )]
     };
     Some(DiagnosticsScheduleEffectsV0 {
@@ -994,12 +999,15 @@ fn deferred_style_diagnostics_for_text_document_event(
     dispatch.coalesce_key = diagnostics_coalesce_key(uri);
     dispatch.tier_plan = tier_plan;
     Some(DiagnosticsScheduleEffectsV0 {
-        outputs: vec![publish_immediate_diagnostics_output(
+        outputs: vec![publish_immediate_tier_diagnostics_output(
+            state,
             uri,
             json!(baseline_diagnostics_for_plan(
                 &baseline_diagnostics,
                 tier_plan
             )),
+            DiagnosticsPublishTierV0::Baseline,
+            false,
         )],
         deferred_diagnostics: vec![dispatch],
     })
@@ -1009,6 +1017,58 @@ fn publish_immediate_diagnostics_output(uri: &str, diagnostics: Value) -> Schedu
     ScheduledLspOutput::immediate_coalesced(
         publish_diagnostics_notification(uri, diagnostics),
         diagnostics_coalesce_key(uri),
+    )
+}
+
+fn publish_immediate_tier_diagnostics_output(
+    state: &LspShellState,
+    uri: &str,
+    diagnostics: Value,
+    tier: DiagnosticsPublishTierV0,
+    terminal_for_revision: bool,
+) -> ScheduledLspOutput {
+    let receipt = state.diagnostics_publish_digest_registry.tier_receipt(
+        uri,
+        tier,
+        &diagnostics,
+        terminal_for_revision,
+    );
+    let output = publish_immediate_diagnostics_output(uri, diagnostics);
+    if let Some(receipt) = receipt {
+        output.with_diagnostics_publish_receipt(receipt)
+    } else {
+        output
+    }
+}
+
+fn publish_delayed_optimizing_diagnostics_output(
+    state: &LspShellState,
+    uri: &str,
+    diagnostics: Value,
+) -> ScheduledLspOutput {
+    let receipt = state.diagnostics_publish_digest_registry.tier_receipt(
+        uri,
+        DiagnosticsPublishTierV0::Optimizing,
+        &diagnostics,
+        true,
+    );
+    let output = ScheduledLspOutput::delayed_coalesced(
+        publish_diagnostics_notification(uri, diagnostics),
+        OPTIMIZING_DIAGNOSTICS_DELAY_MS,
+        diagnostics_coalesce_key(uri),
+    );
+    if let Some(receipt) = receipt {
+        output.with_diagnostics_publish_receipt(receipt)
+    } else {
+        output
+    }
+}
+
+fn publish_diagnostics_clear_output(state: &LspShellState, uri: &str) -> ScheduledLspOutput {
+    publish_immediate_diagnostics_output(uri, json!([])).with_diagnostics_publish_receipt(
+        state
+            .diagnostics_publish_digest_registry
+            .clear_document_receipt(uri),
     )
 }
 
@@ -1338,6 +1398,118 @@ mod tests {
                         && diagnostic.pointer("/data/pipelineTierEvidence")
                             == Some(&json!("analyzedGraphV0"))
                 ))
+        );
+    }
+
+    #[test]
+    fn identical_diagnostics_are_delivered_once_per_tier_and_reset_on_close() {
+        let uri = "file:///workspace-diagnostics-receipt/src/App.module.scss";
+        let text =
+            ":root { --brand: red; }\n.btn { width: var(--missing); color: red; color: blue; }";
+        let mut state = LspShellState::default();
+        let first = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            first.len(),
+            2,
+            "the first revision must deliver baseline and optimizing diagnostics"
+        );
+
+        let warmed = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "version": 2,
+                    },
+                    "contentChanges": [{
+                        "text": text,
+                    }],
+                },
+            }),
+        );
+        assert_eq!(
+            warmed.len(),
+            2,
+            "a newly attached pipeline feedback fact changes both payloads and must be delivered"
+        );
+
+        let repeated = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "version": 3,
+                    },
+                    "contentChanges": [{
+                        "text": text,
+                    }],
+                },
+            }),
+        );
+        assert!(
+            repeated.is_empty(),
+            "byte-identical diagnostics must not be delivered again for either tier: {repeated:?}"
+        );
+
+        let closed = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didClose",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            closed
+                .first()
+                .and_then(|output| output.pointer("/params/diagnostics")),
+            Some(&json!([])),
+            "close must always clear diagnostics"
+        );
+
+        let reopened = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 4,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            reopened.len(),
+            2,
+            "close must reset both tier receipts so reopen delivers both tiers once"
         );
     }
 
@@ -1822,16 +1994,33 @@ mod tests {
             );
         }
 
-        let effects = run_diagnostics_schedule_effects(
+        let turn = crate::handle_lsp_message_scheduled_outputs_or_dispatch(
             &mut state,
-            DiagnosticsScheduleEvent::TextDocument {
-                uri: shared_uri,
-                is_close: false,
-                content_changed: true,
-            },
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": {
+                        "uri": shared_uri,
+                        "version": 2,
+                    },
+                    "contentChanges": [{
+                        "text": "$tone: red;\n.token { color: red; }\n",
+                    }],
+                },
+            }),
         );
-        let importer_outputs = effects
-            .outputs
+        let crate::LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            outputs,
+            deferred_diagnostics,
+            ..
+        } = turn
+        else {
+            return Err(format!(
+                "interface-changing style edit must defer peer diagnostics: {turn:?}"
+            ));
+        };
+        let importer_outputs = outputs
             .iter()
             .filter(|output| {
                 output
@@ -1863,8 +2052,7 @@ mod tests {
             "loop-side fan-out publishes must only carry baseline diagnostics"
         );
 
-        let importer_dispatches = effects
-            .deferred_diagnostics
+        let importer_dispatches = deferred_diagnostics
             .iter()
             .filter(|dispatch| importer_uris.contains(dispatch.uri.as_str()))
             .collect::<Vec<_>>();

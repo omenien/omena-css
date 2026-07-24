@@ -2955,6 +2955,10 @@ fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> 
         !published_after_config_change.contains(&source_uri),
         "never-opened indexed source documents must not receive publishDiagnostics after config changes: {published_after_config_change:?}"
     );
+    assert!(
+        published_after_config_change.contains(&style_uri),
+        "the indexed style payload must be delivered before the duplicate-open check: {published_after_config_change:?}"
+    );
 
     let open_style_outputs = handle_lsp_message_outputs(
         &mut state,
@@ -2973,8 +2977,8 @@ fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> 
     );
     let published_uris = published_diagnostics_uris(open_style_outputs.as_slice());
     assert!(
-        published_uris.contains(&style_uri),
-        "style open should publish diagnostics for the opened style document: {published_uris:?}"
+        !published_uris.contains(&style_uri),
+        "style open must not redeliver diagnostics already published by the config refresh: {published_uris:?}"
     );
     assert!(
         !published_uris.contains(&source_uri),

@@ -151,6 +151,7 @@ fn dedupes_watched_style_diagnostics_notifications() {
         }),
     );
 
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
     let outputs = handle_lsp_message_outputs(
         &mut state,
         json!({
@@ -175,7 +176,15 @@ fn dedupes_watched_style_diagnostics_notifications() {
         .filter_map(|value| value.pointer("/params/uri").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert_eq!(published_uris, vec![style_uri, source_uri]);
+    assert!(
+        published_uris.is_empty(),
+        "duplicate watched-file events must not redeliver unchanged diagnostics: {published_uris:?}"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        1,
+        "duplicate watched URIs must still collapse to one dependency refresh"
+    );
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -834,8 +843,8 @@ fn watched_style_change_fails_open_when_dependency_scope_is_unavailable() {
         .collect::<Vec<_>>();
 
     assert!(
-        published_uris.contains(&source_uri),
-        "source documents must still republish when dependency scope is unavailable: {published_uris:?}"
+        !published_uris.contains(&source_uri),
+        "an unchanged source payload must not be redelivered after the fail-open dependency refresh: {published_uris:?}"
     );
     assert_eq!(
         crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
@@ -953,8 +962,8 @@ fn watched_style_change_republishes_source_across_symlinked_path_identity() -> T
         .collect::<Vec<_>>();
 
     assert!(
-        published_uris.contains(&source_uri.as_str()),
-        "watched style aliases must preserve dependent source republishing: {published_uris:?}"
+        !published_uris.contains(&source_uri.as_str()),
+        "an alias-resolved refresh must not redeliver an unchanged source payload: {published_uris:?}"
     );
     assert_eq!(
         crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
@@ -967,7 +976,7 @@ fn watched_style_change_republishes_source_across_symlinked_path_identity() -> T
 
 #[cfg(feature = "salsa-style-diagnostics")]
 #[test]
-fn style_text_edit_republishes_transitive_source_dependents() {
+fn style_text_edit_refreshes_transitive_source_dependents_without_redundant_delivery() {
     let workspace_uri = "file:///workspace-source-republish-transitive";
     let base_uri = "file:///workspace-source-republish-transitive/src/Base.module.scss";
     let mid_uri = "file:///workspace-source-republish-transitive/src/Mid.module.scss";
@@ -1054,8 +1063,8 @@ fn style_text_edit_republishes_transitive_source_dependents() {
         .collect::<Vec<_>>();
 
     assert!(
-        published_uris.contains(&source_uri),
-        "transitive source dependent must be republished: {published_uris:?}"
+        !published_uris.contains(&source_uri),
+        "a transitive source dependent with unchanged diagnostics must not be redelivered: {published_uris:?}"
     );
     assert_eq!(
         crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
