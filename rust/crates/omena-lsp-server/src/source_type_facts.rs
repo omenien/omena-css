@@ -10,6 +10,7 @@ use omena_query::{
     OmenaQueryEngineInputV2,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
+    OmenaQuerySourceSelectorReferenceSurfaceV0 as SourceSelectorReferenceSurface,
     OmenaQuerySourceTypeFactProviderUnavailableFactV0 as SourceTypeFactProviderUnavailableFact,
     OmenaQuerySourceTypeFactTargetV0 as SourceTypeFactTarget, ParserByteSpanV0,
     canonicalize_omena_query_source_selector_references,
@@ -283,6 +284,7 @@ pub(crate) fn apply_source_type_fact_results_to_document(
             Some(selector_name),
             SourceSelectorReferenceMatchKind::Exact,
             target.target_style_uri.as_deref(),
+            SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection,
         );
         references.push(reference.clone());
         next_type_fact_references.push(reference);
@@ -592,12 +594,14 @@ fn source_selector_reference(
     selector_name: Option<String>,
     match_kind: SourceSelectorReferenceMatchKind,
     target_style_uri: Option<&str>,
+    surface: SourceSelectorReferenceSurface,
 ) -> SourceSelectorReferenceFact {
     SourceSelectorReferenceFact {
         byte_span,
         selector_name,
         match_kind,
         target_style_uri: target_style_uri.map(ToString::to_string),
+        surface,
     }
 }
 

@@ -5,8 +5,9 @@ use omena_query::{
     OmenaQuerySourceElementIdentityFactV0, OmenaQuerySourceElementParentFactV0,
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceInlineStyleDeclarationFactV0,
     OmenaQuerySourceSelectorReferenceFactV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
-    OmenaQuerySourceStylePropertyAccessFactV0, OmenaQuerySourceSyntaxIndexV0,
-    OmenaQuerySourceTypeFactProviderUnavailableFactV0, OmenaQuerySourceTypeFactTargetV0,
+    OmenaQuerySourceSelectorReferenceSurfaceV0, OmenaQuerySourceStylePropertyAccessFactV0,
+    OmenaQuerySourceSyntaxIndexV0, OmenaQuerySourceTypeFactProviderUnavailableFactV0,
+    OmenaQuerySourceTypeFactTargetSkippedFactV0, OmenaQuerySourceTypeFactTargetV0,
     OmenaQueryStyleResolutionInputsV0, ParserByteSpanV0,
 };
 use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
@@ -221,6 +222,18 @@ fn source_syntax_index_from_value(value: &Value) -> Option<OmenaQuerySourceSynta
     {
         return None;
     }
+    let type_fact_target_skipped = match value.get("typeFactTargetSkipped") {
+        Some(facts) => type_fact_target_skipped_from_value(facts)?,
+        None => Vec::new(),
+    };
+    let type_fact_target_skipped_count = value
+        .get("typeFactTargetSkippedCount")
+        .and_then(Value::as_u64)
+        .and_then(|count| usize::try_from(count).ok())
+        .unwrap_or(type_fact_target_skipped.len());
+    if type_fact_target_skipped_count != type_fact_target_skipped.len() {
+        return None;
+    }
     Some(OmenaQuerySourceSyntaxIndexV0 {
         schema_version: "0",
         product: "omena-bridge.source-syntax-index",
@@ -236,6 +249,8 @@ fn source_syntax_index_from_value(value: &Value) -> Option<OmenaQuerySourceSynta
         )?,
         selector_references: selector_references_from_value(value.get("selectorReferences")?)?,
         type_fact_targets: type_fact_targets_from_value(value.get("typeFactTargets")?)?,
+        type_fact_target_skipped,
+        type_fact_target_skipped_count,
         type_fact_provider_unavailable: match value.get("typeFactProviderUnavailable") {
             Some(facts) => type_fact_provider_unavailable_from_value(facts)?,
             None => Vec::new(),
@@ -336,9 +351,24 @@ fn selector_references_from_value(
                     .get("targetStyleUri")
                     .and_then(Value::as_str)
                     .map(str::to_string),
+                surface: selector_reference_surface_from_value(reference.get("surface"))?,
             })
         })
         .collect()
+}
+
+fn selector_reference_surface_from_value(
+    value: Option<&Value>,
+) -> Option<OmenaQuerySourceSelectorReferenceSurfaceV0> {
+    match value.and_then(Value::as_str) {
+        None | Some("omenaQuerySourceSyntaxIndex") => {
+            Some(OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex)
+        }
+        Some("omenaTsgoTypeFactProjection") => {
+            Some(OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaTsgoTypeFactProjection)
+        }
+        Some(_) => None,
+    }
 }
 
 fn type_fact_targets_from_value(value: &Value) -> Option<Vec<OmenaQuerySourceTypeFactTargetV0>> {
@@ -381,6 +411,26 @@ fn type_fact_provider_unavailable_from_value(
         .collect()
 }
 
+fn type_fact_target_skipped_from_value(
+    value: &Value,
+) -> Option<Vec<OmenaQuerySourceTypeFactTargetSkippedFactV0>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|fact| {
+            Some(OmenaQuerySourceTypeFactTargetSkippedFactV0 {
+                byte_span: byte_span_from_value(fact.get("byteSpan")?)?,
+                expression_id: fact.get("expressionId")?.as_str()?.to_string(),
+                target_style_uri: fact
+                    .get("targetStyleUri")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                reason: type_fact_target_skipped_reason_from_value(fact.get("reason")?)?,
+            })
+        })
+        .collect()
+}
+
 fn provider_id_from_value(value: &Value) -> Option<&'static str> {
     match value.as_str()? {
         "tsgo" => Some("tsgo"),
@@ -396,6 +446,13 @@ fn type_fact_provider_unavailable_reason_from_value(value: &Value) -> Option<&'s
         "requestFailed" => Some("requestFailed"),
         "missingResult" => Some("missingResult"),
         "unresolvable" => Some("unresolvable"),
+        _ => None,
+    }
+}
+
+fn type_fact_target_skipped_reason_from_value(value: &Value) -> Option<&'static str> {
+    match value.as_str()? {
+        "unsupportedExpressionShape" => Some("unsupportedExpressionShape"),
         _ => None,
     }
 }

@@ -1171,6 +1171,42 @@ export function View({ fontSize }: { fontSize: 10 | 12 }) {
 }
 
 #[test]
+fn records_template_interpolations_that_cannot_reach_the_type_fact_provider() {
+    let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function View({ active }: { active: boolean }) {
+  return <div className={cx(`theme-${active ? "a" : "legacy"}`)} />;
+}"#;
+
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        vec!["bind".to_string()],
+    );
+    let value = serde_json::to_value(index).expect("source syntax index should serialize");
+    let skipped = value
+        .get("typeFactTargetSkipped")
+        .and_then(serde_json::Value::as_array)
+        .expect("unsupported template interpolation should produce a structured skipped fact");
+
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(
+        skipped[0].get("reason").and_then(serde_json::Value::as_str),
+        Some("unsupportedExpressionShape")
+    );
+    assert_eq!(
+        value
+            .get("typeFactTargetSkippedCount")
+            .and_then(serde_json::Value::as_u64),
+        Some(1)
+    );
+}
+
+#[test]
 fn walks_expression_like_oxc_argument_array_and_property_key_variants() {
     let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";

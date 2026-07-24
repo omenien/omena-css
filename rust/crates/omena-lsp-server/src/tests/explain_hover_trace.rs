@@ -144,6 +144,102 @@ fn explain_hover_trace_reports_source_selector_resolution() -> TestResult {
 }
 
 #[test]
+fn explain_hover_trace_reports_type_fact_targets_that_were_never_attempted() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export const view = (active: boolean) =>
+  <div className={cx(`theme-${active ? "a" : "legacy"}`)} />;
+"#;
+    let mut state = LspShellState::default();
+    initialize_workspace(&mut state);
+    open_source_document(&mut state, source_uri, source_text);
+
+    let response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(
+                    source_text,
+                    fixture_find(source_text, "active ? \"a\"", "source fixture contains ternary")?,
+                ),
+            },
+        }),
+    );
+
+    assert_eq!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/reason")),
+        Some(&json!("noSourceCandidateAtPosition")),
+    );
+    assert_eq!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/typeFactTier")),
+        Some(&json!({
+            "attempted": false,
+            "outcome": "neverAttempted",
+            "reason": "unsupportedExpressionShape",
+            "skippedTargetCount": 1,
+        })),
+    );
+    Ok(())
+}
+
+#[test]
+fn explain_hover_trace_reports_unavailable_type_fact_provider_attempts() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export const view = (variant: string) =>
+  <div className={cx(`theme-${variant}`)} />;
+"#;
+    let mut state = LspShellState::default();
+    initialize_workspace(&mut state);
+    open_source_document(&mut state, source_uri, source_text);
+
+    let response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(
+                    source_text,
+                    fixture_find(source_text, "variant}`", "source fixture contains identifier")?,
+                ),
+            },
+        }),
+    );
+
+    assert_eq!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/typeFactTier")),
+        Some(&json!({
+            "attempted": true,
+            "outcome": "unavailable",
+            "reason": "projectMiss",
+            "skippedTargetCount": 0,
+        })),
+    );
+    Ok(())
+}
+
+#[test]
 fn explain_hover_trace_reports_domain_class_value_universe() -> TestResult {
     let source_uri = "file:///workspace-a/src/App.tsx";
     let source_text = r#"import { cva } from "class-variance-authority";

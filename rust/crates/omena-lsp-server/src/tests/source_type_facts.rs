@@ -163,6 +163,67 @@ export function Badge({ size, fontSize }: BadgeProps) {
         .ok_or_else(|| std::io::Error::other("size hover should render markdown"))?;
     assert!(hover_text.contains("`.medium`"));
     assert!(hover_text.contains("`.small`"));
+    let explain_hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 41,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(
+                    source_text,
+                    size_target.byte_span.start,
+                ),
+            },
+        }),
+    );
+    assert_eq!(
+        explain_hover
+            .as_ref()
+            .and_then(|value| value.pointer("/result/typeFactTier")),
+        Some(&json!({
+            "attempted": true,
+            "outcome": "resolved",
+            "skippedTargetCount": 0,
+        })),
+    );
+    let projected_references = state
+        .document(source_uri)
+        .ok_or_else(|| std::io::Error::other("source document should remain indexed"))?
+        .source_syntax_index
+        .selector_references
+        .iter()
+        .filter(|reference| {
+            matches!(
+                reference.selector_name.as_deref(),
+                Some("medium" | "small" | "font-size-10" | "font-size-12")
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(!projected_references.is_empty());
+    assert!(projected_references.iter().all(|reference| {
+        reference.surface == SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection
+    }));
+    let serialized = serde_json::to_value(
+        &state
+            .document(source_uri)
+            .ok_or_else(|| std::io::Error::other("source document should remain indexed"))?
+            .source_syntax_index,
+    )?;
+    assert!(
+        serialized
+            .pointer("/selectorReferences")
+            .and_then(Value::as_array)
+            .is_some_and(|references| {
+                references.iter().any(|reference| {
+                    reference.get("surface") == Some(&json!("omenaTsgoTypeFactProjection"))
+                })
+            }),
+        "tsgo-projected references should retain their serialized provenance"
+    );
 
     let size_references = handle_lsp_message(
         &mut state,

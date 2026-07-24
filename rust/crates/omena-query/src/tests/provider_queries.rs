@@ -4,9 +4,10 @@ use crate::{
     OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQuerySourceSelectorReferenceFactV0,
     OmenaQuerySourceSelectorReferenceMatchKindV0, OmenaQuerySourceSyntaxIndexV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSelectorDefinitionV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTsconfigPathMappingV0, ParserByteSpanV0,
-    ParserPositionV0, ParserRangeV0, resolve_omena_query_style_uri_for_specifier,
-    summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_refs_for_class,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTsconfigPathMappingV0,
+    OmenaWorkspaceOccurrenceSurfaceV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
+    resolve_omena_query_style_uri_for_specifier, summarize_omena_query_missing_selector_diagnostic,
+    summarize_omena_query_refs_for_class,
     summarize_omena_query_refs_for_class_from_occurrence_index,
     summarize_omena_query_refs_for_workspace_class,
     summarize_omena_query_refs_for_workspace_class_with_resolution_inputs,
@@ -970,7 +971,7 @@ fn source_selector_occurrence_index_feeds_refs_and_rename() {
                     character: 35,
                 },
             },
-            source: "omenaQuerySourceSyntaxIndex",
+            source: "omenaTsgoTypeFactProjection",
             target_style_uri: Some("file:///workspace/src/Component.module.scss".to_string()),
         },
         OmenaQuerySourceSelectorReferenceCandidateV0 {
@@ -1004,6 +1005,10 @@ fn source_selector_occurrence_index_feeds_refs_and_rename() {
     assert_eq!(index.occurrence_count, 2);
     assert!(index.occurrences.iter().any(|occurrence| occurrence.moniker
         == "css-module-selector:file:///workspace/src/Component.module.scss#.root"));
+    assert!(index.occurrences.iter().any(|occurrence| {
+        occurrence.uri == "file:///workspace/src/App.tsx"
+            && occurrence.source == OmenaWorkspaceOccurrenceSurfaceV0::OmenaTsgoTypeFactProjection
+    }));
     assert_eq!(
         index.workspace_index.product,
         "omena-query.workspace-occurrence-index"
@@ -1109,8 +1114,11 @@ fn workspace_refs_consume_precomputed_source_syntax_index() -> Result<(), &'stat
                     target_style_uri: Some(
                         "file:///workspace/src/Component.module.scss".to_string(),
                     ),
+                    surface: Default::default(),
                 }],
                 type_fact_targets: Vec::new(),
+                type_fact_target_skipped: Vec::new(),
+                type_fact_target_skipped_count: 0,
                 type_fact_provider_unavailable: Vec::new(),
                 class_value_universes: Vec::new(),
                 domain_class_references: Vec::new(),

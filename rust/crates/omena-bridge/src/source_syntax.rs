@@ -26,6 +26,9 @@ use crate::style_intelligence::{
     BuiltInRecipeProviderConfigV0 as VariantRecipeConfigV0, built_in_recipe_provider_configs,
 };
 
+const SOURCE_TYPE_FACT_TARGET_SKIPPED_UNSUPPORTED_EXPRESSION_SHAPE: &str =
+    "unsupportedExpressionShape";
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceSyntaxIndexV0 {
@@ -37,6 +40,10 @@ pub struct SourceSyntaxIndexV0 {
     pub inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     pub selector_references: Vec<SourceSelectorReferenceFactV0>,
     pub type_fact_targets: Vec<SourceTypeFactTargetV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub type_fact_target_skipped: Vec<SourceTypeFactTargetSkippedFactV0>,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub type_fact_target_skipped_count: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub type_fact_provider_unavailable: Vec<SourceTypeFactProviderUnavailableFactV0>,
     pub class_value_universes: Vec<SourceClassValueUniverseEntryV0>,
@@ -261,6 +268,35 @@ pub struct SourceSelectorReferenceFactV0 {
     pub selector_name: Option<String>,
     pub match_kind: SourceSelectorReferenceMatchKindV0,
     pub target_style_uri: Option<String>,
+    #[serde(skip_serializing_if = "source_selector_reference_surface_is_default")]
+    pub surface: SourceSelectorReferenceSurfaceV0,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SourceSelectorReferenceSurfaceV0 {
+    #[default]
+    OmenaQuerySourceSyntaxIndex,
+    OmenaTsgoTypeFactProjection,
+}
+
+impl SourceSelectorReferenceSurfaceV0 {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OmenaQuerySourceSyntaxIndex => "omenaQuerySourceSyntaxIndex",
+            Self::OmenaTsgoTypeFactProjection => "omenaTsgoTypeFactProjection",
+        }
+    }
+}
+
+fn source_selector_reference_surface_is_default(
+    surface: &SourceSelectorReferenceSurfaceV0,
+) -> bool {
+    *surface == SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+}
+
+fn is_zero(value: &usize) -> bool {
+    *value == 0
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -280,6 +316,15 @@ pub struct SourceTypeFactProviderUnavailableFactV0 {
     pub expression_id: String,
     pub target_style_uri: Option<String>,
     pub provider_id: &'static str,
+    pub reason: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceTypeFactTargetSkippedFactV0 {
+    pub byte_span: ParserByteSpanV0,
+    pub expression_id: String,
+    pub target_style_uri: Option<String>,
     pub reason: &'static str,
 }
 
@@ -445,6 +490,7 @@ type SourceReferenceDedupeKey = (
     usize,
     Option<String>,
     SourceSelectorReferenceMatchKindV0,
+    SourceSelectorReferenceSurfaceV0,
 );
 type SourceReferenceTargetMap = BTreeMap<SourceReferenceDedupeKey, BTreeSet<Option<String>>>;
 
@@ -496,6 +542,8 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         inline_style_declarations: ast_facts.inline_style_declarations,
         selector_references: Vec::new(),
         type_fact_targets: Vec::new(),
+        type_fact_target_skipped: Vec::new(),
+        type_fact_target_skipped_count: 0,
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: ast_facts.class_value_universes,
         domain_class_references: ast_facts.domain_class_references,
@@ -520,6 +568,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
             &local_class_values,
             &mut index.selector_references,
             &mut index.type_fact_targets,
+            &mut index.type_fact_target_skipped,
         );
     }
     for access in &index.style_property_accesses {
@@ -530,6 +579,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
                 selector_name: None,
                 match_kind: SourceSelectorReferenceMatchKindV0::Exact,
                 target_style_uri: access.target_style_uri.clone(),
+                surface: SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
             });
     }
     for argument in classnames_bind_call_arguments {
@@ -545,6 +595,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
                 &local_class_values,
                 &mut index.selector_references,
                 &mut index.type_fact_targets,
+                &mut index.type_fact_target_skipped,
             );
         }
     }
@@ -562,6 +613,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         &mut index.selector_references,
     );
     canonicalize_source_selector_references(&mut index.selector_references);
+    index.type_fact_target_skipped_count = index.type_fact_target_skipped.len();
 
     index
 }
@@ -923,13 +975,14 @@ pub fn canonicalize_source_selector_references(
                 reference.byte_span.end,
                 reference.selector_name.clone(),
                 reference.match_kind,
+                reference.surface,
             ))
             .or_default()
             .insert(reference.target_style_uri.clone());
     }
 
     let mut canonical = Vec::new();
-    for ((start, end, selector_name, match_kind), targets) in targets_by_reference {
+    for ((start, end, selector_name, match_kind, surface), targets) in targets_by_reference {
         let has_targeted_reference = targets.iter().any(Option::is_some);
         for target_style_uri in targets {
             if has_targeted_reference && target_style_uri.is_none() {
@@ -940,6 +993,7 @@ pub fn canonicalize_source_selector_references(
                 selector_name: selector_name.clone(),
                 match_kind,
                 target_style_uri,
+                surface,
             });
         }
     }
@@ -1336,6 +1390,7 @@ fn push_server_template_class_attribute_selector_references(
             selector_name: None,
             match_kind: SourceSelectorReferenceMatchKindV0::Exact,
             target_style_uri: None,
+            surface: SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
         });
     }
 }
@@ -3963,6 +4018,7 @@ fn collect_selector_references_from_js_expression(
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
     type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
+    type_fact_target_skipped: &mut Vec<SourceTypeFactTargetSkippedFactV0>,
 ) {
     let (start, end) = trim_js_expression(source, start, end);
     let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
@@ -3989,6 +4045,7 @@ fn collect_selector_references_from_js_expression(
                 literal_end,
                 target_style_uri,
                 type_fact_targets,
+                type_fact_target_skipped,
             );
         }
         return;
@@ -4005,6 +4062,7 @@ fn collect_selector_references_from_js_expression(
             local_class_values,
             references,
             type_fact_targets,
+            type_fact_target_skipped,
         );
         return;
     }
@@ -4029,6 +4087,7 @@ fn collect_selector_references_from_js_expression(
                 local_class_values,
                 references,
                 type_fact_targets,
+                type_fact_target_skipped,
             );
         }
         return;
@@ -4047,6 +4106,7 @@ fn collect_selector_references_from_js_expression(
                 local_class_values,
                 references,
                 type_fact_targets,
+                type_fact_target_skipped,
             );
         }
         return;
@@ -4063,6 +4123,7 @@ fn collect_selector_references_from_js_expression(
             local_class_values,
             references,
             type_fact_targets,
+            type_fact_target_skipped,
         );
         collect_selector_references_from_js_expression(
             source,
@@ -4072,6 +4133,7 @@ fn collect_selector_references_from_js_expression(
             local_class_values,
             references,
             type_fact_targets,
+            type_fact_target_skipped,
         );
         return;
     }
@@ -4087,6 +4149,7 @@ fn collect_selector_references_from_js_expression(
             local_class_values,
             references,
             type_fact_targets,
+            type_fact_target_skipped,
         );
         return;
     }
@@ -4438,6 +4501,7 @@ fn collect_object_literal_selector_references(
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
     type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
+    type_fact_target_skipped: &mut Vec<SourceTypeFactTargetSkippedFactV0>,
 ) {
     for (property_start, property_end) in
         split_top_level_js_segments(source, start + 1, end - 1, b',')
@@ -4456,6 +4520,7 @@ fn collect_object_literal_selector_references(
                 local_class_values,
                 references,
                 type_fact_targets,
+                type_fact_target_skipped,
             );
             continue;
         }
@@ -4469,6 +4534,7 @@ fn collect_object_literal_selector_references(
             local_class_values,
             references,
             type_fact_targets,
+            type_fact_target_skipped,
         );
     }
 }
@@ -4505,6 +4571,7 @@ fn collect_selector_references_from_object_key(
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
     type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
+    type_fact_target_skipped: &mut Vec<SourceTypeFactTargetSkippedFactV0>,
 ) {
     let (start, end) = trim_js_expression(source, start, end);
     if start >= end {
@@ -4521,6 +4588,7 @@ fn collect_selector_references_from_object_key(
             local_class_values,
             references,
             type_fact_targets,
+            type_fact_target_skipped,
         );
         return;
     }
@@ -4543,6 +4611,7 @@ fn collect_selector_references_from_object_key(
                 literal_end,
                 target_style_uri,
                 type_fact_targets,
+                type_fact_target_skipped,
             );
         }
         return;
@@ -4646,6 +4715,7 @@ fn collect_template_type_fact_targets(
     literal_end: usize,
     target_style_uri: Option<&str>,
     type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
+    type_fact_target_skipped: &mut Vec<SourceTypeFactTargetSkippedFactV0>,
 ) {
     let Some((prefix, expression_span, suffix)) =
         single_template_interpolation_projection(source, literal_start, literal_end)
@@ -4653,6 +4723,15 @@ fn collect_template_type_fact_targets(
         return;
     };
     let Some(path) = js_expression_path(source, expression_span.start, expression_span.end) else {
+        let skipped = SourceTypeFactTargetSkippedFactV0 {
+            byte_span: expression_span,
+            expression_id: source_type_fact_skipped_expression_id(expression_span),
+            target_style_uri: target_style_uri.map(ToString::to_string),
+            reason: SOURCE_TYPE_FACT_TARGET_SKIPPED_UNSUPPORTED_EXPRESSION_SHAPE,
+        };
+        if !type_fact_target_skipped.contains(&skipped) {
+            type_fact_target_skipped.push(skipped);
+        }
         return;
     };
     push_source_type_fact_target(
@@ -4663,6 +4742,13 @@ fn collect_template_type_fact_targets(
         suffix.as_str(),
         type_fact_targets,
     );
+}
+
+fn source_type_fact_skipped_expression_id(byte_span: ParserByteSpanV0) -> String {
+    format!(
+        "omena-bridge-source-type-fact-skipped:{}:{}",
+        byte_span.start, byte_span.end
+    )
 }
 
 fn single_template_interpolation_projection(
@@ -4764,6 +4850,7 @@ fn push_selector_reference(
         selector_name,
         match_kind,
         target_style_uri: target_style_uri.map(ToString::to_string),
+        surface: SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
     });
 }
 
@@ -4867,6 +4954,7 @@ fn push_string_literal_selector_references(
             selector_name: None,
             match_kind: SourceSelectorReferenceMatchKindV0::Exact,
             target_style_uri: target_style_uri.clone(),
+            surface: SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
         });
     }
 }

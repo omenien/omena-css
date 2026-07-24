@@ -115,7 +115,7 @@ use omena_query::summarize_omena_query_target_unresolved_sass_import_diagnostics
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
     OmenaQueryStyleDiagnosticV0, OmenaWorkspaceOccurrenceFamilyV0, OmenaWorkspaceOccurrenceIndexV0,
-    OmenaWorkspaceOccurrenceRoleV0, OmenaWorkspaceOccurrenceV0, ParserPositionV0,
+    OmenaWorkspaceOccurrenceRoleV0, OmenaWorkspaceOccurrenceV0, ParserByteSpanV0, ParserPositionV0,
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
@@ -149,7 +149,8 @@ pub(crate) use omena_query::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, ParserByteSpanV0,
+    OmenaQuerySourceSelectorReferenceSurfaceV0 as SourceSelectorReferenceSurface,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
 };
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
@@ -893,10 +894,11 @@ fn resolve_lsp_hover_trace(state: &LspShellState, params: Option<&Value>) -> Val
                 "unknown",
                 Some(position),
                 "documentNotIndexed",
+                None,
             )
         }
     } else {
-        empty_hover_trace(document_uri, None, "unknown", None, "missingPosition")
+        empty_hover_trace(document_uri, None, "unknown", None, "missingPosition", None)
     };
     project_hover_trace_through_explain_egress(&mut trace);
     trace
@@ -914,6 +916,7 @@ fn resolve_style_lsp_hover_trace(
             "style",
             Some(position),
             "styleDocumentNotIndexed",
+            None,
         );
     };
     let matched = candidates
@@ -986,12 +989,14 @@ fn resolve_source_lsp_hover_trace(
         .filter(|candidate| parser_range_contains_position(&candidate.range, position))
         .collect::<Vec<_>>();
     if matched.is_empty() && unresolved.is_empty() {
+        let type_fact_tier = source_type_fact_tier_trace(document, position);
         return empty_hover_trace(
             document.uri.clone(),
             document.workspace_folder_uri.clone(),
             "source",
             Some(position),
             "noSourceCandidateAtPosition",
+            type_fact_tier,
         );
     }
 
@@ -1003,7 +1008,7 @@ fn resolve_source_lsp_hover_trace(
     let rendered_markdown =
         render_source_hover_definitions_markdown(state, definitions.as_slice()).unwrap_or_default();
 
-    json!({
+    let mut trace = json!({
         "schemaVersion": "0",
         "product": "omena-lsp-server.explain-hover-trace",
         "documentUri": document.uri.as_str(),
@@ -1022,7 +1027,9 @@ fn resolve_source_lsp_hover_trace(
         "renderedMarkdown": rendered_markdown,
         "resolutionPath": ["sourceSyntaxIndex", "sourceProviderCandidateResolution", "styleSelectorDefinitionResolver", "hoverMarkdownRenderer"],
         "readySurfaces": ["explainHoverTraceRpc", "sourceSyntaxIndex", "sourceProviderCandidateResolution", "hoverMarkdownRenderer"],
-    })
+    });
+    attach_type_fact_tier_trace(&mut trace, source_type_fact_tier_trace(document, position));
+    trace
 }
 
 fn empty_hover_trace(
@@ -1031,8 +1038,9 @@ fn empty_hover_trace(
     file_kind: &'static str,
     query_position: Option<ParserPositionV0>,
     reason: &'static str,
+    type_fact_tier: Option<Value>,
 ) -> Value {
-    json!({
+    let mut trace = json!({
         "schemaVersion": "0",
         "product": "omena-lsp-server.explain-hover-trace",
         "documentUri": document_uri,
@@ -1047,7 +1055,68 @@ fn empty_hover_trace(
         "definitions": [],
         "resolutionPath": [],
         "readySurfaces": ["explainHoverTraceRpc"],
-    })
+    });
+    attach_type_fact_tier_trace(&mut trace, type_fact_tier);
+    trace
+}
+
+fn attach_type_fact_tier_trace(trace: &mut Value, type_fact_tier: Option<Value>) {
+    if let Some(type_fact_tier) = type_fact_tier
+        && let Some(trace) = trace.as_object_mut()
+    {
+        trace.insert("typeFactTier".to_string(), type_fact_tier);
+    }
+}
+
+fn source_type_fact_tier_trace(
+    document: &LspTextDocumentState,
+    position: ParserPositionV0,
+) -> Option<Value> {
+    let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
+    let contains_offset = |span: ParserByteSpanV0| span.start <= offset && offset < span.end;
+    let skipped_count = document.source_syntax_index.type_fact_target_skipped_count;
+
+    if let Some(fact) = document
+        .source_syntax_index
+        .type_fact_target_skipped
+        .iter()
+        .find(|fact| contains_offset(fact.byte_span))
+    {
+        return Some(json!({
+            "attempted": false,
+            "outcome": "neverAttempted",
+            "reason": fact.reason,
+            "skippedTargetCount": skipped_count,
+        }));
+    }
+    if let Some(fact) = document
+        .source_syntax_index
+        .type_fact_provider_unavailable
+        .iter()
+        .find(|fact| contains_offset(fact.byte_span))
+    {
+        return Some(json!({
+            "attempted": true,
+            "outcome": "unavailable",
+            "reason": fact.reason,
+            "skippedTargetCount": skipped_count,
+        }));
+    }
+    document
+        .source_syntax_index
+        .selector_references
+        .iter()
+        .any(|reference| {
+            contains_offset(reference.byte_span)
+                && reference.surface.as_str() == "omenaTsgoTypeFactProjection"
+        })
+        .then(|| {
+            json!({
+                "attempted": true,
+                "outcome": "resolved",
+                "skippedTargetCount": skipped_count,
+            })
+        })
 }
 
 fn style_hover_trace_definitions(

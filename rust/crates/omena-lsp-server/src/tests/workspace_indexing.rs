@@ -1088,8 +1088,16 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             selector_name: Some("cachedRoot".to_string()),
             match_kind: SourceSelectorReferenceMatchKind::Exact,
             target_style_uri: Some(style_uri.clone()),
+            surface: SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection,
         }],
         type_fact_targets: Vec::new(),
+        type_fact_target_skipped: vec![omena_query::OmenaQuerySourceTypeFactTargetSkippedFactV0 {
+            byte_span: selector_span,
+            expression_id: "fixture-type-fact-target".to_string(),
+            target_style_uri: Some(style_uri.clone()),
+            reason: "unsupportedExpressionShape",
+        }],
+        type_fact_target_skipped_count: 1,
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: vec![omena_query::OmenaQuerySourceClassValueUniverseEntryV0 {
             plugin_id: "cva-recipe-domain",
@@ -1231,6 +1239,18 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             .len(),
         1,
         "source syntax sidecar must preserve inline style declarations"
+    );
+    assert_eq!(
+        indexed_source.source_syntax_index.selector_references[0].surface,
+        SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection,
+        "source syntax sidecar must preserve selector-reference provenance"
+    );
+    assert_eq!(
+        indexed_source
+            .source_syntax_index
+            .type_fact_target_skipped_count,
+        1,
+        "source syntax sidecar must preserve skipped type-fact observability"
     );
     assert_eq!(
         indexed_source
@@ -3068,6 +3088,7 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
                 selector_name: Some("ghost".to_string()),
                 match_kind: SourceSelectorReferenceMatchKind::Exact,
                 target_style_uri: Some(style_uri.clone()),
+                surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
             },
             SourceSelectorReferenceFact {
                 byte_span: ParserByteSpanV0 {
@@ -3077,6 +3098,7 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
                 selector_name: Some("buttonPrimary".to_string()),
                 match_kind: SourceSelectorReferenceMatchKind::Exact,
                 target_style_uri: Some(style_uri.clone()),
+                surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
             },
             SourceSelectorReferenceFact {
                 byte_span: ParserByteSpanV0 {
@@ -3086,6 +3108,7 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
                 selector_name: Some("lost".to_string()),
                 match_kind: SourceSelectorReferenceMatchKind::Prefix,
                 target_style_uri: Some(style_uri.clone()),
+                surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
             },
             SourceSelectorReferenceFact {
                 byte_span: ParserByteSpanV0 {
@@ -3095,9 +3118,12 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
                 selector_name: Some("emptyGhost".to_string()),
                 match_kind: SourceSelectorReferenceMatchKind::Prefix,
                 target_style_uri: Some(style_uri.clone()),
+                surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
             },
         ],
         type_fact_targets: Vec::new(),
+        type_fact_target_skipped: Vec::new(),
+        type_fact_target_skipped_count: 0,
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: Vec::new(),
         domain_class_references: Vec::new(),
@@ -3229,8 +3255,11 @@ fn persisted_source_syntax_sidecar_feeds_unused_selector_diagnostics_without_rep
             selector_name: Some("cachedRoot".to_string()),
             match_kind: SourceSelectorReferenceMatchKind::Exact,
             target_style_uri: Some(style_uri.clone()),
+            surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
         }],
         type_fact_targets: Vec::new(),
+        type_fact_target_skipped: Vec::new(),
+        type_fact_target_skipped_count: 0,
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: Vec::new(),
         domain_class_references: Vec::new(),

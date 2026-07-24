@@ -422,8 +422,11 @@ fn source_diagnostics_consume_precomputed_source_syntax_index() {
                     selector_name: Some("ghost".to_string()),
                     match_kind: OmenaQuerySourceSelectorReferenceMatchKindV0::Exact,
                     target_style_uri: Some(style_uri.to_string()),
+                    surface: Default::default(),
                 }],
                 type_fact_targets: Vec::new(),
+                type_fact_target_skipped: Vec::new(),
+                type_fact_target_skipped_count: 0,
                 type_fact_provider_unavailable: Vec::new(),
                 class_value_universes: Vec::new(),
                 domain_class_references: Vec::new(),
@@ -522,6 +525,8 @@ fn source_diagnostics_tag_tsgo_unavailable_type_fact_as_unknown_precision()
                 inline_style_declarations: Vec::new(),
                 selector_references: Vec::new(),
                 type_fact_targets: Vec::new(),
+                type_fact_target_skipped: Vec::new(),
+                type_fact_target_skipped_count: 0,
                 type_fact_provider_unavailable: vec![
                     OmenaQuerySourceTypeFactProviderUnavailableFactV0 {
                         byte_span: ParserByteSpanV0 {

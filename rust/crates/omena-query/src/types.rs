@@ -2010,6 +2010,7 @@ impl OmenaWorkspaceOccurrenceRoleV0 {
 #[serde(rename_all = "camelCase")]
 pub enum OmenaWorkspaceOccurrenceSurfaceV0 {
     OmenaQuerySourceSyntaxIndex,
+    OmenaTsgoTypeFactProjection,
     OmenaLspStyleIndex,
 }
 
@@ -2017,6 +2018,7 @@ impl OmenaWorkspaceOccurrenceSurfaceV0 {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::OmenaQuerySourceSyntaxIndex => "omenaQuerySourceSyntaxIndex",
+            Self::OmenaTsgoTypeFactProjection => "omenaTsgoTypeFactProjection",
             Self::OmenaLspStyleIndex => "omenaLspStyleIndex",
         }
     }

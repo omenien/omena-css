@@ -197,7 +197,7 @@ pub fn summarize_omena_query_source_selector_occurrence_index(
                 kind: workspace_occurrence_kind_from_source_reference_kind(reference.kind)
                     .unwrap_or(OmenaWorkspaceOccurrenceKindV0::SourceSelectorReference),
                 role: OmenaWorkspaceOccurrenceRoleV0::Reference,
-                source: OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
+                source: source_reference_occurrence_surface(reference.source),
                 target_style_uri: reference.target_style_uri.clone(),
                 rename_target: reference.kind == "sourceSelectorReference"
                     && reference.name == selector_name,
@@ -233,6 +233,15 @@ pub fn summarize_omena_query_source_selector_occurrence_index(
             "workspaceWideSelectorReferences",
             "workspaceWideSelectorRename",
         ],
+    }
+}
+
+fn source_reference_occurrence_surface(source: &str) -> OmenaWorkspaceOccurrenceSurfaceV0 {
+    match source {
+        "omenaTsgoTypeFactProjection" => {
+            OmenaWorkspaceOccurrenceSurfaceV0::OmenaTsgoTypeFactProjection
+        }
+        _ => OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
     }
 }
 
@@ -1225,7 +1234,7 @@ pub(super) fn collect_omena_query_source_selector_references_with_resolution_inp
                     },
                     name,
                     range: parser_range_for_byte_span(&document.source_source, reference.byte_span),
-                    source: "omenaQuerySourceSyntaxIndex",
+                    source: reference.surface.as_str(),
                     target_style_uri: reference.target_style_uri,
                 },
             });
