@@ -131,12 +131,14 @@ pub use omena_query::OmenaQuerySourceScopeContainsDeclFactV0
 pub use omena_query::OmenaQuerySourceScopeParentFactV0
 pub use omena_query::OmenaQuerySourceSelectorReferenceFactV0
 pub use omena_query::OmenaQuerySourceSelectorReferenceMatchKindV0
+pub use omena_query::OmenaQuerySourceSelectorReferenceSurfaceV0
 pub use omena_query::OmenaQuerySourceStyleAccessUsesStyleImportFactV0
 pub use omena_query::OmenaQuerySourceStyleImportResolvesModuleFactV0
 pub use omena_query::OmenaQuerySourceStylePropertyAccessFactV0
 pub use omena_query::OmenaQuerySourceSymbolRefUsesDeclFactV0
 pub use omena_query::OmenaQuerySourceSyntaxIndexV0
 pub use omena_query::OmenaQuerySourceTypeFactProviderUnavailableFactV0
+pub use omena_query::OmenaQuerySourceTypeFactTargetSkippedFactV0
 pub use omena_query::OmenaQuerySourceTypeFactTargetV0
 pub use omena_query::OmenaQuerySourceUtilityUsesStyleImportFactV0
 pub use omena_query::OmenaQueryStyleIntelligenceClassUniverseV0
@@ -592,6 +594,7 @@ pub fn omena_query::OmenaWorkspaceOccurrenceRoleV0::as_str(self) -> &'static str
 pub enum omena_query::OmenaWorkspaceOccurrenceSurfaceV0
 pub omena_query::OmenaWorkspaceOccurrenceSurfaceV0::OmenaLspStyleIndex
 pub omena_query::OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+pub omena_query::OmenaWorkspaceOccurrenceSurfaceV0::OmenaTsgoTypeFactProjection
 impl omena_query::OmenaWorkspaceOccurrenceSurfaceV0
 pub fn omena_query::OmenaWorkspaceOccurrenceSurfaceV0::as_str(self) -> &'static str
 pub enum omena_query::OmenaWorkspaceSessionOperationV0
