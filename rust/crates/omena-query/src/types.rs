@@ -1853,6 +1853,17 @@ pub struct OmenaQuerySourceSelectorReferenceCandidateV0 {
     pub target_style_uri: Option<String>,
 }
 
+impl OmenaQuerySourceSelectorReferenceCandidateV0 {
+    pub fn projection_surface(&self) -> OmenaQuerySourceSelectorReferenceSurfaceV0 {
+        match self.source {
+            "omenaTsgoTypeFactProjection" => {
+                OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaTsgoTypeFactProjection
+            }
+            _ => OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleSelectorDefinitionV0 {
@@ -2010,7 +2021,6 @@ impl OmenaWorkspaceOccurrenceRoleV0 {
 #[serde(rename_all = "camelCase")]
 pub enum OmenaWorkspaceOccurrenceSurfaceV0 {
     OmenaQuerySourceSyntaxIndex,
-    OmenaTsgoTypeFactProjection,
     OmenaLspStyleIndex,
 }
 
@@ -2018,7 +2028,6 @@ impl OmenaWorkspaceOccurrenceSurfaceV0 {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::OmenaQuerySourceSyntaxIndex => "omenaQuerySourceSyntaxIndex",
-            Self::OmenaTsgoTypeFactProjection => "omenaTsgoTypeFactProjection",
             Self::OmenaLspStyleIndex => "omenaLspStyleIndex",
         }
     }

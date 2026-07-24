@@ -2,12 +2,12 @@ use crate::{
     AbstractPropertyValueV0, OmenaQueryCompletionCandidateV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceCandidateV0,
     OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQuerySourceSelectorReferenceFactV0,
-    OmenaQuerySourceSelectorReferenceMatchKindV0, OmenaQuerySourceSyntaxIndexV0,
-    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSelectorDefinitionV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTsconfigPathMappingV0,
-    OmenaWorkspaceOccurrenceSurfaceV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
-    resolve_omena_query_style_uri_for_specifier, summarize_omena_query_missing_selector_diagnostic,
-    summarize_omena_query_refs_for_class,
+    OmenaQuerySourceSelectorReferenceMatchKindV0, OmenaQuerySourceSelectorReferenceSurfaceV0,
+    OmenaQuerySourceSyntaxIndexV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTsconfigPathMappingV0, OmenaWorkspaceOccurrenceSurfaceV0, ParserByteSpanV0,
+    ParserPositionV0, ParserRangeV0, resolve_omena_query_style_uri_for_specifier,
+    summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_refs_for_class,
     summarize_omena_query_refs_for_class_from_occurrence_index,
     summarize_omena_query_refs_for_workspace_class,
     summarize_omena_query_refs_for_workspace_class_with_resolution_inputs,
@@ -1007,8 +1007,16 @@ fn source_selector_occurrence_index_feeds_refs_and_rename() {
         == "css-module-selector:file:///workspace/src/Component.module.scss#.root"));
     assert!(index.occurrences.iter().any(|occurrence| {
         occurrence.uri == "file:///workspace/src/App.tsx"
-            && occurrence.source == OmenaWorkspaceOccurrenceSurfaceV0::OmenaTsgoTypeFactProjection
+            && occurrence.source == OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex
     }));
+    assert_eq!(
+        references[0].projection_surface(),
+        OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaTsgoTypeFactProjection
+    );
+    assert_eq!(
+        references[1].projection_surface(),
+        OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+    );
     assert_eq!(
         index.workspace_index.product,
         "omena-query.workspace-occurrence-index"

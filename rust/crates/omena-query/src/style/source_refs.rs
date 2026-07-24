@@ -197,7 +197,7 @@ pub fn summarize_omena_query_source_selector_occurrence_index(
                 kind: workspace_occurrence_kind_from_source_reference_kind(reference.kind)
                     .unwrap_or(OmenaWorkspaceOccurrenceKindV0::SourceSelectorReference),
                 role: OmenaWorkspaceOccurrenceRoleV0::Reference,
-                source: source_reference_occurrence_surface(reference.source),
+                source: source_reference_occurrence_surface(reference.projection_surface()),
                 target_style_uri: reference.target_style_uri.clone(),
                 rename_target: reference.kind == "sourceSelectorReference"
                     && reference.name == selector_name,
@@ -236,12 +236,15 @@ pub fn summarize_omena_query_source_selector_occurrence_index(
     }
 }
 
-fn source_reference_occurrence_surface(source: &str) -> OmenaWorkspaceOccurrenceSurfaceV0 {
-    match source {
-        "omenaTsgoTypeFactProjection" => {
-            OmenaWorkspaceOccurrenceSurfaceV0::OmenaTsgoTypeFactProjection
+fn source_reference_occurrence_surface(
+    surface: OmenaQuerySourceSelectorReferenceSurfaceV0,
+) -> OmenaWorkspaceOccurrenceSurfaceV0 {
+    match surface {
+        OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+        | OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaTsgoTypeFactProjection => {
+            // The published workspace V0 groups source-side projections together.
+            OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex
         }
-        _ => OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
     }
 }
 

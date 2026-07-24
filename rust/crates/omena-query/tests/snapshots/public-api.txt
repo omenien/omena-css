@@ -594,7 +594,6 @@ pub fn omena_query::OmenaWorkspaceOccurrenceRoleV0::as_str(self) -> &'static str
 pub enum omena_query::OmenaWorkspaceOccurrenceSurfaceV0
 pub omena_query::OmenaWorkspaceOccurrenceSurfaceV0::OmenaLspStyleIndex
 pub omena_query::OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex
-pub omena_query::OmenaWorkspaceOccurrenceSurfaceV0::OmenaTsgoTypeFactProjection
 impl omena_query::OmenaWorkspaceOccurrenceSurfaceV0
 pub fn omena_query::OmenaWorkspaceOccurrenceSurfaceV0::as_str(self) -> &'static str
 pub enum omena_query::OmenaWorkspaceSessionOperationV0
@@ -1784,6 +1783,8 @@ pub omena_query::OmenaQuerySourceSelectorReferenceCandidateV0::range: omena_pars
 pub omena_query::OmenaQuerySourceSelectorReferenceCandidateV0::source: &'static str
 pub omena_query::OmenaQuerySourceSelectorReferenceCandidateV0::target_style_uri: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQuerySourceSelectorReferenceCandidateV0::uri: alloc::string::String
+impl omena_query::OmenaQuerySourceSelectorReferenceCandidateV0
+pub fn omena_query::OmenaQuerySourceSelectorReferenceCandidateV0::projection_surface(&self) -> omena_bridge::source_syntax::SourceSelectorReferenceSurfaceV0
 pub struct omena_query::OmenaQuerySourceSelectorReferenceEditTargetV0
 pub omena_query::OmenaQuerySourceSelectorReferenceEditTargetV0::name: alloc::string::String
 pub omena_query::OmenaQuerySourceSelectorReferenceEditTargetV0::range: omena_parser::spans::ParserRangeV0
