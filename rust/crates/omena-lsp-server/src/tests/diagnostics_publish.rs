@@ -474,6 +474,183 @@ fn style_text_edit_skips_source_republish_when_module_interface_is_unchanged() {
     );
 }
 
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
+fn disk_backed_style_close_and_identical_reopen_skip_source_fanout() -> TestResult {
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-lsp-style-lifecycle-{}-{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let src_dir = workspace_path.join("src");
+    fs::create_dir_all(src_dir.as_path())?;
+    let style_path = src_dir.join("Widget.module.scss");
+    let style_text = ".root { color: red; }\n";
+    fs::write(style_path.as_path(), style_text)?;
+    let style_uri = path_to_file_uri(style_path.as_path());
+    let source_uris = (0..5)
+        .map(|index| path_to_file_uri(src_dir.join(format!("View{index}.tsx")).as_path()))
+        .collect::<Vec<_>>();
+
+    let mut state = LspShellState::default();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{
+                    "uri": path_to_file_uri(workspace_path.as_path()),
+                    "name": "style-lifecycle",
+                }],
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": style_text,
+                },
+            },
+        }),
+    );
+    for source_uri in &source_uris {
+        let _ = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": "import styles from \"./Widget.module.scss\";\nconst view = <div className={styles.root} />;",
+                    },
+                },
+            }),
+        );
+    }
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let close_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+            },
+        }),
+    );
+    let reopen_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 2,
+                    "text": style_text,
+                },
+            },
+        }),
+    );
+
+    assert_eq!(
+        close_outputs
+            .iter()
+            .find(|output| output.pointer("/params/uri") == Some(&json!(style_uri)))
+            .and_then(|output| output.pointer("/params/diagnostics")),
+        Some(&json!([])),
+        "closing the document must still clear its diagnostics"
+    );
+    assert!(
+        reopen_outputs
+            .iter()
+            .any(|output| output.pointer("/params/uri") == Some(&json!(style_uri))),
+        "reopening the document must publish its own diagnostics"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        0,
+        "a disk-backed byte-identical close and reopen must not republish source dependents"
+    );
+
+    let dirty_text = ".renamed { color: blue; }\n";
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "version": 3,
+                },
+                "contentChanges": [{
+                    "text": dirty_text,
+                }],
+            },
+        }),
+    );
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+            },
+        }),
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        source_uris.len() as u64,
+        "closing a dirty buffer must republish the affected source cone after restoring disk state"
+    );
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 4,
+                    "text": dirty_text,
+                },
+            },
+        }),
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        source_uris.len() as u64,
+        "reopening with a genuinely changed module interface must republish the affected source cone"
+    );
+
+    let _ = fs::remove_dir_all(workspace_path.as_path());
+    Ok(())
+}
+
 #[test]
 fn watched_style_change_fails_open_when_dependency_scope_is_unavailable() {
     let workspace_uri = "file:///workspace-source-republish-fail-open";

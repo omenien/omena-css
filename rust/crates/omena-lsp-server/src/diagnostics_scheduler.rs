@@ -217,7 +217,6 @@ fn diagnostics_for_text_document_event(
 ) -> DiagnosticsScheduleEffectsV0 {
     let phase_started = std::time::Instant::now();
     let mut effects = if is_close {
-        state.style_module_interface_memo.borrow_mut().remove(uri);
         DiagnosticsScheduleEffectsV0::from_outputs(vec![publish_immediate_diagnostics_output(
             uri,
             json!([]),
