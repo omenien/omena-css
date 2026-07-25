@@ -1551,6 +1551,14 @@ fn lab_backed_style_diagnostics_keep_serialized_contract() -> Result<(), &'stati
         r#",{"code":"rgFlowRelevantOperator","severity":"hint","message":"RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.","provenance":["omena-query-checker-orchestrator.rg-flow-gate","omena-checker.rg-flow-rules","omena-query.cascade-checker","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
         r#",{"code":"circularVar","severity":"warning","message":"Custom property dependency graph contains a cycle.","provenance":["omena-query-checker-orchestrator.cascade-gate","omena-checker.cascade-rules","omena-query.cascade-checker","omena-query-checker-orchestrator.rg-flow-gate","omena-checker.rg-flow-rules","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.categorical-gate","omena-checker.categorical-rules","omena-categorical.cascade-primitive-role-functor","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
         r#",{"code":"replicaEnsembleInconsistency","severity":"hint","message":"Replica-ensemble cross-file consistency hint found inconsistent cascade outcomes; this is not a default product decision mechanism.","provenance":["omena-query-checker-orchestrator.replica-ensemble-gate","omena-checker.replica-ensemble-rules","omena-ensemble.cross-file-inconsistency-report","omena-query.cross-file-replica-ensemble","omena-ensemble.cross-file-inconsistency-report","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}]"#,
+    )
+    .replace(
+        "omena-smt.backend.stub",
+        if cfg!(feature = "smt-z3") {
+            "omena-smt.backend.z3"
+        } else {
+            "omena-smt.backend.stub"
+        },
     );
     assert_eq!(actual, expected);
     Ok(())
@@ -3247,8 +3255,8 @@ fn style_diagnostics_external_sif_mode_classifies_stale_boundary() -> Result<(),
 #[test]
 fn style_diagnostics_strictness_sigil_strict_escalates_missing_boundary_to_error()
 -> Result<(), &'static str> {
-    // RFC 0004 #28 / #35: `// @omena-strict: strict` escalates a Missing boundary's severity
-    // from the default `warning` to `error`, while leaving the code/message intact.
+    // Strict mode escalates a missing external boundary from warning to error
+    // while preserving the diagnostic code and message.
     let strict_sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "/tmp/App.module.scss".to_string(),
         style_source: r#"// @omena-strict: strict
@@ -3569,6 +3577,72 @@ export function App() {
                         "omena-query-checker-orchestrator.product-diagnostic-gate",
                         "omena-checker.rule-registry"
                     ])
+    );
+    Ok(())
+}
+
+#[test]
+fn complete_empty_source_corpus_reports_unused_selectors() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.css".to_string(),
+        style_source: ".unused { color: red; }".to_string(),
+    }];
+    let resolution_inputs = crate::OmenaQueryStyleResolutionInputsV0::default();
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_complete_source_corpus(
+        "/workspace/src/App.module.css",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+        crate::OmenaQueryExternalModuleModeV0::Ignored,
+        &[],
+        &resolution_inputs,
+    )
+    .ok_or("workspace style diagnostics")?;
+
+    assert_eq!(
+        unused_selector_messages(&diagnostics),
+        vec!["Selector '.unused' is declared but never used."]
+    );
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "salsa-memo")]
+fn committed_selector_preserves_complete_empty_source_corpus() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.css".to_string(),
+        style_source: ".unused { color: red; }".to_string(),
+    }];
+    let resolution_inputs = crate::OmenaQueryStyleResolutionInputsV0::default();
+    let mut host = crate::OmenaQueryStyleMemoHostV0::new();
+    let incomplete_selector = host
+        .workspace_revision_selector(sources.as_slice(), &[], &[], &[], &resolution_inputs)
+        .ok_or("incomplete committed selector")?;
+    let incomplete_revision = incomplete_selector.revision();
+    let incomplete_diagnostics = incomplete_selector
+        .workspace_style_diagnostics("/workspace/src/App.module.css")
+        .ok_or("incomplete workspace style diagnostics")?;
+    assert!(unused_selector_messages(&incomplete_diagnostics).is_empty());
+
+    let selector = host
+        .workspace_revision_selector_with_complete_source_corpus(
+            sources.as_slice(),
+            &[],
+            &[],
+            &[],
+            &resolution_inputs,
+        )
+        .ok_or("committed selector")?;
+    assert_eq!(selector.revision().value, incomplete_revision.value + 1);
+    let diagnostics = selector
+        .workspace_style_diagnostics("/workspace/src/App.module.css")
+        .ok_or("workspace style diagnostics")?;
+
+    assert_eq!(
+        unused_selector_messages(&diagnostics),
+        vec!["Selector '.unused' is declared but never used."]
     );
     Ok(())
 }
@@ -4581,10 +4655,9 @@ fn missing_extend_target_workspace_resolves_class_through_transitive_forward()
     Ok(())
 }
 
-// rfcs#59 (residual sibling of rfcs#54): an `@extend` whose target placeholder lives in a partial
-// reachable ONLY through a tsconfig-aliased `@use` must NOT fire once the workspace's path
-// mappings are threaded into the extend-target reachability walk — while a target declared
-// nowhere in the closure still fires in the same file (no blanket suppression).
+// A placeholder reachable only through a tsconfig-aliased `@use` must not
+// produce an `@extend` error once path mappings reach the dependency walk.
+// A target absent from the whole closure must still report in the same file.
 #[test]
 fn missing_extend_target_workspace_resolves_placeholder_behind_tsconfig_alias()
 -> Result<(), &'static str> {

@@ -6,6 +6,7 @@ import path from "node:path";
 import type { WorkspaceCheckerFinding } from "../server/engine-core-ts/src/core/checker";
 import { findLangForPath } from "../server/engine-core-ts/src/core/scss/lang-registry";
 import { runWorkspaceCheckCommand } from "../server/engine-host-node/src/checker-host";
+import { shutdownEngineShadowRunnerDaemon } from "../server/engine-host-node/src/selected-query-backend";
 
 const boundedWorkspaceRoot = mkdtempSync(
   path.join(os.tmpdir(), "cme-rust-selected-query-workspace-"),
@@ -25,11 +26,11 @@ const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts",
 void (async () => {
   try {
     await checkBoundedWorkspace();
+    await checkCurrentWorkspaceNoOverreport();
   } finally {
     rmSync(boundedWorkspaceRoot, { recursive: true, force: true });
+    shutdownEngineShadowRunnerDaemon();
   }
-
-  await checkCurrentWorkspaceNoOverreport();
 })();
 
 async function checkBoundedWorkspace(): Promise<void> {
@@ -52,6 +53,7 @@ async function checkBoundedWorkspace(): Promise<void> {
       env: {
         ...process.env,
         OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "1",
         OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       },
     },
@@ -88,6 +90,7 @@ async function checkCurrentWorkspaceNoOverreport(): Promise<void> {
       env: {
         ...process.env,
         OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "1",
         OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       },
     },

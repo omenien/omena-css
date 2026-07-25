@@ -54,11 +54,12 @@ pub(in crate::style) fn collect_omena_query_unused_selector_shared(
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+    source_corpus_complete: bool,
 ) -> Option<OmenaQueryUnusedSelectorSharedV0> {
     #[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
     record_unused_selector_shared_walk_for_test();
 
-    if source_documents.is_empty() {
+    if source_documents.is_empty() && !source_corpus_complete {
         return None;
     }
 

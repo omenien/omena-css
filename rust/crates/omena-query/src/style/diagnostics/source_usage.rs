@@ -100,6 +100,7 @@ pub fn summarize_omena_query_css_modules_export_usage(
         &[],
         &[],
         None,
+        false,
     );
     let exact_precision =
         omena_query_core::fact_precision_from_analysis_precision(&OmenaQueryAnalysisPrecisionV0 {
@@ -285,6 +286,7 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics_with_path_mapping
         tsconfig_path_mappings,
         &[],
         None,
+        false,
     )
 }
 
@@ -366,6 +368,7 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+    source_corpus_complete: bool,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(shared) = collect_omena_query_unused_selector_shared(
         style_fact_entries,
@@ -376,6 +379,7 @@ pub(super) fn summarize_omena_query_unused_selector_style_diagnostics_with_path_
         tsconfig_path_mappings,
         disk_style_path_identities,
         resolver_identity_index,
+        source_corpus_complete,
     ) else {
         return Vec::new();
     };

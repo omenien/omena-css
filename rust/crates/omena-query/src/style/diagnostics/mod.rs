@@ -390,6 +390,31 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
 }
 
 #[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_complete_source_corpus(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_and_source_corpus_completeness(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        external_sifs,
+        resolution_inputs,
+        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -401,10 +426,36 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-    // RFC 0009 Pillar B stage-2 (#65): build the one shared target-independent substrate, then run
-    // the per-target diagnostics over it. The salsa layer memoizes the substrate via a
-    // workspace-keyed tracked query and calls `_with_substrate` directly; every other caller routes
-    // through here so the substrate build stays identical to the pre-decomposition path.
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_and_source_corpus_completeness(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        external_sifs,
+        resolution_inputs,
+        suppression_mode,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_and_source_corpus_completeness(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+    source_corpus_complete: bool,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    // Build one target-independent substrate, then run per-target diagnostics
+    // over it. The memoized path reuses the same workspace-keyed substrate
+    // contract, while direct callers preserve identical construction.
     let substrate = collect_omena_query_workspace_diagnostics_substrate(
         style_sources,
         package_manifests,
@@ -412,7 +463,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
     );
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
         target_style_path,
         style_sources,
         source_documents,
@@ -424,6 +475,8 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         suppression_mode,
         &substrate,
         None,
+        source_corpus_complete,
+        None::<&substrate::OmenaQueryWorkspaceSharedPassProductsV0>,
     )
 }
 
@@ -453,12 +506,13 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         suppression_mode,
         substrate,
         resolver_identity_index,
+        false,
         None::<&substrate::OmenaQueryWorkspaceSharedPassProductsV0>,
     )
 }
 
-/// The shared-pass arm (rfcs#111 C1 slice 2): when `shared_passes` is `Some`
-/// the target-independent pass cores — source-selector usage resolution and
+/// When `shared_passes` is `Some`, target-independent pass cores such as
+/// source-selector usage resolution and
 /// the cross-file SCC report — come precomputed from the wave prepare
 /// instead of being rebuilt per target. `None` keeps the per-call arm; both
 /// arms are byte-identical by construction and gated end-to-end by the
@@ -476,6 +530,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
     suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+    source_corpus_complete: bool,
     shared_passes: Option<&impl OmenaQueryWorkspaceSharedDiagnosticsV0>,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
@@ -611,6 +666,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
                 resolution_inputs.tsconfig_path_mappings.as_slice(),
                 resolution_inputs.disk_style_path_identities.as_slice(),
                 resolver_identity_index,
+                source_corpus_complete,
             ),
         ),
     }
@@ -683,8 +739,8 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         ),
     };
     if external_boundary_enabled {
-        // RFC 0004 #28 / #35: the file-scoped `@omena-strict: <level>` sigil dials the
-        // external-boundary lattice behaviour. Absent/malformed sigil => `Standard`, which
+        // The file-scoped `@omena-strict: <level>` sigil controls external-boundary
+        // lattice behaviour. An absent or malformed sigil selects `Standard`, which
         // keeps every branch below a no-op (byte-for-byte identical to the un-sigiled flow).
         let strictness = parse_omena_query_style_strictness_level(&target.style_source);
         let top_any_external_symbol_ranges =

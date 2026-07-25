@@ -26,6 +26,7 @@ import type {
   OmenaQueryStyleDiagnosticV0Json,
   OmenaQueryStyleDiagnosticsForFileV0Json,
 } from "../../../engine-host-node/src/query-diagnostics-idl.generated";
+import { collectSelectedQueryWorkspaceInputs } from "../../../engine-host-node/src/selected-query-workspace-inputs";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 
@@ -33,6 +34,8 @@ type RuntimeStyleDiagnosticsDeps = Partial<
   Pick<
     ProviderDeps,
     | "analysisCache"
+    | "buildStyleDocument"
+    | "readOpenDocumentText"
     | "readStyleFile"
     | "styleDocumentForPath"
     | "typeResolver"
@@ -190,19 +193,52 @@ function resolveQueryOwnedStyleDiagnostics(
   if (!runJson) return null;
   const styleSource = runtimeDeps.styleSource ?? runtimeDeps.readStyleFile?.(args.scssPath);
   if (!styleSource) return null;
+  const workspaceInputs =
+    runtimeDeps.aliasResolver &&
+    runtimeDeps.buildStyleDocument &&
+    runtimeDeps.readStyleFile &&
+    runtimeDeps.styleDocumentForPath &&
+    runtimeDeps.workspaceRoot
+      ? collectSelectedQueryWorkspaceInputs(
+          [
+            {
+              stylePath: args.scssPath,
+              styleSource,
+              styleDocument: args.styleDocument,
+            },
+          ],
+          {
+            aliasResolver: runtimeDeps.aliasResolver,
+            buildStyleDocument: runtimeDeps.buildStyleDocument,
+            readStyleFile: runtimeDeps.readStyleFile,
+            styleDocumentForPath: runtimeDeps.styleDocumentForPath,
+            workspaceRoot: runtimeDeps.workspaceRoot,
+            ...(runtimeDeps.readOpenDocumentText
+              ? { readOpenDocumentText: runtimeDeps.readOpenDocumentText }
+              : {}),
+          },
+          args.scssPath,
+        )
+      : {
+          styles: [{ stylePath: args.scssPath, styleSource }],
+          packageManifests: [],
+          sourceCorpusComplete: true as const,
+          resolutionInputs: {
+            packageManifests: [],
+            tsconfigPathMappings: [],
+            bundlerPathMappings: [],
+          },
+        };
 
   return runJson<OmenaQueryStyleDiagnosticsForFileV0Json>(
     SELECTED_QUERY_RUNNER_COMMANDS.styleDiagnosticsForFile,
     {
       targetStylePath: args.scssPath,
-      styles: [
-        {
-          stylePath: args.scssPath,
-          styleSource,
-        },
-      ],
+      styles: workspaceInputs.styles,
       sourceDocuments: runtimeDeps.sourceDocuments ?? [],
-      packageManifests: [],
+      packageManifests: workspaceInputs.packageManifests,
+      resolutionInputs: workspaceInputs.resolutionInputs,
+      sourceCorpusComplete: workspaceInputs.sourceCorpusComplete,
       classnameTransform: runtimeDeps.settings?.scss.classnameTransform,
       // Omit external* entirely when no SIFs are supplied so the engine wire
       // defaults to today's `Ignored` + empty-SIF behaviour (#32).
