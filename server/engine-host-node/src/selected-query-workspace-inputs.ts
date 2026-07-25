@@ -30,11 +30,25 @@ export interface SelectedQueryStyleResolutionInputs {
   }[];
 }
 
+export interface SelectedQuerySourceDocumentInput {
+  readonly sourcePath: string;
+  readonly sourceSource: string;
+}
+
+export interface SelectedQuerySourceCorpusEvidence {
+  readonly documents: readonly SelectedQuerySourceDocumentInput[];
+  /**
+   * The exhaustive source-path enumeration produced by the workspace walker.
+   * `null` means the caller collected only a bounded subset.
+   */
+  readonly completeSourcePathEnumeration: readonly string[] | null;
+}
+
 export interface SelectedQueryWorkspaceInputs {
   readonly styles: readonly SelectedQueryStyleSourceInput[];
   readonly packageManifests: readonly SelectedQueryPackageManifestInput[];
   readonly resolutionInputs: SelectedQueryStyleResolutionInputs;
-  readonly sourceCorpusComplete: true;
+  readonly sourceCorpusComplete: boolean;
 }
 
 interface SelectedQueryWorkspaceInputDeps {
@@ -63,6 +77,7 @@ export function collectSelectedQueryWorkspaceInputs(
   seeds: readonly SelectedQueryWorkspaceInputSeed[],
   deps: SelectedQueryWorkspaceInputDeps,
   containingFilePath: string,
+  sourceCorpus?: SelectedQuerySourceCorpusEvidence,
 ): SelectedQueryWorkspaceInputs {
   const stylesByPath = new Map<string, SelectedQueryStyleSourceInput>();
   const documentsByPath = new Map<string, StyleDocumentHIR>();
@@ -124,7 +139,7 @@ export function collectSelectedQueryWorkspaceInputs(
   return {
     styles,
     packageManifests,
-    sourceCorpusComplete: true,
+    sourceCorpusComplete: deriveSelectedQuerySourceCorpusComplete(sourceCorpus),
     resolutionInputs: {
       packageManifests,
       ...pathInputs,
@@ -181,6 +196,24 @@ export function collectSelectedQueryWorkspaceInputs(
   function readCurrentFile(filePath: string): string | null {
     return deps.readOpenDocumentText?.(filePath) ?? deps.readStyleFile(filePath);
   }
+}
+
+export function deriveSelectedQuerySourceCorpusComplete(
+  sourceCorpus?: SelectedQuerySourceCorpusEvidence,
+): boolean {
+  const expectedPaths = sourceCorpus?.completeSourcePathEnumeration;
+  if (!expectedPaths) return false;
+
+  const expected = expectedPaths.map(normalizePath);
+  const collected = sourceCorpus.documents.map((document) => normalizePath(document.sourcePath));
+  const expectedSet = new Set(expected);
+  const collectedSet = new Set(collected);
+  return (
+    expected.length === expectedSet.size &&
+    collected.length === collectedSet.size &&
+    expected.length === collected.length &&
+    expected.every((sourcePath) => collectedSet.has(sourcePath))
+  );
 }
 
 function readWorkspaceFile(filePath: string): string | null {

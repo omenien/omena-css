@@ -979,8 +979,9 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
     // direct collector because either axis changes the shared result.
     let precomputed_unused_selector =
         (classname_transform.is_none() && resolver_identity_index.is_none()).then(|| {
-            precomputed_unused_selector
-                .unwrap_or_else(|| memo_workspace_unused_selector_shared(db, workspace))
+            precomputed_unused_selector.unwrap_or_else(|| {
+                memo_workspace_unused_selector_shared(db, workspace, source_corpus_complete)
+            })
         });
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
         target_style_path.as_str(),
@@ -1008,6 +1009,7 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
 fn memo_workspace_unused_selector_shared(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
+    source_corpus_complete: bool,
 ) -> Option<OmenaQueryUnusedSelectorSharedV0> {
     let style_fact_entries = workspace
         .files(db)
@@ -1024,7 +1026,7 @@ fn memo_workspace_unused_selector_shared(
         resolution_inputs.tsconfig_path_mappings.as_slice(),
         resolution_inputs.disk_style_path_identities.as_slice(),
         None,
-        false,
+        source_corpus_complete,
     )
 }
 
@@ -4181,6 +4183,60 @@ const cls = styles.root;"#
                 "fixed-revision view diagnostics must be byte-identical to the host entry point for {style_path}",
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn complete_empty_source_corpus_reaches_the_workspace_memo() -> Result<(), &'static str> {
+        let corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.css".to_string(),
+            style_source: ".unused { color: red; }\n".to_string(),
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let expected =
+            crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_complete_source_corpus(
+                corpus[0].style_path.as_str(),
+                corpus.as_slice(),
+                &[],
+                &[],
+                None,
+                OmenaQueryExternalModuleModeV0::Auto,
+                &[],
+                &resolution_inputs,
+            );
+
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let selector = host
+            .workspace_revision_selector_with_complete_source_corpus(
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("complete source corpus must commit a selector")?;
+        let target = selector
+            .files_by_path
+            .get(corpus[0].style_path.as_str())
+            .copied()
+            .ok_or("target style must exist")?;
+        let actual =
+            resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector(
+                &selector.db,
+                selector.workspace,
+                target,
+                &selector.committed_graph,
+                OmenaQueryExternalModuleModeV0::Auto,
+                OmenaQueryDiagnosticSuppressionModeV0::Apply,
+                None,
+                true,
+            );
+
+        assert_eq!(
+            serde_json::to_string(&actual).ok(),
+            serde_json::to_string(&expected).ok(),
+            "memoized diagnostics must preserve a complete empty source corpus"
+        );
         Ok(())
     }
 

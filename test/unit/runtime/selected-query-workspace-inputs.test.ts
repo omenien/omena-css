@@ -80,5 +80,35 @@ describe("collectSelectedQueryWorkspaceInputs", () => {
         },
       ],
     });
+    expect(result.sourceCorpusComplete).toBe(false);
+
+    const completeResult = collectSelectedQueryWorkspaceInputs(
+      [
+        {
+          stylePath: targetPath,
+          styleSource: targetSource,
+          styleDocument: parseStyleDocument(targetSource, targetPath),
+        },
+      ],
+      {
+        aliasResolver: new AliasResolver("/workspace", { $shared: "src/shared" }),
+        buildStyleDocument: (filePath, content) => parseStyleDocument(content, filePath),
+        readStyleFile: (filePath) => sources.get(filePath) ?? null,
+        readWorkspaceFile: (filePath) => sources.get(filePath) ?? null,
+        styleDocumentForPath,
+        workspaceRoot: "/workspace",
+      },
+      targetPath,
+      {
+        documents: [
+          {
+            sourcePath: "/workspace/src/App.tsx",
+            sourceSource: 'import styles from "./Button.module.scss";',
+          },
+        ],
+        completeSourcePathEnumeration: ["/workspace/src/App.tsx"],
+      },
+    );
+    expect(completeResult.sourceCorpusComplete).toBe(true);
   });
 });
