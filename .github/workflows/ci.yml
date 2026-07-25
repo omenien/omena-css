@@ -432,6 +432,11 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
+      - name: Build semantic analysis native prerequisites
+        if: ${{ matrix.shard == 'semantic-analysis' }}
+        run: |
+          cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner
+          pnpm omena-check run core/build/omena-napi
       - name: Run closure-fast gates (${{ matrix.shard }} shard)
         run: pnpm omena-check run rust/closure-fast --summary --shard=${{ matrix.shard }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
