@@ -10,6 +10,11 @@ import {
 
 const OMENA_CHECK_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
+const OMENA_CHECK_MATRIX_TARGET_REF = /^\s+target:\s+([A-Za-z0-9:_@/.-]+)\s*$/gm;
+const OMENA_CHECK_MATRIX_TARGET_BINDING =
+  /^\s*OMENA_CHECK_TARGET:\s*\$\{\{\s*matrix\.target\s*\}\}\s*$/m;
+const OMENA_CHECK_MATRIX_TARGET_INVOCATION =
+  /\bpnpm\s+(?:run\s+)?omena-check\s+(?:run|bundle)\s+["']?\$OMENA_CHECK_TARGET\b/;
 
 const REQUIRED_BENCHMARK_GATES = [
   "rust/bundler-productization-benchmark",
@@ -175,8 +180,17 @@ function collectWorkflowReachableGateIds(): Set<string> {
   for (const fileName of readdirSync(workflowsDir).toSorted()) {
     if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
     const workflowText = read(path.join(".github", "workflows", fileName));
-    for (const match of workflowText.matchAll(OMENA_CHECK_TARGET_REF)) {
-      const target = match[2];
+    const targets = Array.from(workflowText.matchAll(OMENA_CHECK_TARGET_REF), (match) => match[2]);
+    if (
+      OMENA_CHECK_MATRIX_TARGET_BINDING.test(workflowText) &&
+      OMENA_CHECK_MATRIX_TARGET_INVOCATION.test(workflowText)
+    ) {
+      targets.push(
+        ...Array.from(workflowText.matchAll(OMENA_CHECK_MATRIX_TARGET_REF), (match) => match[1]),
+      );
+    }
+
+    for (const target of targets) {
       if (!target) continue;
       const gate = resolveGateTarget(manifest, target);
       if (!gate) {
