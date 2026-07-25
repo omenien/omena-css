@@ -182,11 +182,12 @@ describe("crate publish registry contract", () => {
       "(env.RESUME != 'true' && !startsWith(github.ref, 'refs/tags/release-v')) || steps.resume.outputs.remaining_count != '0'",
     );
     expect(action).toContain("inputs.mode == 'trusted' && inputs.dry-run != 'true'");
-    expect(action).toContain('if [ "${{ inputs.dry-run }}" != "true" ]');
+    expect(action).toContain("PUBLISH_DRY_RUN: ${{ inputs.dry-run }}");
+    expect(action).toContain('if [ "${PUBLISH_DRY_RUN}" != "true" ]');
     expect(action).toContain("scripts/generate-cargo-publish-workspace-config.ts");
     expect(action).toContain('args+=(--config "${patch_config}")');
     expect(action.indexOf("generate-cargo-publish-workspace-config.ts")).toBeLessThan(
-      action.indexOf('if [ "${{ inputs.dry-run }}" = "true" ]'),
+      action.indexOf('if [ "${PUBLISH_DRY_RUN}" = "true" ]'),
     );
   });
 });

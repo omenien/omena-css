@@ -911,14 +911,27 @@ function assertWorkspaceStyleDiagnosticsSharedWalkShape(): void {
     memoSource,
     "fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index",
   );
+  const sharedResolverBody = extractDelimitedBody(
+    memoSource,
+    "fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index",
+  );
   assert.equal(
-    (resolverBody.match(/\bmemo_workspace_unused_selector_shared\(/gu) ?? []).length,
+    (
+      resolverBody.match(
+        /\bresolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index\(/gu,
+      ) ?? []
+    ).length,
+    1,
+    "the default committed path must delegate to the shared-selector resolver once",
+  );
+  assert.equal(
+    (sharedResolverBody.match(/\bmemo_workspace_unused_selector_shared\(/gu) ?? []).length,
     1,
     "committed style diagnostics must consume the workspace-shared selector walk once",
   );
   assert.equal(
     (
-      resolverBody.match(
+      sharedResolverBody.match(
         /\bsummarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared\(/gu,
       ) ?? []
     ).length,
@@ -927,7 +940,7 @@ function assertWorkspaceStyleDiagnosticsSharedWalkShape(): void {
   );
   assert.equal(
     (
-      resolverBody.match(
+      sharedResolverBody.match(
         /\bsummarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate\(/gu,
       ) ?? []
     ).length,
@@ -935,12 +948,12 @@ function assertWorkspaceStyleDiagnosticsSharedWalkShape(): void {
     "committed style diagnostics must not reopen the target-local source walk",
   );
   assert.equal(
-    (resolverBody.match(/\bclassname_transform\.is_none\(\)/gu) ?? []).length,
+    (sharedResolverBody.match(/\bclassname_transform\.is_none\(\)/gu) ?? []).length,
     1,
     "the shared selector walk must be gated by the classname transform axis",
   );
   assert.equal(
-    (resolverBody.match(/\bresolver_identity_index\.is_none\(\)/gu) ?? []).length,
+    (sharedResolverBody.match(/\bresolver_identity_index\.is_none\(\)/gu) ?? []).length,
     1,
     "the shared selector walk must be gated by the resolver identity axis",
   );
