@@ -8,8 +8,8 @@ use omena_query_transform_runner::{
     EmissionOrderingPolicyV0, LinkedEmissionArtifactV0, LinkedStylesheetV0,
     TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
     TransformBundleSemanticReachabilityInputV0, TransformBundleTransformedModuleV0,
-    classify_transform_reachability_precision, link_omena_transform_bundle_modules,
-    link_omena_transform_bundle_modules_with_options,
+    bundle_edge_is_module_dependency, classify_transform_reachability_precision,
+    link_omena_transform_bundle_modules, link_omena_transform_bundle_modules_with_options,
     link_omena_transform_bundle_modules_with_semantic_reachability,
     link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
     materialize_omena_transform_bundle_linked_stylesheet,
@@ -1566,10 +1566,7 @@ fn collect_omena_query_bundle_code_split_entry_reachability(
                 omena_parser_dialect_for_style_path(style_path.as_str()),
             );
             for edge in bundle.bundle_edges {
-                if !matches!(
-                    edge.kind,
-                    TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
-                ) {
+                if !bundle_edge_is_module_dependency(edge.kind) {
                     continue;
                 }
                 let Some(import_source) = edge.import_source.as_deref() else {

@@ -1103,18 +1103,30 @@ fn collect_closed_world_linked_modules_from_projection(
         .collect()
 }
 
-fn bundle_edge_is_module_dependency(kind: TransformBundleEdgeKind) -> bool {
-    matches!(
-        kind,
-        TransformBundleEdgeKind::SassUse
-            | TransformBundleEdgeKind::SassForward
-            | TransformBundleEdgeKind::SassImport
-            | TransformBundleEdgeKind::CssImport
-            | TransformBundleEdgeKind::LessImport
-            | TransformBundleEdgeKind::CssModuleValueImport
-            | TransformBundleEdgeKind::CssModuleComposesExternal
-            | TransformBundleEdgeKind::IcssImport
-    )
+const fn bundle_edge_module_dependency_reason(
+    kind: TransformBundleEdgeKind,
+) -> Option<&'static str> {
+    match kind {
+        TransformBundleEdgeKind::SassUse => Some("loads a Sass module instance"),
+        TransformBundleEdgeKind::SassForward => Some("forwards a Sass module instance"),
+        TransformBundleEdgeKind::SassImport => Some("loads Sass stylesheet rules"),
+        TransformBundleEdgeKind::CssImport => Some("loads CSS stylesheet rules"),
+        TransformBundleEdgeKind::LessImport => Some("loads Less stylesheet rules"),
+        TransformBundleEdgeKind::CssModuleValueImport => Some("loads CSS Modules values"),
+        TransformBundleEdgeKind::CssModuleComposesExternal => {
+            Some("loads selectors from an external CSS Module")
+        }
+        TransformBundleEdgeKind::IcssImport => Some("loads ICSS values"),
+        TransformBundleEdgeKind::CssModuleComposesLocal => None,
+    }
+}
+
+/// Returns whether an edge traverses into another stylesheet module.
+///
+/// Local CSS Modules composition stays outside this set because it names a
+/// selector in the current module rather than a separately resolved source.
+pub const fn bundle_edge_is_module_dependency(kind: TransformBundleEdgeKind) -> bool {
+    bundle_edge_module_dependency_reason(kind).is_some()
 }
 
 pub(crate) fn resolve_imported_module_instance(
@@ -1671,6 +1683,7 @@ mod tests {
         TransformBundleChunkKind, TransformBundleEdgeKind, TransformBundleLinkErrorV0,
         TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
         TransformBundleSemanticReachabilityInputV0, TransformBundleTransformedModuleV0,
+        bundle_edge_is_module_dependency, bundle_edge_module_dependency_reason,
         collect_transform_ir_bundle_asset_urls, compare_omena_transform_bundle_emission_policies,
         link_omena_transform_bundle_modules, link_omena_transform_bundle_modules_with_options,
         link_omena_transform_bundle_modules_with_semantic_reachability,
@@ -1730,6 +1743,22 @@ mod tests {
         assert!(TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0.iter().all(|kind| {
             kind.order_relevance() == EdgeOrderRelevanceV0::OrderBearing
                 && !kind.order_relevance_reason().is_empty()
+        }));
+    }
+
+    #[test]
+    fn module_dependency_edge_authority_excludes_only_local_composition() {
+        let module_dependencies = TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0
+            .iter()
+            .copied()
+            .filter(|kind| bundle_edge_is_module_dependency(*kind))
+            .collect::<Vec<_>>();
+
+        assert_eq!(module_dependencies.len(), 8);
+        assert!(!module_dependencies.contains(&TransformBundleEdgeKind::CssModuleComposesLocal));
+        assert!(TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0.iter().all(|kind| {
+            bundle_edge_is_module_dependency(*kind)
+                == bundle_edge_module_dependency_reason(*kind).is_some()
         }));
     }
 

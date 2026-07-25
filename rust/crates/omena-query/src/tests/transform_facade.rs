@@ -548,6 +548,34 @@ fn bundle_code_split_workspace_plan_surfaces_entry_config_and_shared_boundaries(
 }
 
 #[test]
+fn bundle_code_split_workspace_plan_traverses_sass_module_dependencies() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/entry.scss".to_string(),
+            style_source: "@use \"./tokens\"; .entry { color: green; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/_tokens.scss".to_string(),
+            style_source: ".token { color: teal; }".to_string(),
+        },
+    ];
+    let plan = summarize_omena_query_bundle_code_split_workspace_plan(
+        "src/entry.scss",
+        &[],
+        &sources,
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    )?;
+
+    assert_eq!(plan.output_count, 2);
+    assert!(plan.outputs.iter().any(|output| {
+        output.source_path == "src/_tokens.scss"
+            && output.split_boundary == "styleDependency"
+            && !output.is_entry
+    }));
+    Ok(())
+}
+
+#[test]
 fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {

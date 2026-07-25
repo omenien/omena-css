@@ -232,6 +232,7 @@ impl omena_bundler::TransformBundleTransformedModuleV0
 pub fn omena_bundler::TransformBundleTransformedModuleV0::new(omena_parser::closed_world::contract::ModuleInstanceKeyV0, impl core::convert::Into<alloc::string::String>) -> Self
 pub const fn omena_bundler::TransformBundleTransformedModuleV0::with_non_empty_import_replacement_count(self, usize) -> Self
 pub const omena_bundler::TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0: [omena_bundler::TransformBundleEdgeKind; 9]
+pub const fn omena_bundler::bundle_edge_is_module_dependency(omena_bundler::TransformBundleEdgeKind) -> bool
 pub fn omena_bundler::compare_omena_transform_bundle_emission_policies<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0]) -> core::result::Result<omena_bundler::EmissionPolicyDifferentialReportV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_omena_transform_bundle_modules<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_omena_transform_bundle_modules_with_options<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0], &[omena_parser::closed_world::contract::ClosedWorldModuleMetadataV0], omena_bundler::TransformBundleLinkOptionsV0) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>

@@ -924,6 +924,8 @@ fn rewrite_bundle_code_split_imports_for_source(
     );
     let mut output = source.to_string();
     for edge in bundle.bundle_edges.iter().rev() {
+        // Sass module directives remain source-language constructs here. Rewriting
+        // them to emitted CSS chunk names would change @use/@forward semantics.
         if !matches!(
             edge.kind,
             TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
@@ -974,6 +976,8 @@ fn bundle_code_split_manifest_imports_for_source(
     );
     let mut imports = Vec::new();
     for edge in bundle.bundle_edges {
+        // Manifest import rows describe imports that this emitter rewrites. Sass
+        // dependencies are outputs, but retain their source-language directives.
         if !matches!(
             edge.kind,
             TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
