@@ -1017,7 +1017,7 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
     let entrypoints = entrypoint_paths
         .iter()
         .map(|path| {
-            resolve_module_instance_by_path(path, &instances_by_path).ok_or_else(|| {
+            resolve_entrypoint_module_instance_by_path(path, &instances_by_path)?.ok_or_else(|| {
                 TransformBundleLinkErrorV0::MissingEntrypoint {
                     source_path: normalize_bundle_path(PathBuf::from(*path)),
                 }
@@ -1227,16 +1227,30 @@ pub(crate) fn module_instances_by_linker_path(
     by_path
 }
 
-fn resolve_module_instance_by_path(
+fn resolve_entrypoint_module_instance_by_path(
     source_path: &str,
     instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
-) -> Option<ModuleInstanceKeyV0> {
+) -> Result<Option<ModuleInstanceKeyV0>, TransformBundleLinkErrorV0> {
     let normalized = normalize_bundle_path(PathBuf::from(source_path));
-    let instances = instances_by_path.get(&normalized)?;
-    if instances.len() == 1 {
-        instances.first().cloned()
-    } else {
-        None
+    let Some(instances) = instances_by_path.get(&normalized) else {
+        return Ok(None);
+    };
+    match instances.as_slice() {
+        [instance] => Ok(Some(instance.clone())),
+        instances => {
+            let unconfigured = omena_parser::ConfigurationHashV0::none();
+            let mut matches = instances
+                .iter()
+                .filter(|instance| instance.configuration() == &unconfigured);
+            let selected = matches.next().cloned();
+            if selected.is_some() && matches.next().is_none() {
+                Ok(selected)
+            } else {
+                Err(TransformBundleLinkErrorV0::AmbiguousModulePath {
+                    source_path: normalized,
+                })
+            }
+        }
     }
 }
 
@@ -2903,6 +2917,63 @@ mod tests {
         assert_ne!(blue, red);
         assert_eq!(blue.module(), red.module());
         assert_ne!(blue.configuration(), red.configuration());
+    }
+
+    #[test]
+    fn entrypoint_prefers_the_unconfigured_instance() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "src/theme.scss",
+                ".theme { color: black; }",
+                StyleDialect::Scss,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/theme.scss",
+                ".theme { color: blue; }",
+                StyleDialect::Scss,
+            )
+            .with_configuration_hash(ConfigurationHashV0::new("with|5:brand=4:blue")),
+            TransformBundleModuleInputV0::new(
+                "src/theme.scss",
+                ".theme { color: red; }",
+                StyleDialect::Scss,
+            )
+            .with_configuration_hash(ConfigurationHashV0::new("with|5:brand=3:red")),
+        ];
+
+        let linked = link_omena_transform_bundle_modules(&["src/theme.scss"], &modules)
+            .map_err(|error| format!("unconfigured entrypoint should be selected: {error:?}"))?;
+        assert_eq!(linked.entrypoints.len(), 1);
+        assert_eq!(
+            linked.entrypoints[0].configuration(),
+            &ConfigurationHashV0::none()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn entrypoint_without_an_unconfigured_instance_reports_ambiguity() {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "src/theme.scss",
+                ".theme { color: blue; }",
+                StyleDialect::Scss,
+            )
+            .with_configuration_hash(ConfigurationHashV0::new("with|5:brand=4:blue")),
+            TransformBundleModuleInputV0::new(
+                "src/theme.scss",
+                ".theme { color: red; }",
+                StyleDialect::Scss,
+            )
+            .with_configuration_hash(ConfigurationHashV0::new("with|5:brand=3:red")),
+        ];
+
+        assert_eq!(
+            link_omena_transform_bundle_modules(&["src/theme.scss"], &modules),
+            Err(TransformBundleLinkErrorV0::AmbiguousModulePath {
+                source_path: "src/theme.scss".to_string(),
+            })
+        );
     }
 
     #[test]

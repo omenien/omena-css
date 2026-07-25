@@ -3632,6 +3632,37 @@ mod dependency_resolution_tests {
     }
 
     #[test]
+    fn configured_module_path_can_also_be_an_unconfigured_entrypoint() -> Result<(), String> {
+        let sources = configured_sass_sources();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let prepared = prepare_transform_bundle_linker_projection(
+            &["src/blue.scss", "src/red.scss", "src/theme.scss"],
+            &sources,
+            &[],
+            TransformResolutionContext::from_resolution_inputs(&resolution_inputs),
+        );
+        let linked = link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
+            &["src/blue.scss", "src/red.scss", "src/theme.scss"],
+            &prepared.projection,
+            prepared.resolved_dependencies.as_slice(),
+            &[],
+            TransformBundleLinkOptionsV0::default(),
+        )
+        .map_err(|error| format!("configured module entrypoint should link: {error:?}"))?;
+
+        let theme_entrypoint = linked
+            .entrypoints
+            .iter()
+            .find(|entrypoint| entrypoint.module().as_str() == "src/theme.scss")
+            .ok_or_else(|| "theme entrypoint was not selected".to_string())?;
+        assert_eq!(
+            theme_entrypoint.configuration(),
+            &omena_parser::ConfigurationHashV0::none()
+        );
+        Ok(())
+    }
+
+    #[test]
     fn unconfigured_projection_preserves_closure_identity() -> Result<(), String> {
         let sources = vec![
             OmenaQueryStyleSourceInputV0 {
