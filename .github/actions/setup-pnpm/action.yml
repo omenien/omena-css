@@ -13,6 +13,15 @@ runs:
         node-version-file: .nvmrc
     - shell: bash
       run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+    - id: pnpm-store
+      shell: bash
+      run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ steps.pnpm-store.outputs.path }}
+        key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-store-${{ runner.os }}-${{ runner.arch }}-
     - if: inputs.install == 'true'
       shell: bash
       run: pnpm install --frozen-lockfile

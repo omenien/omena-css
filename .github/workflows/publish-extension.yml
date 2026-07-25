@@ -36,12 +36,12 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
   native-runner-matrix:
+    permissions:
+      contents: read
     uses: ./.github/workflows/_build-native-binaries.yml
     with:
       ref: ${{ github.event.inputs.ref }}
@@ -51,8 +51,13 @@ jobs:
     needs: native-runner-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     env:
       RELEASE_CHANNEL: ${{ github.event.inputs.channel }}
+      RELEASE_REF: ${{ github.event.inputs.ref }}
       PUBLISH_MARKETPLACE: ${{ github.event.inputs.publish_marketplace }}
       PUBLISH_OPENVSX: ${{ github.event.inputs.publish_openvsx }}
       OMENA_PACKAGED_RUNNER_MIN_TARGETS: "3"
@@ -65,6 +70,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/setup-rust-pinned
       - uses: ./.github/actions/cache-rust
@@ -114,7 +120,7 @@ jobs:
             PRERELEASE=false
             NAME="Omena CSS Modules v${VERSION}"
           fi
-          TARGET_COMMIT="$(git rev-parse "${{ github.event.inputs.ref }}^{commit}")"
+          TARGET_COMMIT="$(git rev-parse "${RELEASE_REF}^{commit}")"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"

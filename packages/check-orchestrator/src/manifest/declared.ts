@@ -326,10 +326,9 @@ export const DECLARED_CHECK_GATES = [
     ciReason: "Rust lane bundle is retained for targeted manual validation outside PR CI.",
   },
   {
-    id: "rust/omena-css/h1-readiness",
+    id: "rust/omena-css/h1-core-semantics",
     kind: "bundle",
     scope: "rust",
-    replacesPackageTarget: "rust/omena-css/h1-readiness",
     deps: [
       "rust/omena-syntax/boundary",
       "rust/omena-parser/boundary",
@@ -343,6 +342,16 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-bridge/boundary",
       "rust/omena-semantic-boundary",
       "rust/omena-cascade/boundary",
+    ],
+    tags: ["rust", "omena-css", "readiness", "core"],
+    ciTier: "scheduled",
+    ciGroup: "drift",
+  },
+  {
+    id: "rust/omena-css/h1-product-surfaces",
+    kind: "bundle",
+    scope: "rust",
+    deps: [
       "rust/omena-bundler/boundary",
       "rust/omena-transform-cst/boundary",
       "rust/omena-transform-passes/boundary",
@@ -354,10 +363,34 @@ export const DECLARED_CHECK_GATES = [
       "rust/checker/entrance",
       "rust/omena-consumer-surfaces",
       "rust/omena-lsp-server/split-boundary",
+    ],
+    tags: ["rust", "omena-css", "readiness", "product"],
+    ciTier: "scheduled",
+    ciGroup: "drift",
+  },
+  {
+    id: "rust/omena-css/h1-assurance",
+    kind: "bundle",
+    scope: "rust",
+    deps: [
       "rust/z5-performance-baseline-readiness",
       "rust/omena-css/fuzz-harness",
       "rust/omena-css/cargo-fuzz",
       "rust/omena-css/rustdoc-coverage",
+    ],
+    tags: ["rust", "omena-css", "readiness", "assurance"],
+    ciTier: "scheduled",
+    ciGroup: "drift",
+  },
+  {
+    id: "rust/omena-css/h1-readiness",
+    kind: "bundle",
+    scope: "rust",
+    replacesPackageTarget: "rust/omena-css/h1-readiness",
+    deps: [
+      "rust/omena-css/h1-core-semantics",
+      "rust/omena-css/h1-product-surfaces",
+      "rust/omena-css/h1-assurance",
     ],
     tags: ["rust", "omena-css", "readiness"],
     ciTier: "scheduled",
@@ -424,10 +457,15 @@ export const DECLARED_CHECK_GATES = [
       "rust/runtime-query-api-hardening",
       "rust/product-facing-capability",
       "rust/theory-generalization",
-      "rust/omena-query/boundary",
+      "rust/omena-query/core-contract",
+      "rust/omena-query/transform-contract",
+      "rust/omena-query/runtime-contract",
       "rust/omena-lsp-server/boundary",
       "rust/omena-cascade/boundary",
-      "rust/omena-diff-test-boundary",
+      "rust/omena-diff-test-core",
+      "rust/omena-diff-test-wpt",
+      "rust/omena-diff-test-sass-spec",
+      "rust/omena-diff-test-extended",
       "rust/omena-bundler/linked-emission-byte-differential",
       "rust/publish-train-closure",
       "rust/inter-crate-pin",
@@ -547,7 +585,9 @@ export const DECLARED_CHECK_GATES = [
       "check:rust-m3-theoretical-moat-generalization",
     ],
   },
-  declaredClosurePackageGate("rust/omena-query/boundary", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-query/core-contract", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-query/transform-contract", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-query/runtime-contract", "bundle", "rust"),
   declaredClosurePackageGate("rust/omena-lsp-server/boundary", "bundle", "rust"),
   declaredClosurePackageGate("rust/omena-lsp-server/query-read-boundary", "gate", "rust"),
   {
@@ -569,7 +609,10 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   declaredClosurePackageGate("rust/omena-cascade/boundary", "bundle", "rust"),
-  declaredClosurePackageGate("rust/omena-diff-test-boundary", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-diff-test-core", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-diff-test-wpt", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-diff-test-sass-spec", "bundle", "rust"),
+  declaredClosurePackageGate("rust/omena-diff-test-extended", "bundle", "rust"),
   declaredClosurePackageGate("rust/publish-train-closure", "gate", "rust"),
   declaredClosurePackageGate("rust/inter-crate-pin", "gate", "rust"),
   declaredClosurePackageGate("rust/role-boundaries", "gate", "rust"),
@@ -790,8 +833,8 @@ export const DECLARED_CHECK_GATES = [
     ciReason:
       "Upstream corpus count refresh changes committed data and is invoked manually with review.",
   },
-  // rfcs#60: the per-PR rust-workspace strict clippy/fmt job (the rfcs#56 gate) gets an
-  // explicit ci tier so the reachability check fails loudly if the ci.yml job that runs
+  // The per-PR strict clippy/fmt job gets an explicit CI tier so reachability
+  // fails loudly if the workflow job that runs
   // `pnpm omena-check run rust/workspace` is ever deleted or stops invoking it.
   {
     id: "rust/workspace",

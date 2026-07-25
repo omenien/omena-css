@@ -2420,8 +2420,11 @@ fn build_bundle_mode_combines_json_source_map_origin_chain() -> Result<(), Strin
 #[test]
 fn compress_command_enforces_budget_bits() -> Result<(), String> {
     let source_path = temp_path("compress.css");
-    fs::write(&source_path, ".card { color: red; }\n")
-        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+    fs::write(
+        &source_path,
+        ".card {\n  color: red;\n  background: blue;\n}\n",
+    )
+    .map_err(|error| format!("fixture source should be writable: {error}"))?;
 
     let result = run(Cli {
         command: Command::Compress {

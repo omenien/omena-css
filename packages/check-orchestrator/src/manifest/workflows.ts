@@ -6,8 +6,20 @@ import type { CheckCiTier, CheckDiagnostic, CheckGate } from "./types";
 const PNPM_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const OMENA_CHECK_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
+const OMENA_CHECK_MATRIX_TARGET_REF = /^\s+target:\s+([A-Za-z0-9:_@/.-]+)\s*$/;
+const OMENA_CHECK_MATRIX_TARGET_BINDING =
+  /^\s*OMENA_CHECK_TARGET:\s*\$\{\{\s*matrix\.target\s*\}\}\s*$/m;
+const OMENA_CHECK_MATRIX_TARGET_INVOCATION =
+  /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+["']?\$OMENA_CHECK_TARGET\b/;
 const NODE_SCRIPT_REF = /\bnode\b[^|;&\n]*?\.\/(scripts\/[A-Za-z0-9_./-]+\.ts)\b/g;
 const WORKFLOW_CI_TIER_ANNOTATION = /^\s*#\s*omena-ci-tier:\s*([A-Za-z0-9_-]+)\s*$/;
+const WORKFLOW_REQUIRED_ANNOTATION = /^\s*#\s*omena-ci-required:\s*(true|false)\s*$/;
+
+const CI_REACHABILITY_ESCAPE_HATCH_POLICY = Object.freeze({
+  maxGateCount: 155,
+  owner: "check-orchestrator maintainers",
+  reviewBy: "2026-10-31",
+});
 
 const VALID_WORKFLOW_CI_TIERS = new Set<CheckCiTier>([
   "verify",
@@ -33,6 +45,11 @@ interface GovernedWorkflowNodeInvocation {
   readonly workflowPath: string;
   readonly scriptPath: string;
   readonly reason: string;
+}
+
+interface MatrixOmenaCheckTarget {
+  readonly command: "run" | "bundle";
+  readonly target: string;
 }
 
 const GOVERNED_WORKFLOW_NODE_INVOCATIONS: readonly GovernedWorkflowNodeInvocation[] = [
@@ -782,6 +799,35 @@ export function findWorkflowBypassDiagnostics(
         });
       }
     });
+
+    for (const job of parseWorkflowJobs(lines)) {
+      const block = lines.slice(job.start, job.end);
+      for (const reference of findMatrixOmenaCheckTargets(block)) {
+        const gate = resolveWorkflowTarget(gates, reference.target);
+        if (!gate) {
+          diagnostics.push({
+            severity: "error",
+            code: "workflow-unknown-omena-check-target",
+            message: `${relativePath} matrix references unknown omena-check target "${reference.target}".`,
+          });
+          continue;
+        }
+        if (reference.target !== gate.id) {
+          diagnostics.push({
+            severity: "error",
+            code: "workflow-non-canonical-omena-check-target",
+            message: `${relativePath} matrix references omena-check target "${reference.target}"; use canonical gate id "${gate.id}".`,
+          });
+        }
+        if (reference.command === "bundle" && gate.kind !== "bundle" && gate.kind !== "alias") {
+          diagnostics.push({
+            severity: "error",
+            code: "workflow-non-bundle-omena-check-target",
+            message: `${relativePath} matrix uses omena-check bundle for non-bundle target "${reference.target}".`,
+          });
+        }
+      }
+    }
   }
 
   return diagnostics;
@@ -825,6 +871,87 @@ export function findScheduledWorkflowEscalationDiagnostics(
         message: `${relativePath} is scheduled but does not use ./.github/actions/escalate-ci-failure.`,
       });
     }
+  }
+
+  return diagnostics;
+}
+
+export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
+  const workflowPath = path.join(rootDir, ".github/workflows/ci.yml");
+  if (!existsSync(workflowPath)) return [];
+
+  const lines = readFileSync(workflowPath, "utf8").split(/\r?\n/);
+  const jobs = parseWorkflowJobs(lines);
+  const annotations = jobs.map((job) => ({
+    job,
+    required: parseWorkflowRequiredAnnotation(lines, job),
+  }));
+  if (annotations.every(({ required }) => required === null)) return [];
+
+  const diagnostics: CheckDiagnostic[] = [];
+  for (const { job, required } of annotations) {
+    if (required !== null) continue;
+    diagnostics.push({
+      severity: "error",
+      code: "ci-required-job-unclassified",
+      message: `.github/workflows/ci.yml job "${job.name}" must declare "# omena-ci-required: true" or "# omena-ci-required: false".`,
+    });
+  }
+
+  const aggregator = jobs.find((job) => job.name === "ci-required");
+  if (!aggregator) {
+    diagnostics.push({
+      severity: "error",
+      code: "ci-required-aggregator-missing",
+      message: '.github/workflows/ci.yml must define the "ci-required" aggregate job.',
+    });
+    return diagnostics;
+  }
+
+  const expected = annotations
+    .filter(({ job, required }) => job.name !== "ci-required" && required === true)
+    .map(({ job }) => job.name)
+    .toSorted();
+  const actual = parseWorkflowJobNeeds(lines, aggregator).toSorted();
+  const missing = expected.filter((jobName) => !actual.includes(jobName));
+  const extra = actual.filter((jobName) => !expected.includes(jobName));
+  const duplicateNeeds = actual.filter(
+    (jobName, index) => index > 0 && jobName === actual[index - 1],
+  );
+
+  if (missing.length > 0 || extra.length > 0) {
+    diagnostics.push({
+      severity: "error",
+      code: "ci-required-needs-drift",
+      message: `ci-required.needs must match the required job contract; missing=[${missing.join(", ")}], extra=[${extra.join(", ")}].`,
+    });
+  }
+  if (duplicateNeeds.length > 0) {
+    diagnostics.push({
+      severity: "error",
+      code: "ci-required-needs-duplicate",
+      message: `ci-required.needs must not repeat job ids; duplicate=[${[
+        ...new Set(duplicateNeeds),
+      ].join(", ")}].`,
+    });
+  }
+
+  const block = lines.slice(aggregator.start, aggregator.end).join("\n");
+  if (!/^\s+if:\s*\$\{\{\s*always\(\)\s*\}\}\s*$/m.test(block)) {
+    diagnostics.push({
+      severity: "error",
+      code: "ci-required-missing-always",
+      message:
+        'The "ci-required" aggregate job must use "if: ${{ always() }}" so failed or cancelled dependencies are evaluated.',
+    });
+  }
+  if (!block.includes("scripts/check-ci-required-results.mjs")) {
+    diagnostics.push({
+      severity: "error",
+      code: "ci-required-result-check-missing",
+      message:
+        'The "ci-required" aggregate job must execute scripts/check-ci-required-results.mjs.',
+    });
   }
 
   return diagnostics;
@@ -906,11 +1033,24 @@ export function findCiTierReachabilityDiagnostics(
     }
   }
 
-  if (escapeHatchGateIds.length > 0) {
+  if (escapeHatchGateIds.length > CI_REACHABILITY_ESCAPE_HATCH_POLICY.maxGateCount) {
+    diagnostics.push({
+      severity: "error",
+      code: "ci-tier-escape-hatch-budget-exceeded",
+      message:
+        `CI reachability escape-hatch population ${escapeHatchGateIds.length} exceeds the governed maximum ` +
+        `${CI_REACHABILITY_ESCAPE_HATCH_POLICY.maxGateCount}; owner=${CI_REACHABILITY_ESCAPE_HATCH_POLICY.owner}, ` +
+        `reviewBy=${CI_REACHABILITY_ESCAPE_HATCH_POLICY.reviewBy}.`,
+    });
+  } else if (escapeHatchGateIds.length > 0) {
     diagnostics.push({
       severity: "warning",
       code: "ci-tier-escape-hatch-summary",
-      message: `CI reachability escape-hatch population: ${escapeHatchGateIds.length} gate(s).`,
+      message:
+        `CI reachability escape-hatch population: ${escapeHatchGateIds.length}/` +
+        `${CI_REACHABILITY_ESCAPE_HATCH_POLICY.maxGateCount} gate(s); ` +
+        `owner=${CI_REACHABILITY_ESCAPE_HATCH_POLICY.owner}, ` +
+        `reviewBy=${CI_REACHABILITY_ESCAPE_HATCH_POLICY.reviewBy}.`,
     });
   }
 
@@ -958,11 +1098,53 @@ function buildReachableGateIdsByTier(
           }
         }
       }
+      for (const reference of findMatrixOmenaCheckTargets(block)) {
+        const gate = resolveWorkflowTarget(gates, reference.target);
+        if (!gate) continue;
+        for (const step of buildCheckPlan({ gates }, gate).steps) {
+          ids.add(step.id);
+        }
+      }
       reachable.set(tier, ids);
     }
   }
 
+  for (const [tier, ids] of reachable) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const gate of gates) {
+        if (
+          gate.ciTier !== tier ||
+          !gate.referencedTargets?.length ||
+          ids.has(gate.id) ||
+          !gate.referencedTargets.every((target) =>
+            ids.has(resolveWorkflowTarget(gates, target)?.id ?? ""),
+          )
+        ) {
+          continue;
+        }
+        ids.add(gate.id);
+        changed = true;
+      }
+    }
+  }
+
   return reachable;
+}
+
+function findMatrixOmenaCheckTargets(lines: readonly string[]): readonly MatrixOmenaCheckTarget[] {
+  const block = lines.join("\n");
+  const invocation = OMENA_CHECK_MATRIX_TARGET_INVOCATION.exec(block);
+  if (!OMENA_CHECK_MATRIX_TARGET_BINDING.test(block) || !invocation?.[1]) {
+    return [];
+  }
+  const command = invocation[1] as "run" | "bundle";
+
+  return lines.flatMap((line) => {
+    const match = OMENA_CHECK_MATRIX_TARGET_REF.exec(line);
+    return match?.[1] ? [{ command, target: match[1] }] : [];
+  });
 }
 
 function buildReachableTiersByGate(
@@ -1018,6 +1200,44 @@ function parseWorkflowJobs(lines: readonly string[]): readonly WorkflowJobBlock[
     jobs.push({ name: jobName, start: index, end: lines.length });
   }
   return jobs;
+}
+
+function parseWorkflowRequiredAnnotation(
+  lines: readonly string[],
+  job: WorkflowJobBlock,
+): boolean | null {
+  for (const line of lines.slice(job.start + 1, job.end)) {
+    const value = line.match(WORKFLOW_REQUIRED_ANNOTATION)?.[1];
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+  return null;
+}
+
+function parseWorkflowJobNeeds(lines: readonly string[], job: WorkflowJobBlock): readonly string[] {
+  const block = lines.slice(job.start + 1, job.end);
+  const needsIndex = block.findIndex((line) => /^ {4}needs:\s*/.test(line));
+  if (needsIndex < 0) return [];
+
+  const needsLine = block[needsIndex] ?? "";
+  const inline = needsLine.match(/^ {4}needs:\s*\[([^\]]*)\]\s*$/)?.[1];
+  if (inline !== undefined) {
+    return inline
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  const needs: string[] = [];
+  for (const line of block.slice(needsIndex + 1)) {
+    const item = line.match(/^ {6}-\s*([A-Za-z0-9_-]+)\s*$/)?.[1];
+    if (item) {
+      needs.push(item);
+      continue;
+    }
+    if (/^ {0,4}\S/.test(line)) break;
+  }
+  return needs;
 }
 
 function inferWorkflowJobTier(

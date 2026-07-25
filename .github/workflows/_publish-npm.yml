@@ -88,6 +88,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
         with:
@@ -130,6 +131,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - name: Install Rust target
         shell: bash
@@ -175,6 +177,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       # Install the rust-toolchain.toml-pinned 1.96.0 WITH the wasm32 target ON it —
       # wasm-pack runs cargo from rust/ (1.96.0), so a bare `rustup target add` (which
@@ -365,6 +368,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - name: Stage @omena build-tool packages
         run: pnpm omena-check run core/build/omena-plugin-packages -- --out "${PLUGIN_PKG_DIR}"

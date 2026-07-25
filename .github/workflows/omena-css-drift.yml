@@ -11,23 +11,68 @@ concurrency:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
-  drift:
+  drift-shards:
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: core-semantics
+            target: rust/omena-css/h1-core-semantics
+            setup-fuzz: false
+          - id: product-surfaces
+            target: rust/omena-css/h1-product-surfaces
+            setup-fuzz: false
+          - id: assurance
+            target: rust/omena-css/h1-assurance
+            setup-fuzz: true
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 2
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
-      - uses: ./.github/actions/setup-cargo-fuzz
+      - if: ${{ matrix.setup-fuzz }}
+        uses: ./.github/actions/setup-cargo-fuzz
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run core/build/omena-napi
-      - run: pnpm omena-check run rust/omena-css/rustdoc-coverage
-      - run: pnpm omena-check run rust/omena-css/h1-readiness
+      - name: Run readiness shard
+        env:
+          OMENA_CHECK_TARGET: ${{ matrix.target }}
+        run: pnpm omena-check run "$OMENA_CHECK_TARGET"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: omena-css-drift-${{ matrix.id }}
+          path: .omena-check/**/*.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  drift:
+    needs: drift-shards
+    if: ${{ always() }}
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Require every drift shard
+        env:
+          OMENA_DRIFT_SHARD_RESULT: ${{ needs.drift-shards.result }}
+        run: |
+          if [ "$OMENA_DRIFT_SHARD_RESULT" != "success" ]; then
+            echo "Drift shards concluded: $OMENA_DRIFT_SHARD_RESULT" >&2
+            exit 1
+          fi
       - name: Escalate drift failure
         if: ${{ failure() }}
         uses: ./.github/actions/escalate-ci-failure
@@ -38,10 +83,3 @@ jobs:
           workflow-name: Omena CSS Drift
           job-name: drift
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: omena-css-drift-report
-          path: .omena-check/**/*.json
-          retention-days: 30
-          if-no-files-found: ignore

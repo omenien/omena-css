@@ -6,15 +6,21 @@ const REST_SHARD_NAME = "rest";
 
 export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = {
   "rust/closure-fast": {
-    "heavy-query": [
+    "query-core": [
       "rust/runtime-query-api-hardening",
-      "rust/omena-query/boundary",
-      "rust/omena-lsp-server/boundary",
-      "rust/omena-cascade/boundary",
+      "rust/omena-query/core-contract",
+      "rust/omena-query/runtime-contract",
     ],
-    "diff-test": [
-      "rust/omena-diff-test-boundary",
+    "query-transform": ["rust/omena-query/transform-contract"],
+    "query-language": ["rust/omena-lsp-server/boundary", "rust/omena-cascade/boundary"],
+    "diff-core": [
+      "rust/omena-diff-test-core",
+      "rust/omena-diff-test-extended",
       "rust/omena-bundler/linked-emission-byte-differential",
+    ],
+    "diff-wpt": ["rust/omena-diff-test-wpt"],
+    "diff-sass": ["rust/omena-diff-test-sass-spec"],
+    "semantic-analysis": [
       "rust/streaming-ifds-relocation-gate",
       "rust/streaming-ifds-settle-soak",
       "rust/discharge-ledger",

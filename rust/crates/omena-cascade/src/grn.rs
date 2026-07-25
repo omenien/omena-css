@@ -464,10 +464,14 @@ mod tests {
             assert!(basin.proof.conservative);
         }
 
-        assert_eq!(
-            choose_grn_attractor_strategy(17),
+        let expected_strategy = if cfg!(feature = "bdd-attractor") {
+            AttractorEnumerationStrategyV0::Bdd
+        } else if cfg!(feature = "naldi-lumping") {
+            AttractorEnumerationStrategyV0::Lumped
+        } else {
             AttractorEnumerationStrategyV0::Deferred
-        );
+        };
+        assert_eq!(choose_grn_attractor_strategy(17), expected_strategy);
     }
 
     #[test]

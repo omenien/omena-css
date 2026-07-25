@@ -57,21 +57,26 @@ runs:
         # trusted: token from the OIDC auth step. bootstrap: CRATES_IO_TOKEN
         # must be exported by the caller (genesis-only, protected environment).
         CARGO_REGISTRY_TOKEN: ${{ inputs.mode == 'trusted' && steps.auth.outputs.token || env.CRATES_IO_TOKEN }}
+        PUBLISH_MODE: ${{ inputs.mode }}
+        PUBLISH_DRY_RUN: ${{ inputs.dry-run }}
+        PUBLISH_LOCKED: ${{ inputs.locked }}
+        PUBLISH_MANIFEST_PATH: ${{ inputs.manifest-path }}
+        PUBLISH_EXTRA_ARGS: ${{ inputs.extra-args }}
       run: |
         set -euo pipefail
 
-        if [ "${{ inputs.mode }}" != "trusted" ] && [ "${{ inputs.mode }}" != "bootstrap" ]; then
-          echo "::error::mode must be 'trusted' or 'bootstrap' (got '${{ inputs.mode }}')" >&2
+        if [ "${PUBLISH_MODE}" != "trusted" ] && [ "${PUBLISH_MODE}" != "bootstrap" ]; then
+          echo "::error::mode must be 'trusted' or 'bootstrap' (got '${PUBLISH_MODE}')" >&2
           exit 1
         fi
-        if [ "${{ inputs.dry-run }}" != "true" ] && [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
-          echo "::error::no crates.io token available for mode='${{ inputs.mode }}'" >&2
+        if [ "${PUBLISH_DRY_RUN}" != "true" ] && [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+          echo "::error::no crates.io token available for mode='${PUBLISH_MODE}'" >&2
           echo "::error::trusted mode needs id-token:write + the auth step; bootstrap mode needs CRATES_IO_TOKEN env" >&2
           exit 1
         fi
 
-        args=(publish --workspace --manifest-path "${{ inputs.manifest-path }}")
-        if [ "${{ inputs.locked }}" = "true" ]; then
+        args=(publish --workspace --manifest-path "${PUBLISH_MANIFEST_PATH}")
+        if [ "${PUBLISH_LOCKED}" = "true" ]; then
           args+=(--locked)
         fi
         # Cargo verifies every selected tarball before starting dependency-ordered
@@ -79,21 +84,22 @@ runs:
         # both dry-run and real publish modes.
         patch_config="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/omena-cargo-publish-workspace.toml"
         node --import tsx ./scripts/generate-cargo-publish-workspace-config.ts \
-          --manifest-path "${{ inputs.manifest-path }}" \
+          --manifest-path "${PUBLISH_MANIFEST_PATH}" \
           --output-file "${patch_config}"
         args+=(--config "${patch_config}")
-        if [ "${{ inputs.dry-run }}" = "true" ]; then
+        if [ "${PUBLISH_DRY_RUN}" = "true" ]; then
           args+=(--dry-run)
         fi
         # Never --allow-dirty: publish only a clean tagged tree.
-        # shellcheck disable=SC2206
-        extra=(${{ inputs.extra-args }})
-        args+=("${extra[@]}")
+        if [ -n "${PUBLISH_EXTRA_ARGS}" ]; then
+          read -r -a extra <<< "${PUBLISH_EXTRA_ARGS}"
+          args+=("${extra[@]}")
+        fi
 
         # Derive the publishable count from cargo metadata (publish != []),
         # never hardcoded — this is the role-gate-derived crate-train size.
         count="$(
-          cargo metadata --no-deps --format-version 1 --manifest-path "${{ inputs.manifest-path }}" \
+          cargo metadata --no-deps --format-version 1 --manifest-path "${PUBLISH_MANIFEST_PATH}" \
             | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=JSON.parse(s);const n=m.packages.filter(p=>!Array.isArray(p.publish)||p.publish.length>0).length;process.stdout.write(String(n));})'
         )"
         echo "publishable crate-train size (publish != []): ${count}"

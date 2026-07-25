@@ -232,7 +232,7 @@ fn deferred_style_diagnostics_streaming_reads_committed_cross_file_summary() -> 
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -1848,7 +1848,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -1904,7 +1904,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -1956,7 +1956,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -1993,7 +1993,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -2083,7 +2083,7 @@ fn workspace_index_follow_up_wave_count_stays_within_baseline() -> TestResult {
         std::io::Error::other("workspace-index result did not schedule external SIF refresh")
     })?;
     // One settle window admits exactly one refresh tide: the lane is drained
-    // and in flight, so a second prepare must be a no-op (rfcs#111 I1).
+    // and in flight, so a second prepare must be a no-op.
     let refresh_revision_delta: u64 =
         if prepare_deferred_external_sif_refresh_job(&mut state).is_some() {
             2

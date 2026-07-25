@@ -227,11 +227,20 @@ describe("check orchestrator manifest", () => {
   });
 
   it("annotates the closure-fast package-derived gates with declared metadata", () => {
+    for (const target of [
+      "rust/omena-query/core-contract",
+      "rust/omena-query/transform-contract",
+      "rust/omena-query/runtime-contract",
+    ]) {
+      expect(resolveGateTarget(manifest, target)).toMatchObject({
+        origin: "package+declared",
+        ciTier: "closure-fast",
+        ciGroup: "closure-fast",
+        tags: ["closure-fast"],
+      });
+    }
     expect(resolveGateTarget(manifest, "rust/omena-query/boundary")).toMatchObject({
-      origin: "package+declared",
-      ciTier: "closure-fast",
-      ciGroup: "closure-fast",
-      tags: ["closure-fast"],
+      origin: "package",
     });
     expect(resolveGateTarget(manifest, "release/check/release-tag-grammar")).toMatchObject({
       origin: "package+declared",
@@ -318,12 +327,15 @@ describe("check orchestrator manifest", () => {
     const plan = buildCheckPlan(manifest, readiness!);
     expect(plan.steps).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: "rust/omena-syntax/boundary", depth: 1 }),
-        expect.objectContaining({ id: "rust/omena-diff-test-boundary", depth: 1 }),
-        expect.objectContaining({ id: "rust/omena-lsp-server/split-boundary", depth: 1 }),
-        expect.objectContaining({ id: "rust/z5-performance-baseline-readiness", depth: 1 }),
-        expect.objectContaining({ id: "rust/omena-css/cargo-fuzz", depth: 1 }),
-        expect.objectContaining({ id: "rust/omena-css/rustdoc-coverage", depth: 1 }),
+        expect.objectContaining({ id: "rust/omena-css/h1-core-semantics", depth: 1 }),
+        expect.objectContaining({ id: "rust/omena-css/h1-product-surfaces", depth: 1 }),
+        expect.objectContaining({ id: "rust/omena-css/h1-assurance", depth: 1 }),
+        expect.objectContaining({ id: "rust/omena-syntax/boundary", depth: 2 }),
+        expect.objectContaining({ id: "rust/omena-diff-test-boundary", depth: 2 }),
+        expect.objectContaining({ id: "rust/omena-lsp-server/split-boundary", depth: 2 }),
+        expect.objectContaining({ id: "rust/z5-performance-baseline-readiness", depth: 2 }),
+        expect.objectContaining({ id: "rust/omena-css/cargo-fuzz", depth: 2 }),
+        expect.objectContaining({ id: "rust/omena-css/rustdoc-coverage", depth: 2 }),
       ]),
     );
 
@@ -331,7 +343,10 @@ describe("check orchestrator manifest", () => {
       path.join(repoRoot, ".github/workflows/omena-css-drift.yml"),
       "utf8",
     );
-    expect(workflow).toContain("pnpm omena-check run rust/omena-css/h1-readiness");
+    expect(workflow).toContain("target: rust/omena-css/h1-core-semantics");
+    expect(workflow).toContain("target: rust/omena-css/h1-product-surfaces");
+    expect(workflow).toContain("target: rust/omena-css/h1-assurance");
+    expect(workflow).not.toContain("pnpm omena-check run core/build/omena-napi");
   });
 
   it("uses declared deps for release verification while preserving its public script", () => {
@@ -801,8 +816,40 @@ describe("check orchestrator manifest", () => {
     );
   });
 
-  // rfcs#60: the per-PR rust-workspace job (the rfcs#56 strict clippy/fmt gate) is bound to
-  // its own ci tier, so deleting the ci.yml job — or its `omena-check run rust/workspace`
+  it("rejects growth beyond the governed CI reachability escape-hatch budget", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ name: "omena-css", scripts: { "omena-check": "node ./check.js" } }),
+    );
+    writeFileSync(
+      path.join(root, ".github/workflows/ci.yml"),
+      ["name: CI", "jobs:", "  verify:", "    steps:", "      - run: node --version"].join("\n"),
+    );
+    const declaredGates: DeclaredCheckGateV0[] = Array.from({ length: 156 }, (_, index) => ({
+      id: `tooling/manual-${index}`,
+      kind: "command",
+      scope: "tooling",
+      command: ["node", "--version"],
+      ciTier: "manual",
+      ciReason: "Reviewed manual maintenance command.",
+    }));
+
+    const diagnostics = runDoctor(loadCheckManifest(root, { declaredGates }));
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "ci-tier-escape-hatch-budget-exceeded",
+          message: expect.stringContaining("exceeds the governed maximum 155"),
+        }),
+      ]),
+    );
+  });
+
+  // The per-PR strict clippy/fmt job is bound to its own CI tier, so deleting
+  // the workflow job or its `omena-check run rust/workspace`
   // step — must surface as ci-tier-unreachable instead of passing silently.
   it("guards the per-PR rust-workspace job with the ci-tier reachability check", () => {
     const declaredGates: DeclaredCheckGateV0[] = [
@@ -1265,6 +1312,126 @@ describe("check orchestrator manifest", () => {
       expect.arrayContaining([
         expect.objectContaining({
           code: expect.stringMatching(/^scheduled-workflow-/),
+        }),
+      ]),
+    );
+  });
+
+  it("requires the aggregate CI job to cover every required job", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ name: "omena-css", scripts: { "omena-check": "node ./check.js" } }, null, 2),
+    );
+    writeFileSync(
+      path.join(root, ".github/workflows/ci.yml"),
+      [
+        "name: CI",
+        "jobs:",
+        "  verify:",
+        "    # omena-ci-required: true",
+        "    steps:",
+        "      - run: echo verify",
+        "  package:",
+        "    # omena-ci-required: true",
+        "    steps:",
+        "      - run: echo package",
+        "  ci-required:",
+        "    # omena-ci-required: false",
+        "    needs:",
+        "      - verify",
+        "    if: ${{ always() }}",
+        "    steps:",
+        "      - run: node ./scripts/check-ci-required-results.mjs",
+      ].join("\n"),
+    );
+
+    const diagnostics = runDoctor(loadCheckManifest(root));
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "ci-required-needs-drift",
+          message: expect.stringContaining("missing=[package]"),
+        }),
+      ]),
+    );
+  });
+
+  it("accepts an exact required-job aggregation contract", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ name: "omena-css", scripts: { "omena-check": "node ./check.js" } }, null, 2),
+    );
+    writeFileSync(
+      path.join(root, ".github/workflows/ci.yml"),
+      [
+        "name: CI",
+        "jobs:",
+        "  verify:",
+        "    # omena-ci-required: true",
+        "    steps:",
+        "      - run: echo verify",
+        "  advisory:",
+        "    # omena-ci-required: false",
+        "    steps:",
+        "      - run: echo advisory",
+        "  ci-required:",
+        "    # omena-ci-required: false",
+        "    needs:",
+        "      - verify",
+        "    if: ${{ always() }}",
+        "    steps:",
+        "      - run: node ./scripts/check-ci-required-results.mjs",
+      ].join("\n"),
+    );
+
+    const diagnostics = runDoctor(loadCheckManifest(root));
+    expect(diagnostics).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: expect.stringMatching(/^ci-required-/),
+        }),
+      ]),
+    );
+  });
+
+  it("rejects duplicate required-job dependencies", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ name: "omena-css", scripts: { "omena-check": "node ./check.js" } }, null, 2),
+    );
+    writeFileSync(
+      path.join(root, ".github/workflows/ci.yml"),
+      [
+        "name: CI",
+        "jobs:",
+        "  verify:",
+        "    # omena-ci-required: true",
+        "    steps:",
+        "      - run: echo verify",
+        "  ci-required:",
+        "    # omena-ci-required: false",
+        "    needs:",
+        "      - verify",
+        "      - verify",
+        "    if: ${{ always() }}",
+        "    steps:",
+        "      - run: node ./scripts/check-ci-required-results.mjs",
+      ].join("\n"),
+    );
+
+    expect(runDoctor(loadCheckManifest(root))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "ci-required-needs-duplicate",
+          message: expect.stringContaining("duplicate=[verify]"),
         }),
       ]),
     );
