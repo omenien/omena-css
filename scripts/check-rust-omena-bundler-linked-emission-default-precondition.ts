@@ -1,7 +1,10 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { loadCheckManifest } from "../packages/check-orchestrator/src/manifest/index.ts";
 
 interface DifferentialBaselineV0 {
   readonly schemaVersion: "0";
@@ -36,25 +39,35 @@ interface DifferentialEnvelopeV0 {
   readonly census: DifferentialCensusV0;
 }
 
+interface PreconditionOwnerRefV0 {
+  readonly goalRef: string;
+  readonly artifactPath: string;
+  readonly gateId: string;
+}
+
 interface FlipPreconditionV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-bundler.linked-emission-default-precondition";
   readonly defaultEmissionPath: "importInlineLegacy";
   readonly candidateEmissionPath: "linkedOrder";
+  readonly maintenanceScope: string;
   readonly conditions: {
     readonly fullCorpusDifferential: {
       readonly requiredCoverageScope: "fullCorpus";
       readonly owner: string;
+      readonly ownerRef: PreconditionOwnerRefV0;
       readonly reason: string;
     };
     readonly majorVersionBoundary: {
       readonly minimumMajorVersion: number;
       readonly owner: string;
+      readonly ownerRef: PreconditionOwnerRefV0;
       readonly reason: string;
     };
     readonly unexpectedDivergenceCensus: {
       readonly maximumCount: number;
       readonly owner: string;
+      readonly ownerRef: PreconditionOwnerRefV0;
       readonly reason: string;
     };
   };
@@ -75,6 +88,7 @@ interface FlipPreconditionV0 {
   };
 }
 
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const contract = readJson<FlipPreconditionV0>(
   "rust/omena-linked-emission-default-precondition.json",
 );
@@ -99,11 +113,28 @@ assert.equal(contract.schemaVersion, "0");
 assert.equal(contract.product, "omena-bundler.linked-emission-default-precondition");
 assert.equal(contract.defaultEmissionPath, "importInlineLegacy");
 assert.equal(contract.candidateEmissionPath, "linkedOrder");
-assert.ok(
-  Object.values(contract.conditions).every(
-    (condition) => condition.owner.length > 0 && condition.reason.length > 0,
-  ),
+assert.equal(
+  contract.maintenanceScope,
+  "This artifact records prerequisites only and does not authorize changing the default emission path.",
 );
+const checkManifest = loadCheckManifest(repoRoot);
+const declaredGateIds = new Set(checkManifest.gates.map((gate) => gate.id));
+for (const [conditionKey, condition] of Object.entries(contract.conditions)) {
+  assert.ok(condition.owner.length > 0, `${conditionKey}.owner is empty`);
+  assert.ok(condition.reason.length > 0, `${conditionKey}.reason is empty`);
+  assert.ok(
+    condition.ownerRef.goalRef.length > 0,
+    `${conditionKey}.ownerRef.goalRef is unresolvable: ${condition.ownerRef.goalRef}`,
+  );
+  assert.ok(
+    existsSync(path.resolve(repoRoot, condition.ownerRef.artifactPath)),
+    `${conditionKey}.ownerRef.artifactPath is unresolvable: ${condition.ownerRef.artifactPath}`,
+  );
+  assert.ok(
+    declaredGateIds.has(condition.ownerRef.gateId),
+    `${conditionKey}.ownerRef.gateId is unresolvable: ${condition.ownerRef.gateId}`,
+  );
+}
 assert.deepEqual(contract.residuals.requiredEmissionOrderIds.toSorted(), [
   "cascade-optimal-ordering",
   "cross-chunk-css-order",
