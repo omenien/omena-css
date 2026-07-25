@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.linked-emission-coverage-census",
+  "coverageScope": "boundedMultiModuleFixtures",
+  "fullCorpusCoverage": false,
+  "populationCount": 12,
+  "coveredShapeCount": 5,
+  "notCoveredShapeCount": 7,
+  "fixtureCount": 5,
+  "moduleCount": 16,
+  "markerObservableModuleCount": 16,
+  "blindSpotModuleCount": 0,
+  "shapes": [
+    {
+      "shapeClass": "bare-layer-statement",
+      "fixtureIds": []
+    },
+    {
+      "shapeClass": "code-split-entry-closure",
+      "fixtureIds": []
+    },
+    {
+      "shapeClass": "configured-sass-module-instance",
+      "fixtureIds": []
+    },
+    {
+      "shapeClass": "css-import-order",
+      "fixtureIds": [
+        "dialect-css-import-order"
+      ]
+    },
+    {
+      "shapeClass": "element-only-reset",
+      "fixtureIds": []
+    },
+    {
+      "shapeClass": "font-face-only",
+      "fixtureIds": []
+    },
+    {
+      "shapeClass": "large-product-corpus",
+      "fixtureIds": [
+        "bundler-productization-corpus"
+      ]
+    },
+    {
+      "shapeClass": "less-import-order",
+      "fixtureIds": [
+        "dialect-less-import-order"
+      ]
+    },
+    {
+      "shapeClass": "package-export-import",
+      "fixtureIds": []
+    },
+    {
+      "shapeClass": "scss-import-order",
+      "fixtureIds": [
+        "dialect-scss-import-order"
+      ]
+    },
+    {
+      "shapeClass": "shared-import-diamond",
+      "fixtureIds": [
+        "shared-import-diamond"
+      ]
+    },
+    {
+      "shapeClass": "tsconfig-path-alias-import",
+      "fixtureIds": []
+    }
+  ],
+  "notCovered": [
+    {
+      "shapeClass": "bare-layer-statement",
+      "reentry": "add a linked module containing a bare cascade-layer statement"
+    },
+    {
+      "shapeClass": "code-split-entry-closure",
+      "reentry": "add multiple bundle entries with independently measured dependency closures"
+    },
+    {
+      "shapeClass": "configured-sass-module-instance",
+      "reentry": "add two configured instances of one Sass module to the differential corpus"
+    },
+    {
+      "shapeClass": "element-only-reset",
+      "reentry": "add a linked module whose emitted rules use only element selectors"
+    },
+    {
+      "shapeClass": "font-face-only",
+      "reentry": "add a linked module containing only a font-face rule"
+    },
+    {
+      "shapeClass": "package-export-import",
+      "reentry": "add a linked fixture resolved through package exports"
+    },
+    {
+      "shapeClass": "tsconfig-path-alias-import",
+      "reentry": "add a linked fixture resolved through a tsconfig path mapping"
+    }
+  ],
+  "fixtureObservability": [
+    {
+      "fixtureId": "dialect-css-import-order",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "dialect-scss-import-order",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "dialect-less-import-order",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "shared-import-diamond",
+      "moduleCount": 4,
+      "markerObservableModuleCount": 4,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "bundler-productization-corpus",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
+      "blindSpotModuleCount": 0
+    }
+  ],
+  "blindSpots": []
+}

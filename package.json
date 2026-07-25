@@ -283,6 +283,7 @@
     "check:rust-omena-query-transform-differential": "node --import tsx ./scripts/check-rust-omena-query-transform-differential.ts",
     "check:rust-omena-query-linked-source-map-boundary": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-boundary.ts",
     "check:rust-omena-bundler-linked-emission-byte-differential": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+    "update:rust-omena-linked-emission-coverage-census": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --update-census",
     "check:rust-omena-bundler-linked-emission-default-precondition": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-default-precondition.ts",
     "check:rust-omena-query-runner-boundary": "node --import tsx ./scripts/check-rust-omena-query-runner-boundary.ts",
     "check:rust-omena-query-public-surface": "node --import tsx ./scripts/check-rust-omena-query-public-surface.ts",

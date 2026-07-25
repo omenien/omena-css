@@ -16,6 +16,26 @@ interface DifferentialReportV0 {
   readonly unexpectedDivergenceCount: number;
 }
 
+interface DifferentialCensusV0 {
+  readonly coverageScope: "boundedMultiModuleFixtures" | "fullCorpus";
+  readonly fullCorpusCoverage: boolean;
+  readonly fixtureCount: number;
+  readonly populationCount: number;
+  readonly coveredShapeCount: number;
+  readonly notCoveredShapeCount: number;
+  readonly shapes: ReadonlyArray<{
+    readonly fixtureIds: readonly string[];
+  }>;
+  readonly notCovered: ReadonlyArray<unknown>;
+}
+
+interface DifferentialEnvelopeV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-diff-test.linked-emission-byte-differential-envelope";
+  readonly report: DifferentialReportV0;
+  readonly census: DifferentialCensusV0;
+}
+
 interface FlipPreconditionV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-bundler.linked-emission-default-precondition";
@@ -139,14 +159,29 @@ assert.equal(
   0,
   [differential.stdout, differential.stderr].filter(Boolean).join("\n"),
 );
-const report = JSON.parse(differential.stdout) as DifferentialReportV0;
+const envelope = JSON.parse(differential.stdout) as DifferentialEnvelopeV0;
+assert.equal(envelope.schemaVersion, "0");
+assert.equal(envelope.product, "omena-diff-test.linked-emission-byte-differential-envelope");
+const { report, census } = envelope;
+assert.equal(census.fixtureCount, report.fixtureCount);
+assert.equal(census.populationCount, census.shapes.length);
+assert.equal(census.coveredShapeCount + census.notCoveredShapeCount, census.populationCount);
+const derivedFullCorpusCoverage =
+  census.notCovered.length === 0 && census.shapes.every((entry) => entry.fixtureIds.length > 0);
+assert.equal(census.fullCorpusCoverage, derivedFullCorpusCoverage);
+assert.equal(
+  census.coverageScope,
+  derivedFullCorpusCoverage ? "fullCorpus" : "boundedMultiModuleFixtures",
+);
+assert.equal(baseline.coverageScope, census.coverageScope);
+assert.equal(baseline.fullCorpusCoverage, census.fullCorpusCoverage);
 const currentMajorVersion = Number.parseInt(packageManifest.version.split(".")[0] ?? "", 10);
 assert.ok(Number.isSafeInteger(currentMajorVersion));
 
 const actualEvaluation = {
   fullCorpusDifferential:
-    baseline.fullCorpusCoverage &&
-    baseline.coverageScope === contract.conditions.fullCorpusDifferential.requiredCoverageScope,
+    census.fullCorpusCoverage &&
+    census.coverageScope === contract.conditions.fullCorpusDifferential.requiredCoverageScope,
   majorVersionBoundary:
     currentMajorVersion >= contract.conditions.majorVersionBoundary.minimumMajorVersion,
   unexpectedDivergenceCensus:
@@ -182,7 +217,7 @@ console.log(
       decision: ready ? "ready" : "notReady",
       currentMajorVersion,
       requiredMinimumMajorVersion: contract.conditions.majorVersionBoundary.minimumMajorVersion,
-      observedCoverageScope: baseline.coverageScope,
+      observedCoverageScope: census.coverageScope,
       observedFixtureCount: report.fixtureCount,
       observedUnexpectedDivergenceCount: report.unexpectedDivergenceCount,
       conditions: actualEvaluation,

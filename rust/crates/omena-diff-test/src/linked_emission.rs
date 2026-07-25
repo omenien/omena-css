@@ -78,6 +78,84 @@ pub struct LinkedEmissionByteDifferentialReportV0 {
     pub cases: Vec<LinkedEmissionByteDifferentialCaseV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+/// Coverage of one independently enumerated linked-emission shape.
+pub struct LinkedEmissionCoverageShapeV0 {
+    pub shape_class: String,
+    pub fixture_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+/// A linked-emission shape that has no exercising fixture yet.
+pub struct LinkedEmissionNotCoveredShapeV0 {
+    pub shape_class: String,
+    pub reentry: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+/// Per-fixture visibility of modules to the class-marker order oracle.
+pub struct LinkedEmissionFixtureObservabilityV0 {
+    pub fixture_id: String,
+    pub module_count: usize,
+    pub marker_observable_module_count: usize,
+    pub blind_spot_module_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+/// A module that the class-marker order oracle cannot observe.
+pub struct LinkedEmissionMarkerBlindSpotV0 {
+    pub fixture_id: String,
+    pub module_path: String,
+    pub shape_classes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+/// Machine-derived coverage over the independently enumerated bundle-shape population.
+pub struct LinkedEmissionCoverageCensusV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub coverage_scope: &'static str,
+    pub full_corpus_coverage: bool,
+    pub population_count: usize,
+    pub covered_shape_count: usize,
+    pub not_covered_shape_count: usize,
+    pub fixture_count: usize,
+    pub module_count: usize,
+    pub marker_observable_module_count: usize,
+    pub blind_spot_module_count: usize,
+    pub shapes: Vec<LinkedEmissionCoverageShapeV0>,
+    pub not_covered: Vec<LinkedEmissionNotCoveredShapeV0>,
+    pub fixture_observability: Vec<LinkedEmissionFixtureObservabilityV0>,
+    pub blind_spots: Vec<LinkedEmissionMarkerBlindSpotV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+/// Repository-internal stdout contract for linked-emission differential consumers.
+pub struct LinkedEmissionByteDifferentialEnvelopeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub report: LinkedEmissionByteDifferentialReportV0,
+    pub census: LinkedEmissionCoverageCensusV0,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LinkedEmissionCoverageShapeDefinitionV0 {
+    shape_class: &'static str,
+    reentry: &'static str,
+}
+
 #[derive(Debug, Clone)]
 struct LinkedEmissionFixtureModuleV0 {
     path: String,
@@ -90,8 +168,60 @@ struct LinkedEmissionFixtureModuleV0 {
 struct LinkedEmissionFixtureV0 {
     id: String,
     entry_path: String,
+    shape_classes: Vec<&'static str>,
     modules: Vec<LinkedEmissionFixtureModuleV0>,
 }
+
+const LINKED_EMISSION_COVERAGE_POPULATION_V0: &[LinkedEmissionCoverageShapeDefinitionV0] = &[
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "css-import-order",
+        reentry: "retain the CSS import-order differential fixture",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "scss-import-order",
+        reentry: "retain the SCSS import-order differential fixture",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "less-import-order",
+        reentry: "retain the Less import-order differential fixture",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "shared-import-diamond",
+        reentry: "retain a shared-import diamond with single-emission evidence",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "large-product-corpus",
+        reentry: "retain a fixture sourced from the bundler productization corpus",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "element-only-reset",
+        reentry: "add a linked module whose emitted rules use only element selectors",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "bare-layer-statement",
+        reentry: "add a linked module containing a bare cascade-layer statement",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "font-face-only",
+        reentry: "add a linked module containing only a font-face rule",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "configured-sass-module-instance",
+        reentry: "add two configured instances of one Sass module to the differential corpus",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "tsconfig-path-alias-import",
+        reentry: "add a linked fixture resolved through a tsconfig path mapping",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "package-export-import",
+        reentry: "add a linked fixture resolved through package exports",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "code-split-entry-closure",
+        reentry: "add multiple bundle entries with independently measured dependency closures",
+    },
+];
 
 /// Compares legacy and linked emission for the shared corpus.
 ///
@@ -100,8 +230,17 @@ struct LinkedEmissionFixtureV0 {
 pub fn summarize_linked_emission_byte_differential_v0(
     perturbation: LinkedEmissionByteDifferentialPerturbationV0,
 ) -> Result<LinkedEmissionByteDifferentialReportV0, String> {
-    let cases = linked_emission_fixtures_v0()
-        .into_iter()
+    summarize_linked_emission_byte_differential_envelope_v0(perturbation)
+        .map(|envelope| envelope.report)
+}
+
+/// Produces the differential report and its live coverage census in one run.
+pub fn summarize_linked_emission_byte_differential_envelope_v0(
+    perturbation: LinkedEmissionByteDifferentialPerturbationV0,
+) -> Result<LinkedEmissionByteDifferentialEnvelopeV0, String> {
+    let fixtures = linked_emission_fixtures_v0();
+    let cases = fixtures
+        .iter()
         .enumerate()
         .map(|(index, fixture)| {
             let case_perturbation = match perturbation {
@@ -111,7 +250,7 @@ pub fn summarize_linked_emission_byte_differential_v0(
                 LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes => perturbation,
                 _ => LinkedEmissionByteDifferentialPerturbationV0::None,
             };
-            summarize_linked_emission_fixture_v0(&fixture, case_perturbation)
+            summarize_linked_emission_fixture_v0(fixture, case_perturbation)
         })
         .collect::<Result<Vec<_>, _>>()?;
     let equivalent_count = cases
@@ -127,7 +266,7 @@ pub fn summarize_linked_emission_byte_differential_v0(
         .filter(|case| case.difference_class == LinkedEmissionByteDifferenceClassV0::Unexpected)
         .count();
 
-    Ok(LinkedEmissionByteDifferentialReportV0 {
+    let report = LinkedEmissionByteDifferentialReportV0 {
         schema_version: "0",
         product: "omena-diff-test.linked-emission-byte-differential",
         fixture_count: cases.len(),
@@ -136,6 +275,138 @@ pub fn summarize_linked_emission_byte_differential_v0(
         unexpected_divergence_count,
         total_divergence_count: expected_divergence_count + unexpected_divergence_count,
         cases,
+    };
+    let census = summarize_linked_emission_coverage_census_v0(&fixtures)?;
+
+    Ok(LinkedEmissionByteDifferentialEnvelopeV0 {
+        schema_version: "0",
+        product: "omena-diff-test.linked-emission-byte-differential-envelope",
+        report,
+        census,
+    })
+}
+
+fn summarize_linked_emission_coverage_census_v0(
+    fixtures: &[LinkedEmissionFixtureV0],
+) -> Result<LinkedEmissionCoverageCensusV0, String> {
+    let mut population = BTreeMap::new();
+    for definition in LINKED_EMISSION_COVERAGE_POPULATION_V0 {
+        if population
+            .insert(definition.shape_class, definition.reentry)
+            .is_some()
+        {
+            return Err(format!(
+                "duplicate linked-emission shape population row {}",
+                definition.shape_class
+            ));
+        }
+    }
+
+    let mut fixtures_by_shape = population
+        .keys()
+        .map(|shape_class| (*shape_class, BTreeSet::new()))
+        .collect::<BTreeMap<_, _>>();
+    let mut fixture_ids = BTreeSet::new();
+    let mut fixture_observability = Vec::new();
+    let mut blind_spots = Vec::new();
+    let mut module_count = 0usize;
+    let mut marker_observable_module_count = 0usize;
+
+    for fixture in fixtures {
+        if !fixture_ids.insert(fixture.id.as_str()) {
+            return Err(format!(
+                "duplicate linked-emission fixture id {}",
+                fixture.id
+            ));
+        }
+        if fixture.shape_classes.is_empty() {
+            return Err(format!(
+                "linked-emission fixture {} has no enumerated shape class",
+                fixture.id
+            ));
+        }
+        for shape_class in &fixture.shape_classes {
+            let Some(shape_fixtures) = fixtures_by_shape.get_mut(shape_class) else {
+                return Err(format!(
+                    "linked-emission fixture {} names unknown shape class {}",
+                    fixture.id, shape_class
+                ));
+            };
+            shape_fixtures.insert(fixture.id.clone());
+        }
+
+        let fixture_marker_observable_module_count = fixture
+            .modules
+            .iter()
+            .filter(|module| !module.marker_names.is_empty())
+            .count();
+        for module in fixture
+            .modules
+            .iter()
+            .filter(|module| module.marker_names.is_empty())
+        {
+            blind_spots.push(LinkedEmissionMarkerBlindSpotV0 {
+                fixture_id: fixture.id.clone(),
+                module_path: module.path.clone(),
+                shape_classes: fixture
+                    .shape_classes
+                    .iter()
+                    .map(|shape_class| (*shape_class).to_string())
+                    .collect(),
+            });
+        }
+        module_count += fixture.modules.len();
+        marker_observable_module_count += fixture_marker_observable_module_count;
+        fixture_observability.push(LinkedEmissionFixtureObservabilityV0 {
+            fixture_id: fixture.id.clone(),
+            module_count: fixture.modules.len(),
+            marker_observable_module_count: fixture_marker_observable_module_count,
+            blind_spot_module_count: fixture.modules.len() - fixture_marker_observable_module_count,
+        });
+    }
+
+    let shapes = fixtures_by_shape
+        .iter()
+        .map(|(shape_class, fixture_ids)| LinkedEmissionCoverageShapeV0 {
+            shape_class: (*shape_class).to_string(),
+            fixture_ids: fixture_ids.iter().cloned().collect(),
+        })
+        .collect::<Vec<_>>();
+    let not_covered = fixtures_by_shape
+        .iter()
+        .filter(|(_, fixture_ids)| fixture_ids.is_empty())
+        .map(|(shape_class, _)| LinkedEmissionNotCoveredShapeV0 {
+            shape_class: (*shape_class).to_string(),
+            reentry: population
+                .get(shape_class)
+                .copied()
+                .unwrap_or_default()
+                .to_string(),
+        })
+        .collect::<Vec<_>>();
+    let full_corpus_coverage =
+        not_covered.is_empty() && shapes.iter().all(|shape| !shape.fixture_ids.is_empty());
+
+    Ok(LinkedEmissionCoverageCensusV0 {
+        schema_version: "0",
+        product: "omena-diff-test.linked-emission-coverage-census",
+        coverage_scope: if full_corpus_coverage {
+            "fullCorpus"
+        } else {
+            "boundedMultiModuleFixtures"
+        },
+        full_corpus_coverage,
+        population_count: shapes.len(),
+        covered_shape_count: shapes.len() - not_covered.len(),
+        not_covered_shape_count: not_covered.len(),
+        fixture_count: fixtures.len(),
+        module_count,
+        marker_observable_module_count,
+        blind_spot_module_count: blind_spots.len(),
+        shapes,
+        not_covered,
+        fixture_observability,
+        blind_spots,
     })
 }
 
@@ -398,6 +669,11 @@ fn dialect_fixture_v0(
     LinkedEmissionFixtureV0 {
         id: format!("dialect-{extension}-import-order"),
         entry_path: entry_path.clone(),
+        shape_classes: vec![match dialect {
+            StyleDialect::Css => "css-import-order",
+            StyleDialect::Scss | StyleDialect::Sass => "scss-import-order",
+            StyleDialect::Less => "less-import-order",
+        }],
         modules: vec![
             LinkedEmissionFixtureModuleV0 {
                 path: entry_path,
@@ -428,6 +704,7 @@ fn shared_import_fixture_v0() -> LinkedEmissionFixtureV0 {
     LinkedEmissionFixtureV0 {
         id: "shared-import-diamond".to_string(),
         entry_path: format!("{root}/app.css"),
+        shape_classes: vec!["shared-import-diamond"],
         modules: vec![
             LinkedEmissionFixtureModuleV0 {
                 path: format!("{root}/app.css"),
@@ -501,6 +778,7 @@ fn product_corpus_fixture_v0() -> Option<LinkedEmissionFixtureV0> {
     Some(LinkedEmissionFixtureV0 {
         id: "bundler-productization-corpus".to_string(),
         entry_path,
+        shape_classes: vec!["large-product-corpus"],
         modules,
     })
 }
@@ -523,6 +801,33 @@ mod tests {
                 && case.linked_modules_emitted_once
                 && case.linked_marker_order == case.authoritative_marker_order
         }));
+        Ok(())
+    }
+
+    #[test]
+    fn coverage_census_is_derived_from_an_independent_shape_population() -> Result<(), String> {
+        let envelope = summarize_linked_emission_byte_differential_envelope_v0(
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+        let census = envelope.census;
+
+        assert_eq!(census.fixture_count, envelope.report.fixture_count);
+        assert_eq!(
+            census.covered_shape_count + census.not_covered_shape_count,
+            census.population_count
+        );
+        assert!(census.population_count > census.fixture_count);
+        assert!(!census.not_covered.is_empty());
+        assert!(!census.full_corpus_coverage);
+        assert_eq!(census.coverage_scope, "boundedMultiModuleFixtures");
+        assert_eq!(
+            census.marker_observable_module_count + census.blind_spot_module_count,
+            census.module_count
+        );
+        assert_eq!(
+            census.fixture_observability.len(),
+            envelope.report.fixture_count
+        );
         Ok(())
     }
 
