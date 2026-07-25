@@ -1470,14 +1470,12 @@ pub fn summarize_omena_query_bundle_code_split_workspace_plan(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Result<OmenaQueryBundleCodeSplitWorkspacePlanV0, String> {
-    let source_by_path = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<BTreeMap<_, _>>();
     let available_style_paths = style_sources
         .iter()
         .map(|source| source.style_path.as_str())
         .collect::<BTreeSet<_>>();
+    let dependency_specifiers_by_path =
+        collect_omena_query_bundle_code_split_dependency_specifiers(style_sources);
     let mut entry_style_paths = vec![primary_entry_style_path.to_string()];
     for configured_entry in bundle_entry_style_paths {
         if configured_entry != primary_entry_style_path
@@ -1487,7 +1485,7 @@ pub fn summarize_omena_query_bundle_code_split_workspace_plan(
         }
     }
     for entry_style_path in &entry_style_paths {
-        if !source_by_path.contains_key(entry_style_path.as_str()) {
+        if !available_style_paths.contains(entry_style_path.as_str()) {
             return Err(format!(
                 "bundle entry source is not loaded: {entry_style_path}"
             ));
@@ -1497,7 +1495,7 @@ pub fn summarize_omena_query_bundle_code_split_workspace_plan(
     let entry_style_path_set = entry_style_paths.iter().cloned().collect::<BTreeSet<_>>();
     let entry_reachability = collect_omena_query_bundle_code_split_entry_reachability(
         entry_style_paths.as_slice(),
-        &source_by_path,
+        &dependency_specifiers_by_path,
         &available_style_paths,
         resolution_inputs,
     );
@@ -1545,9 +1543,46 @@ pub fn summarize_omena_query_bundle_code_split_workspace_plan(
     })
 }
 
+fn collect_omena_query_bundle_code_split_dependency_specifiers(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> BTreeMap<&str, Vec<String>> {
+    let modules = style_sources_to_transform_bundle_modules(style_sources);
+    let projection =
+        project_omena_transform_bundle_linker_inputs_from_parsed_modules(&modules, &[]);
+    let projection_path_by_source_path =
+        projection_path_by_source_path(modules.as_slice(), style_sources);
+    let dependency_specifiers_by_projection_path = projection
+        .inputs()
+        .iter()
+        .map(|input| {
+            let specifiers = input
+                .dependency_edges
+                .iter()
+                .filter(|edge| bundle_edge_is_module_dependency(edge.kind))
+                .map(|edge| edge.import_source.clone())
+                .collect::<Vec<_>>();
+            (input.source_path.as_str(), specifiers)
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    style_sources
+        .iter()
+        .map(|source| {
+            let specifiers = projection_path_by_source_path
+                .get(source.style_path.as_str())
+                .and_then(|projection_path| {
+                    dependency_specifiers_by_projection_path.get(projection_path.as_str())
+                })
+                .cloned()
+                .unwrap_or_default();
+            (source.style_path.as_str(), specifiers)
+        })
+        .collect()
+}
+
 fn collect_omena_query_bundle_code_split_entry_reachability(
     entry_style_paths: &[String],
-    source_by_path: &BTreeMap<&str, &str>,
+    dependency_specifiers_by_path: &BTreeMap<&str, Vec<String>>,
     available_style_paths: &BTreeSet<&str>,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> BTreeMap<String, BTreeSet<String>> {
@@ -1562,25 +1597,15 @@ fn collect_omena_query_bundle_code_split_entry_reachability(
             if !visited.insert(style_path.clone()) {
                 continue;
             }
-            let Some(source) = source_by_path.get(style_path.as_str()) else {
+            let Some(import_sources) = dependency_specifiers_by_path.get(style_path.as_str())
+            else {
                 continue;
             };
             reachability
                 .entry(style_path.clone())
                 .or_default()
                 .insert(entry_style_path.clone());
-            let bundle = summarize_omena_transform_bundle_from_source(
-                style_path.as_str(),
-                source,
-                omena_parser_dialect_for_style_path(style_path.as_str()),
-            );
-            for edge in bundle.bundle_edges {
-                if !bundle_edge_is_module_dependency(edge.kind) {
-                    continue;
-                }
-                let Some(import_source) = edge.import_source.as_deref() else {
-                    continue;
-                };
+            for import_source in import_sources {
                 let Some(target_path) = resolution_context.resolve_style_module_source(
                     style_path.as_str(),
                     import_source,
@@ -1588,7 +1613,7 @@ fn collect_omena_query_bundle_code_split_entry_reachability(
                 ) else {
                     continue;
                 };
-                if source_by_path.contains_key(target_path.as_str()) {
+                if dependency_specifiers_by_path.contains_key(target_path.as_str()) {
                     stack.push(target_path);
                 }
             }
@@ -3249,10 +3274,12 @@ fn style_sources_to_transform_bundle_modules(
         .iter()
         .map(|source| {
             let dialect = omena_parser_dialect_for_style_path(source.style_path.as_str());
+            let parsed =
+                parse_omena_query_omena_parser_style_source(source.style_source.as_str(), dialect);
             TransformBundleParsedModuleInputV0::new(
                 source.style_path.as_str(),
                 dialect,
-                omena_parser::collect_style_facts(source.style_source.as_str(), dialect),
+                omena_parser::facts_from_cst(source.style_source.as_str(), &parsed),
             )
         })
         .collect()

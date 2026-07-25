@@ -548,27 +548,106 @@ fn bundle_code_split_workspace_plan_surfaces_entry_config_and_shared_boundaries(
 }
 
 #[test]
-fn bundle_code_split_workspace_plan_traverses_sass_module_dependencies() -> Result<(), String> {
-    let sources = vec![
+fn bundle_code_split_workspace_plan_traverses_module_dependencies_without_reparsing()
+-> Result<(), String> {
+    let sass_sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/entry.scss".to_string(),
-            style_source: "@use \"./tokens\"; .entry { color: green; }".to_string(),
+            style_source: include_str!(
+                "../../tests/fixtures/bundle-code-split-dependencies/sass/entry.scss"
+            )
+            .to_string(),
         },
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/_tokens.scss".to_string(),
-            style_source: ".token { color: teal; }".to_string(),
+            style_source: include_str!(
+                "../../tests/fixtures/bundle-code-split-dependencies/sass/_tokens.scss"
+            )
+            .to_string(),
         },
     ];
-    let plan = summarize_omena_query_bundle_code_split_workspace_plan(
-        "src/entry.scss",
-        &[],
-        &sources,
-        &OmenaQueryStyleResolutionInputsV0::default(),
-    )?;
+    let (sass_plan, sass_parse) = omena_parser::with_omena_parser_parse_instrumentation(|| {
+        summarize_omena_query_bundle_code_split_workspace_plan(
+            "src/entry.scss",
+            &[],
+            &sass_sources,
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        )
+    });
+    let sass_plan = sass_plan?;
 
-    assert_eq!(plan.output_count, 2);
-    assert!(plan.outputs.iter().any(|output| {
+    assert_eq!(sass_parse.parse_invocation_count, sass_sources.len() as u64);
+    assert_eq!(sass_plan.output_count, 2);
+    assert!(sass_plan.outputs.iter().any(|output| {
         output.source_path == "src/_tokens.scss"
+            && output.split_boundary == "styleDependency"
+            && !output.is_entry
+    }));
+
+    let shared_sass_sources = vec![
+        sass_sources[0].clone(),
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/admin.scss".to_string(),
+            style_source: include_str!(
+                "../../tests/fixtures/bundle-code-split-dependencies/sass/admin.scss"
+            )
+            .to_string(),
+        },
+        sass_sources[1].clone(),
+    ];
+    let (shared_sass_plan, shared_sass_parse) =
+        omena_parser::with_omena_parser_parse_instrumentation(|| {
+            summarize_omena_query_bundle_code_split_workspace_plan(
+                "src/entry.scss",
+                &["src/admin.scss".to_string()],
+                &shared_sass_sources,
+                &OmenaQueryStyleResolutionInputsV0::default(),
+            )
+        });
+    let shared_sass_plan = shared_sass_plan?;
+
+    assert_eq!(
+        shared_sass_parse.parse_invocation_count,
+        shared_sass_sources.len() as u64
+    );
+    assert_eq!(shared_sass_plan.output_count, 3);
+    assert!(shared_sass_plan.outputs.iter().any(|output| {
+        output.source_path == "src/_tokens.scss"
+            && output.split_boundary == "shared"
+            && output.reachable_from_entries
+                == vec!["src/admin.scss".to_string(), "src/entry.scss".to_string()]
+    }));
+
+    let css_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/entry.css".to_string(),
+            style_source: include_str!(
+                "../../tests/fixtures/bundle-code-split-dependencies/css/entry.css"
+            )
+            .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/shared.css".to_string(),
+            style_source: include_str!(
+                "../../tests/fixtures/bundle-code-split-dependencies/css/shared.css"
+            )
+            .to_string(),
+        },
+    ];
+    let (css_plan, css_parse) = omena_parser::with_omena_parser_parse_instrumentation(|| {
+        summarize_omena_query_bundle_code_split_workspace_plan(
+            "src/entry.css",
+            &[],
+            &css_sources,
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        )
+    });
+    let css_plan = css_plan?;
+
+    assert_eq!(css_parse.parse_invocation_count, css_sources.len() as u64);
+    assert_eq!(css_plan.output_count, 2);
+    assert!(css_plan.outputs.iter().any(|output| {
+        output.source_path == "src/shared.css"
             && output.split_boundary == "styleDependency"
             && !output.is_entry
     }));
@@ -780,11 +859,17 @@ fn bundle_paths_consume_package_export_resolution() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/app.css".to_string(),
-            style_source: r#"@import "@acme/theme/tokens.css"; .app { color: green; }"#.to_string(),
+            style_source: include_str!(
+                "../../tests/fixtures/bundle-package-exports/src/entry.css"
+            )
+            .to_string(),
         },
         OmenaQueryStyleSourceInputV0 {
             style_path: "node_modules/@acme/theme/dist/tokens.css".to_string(),
-            style_source: ".package-token { color: rebeccapurple; }".to_string(),
+            style_source: include_str!(
+                "../../tests/fixtures/bundle-package-exports/node_modules/@acme/theme/dist/tokens.css"
+            )
+            .to_string(),
         },
     ];
     let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
@@ -792,9 +877,10 @@ fn bundle_paths_consume_package_export_resolution() -> Result<(), String> {
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
         package_manifests: vec![OmenaQueryStylePackageManifestV0 {
             package_json_path: "node_modules/@acme/theme/package.json".to_string(),
-            package_json_source:
-                r#"{"name":"@acme/theme","exports":{"./tokens.css":"./dist/tokens.css"}}"#
-                    .to_string(),
+            package_json_source: include_str!(
+                "../../tests/fixtures/bundle-package-exports/node_modules/@acme/theme/package.json"
+            )
+            .to_string(),
         }],
         ..OmenaQueryStyleResolutionInputsV0::default()
     };
@@ -835,7 +921,7 @@ fn bundle_paths_consume_package_export_resolution() -> Result<(), String> {
 
     let mut missing_sources = sources;
     missing_sources[0].style_source =
-        r#"@import "@acme/theme/missing.css"; .app { color: green; }"#.to_string();
+        include_str!("../../tests/fixtures/bundle-package-exports/src/missing.css").to_string();
     let missing_result = run(
         &OmenaQueryConsumerBuildOptionsV0::default(),
         &missing_sources,
