@@ -19,8 +19,8 @@ use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
     ClosedWorldModuleMetadataV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
-    ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect,
-    collect_style_facts,
+    ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind,
+    StyleDialect, collect_style_facts,
 };
 use omena_transform_cst::{
     IrNodeKindV0, TransformPassKind, lower_transform_ir_from_source, transform_pass_sort_ordinal,
@@ -235,6 +235,62 @@ impl TransformBundleModuleInputV0 {
             ModuleIdV0::new(normalize_bundle_path(PathBuf::from(&self.source_path))),
             self.configuration_hash.clone(),
         )
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformBundleParsedModuleInputV0 {
+    source_path: String,
+    dialect: StyleDialect,
+    facts: ParsedStyleFacts,
+    configuration_hashes: Vec<ConfigurationHashV0>,
+}
+
+impl TransformBundleParsedModuleInputV0 {
+    pub fn new(
+        source_path: impl Into<String>,
+        dialect: StyleDialect,
+        facts: ParsedStyleFacts,
+    ) -> Self {
+        Self {
+            source_path: source_path.into(),
+            dialect,
+            facts,
+            configuration_hashes: vec![ConfigurationHashV0::none()],
+        }
+    }
+
+    pub fn with_configuration_hashes(
+        mut self,
+        configuration_hashes: Vec<ConfigurationHashV0>,
+    ) -> Self {
+        self.configuration_hashes = configuration_hashes
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        if self.configuration_hashes.is_empty() {
+            self.configuration_hashes.push(ConfigurationHashV0::none());
+        }
+        self
+    }
+
+    pub fn source_path(&self) -> &str {
+        self.source_path.as_str()
+    }
+
+    pub fn configuration_hashes(&self) -> &[ConfigurationHashV0] {
+        self.configuration_hashes.as_slice()
+    }
+
+    pub fn module_instance_keys(&self) -> Vec<ModuleInstanceKeyV0> {
+        let module = ModuleIdV0::new(normalize_bundle_path(PathBuf::from(&self.source_path)));
+        self.configuration_hashes
+            .iter()
+            .cloned()
+            .map(|configuration| ModuleInstanceKeyV0::new(module.clone(), configuration))
+            .collect()
     }
 }
 
@@ -661,12 +717,42 @@ pub fn project_omena_transform_bundle_linker_inputs(
     modules: &[TransformBundleModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
 ) -> TransformBundleLinkerProjectionV0 {
-    let module_records = modules
+    let parsed_modules = modules
         .iter()
-        .map(TransformBundleModuleRecordV0::from_input)
+        .map(|module| {
+            TransformBundleParsedModuleInputV0::new(
+                module.source_path.as_str(),
+                module.dialect,
+                collect_style_facts(module.source.as_str(), module.dialect),
+            )
+            .with_configuration_hashes(vec![module.configuration_hash.clone()])
+        })
         .collect::<Vec<_>>();
-    let inputs =
-        project_linker_inputs_from_module_records(module_records.as_slice(), reachability_inputs);
+    project_omena_transform_bundle_linker_inputs_from_parsed_modules(
+        parsed_modules.as_slice(),
+        reachability_inputs,
+    )
+}
+
+pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules(
+    modules: &[TransformBundleParsedModuleInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) -> TransformBundleLinkerProjectionV0 {
+    let mut inputs = Vec::new();
+    for module in modules {
+        let source_path = normalize_bundle_path(PathBuf::from(module.source_path.as_str()));
+        let bundle_edges =
+            collect_bundle_edges_from_facts(&source_path, module.dialect, &module.facts);
+        for instance in module.module_instance_keys() {
+            inputs.push(linker_input_from_module_facts(
+                source_path.as_str(),
+                instance,
+                &module.facts,
+                bundle_edges.as_slice(),
+            ));
+        }
+    }
+    apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
     TransformBundleLinkerProjectionV0 { inputs }
 }
 
@@ -1011,49 +1097,16 @@ pub fn rewrite_omena_transform_bundle_asset_urls_in_source(
     }
 }
 
-struct TransformBundleModuleRecordV0 {
-    source_path: String,
+fn linker_input_from_module_facts(
+    source_path: &str,
     instance: ModuleInstanceKeyV0,
-    facts: omena_parser::ParsedStyleFacts,
-    bundle_edges: Vec<TransformBundleEdgeV0>,
-}
-
-impl TransformBundleModuleRecordV0 {
-    fn from_input(input: &TransformBundleModuleInputV0) -> Self {
-        let source_path = normalize_bundle_path(PathBuf::from(input.source_path.as_str()));
-        let facts = collect_style_facts(input.source.as_str(), input.dialect);
-        let bundle_edges = collect_bundle_edges_from_facts(&source_path, input.dialect, &facts);
-        let instance = ModuleInstanceKeyV0::new(
-            ModuleIdV0::new(source_path.clone()),
-            input.configuration_hash.clone(),
-        );
-        Self {
-            source_path,
-            instance,
-            facts,
-            bundle_edges,
-        }
-    }
-}
-
-fn project_linker_inputs_from_module_records(
-    records: &[TransformBundleModuleRecordV0],
-    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
-) -> Vec<LinkerInputV0> {
-    let mut inputs = records
-        .iter()
-        .map(linker_input_from_module_record)
-        .collect::<Vec<_>>();
-    apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
-    inputs
-}
-
-fn linker_input_from_module_record(record: &TransformBundleModuleRecordV0) -> LinkerInputV0 {
+    facts: &ParsedStyleFacts,
+    bundle_edges: &[TransformBundleEdgeV0],
+) -> LinkerInputV0 {
     LinkerInputV0 {
-        source_path: record.source_path.clone(),
-        instance: record.instance.clone(),
-        dependency_edges: record
-            .bundle_edges
+        source_path: source_path.to_string(),
+        instance,
+        dependency_edges: bundle_edges
             .iter()
             .filter(|edge| bundle_edge_is_module_dependency(edge.kind))
             .filter_map(|edge| {
@@ -1067,32 +1120,28 @@ fn linker_input_from_module_record(record: &TransformBundleModuleRecordV0) -> Li
             })
             .collect(),
         class_names: dedupe_names(
-            record
-                .facts
+            facts
                 .selectors
                 .iter()
                 .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
                 .map(|selector| selector.name.clone()),
         ),
         keyframe_names: dedupe_names(
-            record
-                .facts
+            facts
                 .animations
                 .iter()
                 .filter(|animation| animation.kind == ParsedAnimationFactKind::KeyframesDeclaration)
                 .map(|animation| animation.name.clone()),
         ),
         value_names: dedupe_names(
-            record
-                .facts
+            facts
                 .css_module_values
                 .iter()
                 .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
                 .map(|value| value.name.clone()),
         ),
         custom_property_names: dedupe_names(
-            record
-                .facts
+            facts
                 .variables
                 .iter()
                 .filter(|variable| {
@@ -1100,12 +1149,12 @@ fn linker_input_from_module_record(record: &TransformBundleModuleRecordV0) -> Li
                 })
                 .map(|variable| variable.name.clone()),
         ),
-        ordered_rules: collect_ordered_linker_rules(record),
+        ordered_rules: collect_ordered_linker_rules(facts),
     }
 }
 
-fn collect_ordered_linker_rules(record: &TransformBundleModuleRecordV0) -> Vec<LinkerRuleV0> {
-    let mut selectors = record.facts.selectors.clone();
+fn collect_ordered_linker_rules(facts: &ParsedStyleFacts) -> Vec<LinkerRuleV0> {
+    let mut selectors = facts.selectors.clone();
     selectors.sort_by_key(|selector| {
         (
             u32::from(selector.range.start()),
@@ -1144,19 +1193,20 @@ fn apply_semantic_reachability_to_linker_inputs(
         if !input.has_reachable_symbols() {
             continue;
         }
-        let Some(instance) =
-            resolve_module_instance_by_path(&input.source_path, &instances_by_path)
-        else {
+        let normalized_path = normalize_bundle_path(PathBuf::from(&input.source_path));
+        let Some(instances) = instances_by_path.get(&normalized_path) else {
             continue;
         };
-        let Some(index) = module_index_by_instance.get(&instance).copied() else {
-            continue;
-        };
-        inputs[index].class_names = dedupe_names(input.class_names.iter().cloned());
-        inputs[index].keyframe_names = dedupe_names(input.keyframe_names.iter().cloned());
-        inputs[index].value_names = dedupe_names(input.value_names.iter().cloned());
-        inputs[index].custom_property_names =
-            dedupe_names(input.custom_property_names.iter().cloned());
+        for instance in instances {
+            let Some(index) = module_index_by_instance.get(instance).copied() else {
+                continue;
+            };
+            inputs[index].class_names = dedupe_names(input.class_names.iter().cloned());
+            inputs[index].keyframe_names = dedupe_names(input.keyframe_names.iter().cloned());
+            inputs[index].value_names = dedupe_names(input.value_names.iter().cloned());
+            inputs[index].custom_property_names =
+                dedupe_names(input.custom_property_names.iter().cloned());
+        }
     }
 }
 
