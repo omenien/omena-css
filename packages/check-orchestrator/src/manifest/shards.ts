@@ -32,6 +32,10 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
       "rust/lint-finding-census",
     ],
   },
+  "rust/product-test-contracts": {
+    "api-surface": ["rust/omena-bundler/public-surface"],
+    "structural-shadow": ["rust/omena-transform-passes/structural-ir-shadow"],
+  },
 };
 
 export function bundleShardNames(bundleId: string): readonly string[] {

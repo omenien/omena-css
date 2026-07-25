@@ -202,12 +202,29 @@ jobs:
       - run: pnpm omena-check run rust/omena-query/transform-differential
       - run: pnpm omena-check run rust/omena-transform-target/boundary
 
-  rust-product-tests:
+  rust-product-test-plan:
     # omena-ci-tier: rust-workspace
     # omena-ci-required: false
     needs: preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - run: pnpm omena-check run rust/product-test-coverage-classguard
+
+  rust-product-test-crates:
+    # omena-ci-tier: rust-workspace
+    # omena-ci-required: false
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        product-shard: [workspace, differential, benchmarks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
     steps:
@@ -217,8 +234,60 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run rust/product-test-execution
-      - run: pnpm omena-check run rust/product-test-coverage-classguard
+      - run: pnpm omena-check run rust/product-test-execution -- ${{ matrix.product-shard }}
+
+  rust-product-test-contracts:
+    # omena-ci-tier: rust-workspace
+    # omena-ci-required: false
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        contract-shard: [api-surface, structural-shadow, rest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - name: Cache Rust API tools
+        id: rust-api-tools-cache
+        if: matrix.contract-shard == 'api-surface'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/bin/cargo-public-api
+            ~/.cargo/bin/cargo-semver-checks
+          key: rust-api-tools-${{ runner.os }}-${{ runner.arch }}-public-api-0.52.0-semver-checks-0.48.0
+      - name: Install Rust API tools
+        if: matrix.contract-shard == 'api-surface' && steps.rust-api-tools-cache.outputs.cache-hit != 'true'
+        uses: taiki-e/install-action@3d7d7cd5ac7f994c1892ae0c06165095b9139094 # v2.85.1
+        with:
+          tool: cargo-public-api@0.52.0,cargo-semver-checks@0.48.0
+      - run: pnpm omena-check bundle rust/product-test-contracts --summary --shard=${{ matrix.contract-shard }}
+
+  rust-product-tests:
+    # omena-ci-tier: rust-workspace
+    # omena-ci-required: false
+    needs:
+      - rust-product-test-plan
+      - rust-product-test-crates
+      - rust-product-test-contracts
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - run: node ./scripts/check-ci-required-results.mjs
+        env:
+          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
 
   rust-workspace:
     # omena-ci-required: true
