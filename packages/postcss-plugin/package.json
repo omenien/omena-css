@@ -19,6 +19,6 @@
   },
   "optionalDependencies": {
     "@omena/napi": "^0.2.1",
-    "@omena/wasm": "^0.2.1"
+    "@omena/wasm": "^0.3.0"
   }
 }
