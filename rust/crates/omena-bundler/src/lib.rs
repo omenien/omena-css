@@ -294,6 +294,85 @@ pub struct LinkerInputV0 {
     pub ordered_rules: Vec<LinkerRuleV0>,
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformBundleLinkerProjectionV0 {
+    inputs: Vec<LinkerInputV0>,
+}
+
+impl TransformBundleLinkerProjectionV0 {
+    pub fn inputs(&self) -> &[LinkerInputV0] {
+        &self.inputs
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformBundleDependencyResolutionV0 {
+    pub attempt_state: &'static str,
+    pub policy_step_keys: Vec<&'static str>,
+    pub resolution_kind: Option<&'static str>,
+    pub candidate_count: usize,
+    pub target_instance: Option<ModuleInstanceKeyV0>,
+}
+
+impl TransformBundleDependencyResolutionV0 {
+    pub fn attempted(
+        policy_step_keys: Vec<&'static str>,
+        resolution_kind: &'static str,
+        candidate_count: usize,
+        target_instance: Option<ModuleInstanceKeyV0>,
+    ) -> Self {
+        Self {
+            attempt_state: "attempted",
+            policy_step_keys,
+            resolution_kind: Some(resolution_kind),
+            candidate_count,
+            target_instance,
+        }
+    }
+
+    pub fn never_attempted(policy_step_keys: Vec<&'static str>) -> Self {
+        Self {
+            attempt_state: "never-attempted",
+            policy_step_keys,
+            resolution_kind: None,
+            candidate_count: 0,
+            target_instance: None,
+        }
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformBundleResolvedDependencyV0 {
+    pub source_instance: ModuleInstanceKeyV0,
+    pub edge_kind: TransformBundleEdgeKind,
+    pub import_source: String,
+    pub import_ordinal: Option<u32>,
+    pub resolution: TransformBundleDependencyResolutionV0,
+}
+
+impl TransformBundleResolvedDependencyV0 {
+    pub fn new(
+        source_instance: ModuleInstanceKeyV0,
+        edge_kind: TransformBundleEdgeKind,
+        import_source: impl Into<String>,
+        import_ordinal: Option<u32>,
+        resolution: TransformBundleDependencyResolutionV0,
+    ) -> Self {
+        Self {
+            source_instance,
+            edge_kind,
+            import_source: import_source.into(),
+            import_ordinal,
+            resolution,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformBundleLinkOptionsV0 {
@@ -568,12 +647,38 @@ pub fn link_omena_transform_bundle_modules_with_options<P: AsRef<str>>(
     module_metadata: &[ClosedWorldModuleMetadataV0],
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    let projection = project_omena_transform_bundle_linker_inputs(modules, reachability_inputs);
+    link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
+        entrypoint_paths,
+        &projection,
+        &[],
+        module_metadata,
+        options,
+    )
+}
+
+pub fn project_omena_transform_bundle_linker_inputs(
+    modules: &[TransformBundleModuleInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) -> TransformBundleLinkerProjectionV0 {
     let module_records = modules
         .iter()
         .map(TransformBundleModuleRecordV0::from_input)
         .collect::<Vec<_>>();
-    let linker_inputs =
+    let inputs =
         project_linker_inputs_from_module_records(module_records.as_slice(), reachability_inputs);
+    TransformBundleLinkerProjectionV0 { inputs }
+}
+
+pub fn link_omena_transform_bundle_projection_with_resolved_dependencies_and_options<
+    P: AsRef<str>,
+>(
+    entrypoint_paths: &[P],
+    projection: &TransformBundleLinkerProjectionV0,
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    options: TransformBundleLinkOptionsV0,
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let entrypoint_paths = entrypoint_paths
         .iter()
         .map(|path| path.as_ref())
@@ -581,7 +686,8 @@ pub fn link_omena_transform_bundle_modules_with_options<P: AsRef<str>>(
 
     link_stylesheet_from_projection_with_metadata_and_options(
         entrypoint_paths.as_slice(),
-        linker_inputs.as_slice(),
+        projection.inputs(),
+        resolved_dependencies,
         module_metadata,
         options,
     )
@@ -791,9 +897,24 @@ pub fn link_stylesheet_from_projection_with_options(
     inputs: &[LinkerInputV0],
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    link_stylesheet_from_projection_with_resolved_dependencies_and_options(
+        entrypoint_paths,
+        inputs,
+        &[],
+        options,
+    )
+}
+
+pub fn link_stylesheet_from_projection_with_resolved_dependencies_and_options(
+    entrypoint_paths: &[&str],
+    inputs: &[LinkerInputV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    options: TransformBundleLinkOptionsV0,
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     link_stylesheet_from_projection_with_metadata_and_options(
         entrypoint_paths,
         inputs,
+        resolved_dependencies,
         &[],
         options,
     )
@@ -802,6 +923,7 @@ pub fn link_stylesheet_from_projection_with_options(
 fn link_stylesheet_from_projection_with_metadata_and_options(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
@@ -816,8 +938,11 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let linked_modules =
-        collect_closed_world_linked_modules_from_projection(inputs, &instances_by_path)?;
+    let linked_modules = collect_closed_world_linked_modules_from_projection(
+        inputs,
+        resolved_dependencies,
+        &instances_by_path,
+    )?;
     let closed_world_bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
         entrypoints.clone(),
         linked_modules,
@@ -828,6 +953,7 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
         inputs,
         closed_world_bundle.linked_modules(),
         &entrypoints,
+        resolved_dependencies,
         options.emission_ordering_policy,
     )?;
     let global_rule_order =
@@ -1066,6 +1192,7 @@ fn resolve_module_instance_by_path(
 
 fn collect_closed_world_linked_modules_from_projection(
     inputs: &[LinkerInputV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
 ) -> Result<Vec<ClosedWorldLinkedModuleV0>, TransformBundleLinkErrorV0> {
     inputs
@@ -1073,9 +1200,10 @@ fn collect_closed_world_linked_modules_from_projection(
         .map(|input| {
             let mut linked = ClosedWorldLinkedModuleV0::new(input.instance.clone());
             for edge in &input.dependency_edges {
-                let dependency = resolve_imported_module_instance(
-                    input.source_path.as_str(),
-                    edge.import_source.as_str(),
+                let dependency = resolve_imported_module_instance_for_edge(
+                    input,
+                    edge,
+                    resolved_dependencies,
                     instances_by_path,
                 )?
                 .ok_or_else(|| TransformBundleLinkErrorV0::MissingDependency {
@@ -1145,6 +1273,46 @@ pub(crate) fn resolve_imported_module_instance(
         }
     }
     Ok(None)
+}
+
+pub(crate) fn resolve_imported_module_instance_for_edge(
+    input: &LinkerInputV0,
+    edge: &LinkerDependencyEdgeV0,
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
+) -> Result<Option<ModuleInstanceKeyV0>, TransformBundleLinkErrorV0> {
+    let mut matches = resolved_dependencies.iter().filter(|dependency| {
+        dependency.source_instance == input.instance
+            && dependency.edge_kind == edge.kind
+            && dependency.import_source == edge.import_source
+            && dependency.import_ordinal == edge.import_ordinal
+    });
+    if let Some(resolved) = matches.next() {
+        if matches.next().is_some() {
+            return Err(TransformBundleLinkErrorV0::InvalidEmissionPlan {
+                reason: format!(
+                    "dependency {} in {} has more than one resolved-edge record",
+                    edge.import_source,
+                    input.instance.module().as_str()
+                ),
+            });
+        }
+        return Ok(resolved
+            .resolution
+            .target_instance
+            .as_ref()
+            .and_then(|target| {
+                instances_by_path
+                    .get(target.module().as_str())
+                    .filter(|instances| instances.contains(target))
+                    .map(|_| target.clone())
+            }));
+    }
+    resolve_imported_module_instance(
+        input.source_path.as_str(),
+        edge.import_source.as_str(),
+        instances_by_path,
+    )
 }
 
 fn import_path_candidates(source_path: &str, import_source: &str) -> Vec<String> {
@@ -1680,15 +1848,18 @@ mod tests {
     use super::{
         LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0,
         TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0, TransformBundleAssetUrlKind,
-        TransformBundleChunkKind, TransformBundleEdgeKind, TransformBundleLinkErrorV0,
-        TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
-        TransformBundleSemanticReachabilityInputV0, TransformBundleTransformedModuleV0,
-        bundle_edge_is_module_dependency, bundle_edge_module_dependency_reason,
-        collect_transform_ir_bundle_asset_urls, compare_omena_transform_bundle_emission_policies,
-        link_omena_transform_bundle_modules, link_omena_transform_bundle_modules_with_options,
+        TransformBundleChunkKind, TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
+        TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+        TransformBundleResolvedDependencyV0, TransformBundleSemanticReachabilityInputV0,
+        TransformBundleTransformedModuleV0, bundle_edge_is_module_dependency,
+        bundle_edge_module_dependency_reason, collect_transform_ir_bundle_asset_urls,
+        compare_omena_transform_bundle_emission_policies, link_omena_transform_bundle_modules,
+        link_omena_transform_bundle_modules_with_options,
         link_omena_transform_bundle_modules_with_semantic_reachability,
+        link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
         link_stylesheet_from_projection, materialize_omena_transform_bundle_linked_stylesheet,
-        raw_scan_bundle_asset_urls_for_oracle, rewrite_omena_transform_bundle_asset_urls_in_source,
+        project_omena_transform_bundle_linker_inputs, raw_scan_bundle_asset_urls_for_oracle,
+        rewrite_omena_transform_bundle_asset_urls_in_source,
         summarize_omena_transform_bundle_from_source,
     };
     use omena_cross_file_summary::EdgeOrderRelevanceV0;
@@ -2118,6 +2289,7 @@ mod tests {
             &inputs,
             &[first.clone(), second],
             &[first],
+            &[],
             super::EmissionOrderingPolicyV0::ModuleIdLegacy,
         )
         .map_err(|error| format!("{error:?}"))?;
@@ -2795,5 +2967,66 @@ mod tests {
                 import_source: "./missing.css".to_string(),
             })
         );
+    }
+
+    #[test]
+    fn resolved_dependency_carrier_links_package_export_target() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                r#"@import "@acme/theme/tokens.css"; .app { color: green; }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "node_modules/@acme/theme/dist/tokens.css",
+                ".token { color: rebeccapurple; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let projection = project_omena_transform_bundle_linker_inputs(&modules, &[]);
+        let resolved = TransformBundleResolvedDependencyV0::new(
+            modules[0].module_instance_key(),
+            TransformBundleEdgeKind::CssImport,
+            "@acme/theme/tokens.css",
+            Some(0),
+            TransformBundleDependencyResolutionV0::attempted(
+                vec![
+                    "externalUrlBoundary",
+                    "bundlerPathMapping",
+                    "tsconfigPathMapping",
+                    "sassPkgImporter",
+                    "fileRelativeOrAbsolute",
+                    "packageManifestSubpath",
+                    "nodePackageFallback",
+                    "sassLoadPathRoot",
+                ],
+                "packageStyleModule",
+                1,
+                Some(modules[1].module_instance_key()),
+            ),
+        );
+
+        let linked = link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
+            &["src/app.css"],
+            &projection,
+            std::slice::from_ref(&resolved),
+            &[],
+            TransformBundleLinkOptionsV0::default(),
+        )
+        .map_err(|error| format!("resolved package export should link: {error:?}"))?;
+
+        assert_eq!(linked.module_instances.len(), 2);
+        assert!(
+            linked
+                .module_instances
+                .contains(&modules[1].module_instance_key())
+        );
+        assert_eq!(resolved.resolution.attempt_state, "attempted");
+        assert_eq!(
+            resolved.resolution.resolution_kind,
+            Some("packageStyleModule")
+        );
+        assert_eq!(resolved.resolution.policy_step_keys.len(), 8);
+        Ok(())
     }
 }

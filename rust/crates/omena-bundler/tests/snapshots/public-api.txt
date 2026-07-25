@@ -176,6 +176,15 @@ pub omena_bundler::TransformBundleChunkV0::kind: omena_bundler::TransformBundleC
 pub omena_bundler::TransformBundleChunkV0::resolved_path: core::option::Option<alloc::string::String>
 pub omena_bundler::TransformBundleChunkV0::source_path: alloc::string::String
 pub omena_bundler::TransformBundleChunkV0::split_boundary: &'static str
+#[non_exhaustive] pub struct omena_bundler::TransformBundleDependencyResolutionV0
+pub omena_bundler::TransformBundleDependencyResolutionV0::attempt_state: &'static str
+pub omena_bundler::TransformBundleDependencyResolutionV0::candidate_count: usize
+pub omena_bundler::TransformBundleDependencyResolutionV0::policy_step_keys: alloc::vec::Vec<&'static str>
+pub omena_bundler::TransformBundleDependencyResolutionV0::resolution_kind: core::option::Option<&'static str>
+pub omena_bundler::TransformBundleDependencyResolutionV0::target_instance: core::option::Option<omena_parser::closed_world::contract::ModuleInstanceKeyV0>
+impl omena_bundler::TransformBundleDependencyResolutionV0
+pub fn omena_bundler::TransformBundleDependencyResolutionV0::attempted(alloc::vec::Vec<&'static str>, &'static str, usize, core::option::Option<omena_parser::closed_world::contract::ModuleInstanceKeyV0>) -> Self
+pub fn omena_bundler::TransformBundleDependencyResolutionV0::never_attempted(alloc::vec::Vec<&'static str>) -> Self
 pub struct omena_bundler::TransformBundleEdgeV0
 pub omena_bundler::TransformBundleEdgeV0::import_ordinal: core::option::Option<u32>
 pub omena_bundler::TransformBundleEdgeV0::import_source: core::option::Option<alloc::string::String>
@@ -189,6 +198,9 @@ pub omena_bundler::TransformBundleEdgeV0::remote_names: alloc::vec::Vec<alloc::s
 pub omena_bundler::TransformBundleEdgeV0::source_path: alloc::string::String
 pub struct omena_bundler::TransformBundleLinkOptionsV0
 pub omena_bundler::TransformBundleLinkOptionsV0::emission_ordering_policy: omena_bundler::EmissionOrderingPolicyV0
+#[non_exhaustive] pub struct omena_bundler::TransformBundleLinkerProjectionV0
+impl omena_bundler::TransformBundleLinkerProjectionV0
+pub fn omena_bundler::TransformBundleLinkerProjectionV0::inputs(&self) -> &[omena_bundler::LinkerInputV0]
 pub struct omena_bundler::TransformBundleModuleInputV0
 pub omena_bundler::TransformBundleModuleInputV0::configuration_hash: omena_parser::closed_world::contract::ConfigurationHashV0
 pub omena_bundler::TransformBundleModuleInputV0::dialect: omena_syntax::StyleDialect
@@ -198,6 +210,14 @@ impl omena_bundler::TransformBundleModuleInputV0
 pub fn omena_bundler::TransformBundleModuleInputV0::module_instance_key(&self) -> omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub fn omena_bundler::TransformBundleModuleInputV0::new(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, omena_syntax::StyleDialect) -> Self
 pub fn omena_bundler::TransformBundleModuleInputV0::with_configuration_hash(self, omena_parser::closed_world::contract::ConfigurationHashV0) -> Self
+#[non_exhaustive] pub struct omena_bundler::TransformBundleResolvedDependencyV0
+pub omena_bundler::TransformBundleResolvedDependencyV0::edge_kind: omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::TransformBundleResolvedDependencyV0::import_ordinal: core::option::Option<u32>
+pub omena_bundler::TransformBundleResolvedDependencyV0::import_source: alloc::string::String
+pub omena_bundler::TransformBundleResolvedDependencyV0::resolution: omena_bundler::TransformBundleDependencyResolutionV0
+pub omena_bundler::TransformBundleResolvedDependencyV0::source_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+impl omena_bundler::TransformBundleResolvedDependencyV0
+pub fn omena_bundler::TransformBundleResolvedDependencyV0::new(omena_parser::closed_world::contract::ModuleInstanceKeyV0, omena_bundler::TransformBundleEdgeKind, impl core::convert::Into<alloc::string::String>, core::option::Option<u32>, omena_bundler::TransformBundleDependencyResolutionV0) -> Self
 pub struct omena_bundler::TransformBundleSemanticReachabilityInputV0
 pub omena_bundler::TransformBundleSemanticReachabilityInputV0::class_names: alloc::vec::Vec<alloc::string::String>
 pub omena_bundler::TransformBundleSemanticReachabilityInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
@@ -238,8 +258,11 @@ pub fn omena_bundler::link_omena_transform_bundle_modules<P: core::convert::AsRe
 pub fn omena_bundler::link_omena_transform_bundle_modules_with_options<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0], &[omena_parser::closed_world::contract::ClosedWorldModuleMetadataV0], omena_bundler::TransformBundleLinkOptionsV0) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_omena_transform_bundle_modules_with_semantic_reachability<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0], &[omena_parser::closed_world::contract::ClosedWorldModuleMetadataV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
+pub fn omena_bundler::link_omena_transform_bundle_projection_with_resolved_dependencies_and_options<P: core::convert::AsRef<str>>(&[P], &omena_bundler::TransformBundleLinkerProjectionV0, &[omena_bundler::TransformBundleResolvedDependencyV0], &[omena_parser::closed_world::contract::ClosedWorldModuleMetadataV0], omena_bundler::TransformBundleLinkOptionsV0) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_stylesheet_from_projection(&[&str], &[omena_bundler::LinkerInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_stylesheet_from_projection_with_options(&[&str], &[omena_bundler::LinkerInputV0], omena_bundler::TransformBundleLinkOptionsV0) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
+pub fn omena_bundler::link_stylesheet_from_projection_with_resolved_dependencies_and_options(&[&str], &[omena_bundler::LinkerInputV0], &[omena_bundler::TransformBundleResolvedDependencyV0], omena_bundler::TransformBundleLinkOptionsV0) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::materialize_omena_transform_bundle_linked_stylesheet(&omena_bundler::LinkedStylesheetV0, &[omena_bundler::TransformBundleTransformedModuleV0]) -> core::result::Result<omena_bundler::LinkedEmissionArtifactV0, omena_bundler::LinkedEmissionMaterializationErrorV0>
+pub fn omena_bundler::project_omena_transform_bundle_linker_inputs(&[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> omena_bundler::TransformBundleLinkerProjectionV0
 pub fn omena_bundler::rewrite_omena_transform_bundle_asset_urls_in_source(impl core::convert::Into<alloc::string::String>, &str) -> omena_bundler::TransformBundleAssetUrlRewriteSummaryV0
 pub fn omena_bundler::summarize_omena_transform_bundle_from_source(impl core::convert::Into<alloc::string::String>, &str, omena_syntax::StyleDialect) -> omena_bundler::TransformBundleSourceSummaryV0

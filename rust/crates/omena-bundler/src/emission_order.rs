@@ -6,7 +6,8 @@ use serde::Serialize;
 
 use crate::{
     GlobalRuleOrderV0, LinkedStylesheetRuleV0, LinkerInputV0, TransformBundleEdgeKind,
-    TransformBundleLinkErrorV0, module_instances_by_linker_path, resolve_imported_module_instance,
+    TransformBundleLinkErrorV0, TransformBundleResolvedDependencyV0,
+    module_instances_by_linker_path, resolve_imported_module_instance_for_edge,
     selector_kind_label,
 };
 
@@ -89,9 +90,11 @@ pub(crate) fn build_emission_plan(
     inputs: &[LinkerInputV0],
     linked_modules: &[ModuleInstanceKeyV0],
     entrypoints: &[ModuleInstanceKeyV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     policy: EmissionOrderingPolicyV0,
 ) -> Result<EmissionPlanV0, TransformBundleLinkErrorV0> {
-    let dependency_facts = collect_emission_dependency_facts(inputs, linked_modules)?;
+    let dependency_facts =
+        collect_emission_dependency_facts(inputs, linked_modules, resolved_dependencies)?;
     let cycle_groups = build_cycle_groups(linked_modules, &dependency_facts)?;
     let module_order = match policy {
         EmissionOrderingPolicyV0::ModuleIdLegacy => linked_modules.to_vec(),
@@ -236,6 +239,7 @@ fn import_ordered_modules(
 fn collect_emission_dependency_facts(
     inputs: &[LinkerInputV0],
     linked_modules: &[ModuleInstanceKeyV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
 ) -> Result<Vec<EmissionDependencyFactV0>, TransformBundleLinkErrorV0> {
     let reachable = linked_modules.iter().cloned().collect::<BTreeSet<_>>();
     let inputs_by_instance = inputs
@@ -267,9 +271,10 @@ fn collect_emission_dependency_facts(
                     ),
                 }
             })?;
-            let to_module = resolve_imported_module_instance(
-                input.source_path.as_str(),
-                edge.import_source.as_str(),
+            let to_module = resolve_imported_module_instance_for_edge(
+                input,
+                edge,
+                resolved_dependencies,
                 &instances_by_path,
             )?
             .ok_or_else(|| TransformBundleLinkErrorV0::MissingDependency {

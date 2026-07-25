@@ -39,6 +39,16 @@ impl<'a> TransformResolutionContext<'a> {
         source: &str,
         available_style_paths: &BTreeSet<&str>,
     ) -> Option<String> {
+        self.resolve_style_module(from_style_path, source, available_style_paths)
+            .resolved_style_path
+    }
+
+    pub(super) fn resolve_style_module(
+        self,
+        from_style_path: &str,
+        source: &str,
+        available_style_paths: &BTreeSet<&str>,
+    ) -> OmenaResolverStyleModuleResolutionV0 {
         let load_path_roots = super::super::collect_load_path_roots(available_style_paths);
         let load_path_root_refs = load_path_roots
             .iter()
@@ -66,7 +76,6 @@ impl<'a> TransformResolutionContext<'a> {
                 ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
             },
         )
-        .resolved_style_path
     }
 }
 

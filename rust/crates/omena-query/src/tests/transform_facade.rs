@@ -776,6 +776,86 @@ fn bundle_emission_path_selects_linked_order_without_changing_the_default() -> R
 }
 
 #[test]
+fn bundle_paths_consume_package_export_resolution() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.css".to_string(),
+            style_source: r#"@import "@acme/theme/tokens.css"; .app { color: green; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "node_modules/@acme/theme/dist/tokens.css".to_string(),
+            style_source: ".package-token { color: rebeccapurple; }".to_string(),
+        },
+    ];
+    let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+        package_manifests: vec![OmenaQueryStylePackageManifestV0 {
+            package_json_path: "node_modules/@acme/theme/package.json".to_string(),
+            package_json_source:
+                r#"{"name":"@acme/theme","exports":{"./tokens.css":"./dist/tokens.css"}}"#
+                    .to_string(),
+        }],
+        ..OmenaQueryStyleResolutionInputsV0::default()
+    };
+    let run = |options: &OmenaQueryConsumerBuildOptionsV0,
+               style_sources: &[OmenaQueryStyleSourceInputV0]| {
+        run_omena_query_bundle_with_semantic_inputs_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: "src/app.css",
+                style_sources,
+                source_map_sources: style_sources,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            options,
+        )
+    };
+
+    let default_result = run(&OmenaQueryConsumerBuildOptionsV0::default(), &sources)?;
+    let linked_result = run(
+        &OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        },
+        &sources,
+    )?;
+
+    assert!(
+        default_result
+            .artifact
+            .output_css
+            .contains(".package-token")
+    );
+    assert!(linked_result.artifact.output_css.contains(".package-token"));
+
+    let mut missing_sources = sources;
+    missing_sources[0].style_source =
+        r#"@import "@acme/theme/missing.css"; .app { color: green; }"#.to_string();
+    let missing_result = run(
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+        &missing_sources,
+    )
+    .map_err(|error| format!("typed open outcome should remain observable: {error}"))?;
+    assert!(matches!(
+        missing_result.closed_world_outcome,
+        OmenaQueryClosedWorldOutcomeV0::Open { ref blockers }
+            if blockers.iter().any(|blocker| matches!(
+                blocker,
+                OmenaQueryClosedWorldBlockerV0::MissingDependency {
+                    import_source,
+                    ..
+                } if import_source == "@acme/theme/missing.css"
+            ))
+    ));
+    Ok(())
+}
+
+#[test]
 fn bundle_evidence_consumes_sif_hashes_and_precision_deterministically() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {

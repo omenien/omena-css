@@ -314,8 +314,9 @@ use omena_query_transform_runner::{
 use omena_resolver::{
     OmenaResolverBoundaryStateKindV0, OmenaResolverBoundaryStateV0, OmenaResolverBoundaryTopV0,
     OmenaResolverBundlerPathAliasMappingV0, OmenaResolverCanonicalUrlV0,
-    OmenaResolverStyleModuleConfirmationOptionsV0, OmenaResolverStylePackageManifestV0,
-    OmenaResolverTsconfigPathMappingV0, omena_resolver_boundary_state_for_unresolved_reference_v0,
+    OmenaResolverStyleModuleConfirmationOptionsV0, OmenaResolverStyleModuleResolutionV0,
+    OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
+    omena_resolver_boundary_state_for_unresolved_reference_v0,
     summarize_omena_resolver_style_module_resolution_with_confirmation_inputs,
     summarize_omena_resolver_style_module_resolution_with_load_path_roots,
 };
