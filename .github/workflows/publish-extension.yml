@@ -93,10 +93,10 @@ jobs:
       - name: Generate SBOM
         run: |
           pnpm dlx @cyclonedx/cyclonedx-npm --ignore-npm-errors --output-format json --output-file sbom.json 2> cyclonedx-npm.log
-          node -e 'const fs = require("node:fs"); const sbom = JSON.parse(fs.readFileSync("sbom.json", "utf8")); const components = sbom.components?.length ?? 0; if (components === 0) throw new Error("Generated SBOM has no components"); console.log(`Generated SBOM: ${components} components`);'
+          node -e 'const fs = require("node:fs"); const sbom = JSON.parse(fs.readFileSync("sbom.json", "utf8")); const components = sbom.components?.length ?? 0; if (components === 0) throw new Error("Generated SBOM has no components"); console.log("Generated SBOM: " + components + " components");'
       - name: Upload release artifacts
         if: github.event.inputs.create_github_release == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: extension-release-${{ github.run_id }}
           path: |
@@ -121,11 +121,13 @@ jobs:
             NAME="Omena CSS Modules v${VERSION}"
           fi
           TARGET_COMMIT="$(git rev-parse "${RELEASE_REF}^{commit}")"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
-          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
-          echo "target_commit=${TARGET_COMMIT}" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+            echo "prerelease=${PRERELEASE}"
+            echo "name=${NAME}"
+            echo "target_commit=${TARGET_COMMIT}"
+          } >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         if: github.event.inputs.create_github_release == 'true'
         with:

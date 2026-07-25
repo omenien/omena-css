@@ -256,12 +256,12 @@ jobs:
               const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
               const url = typeof pkg.repository === "string" ? pkg.repository : pkg.repository?.url;
               if (url !== expectedUrl) {
-                throw new Error(`${dir}: repository.url is ${url}, expected ${expectedUrl}`);
+                throw new Error(dir + ": repository.url is " + url + ", expected " + expectedUrl);
               }
               if (pkg.version !== axisA) {
-                throw new Error(`${dir}: version is ${pkg.version}, expected axis-A ${axisA}`);
+                throw new Error(dir + ": version is " + pkg.version + ", expected axis-A " + axisA);
               }
-              console.log(`${dir}: name=${pkg.name} version=${pkg.version} repository OK`);
+              console.log(dir + ": name=" + pkg.name + " version=" + pkg.version + " repository OK");
             ' "$dir" "$EXPECTED_URL" "$AXIS_A"
           done
 
@@ -341,7 +341,10 @@ jobs:
                 const missing = required.filter((name) => optional[name] !== version);
                 if (missing.length > 0) {
                   console.error(
-                    `Published @omena/napi@${version} is immutable and does not declare required optional native packages: ${missing.join(", ")}. Bump the crate-train version before publishing this layout.`
+                    "Published @omena/napi@" + version
+                      + " is immutable and does not declare required optional native packages: "
+                      + missing.join(", ")
+                      + ". Bump the crate-train version before publishing this layout."
                   );
                   process.exit(1);
                 }
@@ -385,7 +388,7 @@ jobs:
               exit 1
             fi
             npm_userconfig="${RUNNER_TEMP:-/tmp}/omena-npm-token.npmrc"
-            printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "${npm_userconfig}"
+            printf '%s\n' "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" > "${npm_userconfig}"
             export NPM_CONFIG_USERCONFIG="${npm_userconfig}"
           fi
           publish_dir() {

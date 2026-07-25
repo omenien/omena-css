@@ -240,9 +240,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "exclude_args=${{ steps.registry.outputs.exclude_args }}" >> "$GITHUB_OUTPUT"
-          echo "remaining_count=${{ steps.registry.outputs.remaining_count }}" >> "$GITHUB_OUTPUT"
-          echo "remaining=${{ steps.registry.outputs.remaining }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "exclude_args=${{ steps.registry.outputs.exclude_args }}"
+            echo "remaining_count=${{ steps.registry.outputs.remaining_count }}"
+            echo "remaining=${{ steps.registry.outputs.remaining }}"
+          } >> "$GITHUB_OUTPUT"
           echo "remaining crates: ${{ steps.registry.outputs.remaining }}"
 
       - name: Publish crate train
