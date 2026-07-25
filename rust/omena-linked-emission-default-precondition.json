@@ -23,7 +23,7 @@
   "expectedEvaluation": {
     "fullCorpusDifferential": false,
     "majorVersionBoundary": false,
-    "unexpectedDivergenceCensus": true,
+    "unexpectedDivergenceCensus": false,
     "decision": "notReady"
   },
   "residuals": {

@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 
 type DifferenceClass = "equivalent" | "expected" | "unexpected";
@@ -19,6 +20,8 @@ interface LinkedEmissionByteDifferentialCaseV0 {
   readonly moduleCount: number;
   readonly legacyEmissionPath: "importInlineLegacy";
   readonly linkedEmissionPath: "linkedOrder";
+  readonly legacySha256: string;
+  readonly linkedSha256: string;
   readonly byteEqual: boolean;
   readonly semanticPreserved: boolean;
   readonly authoritativeMarkerOrder: readonly string[];
@@ -80,8 +83,26 @@ interface LinkedEmissionByteDifferentialEnvelopeV0 {
   readonly census: LinkedEmissionCoverageCensusV0;
 }
 
+interface LinkedEmissionOpenDivergenceLedgerV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-diff-test.linked-emission-open-divergence-ledger";
+  readonly entries: ReadonlyArray<{
+    readonly fixtureId: string;
+    readonly shapeClass: string;
+    readonly owningGoal: string;
+    readonly witnessDigest: string;
+    readonly note: string;
+  }>;
+}
+
 const censusPath =
   "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-coverage-census.json";
+const divergenceLedger = JSON.parse(
+  readFileSync(
+    "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-open-divergence-ledger.json",
+    "utf8",
+  ),
+) as LinkedEmissionOpenDivergenceLedgerV0;
 const baseline = JSON.parse(
   readFileSync("rust/omena-linked-emission-byte-differential-baseline.json", "utf8"),
 ) as LinkedEmissionByteDifferentialBaselineV0;
@@ -90,6 +111,8 @@ assert.equal(baseline.product, "omena-bundler.linked-emission-byte-differential-
 assert.ok(baseline.minimumFixtureCount >= 3);
 assert.ok(baseline.minimumExpectedDivergenceCount > 0);
 assert.ok(baseline.maximumUnexpectedDivergenceCount >= 0);
+assert.equal(divergenceLedger.schemaVersion, "0");
+assert.equal(divergenceLedger.product, "omena-diff-test.linked-emission-open-divergence-ledger");
 
 const forwardedArguments = process.argv
   .slice(2)
@@ -146,7 +169,16 @@ assert.equal(baseline.coverageScope, census.coverageScope);
 assert.equal(baseline.fullCorpusCoverage, census.fullCorpusCoverage);
 assert.equal(baseline.minimumFixtureCount, census.fixtureCount);
 
-const serializedCensus = `${JSON.stringify(census, null, 2)}\n`;
+const censusFormat = spawnSync("pnpm", ["exec", "oxfmt", `--stdin-filepath=${censusPath}`], {
+  encoding: "utf8",
+  input: JSON.stringify(census, null, 2),
+});
+assert.equal(
+  censusFormat.status,
+  0,
+  `linked-emission coverage census could not be formatted: ${censusFormat.stderr}`,
+);
+const serializedCensus = censusFormat.stdout;
 if (process.argv.includes("--update-census")) {
   writeFileSync(censusPath, serializedCensus);
 }
@@ -194,4 +226,61 @@ for (const entry of report.cases) {
   }
 }
 
+const ledgerFixtureIds = divergenceLedger.entries.map((entry) => entry.fixtureId).toSorted();
+const unexpectedFixtureIds = report.cases
+  .filter((entry) => entry.differenceClass === "unexpected")
+  .map((entry) => entry.fixtureId)
+  .toSorted();
+assert.equal(new Set(ledgerFixtureIds).size, ledgerFixtureIds.length);
+assert.deepEqual(
+  ledgerFixtureIds,
+  unexpectedFixtureIds,
+  "the open-divergence ledger must exactly equal the live unexpected fixture set",
+);
+assert.equal(baseline.maximumUnexpectedDivergenceCount, divergenceLedger.entries.length);
+assert.equal(report.unexpectedDivergenceCount, divergenceLedger.entries.length);
+
+const casesByFixtureId = new Map(report.cases.map((entry) => [entry.fixtureId, entry]));
+for (const entry of divergenceLedger.entries) {
+  const liveCase = casesByFixtureId.get(entry.fixtureId);
+  assert.ok(liveCase, `open-divergence fixture ${entry.fixtureId} is absent from the live corpus`);
+  assert.equal(
+    entry.witnessDigest,
+    divergenceWitnessDigest(entry.fixtureId, liveCase.legacySha256, liveCase.linkedSha256),
+    `open-divergence witness digest drifted for ${entry.fixtureId}`,
+  );
+  assert.ok(entry.owningGoal.length > 0, `${entry.fixtureId} has no owning goal`);
+  assert.ok(entry.note.length > 0, `${entry.fixtureId} has no closure note`);
+  assert.ok(
+    census.blindSpots.some(
+      (blindSpot) =>
+        blindSpot.fixtureId === entry.fixtureId &&
+        blindSpot.shapeClasses.includes(entry.shapeClass),
+    ),
+    `${entry.fixtureId} is not backed by a live marker-blind shape`,
+  );
+}
+assert.ok(
+  divergenceLedger.entries.some(
+    (entry) =>
+      entry.owningGoal === "g102" &&
+      census.blindSpots.some(
+        (blindSpot) =>
+          blindSpot.fixtureId === entry.fixtureId &&
+          blindSpot.shapeClasses.includes(entry.shapeClass),
+      ),
+  ),
+  "the open-divergence ledger must retain a g102-owned selector-less shape",
+);
+
 console.log(JSON.stringify(report, null, 2));
+
+function divergenceWitnessDigest(
+  fixtureId: string,
+  legacySha256: string,
+  linkedSha256: string,
+): string {
+  return createHash("sha256")
+    .update(`${fixtureId}\0${legacySha256}\0${linkedSha256}`)
+    .digest("hex");
+}

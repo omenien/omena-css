@@ -648,11 +648,61 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
         dialect_fixture_v0("scss", StyleDialect::Scss, "@import"),
         dialect_fixture_v0("less", StyleDialect::Less, "@import"),
         shared_import_fixture_v0(),
+        selectorless_module_fixture_v0(
+            "element-only-reset-module",
+            "element-only-reset",
+            "reset.css",
+            "div { margin: 0; color: green; }",
+        ),
+        selectorless_module_fixture_v0(
+            "bare-layer-statement-module",
+            "bare-layer-statement",
+            "layers.css",
+            "@layer reset;",
+        ),
+        selectorless_module_fixture_v0(
+            "font-face-only-module",
+            "font-face-only",
+            "fonts.css",
+            "@font-face { font-family: \"OmenaFixture\"; src: url(\"./font.woff2\"); }",
+        ),
     ];
     if let Some(corpus_fixture) = product_corpus_fixture_v0() {
         fixtures.push(corpus_fixture);
     }
     fixtures
+}
+
+fn selectorless_module_fixture_v0(
+    fixture_id: &str,
+    shape_class: &'static str,
+    imported_file_name: &str,
+    imported_source: &str,
+) -> LinkedEmissionFixtureV0 {
+    let root = format!("linked-byte/{fixture_id}");
+    let entry_path = format!("{root}/app.css");
+    let entry_marker = format!("linked-{fixture_id}-entry");
+    LinkedEmissionFixtureV0 {
+        id: fixture_id.to_string(),
+        entry_path: entry_path.clone(),
+        shape_classes: vec![shape_class],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: entry_path,
+                source: format!(
+                    "@import \"./{imported_file_name}\"; .{entry_marker} {{ color: red; }}"
+                ),
+                dialect: StyleDialect::Css,
+                marker_names: vec![entry_marker],
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/{imported_file_name}"),
+                source: imported_source.to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: Vec::new(),
+            },
+        ],
+    }
 }
 
 fn dialect_fixture_v0(
@@ -828,6 +878,41 @@ mod tests {
             census.fixture_observability.len(),
             envelope.report.fixture_count
         );
+        Ok(())
+    }
+
+    #[test]
+    fn selectorless_module_shapes_are_marker_blind_unexpected_divergences() -> Result<(), String> {
+        let envelope = summarize_linked_emission_byte_differential_envelope_v0(
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+        let expected_fixture_ids = BTreeSet::from([
+            "bare-layer-statement-module",
+            "element-only-reset-module",
+            "font-face-only-module",
+        ]);
+        let unexpected_fixture_ids = envelope
+            .report
+            .cases
+            .iter()
+            .filter(|case| case.difference_class == LinkedEmissionByteDifferenceClassV0::Unexpected)
+            .map(|case| case.fixture_id.as_str())
+            .collect::<BTreeSet<_>>();
+        let blind_spot_fixture_ids = envelope
+            .census
+            .blind_spots
+            .iter()
+            .map(|blind_spot| blind_spot.fixture_id.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(unexpected_fixture_ids, expected_fixture_ids);
+        assert_eq!(blind_spot_fixture_ids, expected_fixture_ids);
+        assert!(envelope.census.not_covered.iter().all(|entry| {
+            !matches!(
+                entry.shape_class.as_str(),
+                "bare-layer-statement" | "element-only-reset" | "font-face-only"
+            )
+        }));
         Ok(())
     }
 

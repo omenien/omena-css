@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.linked-emission-open-divergence-ledger",
+  "entries": [
+    {
+      "fixtureId": "bare-layer-statement-module",
+      "shapeClass": "bare-layer-statement",
+      "owningGoal": "g102",
+      "witnessDigest": "4854cdf5d2b7aacb01fc748588c1eb7d161a6bd1cf00ce5f3ee0fc1016841326",
+      "note": "The class-marker order oracle cannot place a linked module containing only a bare cascade-layer statement."
+    },
+    {
+      "fixtureId": "element-only-reset-module",
+      "shapeClass": "element-only-reset",
+      "owningGoal": "g102",
+      "witnessDigest": "2a96f265a1740fb0c5d695ee557a27944364c1a2244b2e68e0c8ae660224ee90",
+      "note": "The class-marker order oracle cannot place a linked module containing only element-selector rules."
+    },
+    {
+      "fixtureId": "font-face-only-module",
+      "shapeClass": "font-face-only",
+      "owningGoal": "g102",
+      "witnessDigest": "230f7abd5fc5df08508d18e85aa9740cc1b709989e2b4368aebf619ef45ea4ca",
+      "note": "The class-marker order oracle cannot place a linked module containing only a font-face rule."
+    }
+  ]
+}
