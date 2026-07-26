@@ -104,6 +104,193 @@ fn linked_emission_accepts_empty_and_comment_only_modules() -> Result<(), String
     Ok(())
 }
 
+#[test]
+fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> {
+    let fixture = FixtureDir::new("module-owned-reachability")?;
+    let entry_path = fixture.path().join("entry.module.css");
+    let dependency_path = fixture.path().join("dependency.module.css");
+    let engine_input_path = fixture.path().join("engine-input.json");
+    let output_path = fixture.path().join("bundle.css");
+    let entry_source =
+        "@import \"./dependency.module.css\"; .shared { color: red; } .entry-only { color: tan; }";
+    let dependency_source =
+        ".shared { color: green; } .b-only { color: blue; } .dependency-dead { color: gray; }";
+
+    fs::write(&entry_path, entry_source)
+        .map_err(|error| format!("failed to write {}: {error}", entry_path.display()))?;
+    fs::write(&dependency_path, dependency_source)
+        .map_err(|error| format!("failed to write {}: {error}", dependency_path.display()))?;
+
+    let range = serde_json::json!({
+        "start": { "line": 0, "character": 0 },
+        "end": { "line": 0, "character": 1 }
+    });
+    let selector = |name: &str| {
+        serde_json::json!({
+            "name": name,
+            "viewKind": "canonical",
+            "canonicalName": name,
+            "range": range,
+            "nestedSafety": "safe",
+            "composes": null,
+            "bemSuffix": null
+        })
+    };
+    let engine_input = serde_json::json!({
+        "version": "2",
+        "workspace": {
+            "root": fixture.path(),
+            "classnameTransform": "asIs",
+            "settingsKey": "module-owned-reachability"
+        },
+        "sources": [
+            {
+                "filePath": fixture.path().join("entry.tsx"),
+                "document": {
+                    "classExpressions": [{
+                        "id": "entry-shared",
+                        "kind": "styleAccess",
+                        "scssModulePath": entry_path,
+                        "range": range,
+                        "className": "shared",
+                        "rootBindingDeclId": null,
+                        "accessPath": ["shared"]
+                    }]
+                },
+                "bindingGraph": null
+            },
+            {
+                "filePath": fixture.path().join("dependency.tsx"),
+                "document": {
+                    "classExpressions": [{
+                        "id": "dependency-own",
+                        "kind": "styleAccess",
+                        "scssModulePath": dependency_path,
+                        "range": range,
+                        "className": "b-only",
+                        "rootBindingDeclId": null,
+                        "accessPath": ["b-only"]
+                    }]
+                },
+                "bindingGraph": null
+            }
+        ],
+        "styles": [
+            {
+                "filePath": entry_path,
+                "source": entry_source,
+                "document": {
+                    "selectors": [
+                        selector("shared"),
+                        selector("entry-only")
+                    ]
+                }
+            },
+            {
+                "filePath": dependency_path,
+                "source": dependency_source,
+                "document": {
+                    "selectors": [
+                        selector("shared"),
+                        selector("b-only"),
+                        selector("dependency-dead")
+                    ]
+                }
+            }
+        ],
+        "typeFacts": [
+            {
+                "filePath": fixture.path().join("entry.tsx"),
+                "expressionId": "entry-shared",
+                "facts": {
+                    "kind": "exact",
+                    "values": ["shared"]
+                },
+                "controlFlowGraph": null
+            },
+            {
+                "filePath": fixture.path().join("dependency.tsx"),
+                "expressionId": "dependency-own",
+                "facts": {
+                    "kind": "exact",
+                    "values": ["b-only"]
+                },
+                "controlFlowGraph": null
+            }
+        ]
+    });
+    fs::write(
+        &engine_input_path,
+        serde_json::to_vec_pretty(&engine_input)
+            .map_err(|error| format!("failed to serialize engine input: {error}"))?,
+    )
+    .map_err(|error| format!("failed to write {}: {error}", engine_input_path.display()))?;
+
+    let output = Command::new(env!("CARGO_BIN_EXE_omena"))
+        .current_dir(fixture.path())
+        .arg("build")
+        .arg(&entry_path)
+        .arg("--bundle")
+        .arg("--linked-emission")
+        .arg("--tree-shake")
+        .arg("--engine-input-json")
+        .arg(&engine_input_path)
+        .arg("--source")
+        .arg(&dependency_path)
+        .arg("--output")
+        .arg(&output_path)
+        .arg("--json")
+        .output()
+        .map_err(|error| format!("failed to run omena build: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "omena build failed\nstdout={}\nstderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let response: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("build JSON should parse: {error}"))?;
+    let executed_pass_ids = response["payload"]["execution"]["executedPassIds"]
+        .as_array()
+        .ok_or_else(|| "build JSON omitted executedPassIds".to_string())?;
+    assert!(
+        executed_pass_ids
+            .iter()
+            .any(|pass_id| pass_id == "tree-shake-class"),
+        "the product witness must deliver non-empty semantic reachability to tree shaking"
+    );
+    assert!(
+        response["payload"]["readySurfaces"]
+            .as_array()
+            .is_some_and(|surfaces| surfaces
+                .iter()
+                .any(|surface| surface == "expressionDomainSelectorProjection")),
+        "the product witness must consume EngineInputV2 selector projections"
+    );
+
+    let css = fs::read_to_string(&output_path)
+        .map_err(|error| format!("failed to read {}: {error}", output_path.display()))?;
+    assert!(
+        css.contains("color: red"),
+        "the entry-owned shared selector must remain: {css:?}"
+    );
+    let dependency_shared_retained = css.contains("color: green");
+    let dependency_owned_selector_retained = css.contains("color: blue");
+    assert!(
+        !dependency_shared_retained && dependency_owned_selector_retained,
+        "module ownership mismatch: dependency_shared_retained={dependency_shared_retained}, \
+         dependency_owned_selector_retained={dependency_owned_selector_retained}, css={css:?}"
+    );
+    assert!(
+        !css.contains("color: gray"),
+        "an unreferenced dependency selector must be removed: {css:?}"
+    );
+
+    Ok(())
+}
+
 fn run_linked_build(
     label: &str,
     entrypoint: &str,
