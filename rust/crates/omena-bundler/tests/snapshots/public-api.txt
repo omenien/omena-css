@@ -38,6 +38,7 @@ pub omena_bundler::EmissionItemKindV0::SelectorPseudoClass
 pub omena_bundler::EmissionItemKindV0::SelectorPseudoElement
 pub omena_bundler::EmissionItemKindV0::SelectorUniversal
 pub omena_bundler::EmissionItemKindV0::UnknownAtRule
+pub omena_bundler::EmissionItemKindV0::UnknownStructuralSelector
 #[non_exhaustive] pub enum omena_bundler::EmissionItemProjectionDispositionV0
 pub omena_bundler::EmissionItemProjectionDispositionV0::NotProjected
 pub omena_bundler::EmissionItemProjectionDispositionV0::Projected
@@ -52,6 +53,18 @@ pub omena_bundler::EmissionOrderingPolicyV0::ImportOrderPreserving
 pub omena_bundler::EmissionOrderingPolicyV0::ModuleIdLegacy
 impl omena_bundler::EmissionOrderingPolicyV0
 pub const fn omena_bundler::EmissionOrderingPolicyV0::as_wire_label(self) -> &'static str
+#[non_exhaustive] pub enum omena_bundler::LinkedEmissionItemMaterializationErrorV0
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex::actual: u32
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex::expected: u32
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::LegacyMaterialization
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::LegacyMaterialization::error: omena_bundler::LinkedEmissionMaterializationErrorV0
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::UnknownEmissionItemModule
+pub omena_bundler::LinkedEmissionItemMaterializationErrorV0::UnknownEmissionItemModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+impl core::convert::From<omena_bundler::LinkedEmissionMaterializationErrorV0> for omena_bundler::LinkedEmissionItemMaterializationErrorV0
+pub fn omena_bundler::LinkedEmissionItemMaterializationErrorV0::from(omena_bundler::LinkedEmissionMaterializationErrorV0) -> Self
 pub enum omena_bundler::LinkedEmissionMaterializationErrorV0
 pub omena_bundler::LinkedEmissionMaterializationErrorV0::DuplicateTransformedModule
 pub omena_bundler::LinkedEmissionMaterializationErrorV0::DuplicateTransformedModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
@@ -65,6 +78,8 @@ pub omena_bundler::LinkedEmissionMaterializationErrorV0::MissingTransformedModul
 pub omena_bundler::LinkedEmissionMaterializationErrorV0::MissingTransformedModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub omena_bundler::LinkedEmissionMaterializationErrorV0::UnexpectedTransformedModule
 pub omena_bundler::LinkedEmissionMaterializationErrorV0::UnexpectedTransformedModule::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+impl core::convert::From<omena_bundler::LinkedEmissionMaterializationErrorV0> for omena_bundler::LinkedEmissionItemMaterializationErrorV0
+pub fn omena_bundler::LinkedEmissionItemMaterializationErrorV0::from(omena_bundler::LinkedEmissionMaterializationErrorV0) -> Self
 pub enum omena_bundler::TransformBundleAssetUrlKind
 pub omena_bundler::TransformBundleAssetUrlKind::AbsolutePath
 pub omena_bundler::TransformBundleAssetUrlKind::Data
@@ -354,8 +369,9 @@ pub fn omena_bundler::link_stylesheet_from_projection(&[&str], &[omena_bundler::
 pub fn omena_bundler::link_stylesheet_from_projection_with_options(&[&str], &[omena_bundler::LinkerInputV0], omena_bundler::TransformBundleLinkOptionsV0) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_stylesheet_from_projection_with_resolved_dependencies_and_options(&[&str], &[omena_bundler::LinkerInputV0], &[omena_bundler::TransformBundleResolvedDependencyV0], omena_bundler::TransformBundleLinkOptionsV0) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::materialize_omena_transform_bundle_linked_stylesheet(&omena_bundler::LinkedStylesheetV0, &[omena_bundler::TransformBundleTransformedModuleV0]) -> core::result::Result<omena_bundler::LinkedEmissionArtifactV0, omena_bundler::LinkedEmissionMaterializationErrorV0>
-pub fn omena_bundler::project_omena_transform_bundle_linker_and_emission_items(&[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> core::result::Result<omena_bundler::TransformBundleLinkProjectionSetV0, omena_bundler::TransformBundleLinkErrorV0>
-pub fn omena_bundler::project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(&[omena_bundler::TransformBundleParsedModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> core::result::Result<omena_bundler::TransformBundleLinkProjectionSetV0, omena_bundler::TransformBundleLinkErrorV0>
+pub fn omena_bundler::materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(&omena_bundler::LinkedStylesheetWithEmissionItemsV0, &[omena_bundler::TransformBundleTransformedModuleV0]) -> core::result::Result<omena_bundler::LinkedEmissionArtifactV0, omena_bundler::LinkedEmissionItemMaterializationErrorV0>
+pub fn omena_bundler::project_omena_transform_bundle_linker_and_emission_items(&[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> omena_bundler::TransformBundleLinkProjectionSetV0
+pub fn omena_bundler::project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(&[omena_bundler::TransformBundleParsedModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> omena_bundler::TransformBundleLinkProjectionSetV0
 pub fn omena_bundler::project_omena_transform_bundle_linker_inputs(&[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> omena_bundler::TransformBundleLinkerProjectionV0
 pub fn omena_bundler::project_omena_transform_bundle_linker_inputs_from_parsed_modules(&[omena_bundler::TransformBundleParsedModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> omena_bundler::TransformBundleLinkerProjectionV0
 pub fn omena_bundler::rewrite_omena_transform_bundle_asset_urls_in_source(impl core::convert::Into<alloc::string::String>, &str) -> omena_bundler::TransformBundleAssetUrlRewriteSummaryV0

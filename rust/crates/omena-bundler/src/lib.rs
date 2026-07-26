@@ -12,8 +12,8 @@ mod emission_order;
 pub use emission_items::{
     EmissionItemFactCategoryV0, EmissionItemInputV0, EmissionItemKindV0, EmissionItemOrderKeyV0,
     EmissionItemPlanV0, EmissionItemProjectionDisclosureV0, EmissionItemProjectionDispositionV0,
-    EmissionItemProjectionReasonV0, EmissionItemV0, LinkedEmissionItemOrderV0,
-    LinkedEmissionItemV0, TransformBundleEmissionItemProjectionV0,
+    EmissionItemProjectionReasonV0, EmissionItemV0, LinkedEmissionItemMaterializationErrorV0,
+    LinkedEmissionItemOrderV0, LinkedEmissionItemV0, TransformBundleEmissionItemProjectionV0,
 };
 pub use emission_order::{
     EmissionCycleClassV0, EmissionCycleGroupV0, EmissionCyclePolicyV0, EmissionDependencyFactV0,
@@ -782,7 +782,7 @@ pub fn project_omena_transform_bundle_linker_inputs(
 pub fn project_omena_transform_bundle_linker_and_emission_items(
     modules: &[TransformBundleModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
-) -> Result<TransformBundleLinkProjectionSetV0, TransformBundleLinkErrorV0> {
+) -> TransformBundleLinkProjectionSetV0 {
     let parsed_modules = modules
         .iter()
         .map(|module| {
@@ -827,7 +827,7 @@ pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules(
 pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(
     modules: &[TransformBundleParsedModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
-) -> Result<TransformBundleLinkProjectionSetV0, TransformBundleLinkErrorV0> {
+) -> TransformBundleLinkProjectionSetV0 {
     let linker_projection = project_omena_transform_bundle_linker_inputs_from_parsed_modules(
         modules,
         reachability_inputs,
@@ -835,7 +835,7 @@ pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modu
     let mut emission_item_inputs = Vec::new();
     for module in modules {
         let items =
-            emission_items::collect_emission_items(&module.facts, &module.emission_selectors)?;
+            emission_items::collect_emission_items(&module.facts, &module.emission_selectors);
         let disclosure = emission_items::emission_item_projection_disclosure(&module.facts);
         for instance in module.module_instance_keys() {
             emission_item_inputs.push(EmissionItemInputV0 {
@@ -845,12 +845,12 @@ pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modu
             });
         }
     }
-    Ok(TransformBundleLinkProjectionSetV0 {
+    TransformBundleLinkProjectionSetV0 {
         linker_projection,
         emission_item_projection: TransformBundleEmissionItemProjectionV0::new(
             emission_item_inputs,
         ),
-    })
+    }
 }
 
 pub fn link_omena_transform_bundle_projection_with_resolved_dependencies_and_options<
@@ -961,6 +961,120 @@ pub fn materialize_omena_transform_bundle_linked_stylesheet(
     linked: &LinkedStylesheetV0,
     transformed_modules: &[TransformBundleTransformedModuleV0],
 ) -> Result<LinkedEmissionArtifactV0, LinkedEmissionMaterializationErrorV0> {
+    let (module_order, first_order_index_by_instance) =
+        legacy_materialization_module_order(linked)?;
+    materialize_linked_stylesheet_in_module_order(
+        linked,
+        transformed_modules,
+        module_order,
+        &first_order_index_by_instance,
+    )
+}
+
+pub fn materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(
+    linked: &LinkedStylesheetWithEmissionItemsV0,
+    transformed_modules: &[TransformBundleTransformedModuleV0],
+) -> Result<LinkedEmissionArtifactV0, LinkedEmissionItemMaterializationErrorV0> {
+    let linked_modules = linked
+        .linked_stylesheet
+        .module_instances
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut represented_modules = BTreeSet::new();
+    let mut module_order = Vec::new();
+    for (expected_index, item) in linked.emission_item_order.items.iter().enumerate() {
+        let expected_index = u32::try_from(expected_index).unwrap_or(u32::MAX);
+        if item.global_order_index != expected_index {
+            return Err(
+                LinkedEmissionItemMaterializationErrorV0::InvalidItemOrderIndex {
+                    expected: expected_index,
+                    actual: item.global_order_index,
+                },
+            );
+        }
+        if !linked_modules.contains(&item.module_instance) {
+            return Err(
+                LinkedEmissionItemMaterializationErrorV0::UnknownEmissionItemModule {
+                    module_instance: item.module_instance.clone(),
+                },
+            );
+        }
+        if represented_modules.insert(item.module_instance.clone()) {
+            module_order.push(item.module_instance.clone());
+        }
+    }
+    for module_instance in &linked.linked_stylesheet.module_instances {
+        if !represented_modules.contains(module_instance) {
+            return Err(
+                LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem {
+                    module_instance: module_instance.clone(),
+                },
+            );
+        }
+    }
+
+    let (_, first_order_index_by_instance) =
+        selector_materialization_module_order(&linked.linked_stylesheet)?;
+    materialize_linked_stylesheet_in_module_order(
+        &linked.linked_stylesheet,
+        transformed_modules,
+        module_order,
+        &first_order_index_by_instance,
+    )
+    .map_err(LinkedEmissionItemMaterializationErrorV0::from)
+}
+
+fn legacy_materialization_module_order(
+    linked: &LinkedStylesheetV0,
+) -> Result<
+    (Vec<ModuleInstanceKeyV0>, BTreeMap<ModuleInstanceKeyV0, u32>),
+    LinkedEmissionMaterializationErrorV0,
+> {
+    let (mut module_order, first_order_index_by_instance) =
+        selector_materialization_module_order(linked)?;
+    for module_instance in &linked.module_instances {
+        if !first_order_index_by_instance.contains_key(module_instance) {
+            module_order.push(module_instance.clone());
+        }
+    }
+    Ok((module_order, first_order_index_by_instance))
+}
+
+fn selector_materialization_module_order(
+    linked: &LinkedStylesheetV0,
+) -> Result<
+    (Vec<ModuleInstanceKeyV0>, BTreeMap<ModuleInstanceKeyV0, u32>),
+    LinkedEmissionMaterializationErrorV0,
+> {
+    let mut first_order_index_by_instance = BTreeMap::new();
+    let mut module_order = Vec::new();
+    for (expected_index, rule) in linked.global_rule_order.rules.iter().enumerate() {
+        let expected_index = u32::try_from(expected_index).unwrap_or(u32::MAX);
+        if rule.global_order_index != expected_index {
+            return Err(
+                LinkedEmissionMaterializationErrorV0::InvalidGlobalOrderIndex {
+                    expected: expected_index,
+                    actual: rule.global_order_index,
+                },
+            );
+        }
+        if first_order_index_by_instance
+            .insert(rule.module_instance.clone(), rule.global_order_index)
+            .is_none()
+        {
+            module_order.push(rule.module_instance.clone());
+        }
+    }
+    Ok((module_order, first_order_index_by_instance))
+}
+
+fn materialize_linked_stylesheet_in_module_order(
+    linked: &LinkedStylesheetV0,
+    transformed_modules: &[TransformBundleTransformedModuleV0],
+    module_order: Vec<ModuleInstanceKeyV0>,
+    first_order_index_by_instance: &BTreeMap<ModuleInstanceKeyV0, u32>,
+) -> Result<LinkedEmissionArtifactV0, LinkedEmissionMaterializationErrorV0> {
     let linked_modules = linked
         .module_instances
         .iter()
@@ -1002,31 +1116,6 @@ pub fn materialize_omena_transform_bundle_linked_stylesheet(
                     module_instance: module_instance.clone(),
                 },
             );
-        }
-    }
-
-    let mut first_order_index_by_instance = BTreeMap::new();
-    let mut module_order = Vec::new();
-    for (expected_index, rule) in linked.global_rule_order.rules.iter().enumerate() {
-        let expected_index = u32::try_from(expected_index).unwrap_or(u32::MAX);
-        if rule.global_order_index != expected_index {
-            return Err(
-                LinkedEmissionMaterializationErrorV0::InvalidGlobalOrderIndex {
-                    expected: expected_index,
-                    actual: rule.global_order_index,
-                },
-            );
-        }
-        if first_order_index_by_instance
-            .insert(rule.module_instance.clone(), rule.global_order_index)
-            .is_none()
-        {
-            module_order.push(rule.module_instance.clone());
-        }
-    }
-    for module_instance in &linked.module_instances {
-        if !first_order_index_by_instance.contains_key(module_instance) {
-            module_order.push(module_instance.clone());
         }
     }
 
@@ -2121,6 +2210,8 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::{
         LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0,
         TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0, TransformBundleAssetUrlKind,
@@ -3376,8 +3467,7 @@ mod tests {
         let legacy = link_omena_transform_bundle_modules(&["src/theme.css"], &modules)
             .map_err(|error| format!("legacy link failed: {error:?}"))?;
         let projections =
-            super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[])
-                .map_err(|error| format!("emission-item projection failed: {error:?}"))?;
+            super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
         let widened =
             super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
                 &["src/theme.css"],
@@ -3413,6 +3503,255 @@ mod tests {
                 .windows(2)
                 .all(|pair| pair[0].global_order_index + 1 == pair[1].global_order_index)
         );
+        Ok(())
+    }
+
+    fn materialize_with_emission_items(
+        entrypoint: &str,
+        modules: &[TransformBundleModuleInputV0],
+        transformed_css: &[(&str, &str)],
+    ) -> Result<
+        (
+            super::LinkedStylesheetWithEmissionItemsV0,
+            super::LinkedEmissionArtifactV0,
+        ),
+        String,
+    > {
+        let projections =
+            super::project_omena_transform_bundle_linker_and_emission_items(modules, &[]);
+        let linked =
+            super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+                &[entrypoint],
+                projections.linker_projection(),
+                projections.emission_item_projection(),
+                &[],
+                &[],
+                TransformBundleLinkOptionsV0 {
+                    emission_ordering_policy:
+                        super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                },
+            )
+            .map_err(|error| format!("emission-item link failed: {error:?}"))?;
+        let transformed_modules = transformed_css
+            .iter()
+            .map(|(source_path, css)| {
+                let module = modules
+                    .iter()
+                    .find(|module| module.source_path == *source_path)
+                    .ok_or_else(|| format!("missing module input for {source_path}"))?;
+                Ok(TransformBundleTransformedModuleV0::new(
+                    module.module_instance_key(),
+                    *css,
+                ))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let artifact =
+            super::materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(
+                &linked,
+                &transformed_modules,
+            )
+            .map_err(|error| format!("emission-item materialization failed: {error:?}"))?;
+        Ok((linked, artifact))
+    }
+
+    #[test]
+    fn emission_items_place_element_only_import_before_the_importer() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                "@import \"./reset.css\"; div { color: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/reset.css",
+                "div { color: green; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let (linked, artifact) = materialize_with_emission_items(
+            "src/app.css",
+            &modules,
+            &[
+                ("src/app.css", "div { color: red; }"),
+                ("src/reset.css", "div { color: green; }"),
+            ],
+        )?;
+
+        let mut seen_modules = BTreeSet::new();
+        let first_module_occurrences = linked
+            .emission_item_order
+            .items
+            .iter()
+            .filter_map(|item| {
+                seen_modules
+                    .insert(item.module_instance.clone())
+                    .then_some(item.module_instance.module().as_str())
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            first_module_occurrences,
+            vec!["src/reset.css", "src/app.css"]
+        );
+        assert_eq!(
+            artifact.output_css,
+            "div { color: green; }\ndiv { color: red; }"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn emission_items_do_not_relocate_an_element_rule_past_named_rules() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                "@import \"./reset.css\"; .card { padding: 1px; } div { color: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/reset.css",
+                "div { color: green; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let (_, artifact) = materialize_with_emission_items(
+            "src/app.css",
+            &modules,
+            &[
+                ("src/app.css", ".card { padding: 1px; } div { color: red; }"),
+                ("src/reset.css", "div { color: green; }"),
+            ],
+        )?;
+
+        let green = artifact
+            .output_css
+            .find("green")
+            .ok_or_else(|| "missing imported declaration".to_string())?;
+        let card = artifact
+            .output_css
+            .find(".card")
+            .ok_or_else(|| "missing named selector declaration".to_string())?;
+        let red = artifact
+            .output_css
+            .find("red")
+            .ok_or_else(|| "missing importing declaration".to_string())?;
+        assert!(green < card && card < red);
+        Ok(())
+    }
+
+    #[test]
+    fn emission_item_placement_is_independent_of_module_names() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/zzz-app.css",
+                "@import \"./aaa-reset.css\"; div { color: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/aaa-reset.css",
+                "div { color: green; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let (_, artifact) = materialize_with_emission_items(
+            "src/zzz-app.css",
+            &modules,
+            &[
+                ("src/zzz-app.css", "div { color: red; }"),
+                ("src/aaa-reset.css", "div { color: green; }"),
+            ],
+        )?;
+
+        assert_eq!(
+            artifact.output_css,
+            "div { color: green; }\ndiv { color: red; }"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn emission_items_preserve_cascade_layer_declaration_order() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                "@import \"./layers.css\"; @layer theme { .card { color: blue; } } \
+                 @layer base { .card { color: orange; } }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/layers.css",
+                "@layer base, theme;",
+                StyleDialect::Css,
+            ),
+        ];
+        let (_, artifact) = materialize_with_emission_items(
+            "src/app.css",
+            &modules,
+            &[
+                (
+                    "src/app.css",
+                    "@layer theme { .card { color: blue; } } \
+                     @layer base { .card { color: orange; } }",
+                ),
+                ("src/layers.css", "@layer base, theme;"),
+            ],
+        )?;
+
+        assert!(artifact.output_css.starts_with("@layer base, theme;"));
+        assert!(
+            artifact
+                .output_css
+                .find("@layer base, theme;")
+                .unwrap_or(usize::MAX)
+                < artifact.output_css.find("@layer theme").unwrap_or_default()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn emission_item_materializer_fails_loud_for_unrepresented_modules() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                "@import \"./empty.css\"; .app { color: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/empty.css",
+                "/* intentionally empty */",
+                StyleDialect::Css,
+            ),
+        ];
+        let projections =
+            super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
+        let linked =
+            super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+                &["src/app.css"],
+                projections.linker_projection(),
+                projections.emission_item_projection(),
+                &[],
+                &[],
+                TransformBundleLinkOptionsV0 {
+                    emission_ordering_policy:
+                        super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                },
+            )
+            .map_err(|error| format!("emission-item link failed: {error:?}"))?;
+        let transformed = modules
+            .iter()
+            .map(|module| {
+                TransformBundleTransformedModuleV0::new(module.module_instance_key(), String::new())
+            })
+            .collect::<Vec<_>>();
+
+        assert!(matches!(
+            super::materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(
+                &linked,
+                &transformed,
+            ),
+            Err(super::LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem {
+                module_instance
+            }) if module_instance.module().as_str() == "src/empty.css"
+        ));
         Ok(())
     }
 }

@@ -7,8 +7,8 @@ use omena_parser::{
 use serde::Serialize;
 
 use crate::{
-    GlobalRuleOrderV0, LinkedStylesheetRuleV0, TransformBundleLinkErrorV0,
-    emission_order::EmissionModulePlanV0,
+    GlobalRuleOrderV0, LinkedEmissionMaterializationErrorV0, LinkedStylesheetRuleV0,
+    TransformBundleLinkErrorV0, emission_order::EmissionModulePlanV0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -23,6 +23,7 @@ pub enum EmissionItemKindV0 {
     SelectorUniversal,
     SelectorPseudoClass,
     SelectorPseudoElement,
+    UnknownStructuralSelector,
     AtRule { node_kind: u32 },
     UnknownAtRule,
     KeyframesDeclaration,
@@ -135,6 +136,31 @@ pub struct LinkedEmissionItemOrderV0 {
     pub items: Vec<LinkedEmissionItemV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum LinkedEmissionItemMaterializationErrorV0 {
+    LegacyMaterialization {
+        error: LinkedEmissionMaterializationErrorV0,
+    },
+    InvalidItemOrderIndex {
+        expected: u32,
+        actual: u32,
+    },
+    UnknownEmissionItemModule {
+        module_instance: ModuleInstanceKeyV0,
+    },
+    MissingEmissionItem {
+        module_instance: ModuleInstanceKeyV0,
+    },
+}
+
+impl From<LinkedEmissionMaterializationErrorV0> for LinkedEmissionItemMaterializationErrorV0 {
+    fn from(error: LinkedEmissionMaterializationErrorV0) -> Self {
+        Self::LegacyMaterialization { error }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct TransformBundleEmissionItemProjectionV0 {
@@ -154,7 +180,7 @@ impl TransformBundleEmissionItemProjectionV0 {
 pub(crate) fn collect_emission_items(
     facts: &ParsedStyleFacts,
     emission_selectors: &ParsedEmissionSelectorFactsV0,
-) -> Result<Vec<EmissionItemV0>, TransformBundleLinkErrorV0> {
+) -> Vec<EmissionItemV0> {
     let mut items = facts
         .selectors
         .iter()
@@ -180,12 +206,7 @@ pub(crate) fn collect_emission_items(
             ParsedEmissionSelectorFactKindV0::PseudoElement => {
                 EmissionItemKindV0::SelectorPseudoElement
             }
-            _ => {
-                return Err(TransformBundleLinkErrorV0::InvalidEmissionPlan {
-                    reason: "emission selector projection encountered an unsupported fact kind"
-                        .to_string(),
-                });
-            }
+            _ => EmissionItemKindV0::UnknownStructuralSelector,
         };
         items.push(EmissionItemV0 {
             kind,
@@ -229,7 +250,7 @@ pub(crate) fn collect_emission_items(
             item.name.clone(),
         )
     });
-    Ok(items)
+    items
 }
 
 pub(crate) fn emission_item_projection_disclosure(
@@ -507,35 +528,33 @@ mod tests {
         emission_item_projection_disclosure,
     };
 
-    fn items_for(source: &str) -> Result<Vec<super::EmissionItemV0>, String> {
+    fn items_for(source: &str) -> Vec<super::EmissionItemV0> {
         let collection = collect_style_fact_collection(source, StyleDialect::Css);
         collect_emission_items(&collection.facts, &collection.emission_selectors)
-            .map_err(|error| format!("emission item projection failed: {error:?}"))
     }
 
     #[test]
-    fn selector_less_stylesheets_contribute_emission_items() -> Result<(), String> {
+    fn selector_less_stylesheets_contribute_emission_items() {
         for source in [
             "main { color: red; }",
             "@font-face { font-family: Demo; src: url(demo.woff2); }",
             "@layer reset, theme;",
         ] {
             assert!(
-                !items_for(source)?.is_empty(),
+                !items_for(source).is_empty(),
                 "expected an emission item for {source}"
             );
         }
-        Ok(())
     }
 
     #[test]
-    fn emission_items_follow_source_order_across_fact_categories() -> Result<(), String> {
+    fn emission_items_follow_source_order_across_fact_categories() {
         let items = items_for(
             ":root { --brand: red; }\n\
              @layer reset;\n\
              div, .card, [hidden], *::before { color: red; }\n\
              @keyframes pulse { from { opacity: 0; } }",
-        )?;
+        );
 
         assert!(items.windows(2).all(|pair| {
             (pair[0].range_start, pair[0].range_end) <= (pair[1].range_start, pair[1].range_end)
@@ -559,7 +578,6 @@ mod tests {
                 .iter()
                 .any(|item| matches!(item.kind, EmissionItemKindV0::AtRule { .. }))
         );
-        Ok(())
     }
 
     #[test]
