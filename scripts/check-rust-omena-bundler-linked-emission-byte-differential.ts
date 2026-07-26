@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 type DifferenceClass = "equivalent" | "expected" | "unexpected";
 
@@ -113,6 +114,70 @@ assert.ok(baseline.minimumExpectedDivergenceCount > 0);
 assert.ok(baseline.maximumUnexpectedDivergenceCount >= 0);
 assert.equal(divergenceLedger.schemaVersion, "0");
 assert.equal(divergenceLedger.product, "omena-diff-test.linked-emission-open-divergence-ledger");
+
+const linkedEmissionSource = readFileSync(
+  "rust/crates/omena-diff-test/src/linked_emission.rs",
+  "utf8",
+);
+const gateSources = [
+  {
+    path: fileURLToPath(import.meta.url),
+    source: readFileSync(fileURLToPath(import.meta.url), "utf8"),
+  },
+  {
+    path: "scripts/check-rust-omena-bundler-linked-emission-default-precondition.ts",
+    source: readFileSync(
+      "scripts/check-rust-omena-bundler-linked-emission-default-precondition.ts",
+      "utf8",
+    ),
+  },
+];
+const workspaceWalkApis = [
+  ["readdir", "Sync"].join(""),
+  ["opendir", "Sync"].join(""),
+  ["glob", "Sync"].join(""),
+  ["walk", "Dir"].join(""),
+];
+const hoistCensus = {
+  caseProducer: "LinkedEmissionByteDifferentialCaseV0",
+  linkedStylesheetProducer: "LinkedStylesheetV0",
+  linkerInvocationCount: countMatches(
+    linkedEmissionSource,
+    /\blink_omena_transform_bundle_modules\s*\(/gu,
+  ),
+  cargoSpawnCounts: Object.fromEntries(
+    gateSources.map(({ path, source }) => [
+      path,
+      countMatches(source, /\bspawnSync\(\s*"cargo"/gu),
+    ]),
+  ),
+  workspaceWalkApiCount: gateSources.reduce(
+    (count, { source }) =>
+      count + workspaceWalkApis.filter((apiName) => source.includes(apiName)).length,
+    0,
+  ),
+};
+for (const producerName of [hoistCensus.caseProducer, hoistCensus.linkedStylesheetProducer]) {
+  assert.ok(
+    linkedEmissionSource.includes(producerName),
+    `linked-emission hoist producer is absent: ${producerName}`,
+  );
+}
+assert.equal(
+  hoistCensus.linkerInvocationCount,
+  1,
+  "linked-emission fixtures must share one linker invocation",
+);
+assert.deepEqual(
+  Object.values(hoistCensus.cargoSpawnCounts),
+  [1, 1],
+  "each linked-emission gate must consume one shared differential cargo run",
+);
+assert.equal(
+  hoistCensus.workspaceWalkApiCount,
+  0,
+  "linked-emission gates must not introduce a second workspace walk",
+);
 
 const forwardedArguments = process.argv
   .slice(2)
@@ -283,4 +348,8 @@ function divergenceWitnessDigest(
   return createHash("sha256")
     .update(`${fixtureId}\0${legacySha256}\0${linkedSha256}`)
     .digest("hex");
+}
+
+function countMatches(source: string, pattern: RegExp): number {
+  return [...source.matchAll(pattern)].length;
 }

@@ -16,7 +16,7 @@ const WORKFLOW_CI_TIER_ANNOTATION = /^\s*#\s*omena-ci-tier:\s*([A-Za-z0-9_-]+)\s
 const WORKFLOW_REQUIRED_ANNOTATION = /^\s*#\s*omena-ci-required:\s*(true|false)\s*$/;
 
 const CI_REACHABILITY_ESCAPE_HATCH_POLICY = Object.freeze({
-  maxGateCount: 155,
+  maxGateCount: 156,
   owner: "check-orchestrator maintainers",
   reviewBy: "2026-10-31",
 });
