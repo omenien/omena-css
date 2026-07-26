@@ -14,7 +14,7 @@ role = "R1"
 
 [features]
 default = []
-test-support = ["dep:omena-testkit"]
+test-support = []
 
 [lints]
 workspace = true
@@ -23,10 +23,6 @@ workspace = true
 cstree.workspace = true
 omena-interner = { path = "../omena-interner", version = "=0.3.0" }
 omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }
-omena-testkit = { path = "../omena-testkit", version = "=0.3.0", optional = true }
 salsa.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-
-[dev-dependencies]
-omena-testkit = { path = "../omena-testkit" }

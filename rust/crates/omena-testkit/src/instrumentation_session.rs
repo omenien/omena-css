@@ -21,12 +21,6 @@ pub struct SalsaQueryRunCountsV0 {
     pub transitive_unrelated: usize,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ModuleReachabilityHoistCountsV0 {
-    pub projection_summary_evaluation_count: usize,
-    pub closed_world_bundle_construction_count: usize,
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct InstrumentationSessionV0 {
     inner: Arc<InstrumentationSessionInnerV0>,
@@ -43,8 +37,6 @@ struct InstrumentationSessionInnerV0 {
     salsa_transitive_b_query_runs: AtomicUsize,
     salsa_transitive_c_query_runs: AtomicUsize,
     salsa_transitive_unrelated_query_runs: AtomicUsize,
-    module_reachability_projection_summary_evaluations: AtomicUsize,
-    closed_world_bundle_constructions: AtomicUsize,
 }
 
 thread_local! {
@@ -220,40 +212,6 @@ impl InstrumentationSessionV0 {
             transitive_unrelated: self
                 .inner
                 .salsa_transitive_unrelated_query_runs
-                .load(Ordering::Acquire),
-        }
-    }
-
-    pub fn reset_module_reachability_hoist_counts(&self) {
-        self.inner
-            .module_reachability_projection_summary_evaluations
-            .store(0, Ordering::Release);
-        self.inner
-            .closed_world_bundle_constructions
-            .store(0, Ordering::Release);
-    }
-
-    pub fn record_module_reachability_projection_summary_evaluation(&self) {
-        self.inner
-            .module_reachability_projection_summary_evaluations
-            .fetch_add(1, Ordering::AcqRel);
-    }
-
-    pub fn record_closed_world_bundle_construction(&self) {
-        self.inner
-            .closed_world_bundle_constructions
-            .fetch_add(1, Ordering::AcqRel);
-    }
-
-    pub fn module_reachability_hoist_counts(&self) -> ModuleReachabilityHoistCountsV0 {
-        ModuleReachabilityHoistCountsV0 {
-            projection_summary_evaluation_count: self
-                .inner
-                .module_reachability_projection_summary_evaluations
-                .load(Ordering::Acquire),
-            closed_world_bundle_construction_count: self
-                .inner
-                .closed_world_bundle_constructions
                 .load(Ordering::Acquire),
         }
     }

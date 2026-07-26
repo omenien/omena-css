@@ -2741,7 +2741,6 @@ dependencies = [
  "cstree",
  "omena-interner",
  "omena-syntax",
- "omena-testkit",
  "salsa",
  "serde",
  "serde_json",
@@ -2773,7 +2772,6 @@ dependencies = [
  "omena-semantic",
  "omena-sif",
  "omena-syntax",
- "omena-testkit",
  "salsa",
  "serde",
  "serde_json",
@@ -2798,7 +2796,6 @@ dependencies = [
  "omena-incremental",
  "omena-refinement",
  "omena-resolver",
- "omena-testkit",
  "omena-value-lattice",
  "serde",
 ]

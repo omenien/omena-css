@@ -17,8 +17,6 @@ use crate::{
     summarize_omena_query_expression_domain_selector_projection_with_precision,
 };
 use omena_parser::{ModuleIdV0, ModuleInstanceKeyV0};
-#[cfg(feature = "test-support")]
-use omena_testkit::{InstrumentationSessionV0, with_instrumentation_session};
 
 #[test]
 fn consumer_build_inlines_transitive_workspace_imports() -> Result<(), Box<dyn std::error::Error>> {
@@ -821,39 +819,37 @@ fn assert_module_reachability_producer_counts(
     let passes = vec!["tree-shake-class".to_string()];
     let context = OmenaQueryTransformExecutionContextV0::default();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
-    let session = InstrumentationSessionV0::default();
-
-    let result = with_instrumentation_session(session.clone(), || {
-        session.reset_module_reachability_hoist_counts();
-        let reachability =
-            derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
-        run_omena_query_bundle_with_module_reachability_and_options(
-            OmenaQueryBundlePlanInputV0 {
-                target_style_path: entry_path,
-                style_sources: &style_sources,
-                source_map_sources: &style_sources,
-                requested_pass_ids: &passes,
-                context: &context,
-                resolution_inputs: &resolution_inputs,
-                asset_rewrites: Vec::new(),
-                bundle_entry_style_paths: &[],
-            },
-            &[],
-            &OmenaQueryConsumerBuildOptionsV0 {
-                bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
-                ..OmenaQueryConsumerBuildOptionsV0::default()
-            },
-            &reachability,
-        )
-    })?;
-    let counts = session.module_reachability_hoist_counts();
+    omena_query_core::reset_selector_projection_evaluation_count_for_test();
+    omena_parser::reset_closed_world_bundle_construction_count_for_test();
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
+    let result = run_omena_query_bundle_with_module_reachability_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: entry_path,
+            style_sources: &style_sources,
+            source_map_sources: &style_sources,
+            requested_pass_ids: &passes,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        },
+        &reachability,
+    )?;
 
     assert_eq!(
-        counts.projection_summary_evaluation_count, 1,
+        omena_query_core::selector_projection_evaluation_count_for_test(),
+        1,
         "selector projection summary must be produced once per bundle run"
     );
     assert_eq!(
-        counts.closed_world_bundle_construction_count, 1,
+        omena_parser::closed_world_bundle_construction_count_for_test(),
+        1,
         "the closed-world bundle and qualified index must be built once, not rebuilt per module"
     );
     assert_eq!(

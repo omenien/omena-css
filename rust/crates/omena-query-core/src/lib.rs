@@ -4,6 +4,8 @@
 //! state. `omena-query` re-exports these surfaces, but no longer needs to depend
 //! directly on each lower-level producer crate for this part of the dataflow.
 
+#[cfg(feature = "test-support")]
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use engine_input_producers::{
@@ -74,6 +76,26 @@ use serde::{Deserialize, Serialize};
 
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION: &str = "0";
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL: &str = "V0";
+
+#[cfg(feature = "test-support")]
+thread_local! {
+    static SELECTOR_PROJECTION_EVALUATION_COUNT: Cell<usize> = const { Cell::new(0) };
+}
+
+#[cfg(feature = "test-support")]
+pub fn reset_selector_projection_evaluation_count_for_test() {
+    SELECTOR_PROJECTION_EVALUATION_COUNT.with(|counter| counter.set(0));
+}
+
+#[cfg(feature = "test-support")]
+pub fn selector_projection_evaluation_count_for_test() -> usize {
+    SELECTOR_PROJECTION_EVALUATION_COUNT.with(Cell::get)
+}
+
+#[cfg(feature = "test-support")]
+fn record_selector_projection_evaluation_for_test() {
+    SELECTOR_PROJECTION_EVALUATION_COUNT.with(|counter| counter.set(counter.get() + 1));
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -372,8 +394,7 @@ pub fn summarize_omena_query_expression_domain_selector_projection_with_precisio
     Vec<OmenaQueryExpressionDomainSelectorPrecisionV0>,
 ) {
     #[cfg(feature = "test-support")]
-    omena_testkit::current_instrumentation_session_v0()
-        .record_module_reachability_projection_summary_evaluation();
+    record_selector_projection_evaluation_for_test();
     let style_selectors_by_path = style_selector_universe_by_path(input);
     let expression_targets = expression_target_style_paths(input);
     let flow_analysis = summarize_omena_query_expression_domain_flow_analysis(input);
