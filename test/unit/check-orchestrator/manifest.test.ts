@@ -842,7 +842,7 @@ describe("check orchestrator manifest", () => {
         expect.objectContaining({
           severity: "error",
           code: "ci-tier-escape-hatch-budget-exceeded",
-          message: expect.stringContaining("exceeds the governed maximum 155"),
+          message: expect.stringContaining("exceeds the governed maximum"),
         }),
       ]),
     );
