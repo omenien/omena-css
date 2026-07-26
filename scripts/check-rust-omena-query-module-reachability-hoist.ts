@@ -47,16 +47,47 @@ assert.equal(
   testNames.length,
   "the hoist gate must execute exactly the two product-path fixtures",
 );
+const observations = [
+  ...output.matchAll(
+    /OMENA_QUERY_MODULE_REACHABILITY_HOIST path=(\S+) projectionSummaryEvaluationCount=([0-9]+) closedWorldBundleConstructionCount=([0-9]+)/gu,
+  ),
+].map((match) => ({
+  path: match[1],
+  projectionSummaryEvaluationCount: Number(match[2]),
+  closedWorldBundleConstructionCount: Number(match[3]),
+}));
+assert.equal(
+  observations.length,
+  testNames.length,
+  "every product-path fixture must publish observed producer counts",
+);
+for (const observation of observations) {
+  assert.equal(
+    observation.projectionSummaryEvaluationCount,
+    1,
+    `${observation.path} recomputed the selector projection summary`,
+  );
+  assert.equal(
+    observation.closedWorldBundleConstructionCount,
+    1,
+    `${observation.path} rebuilt the closed-world bundle or qualified index`,
+  );
+}
 
 process.stdout.write(
   `${JSON.stringify(
     {
       schemaVersion: "0",
       product: "rust.omena-query.module-reachability-hoist",
-      projectionSummaryEvaluationCountPerRun: 1,
-      closedWorldBundleConstructionCountPerRun: 1,
+      projectionSummaryEvaluationCounts: observations.map(
+        (observation) => observation.projectionSummaryEvaluationCount,
+      ),
+      closedWorldBundleConstructionCounts: observations.map(
+        (observation) => observation.closedWorldBundleConstructionCount,
+      ),
       fixtureCount: testNames.length,
       tests: testNames,
+      observations,
     },
     null,
     2,

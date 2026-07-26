@@ -859,14 +859,14 @@ fn module_qualified_reachability_delta_is_expected_v0(
     }
     let legacy_css = remove_ascii_whitespace_v0(legacy_css);
     let linked_css = remove_ascii_whitespace_v0(linked_css);
-    legacy_css.contains("color:green")
+    legacy_css.contains("padding:8px")
         && legacy_css.contains("color:red")
         && !legacy_css.contains("color:blue")
         && !legacy_css.contains("color:tan")
         && !legacy_css.contains("color:gray")
+        && linked_css.contains("padding:8px")
         && linked_css.contains("color:blue")
         && linked_css.contains("color:red")
-        && !linked_css.contains("color:green")
         && !linked_css.contains("color:tan")
         && !linked_css.contains("color:gray")
 }
@@ -1697,15 +1697,15 @@ fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
         modules: vec![
             LinkedEmissionFixtureModuleV0 {
                 path: entry_path,
-                source: "@import \"./dependency.css\"; .shared { color: red; } .entry-dead { color: tan; }"
+                source: "@import \"./dependency.css\"; .shared { color: red; } .entry-marker { border: 0; } .entry-dead { color: tan; }"
                     .to_string(),
                 dialect: StyleDialect::Css,
-                marker_names: vec!["shared".to_string()],
+                marker_names: vec!["entry-marker".to_string()],
                 order_probe: "color: red".to_string(),
             },
             LinkedEmissionFixtureModuleV0 {
                 path: format!("{root}/dependency.css"),
-                source: ".shared { color: green; } .dependency-own { color: blue; } .dependency-dead { color: gray; }"
+                source: ".shared { padding: 8px; } .dependency-own { color: blue; } .dependency-dead { color: gray; }"
                     .to_string(),
                 dialect: StyleDialect::Css,
                 marker_names: vec!["dependency-own".to_string()],
@@ -1717,6 +1717,11 @@ fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
                 id: "entry-reference",
                 module_index: 0,
                 class_name: "shared",
+            },
+            LinkedEmissionReachabilityReferenceV0 {
+                id: "entry-marker-reference",
+                module_index: 0,
+                class_name: "entry-marker",
             },
             LinkedEmissionReachabilityReferenceV0 {
                 id: "dependency-reference",

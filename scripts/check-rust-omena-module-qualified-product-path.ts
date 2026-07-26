@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -46,6 +47,11 @@ interface Occurrence {
   readonly testOnly: boolean;
 }
 
+interface RustSourceFile {
+  readonly sourcePath: string;
+  readonly source: string;
+}
+
 const repoRoot = process.cwd();
 const censusPath = path.join(repoRoot, "rust/omena-module-qualified-product-path-census.json");
 const writeMode = process.argv.includes("--write");
@@ -60,6 +66,7 @@ const productCrates = [
 const qualifiedExecutorSymbols = [
   "execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle",
   "execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle",
+  "execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names",
 ] as const;
 const classificationPolicy = {
   version: 1,
@@ -73,7 +80,7 @@ const classificationPolicy = {
 const policyDigest = createHash("sha256")
   .update(JSON.stringify(classificationPolicy))
   .digest("hex");
-const sourceFiles = rustSourcePaths(path.join(repoRoot, "rust"));
+const sourceFiles = rustSourceFiles(path.join(repoRoot, "rust"));
 
 const qualifiedOccurrences = qualifiedExecutorSymbols.flatMap((symbol) =>
   collectOccurrences(sourceFiles, symbol),
@@ -87,7 +94,7 @@ if (injectMissingExecutor) {
 }
 
 const current: ProductPathPopulation = {
-  qualifiedExecutor: classifyQualifiedExecutors(qualifiedOccurrences),
+  qualifiedExecutor: classifyQualifiedExecutors(qualifiedOccurrences, qualifiedExecutorSymbols),
   moduleQualifiedSymbols: classifySymbol(
     collectOccurrences(sourceFiles, "module_qualified_symbols"),
     "module_qualified_symbols",
@@ -111,6 +118,33 @@ assert.equal(
 const existing = fs.existsSync(censusPath)
   ? (JSON.parse(fs.readFileSync(censusPath, "utf8")) as ModuleQualifiedProductPathCensus)
   : undefined;
+if (existing) {
+  const entrySymbols = existing.entryPin.population.qualifiedExecutor.symbols;
+  const entrySourceFiles = gitRustSourceFiles(existing.entryPin.testedCommit, [
+    ...entrySymbols,
+    "module_qualified_symbols",
+    "module_qualified_shake",
+  ]);
+  const independentlyDerivedEntryPopulation: ProductPathPopulation = {
+    qualifiedExecutor: classifyQualifiedExecutors(
+      entrySymbols.flatMap((symbol) => collectOccurrences(entrySourceFiles, symbol)),
+      entrySymbols,
+    ),
+    moduleQualifiedSymbols: classifySymbol(
+      collectOccurrences(entrySourceFiles, "module_qualified_symbols"),
+      "module_qualified_symbols",
+    ),
+    moduleQualifiedShake: classifySymbol(
+      collectOccurrences(entrySourceFiles, "module_qualified_shake"),
+      "module_qualified_shake",
+    ),
+  };
+  assert.deepEqual(
+    existing.entryPin.population,
+    independentlyDerivedEntryPopulation,
+    `entry population does not match immutable Git sources at ${existing.entryPin.testedCommit}`,
+  );
+}
 const entryPin = existing?.entryPin ?? {
   testedCommit: gitHead(),
   population: current,
@@ -142,6 +176,7 @@ process.stdout.write(
 
 function classifyQualifiedExecutors(
   occurrences: readonly Occurrence[],
+  symbols: readonly string[],
 ): QualifiedExecutorPopulation {
   const base = classifySymbol(occurrences, "execute_transform_passes_on_module_");
   const productCallers = occurrences
@@ -154,9 +189,7 @@ function classifyQualifiedExecutors(
     )
     .flatMap((occurrence) => {
       const crateName = crateNameForPath(occurrence.sourcePath);
-      const symbol = qualifiedExecutorSymbols.find((candidate) =>
-        occurrence.text.includes(candidate),
-      );
+      const symbol = symbols.find((candidate) => occurrence.text.includes(candidate));
       if (
         !crateName ||
         !productCrates.includes(crateName as (typeof productCrates)[number]) ||
@@ -174,7 +207,7 @@ function classifyQualifiedExecutors(
     );
   return {
     ...base,
-    symbols: qualifiedExecutorSymbols,
+    symbols,
     productCallers,
   };
 }
@@ -242,12 +275,10 @@ function crateNameForPath(sourcePath: string): string | undefined {
   return match?.[1];
 }
 
-function collectOccurrences(sourcePaths: readonly string[], symbol: string): Occurrence[] {
+function collectOccurrences(sourceFiles: readonly RustSourceFile[], symbol: string): Occurrence[] {
   const occurrences: Occurrence[] = [];
   const symbolPattern = new RegExp(`\\b${escapeRegExp(symbol)}\\b`, "u");
-  for (const absolutePath of sourcePaths) {
-    const sourcePath = path.relative(repoRoot, absolutePath);
-    const source = fs.readFileSync(absolutePath, "utf8");
+  for (const { sourcePath, source } of sourceFiles) {
     const testLines = cfgTestLineNumbers(sourcePath, source);
     for (const [index, text] of source.split("\n").entries()) {
       if (!symbolPattern.test(text)) {
@@ -300,31 +331,65 @@ function countCharacter(value: string, character: string): number {
   return [...value].filter((item) => item === character).length;
 }
 
-function rustSourcePaths(root: string): string[] {
-  const paths: string[] = [];
+function rustSourceFiles(root: string): RustSourceFile[] {
+  const files: RustSourceFile[] = [];
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     if (entry.name === "target") {
       continue;
     }
     const entryPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
-      paths.push(...rustSourcePaths(entryPath));
+      files.push(...rustSourceFiles(entryPath));
       continue;
     }
     if (entry.name.endsWith(".rs")) {
-      paths.push(entryPath);
+      files.push({
+        sourcePath: path.relative(repoRoot, entryPath),
+        source: fs.readFileSync(entryPath, "utf8"),
+      });
     }
   }
-  return paths.sort();
+  return files.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath));
+}
+
+function gitRustSourceFiles(commit: string, symbols: readonly string[]): RustSourceFile[] {
+  const grepArgs = ["grep", "-l"];
+  for (const symbol of symbols) {
+    grepArgs.push("-e", symbol);
+  }
+  grepArgs.push(commit, "--", "rust/**/*.rs");
+  const grep = spawnSync("git", grepArgs, {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(
+    grep.status,
+    0,
+    `cannot derive entry population from ${commit}: ${grep.stderr.trim()}`,
+  );
+  return grep.stdout
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => (line.startsWith(`${commit}:`) ? line.slice(commit.length + 1) : line))
+    .map((sourcePath) => ({
+      sourcePath,
+      source: gitOutput(["show", `${commit}:${sourcePath}`]),
+    }))
+    .sort((left, right) => left.sourcePath.localeCompare(right.sourcePath));
 }
 
 function gitHead(): string {
-  const headPath = path.join(repoRoot, ".git/HEAD");
-  const head = fs.readFileSync(headPath, "utf8").trim();
-  if (!head.startsWith("ref: ")) {
-    return head;
-  }
-  return fs.readFileSync(path.join(repoRoot, ".git", head.slice(5)), "utf8").trim();
+  return gitOutput(["rev-parse", "HEAD"]).trim();
+}
+
+function gitOutput(args: readonly string[]): string {
+  const result = spawnSync("git", args, {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, `git ${args.join(" ")} failed: ${result.stderr.trim()}`);
+  return result.stdout;
 }
 
 function escapeRegExp(value: string): string {

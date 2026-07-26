@@ -39,8 +39,8 @@
       "fixtureId": "module-qualified-reachability",
       "classificationArm": "moduleAttributedReachabilityCorrection",
       "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "2341e33f317a5a77dc6bd29a646e66ed6c511f305d69b56a8924a9c746baa5e6",
-      "justification": "The linked path removes a cross-module false retention and restores the dependency-owned selector selected by its own source reference while dead selectors remain absent."
+      "witnessDigest": "94a5537879affe5ecd7a025afef0e5feb1880b8f1ed2f650e86f033e31e9796c",
+      "justification": "The linked path restores the dependency-owned selector selected by its own source reference, preserves declarations sharing a live emitted selector token, and removes unrelated dead selectors."
     },
     {
       "fixtureId": "element-only-reset-module",

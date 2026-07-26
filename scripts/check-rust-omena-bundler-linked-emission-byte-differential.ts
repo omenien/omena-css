@@ -475,9 +475,9 @@ for (const entry of report.cases) {
     if (entry.fixtureId === "module-qualified-reachability") {
       assert.equal(entry.semanticPreserved, false);
       assert.equal(entry.semanticMismatchCount, 1);
-      assert.deepEqual(entry.legacyMarkerOrder, ["shared", "shared"]);
-      assert.deepEqual(entry.linkedMarkerOrder, ["dependency-own", "shared"]);
-      assert.deepEqual(entry.authoritativeMarkerOrder, ["dependency-own", "shared"]);
+      assert.deepEqual(entry.legacyMarkerOrder, ["entry-marker"]);
+      assert.deepEqual(entry.linkedMarkerOrder, ["dependency-own", "entry-marker"]);
+      assert.deepEqual(entry.authoritativeMarkerOrder, ["dependency-own", "entry-marker"]);
     } else {
       assert.equal(entry.semanticPreserved, true);
     }
@@ -513,9 +513,9 @@ for (const entry of expectedDivergenceLedger.entries) {
     assert.equal(entry.fixtureId, "module-qualified-reachability");
     assert.equal(liveCase.semanticPreserved, false);
     assert.equal(liveCase.semanticMismatchCount, 1);
-    assert.deepEqual(liveCase.legacyMarkerOrder, ["shared", "shared"]);
-    assert.deepEqual(liveCase.linkedMarkerOrder, ["dependency-own", "shared"]);
-    assert.deepEqual(liveCase.authoritativeMarkerOrder, ["dependency-own", "shared"]);
+    assert.deepEqual(liveCase.legacyMarkerOrder, ["entry-marker"]);
+    assert.deepEqual(liveCase.linkedMarkerOrder, ["dependency-own", "entry-marker"]);
+    assert.deepEqual(liveCase.authoritativeMarkerOrder, ["dependency-own", "entry-marker"]);
   } else {
     assert.equal(liveCase.semanticPreserved, true);
   }

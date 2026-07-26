@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena.module-qualified-product-path-census",
-  "policyDigest": "0c194d67fcb832575f822a58383b86e48f954624cca4d9df5810e5061c47137f",
+  "policyDigest": "f8f6eb632d6f5fe7619f4448a2ba1ba408d2c69622f3558388ed9e6c32ee0a4e",
   "productCrates": ["omena-query", "omena-cli", "omena-napi", "omena-wasm", "omena-lsp-server"],
   "entryPin": {
     "testedCommit": "49aa3bb6ddc36add45edca073ae87a7ea507dcfc",
@@ -57,11 +57,11 @@
   },
   "current": {
     "qualifiedExecutor": {
-      "totalOccurrences": 15,
-      "definitionOccurrences": 2,
-      "reexportOccurrences": 4,
+      "totalOccurrences": 19,
+      "definitionOccurrences": 3,
+      "reexportOccurrences": 6,
       "testOccurrences": 6,
-      "otherProductionOccurrences": 1,
+      "otherProductionOccurrences": 2,
       "productOccurrencesByCrate": {
         "omena-query": 2,
         "omena-cli": 0,
@@ -71,7 +71,8 @@
       },
       "symbols": [
         "execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle",
-        "execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle"
+        "execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle",
+        "execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names"
       ],
       "productCallers": [
         {
@@ -82,11 +83,11 @@
       ]
     },
     "moduleQualifiedSymbols": {
-      "totalOccurrences": 53,
+      "totalOccurrences": 50,
       "definitionOccurrences": 1,
       "reexportOccurrences": 0,
       "testOccurrences": 7,
-      "otherProductionOccurrences": 45,
+      "otherProductionOccurrences": 42,
       "productOccurrencesByCrate": {
         "omena-query": 0,
         "omena-cli": 0,
