@@ -11,7 +11,8 @@ use super::static_stylesheet::{
 };
 use super::*;
 use crate::types::{
-    normalize_omena_query_style_path, resolve_omena_query_style_path_against_known,
+    OmenaQueryEngineInputModuleAttributionV0, normalize_omena_query_style_path,
+    resolve_omena_query_style_path_against_known,
 };
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
@@ -601,11 +602,40 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
         .into_iter()
         .map(|(path, names)| (path, names.into_iter().collect()))
         .collect();
+    let declared_class_names_by_style_path = input
+        .styles
+        .iter()
+        .map(|style| {
+            let mut class_names = style
+                .document
+                .selectors
+                .iter()
+                .filter_map(|selector| {
+                    let name = selector
+                        .canonical_name
+                        .as_deref()
+                        .unwrap_or(selector.name.as_str())
+                        .trim();
+                    let name = name.strip_prefix('.').unwrap_or(name);
+                    (!name.is_empty()).then(|| name.to_string())
+                })
+                .collect::<Vec<_>>();
+            class_names.sort();
+            class_names.dedup();
+            (
+                normalize_omena_query_style_path(style.file_path.as_str()),
+                class_names,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let module_reachability = OmenaQueryEngineInputModuleReachabilityV0::new(
         summary,
         known_style_paths,
-        targeted_class_names_by_style_path,
-        targeted_projection_count_by_style_path,
+        OmenaQueryEngineInputModuleAttributionV0::new(
+            declared_class_names_by_style_path,
+            targeted_class_names_by_style_path,
+            targeted_projection_count_by_style_path,
+        ),
         unattributed_class_names.into_iter().collect(),
         unattributed_projection_count,
         projected_class_names.into_iter().collect(),

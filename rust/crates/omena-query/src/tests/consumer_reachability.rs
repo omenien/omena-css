@@ -572,6 +572,7 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
         report.projected_class_names(),
         report.attributed_class_names()
     );
+    assert_eq!(report.flat_class_names(), report.attributed_class_names());
     assert!(report.lost_class_names().is_empty());
     assert!(report.unmatched_target_style_paths().is_empty());
 
@@ -632,13 +633,17 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     );
     assert_eq!(dependency_shared.reachable(), Some(false));
     assert!(dependency_shared.flat_reachable());
+    assert!(dependency_shared.emission_guard_retained());
     assert_eq!(
         dependency_shared.ownership_digest(),
         bundle.module_qualified_ownership_digest()
     );
     assert_eq!(
         dependency_shared.provenance_labels(),
-        &["moduleQualifiedOwnershipObserved"]
+        &[
+            "moduleQualifiedOwnershipObserved",
+            "emissionTokenCollisionGuardApplied"
+        ]
     );
     assert!(output_css.contains("padding: 8px"));
 
@@ -649,6 +654,7 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
         "dependency-own",
     );
     assert_eq!(dependency_owned.reachable(), Some(true));
+    assert!(!dependency_owned.emission_guard_retained());
     assert!(output_css.contains("color: blue"));
     assert!(!output_css.contains("color: tan"));
     assert!(!output_css.contains("color: gray"));
@@ -664,6 +670,88 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
         OmenaQueryExplainAvailabilityV0::NotFound
     );
     assert_eq!(unknown.reachable(), None);
+    assert!(!unknown.emission_guard_retained());
+    Ok(())
+}
+
+#[test]
+fn composes_closure_is_partitioned_to_the_declaring_module() -> Result<(), String> {
+    let entry_path = "src/entry.module.css";
+    let base_path = "src/base.module.css";
+    let entry_source = "@import \"./base.module.css\"; \
+        .card { composes: base from \"./base.module.css\"; color: red; }";
+    let base_source =
+        ".base { padding: 2px; } .base-live { color: blue; } .base-dead { color: gray; }";
+    let input = module_reachability_input(
+        &[
+            ("entry-card", entry_path, "card"),
+            ("base-live", base_path, "base-live"),
+        ],
+        &[
+            (entry_path, entry_source, &["card"]),
+            (base_path, base_source, &["base", "base-live", "base-dead"]),
+        ],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: entry_path.to_string(),
+            style_source: entry_source.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: base_path.to_string(),
+            style_source: base_source.to_string(),
+        },
+    ];
+    let result = run_omena_query_bundle_with_module_reachability_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: entry_path,
+            style_sources: &style_sources,
+            source_map_sources: &style_sources,
+            requested_pass_ids: &["tree-shake-class".to_string()],
+            context: &OmenaQueryTransformExecutionContextV0::default(),
+            resolution_inputs: &OmenaQueryStyleResolutionInputsV0::default(),
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        },
+        &reachability,
+    )?;
+
+    let report = result.reachability_attribution();
+    assert_eq!(
+        report.flat_class_names(),
+        &[
+            "base".to_string(),
+            "base-live".to_string(),
+            "card".to_string()
+        ]
+    );
+    assert_eq!(report.flat_class_names(), report.attributed_class_names());
+    assert!(report.lost_class_names().is_empty());
+    assert_eq!(
+        report
+            .entry_for_style_path(entry_path)
+            .ok_or_else(|| "entry attribution should exist".to_string())?
+            .class_names(),
+        &["card".to_string()]
+    );
+    assert_eq!(
+        report
+            .entry_for_style_path(base_path)
+            .ok_or_else(|| "base attribution should exist".to_string())?
+            .class_names(),
+        &["base".to_string(), "base-live".to_string()]
+    );
+    let output_css = &result.bundle_result().artifact.output_css;
+    assert!(output_css.contains("padding: 2px"));
+    assert!(output_css.contains("color: blue"));
+    assert!(!output_css.contains("color: gray"));
     Ok(())
 }
 

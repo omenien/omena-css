@@ -293,6 +293,7 @@ pub struct OmenaQueryModuleTreeShakeExplanationV0 {
     availability: OmenaQueryExplainAvailabilityV0,
     reachable: Option<bool>,
     flat_reachable: bool,
+    emission_guard_retained: bool,
     closure_hash: String,
     ownership_digest: String,
     guarantee: GuaranteeKindV0,
@@ -316,12 +317,22 @@ impl OmenaQueryModuleTreeShakeExplanationV0 {
         self.availability
     }
 
+    /// Reports module-qualified semantic liveness.
+    ///
+    /// A false result does not guarantee byte removal when an emitted-token
+    /// collision requires conservative retention.
     pub const fn reachable(&self) -> Option<bool> {
         self.reachable
     }
 
     pub const fn flat_reachable(&self) -> bool {
         self.flat_reachable
+    }
+
+    /// Reports whether conservative emitted-token handling retained bytes even
+    /// though module-qualified liveness is false.
+    pub const fn emission_guard_retained(&self) -> bool {
+        self.emission_guard_retained
     }
 
     pub fn ownership_digest(&self) -> &str {
@@ -462,6 +473,14 @@ pub fn explain_omena_query_tree_shake_for_module(
     let reachable = module_symbols.map(|symbols| {
         symbols.is_reachable() && module_symbol_is_reachable(symbols, symbol_kind, symbol_name)
     });
+    let flat_reachable = flat_symbol_is_reachable(bundle, symbol_kind, symbol_name);
+    let emission_guard_retained = symbol_kind == OmenaQueryExplainSymbolKindV0::Class
+        && reachable == Some(false)
+        && flat_reachable;
+    let mut provenance_labels = vec!["moduleQualifiedOwnershipObserved"];
+    if emission_guard_retained {
+        provenance_labels.push("emissionTokenCollisionGuardApplied");
+    }
 
     OmenaQueryModuleTreeShakeExplanationV0 {
         schema_version: "0",
@@ -475,11 +494,12 @@ pub fn explain_omena_query_tree_shake_for_module(
             OmenaQueryExplainAvailabilityV0::NotFound
         },
         reachable,
-        flat_reachable: flat_symbol_is_reachable(bundle, symbol_kind, symbol_name),
+        flat_reachable,
+        emission_guard_retained,
         closure_hash: bundle.closure_hash().to_string(),
         ownership_digest: bundle.module_qualified_ownership_digest(),
         guarantee: GuaranteeKindV0::NotClaimedExactTraversal,
-        provenance_labels: vec!["moduleQualifiedOwnershipObserved"],
+        provenance_labels,
     }
 }
 

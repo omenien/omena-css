@@ -354,13 +354,22 @@ pub fn run_omena_query_bundle_with_module_reachability_and_options(
     options: &OmenaQueryConsumerBuildOptionsV0,
     module_reachability: &OmenaQueryEngineInputModuleReachabilityV0,
 ) -> Result<OmenaQueryModuleAttributedBundleResultV0, String> {
+    let mut flat_context =
+        merge_transform_context(input.context.clone(), module_reachability.context());
+    flat_context
+        .reachable_class_names
+        .extend(module_reachability.projected_class_names().iter().cloned());
+    flat_context.reachable_class_names.sort();
+    flat_context.reachable_class_names.dedup();
     let attribution_report = OmenaQueryModuleReachabilityAttributionReportV0::from_style_paths(
         module_reachability,
         input
             .style_sources
             .iter()
             .map(|source| source.style_path.as_str()),
+        flat_context.reachable_class_names.as_slice(),
     );
+    attribution_report.validate_flat_partition()?;
     let bundle_result = run_omena_query_bundle_with_optional_module_reachability(
         input,
         external_sifs,

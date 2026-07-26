@@ -1099,10 +1099,32 @@ impl OmenaQueryModuleReachabilityAttributionV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OmenaQueryEngineInputModuleAttributionV0 {
+    declared_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+    targeted_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+    targeted_projection_count_by_style_path: BTreeMap<String, usize>,
+}
+
+impl OmenaQueryEngineInputModuleAttributionV0 {
+    pub(crate) fn new(
+        declared_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+        targeted_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+        targeted_projection_count_by_style_path: BTreeMap<String, usize>,
+    ) -> Self {
+        Self {
+            declared_class_names_by_style_path,
+            targeted_class_names_by_style_path,
+            targeted_projection_count_by_style_path,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct OmenaQueryEngineInputModuleReachabilityV0 {
     summary: OmenaQueryTransformContextFromEngineInputSummaryV0,
     known_style_paths: Vec<String>,
+    declared_class_names_by_style_path: BTreeMap<String, Vec<String>>,
     targeted_class_names_by_style_path: BTreeMap<String, Vec<String>>,
     targeted_projection_count_by_style_path: BTreeMap<String, usize>,
     unattributed_class_names: Vec<String>,
@@ -1115,15 +1137,20 @@ impl OmenaQueryEngineInputModuleReachabilityV0 {
     pub(crate) fn new(
         summary: OmenaQueryTransformContextFromEngineInputSummaryV0,
         known_style_paths: Vec<String>,
-        targeted_class_names_by_style_path: BTreeMap<String, Vec<String>>,
-        targeted_projection_count_by_style_path: BTreeMap<String, usize>,
+        module_attribution: OmenaQueryEngineInputModuleAttributionV0,
         unattributed_class_names: Vec<String>,
         unattributed_projection_count: usize,
         projected_class_names: Vec<String>,
     ) -> Self {
+        let OmenaQueryEngineInputModuleAttributionV0 {
+            declared_class_names_by_style_path,
+            targeted_class_names_by_style_path,
+            targeted_projection_count_by_style_path,
+        } = module_attribution;
         Self {
             summary,
             known_style_paths,
+            declared_class_names_by_style_path,
             targeted_class_names_by_style_path,
             targeted_projection_count_by_style_path,
             unattributed_class_names,
@@ -1259,6 +1286,7 @@ pub struct OmenaQueryModuleReachabilityAttributionReportV0 {
     entries: Vec<OmenaQueryModuleReachabilityAttributionV0>,
     projection_summary_evaluation_count: usize,
     projected_class_names: Vec<String>,
+    flat_class_names: Vec<String>,
     attributed_class_names: Vec<String>,
     lost_class_names: Vec<String>,
     unmatched_target_style_paths: Vec<String>,
@@ -1270,6 +1298,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
     pub(crate) fn from_style_paths<'a>(
         attribution: &OmenaQueryEngineInputModuleReachabilityV0,
         style_paths: impl IntoIterator<Item = &'a str>,
+        flat_class_names: &[String],
     ) -> Self {
         let mut style_paths = style_paths
             .into_iter()
@@ -1283,6 +1312,35 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             .collect::<Vec<_>>();
         entries.sort_by(|left, right| left.style_path().cmp(right.style_path()));
         entries.dedup_by(|left, right| left.style_path() == right.style_path());
+
+        let mut flat_class_names = flat_class_names.to_vec();
+        flat_class_names.sort();
+        flat_class_names.dedup();
+        let directly_attributed_class_names = entries
+            .iter()
+            .flat_map(|entry| entry.class_names.iter().cloned())
+            .collect::<BTreeSet<_>>();
+        for class_name in &flat_class_names {
+            if directly_attributed_class_names.contains(class_name) {
+                continue;
+            }
+            let declared_owner_paths = attribution
+                .declared_class_names_by_style_path
+                .iter()
+                .filter(|(_, names)| names.contains(class_name))
+                .map(|(style_path, _)| style_path.as_str())
+                .collect::<BTreeSet<_>>();
+            for entry in &mut entries {
+                if declared_owner_paths.is_empty()
+                    || declared_owner_paths.contains(entry.style_path.as_str())
+                {
+                    entry.class_names.push(class_name.clone());
+                    entry.class_names.sort();
+                    entry.class_names.dedup();
+                }
+            }
+        }
+
         let style_path_set = entries
             .iter()
             .map(OmenaQueryModuleReachabilityAttributionV0::style_path)
@@ -1293,8 +1351,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let lost_class_names = attribution
-            .projected_class_names
+        let lost_class_names = flat_class_names
             .iter()
             .filter(|name| !attributed_class_names.contains(name))
             .cloned()
@@ -1313,6 +1370,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             entries,
             projection_summary_evaluation_count: attribution.projection_summary_evaluation_count(),
             projected_class_names: attribution.projected_class_names.clone(),
+            flat_class_names,
             attributed_class_names,
             lost_class_names,
             unmatched_target_style_paths,
@@ -1351,6 +1409,10 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
         self.projected_class_names.as_slice()
     }
 
+    pub fn flat_class_names(&self) -> &[String] {
+        self.flat_class_names.as_slice()
+    }
+
     pub fn attributed_class_names(&self) -> &[String] {
         self.attributed_class_names.as_slice()
     }
@@ -1369,6 +1431,17 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
 
     pub fn attributed_empty_module_count(&self) -> usize {
         self.attributed_empty_module_count
+    }
+
+    pub(crate) fn validate_flat_partition(&self) -> Result<(), String> {
+        if self.lost_class_names.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "module reachability partition lost flat class names: {}",
+                self.lost_class_names.join(", ")
+            ))
+        }
     }
 }
 

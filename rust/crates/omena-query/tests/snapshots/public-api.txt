@@ -1301,6 +1301,7 @@ pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::attributed_
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::attributed_empty_module_count(&self) -> usize
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::entries(&self) -> &[omena_query::OmenaQueryModuleReachabilityAttributionV0]
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::entry_for_style_path(&self, &str) -> core::option::Option<&omena_query::OmenaQueryModuleReachabilityAttributionV0>
+pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::flat_class_names(&self) -> &[alloc::string::String]
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::lost_class_names(&self) -> &[alloc::string::String]
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::projected_class_names(&self) -> &[alloc::string::String]
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::projection_summary_evaluation_count(&self) -> usize
@@ -1317,6 +1318,7 @@ pub fn omena_query::OmenaQueryModuleReachabilityAttributionV0::was_attempted(&se
 impl omena_query::OmenaQueryModuleTreeShakeExplanationV0
 pub const fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::availability(&self) -> omena_query::OmenaQueryExplainAvailabilityV0
 pub fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::closure_hash(&self) -> &str
+pub const fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::emission_guard_retained(&self) -> bool
 pub const fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::flat_reachable(&self) -> bool
 pub const fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::guarantee(&self) -> omena_evidence_graph::GuaranteeKindV0
 pub fn omena_query::OmenaQueryModuleTreeShakeExplanationV0::module_instance(&self) -> &omena_parser::closed_world::contract::ModuleInstanceKeyV0
