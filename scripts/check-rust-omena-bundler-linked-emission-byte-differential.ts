@@ -160,10 +160,14 @@ const workspaceWalkApis = [
 ];
 const hoistCensus = {
   caseProducer: "LinkedEmissionByteDifferentialCaseV0",
-  linkedStylesheetProducer: "LinkedStylesheetV0",
+  linkedStylesheetProducer: "LinkedStylesheetWithEmissionItemsV0",
+  projectionInvocationCount: countMatches(
+    linkedEmissionSource,
+    /\bproject_omena_transform_bundle_linker_and_emission_items\s*\(/gu,
+  ),
   linkerInvocationCount: countMatches(
     linkedEmissionSource,
-    /\blink_omena_transform_bundle_modules\s*\(/gu,
+    /\blink_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options\s*\(/gu,
   ),
   cargoSpawnCounts: Object.fromEntries(
     gateSources.map(({ path, source }) => [
@@ -183,6 +187,11 @@ for (const producerName of [hoistCensus.caseProducer, hoistCensus.linkedStyleshe
     `linked-emission hoist producer is absent: ${producerName}`,
   );
 }
+assert.equal(
+  hoistCensus.projectionInvocationCount,
+  1,
+  "linked-emission fixtures must share one emission-item projection",
+);
 assert.equal(
   hoistCensus.linkerInvocationCount,
   1,
@@ -221,7 +230,18 @@ const run = spawnSync(
   { encoding: "utf8" },
 );
 assert.equal(run.status, 0, [run.stdout, run.stderr].filter(Boolean).join("\n"));
-const envelope = JSON.parse(run.stdout) as LinkedEmissionByteDifferentialEnvelopeV0;
+const observedEnvelope = JSON.parse(run.stdout) as LinkedEmissionByteDifferentialEnvelopeV0;
+const envelope = process.argv.includes("--inject-missing-justification")
+  ? {
+      ...observedEnvelope,
+      report: {
+        ...observedEnvelope.report,
+        cases: observedEnvelope.report.cases.map((entry, index) =>
+          index === 0 ? { ...entry, reasons: [] } : entry,
+        ),
+      },
+    }
+  : observedEnvelope;
 const report = envelope.report;
 const census = process.argv.includes("--inject-missing-order-census-row")
   ? {
@@ -247,22 +267,23 @@ assert.equal(census.placementWitnesses.length, 4);
 assert.ok(
   census.blindSpots.every(
     (blindSpot) =>
-      blindSpot.emissionPlanEntryCount === 0 &&
+      blindSpot.emissionPlanEntryCount > 0 &&
       blindSpot.outputBytesDiffer &&
       blindSpot.markerOrdersAgree &&
       blindSpot.linkedMarkerOrderMatchesAuthority &&
       !blindSpot.semanticDifferenceObserved &&
-      !blindSpot.differenceReasonObserved,
+      blindSpot.differenceReasonObserved,
   ),
 );
 assert.ok(
   census.placementWitnesses.every(
     (witness) =>
       witness.selectorlessModulePaths.length > 0 &&
-      witness.emissionPlanEntryCount === 0 &&
+      witness.emissionPlanEntryCount > 0 &&
       witness.outputBytesDiffer &&
       witness.markerOrdersAgree &&
-      witness.linkedMarkerOrderMatchesAuthority,
+      witness.linkedMarkerOrderMatchesAuthority &&
+      witness.linkedWinner === witness.importGraphWinner,
   ),
 );
 assert.deepEqual(
@@ -282,16 +303,16 @@ assert.deepEqual(
     "element-selector-winner": {
       importGraphWinner: "red",
       legacyWinner: "red",
-      linkedWinner: "green",
-      semanticDifferenceObserved: true,
-      differenceReasonObserved: false,
+      linkedWinner: "red",
+      semanticDifferenceObserved: false,
+      differenceReasonObserved: true,
     },
     "element-selector-after-rule-bearing-module": {
       importGraphWinner: "red",
       legacyWinner: "red",
-      linkedWinner: "green",
-      semanticDifferenceObserved: true,
-      differenceReasonObserved: false,
+      linkedWinner: "red",
+      semanticDifferenceObserved: false,
+      differenceReasonObserved: true,
     },
     "path-name-independence": {
       importGraphWinner: "red",
@@ -303,9 +324,9 @@ assert.deepEqual(
     "cascade-layer-declaration-order": {
       importGraphWinner: "blue",
       legacyWinner: "blue",
-      linkedWinner: "orange",
+      linkedWinner: "blue",
       semanticDifferenceObserved: false,
-      differenceReasonObserved: false,
+      differenceReasonObserved: true,
     },
   },
 );
@@ -363,12 +384,12 @@ assert.equal(
   report.totalDivergenceCount,
 );
 assert.ok(
-  report.expectedDivergenceCount >= baseline.minimumExpectedDivergenceCount,
-  "the two byte-producing authorities must retain a non-vacuous expected differential",
-);
-assert.ok(
   report.unexpectedDivergenceCount <= baseline.maximumUnexpectedDivergenceCount,
   `unexpected linked-emission divergences grew from the committed ceiling ${baseline.maximumUnexpectedDivergenceCount} to ${report.unexpectedDivergenceCount}`,
+);
+assert.ok(
+  report.expectedDivergenceCount >= baseline.minimumExpectedDivergenceCount,
+  "the two byte-producing authorities must retain a non-vacuous expected differential",
 );
 
 const fixtureIds = new Set<string>();
@@ -425,19 +446,6 @@ for (const entry of divergenceLedger.entries) {
     `${entry.fixtureId} is not backed by a live marker-blind shape`,
   );
 }
-assert.ok(
-  divergenceLedger.entries.some(
-    (entry) =>
-      entry.owningGoal === "g102" &&
-      census.blindSpots.some(
-        (blindSpot) =>
-          blindSpot.fixtureId === entry.fixtureId &&
-          blindSpot.shapeClasses.includes(entry.shapeClass),
-      ),
-  ),
-  "the open-divergence ledger must retain a g102-owned selector-less shape",
-);
-
 console.log(JSON.stringify(report, null, 2));
 
 function divergenceWitnessDigest(

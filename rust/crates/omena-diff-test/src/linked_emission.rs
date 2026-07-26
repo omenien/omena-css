@@ -1,9 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_benchmarks::bundler_productization_corpus;
-use omena_bundler::{TransformBundleModuleInputV0, link_omena_transform_bundle_modules};
+use omena_bundler::{
+    EmissionOrderingPolicyV0, LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkOptionsV0,
+    TransformBundleModuleInputV0,
+    link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
+    project_omena_transform_bundle_linker_and_emission_items,
+};
 use omena_parser::{
-    ParsedStyleFacts, StyleDialect, collect_style_facts, summarize_omena_parser_style_facts,
+    ParsedEmissionSelectorFactsV0, ParsedStyleFacts, StyleDialect, collect_style_fact_collection,
+    summarize_omena_parser_style_facts,
 };
 use omena_query::{
     OmenaQueryBundleEmissionPathV0, OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0,
@@ -37,6 +43,7 @@ pub enum LinkedEmissionByteDifferenceClassV0 {
 /// Known reason that linked emission may differ from legacy output bytes.
 pub enum LinkedEmissionByteDifferenceReasonV0 {
     GlobalModuleOrder,
+    ImportGraphModulePlacement,
     EntryInterleaveCollapse,
     PerModuleGrouping,
     SharedImportSingleEmission,
@@ -203,7 +210,7 @@ struct LinkedEmissionFixtureV0 {
 #[derive(Debug)]
 struct LinkedEmissionFixtureAnalysisV0 {
     case: LinkedEmissionByteDifferentialCaseV0,
-    linked_order: omena_bundler::LinkedStylesheetV0,
+    linked_order: LinkedStylesheetWithEmissionItemsV0,
     legacy_css: String,
     linked_css: String,
 }
@@ -408,12 +415,12 @@ fn summarize_linked_emission_coverage_census_v0(
         {
             let emission_plan_entry_count = analysis
                 .linked_order
-                .global_rule_order
-                .rules
+                .emission_item_order
+                .items
                 .iter()
-                .filter(|rule| rule.module_instance.module().as_str() == module.path)
+                .filter(|item| item.module_instance.module().as_str() == module.path)
                 .count();
-            let facts = collect_style_facts(module.source.as_str(), module.dialect);
+            let collection = collect_style_fact_collection(module.source.as_str(), module.dialect);
             blind_spots.push(LinkedEmissionMarkerBlindSpotV0 {
                 fixture_id: fixture.id.clone(),
                 module_path: module.path.clone(),
@@ -423,7 +430,10 @@ fn summarize_linked_emission_coverage_census_v0(
                     .map(|shape_class| (*shape_class).to_string())
                     .collect(),
                 emission_plan_entry_count,
-                fact_categories: populated_fact_categories_v0(&facts),
+                fact_categories: populated_fact_categories_v0(
+                    &collection.facts,
+                    &collection.emission_selectors,
+                ),
                 output_bytes_differ: !analysis.case.byte_equal,
                 marker_orders_agree: analysis.case.legacy_marker_order
                     == analysis.case.linked_marker_order,
@@ -557,12 +567,22 @@ fn analyze_linked_emission_fixture_v0(
             )
         })
         .collect::<Vec<_>>();
-    let linked_order = link_omena_transform_bundle_modules(
-        std::slice::from_ref(&fixture.entry_path),
-        &linker_modules,
-    )
-    .map_err(|error| format!("fixture {} could not be linked: {error:?}", fixture.id))?;
+    let projections =
+        project_omena_transform_bundle_linker_and_emission_items(&linker_modules, &[]);
+    let linked_order =
+        link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+            std::slice::from_ref(&fixture.entry_path),
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            &[],
+            &[],
+            TransformBundleLinkOptionsV0 {
+                emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
+            },
+        )
+        .map_err(|error| format!("fixture {} could not be linked: {error:?}", fixture.id))?;
     let authoritative_marker_order = linked_order
+        .linked_stylesheet
         .global_rule_order
         .rules
         .iter()
@@ -580,6 +600,8 @@ fn analyze_linked_emission_fixture_v0(
     });
     let semantic =
         compare_omena_query_transform_css_semantics_v0(&legacy_css, &linked_css, StyleDialect::Css);
+    let asset_urls_preserved =
+        css_url_arguments_v0(&legacy_css) == css_url_arguments_v0(&linked_css);
     let byte_equal = legacy_css == linked_css;
     let reasons = derive_difference_reasons_v0(
         fixture,
@@ -593,6 +615,7 @@ fn analyze_linked_emission_fixture_v0(
     let difference_class = if byte_equal {
         LinkedEmissionByteDifferenceClassV0::Equivalent
     } else if semantic.preserved
+        && asset_urls_preserved
         && linked_modules_emitted_once
         && linked_marker_order == authoritative_marker_order
         && !reasons.is_empty()
@@ -629,10 +652,16 @@ fn analyze_linked_emission_fixture_v0(
     })
 }
 
-fn populated_fact_categories_v0(facts: &ParsedStyleFacts) -> Vec<&'static str> {
+fn populated_fact_categories_v0(
+    facts: &ParsedStyleFacts,
+    emission_selectors: &ParsedEmissionSelectorFactsV0,
+) -> Vec<&'static str> {
     let mut categories = Vec::new();
     if !facts.selectors.is_empty() {
         categories.push("selectors");
+    }
+    if !emission_selectors.selectors.is_empty() {
+        categories.push("emissionSelectors");
     }
     if !facts.variables.is_empty() {
         categories.push("variables");
@@ -718,13 +747,13 @@ fn summarize_linked_emission_placement_witness_v0(
     }
     let emission_plan_entry_count = analysis
         .linked_order
-        .global_rule_order
-        .rules
+        .emission_item_order
+        .items
         .iter()
-        .filter(|rule| {
+        .filter(|item| {
             selectorless_module_paths
                 .iter()
-                .any(|path| path == rule.module_instance.module().as_str())
+                .any(|path| path == item.module_instance.module().as_str())
         })
         .count();
     let legacy_winner =
@@ -779,7 +808,7 @@ fn linked_emission_winner_v0(witness_id: &str, source: &str) -> Result<String, S
 
 fn derive_difference_reasons_v0(
     fixture: &LinkedEmissionFixtureV0,
-    linked_order: &omena_bundler::LinkedStylesheetV0,
+    linked_order: &LinkedStylesheetWithEmissionItemsV0,
     legacy_css: &str,
     linked_css: &str,
     authoritative_marker_order: &[String],
@@ -791,6 +820,24 @@ fn derive_difference_reasons_v0(
         && linked_marker_order == authoritative_marker_order
     {
         reasons.insert(LinkedEmissionByteDifferenceReasonV0::GlobalModuleOrder);
+    }
+    let marker_blind_modules = fixture
+        .modules
+        .iter()
+        .filter(|module| module.marker_names.is_empty())
+        .map(|module| module.path.as_str())
+        .collect::<BTreeSet<_>>();
+    if legacy_css != linked_css
+        && !marker_blind_modules.is_empty()
+        && marker_blind_modules.iter().all(|path| {
+            linked_order
+                .emission_item_order
+                .items
+                .iter()
+                .any(|item| item.module_instance.module().as_str() == *path)
+        })
+    {
+        reasons.insert(LinkedEmissionByteDifferenceReasonV0::ImportGraphModulePlacement);
     }
 
     let marker_sets_by_module = fixture
@@ -817,7 +864,11 @@ fn derive_difference_reasons_v0(
     }
 
     let mut inbound_counts = BTreeMap::new();
-    for fact in &linked_order.emission_plan.dependency_facts {
+    for fact in &linked_order
+        .linked_stylesheet
+        .emission_plan
+        .dependency_facts
+    {
         *inbound_counts
             .entry(fact.to_module.module().as_str())
             .or_insert(0usize) += 1;
@@ -872,6 +923,51 @@ fn remove_ascii_whitespace_v0(source: &str) -> String {
         .chars()
         .filter(|character| !character.is_ascii_whitespace())
         .collect()
+}
+
+fn css_url_arguments_v0(source: &str) -> Vec<String> {
+    let bytes = source.as_bytes();
+    let mut arguments = Vec::new();
+    let mut index = 0usize;
+    while index + 4 <= bytes.len() {
+        if !bytes[index].eq_ignore_ascii_case(&b'u')
+            || !bytes[index + 1].eq_ignore_ascii_case(&b'r')
+            || !bytes[index + 2].eq_ignore_ascii_case(&b'l')
+            || bytes[index + 3] != b'('
+        {
+            index += 1;
+            continue;
+        }
+
+        let argument_start = index + 4;
+        let mut cursor = argument_start;
+        let mut quote = None;
+        let mut escaped = false;
+        while cursor < bytes.len() {
+            let byte = bytes[cursor];
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if let Some(active_quote) = quote {
+                if byte == active_quote {
+                    quote = None;
+                }
+            } else if matches!(byte, b'\'' | b'"') {
+                quote = Some(byte);
+            } else if byte == b')' {
+                arguments.push(source[argument_start..cursor].trim().to_string());
+                index = cursor + 1;
+                break;
+            }
+            cursor += 1;
+        }
+        if cursor >= bytes.len() {
+            arguments.push(source[argument_start..].trim().to_string());
+            break;
+        }
+    }
+    arguments
 }
 
 fn sha256_hex_v0(source: &str) -> String {
@@ -1225,7 +1321,7 @@ mod tests {
     }
 
     #[test]
-    fn selectorless_module_shapes_are_marker_blind_unexpected_divergences() -> Result<(), String> {
+    fn marker_blind_modules_are_represented_and_classified_explicitly() -> Result<(), String> {
         let envelope = summarize_linked_emission_byte_differential_envelope_v0(
             LinkedEmissionByteDifferentialPerturbationV0::None,
         )?;
@@ -1248,15 +1344,18 @@ mod tests {
             .map(|blind_spot| blind_spot.fixture_id.as_str())
             .collect::<BTreeSet<_>>();
 
-        assert_eq!(unexpected_fixture_ids, expected_fixture_ids);
+        assert_eq!(
+            unexpected_fixture_ids,
+            BTreeSet::from(["font-face-only-module"])
+        );
         assert_eq!(blind_spot_fixture_ids, expected_fixture_ids);
         assert!(envelope.census.blind_spots.iter().all(|blind_spot| {
-            blind_spot.emission_plan_entry_count == 0
+            blind_spot.emission_plan_entry_count > 0
                 && blind_spot.output_bytes_differ
                 && blind_spot.marker_orders_agree
                 && blind_spot.linked_marker_order_matches_authority
                 && !blind_spot.semantic_difference_observed
-                && !blind_spot.difference_reason_observed
+                && blind_spot.difference_reason_observed
         }));
         assert_eq!(
             envelope
@@ -1272,7 +1371,10 @@ mod tests {
                 .collect::<BTreeMap<_, _>>(),
             BTreeMap::from([
                 ("bare-layer-statement-module", ["atRules"].as_slice()),
-                ("element-only-reset-module", [].as_slice()),
+                (
+                    "element-only-reset-module",
+                    ["emissionSelectors"].as_slice()
+                ),
                 ("font-face-only-module", ["atRules"].as_slice()),
             ])
         );
@@ -1286,7 +1388,36 @@ mod tests {
     }
 
     #[test]
-    fn placement_witnesses_expose_selector_only_order_blindness() -> Result<(), String> {
+    fn asset_url_drift_is_not_laundered_as_module_placement() -> Result<(), String> {
+        let fixture = linked_emission_fixtures_v0()
+            .into_iter()
+            .find(|fixture| fixture.id == "font-face-only-module")
+            .ok_or_else(|| "font-face fixture is missing".to_string())?;
+        let analysis = analyze_linked_emission_fixture_v0(
+            &fixture,
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+
+        assert_ne!(
+            css_url_arguments_v0(&analysis.legacy_css),
+            css_url_arguments_v0(&analysis.linked_css)
+        );
+        assert!(analysis.case.semantic_preserved);
+        assert!(
+            analysis
+                .case
+                .reasons
+                .contains(&LinkedEmissionByteDifferenceReasonV0::ImportGraphModulePlacement)
+        );
+        assert_eq!(
+            analysis.case.difference_class,
+            LinkedEmissionByteDifferenceClassV0::Unexpected
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn placement_witnesses_follow_import_graph_order() -> Result<(), String> {
         let envelope = summarize_linked_emission_byte_differential_envelope_v0(
             LinkedEmissionByteDifferentialPerturbationV0::None,
         )?;
@@ -1300,7 +1431,7 @@ mod tests {
         assert_eq!(witnesses.len(), 4);
         assert!(witnesses.values().all(|witness| {
             !witness.selectorless_module_paths.is_empty()
-                && witness.emission_plan_entry_count == 0
+                && witness.emission_plan_entry_count > 0
                 && witness.output_bytes_differ
                 && witness.marker_orders_agree
                 && witness.linked_marker_order_matches_authority
@@ -1324,15 +1455,15 @@ mod tests {
             BTreeMap::from([
                 (
                     "cascade-layer-declaration-order",
-                    ("blue", "blue", "orange", false, false)
+                    ("blue", "blue", "blue", false, true)
                 ),
                 (
                     "element-selector-after-rule-bearing-module",
-                    ("red", "red", "green", true, false)
+                    ("red", "red", "red", false, true)
                 ),
                 (
                     "element-selector-winner",
-                    ("red", "red", "green", true, false)
+                    ("red", "red", "red", false, true)
                 ),
                 ("path-name-independence", ("red", "red", "red", false, true)),
             ])
