@@ -28,6 +28,7 @@ pub enum EmissionItemKindV0 {
     UnknownAtRule,
     KeyframesDeclaration,
     AnimationNameReference,
+    ModuleBoundary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -250,6 +251,14 @@ pub(crate) fn collect_emission_items(
             item.name.clone(),
         )
     });
+    if items.is_empty() {
+        items.push(EmissionItemV0 {
+            kind: EmissionItemKindV0::ModuleBoundary,
+            name: String::new(),
+            range_start: 0,
+            range_end: 0,
+        });
+    }
     items
 }
 
@@ -548,6 +557,21 @@ mod tests {
     }
 
     #[test]
+    fn emission_items_for_empty_stylesheets_are_module_boundaries() {
+        for source in ["", "/* license */"] {
+            assert_eq!(
+                items_for(source),
+                vec![super::EmissionItemV0 {
+                    kind: EmissionItemKindV0::ModuleBoundary,
+                    name: String::new(),
+                    range_start: 0,
+                    range_end: 0,
+                }]
+            );
+        }
+    }
+
+    #[test]
     fn emission_items_follow_source_order_across_fact_categories() {
         let items = items_for(
             ":root { --brand: red; }\n\
@@ -578,6 +602,32 @@ mod tests {
                 .iter()
                 .any(|item| matches!(item.kind, EmissionItemKindV0::AtRule { .. }))
         );
+    }
+
+    #[test]
+    fn emission_items_for_supported_syntax_have_no_unknown_kinds() {
+        for source in [
+            "main, [hidden], *, :hover, ::before { color: red; }",
+            "@font-face { font-family: Demo; src: url(demo.woff2); }",
+            "@layer reset, theme; @media (width > 1px) { div { color: red; } }",
+            "@supports (display: grid) { .grid { display: grid; } }",
+            "@keyframes pulse { from { opacity: 0; } to { opacity: 1; } }",
+        ] {
+            let unknown = items_for(source)
+                .into_iter()
+                .filter(|item| {
+                    matches!(
+                        item.kind,
+                        EmissionItemKindV0::UnknownStructuralSelector
+                            | EmissionItemKindV0::UnknownAtRule
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                unknown.is_empty(),
+                "unknown emission items for {source}: {unknown:?}"
+            );
+        }
     }
 
     #[test]

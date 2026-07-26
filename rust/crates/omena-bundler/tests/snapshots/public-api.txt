@@ -29,6 +29,7 @@ pub omena_bundler::EmissionItemKindV0::AnimationNameReference
 pub omena_bundler::EmissionItemKindV0::AtRule
 pub omena_bundler::EmissionItemKindV0::AtRule::node_kind: u32
 pub omena_bundler::EmissionItemKindV0::KeyframesDeclaration
+pub omena_bundler::EmissionItemKindV0::ModuleBoundary
 pub omena_bundler::EmissionItemKindV0::SelectorAttribute
 pub omena_bundler::EmissionItemKindV0::SelectorClass
 pub omena_bundler::EmissionItemKindV0::SelectorElement

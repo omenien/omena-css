@@ -80,6 +80,30 @@ fn linked_emission_preserves_import_graph_order_for_selectorless_modules() -> Re
     Ok(())
 }
 
+#[test]
+fn linked_emission_accepts_empty_and_comment_only_modules() -> Result<(), String> {
+    let output = run_linked_build(
+        "empty-modules",
+        "app.css",
+        &[
+            (
+                "app.css",
+                "@import \"./empty.css\"; @import \"./license.css\"; .app { color: red; }",
+            ),
+            ("empty.css", ""),
+            ("license.css", "/* retained license */"),
+        ],
+    )?;
+
+    assert_before(
+        output.as_str(),
+        "/* retained license */",
+        ".app",
+        "a comment-only dependency must retain its import-graph placement",
+    )?;
+    Ok(())
+}
+
 fn run_linked_build(
     label: &str,
     entrypoint: &str,

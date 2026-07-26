@@ -1477,13 +1477,13 @@
       "crate": "omena-bundler",
       "typeName": "EmissionItemFactCategoryV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 46
+      "line": 47
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionItemInputV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 98
+      "line": 99
     },
     {
       "crate": "omena-bundler",
@@ -1495,37 +1495,37 @@
       "crate": "omena-bundler",
       "typeName": "EmissionItemOrderKeyV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 107
+      "line": 108
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionItemPlanV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 115
+      "line": 116
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionItemProjectionDisclosureV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 89
+      "line": 90
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionItemProjectionDispositionV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 70
+      "line": 71
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionItemProjectionReasonV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 78
+      "line": 79
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionItemV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 36
+      "line": 37
     },
     {
       "crate": "omena-bundler",
@@ -1579,19 +1579,19 @@
       "crate": "omena-bundler",
       "typeName": "LinkedEmissionItemMaterializationErrorV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 142
+      "line": 143
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedEmissionItemOrderV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 135
+      "line": 136
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedEmissionItemV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 123
+      "line": 124
     },
     {
       "crate": "omena-bundler",
@@ -1705,7 +1705,7 @@
       "crate": "omena-bundler",
       "typeName": "TransformBundleEmissionItemProjectionV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_items.rs",
-      "line": 166
+      "line": 167
     },
     {
       "crate": "omena-bundler",

@@ -166,6 +166,8 @@ const emissionItemTests = runCargoTest([
 ]);
 for (const testName of [
   "emission_item_projection_parses_each_module_once",
+  "emission_items_for_empty_stylesheets_are_module_boundaries",
+  "emission_items_for_supported_syntax_have_no_unknown_kinds",
   "emission_items_place_element_only_import_before_the_importer",
   "emission_items_do_not_relocate_an_element_rule_past_named_rules",
   "emission_item_placement_is_independent_of_module_names",

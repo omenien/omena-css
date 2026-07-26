@@ -3748,16 +3748,17 @@ mod tests {
     }
 
     #[test]
-    fn emission_item_materializer_fails_loud_for_unrepresented_modules() -> Result<(), String> {
+    fn emission_item_materializer_preserves_empty_module_placement() -> Result<(), String> {
         let modules = [
             TransformBundleModuleInputV0::new(
                 "src/app.css",
-                "@import \"./empty.css\"; .app { color: red; }",
+                "@import \"./empty.css\"; @import \"./license.css\"; .app { color: red; }",
                 StyleDialect::Css,
             ),
+            TransformBundleModuleInputV0::new("src/empty.css", "", StyleDialect::Css),
             TransformBundleModuleInputV0::new(
-                "src/empty.css",
-                "/* intentionally empty */",
+                "src/license.css",
+                "/* license */",
                 StyleDialect::Css,
             ),
         ];
@@ -3779,19 +3780,34 @@ mod tests {
         let transformed = modules
             .iter()
             .map(|module| {
-                TransformBundleTransformedModuleV0::new(module.module_instance_key(), String::new())
+                let output_css = match module.source_path.as_str() {
+                    "src/app.css" => ".app { color: red; }",
+                    "src/license.css" => "/* license */",
+                    _ => "",
+                };
+                TransformBundleTransformedModuleV0::new(
+                    module.module_instance_key(),
+                    output_css.to_string(),
+                )
             })
             .collect::<Vec<_>>();
 
-        assert!(matches!(
+        let artifact =
             super::materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(
                 &linked,
                 &transformed,
-            ),
-            Err(super::LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem {
-                module_instance
-            }) if module_instance.module().as_str() == "src/empty.css"
-        ));
+            )
+            .map_err(|error| format!("emission-item materialization failed: {error:?}"))?;
+        assert_eq!(artifact.emitted_module_count, 3);
+        assert_eq!(
+            artifact
+                .module_regions
+                .iter()
+                .map(|region| region.module_instance.module().as_str())
+                .collect::<Vec<_>>(),
+            ["src/empty.css", "src/license.css", "src/app.css"]
+        );
+        assert_eq!(artifact.output_css, "/* license */\n.app { color: red; }");
         Ok(())
     }
 }
