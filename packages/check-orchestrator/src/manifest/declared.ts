@@ -894,6 +894,8 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-bundler/linked-emission-default-precondition",
       "rust/omena-query/linker-input-walk-authority",
       "rust/omena-query/linked-source-map-boundary",
+      "rust/omena-query/module-qualified-product-path",
+      "rust/omena-query/module-reachability-hoist",
       "rust/omena-transform-passes/lex-splice-equivalence",
       "rust/omena-transform-passes/structural-ir-shadow",
       "rust/omena-spec-audit-webref-grammar",

@@ -827,7 +827,7 @@ describe("check orchestrator manifest", () => {
       path.join(root, ".github/workflows/ci.yml"),
       ["name: CI", "jobs:", "  verify:", "    steps:", "      - run: node --version"].join("\n"),
     );
-    const declaredGates: DeclaredCheckGateV0[] = Array.from({ length: 156 }, (_, index) => ({
+    const declaredGates: DeclaredCheckGateV0[] = Array.from({ length: 158 }, (_, index) => ({
       id: `tooling/manual-${index}`,
       kind: "command",
       scope: "tooling",
@@ -842,7 +842,7 @@ describe("check orchestrator manifest", () => {
         expect.objectContaining({
           severity: "error",
           code: "ci-tier-escape-hatch-budget-exceeded",
-          message: expect.stringContaining("exceeds the governed maximum"),
+          message: expect.stringContaining("exceeds the governed maximum 157"),
         }),
       ]),
     );
