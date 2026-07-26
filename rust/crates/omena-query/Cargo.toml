@@ -22,7 +22,6 @@ lawvere-trace = ["omena-query-transform-runner/lawvere-trace"]
 salsa-memo = ["dep:salsa"]
 smt-z3 = ["omena-query-checker-orchestrator/smt-z3"]
 test-support = [
-  "dep:omena-testkit",
   "omena-parser/test-support",
   "omena-query-core/test-support",
   "omena-resolver/test-support",
@@ -43,7 +42,6 @@ omena-scss-eval = { path = "../omena-scss-eval", version = "=0.3.0" }
 omena-semantic = { path = "../omena-semantic", version = "=0.3.0" }
 omena-sif = { path = "../omena-sif", version = "=0.3.0" }
 omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }
-omena-testkit = { path = "../omena-testkit", version = "=0.3.0", optional = true }
 salsa = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
