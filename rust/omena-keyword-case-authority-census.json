@@ -406,7 +406,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 1612,
+      "line": 1623,
       "function": "parse_declaration",
       "idiom": "equals",
       "keyword": "composes",
@@ -417,7 +417,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 1749,
+      "line": 1760,
       "function": "parse_composes_value_until",
       "idiom": "equals",
       "keyword": "from",
@@ -428,7 +428,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 1808,
+      "line": 1819,
       "function": "current_composes_value_has_multiple_from_clauses",
       "idiom": "equals",
       "keyword": "from",
@@ -439,7 +439,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 2085,
+      "line": 2096,
       "function": "validate_scss_module_prelude",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "as",
@@ -450,7 +450,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 2188,
+      "line": 2199,
       "function": "parse_css_module_value_rule",
       "idiom": "equals",
       "keyword": "from",
@@ -461,7 +461,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 2269,
+      "line": 2280,
       "function": "parse_css_module_token_definitions_until",
       "idiom": "equals",
       "keyword": "from",
@@ -472,7 +472,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 2827,
+      "line": 2838,
       "function": "parse_split_important_annotation",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "!important",
@@ -483,7 +483,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 2857,
+      "line": 2868,
       "function": "parse_function_call",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "supports",
@@ -494,7 +494,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 3831,
+      "line": 3842,
       "function": "scope_rule_prelude_is_valid",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "to",
@@ -505,7 +505,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 3950,
+      "line": 3961,
       "function": "parse_import_prelude",
       "idiom": "equals",
       "keyword": "layer",
@@ -516,7 +516,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 3957,
+      "line": 3968,
       "function": "parse_import_prelude",
       "idiom": "equals",
       "keyword": "supports",
@@ -527,7 +527,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 4536,
+      "line": 4547,
       "function": "current_split_important_annotation",
       "idiom": "matches-ignore-ascii-case",
       "keyword": "!important",
@@ -538,7 +538,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/parse.rs",
-      "line": 5247,
+      "line": 5258,
       "function": "current_is_css_module_value_rule",
       "idiom": "equals",
       "keyword": "@value",
@@ -2033,7 +2033,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:05b68f3590257b3b69c6efa91c4f12ce8bfd74adee3d77627a30342ae464b921",
+  "siteDigest": "sha256:faaf6e673e0c8da06ff21364af22543d51d918f4b9a4eef0fcda53b93966a959",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
