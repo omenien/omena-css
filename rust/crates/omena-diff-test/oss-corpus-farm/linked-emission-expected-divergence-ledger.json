@@ -50,6 +50,13 @@
       "justification": "The bare layer statement is emitted before its importer according to the declared import order; the remaining byte difference is ASCII whitespace."
     },
     {
+      "fixtureId": "comment-only-module-boundary",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
+      "witnessDigest": "8636e18c2f777a8608ae58708dbfdac09b25d2919cbd868f9c7004083f0baaee",
+      "justification": "The comment-only dependency retains an explicit module boundary and is emitted before its importer; the remaining byte difference is ASCII whitespace."
+    },
+    {
       "fixtureId": "bundler-productization-corpus",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],

@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_benchmarks::bundler_productization_corpus;
 use omena_bundler::{
     EmissionItemKindV0, EmissionOrderingPolicyV0, LinkedStylesheetWithEmissionItemsV0,
-    TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+    LinkerInputV0, TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
     link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
     project_omena_transform_bundle_linker_and_emission_items,
 };
@@ -269,6 +269,14 @@ const LINKED_EMISSION_COVERAGE_POPULATION_V0: &[LinkedEmissionCoverageShapeDefin
     LinkedEmissionCoverageShapeDefinitionV0 {
         shape_class: "font-face-only",
         reentry: "add a linked module containing only a font-face rule",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "empty-module",
+        reentry: "retain an imported empty module with a module-boundary emission item",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "comment-only-module",
+        reentry: "retain an imported comment-only module with a module-boundary emission item",
     },
     LinkedEmissionCoverageShapeDefinitionV0 {
         shape_class: "configured-sass-module-instance",
@@ -599,6 +607,10 @@ fn analyze_linked_emission_fixture_v0(
         .collect::<Vec<_>>();
     let projections =
         project_omena_transform_bundle_linker_and_emission_items(&linker_modules, &[]);
+    let import_graph_module_order = independent_import_graph_module_order_v0(
+        fixture,
+        projections.linker_projection().inputs(),
+    )?;
     let linked_order =
         link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
             std::slice::from_ref(&fixture.entry_path),
@@ -611,15 +623,29 @@ fn analyze_linked_emission_fixture_v0(
             },
         )
         .map_err(|error| format!("fixture {} could not be linked: {error:?}", fixture.id))?;
-    let authoritative_marker_order = linked_order
-        .linked_stylesheet
-        .global_rule_order
-        .rules
+    let emission_plan_module_order = emission_item_module_order_v0(&linked_order);
+    if emission_plan_module_order != import_graph_module_order {
+        return Err(format!(
+            "fixture {} emission plan diverged from its independently traversed import graph: {:?} != {:?}",
+            fixture.id, emission_plan_module_order, import_graph_module_order
+        ));
+    }
+    let modules_by_path = fixture
+        .modules
         .iter()
-        .filter(|rule| marker_names.contains(&rule.selector_name))
-        .map(|rule| rule.selector_name.clone())
+        .map(|module| (module.path.as_str(), module))
+        .collect::<BTreeMap<_, _>>();
+    let authoritative_marker_order = import_graph_module_order
+        .iter()
+        .flat_map(|path| {
+            modules_by_path
+                .get(path.as_str())
+                .into_iter()
+                .flat_map(|module| module.marker_names.iter().cloned())
+        })
         .collect::<Vec<_>>();
-    let authoritative_module_order = emission_item_module_order_v0(&linked_order);
+    let authoritative_module_order =
+        observable_module_order_v0(fixture, &import_graph_module_order);
     let linked_output_module_order =
         if perturbation == LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes {
             authoritative_module_order.clone()
@@ -953,6 +979,141 @@ fn emission_item_module_order_v0(linked: &LinkedStylesheetWithEmissionItemsV0) -
         .collect()
 }
 
+fn independent_import_graph_module_order_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    inputs: &[LinkerInputV0],
+) -> Result<Vec<String>, String> {
+    let module_paths = fixture
+        .modules
+        .iter()
+        .map(|module| module.path.clone())
+        .collect::<BTreeSet<_>>();
+    let mut dependencies = BTreeMap::<String, Vec<(u32, String)>>::new();
+    for input in inputs {
+        if !module_paths.contains(input.source_path.as_str()) {
+            continue;
+        }
+        let mut input_dependencies = input
+            .dependency_edges
+            .iter()
+            .map(|edge| {
+                resolve_fixture_import_path_v0(
+                    input.source_path.as_str(),
+                    edge.import_source.as_str(),
+                    &module_paths,
+                )
+                .map(|target| (edge.import_ordinal.unwrap_or(u32::MAX), target))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        input_dependencies.sort();
+        input_dependencies.dedup();
+        dependencies.insert(input.source_path.clone(), input_dependencies);
+    }
+
+    let mut visiting = BTreeSet::new();
+    let mut visited = BTreeSet::new();
+    let mut order = Vec::new();
+    visit_import_graph_module_v0(
+        fixture.entry_path.as_str(),
+        &dependencies,
+        &mut visiting,
+        &mut visited,
+        &mut order,
+    )?;
+    if visited != module_paths {
+        let missing = module_paths
+            .difference(&visited)
+            .cloned()
+            .collect::<Vec<_>>();
+        return Err(format!(
+            "fixture {} contains modules outside the entry import graph: {missing:?}",
+            fixture.id
+        ));
+    }
+    Ok(order)
+}
+
+fn visit_import_graph_module_v0(
+    source_path: &str,
+    dependencies: &BTreeMap<String, Vec<(u32, String)>>,
+    visiting: &mut BTreeSet<String>,
+    visited: &mut BTreeSet<String>,
+    order: &mut Vec<String>,
+) -> Result<(), String> {
+    if visited.contains(source_path) {
+        return Ok(());
+    }
+    if !visiting.insert(source_path.to_string()) {
+        return Err(format!(
+            "linked-emission fixture import graph contains a cycle at {source_path}"
+        ));
+    }
+    if let Some(source_dependencies) = dependencies.get(source_path) {
+        for (_, target) in source_dependencies {
+            visit_import_graph_module_v0(target.as_str(), dependencies, visiting, visited, order)?;
+        }
+    }
+    visiting.remove(source_path);
+    visited.insert(source_path.to_string());
+    order.push(source_path.to_string());
+    Ok(())
+}
+
+fn resolve_fixture_import_path_v0(
+    source_path: &str,
+    import_source: &str,
+    module_paths: &BTreeSet<String>,
+) -> Result<String, String> {
+    let base = source_path.rsplit_once('/').map_or("", |(base, _)| base);
+    let joined = if import_source.starts_with('/') || base.is_empty() {
+        import_source.to_string()
+    } else {
+        format!("{base}/{import_source}")
+    };
+    let normalized = normalize_fixture_path_v0(joined.as_str())?;
+    if module_paths.contains(normalized.as_str()) {
+        Ok(normalized)
+    } else {
+        Err(format!(
+            "linked-emission fixture import {import_source:?} from {source_path} does not resolve inside the fixture"
+        ))
+    }
+}
+
+fn normalize_fixture_path_v0(path: &str) -> Result<String, String> {
+    let mut components = Vec::new();
+    let portable_path = path.replace('\\', "/");
+    for component in portable_path.split('/') {
+        match component {
+            "" | "." => {}
+            ".." => {
+                if components.pop().is_none() {
+                    return Err(format!("fixture path escapes its root: {path}"));
+                }
+            }
+            component => components.push(component),
+        }
+    }
+    Ok(components.join("/"))
+}
+
+fn observable_module_order_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    import_graph_module_order: &[String],
+) -> Vec<String> {
+    let observable_paths = fixture
+        .modules
+        .iter()
+        .filter(|module| !module.order_probe.trim().is_empty())
+        .map(|module| module.path.as_str())
+        .collect::<BTreeSet<_>>();
+    import_graph_module_order
+        .iter()
+        .filter(|path| observable_paths.contains(path.as_str()))
+        .cloned()
+        .collect()
+}
+
 fn output_module_order_v0(
     fixture: &LinkedEmissionFixtureV0,
     output_css: &str,
@@ -961,14 +1122,9 @@ fn output_module_order_v0(
     let mut positioned_modules = fixture
         .modules
         .iter()
+        .filter(|module| !module.order_probe.trim().is_empty())
         .map(|module| {
             let compact_probe = remove_ascii_whitespace_v0(module.order_probe.as_str());
-            if compact_probe.is_empty() {
-                return Err(format!(
-                    "linked-emission fixture {} has an empty order probe for {}",
-                    fixture.id, module.path
-                ));
-            }
             let positions = compact_output
                 .match_indices(compact_probe.as_str())
                 .map(|(index, _)| index)
@@ -1212,6 +1368,20 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
             "@font-face { font-family: \"OmenaFixture\"; src: url(\"./font.woff2\"); }",
             "OmenaFixture",
         ),
+        selectorless_module_fixture_v0(
+            "empty-module-boundary",
+            "empty-module",
+            "empty.css",
+            "",
+            "",
+        ),
+        selectorless_module_fixture_v0(
+            "comment-only-module-boundary",
+            "comment-only-module",
+            "license.css",
+            "/* Omena fixture license */",
+            "Omena fixture license",
+        ),
     ];
     if let Some(corpus_fixture) = product_corpus_fixture_v0() {
         fixtures.push(corpus_fixture);
@@ -1446,7 +1616,9 @@ mod tests {
         )?;
         let expected_fixture_ids = BTreeSet::from([
             "bare-layer-statement-module",
+            "comment-only-module-boundary",
             "element-only-reset-module",
+            "empty-module-boundary",
             "font-face-only-module",
         ]);
         let unexpected_fixture_ids = envelope
@@ -1470,11 +1642,10 @@ mod tests {
         assert_eq!(blind_spot_fixture_ids, expected_fixture_ids);
         assert!(envelope.census.blind_spots.iter().all(|blind_spot| {
             blind_spot.emission_plan_entry_count > 0
-                && blind_spot.output_bytes_differ
                 && blind_spot.marker_orders_agree
                 && blind_spot.linked_marker_order_matches_authority
                 && !blind_spot.semantic_difference_observed
-                && blind_spot.difference_reason_observed
+                && (!blind_spot.output_bytes_differ || blind_spot.difference_reason_observed)
         }));
         assert_eq!(
             envelope
@@ -1490,17 +1661,23 @@ mod tests {
                 .collect::<BTreeMap<_, _>>(),
             BTreeMap::from([
                 ("bare-layer-statement-module", ["atRules"].as_slice()),
+                ("comment-only-module-boundary", [].as_slice()),
                 (
                     "element-only-reset-module",
                     ["emissionSelectors"].as_slice()
                 ),
+                ("empty-module-boundary", [].as_slice()),
                 ("font-face-only-module", ["atRules"].as_slice()),
             ])
         );
         assert!(envelope.census.not_covered.iter().all(|entry| {
             !matches!(
                 entry.shape_class.as_str(),
-                "bare-layer-statement" | "element-only-reset" | "font-face-only"
+                "bare-layer-statement"
+                    | "comment-only-module"
+                    | "element-only-reset"
+                    | "empty-module"
+                    | "font-face-only"
             )
         }));
         Ok(())
@@ -1536,7 +1713,7 @@ mod tests {
     }
 
     #[test]
-    fn module_placement_reason_requires_import_order_output() -> Result<(), String> {
+    fn module_placement_reason_requires_import_graph_order() -> Result<(), String> {
         let fixture = linked_emission_fixtures_v0()
             .into_iter()
             .find(|fixture| fixture.id == "element-only-reset-module")
@@ -1555,13 +1732,15 @@ mod tests {
             lexicographic_module_order,
             analysis.case.authoritative_module_order
         );
+        let linked_output_module_order_matches_authority =
+            lexicographic_module_order == analysis.case.authoritative_module_order;
         let difference_observation = LinkedEmissionDifferenceObservationV0 {
             legacy_css: &analysis.legacy_css,
             linked_css: &lexicographic_output,
             authoritative_marker_order: &analysis.case.authoritative_marker_order,
             legacy_marker_order: &analysis.case.legacy_marker_order,
             linked_marker_order: &analysis.case.linked_marker_order,
-            linked_output_module_order_matches_authority: false,
+            linked_output_module_order_matches_authority,
         };
         let reasons =
             derive_difference_reasons_v0(&fixture, &analysis.linked_order, &difference_observation);

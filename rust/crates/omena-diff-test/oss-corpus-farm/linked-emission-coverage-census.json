@@ -3,13 +3,13 @@
   "product": "omena-diff-test.linked-emission-coverage-census",
   "coverageScope": "boundedMultiModuleFixtures",
   "fullCorpusCoverage": false,
-  "populationCount": 12,
-  "coveredShapeCount": 8,
+  "populationCount": 14,
+  "coveredShapeCount": 10,
   "notCoveredShapeCount": 4,
-  "fixtureCount": 8,
-  "moduleCount": 22,
-  "markerObservableModuleCount": 19,
-  "blindSpotModuleCount": 3,
+  "fixtureCount": 10,
+  "moduleCount": 26,
+  "markerObservableModuleCount": 21,
+  "blindSpotModuleCount": 5,
   "unknownStructuralSelectorCount": 0,
   "unknownAtRuleCount": 0,
   "shapes": [
@@ -22,6 +22,10 @@
       "fixtureIds": []
     },
     {
+      "shapeClass": "comment-only-module",
+      "fixtureIds": ["comment-only-module-boundary"]
+    },
+    {
       "shapeClass": "configured-sass-module-instance",
       "fixtureIds": []
     },
@@ -32,6 +36,10 @@
     {
       "shapeClass": "element-only-reset",
       "fixtureIds": ["element-only-reset-module"]
+    },
+    {
+      "shapeClass": "empty-module",
+      "fixtureIds": ["empty-module-boundary"]
     },
     {
       "shapeClass": "font-face-only",
@@ -124,6 +132,18 @@
       "blindSpotModuleCount": 1
     },
     {
+      "fixtureId": "empty-module-boundary",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
+      "fixtureId": "comment-only-module-boundary",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
       "fixtureId": "bundler-productization-corpus",
       "moduleCount": 3,
       "markerObservableModuleCount": 3,
@@ -161,6 +181,30 @@
       "shapeClasses": ["font-face-only"],
       "emissionPlanEntryCount": 1,
       "factCategories": ["atRules"],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "empty-module-boundary",
+      "modulePath": "linked-byte/empty-module-boundary/empty.css",
+      "shapeClasses": ["empty-module"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": [],
+      "outputBytesDiffer": false,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "comment-only-module-boundary",
+      "modulePath": "linked-byte/comment-only-module-boundary/license.css",
+      "shapeClasses": ["comment-only-module"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": [],
       "outputBytesDiffer": true,
       "markerOrdersAgree": true,
       "linkedMarkerOrderMatchesAuthority": true,

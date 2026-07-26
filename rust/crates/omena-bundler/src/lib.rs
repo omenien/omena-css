@@ -3810,4 +3810,65 @@ mod tests {
         assert_eq!(artifact.output_css, "/* license */\n.app { color: red; }");
         Ok(())
     }
+
+    #[test]
+    fn emission_item_materializer_rejects_incomplete_module_coverage() -> Result<(), String> {
+        let modules = [
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                "@import \"./reset.css\"; .app { color: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/reset.css",
+                "html { box-sizing: border-box; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let projections =
+            super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
+        let mut linked =
+            super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+                &["src/app.css"],
+                projections.linker_projection(),
+                projections.emission_item_projection(),
+                &[],
+                &[],
+                TransformBundleLinkOptionsV0 {
+                    emission_ordering_policy:
+                        super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                },
+            )
+            .map_err(|error| format!("emission-item link failed: {error:?}"))?;
+        let missing_module = modules[1].module_instance_key();
+        linked
+            .emission_item_order
+            .items
+            .retain(|item| item.module_instance != missing_module);
+        for (index, item) in linked.emission_item_order.items.iter_mut().enumerate() {
+            item.global_order_index = u32::try_from(index)
+                .map_err(|_| "emission-item test order exceeds u32".to_string())?;
+        }
+        let transformed = modules
+            .iter()
+            .map(|module| {
+                TransformBundleTransformedModuleV0::new(
+                    module.module_instance_key(),
+                    module.source.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        match super::materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(
+            &linked,
+            &transformed,
+        ) {
+            Err(super::LinkedEmissionItemMaterializationErrorV0::MissingEmissionItem {
+                module_instance,
+            }) if module_instance == missing_module => Ok(()),
+            result => Err(format!(
+                "incomplete emission-item coverage returned an unexpected result: {result:?}"
+            )),
+        }
+    }
 }

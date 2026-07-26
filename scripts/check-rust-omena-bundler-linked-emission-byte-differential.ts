@@ -302,16 +302,39 @@ assert.equal(
   "the bounded linked-emission corpus projected an unknown at-rule",
 );
 assert.equal(census.placementWitnesses.length, 4);
+const moduleBoundaryShapeClasses = new Set(["empty-module", "comment-only-module"]);
+const moduleBoundaryBlindSpots = census.blindSpots.filter((blindSpot) =>
+  blindSpot.shapeClasses.some((shapeClass) => moduleBoundaryShapeClasses.has(shapeClass)),
+);
+assert.deepEqual(moduleBoundaryBlindSpots.map((blindSpot) => blindSpot.fixtureId).toSorted(), [
+  "comment-only-module-boundary",
+  "empty-module-boundary",
+]);
 assert.ok(
-  census.blindSpots.every(
+  moduleBoundaryBlindSpots.every(
     (blindSpot) =>
-      blindSpot.emissionPlanEntryCount > 0 &&
-      blindSpot.outputBytesDiffer &&
+      blindSpot.emissionPlanEntryCount === 1 &&
+      blindSpot.factCategories.length === 0 &&
       blindSpot.markerOrdersAgree &&
       blindSpot.linkedMarkerOrderMatchesAuthority &&
-      !blindSpot.semanticDifferenceObserved &&
-      blindSpot.differenceReasonObserved,
+      !blindSpot.semanticDifferenceObserved,
   ),
+);
+assert.ok(
+  census.blindSpots
+    .filter(
+      (blindSpot) =>
+        !blindSpot.shapeClasses.some((shapeClass) => moduleBoundaryShapeClasses.has(shapeClass)),
+    )
+    .every(
+      (blindSpot) =>
+        blindSpot.emissionPlanEntryCount > 0 &&
+        blindSpot.outputBytesDiffer &&
+        blindSpot.markerOrdersAgree &&
+        blindSpot.linkedMarkerOrderMatchesAuthority &&
+        !blindSpot.semanticDifferenceObserved &&
+        blindSpot.differenceReasonObserved,
+    ),
 );
 assert.ok(
   census.placementWitnesses.every(
@@ -488,7 +511,7 @@ for (const entry of expectedDivergenceLedger.entries) {
     `expected-divergence witness digest drifted for ${entry.fixtureId}`,
   );
   assert.ok(
-    entry.justification.length > 0,
+    entry.justification.trim().length > 0,
     `${entry.fixtureId} has no expected-difference justification`,
   );
 }
@@ -515,8 +538,8 @@ for (const entry of divergenceLedger.entries) {
     divergenceWitnessDigest(entry.fixtureId, liveCase.legacySha256, liveCase.linkedSha256),
     `open-divergence witness digest drifted for ${entry.fixtureId}`,
   );
-  assert.ok(entry.owningGoal.length > 0, `${entry.fixtureId} has no owning goal`);
-  assert.ok(entry.note.length > 0, `${entry.fixtureId} has no closure note`);
+  assert.ok(entry.owningGoal.trim().length > 0, `${entry.fixtureId} has no owning goal`);
+  assert.ok(entry.note.trim().length > 0, `${entry.fixtureId} has no closure note`);
   assert.ok(
     census.blindSpots.some(
       (blindSpot) =>
