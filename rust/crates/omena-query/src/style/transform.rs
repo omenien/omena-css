@@ -11,7 +11,9 @@ use omena_query_transform_runner::{
     TransformBundleLinkOptionsV0, TransformBundleLinkerProjectionV0,
     TransformBundleParsedModuleInputV0, TransformBundleResolvedDependencyV0,
     TransformBundleSemanticReachabilityInputV0, TransformBundleTransformedModuleV0,
-    bundle_edge_is_module_dependency, classify_transform_reachability_precision,
+    TransformModuleQualifiedExecutionErrorV0, bundle_edge_is_module_dependency,
+    classify_transform_reachability_precision,
+    execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle,
     link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
     link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
     materialize_omena_transform_bundle_linked_stylesheet_with_emission_items,
@@ -964,6 +966,56 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world
             "transformPassOutcomeContract",
         ],
     }
+}
+
+fn execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
+    style_path: &str,
+    style_source: &str,
+    pass_set: &ConsumerBuildPassSetV0,
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_instance: &omena_parser::ModuleInstanceKeyV0,
+    reachability_precision: FactPrecision,
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    let context = merge_single_source_transform_context(style_path, style_source, context);
+    let execution_summary =
+        execute_omena_query_transform_passes_from_module_with_context_and_closed_world_bundle(
+            style_path,
+            style_source,
+            &pass_set.effective,
+            &context,
+            closed_world_bundle,
+            module_instance,
+            reachability_precision,
+            &execution_policy_for_build_options(options),
+        )
+        .map_err(|error| format!("module-qualified transform execution failed: {error:?}"))?;
+
+    Ok(OmenaQueryConsumerBuildSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.consumer-build-style-source",
+        style_path: style_path.to_string(),
+        dialect: omena_parser_style_dialect_label(omena_parser_dialect_for_style_path(style_path)),
+        requested_pass_ids: pass_set.requested.clone(),
+        effective_pass_ids: pass_set.effective.clone(),
+        target_query: None,
+        unknown_pass_ids: execution_summary.unknown_pass_ids,
+        semantic_removal_count: execution_summary.semantic_removal_count,
+        execution: execution_summary.execution,
+        bundle: None,
+        bundle_emission_path: None,
+        source_map_v3: None,
+        open_world_snapshot: None,
+        ready_surfaces: vec![
+            "consumerBuildFacade",
+            "singleSourceTransformContextProducer",
+            "closedWorldBundle",
+            "moduleQualifiedReachability",
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+        ],
+    })
 }
 
 pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context(
@@ -2494,6 +2546,56 @@ fn execute_omena_query_transform_passes_from_source_with_context_and_closed_worl
     }
 }
 
+fn execute_omena_query_transform_passes_from_module_with_context_and_closed_world_bundle(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_instance: &omena_parser::ModuleInstanceKeyV0,
+    reachability_precision: FactPrecision,
+    execution_policy: &TransformExecutionPolicyV0,
+) -> Result<OmenaQueryTransformExecuteSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+    let (requested_passes, unknown_pass_ids) =
+        requested_transform_passes_from_ids(requested_pass_ids);
+    let (admitted_passes, preflight_refusals) =
+        strict_query_preflight(requested_pass_ids, requested_passes, execution_policy, true);
+    let expected_decision_count = admitted_passes.len();
+
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let mut execution =
+        execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle(
+            style_source,
+            dialect,
+            &admitted_passes,
+            context,
+            closed_world_bundle,
+            module_instance,
+            reachability_precision,
+            execution_policy,
+        )?;
+    merge_strict_preflight_refusals(&mut execution, preflight_refusals);
+    enforce_strict_decision_coverage(&mut execution, execution_policy, expected_decision_count);
+    let semantic_removal_count = execution.semantic_removals.len();
+
+    Ok(OmenaQueryTransformExecuteSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-execute",
+        style_path: style_path.to_string(),
+        requested_pass_ids: requested_pass_ids.to_vec(),
+        unknown_pass_ids,
+        execution,
+        semantic_removal_count,
+        open_world_snapshot: None,
+        ready_surfaces: vec![
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+            "closedWorldBundle",
+            "moduleQualifiedReachability",
+        ],
+    })
+}
+
 fn strict_query_preflight(
     requested_pass_ids: &[String],
     requested_passes: Vec<TransformPassKind>,
@@ -3177,15 +3279,16 @@ fn execute_linked_bundle_modules(
             inline.replacement_css.clear();
         }
         let summary =
-            execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
+            execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
                 style_path,
                 style_source,
                 &pass_set,
                 &module_context,
                 &linked_stylesheet.closed_world_bundle,
+                module_instance,
                 classify_transform_reachability_precision(&module_context, true, None),
                 options,
-            );
+            )?;
         let non_empty_import_replacement_count = summary
             .execution
             .css_import_inlines

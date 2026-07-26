@@ -71,6 +71,7 @@ pub use omena_transform_passes::{
     TransformWinnerEqualityAxisV0, classify_transform_reachability_precision,
     compare_external_css_semantic_changes_v0, compare_transform_css_semantics_v0,
     execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle,
+    execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle,
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
     execute_transform_passes_on_source_with_dialect_context_and_policy,

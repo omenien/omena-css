@@ -63,13 +63,13 @@
   },
   "current": {
     "qualifiedExecutor": {
-      "totalOccurrences": 7,
-      "definitionOccurrences": 1,
-      "reexportOccurrences": 2,
-      "testOccurrences": 4,
-      "otherProductionOccurrences": 0,
+      "totalOccurrences": 15,
+      "definitionOccurrences": 2,
+      "reexportOccurrences": 4,
+      "testOccurrences": 6,
+      "otherProductionOccurrences": 1,
       "productOccurrencesByCrate": {
-        "omena-query": 0,
+        "omena-query": 2,
         "omena-cli": 0,
         "omena-napi": 0,
         "omena-wasm": 0,
@@ -79,7 +79,13 @@
         "execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle",
         "execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle"
       ],
-      "productCallers": []
+      "productCallers": [
+        {
+          "crateName": "omena-query",
+          "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+          "symbol": "execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle"
+        }
+      ]
     },
     "moduleQualifiedSymbols": {
       "totalOccurrences": 52,

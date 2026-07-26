@@ -233,6 +233,7 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
         .arg("--bundle")
         .arg("--linked-emission")
         .arg("--tree-shake")
+        .arg("--strict-verification")
         .arg("--engine-input-json")
         .arg(&engine_input_path)
         .arg("--source")
@@ -268,6 +269,16 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
                 .iter()
                 .any(|surface| surface == "expressionDomainSelectorProjection")),
         "the product witness must consume EngineInputV2 selector projections"
+    );
+    assert_eq!(
+        response["payload"]["execution"]["strictPolicy"]["profileId"], "strict-verification",
+        "the linked module route must preserve the requested verification policy"
+    );
+    assert!(
+        response["payload"]["execution"]["moduleQualifiedShake"]["removedCount"]
+            .as_u64()
+            .is_some_and(|count| count > 0),
+        "the linked entry execution must expose its module-qualified removal summary"
     );
 
     let css = fs::read_to_string(&output_path)

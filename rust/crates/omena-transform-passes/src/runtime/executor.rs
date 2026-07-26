@@ -1219,6 +1219,28 @@ pub fn execute_transform_passes_on_module_with_dialect_context_and_closed_world_
     closed_world_bundle: &ClosedWorldBundleV0,
     module_instance: &ModuleInstanceKeyV0,
 ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+    execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle(
+        source,
+        dialect,
+        requested,
+        context,
+        closed_world_bundle,
+        module_instance,
+        classify_transform_reachability_precision(context, true, None),
+        &TransformExecutionPolicyV0::default(),
+    )
+}
+
+pub fn execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_instance: &ModuleInstanceKeyV0,
+    reachability_precision: FactPrecision,
+    execution_policy: &TransformExecutionPolicyV0,
+) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
     let Some(module_qualified_symbols) = closed_world_bundle
         .reachability()
         .symbols_for_module(module_instance)
@@ -1229,7 +1251,6 @@ pub fn execute_transform_passes_on_module_with_dialect_context_and_closed_world_
             },
         );
     };
-    let reachability_precision = classify_transform_reachability_precision(context, true, None);
 
     Ok(super::lex_cache::with_transform_lex_cache(|| {
         execute_transform_passes_on_source_with_active_lex_cache(
@@ -1240,7 +1261,7 @@ pub fn execute_transform_passes_on_module_with_dialect_context_and_closed_world_
             Some(closed_world_bundle),
             Some(reachability_precision),
             TransformExecutionRuntimePolicyV0 {
-                verification: &TransformExecutionPolicyV0::default(),
+                verification: execution_policy,
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: Some(module_qualified_symbols),
             },
