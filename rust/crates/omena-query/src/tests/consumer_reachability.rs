@@ -1,6 +1,7 @@
 use crate::{
     ClassExpressionInputV2, EngineInputV2, OmenaQueryBundleEmissionPathV0,
-    OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0,
+    OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0, OmenaQueryExplainAvailabilityV0,
+    OmenaQueryExplainFactValueV0, OmenaQueryExplainInputV0, OmenaQueryExplainSymbolKindV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2,
     SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
@@ -10,7 +11,8 @@ use crate::{
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
-    execute_omena_query_consumer_build_style_sources_with_context,
+    execute_omena_query_consumer_build_style_sources_with_context, explain_omena_query,
+    explain_omena_query_tree_shake_for_module,
     run_omena_query_bundle_with_module_reachability_and_options,
     summarize_omena_query_expression_domain_selector_projection_with_precision,
 };
@@ -604,6 +606,62 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
         bundle.reachability().class_names(),
         &["dependency-own".to_string(), "shared".to_string()]
     );
+    let output_css = &result.bundle_result().artifact.output_css;
+    let flat_explanation = explain_omena_query(OmenaQueryExplainInputV0::TreeShake {
+        bundle,
+        symbol_kind: OmenaQueryExplainSymbolKindV0::Class,
+        symbol_name: "shared",
+    });
+    assert!(matches!(
+        flat_explanation.primary_fact().value(),
+        OmenaQueryExplainFactValueV0::ReachabilityMembership { reachable: true }
+    ));
+    assert!(flat_explanation.supporting_facts().iter().any(|fact| {
+        matches!(
+            fact.value(),
+            OmenaQueryExplainFactValueV0::ProvenanceLabel { label }
+                if label == "moduleOwnershipUnobserved"
+        )
+    }));
+
+    let dependency_shared = explain_omena_query_tree_shake_for_module(
+        bundle,
+        &dependency,
+        OmenaQueryExplainSymbolKindV0::Class,
+        "shared",
+    );
+    assert_eq!(dependency_shared.reachable(), Some(false));
+    assert!(dependency_shared.flat_reachable());
+    assert_eq!(
+        dependency_shared.ownership_digest(),
+        bundle.module_qualified_ownership_digest()
+    );
+    assert_eq!(
+        dependency_shared.provenance_labels(),
+        &["moduleQualifiedOwnershipObserved"]
+    );
+    assert!(!output_css.contains("color: green"));
+
+    let dependency_owned = explain_omena_query_tree_shake_for_module(
+        bundle,
+        &dependency,
+        OmenaQueryExplainSymbolKindV0::Class,
+        "dependency-own",
+    );
+    assert_eq!(dependency_owned.reachable(), Some(true));
+    assert!(output_css.contains("color: blue"));
+
+    let unknown = explain_omena_query_tree_shake_for_module(
+        bundle,
+        &ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/unknown.module.css")),
+        OmenaQueryExplainSymbolKindV0::Class,
+        "shared",
+    );
+    assert_eq!(
+        unknown.availability(),
+        OmenaQueryExplainAvailabilityV0::NotFound
+    );
+    assert_eq!(unknown.reachable(), None);
     Ok(())
 }
 
