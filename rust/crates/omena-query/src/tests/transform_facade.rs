@@ -814,12 +814,12 @@ fn bundle_emission_path_selects_linked_order_without_changing_the_default() -> R
         linked
             .artifact
             .output_css
-            .find(".app")
-            .is_some_and(|app_index| linked
+            .find(".token")
+            .is_some_and(|token_index| linked
                 .artifact
                 .output_css
-                .find(".token")
-                .is_some_and(|token_index| app_index < token_index))
+                .find(".app")
+                .is_some_and(|app_index| token_index < app_index))
     );
     assert_eq!(linked.artifact.output_css.matches(".app").count(), 1);
     assert_eq!(linked.artifact.output_css.matches(".token").count(), 1);
