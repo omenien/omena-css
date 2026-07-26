@@ -6,8 +6,15 @@
 //!
 //! The public types intentionally keep their `V0` suffix during the 0.x line.
 
+mod emission_items;
 mod emission_order;
 
+pub use emission_items::{
+    EmissionItemFactCategoryV0, EmissionItemInputV0, EmissionItemKindV0, EmissionItemOrderKeyV0,
+    EmissionItemPlanV0, EmissionItemProjectionDisclosureV0, EmissionItemProjectionDispositionV0,
+    EmissionItemProjectionReasonV0, EmissionItemV0, LinkedEmissionItemOrderV0,
+    LinkedEmissionItemV0, TransformBundleEmissionItemProjectionV0,
+};
 pub use emission_order::{
     EmissionCycleClassV0, EmissionCycleGroupV0, EmissionCyclePolicyV0, EmissionDependencyFactV0,
     EmissionOrderKeyV0, EmissionOrderingPolicyV0, EmissionPlanV0,
@@ -19,8 +26,9 @@ use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
     ClosedWorldModuleMetadataV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
-    ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind,
-    StyleDialect, collect_style_facts,
+    ParsedEmissionSelectorFactsV0, ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind,
+    ParsedStyleFacts, ParsedVariableFactKind, StyleDialect, collect_style_fact_collection,
+    collect_style_facts,
 };
 use omena_transform_cst::{
     IrNodeKindV0, TransformPassKind, lower_transform_ir_from_source, transform_pass_sort_ordinal,
@@ -244,6 +252,7 @@ pub struct TransformBundleParsedModuleInputV0 {
     source_path: String,
     dialect: StyleDialect,
     facts: ParsedStyleFacts,
+    emission_selectors: ParsedEmissionSelectorFactsV0,
     configuration_hashes: Vec<ConfigurationHashV0>,
 }
 
@@ -257,8 +266,17 @@ impl TransformBundleParsedModuleInputV0 {
             source_path: source_path.into(),
             dialect,
             facts,
+            emission_selectors: ParsedEmissionSelectorFactsV0::default(),
             configuration_hashes: vec![ConfigurationHashV0::none()],
         }
+    }
+
+    pub fn with_emission_selectors(
+        mut self,
+        emission_selectors: ParsedEmissionSelectorFactsV0,
+    ) -> Self {
+        self.emission_selectors = emission_selectors;
+        self
     }
 
     pub fn with_configuration_hashes(
@@ -354,6 +372,23 @@ pub struct LinkerInputV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransformBundleLinkerProjectionV0 {
     inputs: Vec<LinkerInputV0>,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformBundleLinkProjectionSetV0 {
+    linker_projection: TransformBundleLinkerProjectionV0,
+    emission_item_projection: TransformBundleEmissionItemProjectionV0,
+}
+
+impl TransformBundleLinkProjectionSetV0 {
+    pub fn linker_projection(&self) -> &TransformBundleLinkerProjectionV0 {
+        &self.linker_projection
+    }
+
+    pub fn emission_item_projection(&self) -> &TransformBundleEmissionItemProjectionV0 {
+        &self.emission_item_projection
+    }
 }
 
 impl TransformBundleLinkerProjectionV0 {
@@ -483,6 +518,16 @@ pub struct LinkedStylesheetV0 {
     pub emission_plan: EmissionPlanV0,
     pub global_rule_order: GlobalRuleOrderV0,
     pub closed_world_bundle: ClosedWorldBundleV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct LinkedStylesheetWithEmissionItemsV0 {
+    pub linked_stylesheet: LinkedStylesheetV0,
+    pub emission_item_plan: EmissionItemPlanV0,
+    pub emission_item_order: LinkedEmissionItemOrderV0,
+    pub projection_disclosures: Vec<EmissionItemProjectionDisclosureV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -734,6 +779,29 @@ pub fn project_omena_transform_bundle_linker_inputs(
     )
 }
 
+pub fn project_omena_transform_bundle_linker_and_emission_items(
+    modules: &[TransformBundleModuleInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) -> Result<TransformBundleLinkProjectionSetV0, TransformBundleLinkErrorV0> {
+    let parsed_modules = modules
+        .iter()
+        .map(|module| {
+            let collection = collect_style_fact_collection(module.source.as_str(), module.dialect);
+            TransformBundleParsedModuleInputV0::new(
+                module.source_path.as_str(),
+                module.dialect,
+                collection.facts,
+            )
+            .with_emission_selectors(collection.emission_selectors)
+            .with_configuration_hashes(vec![module.configuration_hash.clone()])
+        })
+        .collect::<Vec<_>>();
+    project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(
+        parsed_modules.as_slice(),
+        reachability_inputs,
+    )
+}
+
 pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules(
     modules: &[TransformBundleParsedModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
@@ -756,6 +824,35 @@ pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules(
     TransformBundleLinkerProjectionV0 { inputs }
 }
 
+pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(
+    modules: &[TransformBundleParsedModuleInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) -> Result<TransformBundleLinkProjectionSetV0, TransformBundleLinkErrorV0> {
+    let linker_projection = project_omena_transform_bundle_linker_inputs_from_parsed_modules(
+        modules,
+        reachability_inputs,
+    );
+    let mut emission_item_inputs = Vec::new();
+    for module in modules {
+        let items =
+            emission_items::collect_emission_items(&module.facts, &module.emission_selectors)?;
+        let disclosure = emission_items::emission_item_projection_disclosure(&module.facts);
+        for instance in module.module_instance_keys() {
+            emission_item_inputs.push(EmissionItemInputV0 {
+                module_instance: instance,
+                items: items.clone(),
+                disclosure: disclosure.clone(),
+            });
+        }
+    }
+    Ok(TransformBundleLinkProjectionSetV0 {
+        linker_projection,
+        emission_item_projection: TransformBundleEmissionItemProjectionV0::new(
+            emission_item_inputs,
+        ),
+    })
+}
+
 pub fn link_omena_transform_bundle_projection_with_resolved_dependencies_and_options<
     P: AsRef<str>,
 >(
@@ -773,6 +870,31 @@ pub fn link_omena_transform_bundle_projection_with_resolved_dependencies_and_opt
     link_stylesheet_from_projection_with_metadata_and_options(
         entrypoint_paths.as_slice(),
         projection.inputs(),
+        resolved_dependencies,
+        module_metadata,
+        options,
+    )
+}
+
+pub fn link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options<
+    P: AsRef<str>,
+>(
+    entrypoint_paths: &[P],
+    linker_projection: &TransformBundleLinkerProjectionV0,
+    emission_item_projection: &TransformBundleEmissionItemProjectionV0,
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    options: TransformBundleLinkOptionsV0,
+) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+    let entrypoint_paths = entrypoint_paths
+        .iter()
+        .map(|path| path.as_ref())
+        .collect::<Vec<_>>();
+
+    link_stylesheet_from_projection_with_emission_items_and_metadata_and_options(
+        entrypoint_paths.as_slice(),
+        linker_projection.inputs(),
+        emission_item_projection.inputs(),
         resolved_dependencies,
         module_metadata,
         options,
@@ -1013,6 +1135,44 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
     module_metadata: &[ClosedWorldModuleMetadataV0],
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    let prepared = prepare_linked_stylesheet_context(
+        entrypoint_paths,
+        inputs,
+        resolved_dependencies,
+        module_metadata,
+    )?;
+    let emission_plan = emission_order::build_emission_plan(
+        inputs,
+        prepared.closed_world_bundle.linked_modules(),
+        &prepared.entrypoints,
+        resolved_dependencies,
+        options.emission_ordering_policy,
+    )?;
+    let global_rule_order =
+        emission_order::build_global_rule_order_from_plan(inputs, &emission_plan)?;
+
+    Ok(LinkedStylesheetV0 {
+        schema_version: "0",
+        product: "omena-transform-bundle.linked-stylesheet",
+        entrypoints: prepared.entrypoints,
+        module_instances: prepared.closed_world_bundle.linked_modules().to_vec(),
+        emission_plan,
+        global_rule_order,
+        closed_world_bundle: prepared.closed_world_bundle,
+    })
+}
+
+struct PreparedLinkedStylesheetContextV0 {
+    entrypoints: Vec<ModuleInstanceKeyV0>,
+    closed_world_bundle: ClosedWorldBundleV0,
+}
+
+fn prepare_linked_stylesheet_context(
+    entrypoint_paths: &[&str],
+    inputs: &[LinkerInputV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+) -> Result<PreparedLinkedStylesheetContextV0, TransformBundleLinkErrorV0> {
     let instances_by_path = module_instances_by_linker_path(inputs);
     let entrypoints = entrypoint_paths
         .iter()
@@ -1035,24 +1195,76 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
         module_metadata.to_vec(),
     )
     .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
-    let emission_plan = emission_order::build_emission_plan(
-        inputs,
-        closed_world_bundle.linked_modules(),
-        &entrypoints,
+    Ok(PreparedLinkedStylesheetContextV0 {
+        entrypoints,
+        closed_world_bundle,
+    })
+}
+
+fn link_stylesheet_from_projection_with_emission_items_and_metadata_and_options(
+    entrypoint_paths: &[&str],
+    linker_inputs: &[LinkerInputV0],
+    emission_item_inputs: &[EmissionItemInputV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    options: TransformBundleLinkOptionsV0,
+) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+    let prepared = prepare_linked_stylesheet_context(
+        entrypoint_paths,
+        linker_inputs,
+        resolved_dependencies,
+        module_metadata,
+    )?;
+    let module_plan = emission_order::build_emission_module_plan(
+        linker_inputs,
+        prepared.closed_world_bundle.linked_modules(),
+        &prepared.entrypoints,
         resolved_dependencies,
         options.emission_ordering_policy,
     )?;
+    let emission_plan =
+        emission_order::build_emission_plan_from_module_plan(linker_inputs, &module_plan)?;
+    let legacy_global_rule_order =
+        emission_order::build_global_rule_order_from_plan(linker_inputs, &emission_plan)?;
+    let emission_item_plan =
+        emission_items::build_emission_item_plan(emission_item_inputs, &module_plan)?;
+    let emission_item_order = emission_items::build_linked_emission_item_order(
+        emission_item_inputs,
+        &emission_item_plan,
+    )?;
     let global_rule_order =
-        emission_order::build_global_rule_order_from_plan(inputs, &emission_plan)?;
-
-    Ok(LinkedStylesheetV0 {
+        emission_items::build_global_rule_order_from_emission_items(&emission_item_order)?;
+    if global_rule_order != legacy_global_rule_order {
+        return Err(TransformBundleLinkErrorV0::InvalidEmissionPlan {
+            reason: "selector projection from emission items changed global rule order".to_string(),
+        });
+    }
+    let projection_disclosures = emission_item_inputs
+        .first()
+        .map(|input| input.disclosure.clone())
+        .unwrap_or_default();
+    if emission_item_inputs
+        .iter()
+        .any(|input| input.disclosure != projection_disclosures)
+    {
+        return Err(TransformBundleLinkErrorV0::InvalidEmissionPlan {
+            reason: "emission-item projection disclosure differs between modules".to_string(),
+        });
+    }
+    let linked_stylesheet = LinkedStylesheetV0 {
         schema_version: "0",
         product: "omena-transform-bundle.linked-stylesheet",
-        entrypoints,
-        module_instances: closed_world_bundle.linked_modules().to_vec(),
+        entrypoints: prepared.entrypoints,
+        module_instances: prepared.closed_world_bundle.linked_modules().to_vec(),
         emission_plan,
         global_rule_order,
-        closed_world_bundle,
+        closed_world_bundle: prepared.closed_world_bundle,
+    };
+    Ok(LinkedStylesheetWithEmissionItemsV0 {
+        linked_stylesheet,
+        emission_item_plan,
+        emission_item_order,
+        projection_disclosures,
     })
 }
 
@@ -3148,6 +3360,59 @@ mod tests {
             Some("packageStyleModule")
         );
         assert_eq!(resolved.resolution.policy_step_keys.len(), 8);
+        Ok(())
+    }
+
+    #[test]
+    fn emission_item_projection_preserves_the_legacy_selector_order() -> Result<(), String> {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "src/theme.css",
+            ":root { --brand: red; }\n\
+             @layer reset;\n\
+             div, .theme, [hidden], *::before { color: var(--brand); }\n\
+             @keyframes pulse { from { opacity: 0; } }",
+            StyleDialect::Css,
+        )];
+        let legacy = link_omena_transform_bundle_modules(&["src/theme.css"], &modules)
+            .map_err(|error| format!("legacy link failed: {error:?}"))?;
+        let projections =
+            super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[])
+                .map_err(|error| format!("emission-item projection failed: {error:?}"))?;
+        let widened =
+            super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+                &["src/theme.css"],
+                projections.linker_projection(),
+                projections.emission_item_projection(),
+                &[],
+                &[],
+                TransformBundleLinkOptionsV0::default(),
+            )
+            .map_err(|error| format!("emission-item link failed: {error:?}"))?;
+
+        assert_eq!(widened.linked_stylesheet, legacy);
+        assert_eq!(
+            widened
+                .linked_stylesheet
+                .global_rule_order
+                .rules
+                .iter()
+                .map(|rule| (rule.global_order_index, rule.selector_name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(0, "theme")]
+        );
+        assert!(widened.emission_item_order.items.iter().any(|item| {
+            item.kind == super::EmissionItemKindV0::SelectorPseudoClass && item.name == ":root"
+        }));
+        assert!(widened.emission_item_order.items.iter().any(|item| {
+            item.kind == super::EmissionItemKindV0::KeyframesDeclaration && item.name == "pulse"
+        }));
+        assert!(
+            widened
+                .emission_item_order
+                .items
+                .windows(2)
+                .all(|pair| pair[0].global_order_index + 1 == pair[1].global_order_index)
+        );
         Ok(())
     }
 }

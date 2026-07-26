@@ -47,13 +47,16 @@ pub use facts::{
     ParsedCssModuleComposesEdgeFact, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFact,
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueDefinitionEdgeFact,
     ParsedCssModuleValueFact, ParsedCssModuleValueFactKind, ParsedCssModuleValueImportEdgeFact,
+    ParsedEmissionSelectorFactKindV0, ParsedEmissionSelectorFactV0, ParsedEmissionSelectorFactsV0,
     ParsedExtendTargetFact, ParsedExtendTargetFactKind, ParsedIcssExportEdgeFact, ParsedIcssFact,
     ParsedIcssFactKind, ParsedIcssImportEdgeFact, ParsedSassCallableParameterFact,
     ParsedSassCallableSignatureFact, ParsedSassIncludeFact, ParsedSassModuleEdgeFact,
     ParsedSassModuleEdgeFactKind, ParsedSassPlaceholderDefinitionFact, ParsedSassSymbolFact,
-    ParsedSassSymbolFactKind, ParsedSelectorFact, ParsedSelectorFactKind, ParsedStyleFacts,
-    ParsedVariableFact, ParsedVariableFactKind, collect_icss_export_values_from_cst,
-    collect_style_facts_with_extension, facts_from_cst,
+    ParsedSassSymbolFactKind, ParsedSelectorFact, ParsedSelectorFactKind,
+    ParsedStyleFactCollectionV0, ParsedStyleFacts, ParsedVariableFact, ParsedVariableFactKind,
+    collect_emission_selector_facts_from_cst, collect_icss_export_values_from_cst,
+    collect_style_fact_collection_with_extension, collect_style_facts_with_extension,
+    facts_from_cst,
 };
 pub(crate) use facts::{
     SelectorBranch, collect_class_selector_names_from_header,
@@ -82,10 +85,10 @@ pub use lex::{LexResult, LexedToken};
 pub(crate) use lex::{Token, Tokenizer, public_token_text};
 pub use parse::{
     HirId, ParseEntryPoint, ParseError, ParseErrorCode, ParseResult, ParseReuseCache, SyntaxNodeId,
-    collect_style_facts, hir_id_for_syntax_node, lex, lex_with_extension, parse, parse_entry_point,
-    parse_entry_point_with_extension, parse_entry_point_with_extension_and_reuse_cache,
-    parse_entry_point_with_reuse_cache, parse_only, parse_with_extension, parse_with_reuse_cache,
-    syntax_node_id,
+    collect_style_fact_collection, collect_style_facts, hir_id_for_syntax_node, lex,
+    lex_with_extension, parse, parse_entry_point, parse_entry_point_with_extension,
+    parse_entry_point_with_extension_and_reuse_cache, parse_entry_point_with_reuse_cache,
+    parse_only, parse_with_extension, parse_with_reuse_cache, syntax_node_id,
 };
 pub(crate) use parse::{Parser, tokenize};
 pub use parse_tree_contract_idl_generated::ParseTreeNodeV0;
