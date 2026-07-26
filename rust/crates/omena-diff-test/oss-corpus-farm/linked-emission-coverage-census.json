@@ -3,12 +3,12 @@
   "product": "omena-diff-test.linked-emission-coverage-census",
   "coverageScope": "boundedMultiModuleFixtures",
   "fullCorpusCoverage": false,
-  "populationCount": 14,
-  "coveredShapeCount": 10,
+  "populationCount": 15,
+  "coveredShapeCount": 11,
   "notCoveredShapeCount": 4,
-  "fixtureCount": 10,
-  "moduleCount": 26,
-  "markerObservableModuleCount": 21,
+  "fixtureCount": 11,
+  "moduleCount": 28,
+  "markerObservableModuleCount": 23,
   "blindSpotModuleCount": 5,
   "unknownStructuralSelectorCount": 0,
   "unknownAtRuleCount": 0,
@@ -52,6 +52,10 @@
     {
       "shapeClass": "less-import-order",
       "fixtureIds": ["dialect-less-import-order"]
+    },
+    {
+      "shapeClass": "module-qualified-reachability",
+      "fixtureIds": ["module-qualified-reachability"]
     },
     {
       "shapeClass": "package-export-import",
@@ -111,6 +115,12 @@
       "fixtureId": "shared-import-diamond",
       "moduleCount": 4,
       "markerObservableModuleCount": 4,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "module-qualified-reachability",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 2,
       "blindSpotModuleCount": 0
     },
     {

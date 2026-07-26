@@ -8,13 +8,19 @@ use omena_bundler::{
     project_omena_transform_bundle_linker_and_emission_items,
 };
 use omena_parser::{
-    ParsedEmissionSelectorFactsV0, ParsedStyleFacts, StyleDialect, collect_style_fact_collection,
-    summarize_omena_parser_style_facts,
+    ParsedEmissionSelectorFactsV0, ParsedSelectorFactKind, ParsedStyleFacts, StyleDialect,
+    collect_style_fact_collection, summarize_omena_parser_style_facts,
 };
 use omena_query::{
-    OmenaQueryBundleEmissionPathV0, OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0,
-    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTransformExecutionContextV0, compare_omena_query_transform_css_semantics_v0,
+    ClassExpressionInputV2, EngineInputV2, OmenaQueryBundleEmissionPathV0,
+    OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0,
+    OmenaQueryEngineInputModuleReachabilityV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2,
+    SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
+    StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
+    compare_omena_query_transform_css_semantics_v0,
+    derive_omena_query_module_reachability_from_engine_input,
+    run_omena_query_bundle_with_module_reachability_and_options,
     run_omena_query_bundle_with_semantic_inputs_and_options,
 };
 use serde::Serialize;
@@ -205,6 +211,13 @@ struct LinkedEmissionFixtureModuleV0 {
     order_probe: String,
 }
 
+#[derive(Debug, Clone)]
+struct LinkedEmissionReachabilityReferenceV0 {
+    id: &'static str,
+    module_index: usize,
+    class_name: &'static str,
+}
+
 struct LinkedEmissionDifferenceObservationV0<'a> {
     legacy_css: &'a str,
     linked_css: &'a str,
@@ -220,6 +233,7 @@ struct LinkedEmissionFixtureV0 {
     entry_path: String,
     shape_classes: Vec<&'static str>,
     modules: Vec<LinkedEmissionFixtureModuleV0>,
+    reachability_references: Vec<LinkedEmissionReachabilityReferenceV0>,
 }
 
 #[derive(Debug)]
@@ -253,6 +267,10 @@ const LINKED_EMISSION_COVERAGE_POPULATION_V0: &[LinkedEmissionCoverageShapeDefin
     LinkedEmissionCoverageShapeDefinitionV0 {
         shape_class: "shared-import-diamond",
         reentry: "retain a shared-import diamond with single-emission evidence",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "module-qualified-reachability",
+        reentry: "retain a linked fixture with independently attributed module reachability",
     },
     LinkedEmissionCoverageShapeDefinitionV0 {
         shape_class: "large-product-corpus",
@@ -553,27 +571,39 @@ fn analyze_linked_emission_fixture_v0(
             style_source: module.source.clone(),
         })
         .collect::<Vec<_>>();
-    let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+    let mut pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+    let module_reachability = module_reachability_for_fixture_v0(fixture);
+    if module_reachability.is_some() {
+        pass_ids.push("tree-shake-class".to_string());
+    }
     let context = OmenaQueryTransformExecutionContextV0::default();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
     let run = |emission_path| {
-        run_omena_query_bundle_with_semantic_inputs_and_options(
-            OmenaQueryBundlePlanInputV0 {
-                target_style_path: &fixture.entry_path,
-                style_sources: &style_sources,
-                source_map_sources: &style_sources,
-                requested_pass_ids: &pass_ids,
-                context: &context,
-                resolution_inputs: &resolution_inputs,
-                asset_rewrites: Vec::new(),
-                bundle_entry_style_paths: &[],
-            },
-            &[],
-            &OmenaQueryConsumerBuildOptionsV0 {
-                bundle_emission_path: emission_path,
-                ..OmenaQueryConsumerBuildOptionsV0::default()
-            },
-        )
+        let input = OmenaQueryBundlePlanInputV0 {
+            target_style_path: &fixture.entry_path,
+            style_sources: &style_sources,
+            source_map_sources: &style_sources,
+            requested_pass_ids: &pass_ids,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        };
+        let options = OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: emission_path,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        };
+        if let Some(module_reachability) = module_reachability.as_ref() {
+            run_omena_query_bundle_with_module_reachability_and_options(
+                input,
+                &[],
+                &options,
+                module_reachability,
+            )
+            .map(|result| result.into_bundle_result())
+        } else {
+            run_omena_query_bundle_with_semantic_inputs_and_options(input, &[], &options)
+        }
     };
     let legacy = run(OmenaQueryBundleEmissionPathV0::ImportInlineLegacy)?;
     let linked = run(OmenaQueryBundleEmissionPathV0::LinkedOrder)?;
@@ -667,6 +697,13 @@ fn analyze_linked_emission_fixture_v0(
         compare_omena_query_transform_css_semantics_v0(&legacy_css, &linked_css, StyleDialect::Css);
     let asset_urls_preserved =
         css_url_arguments_v0(&legacy_css) == css_url_arguments_v0(&linked_css);
+    let expected_module_reachability_delta =
+        module_qualified_reachability_delta_is_expected_v0(fixture, &legacy_css, &linked_css);
+    let expected_semantics = if fixture.reachability_references.is_empty() {
+        semantic.preserved
+    } else {
+        expected_module_reachability_delta
+    };
     let byte_equal = legacy_css == linked_css;
     let difference_observation = LinkedEmissionDifferenceObservationV0 {
         legacy_css: &legacy_css,
@@ -679,7 +716,7 @@ fn analyze_linked_emission_fixture_v0(
     let reasons = derive_difference_reasons_v0(fixture, &linked_order, &difference_observation);
     let difference_class = if byte_equal {
         LinkedEmissionByteDifferenceClassV0::Equivalent
-    } else if semantic.preserved
+    } else if expected_semantics
         && asset_urls_preserved
         && linked_modules_emitted_once
         && linked_marker_order == authoritative_marker_order
@@ -719,6 +756,132 @@ fn analyze_linked_emission_fixture_v0(
         legacy_css,
         linked_css,
     })
+}
+
+fn module_reachability_for_fixture_v0(
+    fixture: &LinkedEmissionFixtureV0,
+) -> Option<OmenaQueryEngineInputModuleReachabilityV0> {
+    if fixture.reachability_references.is_empty() {
+        return None;
+    }
+    let range = fixture_range_v0();
+    let input = EngineInputV2 {
+        version: "2".to_string(),
+        sources: fixture
+            .reachability_references
+            .iter()
+            .map(|reference| {
+                let module = &fixture.modules[reference.module_index];
+                SourceAnalysisInputV2 {
+                    document: SourceDocumentV2 {
+                        class_expressions: vec![ClassExpressionInputV2 {
+                            id: reference.id.to_string(),
+                            kind: "styleAccess".to_string(),
+                            scss_module_path: module.path.clone(),
+                            range: range.clone(),
+                            class_name: Some(reference.class_name.to_string()),
+                            root_binding_decl_id: None,
+                            access_path: Some(vec![reference.class_name.to_string()]),
+                        }],
+                    },
+                }
+            })
+            .collect(),
+        styles: fixture
+            .modules
+            .iter()
+            .map(|module| {
+                let collection =
+                    collect_style_fact_collection(module.source.as_str(), module.dialect);
+                StyleAnalysisInputV2 {
+                    file_path: module.path.clone(),
+                    source: Some(module.source.clone()),
+                    document: StyleDocumentV2 {
+                        selectors: collection
+                            .facts
+                            .selectors
+                            .iter()
+                            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+                            .map(|selector| StyleSelectorV2 {
+                                name: selector.name.clone(),
+                                view_kind: "canonical".to_string(),
+                                canonical_name: Some(selector.name.clone()),
+                                range: range.clone(),
+                                nested_safety: Some("safe".to_string()),
+                                composes: None,
+                                bem_suffix: None,
+                            })
+                            .collect(),
+                    },
+                }
+            })
+            .collect(),
+        type_facts: fixture
+            .reachability_references
+            .iter()
+            .map(|reference| TypeFactEntryV2 {
+                file_path: "linked-byte/references.tsx".to_string(),
+                expression_id: reference.id.to_string(),
+                facts: StringTypeFactsV2 {
+                    kind: "exact".to_string(),
+                    constraint_kind: None,
+                    values: Some(vec![reference.class_name.to_string()]),
+                    prefix: None,
+                    suffix: None,
+                    min_len: None,
+                    max_len: None,
+                    char_must: None,
+                    char_may: None,
+                    may_include_other_chars: None,
+                    provenance: None,
+                },
+                control_flow_graph: None,
+            })
+            .collect(),
+    };
+    Some(derive_omena_query_module_reachability_from_engine_input(
+        &input,
+        fixture.entry_path.as_str(),
+        true,
+    ))
+}
+
+fn module_qualified_reachability_delta_is_expected_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    legacy_css: &str,
+    linked_css: &str,
+) -> bool {
+    if !fixture
+        .shape_classes
+        .contains(&"module-qualified-reachability")
+    {
+        return false;
+    }
+    let legacy_css = remove_ascii_whitespace_v0(legacy_css);
+    let linked_css = remove_ascii_whitespace_v0(linked_css);
+    legacy_css.contains("color:green")
+        && legacy_css.contains("color:red")
+        && !legacy_css.contains("color:blue")
+        && !legacy_css.contains("color:tan")
+        && !legacy_css.contains("color:gray")
+        && linked_css.contains("color:blue")
+        && linked_css.contains("color:red")
+        && !linked_css.contains("color:green")
+        && !linked_css.contains("color:tan")
+        && !linked_css.contains("color:gray")
+}
+
+fn fixture_range_v0() -> RangeV2 {
+    RangeV2 {
+        start: PositionV2 {
+            line: 0,
+            character: 0,
+        },
+        end: PositionV2 {
+            line: 0,
+            character: 1,
+        },
+    }
 }
 
 fn populated_fact_categories_v0(
@@ -1251,6 +1414,7 @@ fn linked_emission_placement_witness_definitions_v0()
                         order_probe: "color: green".to_string(),
                     },
                 ],
+                reachability_references: Vec::new(),
             },
             selectorless_module_paths: &[
                 "linked-order-witness/element/app.css",
@@ -1281,6 +1445,7 @@ fn linked_emission_placement_witness_definitions_v0()
                         order_probe: "color: green".to_string(),
                     },
                 ],
+                reachability_references: Vec::new(),
             },
             selectorless_module_paths: &["linked-order-witness/mixed/reset.css"],
             import_graph_winner: "red",
@@ -1306,6 +1471,7 @@ fn linked_emission_placement_witness_definitions_v0()
                         order_probe: "color: green".to_string(),
                     },
                 ],
+                reachability_references: Vec::new(),
             },
             selectorless_module_paths: &[
                 "linked-order-witness/names/zzz-app.css",
@@ -1334,6 +1500,7 @@ fn linked_emission_placement_witness_definitions_v0()
                         order_probe: "@layer base, theme;".to_string(),
                     },
                 ],
+                reachability_references: Vec::new(),
             },
             selectorless_module_paths: &["linked-order-witness/layers/layers.css"],
             import_graph_winner: "blue",
@@ -1347,6 +1514,7 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
         dialect_fixture_v0("scss", StyleDialect::Scss, "@import"),
         dialect_fixture_v0("less", StyleDialect::Less, "@import"),
         shared_import_fixture_v0(),
+        module_qualified_reachability_fixture_v0(),
         selectorless_module_fixture_v0(
             "element-only-reset-module",
             "element-only-reset",
@@ -1421,6 +1589,7 @@ fn selectorless_module_fixture_v0(
                 order_probe: imported_order_probe.to_string(),
             },
         ],
+        reachability_references: Vec::new(),
     }
 }
 
@@ -1468,6 +1637,7 @@ fn dialect_fixture_v0(
                 order_probe: z_marker,
             },
         ],
+        reachability_references: Vec::new(),
     }
 }
 
@@ -1511,6 +1681,47 @@ fn shared_import_fixture_v0() -> LinkedEmissionFixtureV0 {
                 dialect: StyleDialect::Css,
                 marker_names: vec!["linked-shared-token".to_string()],
                 order_probe: "linked-shared-token".to_string(),
+            },
+        ],
+        reachability_references: Vec::new(),
+    }
+}
+
+fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
+    let root = "linked-byte/module-qualified-reachability";
+    let entry_path = format!("{root}/app.css");
+    LinkedEmissionFixtureV0 {
+        id: "module-qualified-reachability".to_string(),
+        entry_path: entry_path.clone(),
+        shape_classes: vec!["module-qualified-reachability"],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: entry_path,
+                source: "@import \"./dependency.css\"; .shared { color: red; } .entry-dead { color: tan; }"
+                    .to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["shared".to_string()],
+                order_probe: "color: red".to_string(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/dependency.css"),
+                source: ".shared { color: green; } .dependency-own { color: blue; } .dependency-dead { color: gray; }"
+                    .to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["dependency-own".to_string()],
+                order_probe: "color: blue".to_string(),
+            },
+        ],
+        reachability_references: vec![
+            LinkedEmissionReachabilityReferenceV0 {
+                id: "entry-reference",
+                module_index: 0,
+                class_name: "shared",
+            },
+            LinkedEmissionReachabilityReferenceV0 {
+                id: "dependency-reference",
+                module_index: 1,
+                class_name: "dependency-own",
             },
         ],
     }
@@ -1558,6 +1769,7 @@ fn product_corpus_fixture_v0() -> Option<LinkedEmissionFixtureV0> {
         entry_path,
         shape_classes: vec!["large-product-corpus"],
         modules,
+        reachability_references: Vec::new(),
     })
 }
 
@@ -1579,6 +1791,35 @@ mod tests {
                 && case.linked_modules_emitted_once
                 && case.linked_marker_order == case.authoritative_marker_order
         }));
+        Ok(())
+    }
+
+    #[test]
+    fn module_qualified_reachability_delta_requires_both_ownership_corrections()
+    -> Result<(), String> {
+        let fixture = module_qualified_reachability_fixture_v0();
+        let analysis = analyze_linked_emission_fixture_v0(
+            &fixture,
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+
+        assert_eq!(
+            analysis.case.difference_class,
+            LinkedEmissionByteDifferenceClassV0::Expected
+        );
+        assert_eq!(analysis.case.semantic_mismatch_count, 1);
+        assert!(module_qualified_reachability_delta_is_expected_v0(
+            &fixture,
+            &analysis.legacy_css,
+            &analysis.linked_css
+        ));
+        assert!(!module_qualified_reachability_delta_is_expected_v0(
+            &fixture,
+            &analysis.legacy_css,
+            &analysis.linked_css.replace("blue", "black")
+        ));
+        assert!(!remove_ascii_whitespace_v0(&analysis.linked_css).contains("color:green"));
+        assert!(remove_ascii_whitespace_v0(&analysis.linked_css).contains("color:blue"));
         Ok(())
     }
 

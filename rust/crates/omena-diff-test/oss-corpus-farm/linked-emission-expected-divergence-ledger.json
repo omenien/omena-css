@@ -36,6 +36,13 @@
       "justification": "The linked path emits the shared dependency once, groups modules, and preserves dependency-first order while the legacy path repeats the shared import."
     },
     {
+      "fixtureId": "module-qualified-reachability",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "2341e33f317a5a77dc6bd29a646e66ed6c511f305d69b56a8924a9c746baa5e6",
+      "justification": "The linked path removes a cross-module false retention and restores the dependency-owned selector selected by its own source reference while dead selectors remain absent."
+    },
+    {
       "fixtureId": "element-only-reset-module",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],

@@ -25,6 +25,7 @@ interface LinkedEmissionByteDifferentialCaseV0 {
   readonly linkedSha256: string;
   readonly byteEqual: boolean;
   readonly semanticPreserved: boolean;
+  readonly semanticMismatchCount: number;
   readonly authoritativeMarkerOrder: readonly string[];
   readonly legacyMarkerOrder: readonly string[];
   readonly linkedMarkerOrder: readonly string[];
@@ -126,7 +127,9 @@ interface LinkedEmissionExpectedDivergenceLedgerV0 {
   readonly product: "omena-diff-test.linked-emission-expected-divergence-ledger";
   readonly entries: ReadonlyArray<{
     readonly fixtureId: string;
-    readonly classificationArm: "semanticPreservingKnownDifference";
+    readonly classificationArm:
+      | "semanticPreservingKnownDifference"
+      | "moduleAttributedReachabilityCorrection";
     readonly derivedReasons: readonly string[];
     readonly witnessDigest: string;
     readonly justification: string;
@@ -469,7 +472,15 @@ for (const entry of report.cases) {
     assert.equal(entry.byteEqual, true);
   } else if (entry.differenceClass === "expected") {
     assert.equal(entry.byteEqual, false);
-    assert.equal(entry.semanticPreserved, true);
+    if (entry.fixtureId === "module-qualified-reachability") {
+      assert.equal(entry.semanticPreserved, false);
+      assert.equal(entry.semanticMismatchCount, 1);
+      assert.deepEqual(entry.legacyMarkerOrder, ["shared", "shared"]);
+      assert.deepEqual(entry.linkedMarkerOrder, ["dependency-own", "shared"]);
+      assert.deepEqual(entry.authoritativeMarkerOrder, ["dependency-own", "shared"]);
+    } else {
+      assert.equal(entry.semanticPreserved, true);
+    }
     assert.ok(entry.reasons.length > 0, `${entry.fixtureId} has no derived divergence reason`);
   } else {
     assert.equal(entry.byteEqual, false);
@@ -498,8 +509,16 @@ for (const entry of expectedDivergenceLedger.entries) {
   assert.ok(liveCase, `expected-divergence fixture ${entry.fixtureId} is absent from the corpus`);
   assert.equal(liveCase.differenceClass, "expected");
   assert.equal(liveCase.byteEqual, false);
-  assert.equal(liveCase.semanticPreserved, true);
-  assert.equal(entry.classificationArm, "semanticPreservingKnownDifference");
+  if (entry.classificationArm === "moduleAttributedReachabilityCorrection") {
+    assert.equal(entry.fixtureId, "module-qualified-reachability");
+    assert.equal(liveCase.semanticPreserved, false);
+    assert.equal(liveCase.semanticMismatchCount, 1);
+    assert.deepEqual(liveCase.legacyMarkerOrder, ["shared", "shared"]);
+    assert.deepEqual(liveCase.linkedMarkerOrder, ["dependency-own", "shared"]);
+    assert.deepEqual(liveCase.authoritativeMarkerOrder, ["dependency-own", "shared"]);
+  } else {
+    assert.equal(liveCase.semanticPreserved, true);
+  }
   assert.deepEqual(
     entry.derivedReasons,
     liveCase.reasons,
