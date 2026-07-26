@@ -371,6 +371,9 @@ pub fn summarize_omena_query_expression_domain_selector_projection_with_precisio
     OmenaQueryExpressionDomainSelectorProjectionV0,
     Vec<OmenaQueryExpressionDomainSelectorPrecisionV0>,
 ) {
+    #[cfg(feature = "test-support")]
+    omena_testkit::current_instrumentation_session_v0()
+        .record_module_reachability_projection_summary_evaluation();
     let style_selectors_by_path = style_selector_universe_by_path(input);
     let expression_targets = expression_target_style_paths(input);
     let flow_analysis = summarize_omena_query_expression_domain_flow_analysis(input);

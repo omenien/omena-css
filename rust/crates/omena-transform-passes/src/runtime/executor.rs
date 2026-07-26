@@ -1231,6 +1231,8 @@ pub fn execute_transform_passes_on_module_with_dialect_context_and_closed_world_
     )
 }
 
+// Keep each execution authority explicit at this compatibility boundary.
+#[allow(clippy::too_many_arguments)]
 pub fn execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle(
     source: &str,
     dialect: StyleDialect,

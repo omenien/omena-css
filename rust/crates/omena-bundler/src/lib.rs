@@ -530,6 +530,46 @@ pub struct LinkedStylesheetWithEmissionItemsV0 {
     pub projection_disclosures: Vec<EmissionItemProjectionDisclosureV0>,
 }
 
+/// Couples legacy admission evidence with a requested emission-policy result from one prepared graph.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformBundleEmissionAdmissionV0 {
+    module_id_legacy_open: bool,
+    requested_policy_result:
+        Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0>,
+}
+
+impl TransformBundleEmissionAdmissionV0 {
+    /// Reports whether legacy module-id ordering could not produce a closed linked stylesheet.
+    pub const fn module_id_legacy_open(&self) -> bool {
+        self.module_id_legacy_open
+    }
+
+    /// Borrows the requested emission-policy result.
+    pub fn requested_policy_result(
+        &self,
+    ) -> &Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+        &self.requested_policy_result
+    }
+
+    /// Consumes the admission evidence and returns the requested emission-policy result.
+    pub fn into_requested_policy_result(
+        self,
+    ) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+        self.requested_policy_result
+    }
+
+    /// Consumes the evidence into the legacy admission decision and requested result.
+    pub fn into_parts(
+        self,
+    ) -> (
+        bool,
+        Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0>,
+    ) {
+        (self.module_id_legacy_open, self.requested_policy_result)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformBundleTransformedModuleV0 {
@@ -901,6 +941,32 @@ pub fn link_omena_transform_bundle_projection_with_emission_items_and_resolved_d
     )
 }
 
+/// Evaluates legacy admission and the requested emission policy from one closed-world preparation.
+pub fn evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options<
+    P: AsRef<str>,
+>(
+    entrypoint_paths: &[P],
+    linker_projection: &TransformBundleLinkerProjectionV0,
+    emission_item_projection: &TransformBundleEmissionItemProjectionV0,
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    options: TransformBundleLinkOptionsV0,
+) -> TransformBundleEmissionAdmissionV0 {
+    let entrypoint_paths = entrypoint_paths
+        .iter()
+        .map(|path| path.as_ref())
+        .collect::<Vec<_>>();
+
+    evaluate_stylesheet_emission_admission_from_projection(
+        entrypoint_paths.as_slice(),
+        linker_projection.inputs(),
+        emission_item_projection.inputs(),
+        resolved_dependencies,
+        module_metadata,
+        options,
+    )
+}
+
 pub fn compare_omena_transform_bundle_emission_policies<P: AsRef<str>>(
     entrypoint_paths: &[P],
     modules: &[TransformBundleModuleInputV0],
@@ -1230,16 +1296,21 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
         resolved_dependencies,
         module_metadata,
     )?;
-    let emission_plan = emission_order::build_emission_plan(
-        inputs,
-        prepared.closed_world_bundle.linked_modules(),
-        &prepared.entrypoints,
-        resolved_dependencies,
-        options.emission_ordering_policy,
-    )?;
-    let global_rule_order =
-        emission_order::build_global_rule_order_from_plan(inputs, &emission_plan)?;
+    link_stylesheet_from_prepared_context(prepared, inputs, resolved_dependencies, options)
+}
 
+fn link_stylesheet_from_prepared_context(
+    prepared: PreparedLinkedStylesheetContextV0,
+    inputs: &[LinkerInputV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    options: TransformBundleLinkOptionsV0,
+) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
+    let (emission_plan, global_rule_order) = build_linked_stylesheet_order_from_prepared_context(
+        &prepared,
+        inputs,
+        resolved_dependencies,
+        options,
+    )?;
     Ok(LinkedStylesheetV0 {
         schema_version: "0",
         product: "omena-transform-bundle.linked-stylesheet",
@@ -1249,6 +1320,24 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
         global_rule_order,
         closed_world_bundle: prepared.closed_world_bundle,
     })
+}
+
+fn build_linked_stylesheet_order_from_prepared_context(
+    prepared: &PreparedLinkedStylesheetContextV0,
+    inputs: &[LinkerInputV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    options: TransformBundleLinkOptionsV0,
+) -> Result<(EmissionPlanV0, GlobalRuleOrderV0), TransformBundleLinkErrorV0> {
+    let emission_plan = emission_order::build_emission_plan(
+        inputs,
+        prepared.closed_world_bundle.linked_modules(),
+        &prepared.entrypoints,
+        resolved_dependencies,
+        options.emission_ordering_policy,
+    )?;
+    let global_rule_order =
+        emission_order::build_global_rule_order_from_plan(inputs, &emission_plan)?;
+    Ok((emission_plan, global_rule_order))
 }
 
 struct PreparedLinkedStylesheetContextV0 {
@@ -1304,6 +1393,64 @@ fn link_stylesheet_from_projection_with_emission_items_and_metadata_and_options(
         resolved_dependencies,
         module_metadata,
     )?;
+    link_stylesheet_from_prepared_context_with_emission_items(
+        prepared,
+        linker_inputs,
+        emission_item_inputs,
+        resolved_dependencies,
+        options,
+    )
+}
+
+fn evaluate_stylesheet_emission_admission_from_projection(
+    entrypoint_paths: &[&str],
+    linker_inputs: &[LinkerInputV0],
+    emission_item_inputs: &[EmissionItemInputV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    options: TransformBundleLinkOptionsV0,
+) -> TransformBundleEmissionAdmissionV0 {
+    let prepared = match prepare_linked_stylesheet_context(
+        entrypoint_paths,
+        linker_inputs,
+        resolved_dependencies,
+        module_metadata,
+    ) {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            return TransformBundleEmissionAdmissionV0 {
+                module_id_legacy_open: true,
+                requested_policy_result: Err(error),
+            };
+        }
+    };
+    let module_id_legacy_open = build_linked_stylesheet_order_from_prepared_context(
+        &prepared,
+        linker_inputs,
+        resolved_dependencies,
+        TransformBundleLinkOptionsV0::default(),
+    )
+    .is_err();
+    let requested_policy_result = link_stylesheet_from_prepared_context_with_emission_items(
+        prepared,
+        linker_inputs,
+        emission_item_inputs,
+        resolved_dependencies,
+        options,
+    );
+    TransformBundleEmissionAdmissionV0 {
+        module_id_legacy_open,
+        requested_policy_result,
+    }
+}
+
+fn link_stylesheet_from_prepared_context_with_emission_items(
+    prepared: PreparedLinkedStylesheetContextV0,
+    linker_inputs: &[LinkerInputV0],
+    emission_item_inputs: &[EmissionItemInputV0],
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    options: TransformBundleLinkOptionsV0,
+) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
     let module_plan = emission_order::build_emission_module_plan(
         linker_inputs,
         prepared.closed_world_bundle.linked_modules(),
@@ -3504,6 +3651,64 @@ mod tests {
                 .all(|pair| pair[0].global_order_index + 1 == pair[1].global_order_index)
         );
         Ok(())
+    }
+
+    #[test]
+    fn emission_admission_separates_legacy_success_from_requested_projection_failure() {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "src/app.css",
+            ".app { color: green; }",
+            StyleDialect::Css,
+        )];
+        let projections =
+            super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
+        let empty_emission_projection =
+            super::TransformBundleEmissionItemProjectionV0::new(Vec::new());
+
+        let admission =
+            super::evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options(
+                &["src/app.css"],
+                projections.linker_projection(),
+                &empty_emission_projection,
+                &[],
+                &[],
+                TransformBundleLinkOptionsV0::default(),
+            );
+
+        assert!(!admission.module_id_legacy_open());
+        assert!(matches!(
+            admission.requested_policy_result(),
+            Err(TransformBundleLinkErrorV0::InvalidEmissionPlan { reason })
+                if reason.contains("has no emission-item input")
+        ));
+    }
+
+    #[test]
+    fn emission_admission_marks_both_paths_open_when_preparation_fails() {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "src/app.css",
+            ".app { color: green; }",
+            StyleDialect::Css,
+        )];
+        let projections =
+            super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
+
+        let admission =
+            super::evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options(
+                &["src/missing.css"],
+                projections.linker_projection(),
+                projections.emission_item_projection(),
+                &[],
+                &[],
+                TransformBundleLinkOptionsV0::default(),
+            );
+
+        assert!(admission.module_id_legacy_open());
+        assert!(matches!(
+            admission.requested_policy_result(),
+            Err(TransformBundleLinkErrorV0::MissingEntrypoint { source_path })
+                if source_path == "src/missing.css"
+        ));
     }
 
     #[test]

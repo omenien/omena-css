@@ -17,6 +17,7 @@ use crate::{
     summarize_omena_query_expression_domain_selector_projection_with_precision,
 };
 use omena_parser::{ModuleIdV0, ModuleInstanceKeyV0};
+use omena_testkit::{InstrumentationSessionV0, with_instrumentation_session};
 
 #[test]
 fn consumer_build_inlines_transitive_workspace_imports() -> Result<(), Box<dyn std::error::Error>> {
@@ -742,6 +743,122 @@ fn attributed_empty_projection_keeps_parse_derived_names() -> Result<(), String>
             .artifact
             .output_css
             .contains(".retained")
+    );
+    Ok(())
+}
+
+#[test]
+fn module_reachability_producers_are_hoisted_for_two_module_bundle() -> Result<(), String> {
+    assert_module_reachability_producer_counts(
+        "src/entry.module.css",
+        &[
+            (
+                "src/entry.module.css",
+                "@import \"./dependency.module.css\"; .shared { color: red; }",
+                &["shared"],
+            ),
+            (
+                "src/dependency.module.css",
+                ".dependency-own { color: blue; }",
+                &["dependency-own"],
+            ),
+        ],
+        &[
+            ("entry-ref", "src/entry.module.css", "shared"),
+            (
+                "dependency-ref",
+                "src/dependency.module.css",
+                "dependency-own",
+            ),
+        ],
+    )
+}
+
+#[test]
+fn module_reachability_producers_are_hoisted_for_three_module_bundle() -> Result<(), String> {
+    assert_module_reachability_producer_counts(
+        "src/entry.module.css",
+        &[
+            (
+                "src/entry.module.css",
+                "@import \"./middle.module.css\"; .entry { color: red; }",
+                &["entry"],
+            ),
+            (
+                "src/middle.module.css",
+                "@import \"./leaf.module.css\"; .middle { color: blue; }",
+                &["middle"],
+            ),
+            ("src/leaf.module.css", ".leaf { color: green; }", &["leaf"]),
+        ],
+        &[
+            ("entry-ref", "src/entry.module.css", "entry"),
+            ("middle-ref", "src/middle.module.css", "middle"),
+            ("leaf-ref", "src/leaf.module.css", "leaf"),
+        ],
+    )
+}
+
+fn assert_module_reachability_producer_counts(
+    entry_path: &str,
+    styles: &[(&str, &str, &[&str])],
+    references: &[(&str, &str, &str)],
+) -> Result<(), String> {
+    let input = module_reachability_input(references, styles);
+    let style_sources = styles
+        .iter()
+        .map(
+            |(style_path, style_source, _)| OmenaQueryStyleSourceInputV0 {
+                style_path: (*style_path).to_string(),
+                style_source: (*style_source).to_string(),
+            },
+        )
+        .collect::<Vec<_>>();
+    let passes = vec!["tree-shake-class".to_string()];
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let session = InstrumentationSessionV0::default();
+
+    let result = with_instrumentation_session(session.clone(), || {
+        session.reset_module_reachability_hoist_counts();
+        let reachability =
+            derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
+        run_omena_query_bundle_with_module_reachability_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: entry_path,
+                style_sources: &style_sources,
+                source_map_sources: &style_sources,
+                requested_pass_ids: &passes,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            &OmenaQueryConsumerBuildOptionsV0 {
+                bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+                ..OmenaQueryConsumerBuildOptionsV0::default()
+            },
+            &reachability,
+        )
+    })?;
+    let counts = session.module_reachability_hoist_counts();
+
+    assert_eq!(
+        counts.projection_summary_evaluation_count, 1,
+        "selector projection summary must be produced once per bundle run"
+    );
+    assert_eq!(
+        counts.closed_world_bundle_construction_count, 1,
+        "the closed-world bundle and qualified index must be built once, not rebuilt per module"
+    );
+    assert_eq!(
+        result
+            .bundle_result()
+            .closed_world_outcome
+            .bundle()
+            .map(|bundle| bundle.linked_modules().len()),
+        Some(styles.len())
     );
     Ok(())
 }

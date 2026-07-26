@@ -1100,6 +1100,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-query/module-reachability-hoist",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-query/module-reachability-hoist",
+    tags: ["rust-workspace", "omena-query", "closed-world", "tree-shake", "incremental"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-module-qualified-product-path-census:update",
     kind: "command",
     scope: "rust",

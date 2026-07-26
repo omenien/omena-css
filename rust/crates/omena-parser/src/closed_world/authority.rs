@@ -43,6 +43,9 @@ impl ClosedWorldBundleV0 {
         let source_precision =
             source_precision_for_reachable_modules(&linked_modules, &metadata_by_instance);
         let closure_hash = stable_closure_hash(entrypoints.as_slice(), &by_instance, &reachability);
+        #[cfg(any(test, feature = "test-support"))]
+        omena_testkit::current_instrumentation_session_v0()
+            .record_closed_world_bundle_construction();
 
         Ok(Self::seal(
             entrypoints,

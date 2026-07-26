@@ -287,6 +287,12 @@ pub omena_bundler::TransformBundleEdgeV0::range_end: u32
 pub omena_bundler::TransformBundleEdgeV0::range_start: u32
 pub omena_bundler::TransformBundleEdgeV0::remote_names: alloc::vec::Vec<alloc::string::String>
 pub omena_bundler::TransformBundleEdgeV0::source_path: alloc::string::String
+#[non_exhaustive] pub struct omena_bundler::TransformBundleEmissionAdmissionV0
+impl omena_bundler::TransformBundleEmissionAdmissionV0
+pub fn omena_bundler::TransformBundleEmissionAdmissionV0::into_parts(self) -> (bool, core::result::Result<omena_bundler::LinkedStylesheetWithEmissionItemsV0, omena_bundler::TransformBundleLinkErrorV0>)
+pub fn omena_bundler::TransformBundleEmissionAdmissionV0::into_requested_policy_result(self) -> core::result::Result<omena_bundler::LinkedStylesheetWithEmissionItemsV0, omena_bundler::TransformBundleLinkErrorV0>
+pub const fn omena_bundler::TransformBundleEmissionAdmissionV0::module_id_legacy_open(&self) -> bool
+pub fn omena_bundler::TransformBundleEmissionAdmissionV0::requested_policy_result(&self) -> &core::result::Result<omena_bundler::LinkedStylesheetWithEmissionItemsV0, omena_bundler::TransformBundleLinkErrorV0>
 #[non_exhaustive] pub struct omena_bundler::TransformBundleEmissionItemProjectionV0
 impl omena_bundler::TransformBundleEmissionItemProjectionV0
 pub fn omena_bundler::TransformBundleEmissionItemProjectionV0::inputs(&self) -> &[omena_bundler::EmissionItemInputV0]
@@ -360,6 +366,7 @@ pub const fn omena_bundler::TransformBundleTransformedModuleV0::with_non_empty_i
 pub const omena_bundler::TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0: [omena_bundler::TransformBundleEdgeKind; 9]
 pub const fn omena_bundler::bundle_edge_is_module_dependency(omena_bundler::TransformBundleEdgeKind) -> bool
 pub fn omena_bundler::compare_omena_transform_bundle_emission_policies<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0]) -> core::result::Result<omena_bundler::EmissionPolicyDifferentialReportV0, omena_bundler::TransformBundleLinkErrorV0>
+pub fn omena_bundler::evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options<P: core::convert::AsRef<str>>(&[P], &omena_bundler::TransformBundleLinkerProjectionV0, &omena_bundler::TransformBundleEmissionItemProjectionV0, &[omena_bundler::TransformBundleResolvedDependencyV0], &[omena_parser::closed_world::contract::ClosedWorldModuleMetadataV0], omena_bundler::TransformBundleLinkOptionsV0) -> omena_bundler::TransformBundleEmissionAdmissionV0
 pub fn omena_bundler::link_omena_transform_bundle_modules<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_omena_transform_bundle_modules_with_options<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0], &[omena_parser::closed_world::contract::ClosedWorldModuleMetadataV0], omena_bundler::TransformBundleLinkOptionsV0) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
 pub fn omena_bundler::link_omena_transform_bundle_modules_with_semantic_reachability<P: core::convert::AsRef<str>>(&[P], &[omena_bundler::TransformBundleModuleInputV0], &[omena_bundler::TransformBundleSemanticReachabilityInputV0]) -> core::result::Result<omena_bundler::LinkedStylesheetV0, omena_bundler::TransformBundleLinkErrorV0>
