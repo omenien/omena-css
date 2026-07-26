@@ -132,17 +132,98 @@
     {
       "fixtureId": "element-only-reset-module",
       "modulePath": "linked-byte/element-only-reset-module/reset.css",
-      "shapeClasses": ["element-only-reset"]
+      "shapeClasses": ["element-only-reset"],
+      "emissionPlanEntryCount": 0,
+      "factCategories": [],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": false
     },
     {
       "fixtureId": "bare-layer-statement-module",
       "modulePath": "linked-byte/bare-layer-statement-module/layers.css",
-      "shapeClasses": ["bare-layer-statement"]
+      "shapeClasses": ["bare-layer-statement"],
+      "emissionPlanEntryCount": 0,
+      "factCategories": ["atRules"],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": false
     },
     {
       "fixtureId": "font-face-only-module",
       "modulePath": "linked-byte/font-face-only-module/fonts.css",
-      "shapeClasses": ["font-face-only"]
+      "shapeClasses": ["font-face-only"],
+      "emissionPlanEntryCount": 0,
+      "factCategories": ["atRules"],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": false
+    }
+  ],
+  "placementWitnesses": [
+    {
+      "witnessId": "element-selector-winner",
+      "selectorlessModulePaths": [
+        "linked-order-witness/element/app.css",
+        "linked-order-witness/element/reset.css"
+      ],
+      "emissionPlanEntryCount": 0,
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": true,
+      "differenceReasonObserved": false,
+      "importGraphWinner": "red",
+      "legacyWinner": "red",
+      "linkedWinner": "green"
+    },
+    {
+      "witnessId": "element-selector-after-rule-bearing-module",
+      "selectorlessModulePaths": ["linked-order-witness/mixed/reset.css"],
+      "emissionPlanEntryCount": 0,
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": true,
+      "differenceReasonObserved": false,
+      "importGraphWinner": "red",
+      "legacyWinner": "red",
+      "linkedWinner": "green"
+    },
+    {
+      "witnessId": "path-name-independence",
+      "selectorlessModulePaths": [
+        "linked-order-witness/names/zzz-app.css",
+        "linked-order-witness/names/aaa-reset.css"
+      ],
+      "emissionPlanEntryCount": 0,
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true,
+      "importGraphWinner": "red",
+      "legacyWinner": "red",
+      "linkedWinner": "red"
+    },
+    {
+      "witnessId": "cascade-layer-declaration-order",
+      "selectorlessModulePaths": ["linked-order-witness/layers/layers.css"],
+      "emissionPlanEntryCount": 0,
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": false,
+      "importGraphWinner": "blue",
+      "legacyWinner": "blue",
+      "linkedWinner": "orange"
     }
   ]
 }

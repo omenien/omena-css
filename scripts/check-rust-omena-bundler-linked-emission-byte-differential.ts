@@ -74,6 +74,26 @@ interface LinkedEmissionCoverageCensusV0 {
     readonly fixtureId: string;
     readonly modulePath: string;
     readonly shapeClasses: readonly string[];
+    readonly emissionPlanEntryCount: number;
+    readonly factCategories: readonly string[];
+    readonly outputBytesDiffer: boolean;
+    readonly markerOrdersAgree: boolean;
+    readonly linkedMarkerOrderMatchesAuthority: boolean;
+    readonly semanticDifferenceObserved: boolean;
+    readonly differenceReasonObserved: boolean;
+  }>;
+  readonly placementWitnesses: ReadonlyArray<{
+    readonly witnessId: string;
+    readonly selectorlessModulePaths: readonly string[];
+    readonly emissionPlanEntryCount: number;
+    readonly outputBytesDiffer: boolean;
+    readonly markerOrdersAgree: boolean;
+    readonly linkedMarkerOrderMatchesAuthority: boolean;
+    readonly semanticDifferenceObserved: boolean;
+    readonly differenceReasonObserved: boolean;
+    readonly importGraphWinner: string;
+    readonly legacyWinner: string;
+    readonly linkedWinner: string;
   }>;
 }
 
@@ -202,7 +222,13 @@ const run = spawnSync(
 );
 assert.equal(run.status, 0, [run.stdout, run.stderr].filter(Boolean).join("\n"));
 const envelope = JSON.parse(run.stdout) as LinkedEmissionByteDifferentialEnvelopeV0;
-const { report, census } = envelope;
+const report = envelope.report;
+const census = process.argv.includes("--inject-missing-order-census-row")
+  ? {
+      ...envelope.census,
+      blindSpots: envelope.census.blindSpots.slice(1),
+    }
+  : envelope.census;
 
 assert.equal(envelope.schemaVersion, "0");
 assert.equal(envelope.product, "omena-diff-test.linked-emission-byte-differential-envelope");
@@ -217,6 +243,80 @@ assert.equal(census.coveredShapeCount + census.notCoveredShapeCount, census.popu
 assert.equal(census.notCoveredShapeCount, census.notCovered.length);
 assert.equal(census.markerObservableModuleCount + census.blindSpotModuleCount, census.moduleCount);
 assert.equal(census.blindSpotModuleCount, census.blindSpots.length);
+assert.equal(census.placementWitnesses.length, 4);
+assert.ok(
+  census.blindSpots.every(
+    (blindSpot) =>
+      blindSpot.emissionPlanEntryCount === 0 &&
+      blindSpot.outputBytesDiffer &&
+      blindSpot.markerOrdersAgree &&
+      blindSpot.linkedMarkerOrderMatchesAuthority &&
+      !blindSpot.semanticDifferenceObserved &&
+      !blindSpot.differenceReasonObserved,
+  ),
+);
+assert.ok(
+  census.placementWitnesses.every(
+    (witness) =>
+      witness.selectorlessModulePaths.length > 0 &&
+      witness.emissionPlanEntryCount === 0 &&
+      witness.outputBytesDiffer &&
+      witness.markerOrdersAgree &&
+      witness.linkedMarkerOrderMatchesAuthority,
+  ),
+);
+assert.deepEqual(
+  Object.fromEntries(
+    census.placementWitnesses.map((witness) => [
+      witness.witnessId,
+      {
+        importGraphWinner: witness.importGraphWinner,
+        legacyWinner: witness.legacyWinner,
+        linkedWinner: witness.linkedWinner,
+        semanticDifferenceObserved: witness.semanticDifferenceObserved,
+        differenceReasonObserved: witness.differenceReasonObserved,
+      },
+    ]),
+  ),
+  {
+    "element-selector-winner": {
+      importGraphWinner: "red",
+      legacyWinner: "red",
+      linkedWinner: "green",
+      semanticDifferenceObserved: true,
+      differenceReasonObserved: false,
+    },
+    "element-selector-after-rule-bearing-module": {
+      importGraphWinner: "red",
+      legacyWinner: "red",
+      linkedWinner: "green",
+      semanticDifferenceObserved: true,
+      differenceReasonObserved: false,
+    },
+    "path-name-independence": {
+      importGraphWinner: "red",
+      legacyWinner: "red",
+      linkedWinner: "red",
+      semanticDifferenceObserved: false,
+      differenceReasonObserved: true,
+    },
+    "cascade-layer-declaration-order": {
+      importGraphWinner: "blue",
+      legacyWinner: "blue",
+      linkedWinner: "orange",
+      semanticDifferenceObserved: false,
+      differenceReasonObserved: false,
+    },
+  },
+);
+if (process.argv.includes("--require-import-graph-winners")) {
+  assert.ok(
+    census.placementWitnesses.every(
+      (witness) => witness.linkedWinner === witness.importGraphWinner,
+    ),
+    "linked emission must preserve the import-graph winner for every placement witness",
+  );
+}
 const shapeClasses = census.shapes.map((entry) => entry.shapeClass);
 assert.equal(new Set(shapeClasses).size, shapeClasses.length);
 assert.ok(census.shapes.every((entry) => entry.shapeClass.length > 0));

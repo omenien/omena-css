@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_benchmarks::bundler_productization_corpus;
 use omena_bundler::{TransformBundleModuleInputV0, link_omena_transform_bundle_modules};
-use omena_parser::{StyleDialect, summarize_omena_parser_style_facts};
+use omena_parser::{
+    ParsedStyleFacts, StyleDialect, collect_style_facts, summarize_omena_parser_style_facts,
+};
 use omena_query::{
     OmenaQueryBundleEmissionPathV0, OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
@@ -115,6 +117,31 @@ pub struct LinkedEmissionMarkerBlindSpotV0 {
     pub fixture_id: String,
     pub module_path: String,
     pub shape_classes: Vec<String>,
+    pub emission_plan_entry_count: usize,
+    pub fact_categories: Vec<&'static str>,
+    pub output_bytes_differ: bool,
+    pub marker_orders_agree: bool,
+    pub linked_marker_order_matches_authority: bool,
+    pub semantic_difference_observed: bool,
+    pub difference_reason_observed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+/// An import-order witness that exercises a module absent from the selector-only plan.
+pub struct LinkedEmissionPlacementWitnessV0 {
+    pub witness_id: String,
+    pub selectorless_module_paths: Vec<String>,
+    pub emission_plan_entry_count: usize,
+    pub output_bytes_differ: bool,
+    pub marker_orders_agree: bool,
+    pub linked_marker_order_matches_authority: bool,
+    pub semantic_difference_observed: bool,
+    pub difference_reason_observed: bool,
+    pub import_graph_winner: String,
+    pub legacy_winner: String,
+    pub linked_winner: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -137,6 +164,7 @@ pub struct LinkedEmissionCoverageCensusV0 {
     pub not_covered: Vec<LinkedEmissionNotCoveredShapeV0>,
     pub fixture_observability: Vec<LinkedEmissionFixtureObservabilityV0>,
     pub blind_spots: Vec<LinkedEmissionMarkerBlindSpotV0>,
+    pub placement_witnesses: Vec<LinkedEmissionPlacementWitnessV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -170,6 +198,21 @@ struct LinkedEmissionFixtureV0 {
     entry_path: String,
     shape_classes: Vec<&'static str>,
     modules: Vec<LinkedEmissionFixtureModuleV0>,
+}
+
+#[derive(Debug)]
+struct LinkedEmissionFixtureAnalysisV0 {
+    case: LinkedEmissionByteDifferentialCaseV0,
+    linked_order: omena_bundler::LinkedStylesheetV0,
+    legacy_css: String,
+    linked_css: String,
+}
+
+#[derive(Debug)]
+struct LinkedEmissionPlacementWitnessDefinitionV0 {
+    fixture: LinkedEmissionFixtureV0,
+    selectorless_module_paths: &'static [&'static str],
+    import_graph_winner: &'static str,
 }
 
 const LINKED_EMISSION_COVERAGE_POPULATION_V0: &[LinkedEmissionCoverageShapeDefinitionV0] = &[
@@ -239,7 +282,7 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
     perturbation: LinkedEmissionByteDifferentialPerturbationV0,
 ) -> Result<LinkedEmissionByteDifferentialEnvelopeV0, String> {
     let fixtures = linked_emission_fixtures_v0();
-    let cases = fixtures
+    let analyses = fixtures
         .iter()
         .enumerate()
         .map(|(index, fixture)| {
@@ -250,9 +293,14 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
                 LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes => perturbation,
                 _ => LinkedEmissionByteDifferentialPerturbationV0::None,
             };
-            summarize_linked_emission_fixture_v0(fixture, case_perturbation)
+            analyze_linked_emission_fixture_v0(fixture, case_perturbation)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let census = summarize_linked_emission_coverage_census_v0(&fixtures, &analyses)?;
+    let cases = analyses
+        .into_iter()
+        .map(|analysis| analysis.case)
+        .collect::<Vec<_>>();
     let equivalent_count = cases
         .iter()
         .filter(|case| case.difference_class == LinkedEmissionByteDifferenceClassV0::Equivalent)
@@ -276,7 +324,6 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
         total_divergence_count: expected_divergence_count + unexpected_divergence_count,
         cases,
     };
-    let census = summarize_linked_emission_coverage_census_v0(&fixtures)?;
 
     Ok(LinkedEmissionByteDifferentialEnvelopeV0 {
         schema_version: "0",
@@ -288,7 +335,15 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
 
 fn summarize_linked_emission_coverage_census_v0(
     fixtures: &[LinkedEmissionFixtureV0],
+    analyses: &[LinkedEmissionFixtureAnalysisV0],
 ) -> Result<LinkedEmissionCoverageCensusV0, String> {
+    if fixtures.len() != analyses.len() {
+        return Err(format!(
+            "linked-emission fixture/analysis count mismatch: {} fixtures, {} analyses",
+            fixtures.len(),
+            analyses.len()
+        ));
+    }
     let mut population = BTreeMap::new();
     for definition in LINKED_EMISSION_COVERAGE_POPULATION_V0 {
         if population
@@ -312,7 +367,13 @@ fn summarize_linked_emission_coverage_census_v0(
     let mut module_count = 0usize;
     let mut marker_observable_module_count = 0usize;
 
-    for fixture in fixtures {
+    for (fixture, analysis) in fixtures.iter().zip(analyses) {
+        if fixture.id != analysis.case.fixture_id {
+            return Err(format!(
+                "linked-emission fixture/analysis id mismatch: {} != {}",
+                fixture.id, analysis.case.fixture_id
+            ));
+        }
         if !fixture_ids.insert(fixture.id.as_str()) {
             return Err(format!(
                 "duplicate linked-emission fixture id {}",
@@ -345,6 +406,14 @@ fn summarize_linked_emission_coverage_census_v0(
             .iter()
             .filter(|module| module.marker_names.is_empty())
         {
+            let emission_plan_entry_count = analysis
+                .linked_order
+                .global_rule_order
+                .rules
+                .iter()
+                .filter(|rule| rule.module_instance.module().as_str() == module.path)
+                .count();
+            let facts = collect_style_facts(module.source.as_str(), module.dialect);
             blind_spots.push(LinkedEmissionMarkerBlindSpotV0 {
                 fixture_id: fixture.id.clone(),
                 module_path: module.path.clone(),
@@ -353,6 +422,15 @@ fn summarize_linked_emission_coverage_census_v0(
                     .iter()
                     .map(|shape_class| (*shape_class).to_string())
                     .collect(),
+                emission_plan_entry_count,
+                fact_categories: populated_fact_categories_v0(&facts),
+                output_bytes_differ: !analysis.case.byte_equal,
+                marker_orders_agree: analysis.case.legacy_marker_order
+                    == analysis.case.linked_marker_order,
+                linked_marker_order_matches_authority: analysis.case.linked_marker_order
+                    == analysis.case.authoritative_marker_order,
+                semantic_difference_observed: analysis.case.semantic_mismatch_count > 0,
+                difference_reason_observed: !analysis.case.reasons.is_empty(),
             });
         }
         module_count += fixture.modules.len();
@@ -386,6 +464,10 @@ fn summarize_linked_emission_coverage_census_v0(
         .collect::<Vec<_>>();
     let full_corpus_coverage =
         not_covered.is_empty() && shapes.iter().all(|shape| !shape.fixture_ids.is_empty());
+    let placement_witnesses = linked_emission_placement_witness_definitions_v0()
+        .iter()
+        .map(summarize_linked_emission_placement_witness_v0)
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(LinkedEmissionCoverageCensusV0 {
         schema_version: "0",
@@ -407,13 +489,14 @@ fn summarize_linked_emission_coverage_census_v0(
         not_covered,
         fixture_observability,
         blind_spots,
+        placement_witnesses,
     })
 }
 
-fn summarize_linked_emission_fixture_v0(
+fn analyze_linked_emission_fixture_v0(
     fixture: &LinkedEmissionFixtureV0,
     perturbation: LinkedEmissionByteDifferentialPerturbationV0,
-) -> Result<LinkedEmissionByteDifferentialCaseV0, String> {
+) -> Result<LinkedEmissionFixtureAnalysisV0, String> {
     let style_sources = fixture
         .modules
         .iter()
@@ -519,7 +602,7 @@ fn summarize_linked_emission_fixture_v0(
         LinkedEmissionByteDifferenceClassV0::Unexpected
     };
 
-    Ok(LinkedEmissionByteDifferentialCaseV0 {
+    let case = LinkedEmissionByteDifferentialCaseV0 {
         fixture_id: fixture.id.clone(),
         module_count: fixture.modules.len(),
         legacy_emission_path: legacy.artifact.emission_path.as_wire_label(),
@@ -537,7 +620,161 @@ fn summarize_linked_emission_fixture_v0(
         linked_modules_emitted_once,
         difference_class,
         reasons,
+    };
+    Ok(LinkedEmissionFixtureAnalysisV0 {
+        case,
+        linked_order,
+        legacy_css,
+        linked_css,
     })
+}
+
+fn populated_fact_categories_v0(facts: &ParsedStyleFacts) -> Vec<&'static str> {
+    let mut categories = Vec::new();
+    if !facts.selectors.is_empty() {
+        categories.push("selectors");
+    }
+    if !facts.variables.is_empty() {
+        categories.push("variables");
+    }
+    if !facts.sass_symbols.is_empty() {
+        categories.push("sassSymbols");
+    }
+    if !facts.sass_includes.is_empty() {
+        categories.push("sassIncludes");
+    }
+    if !facts.sass_module_edges.is_empty() {
+        categories.push("sassModuleEdges");
+    }
+    if !facts.sass_placeholder_definitions.is_empty() {
+        categories.push("sassPlaceholderDefinitions");
+    }
+    if !facts.extend_targets.is_empty() {
+        categories.push("extendTargets");
+    }
+    if !facts.animations.is_empty() {
+        categories.push("animations");
+    }
+    if !facts.css_module_values.is_empty() {
+        categories.push("cssModuleValues");
+    }
+    if !facts.css_module_value_import_edges.is_empty() {
+        categories.push("cssModuleValueImportEdges");
+    }
+    if !facts.css_module_value_definition_edges.is_empty() {
+        categories.push("cssModuleValueDefinitionEdges");
+    }
+    if !facts.css_module_composes.is_empty() {
+        categories.push("cssModuleComposes");
+    }
+    if !facts.css_module_composes_edges.is_empty() {
+        categories.push("cssModuleComposesEdges");
+    }
+    if !facts.icss.is_empty() {
+        categories.push("icss");
+    }
+    if !facts.icss_import_edges.is_empty() {
+        categories.push("icssImportEdges");
+    }
+    if !facts.icss_export_edges.is_empty() {
+        categories.push("icssExportEdges");
+    }
+    if !facts.at_rules.is_empty() {
+        categories.push("atRules");
+    }
+    categories
+}
+
+fn summarize_linked_emission_placement_witness_v0(
+    definition: &LinkedEmissionPlacementWitnessDefinitionV0,
+) -> Result<LinkedEmissionPlacementWitnessV0, String> {
+    let analysis = analyze_linked_emission_fixture_v0(
+        &definition.fixture,
+        LinkedEmissionByteDifferentialPerturbationV0::None,
+    )?;
+    let selectorless_module_paths = definition
+        .selectorless_module_paths
+        .iter()
+        .map(|path| (*path).to_string())
+        .collect::<Vec<_>>();
+    if selectorless_module_paths.is_empty() {
+        return Err(format!(
+            "{} has no independently designated selector-less module",
+            definition.fixture.id
+        ));
+    }
+    for path in &selectorless_module_paths {
+        if !definition
+            .fixture
+            .modules
+            .iter()
+            .any(|module| module.path == *path)
+        {
+            return Err(format!(
+                "{} designates an absent selector-less module: {path}",
+                definition.fixture.id
+            ));
+        }
+    }
+    let emission_plan_entry_count = analysis
+        .linked_order
+        .global_rule_order
+        .rules
+        .iter()
+        .filter(|rule| {
+            selectorless_module_paths
+                .iter()
+                .any(|path| path == rule.module_instance.module().as_str())
+        })
+        .count();
+    let legacy_winner =
+        linked_emission_winner_v0(definition.fixture.id.as_str(), analysis.legacy_css.as_str())?;
+    let linked_winner =
+        linked_emission_winner_v0(definition.fixture.id.as_str(), analysis.linked_css.as_str())?;
+
+    Ok(LinkedEmissionPlacementWitnessV0 {
+        witness_id: definition.fixture.id.clone(),
+        selectorless_module_paths,
+        emission_plan_entry_count,
+        output_bytes_differ: !analysis.case.byte_equal,
+        marker_orders_agree: analysis.case.legacy_marker_order == analysis.case.linked_marker_order,
+        linked_marker_order_matches_authority: analysis.case.linked_marker_order
+            == analysis.case.authoritative_marker_order,
+        semantic_difference_observed: analysis.case.semantic_mismatch_count > 0,
+        difference_reason_observed: !analysis.case.reasons.is_empty(),
+        import_graph_winner: definition.import_graph_winner.to_string(),
+        legacy_winner,
+        linked_winner,
+    })
+}
+
+fn linked_emission_winner_v0(witness_id: &str, source: &str) -> Result<String, String> {
+    let compact = remove_ascii_whitespace_v0(source);
+    if witness_id == "cascade-layer-declaration-order" {
+        let statement = compact
+            .find("@layerbase,theme;")
+            .ok_or_else(|| format!("{witness_id} output has no layer-order statement"))?;
+        let theme = compact
+            .find("@layertheme{")
+            .ok_or_else(|| format!("{witness_id} output has no theme layer block"))?;
+        let base = compact
+            .find("@layerbase{")
+            .ok_or_else(|| format!("{witness_id} output has no base layer block"))?;
+        return Ok(if statement < theme.min(base) || base < theme {
+            "blue"
+        } else {
+            "orange"
+        }
+        .to_string());
+    }
+
+    let red = compact
+        .rfind("color:red")
+        .ok_or_else(|| format!("{witness_id} output has no red declaration"))?;
+    let green = compact
+        .rfind("color:green")
+        .ok_or_else(|| format!("{witness_id} output has no green declaration"))?;
+    Ok(if red > green { "red" } else { "green" }.to_string())
 }
 
 fn derive_difference_reasons_v0(
@@ -640,6 +877,112 @@ fn remove_ascii_whitespace_v0(source: &str) -> String {
 fn sha256_hex_v0(source: &str) -> String {
     let digest = Sha256::digest(source.as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn linked_emission_placement_witness_definitions_v0()
+-> Vec<LinkedEmissionPlacementWitnessDefinitionV0> {
+    vec![
+        LinkedEmissionPlacementWitnessDefinitionV0 {
+            fixture: LinkedEmissionFixtureV0 {
+                id: "element-selector-winner".to_string(),
+                entry_path: "linked-order-witness/element/app.css".to_string(),
+                shape_classes: Vec::new(),
+                modules: vec![
+                    LinkedEmissionFixtureModuleV0 {
+                        path: "linked-order-witness/element/app.css".to_string(),
+                        source: "@import \"./reset.css\"; div { color: red; }".to_string(),
+                        dialect: StyleDialect::Css,
+                        marker_names: Vec::new(),
+                    },
+                    LinkedEmissionFixtureModuleV0 {
+                        path: "linked-order-witness/element/reset.css".to_string(),
+                        source: "div { color: green; }".to_string(),
+                        dialect: StyleDialect::Css,
+                        marker_names: Vec::new(),
+                    },
+                ],
+            },
+            selectorless_module_paths: &[
+                "linked-order-witness/element/app.css",
+                "linked-order-witness/element/reset.css",
+            ],
+            import_graph_winner: "red",
+        },
+        LinkedEmissionPlacementWitnessDefinitionV0 {
+            fixture: LinkedEmissionFixtureV0 {
+                id: "element-selector-after-rule-bearing-module".to_string(),
+                entry_path: "linked-order-witness/mixed/app.css".to_string(),
+                shape_classes: Vec::new(),
+                modules: vec![
+                    LinkedEmissionFixtureModuleV0 {
+                        path: "linked-order-witness/mixed/app.css".to_string(),
+                        source:
+                            "@import \"./reset.css\"; .card { padding: 1px; } div { color: red; }"
+                                .to_string(),
+                        dialect: StyleDialect::Css,
+                        marker_names: vec!["card".to_string()],
+                    },
+                    LinkedEmissionFixtureModuleV0 {
+                        path: "linked-order-witness/mixed/reset.css".to_string(),
+                        source: "div { color: green; }".to_string(),
+                        dialect: StyleDialect::Css,
+                        marker_names: Vec::new(),
+                    },
+                ],
+            },
+            selectorless_module_paths: &["linked-order-witness/mixed/reset.css"],
+            import_graph_winner: "red",
+        },
+        LinkedEmissionPlacementWitnessDefinitionV0 {
+            fixture: LinkedEmissionFixtureV0 {
+                id: "path-name-independence".to_string(),
+                entry_path: "linked-order-witness/names/zzz-app.css".to_string(),
+                shape_classes: Vec::new(),
+                modules: vec![
+                    LinkedEmissionFixtureModuleV0 {
+                        path: "linked-order-witness/names/zzz-app.css".to_string(),
+                        source: "@import \"./aaa-reset.css\"; div { color: red; }".to_string(),
+                        dialect: StyleDialect::Css,
+                        marker_names: Vec::new(),
+                    },
+                    LinkedEmissionFixtureModuleV0 {
+                        path: "linked-order-witness/names/aaa-reset.css".to_string(),
+                        source: "div { color: green; }".to_string(),
+                        dialect: StyleDialect::Css,
+                        marker_names: Vec::new(),
+                    },
+                ],
+            },
+            selectorless_module_paths: &[
+                "linked-order-witness/names/zzz-app.css",
+                "linked-order-witness/names/aaa-reset.css",
+            ],
+            import_graph_winner: "red",
+        },
+        LinkedEmissionPlacementWitnessDefinitionV0 {
+            fixture: LinkedEmissionFixtureV0 {
+                id: "cascade-layer-declaration-order".to_string(),
+                entry_path: "linked-order-witness/layers/app.css".to_string(),
+                shape_classes: Vec::new(),
+                modules: vec![
+                    LinkedEmissionFixtureModuleV0 {
+                        path: "linked-order-witness/layers/app.css".to_string(),
+                        source: "@import \"./layers.css\"; @layer theme { .card { color: blue; } } @layer base { .card { color: orange; } }".to_string(),
+                        dialect: StyleDialect::Css,
+                        marker_names: Vec::new(),
+                    },
+                    LinkedEmissionFixtureModuleV0 {
+                        path: "linked-order-witness/layers/layers.css".to_string(),
+                        source: "@layer base, theme;".to_string(),
+                        dialect: StyleDialect::Css,
+                        marker_names: Vec::new(),
+                    },
+                ],
+            },
+            selectorless_module_paths: &["linked-order-witness/layers/layers.css"],
+            import_graph_winner: "blue",
+        },
+    ]
 }
 
 fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
@@ -907,12 +1250,93 @@ mod tests {
 
         assert_eq!(unexpected_fixture_ids, expected_fixture_ids);
         assert_eq!(blind_spot_fixture_ids, expected_fixture_ids);
+        assert!(envelope.census.blind_spots.iter().all(|blind_spot| {
+            blind_spot.emission_plan_entry_count == 0
+                && blind_spot.output_bytes_differ
+                && blind_spot.marker_orders_agree
+                && blind_spot.linked_marker_order_matches_authority
+                && !blind_spot.semantic_difference_observed
+                && !blind_spot.difference_reason_observed
+        }));
+        assert_eq!(
+            envelope
+                .census
+                .blind_spots
+                .iter()
+                .map(|blind_spot| {
+                    (
+                        blind_spot.fixture_id.as_str(),
+                        blind_spot.fact_categories.as_slice(),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>(),
+            BTreeMap::from([
+                ("bare-layer-statement-module", ["atRules"].as_slice()),
+                ("element-only-reset-module", [].as_slice()),
+                ("font-face-only-module", ["atRules"].as_slice()),
+            ])
+        );
         assert!(envelope.census.not_covered.iter().all(|entry| {
             !matches!(
                 entry.shape_class.as_str(),
                 "bare-layer-statement" | "element-only-reset" | "font-face-only"
             )
         }));
+        Ok(())
+    }
+
+    #[test]
+    fn placement_witnesses_expose_selector_only_order_blindness() -> Result<(), String> {
+        let envelope = summarize_linked_emission_byte_differential_envelope_v0(
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+        let witnesses = envelope
+            .census
+            .placement_witnesses
+            .iter()
+            .map(|witness| (witness.witness_id.as_str(), witness))
+            .collect::<BTreeMap<_, _>>();
+
+        assert_eq!(witnesses.len(), 4);
+        assert!(witnesses.values().all(|witness| {
+            !witness.selectorless_module_paths.is_empty()
+                && witness.emission_plan_entry_count == 0
+                && witness.output_bytes_differ
+                && witness.marker_orders_agree
+                && witness.linked_marker_order_matches_authority
+        }));
+        assert_eq!(
+            witnesses
+                .iter()
+                .map(|(id, witness)| {
+                    (
+                        *id,
+                        (
+                            witness.import_graph_winner.as_str(),
+                            witness.legacy_winner.as_str(),
+                            witness.linked_winner.as_str(),
+                            witness.semantic_difference_observed,
+                            witness.difference_reason_observed,
+                        ),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>(),
+            BTreeMap::from([
+                (
+                    "cascade-layer-declaration-order",
+                    ("blue", "blue", "orange", false, false)
+                ),
+                (
+                    "element-selector-after-rule-bearing-module",
+                    ("red", "red", "green", true, false)
+                ),
+                (
+                    "element-selector-winner",
+                    ("red", "red", "green", true, false)
+                ),
+                ("path-name-independence", ("red", "red", "red", false, true)),
+            ])
+        );
         Ok(())
     }
 
