@@ -114,7 +114,7 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
     let entry_source =
         "@import \"./dependency.module.css\"; .shared { color: red; } .entry-only { color: tan; }";
     let dependency_source =
-        ".shared { color: green; } .b-only { color: blue; } .dependency-dead { color: gray; }";
+        ".shared { padding: 8px; } .b-only { color: blue; } .dependency-dead { color: gray; }";
 
     fs::write(&entry_path, entry_source)
         .map_err(|error| format!("failed to write {}: {error}", entry_path.display()))?;
@@ -287,11 +287,12 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
         css.contains("color: red"),
         "the entry-owned shared selector must remain: {css:?}"
     );
-    let dependency_shared_retained = css.contains("color: green");
+    let dependency_shared_declaration_retained = css.contains("padding: 8px");
     let dependency_owned_selector_retained = css.contains("color: blue");
     assert!(
-        !dependency_shared_retained && dependency_owned_selector_retained,
-        "module ownership mismatch: dependency_shared_retained={dependency_shared_retained}, \
+        dependency_shared_declaration_retained && dependency_owned_selector_retained,
+        "emitted-token preservation mismatch: \
+         dependency_shared_declaration_retained={dependency_shared_declaration_retained}, \
          dependency_owned_selector_retained={dependency_owned_selector_retained}, css={css:?}"
     );
     assert!(

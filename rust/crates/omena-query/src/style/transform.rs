@@ -14,7 +14,7 @@ use omena_query_transform_runner::{
     TransformModuleQualifiedExecutionErrorV0, bundle_edge_is_module_dependency,
     classify_transform_reachability_precision,
     evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options,
-    execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle,
+    execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names,
     link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
     materialize_omena_transform_bundle_linked_stylesheet_with_emission_items,
     project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules,
@@ -46,8 +46,8 @@ pub use context::{
 };
 
 use context::{
-    derive_omena_query_transform_context_from_engine_input, find_target_style_source,
-    merge_target_options_transform_context, merge_transform_context,
+    css_identifier_names_match, derive_omena_query_transform_context_from_engine_input,
+    find_target_style_source, merge_target_options_transform_context, merge_transform_context,
     summarize_omena_query_transform_context_from_sources_with_resolution_context,
 };
 use imports::resolve_import_inline_replacement_for_transform_context;
@@ -956,6 +956,7 @@ struct ModuleQualifiedExecutionInputsV0<'a> {
     closed_world_bundle: &'a ClosedWorldBundleV0,
     module_instance: &'a omena_parser::ModuleInstanceKeyV0,
     reachability_precision: FactPrecision,
+    retained_class_names: &'a [String],
 }
 
 fn execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
@@ -2549,7 +2550,7 @@ fn execute_omena_query_transform_passes_from_module_with_context_and_closed_worl
 
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let mut execution =
-        execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle(
+        execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names(
             style_source,
             dialect,
             &admitted_passes,
@@ -2558,6 +2559,7 @@ fn execute_omena_query_transform_passes_from_module_with_context_and_closed_worl
             execution_inputs.module_instance,
             execution_inputs.reachability_precision,
             execution_policy,
+            execution_inputs.retained_class_names,
         )?;
     merge_strict_preflight_refusals(&mut execution, preflight_refusals);
     enforce_strict_decision_coverage(&mut execution, execution_policy, expected_decision_count);
@@ -3242,6 +3244,7 @@ fn execute_linked_bundle_modules(
     let mut transformed_modules = Vec::with_capacity(linked_stylesheet.module_instances.len());
     let mut target_execution = None;
 
+    let mut module_inputs = Vec::with_capacity(linked_stylesheet.module_instances.len());
     for module_instance in &linked_stylesheet.module_instances {
         let style_path = module_instance.module().as_str();
         let Some(style_source) = find_target_style_source(style_path, style_sources) else {
@@ -3258,20 +3261,39 @@ fn execute_linked_bundle_modules(
         for inline in &mut module_context.import_inlines {
             inline.replacement_css.clear();
         }
+        module_inputs.push(LinkedModuleExecutionInputV0 {
+            module_instance,
+            style_source,
+            context: module_context,
+        });
+    }
+    let retained_class_names_by_module = retained_class_names_for_live_linked_emission_tokens(
+        &linked_stylesheet.closed_world_bundle,
+        module_inputs.as_slice(),
+    );
+
+    for module_input in module_inputs {
+        let module_instance = module_input.module_instance;
+        let style_path = module_instance.module().as_str();
+        let retained_class_names = retained_class_names_by_module
+            .get(module_instance)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         let summary =
             execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
                 style_path,
-                style_source,
+                module_input.style_source,
                 &pass_set,
-                &module_context,
+                &module_input.context,
                 ModuleQualifiedExecutionInputsV0 {
                     closed_world_bundle: &linked_stylesheet.closed_world_bundle,
                     module_instance,
                     reachability_precision: classify_transform_reachability_precision(
-                        &module_context,
+                        &module_input.context,
                         true,
                         None,
                     ),
+                    retained_class_names,
                 },
                 options,
             )?;
@@ -3309,6 +3331,72 @@ fn execute_linked_bundle_modules(
         execution,
         materialization: materialized,
     })
+}
+
+struct LinkedModuleExecutionInputV0<'a> {
+    module_instance: &'a omena_parser::ModuleInstanceKeyV0,
+    style_source: &'a str,
+    context: TransformExecutionContextV0,
+}
+
+fn retained_class_names_for_live_linked_emission_tokens(
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_inputs: &[LinkedModuleExecutionInputV0<'_>],
+) -> BTreeMap<omena_parser::ModuleInstanceKeyV0, Vec<String>> {
+    let mut live_emitted_tokens = BTreeSet::new();
+    for module_input in module_inputs {
+        let Some(symbols) = closed_world_bundle
+            .reachability()
+            .symbols_for_module(module_input.module_instance)
+        else {
+            continue;
+        };
+        for class_name in symbols.class_names() {
+            let emitted_token = module_input
+                .context
+                .class_name_rewrites
+                .iter()
+                .find(|rewrite| {
+                    css_identifier_names_match(rewrite.original_name.as_str(), class_name)
+                })
+                .map_or(class_name.as_str(), |rewrite| {
+                    rewrite.rewritten_name.as_str()
+                });
+            live_emitted_tokens.insert(emitted_token.to_string());
+        }
+    }
+
+    module_inputs
+        .iter()
+        .map(|module_input| {
+            let own_reachable = closed_world_bundle
+                .reachability()
+                .symbols_for_module(module_input.module_instance)
+                .map(|symbols| symbols.class_names())
+                .unwrap_or_default();
+            let retained = if css_modules::style_path_is_css_module_path(
+                module_input.module_instance.module().as_str(),
+            ) {
+                module_input
+                    .context
+                    .class_name_rewrites
+                    .iter()
+                    .filter(|rewrite| live_emitted_tokens.contains(&rewrite.rewritten_name))
+                    .map(|rewrite| rewrite.original_name.clone())
+                    .collect::<BTreeSet<_>>()
+            } else {
+                live_emitted_tokens.clone()
+            }
+            .into_iter()
+            .filter(|name| {
+                !own_reachable
+                    .iter()
+                    .any(|own| css_identifier_names_match(own, name))
+            })
+            .collect::<Vec<_>>();
+            (module_input.module_instance.clone(), retained)
+        })
+        .collect()
 }
 
 struct LinkedBundleExecutionV0 {

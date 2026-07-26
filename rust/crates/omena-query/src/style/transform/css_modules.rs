@@ -149,7 +149,7 @@ pub(super) fn derive_css_module_value_resolutions_for_transform_context(
         .collect()
 }
 
-fn style_path_is_css_module_path(style_path: &str) -> bool {
+pub(super) fn style_path_is_css_module_path(style_path: &str) -> bool {
     let file_name = style_path
         .rsplit(['/', '\\'])
         .next()

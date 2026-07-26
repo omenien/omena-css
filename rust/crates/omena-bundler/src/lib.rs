@@ -2181,6 +2181,10 @@ fn resolve_relative_bundle_asset_path(source_path: &str, normalized_url: &str) -
     normalize_bundle_path(base.join(normalized_url))
 }
 
+pub fn normalize_omena_transform_bundle_path(path: &str) -> String {
+    normalize_bundle_path(PathBuf::from(path.replace('\\', "/"))).replace('\\', "/")
+}
+
 fn normalize_bundle_path(path: PathBuf) -> String {
     let mut normalized = PathBuf::new();
     for component in path.components() {
@@ -2372,14 +2376,28 @@ mod tests {
         link_omena_transform_bundle_modules_with_semantic_reachability,
         link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
         link_stylesheet_from_projection, materialize_omena_transform_bundle_linked_stylesheet,
-        project_omena_transform_bundle_linker_inputs, raw_scan_bundle_asset_urls_for_oracle,
-        rewrite_omena_transform_bundle_asset_urls_in_source,
+        normalize_omena_transform_bundle_path, project_omena_transform_bundle_linker_inputs,
+        raw_scan_bundle_asset_urls_for_oracle, rewrite_omena_transform_bundle_asset_urls_in_source,
         summarize_omena_transform_bundle_from_source,
     };
     use omena_cross_file_summary::EdgeOrderRelevanceV0;
     use omena_parser::{
         ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedSelectorFactKind, StyleDialect,
     };
+
+    #[test]
+    fn public_path_normalizer_collapses_equivalent_cross_platform_spellings() {
+        assert_eq!(
+            normalize_omena_transform_bundle_path("/workspace/src/./nested/../Button.module.css"),
+            "/workspace/src/Button.module.css"
+        );
+        assert_eq!(
+            normalize_omena_transform_bundle_path(
+                r"C:\workspace\src\.\nested\..\Button.module.css"
+            ),
+            "C:/workspace/src/Button.module.css"
+        );
+    }
 
     #[test]
     fn builds_bundle_plan_from_scss_and_css_modules_parser_facts() {

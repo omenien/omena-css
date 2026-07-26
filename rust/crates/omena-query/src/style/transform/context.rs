@@ -10,6 +10,9 @@ use super::static_stylesheet::{
     derive_static_stylesheet_module_evaluation_for_transform_context,
 };
 use super::*;
+use crate::types::{
+    normalize_omena_query_style_path, resolve_omena_query_style_path_against_known,
+};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -426,8 +429,23 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
     target_style_path: &str,
     closed_world_requested: bool,
 ) -> OmenaQueryEngineInputTransformContextDerivationV0 {
+    let mut known_style_paths = input
+        .styles
+        .iter()
+        .map(|style| normalize_omena_query_style_path(style.file_path.as_str()))
+        .collect::<Vec<_>>();
+    known_style_paths.sort();
+    known_style_paths.dedup();
+    let canonical_target_style_path = resolve_omena_query_style_path_against_known(
+        target_style_path,
+        known_style_paths.as_slice(),
+    )
+    .unwrap_or_else(|| normalize_omena_query_style_path(target_style_path));
     let (projection_summary, projection_precisions) =
-        summarize_omena_query_expression_domain_selector_projection_with_precision(input);
+        omena_query_core::summarize_omena_query_expression_domain_selector_projection_with_precision_and_style_path_resolver(
+            input,
+            resolve_omena_query_style_path_against_known,
+        );
     let precision_by_projection = projection_precisions
         .iter()
         .map(|entry| {
@@ -454,26 +472,46 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
             unattributed_projection_count += 1;
             unattributed_class_names.extend(projection.selector_names.iter().cloned());
         } else {
+            let mut has_unresolved_target = false;
             for target_style_path in projection
                 .target_style_paths
                 .iter()
                 .collect::<BTreeSet<_>>()
             {
+                let Some(target_style_path) = resolve_omena_query_style_path_against_known(
+                    target_style_path,
+                    known_style_paths.as_slice(),
+                ) else {
+                    let target_style_path = normalize_omena_query_style_path(target_style_path);
+                    *targeted_projection_count_by_style_path
+                        .entry(target_style_path.clone())
+                        .or_default() += 1;
+                    targeted_class_names_by_style_path
+                        .entry(target_style_path)
+                        .or_default()
+                        .extend(projection.selector_names.iter().cloned());
+                    has_unresolved_target = true;
+                    continue;
+                };
                 *targeted_projection_count_by_style_path
                     .entry(target_style_path.clone())
                     .or_default() += 1;
                 targeted_class_names_by_style_path
-                    .entry(target_style_path.clone())
+                    .entry(target_style_path)
                     .or_default()
                     .extend(projection.selector_names.iter().cloned());
             }
+            if has_unresolved_target {
+                unattributed_projection_count += 1;
+                unattributed_class_names.extend(projection.selector_names.iter().cloned());
+            }
         }
-        if projection.target_style_paths.is_empty()
-            || projection
-                .target_style_paths
-                .iter()
-                .any(|path| path == target_style_path)
-        {
+        let projection_targets_current_style = projection.target_style_paths.is_empty()
+            || projection.target_style_paths.iter().any(|path| {
+                resolve_omena_query_style_path_against_known(path, known_style_paths.as_slice())
+                    .is_none_or(|path| path == canonical_target_style_path)
+            });
+        if projection_targets_current_style {
             selected_projection_count += 1;
             closed_set_enumeration_candidate &=
                 matches!(projection.value_kind, "bottom" | "exact" | "finiteSet");
@@ -565,6 +603,7 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
         .collect();
     let module_reachability = OmenaQueryEngineInputModuleReachabilityV0::new(
         summary,
+        known_style_paths,
         targeted_class_names_by_style_path,
         targeted_projection_count_by_style_path,
         unattributed_class_names.into_iter().collect(),

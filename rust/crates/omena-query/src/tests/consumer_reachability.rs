@@ -505,7 +505,7 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     let dependency_path = "src/dependency.module.css";
     let entry_source =
         "@import \"./dependency.module.css\"; .shared { color: red; } .entry-dead { color: tan; }";
-    let dependency_source = ".shared { color: green; } .dependency-own { color: blue; } .dependency-dead { color: gray; }";
+    let dependency_source = ".shared { padding: 8px; } .dependency-own { color: blue; } .dependency-dead { color: gray; }";
     let input = module_reachability_input(
         &[
             ("entry-ref", entry_path, "shared"),
@@ -640,7 +640,7 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
         dependency_shared.provenance_labels(),
         &["moduleQualifiedOwnershipObserved"]
     );
-    assert!(!output_css.contains("color: green"));
+    assert!(output_css.contains("padding: 8px"));
 
     let dependency_owned = explain_omena_query_tree_shake_for_module(
         bundle,
@@ -650,6 +650,8 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     );
     assert_eq!(dependency_owned.reachable(), Some(true));
     assert!(output_css.contains("color: blue"));
+    assert!(!output_css.contains("color: tan"));
+    assert!(!output_css.contains("color: gray"));
 
     let unknown = explain_omena_query_tree_shake_for_module(
         bundle,
@@ -687,6 +689,82 @@ fn unattributed_projection_fans_out_to_every_style_module() {
         assert_eq!(attribution.targeted_projection_count(), 0);
         assert!(attribution.unattributed_projection_count() > 0);
         assert_eq!(attribution.class_names(), &["shared".to_string()]);
+    }
+}
+
+#[test]
+fn module_reachability_resolves_equivalent_style_path_spellings() {
+    let style_path = "/workspace/src/Button.module.css";
+    let input_style_path = "/workspace/src/nested/../Button.module.css";
+    let input = module_reachability_input(
+        &[
+            (
+                "current-directory-ref",
+                "/workspace/src/./Button.module.css",
+                "current-directory",
+            ),
+            (
+                "parent-directory-ref",
+                "/workspace/src/nested/../Button.module.css",
+                "parent-directory",
+            ),
+            (
+                "case-insensitive-ref",
+                "/WORKSPACE/SRC/BUTTON.MODULE.CSS",
+                "case-insensitive",
+            ),
+            (
+                "workspace-relative-ref",
+                "src/Button.module.css",
+                "workspace-relative",
+            ),
+        ],
+        &[(
+            input_style_path,
+            ".current-directory {} .parent-directory {} .case-insensitive {} .workspace-relative {}",
+            &[
+                "current-directory",
+                "parent-directory",
+                "case-insensitive",
+                "workspace-relative",
+            ],
+        )],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, style_path, true);
+    let attribution = reachability.module_attribution(style_path);
+
+    assert_eq!(
+        attribution.class_names(),
+        &[
+            "case-insensitive".to_string(),
+            "current-directory".to_string(),
+            "parent-directory".to_string(),
+            "workspace-relative".to_string(),
+        ]
+    );
+    assert_eq!(attribution.targeted_projection_count(), 4);
+    assert_eq!(attribution.unattributed_projection_count(), 0);
+}
+
+#[test]
+fn ambiguous_relative_style_path_fans_out_instead_of_choosing_an_owner() {
+    let first_style_path = "/workspace/first/Button.module.css";
+    let second_style_path = "/workspace/second/Button.module.css";
+    let input = module_reachability_input(
+        &[("ambiguous-ref", "Button.module.css", "shared")],
+        &[
+            (first_style_path, ".shared {}", &["shared"]),
+            (second_style_path, ".shared {}", &["shared"]),
+        ],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, first_style_path, true);
+
+    for style_path in [first_style_path, second_style_path] {
+        let attribution = reachability.module_attribution(style_path);
+        assert_eq!(attribution.class_names(), &["shared".to_string()]);
+        assert_eq!(attribution.unattributed_projection_count(), 1);
     }
 }
 
@@ -842,14 +920,16 @@ fn assert_module_reachability_producer_counts(
         &reachability,
     )?;
 
+    let projection_summary_evaluation_count =
+        omena_query_core::selector_projection_evaluation_count_for_test();
+    let closed_world_bundle_construction_count =
+        omena_parser::closed_world_bundle_construction_count_for_test();
     assert_eq!(
-        omena_query_core::selector_projection_evaluation_count_for_test(),
-        1,
+        projection_summary_evaluation_count, 1,
         "selector projection summary must be produced once per bundle run"
     );
     assert_eq!(
-        omena_parser::closed_world_bundle_construction_count_for_test(),
-        1,
+        closed_world_bundle_construction_count, 1,
         "the closed-world bundle and qualified index must be built once, not rebuilt per module"
     );
     assert_eq!(
@@ -859,6 +939,11 @@ fn assert_module_reachability_producer_counts(
             .bundle()
             .map(|bundle| bundle.linked_modules().len()),
         Some(styles.len())
+    );
+    println!(
+        "OMENA_QUERY_MODULE_REACHABILITY_HOIST path={entry_path} \
+         projectionSummaryEvaluationCount={projection_summary_evaluation_count} \
+         closedWorldBundleConstructionCount={closed_world_bundle_construction_count}"
     );
     Ok(())
 }
