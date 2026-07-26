@@ -7,6 +7,10 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicApiSnapshot = read("rust/crates/omena-bundler/tests/snapshots/public-api.txt");
 const parserFactsSource = read("rust/crates/omena-parser/src/facts/mod.rs");
+const emissionSelectorFactsSource = read(
+  "rust/crates/omena-parser/src/facts/emission_selectors.rs",
+);
+const parserExtensionSource = read("rust/crates/omena-parser/src/extension.rs");
 
 const frozenBundlerFields = new Map<string, readonly string[]>([
   [
@@ -154,6 +158,88 @@ assert.deepEqual(
   "ParsedStyleFacts field surface changed; carry new parser projections beside the frozen facts",
 );
 
+const emissionSelectorCarrierKinds = rustEnumVariants(
+  emissionSelectorFactsSource,
+  "ParsedEmissionSelectorFactKindV0",
+);
+assert.deepEqual(
+  emissionSelectorCarrierKinds,
+  ["Element", "Attribute", "Universal", "PseudoClass", "PseudoElement"],
+  "the emission-selector carrier changed; update the bundler mapping and its corpus before accepting the new kind",
+);
+
+const cssAtRuleCarrierKinds = rustSyntaxKindsInFunction(
+  parserExtensionSource,
+  "pub(crate) fn at_rule_spec",
+);
+assert.deepEqual(
+  cssAtRuleCarrierKinds,
+  [
+    "CharsetRule",
+    "ColorProfileRule",
+    "ContainerRule",
+    "CounterStyleRule",
+    "CustomMediaRule",
+    "ElseRule",
+    "FontFaceRule",
+    "FontFeatureValuesAnnotationRule",
+    "FontFeatureValuesCharacterVariantRule",
+    "FontFeatureValuesHistoricalFormsRule",
+    "FontFeatureValuesOrnamentsRule",
+    "FontFeatureValuesRule",
+    "FontFeatureValuesStylesetRule",
+    "FontFeatureValuesStylisticRule",
+    "FontFeatureValuesSwashRule",
+    "FontPaletteValuesRule",
+    "FunctionRule",
+    "IfRule",
+    "ImportRule",
+    "KeyframesRule",
+    "LayerRule",
+    "MediaRule",
+    "NamespaceRule",
+    "NestRule",
+    "PageMarginRule",
+    "PageRule",
+    "PositionTryRule",
+    "PropertyRule",
+    "ScopeRule",
+    "StartingStyleRule",
+    "SupportsRule",
+    "ViewTransitionRule",
+    "WhenRule",
+  ],
+  "the CSS at-rule carrier changed; update emission coverage before accepting the new syntax kind",
+);
+
+const scssAtRuleCarrierKinds = rustSyntaxKindsInFunction(
+  parserExtensionSource,
+  "pub(crate) fn scss_at_rule_spec",
+);
+assert.deepEqual(
+  scssAtRuleCarrierKinds,
+  [
+    "ScssAtRootRule",
+    "ScssContentRule",
+    "ScssControlEach",
+    "ScssControlElse",
+    "ScssControlFor",
+    "ScssControlIf",
+    "ScssControlWhile",
+    "ScssDebugRule",
+    "ScssErrorRule",
+    "ScssExtendRule",
+    "ScssForwardRule",
+    "ScssFunctionDeclaration",
+    "ScssIncludeRule",
+    "ScssMixinDeclaration",
+    "ScssReturnRule",
+    "ScssUseRule",
+    "ScssWarnRule",
+  ],
+  "the SCSS at-rule carrier changed; update emission coverage before accepting the new syntax kind",
+);
+
 const emissionItemTests = runCargoTest([
   "test",
   "--manifest-path",
@@ -166,6 +252,7 @@ const emissionItemTests = runCargoTest([
 ]);
 for (const testName of [
   "emission_item_projection_parses_each_module_once",
+  "emission_item_materializer_rejects_incomplete_module_coverage",
   "emission_items_for_empty_stylesheets_are_module_boundaries",
   "emission_items_for_supported_syntax_have_no_unknown_kinds",
   "emission_items_place_element_only_import_before_the_importer",
@@ -205,6 +292,8 @@ process.stdout.write(
       frozenBundlerTypeCount: frozenBundlerFields.size,
       frozenBundlerFieldCount: frozenFieldCount,
       parsedStyleFactFieldCount: parsedStyleFactFields.length,
+      emissionSelectorCarrierKindCount: emissionSelectorCarrierKinds.length,
+      atRuleCarrierKindCount: cssAtRuleCarrierKinds.length + scssAtRuleCarrierKinds.length,
       parserInvocationsPerFixtureModule: 1,
       regressionFixtureCount: 5,
       legacyByteIdentity: true,
@@ -216,6 +305,43 @@ process.stdout.write(
 
 function read(relativePath: string): string {
   return readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function rustEnumVariants(source: string, enumName: string): readonly string[] {
+  const body = new RegExp(`pub enum ${enumName}\\s*\\{([\\s\\S]*?)\\n\\}`, "u").exec(source)?.[1];
+  assert.ok(body, `${enumName} definition is missing`);
+  return body
+    .split("\n")
+    .map((line) => /^([A-Za-z][A-Za-z0-9_]*)\b/u.exec(line.trim())?.[1])
+    .filter((variant): variant is string => variant !== undefined);
+}
+
+function rustSyntaxKindsInFunction(source: string, signature: string): readonly string[] {
+  const signatureIndex = source.indexOf(signature);
+  assert.notEqual(signatureIndex, -1, `${signature} is missing`);
+  const bodyStart = source.indexOf("{", signatureIndex);
+  assert.notEqual(bodyStart, -1, `${signature} has no body`);
+  let depth = 0;
+  let bodyEnd = -1;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    if (source[index] === "{") {
+      depth += 1;
+    } else if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        bodyEnd = index;
+        break;
+      }
+    }
+  }
+  assert.notEqual(bodyEnd, -1, `${signature} body is unterminated`);
+  return [
+    ...new Set(
+      [...source.slice(bodyStart + 1, bodyEnd).matchAll(/SyntaxKind::([A-Za-z0-9_]+)/gu)].map(
+        (match) => match[1],
+      ),
+    ),
+  ].toSorted();
 }
 
 function runCargoTest(args: readonly string[]): string {
