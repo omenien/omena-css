@@ -78,7 +78,7 @@
         {
           "crateName": "omena-query",
           "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-          "symbol": "execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle"
+          "symbol": "execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names"
         }
       ]
     },

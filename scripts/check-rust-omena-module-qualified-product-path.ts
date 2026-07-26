@@ -189,7 +189,9 @@ function classifyQualifiedExecutors(
     )
     .flatMap((occurrence) => {
       const crateName = crateNameForPath(occurrence.sourcePath);
-      const symbol = symbols.find((candidate) => occurrence.text.includes(candidate));
+      const symbol = symbols
+        .filter((candidate) => occurrence.text.includes(candidate))
+        .toSorted((left, right) => right.length - left.length)[0];
       if (
         !crateName ||
         !productCrates.includes(crateName as (typeof productCrates)[number]) ||
