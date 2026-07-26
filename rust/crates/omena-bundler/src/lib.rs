@@ -3506,6 +3506,46 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn emission_item_projection_parses_each_module_once() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "src/reset.css",
+                "html { box-sizing: border-box; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/theme.css",
+                ":root { --brand: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                ".app { color: var(--brand); }",
+                StyleDialect::Css,
+            ),
+        ];
+        let (linked, parser_snapshot) = omena_parser::with_omena_parser_parse_instrumentation(
+            || {
+                let projections =
+                    super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
+                super::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+                    &["src/reset.css", "src/theme.css", "src/app.css"],
+                    projections.linker_projection(),
+                    projections.emission_item_projection(),
+                    &[],
+                    &[],
+                    TransformBundleLinkOptionsV0::default(),
+                )
+            },
+        );
+        let linked = linked.map_err(|error| format!("emission-item link failed: {error:?}"))?;
+
+        assert_eq!(parser_snapshot.parse_invocation_count, 3);
+        assert_eq!(linked.linked_stylesheet.module_instances.len(), 3);
+        Ok(())
+    }
+
     fn materialize_with_emission_items(
         entrypoint: &str,
         modules: &[TransformBundleModuleInputV0],
