@@ -12,7 +12,7 @@ interface LinkedEmissionByteDifferentialBaselineV0 {
   readonly coverageScope: "boundedMultiModuleFixtures" | "fullCorpus";
   readonly fullCorpusCoverage: boolean;
   readonly minimumFixtureCount: number;
-  readonly minimumExpectedDivergenceCount: number;
+  readonly expectedDivergenceCount: number;
   readonly maximumUnexpectedDivergenceCount: number;
 }
 
@@ -28,6 +28,9 @@ interface LinkedEmissionByteDifferentialCaseV0 {
   readonly authoritativeMarkerOrder: readonly string[];
   readonly legacyMarkerOrder: readonly string[];
   readonly linkedMarkerOrder: readonly string[];
+  readonly authoritativeModuleOrder: readonly string[];
+  readonly linkedOutputModuleOrder: readonly string[];
+  readonly linkedOutputModuleOrderMatchesAuthority: boolean;
   readonly linkedModulesEmittedOnce: boolean;
   readonly differenceClass: DifferenceClass;
   readonly reasons: readonly string[];
@@ -56,6 +59,8 @@ interface LinkedEmissionCoverageCensusV0 {
   readonly moduleCount: number;
   readonly markerObservableModuleCount: number;
   readonly blindSpotModuleCount: number;
+  readonly unknownStructuralSelectorCount: number;
+  readonly unknownAtRuleCount: number;
   readonly shapes: ReadonlyArray<{
     readonly shapeClass: string;
     readonly fixtureIds: readonly string[];
@@ -116,8 +121,26 @@ interface LinkedEmissionOpenDivergenceLedgerV0 {
   }>;
 }
 
+interface LinkedEmissionExpectedDivergenceLedgerV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-diff-test.linked-emission-expected-divergence-ledger";
+  readonly entries: ReadonlyArray<{
+    readonly fixtureId: string;
+    readonly classificationArm: "semanticPreservingKnownDifference";
+    readonly derivedReasons: readonly string[];
+    readonly witnessDigest: string;
+    readonly justification: string;
+  }>;
+}
+
 const censusPath =
   "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-coverage-census.json";
+const expectedDivergenceLedger = JSON.parse(
+  readFileSync(
+    "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-expected-divergence-ledger.json",
+    "utf8",
+  ),
+) as LinkedEmissionExpectedDivergenceLedgerV0;
 const divergenceLedger = JSON.parse(
   readFileSync(
     "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-open-divergence-ledger.json",
@@ -130,8 +153,13 @@ const baseline = JSON.parse(
 assert.equal(baseline.schemaVersion, "0");
 assert.equal(baseline.product, "omena-bundler.linked-emission-byte-differential-baseline");
 assert.ok(baseline.minimumFixtureCount >= 3);
-assert.ok(baseline.minimumExpectedDivergenceCount > 0);
+assert.ok(baseline.expectedDivergenceCount > 0);
 assert.ok(baseline.maximumUnexpectedDivergenceCount >= 0);
+assert.equal(expectedDivergenceLedger.schemaVersion, "0");
+assert.equal(
+  expectedDivergenceLedger.product,
+  "omena-diff-test.linked-emission-expected-divergence-ledger",
+);
 assert.equal(divergenceLedger.schemaVersion, "0");
 assert.equal(divergenceLedger.product, "omena-diff-test.linked-emission-open-divergence-ledger");
 
@@ -263,6 +291,16 @@ assert.equal(census.coveredShapeCount + census.notCoveredShapeCount, census.popu
 assert.equal(census.notCoveredShapeCount, census.notCovered.length);
 assert.equal(census.markerObservableModuleCount + census.blindSpotModuleCount, census.moduleCount);
 assert.equal(census.blindSpotModuleCount, census.blindSpots.length);
+assert.equal(
+  census.unknownStructuralSelectorCount,
+  0,
+  "the bounded linked-emission corpus projected an unknown structural selector",
+);
+assert.equal(
+  census.unknownAtRuleCount,
+  0,
+  "the bounded linked-emission corpus projected an unknown at-rule",
+);
 assert.equal(census.placementWitnesses.length, 4);
 assert.ok(
   census.blindSpots.every(
@@ -387,9 +425,10 @@ assert.ok(
   report.unexpectedDivergenceCount <= baseline.maximumUnexpectedDivergenceCount,
   `unexpected linked-emission divergences grew from the committed ceiling ${baseline.maximumUnexpectedDivergenceCount} to ${report.unexpectedDivergenceCount}`,
 );
-assert.ok(
-  report.expectedDivergenceCount >= baseline.minimumExpectedDivergenceCount,
-  "the two byte-producing authorities must retain a non-vacuous expected differential",
+assert.equal(
+  report.expectedDivergenceCount,
+  baseline.expectedDivergenceCount,
+  "the enumerated expected linked-emission divergence count drifted",
 );
 
 const fixtureIds = new Set<string>();
@@ -401,6 +440,8 @@ for (const entry of report.cases) {
   assert.equal(entry.linkedEmissionPath, "linkedOrder");
   assert.equal(entry.linkedModulesEmittedOnce, true);
   assert.deepEqual(entry.linkedMarkerOrder, entry.authoritativeMarkerOrder);
+  assert.equal(entry.linkedOutputModuleOrderMatchesAuthority, true);
+  assert.deepEqual(entry.linkedOutputModuleOrder, entry.authoritativeModuleOrder);
   if (entry.differenceClass === "equivalent") {
     assert.equal(entry.byteEqual, true);
   } else if (entry.differenceClass === "expected") {
@@ -410,6 +451,46 @@ for (const entry of report.cases) {
   } else {
     assert.equal(entry.byteEqual, false);
   }
+}
+
+const expectedLedgerFixtureIds = expectedDivergenceLedger.entries
+  .map((entry) => entry.fixtureId)
+  .toSorted();
+const expectedFixtureIds = report.cases
+  .filter((entry) => entry.differenceClass === "expected")
+  .map((entry) => entry.fixtureId)
+  .toSorted();
+assert.equal(new Set(expectedLedgerFixtureIds).size, expectedLedgerFixtureIds.length);
+assert.deepEqual(
+  expectedLedgerFixtureIds,
+  expectedFixtureIds,
+  "the expected-divergence ledger must exactly equal the live expected fixture set",
+);
+assert.equal(baseline.expectedDivergenceCount, expectedDivergenceLedger.entries.length);
+assert.equal(report.expectedDivergenceCount, expectedDivergenceLedger.entries.length);
+
+const casesByFixtureId = new Map(report.cases.map((entry) => [entry.fixtureId, entry]));
+for (const entry of expectedDivergenceLedger.entries) {
+  const liveCase = casesByFixtureId.get(entry.fixtureId);
+  assert.ok(liveCase, `expected-divergence fixture ${entry.fixtureId} is absent from the corpus`);
+  assert.equal(liveCase.differenceClass, "expected");
+  assert.equal(liveCase.byteEqual, false);
+  assert.equal(liveCase.semanticPreserved, true);
+  assert.equal(entry.classificationArm, "semanticPreservingKnownDifference");
+  assert.deepEqual(
+    entry.derivedReasons,
+    liveCase.reasons,
+    `expected-divergence reasons drifted for ${entry.fixtureId}`,
+  );
+  assert.equal(
+    entry.witnessDigest,
+    divergenceWitnessDigest(entry.fixtureId, liveCase.legacySha256, liveCase.linkedSha256),
+    `expected-divergence witness digest drifted for ${entry.fixtureId}`,
+  );
+  assert.ok(
+    entry.justification.length > 0,
+    `${entry.fixtureId} has no expected-difference justification`,
+  );
 }
 
 const ledgerFixtureIds = divergenceLedger.entries.map((entry) => entry.fixtureId).toSorted();
@@ -426,7 +507,6 @@ assert.deepEqual(
 assert.equal(baseline.maximumUnexpectedDivergenceCount, divergenceLedger.entries.length);
 assert.equal(report.unexpectedDivergenceCount, divergenceLedger.entries.length);
 
-const casesByFixtureId = new Map(report.cases.map((entry) => [entry.fixtureId, entry]));
 for (const entry of divergenceLedger.entries) {
   const liveCase = casesByFixtureId.get(entry.fixtureId);
   assert.ok(liveCase, `open-divergence fixture ${entry.fixtureId} is absent from the live corpus`);

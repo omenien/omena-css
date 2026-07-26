@@ -4,6 +4,6 @@
   "coverageScope": "boundedMultiModuleFixtures",
   "fullCorpusCoverage": false,
   "minimumFixtureCount": 8,
-  "minimumExpectedDivergenceCount": 7,
+  "expectedDivergenceCount": 7,
   "maximumUnexpectedDivergenceCount": 1
 }

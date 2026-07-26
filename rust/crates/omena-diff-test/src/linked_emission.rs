@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_benchmarks::bundler_productization_corpus;
 use omena_bundler::{
-    EmissionOrderingPolicyV0, LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkOptionsV0,
-    TransformBundleModuleInputV0,
+    EmissionItemKindV0, EmissionOrderingPolicyV0, LinkedStylesheetWithEmissionItemsV0,
+    TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
     link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
     project_omena_transform_bundle_linker_and_emission_items,
 };
@@ -68,6 +68,9 @@ pub struct LinkedEmissionByteDifferentialCaseV0 {
     pub authoritative_marker_order: Vec<String>,
     pub legacy_marker_order: Vec<String>,
     pub linked_marker_order: Vec<String>,
+    pub authoritative_module_order: Vec<String>,
+    pub linked_output_module_order: Vec<String>,
+    pub linked_output_module_order_matches_authority: bool,
     pub linked_modules_emitted_once: bool,
     pub difference_class: LinkedEmissionByteDifferenceClassV0,
     pub reasons: Vec<LinkedEmissionByteDifferenceReasonV0>,
@@ -167,6 +170,8 @@ pub struct LinkedEmissionCoverageCensusV0 {
     pub module_count: usize,
     pub marker_observable_module_count: usize,
     pub blind_spot_module_count: usize,
+    pub unknown_structural_selector_count: usize,
+    pub unknown_at_rule_count: usize,
     pub shapes: Vec<LinkedEmissionCoverageShapeV0>,
     pub not_covered: Vec<LinkedEmissionNotCoveredShapeV0>,
     pub fixture_observability: Vec<LinkedEmissionFixtureObservabilityV0>,
@@ -197,6 +202,16 @@ struct LinkedEmissionFixtureModuleV0 {
     source: String,
     dialect: StyleDialect,
     marker_names: Vec<String>,
+    order_probe: String,
+}
+
+struct LinkedEmissionDifferenceObservationV0<'a> {
+    legacy_css: &'a str,
+    linked_css: &'a str,
+    authoritative_marker_order: &'a [String],
+    legacy_marker_order: &'a [String],
+    linked_marker_order: &'a [String],
+    linked_output_module_order_matches_authority: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -373,6 +388,8 @@ fn summarize_linked_emission_coverage_census_v0(
     let mut blind_spots = Vec::new();
     let mut module_count = 0usize;
     let mut marker_observable_module_count = 0usize;
+    let mut unknown_structural_selector_count = 0usize;
+    let mut unknown_at_rule_count = 0usize;
 
     for (fixture, analysis) in fixtures.iter().zip(analyses) {
         if fixture.id != analysis.case.fixture_id {
@@ -445,6 +462,17 @@ fn summarize_linked_emission_coverage_census_v0(
         }
         module_count += fixture.modules.len();
         marker_observable_module_count += fixture_marker_observable_module_count;
+        for item in &analysis.linked_order.emission_item_order.items {
+            match item.kind {
+                EmissionItemKindV0::UnknownStructuralSelector => {
+                    unknown_structural_selector_count += 1;
+                }
+                EmissionItemKindV0::UnknownAtRule => {
+                    unknown_at_rule_count += 1;
+                }
+                _ => {}
+            }
+        }
         fixture_observability.push(LinkedEmissionFixtureObservabilityV0 {
             fixture_id: fixture.id.clone(),
             module_count: fixture.modules.len(),
@@ -495,6 +523,8 @@ fn summarize_linked_emission_coverage_census_v0(
         module_count,
         marker_observable_module_count,
         blind_spot_module_count: blind_spots.len(),
+        unknown_structural_selector_count,
+        unknown_at_rule_count,
         shapes,
         not_covered,
         fixture_observability,
@@ -589,6 +619,15 @@ fn analyze_linked_emission_fixture_v0(
         .filter(|rule| marker_names.contains(&rule.selector_name))
         .map(|rule| rule.selector_name.clone())
         .collect::<Vec<_>>();
+    let authoritative_module_order = emission_item_module_order_v0(&linked_order);
+    let linked_output_module_order =
+        if perturbation == LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes {
+            authoritative_module_order.clone()
+        } else {
+            output_module_order_v0(fixture, &linked_css)?
+        };
+    let linked_output_module_order_matches_authority =
+        linked_output_module_order == authoritative_module_order;
     let legacy_marker_order = output_marker_order_v0(&legacy_css, &marker_names);
     let linked_marker_order = output_marker_order_v0(&linked_css, &marker_names);
     let linked_modules_emitted_once = marker_names.iter().all(|marker| {
@@ -603,21 +642,22 @@ fn analyze_linked_emission_fixture_v0(
     let asset_urls_preserved =
         css_url_arguments_v0(&legacy_css) == css_url_arguments_v0(&linked_css);
     let byte_equal = legacy_css == linked_css;
-    let reasons = derive_difference_reasons_v0(
-        fixture,
-        &linked_order,
-        &legacy_css,
-        &linked_css,
-        &authoritative_marker_order,
-        &legacy_marker_order,
-        &linked_marker_order,
-    );
+    let difference_observation = LinkedEmissionDifferenceObservationV0 {
+        legacy_css: &legacy_css,
+        linked_css: &linked_css,
+        authoritative_marker_order: &authoritative_marker_order,
+        legacy_marker_order: &legacy_marker_order,
+        linked_marker_order: &linked_marker_order,
+        linked_output_module_order_matches_authority,
+    };
+    let reasons = derive_difference_reasons_v0(fixture, &linked_order, &difference_observation);
     let difference_class = if byte_equal {
         LinkedEmissionByteDifferenceClassV0::Equivalent
     } else if semantic.preserved
         && asset_urls_preserved
         && linked_modules_emitted_once
         && linked_marker_order == authoritative_marker_order
+        && linked_output_module_order_matches_authority
         && !reasons.is_empty()
     {
         LinkedEmissionByteDifferenceClassV0::Expected
@@ -640,6 +680,9 @@ fn analyze_linked_emission_fixture_v0(
         authoritative_marker_order,
         legacy_marker_order,
         linked_marker_order,
+        authoritative_module_order,
+        linked_output_module_order,
+        linked_output_module_order_matches_authority,
         linked_modules_emitted_once,
         difference_class,
         reasons,
@@ -809,15 +852,11 @@ fn linked_emission_winner_v0(witness_id: &str, source: &str) -> Result<String, S
 fn derive_difference_reasons_v0(
     fixture: &LinkedEmissionFixtureV0,
     linked_order: &LinkedStylesheetWithEmissionItemsV0,
-    legacy_css: &str,
-    linked_css: &str,
-    authoritative_marker_order: &[String],
-    legacy_marker_order: &[String],
-    linked_marker_order: &[String],
+    observation: &LinkedEmissionDifferenceObservationV0<'_>,
 ) -> Vec<LinkedEmissionByteDifferenceReasonV0> {
     let mut reasons = BTreeSet::new();
-    if legacy_marker_order != linked_marker_order
-        && linked_marker_order == authoritative_marker_order
+    if observation.legacy_marker_order != observation.linked_marker_order
+        && observation.linked_marker_order == observation.authoritative_marker_order
     {
         reasons.insert(LinkedEmissionByteDifferenceReasonV0::GlobalModuleOrder);
     }
@@ -827,7 +866,8 @@ fn derive_difference_reasons_v0(
         .filter(|module| module.marker_names.is_empty())
         .map(|module| module.path.as_str())
         .collect::<BTreeSet<_>>();
-    if legacy_css != linked_css
+    if observation.legacy_css != observation.linked_css
+        && observation.linked_output_module_order_matches_authority
         && !marker_blind_modules.is_empty()
         && marker_blind_modules.iter().all(|path| {
             linked_order
@@ -851,14 +891,14 @@ fn derive_difference_reasons_v0(
         })
         .collect::<BTreeMap<_, _>>();
     if let Some(entry_markers) = marker_sets_by_module.get(fixture.entry_path.as_str())
-        && sequence_splits_marker_group_v0(legacy_marker_order, entry_markers)
-        && !sequence_splits_marker_group_v0(linked_marker_order, entry_markers)
+        && sequence_splits_marker_group_v0(observation.legacy_marker_order, entry_markers)
+        && !sequence_splits_marker_group_v0(observation.linked_marker_order, entry_markers)
     {
         reasons.insert(LinkedEmissionByteDifferenceReasonV0::EntryInterleaveCollapse);
     }
     if marker_sets_by_module.values().any(|markers| {
-        sequence_splits_marker_group_v0(legacy_marker_order, markers)
-            && !sequence_splits_marker_group_v0(linked_marker_order, markers)
+        sequence_splits_marker_group_v0(observation.legacy_marker_order, markers)
+            && !sequence_splits_marker_group_v0(observation.linked_marker_order, markers)
     }) {
         reasons.insert(LinkedEmissionByteDifferenceReasonV0::PerModuleGrouping);
     }
@@ -877,11 +917,13 @@ fn derive_difference_reasons_v0(
         *count > 1
             && marker_sets_by_module.get(path).is_some_and(|markers| {
                 markers.iter().any(|marker| {
-                    legacy_marker_order
+                    observation
+                        .legacy_marker_order
                         .iter()
                         .filter(|candidate| *candidate == marker)
                         .count()
-                        > linked_marker_order
+                        > observation
+                            .linked_marker_order
                             .iter()
                             .filter(|candidate| *candidate == marker)
                             .count()
@@ -890,10 +932,64 @@ fn derive_difference_reasons_v0(
     }) {
         reasons.insert(LinkedEmissionByteDifferenceReasonV0::SharedImportSingleEmission);
     }
-    if remove_ascii_whitespace_v0(legacy_css) == remove_ascii_whitespace_v0(linked_css) {
+    if remove_ascii_whitespace_v0(observation.legacy_css)
+        == remove_ascii_whitespace_v0(observation.linked_css)
+    {
         reasons.insert(LinkedEmissionByteDifferenceReasonV0::FormattingNormalization);
     }
     reasons.into_iter().collect()
+}
+
+fn emission_item_module_order_v0(linked: &LinkedStylesheetWithEmissionItemsV0) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    linked
+        .emission_item_order
+        .items
+        .iter()
+        .filter_map(|item| {
+            let module_path = item.module_instance.module().as_str();
+            seen.insert(module_path).then(|| module_path.to_string())
+        })
+        .collect()
+}
+
+fn output_module_order_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    output_css: &str,
+) -> Result<Vec<String>, String> {
+    let compact_output = remove_ascii_whitespace_v0(output_css);
+    let mut positioned_modules = fixture
+        .modules
+        .iter()
+        .map(|module| {
+            let compact_probe = remove_ascii_whitespace_v0(module.order_probe.as_str());
+            if compact_probe.is_empty() {
+                return Err(format!(
+                    "linked-emission fixture {} has an empty order probe for {}",
+                    fixture.id, module.path
+                ));
+            }
+            let positions = compact_output
+                .match_indices(compact_probe.as_str())
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            if positions.len() != 1 {
+                return Err(format!(
+                    "linked-emission fixture {} expected one order probe {:?} for {}, observed {}",
+                    fixture.id,
+                    module.order_probe,
+                    module.path,
+                    positions.len()
+                ));
+            }
+            Ok((positions[0], module.path.clone()))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    positioned_modules.sort();
+    Ok(positioned_modules
+        .into_iter()
+        .map(|(_, module_path)| module_path)
+        .collect())
 }
 
 fn sequence_splits_marker_group_v0(sequence: &[String], group: &BTreeSet<String>) -> bool {
@@ -989,12 +1085,14 @@ fn linked_emission_placement_witness_definitions_v0()
                         source: "@import \"./reset.css\"; div { color: red; }".to_string(),
                         dialect: StyleDialect::Css,
                         marker_names: Vec::new(),
+                        order_probe: "color: red".to_string(),
                     },
                     LinkedEmissionFixtureModuleV0 {
                         path: "linked-order-witness/element/reset.css".to_string(),
                         source: "div { color: green; }".to_string(),
                         dialect: StyleDialect::Css,
                         marker_names: Vec::new(),
+                        order_probe: "color: green".to_string(),
                     },
                 ],
             },
@@ -1017,12 +1115,14 @@ fn linked_emission_placement_witness_definitions_v0()
                                 .to_string(),
                         dialect: StyleDialect::Css,
                         marker_names: vec!["card".to_string()],
+                        order_probe: "padding: 1px".to_string(),
                     },
                     LinkedEmissionFixtureModuleV0 {
                         path: "linked-order-witness/mixed/reset.css".to_string(),
                         source: "div { color: green; }".to_string(),
                         dialect: StyleDialect::Css,
                         marker_names: Vec::new(),
+                        order_probe: "color: green".to_string(),
                     },
                 ],
             },
@@ -1040,12 +1140,14 @@ fn linked_emission_placement_witness_definitions_v0()
                         source: "@import \"./aaa-reset.css\"; div { color: red; }".to_string(),
                         dialect: StyleDialect::Css,
                         marker_names: Vec::new(),
+                        order_probe: "color: red".to_string(),
                     },
                     LinkedEmissionFixtureModuleV0 {
                         path: "linked-order-witness/names/aaa-reset.css".to_string(),
                         source: "div { color: green; }".to_string(),
                         dialect: StyleDialect::Css,
                         marker_names: Vec::new(),
+                        order_probe: "color: green".to_string(),
                     },
                 ],
             },
@@ -1066,12 +1168,14 @@ fn linked_emission_placement_witness_definitions_v0()
                         source: "@import \"./layers.css\"; @layer theme { .card { color: blue; } } @layer base { .card { color: orange; } }".to_string(),
                         dialect: StyleDialect::Css,
                         marker_names: Vec::new(),
+                        order_probe: "color: orange".to_string(),
                     },
                     LinkedEmissionFixtureModuleV0 {
                         path: "linked-order-witness/layers/layers.css".to_string(),
                         source: "@layer base, theme;".to_string(),
                         dialect: StyleDialect::Css,
                         marker_names: Vec::new(),
+                        order_probe: "@layer base, theme;".to_string(),
                     },
                 ],
             },
@@ -1092,11 +1196,13 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
             "element-only-reset",
             "reset.css",
             "div { margin: 0; color: green; }",
+            "margin: 0",
         ),
         selectorless_module_fixture_v0(
             "bare-layer-statement-module",
             "bare-layer-statement",
             "layers.css",
+            "@layer reset;",
             "@layer reset;",
         ),
         selectorless_module_fixture_v0(
@@ -1104,6 +1210,7 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
             "font-face-only",
             "fonts.css",
             "@font-face { font-family: \"OmenaFixture\"; src: url(\"./font.woff2\"); }",
+            "OmenaFixture",
         ),
     ];
     if let Some(corpus_fixture) = product_corpus_fixture_v0() {
@@ -1117,6 +1224,7 @@ fn selectorless_module_fixture_v0(
     shape_class: &'static str,
     imported_file_name: &str,
     imported_source: &str,
+    imported_order_probe: &str,
 ) -> LinkedEmissionFixtureV0 {
     let root = format!("linked-byte/{fixture_id}");
     let entry_path = format!("{root}/app.css");
@@ -1132,13 +1240,15 @@ fn selectorless_module_fixture_v0(
                     "@import \"./{imported_file_name}\"; .{entry_marker} {{ color: red; }}"
                 ),
                 dialect: StyleDialect::Css,
-                marker_names: vec![entry_marker],
+                marker_names: vec![entry_marker.clone()],
+                order_probe: entry_marker,
             },
             LinkedEmissionFixtureModuleV0 {
                 path: format!("{root}/{imported_file_name}"),
                 source: imported_source.to_string(),
                 dialect: StyleDialect::Css,
                 marker_names: Vec::new(),
+                order_probe: imported_order_probe.to_string(),
             },
         ],
     }
@@ -1170,19 +1280,22 @@ fn dialect_fixture_v0(
                     ".{before} {{ color: red; }} {import_keyword} \"./z.{extension}\"; {import_keyword} \"./a.{extension}\"; .{after} {{ color: orange; }}"
                 ),
                 dialect,
-                marker_names: vec![before, after],
+                marker_names: vec![before.clone(), after],
+                order_probe: before,
             },
             LinkedEmissionFixtureModuleV0 {
                 path: format!("{root}/a.{extension}"),
                 source: format!(".{a_marker} {{ color: blue; }}"),
                 dialect,
-                marker_names: vec![a_marker],
+                marker_names: vec![a_marker.clone()],
+                order_probe: a_marker,
             },
             LinkedEmissionFixtureModuleV0 {
                 path: format!("{root}/z.{extension}"),
                 source: format!(".{z_marker} {{ color: green; }}"),
                 dialect,
-                marker_names: vec![z_marker],
+                marker_names: vec![z_marker.clone()],
+                order_probe: z_marker,
             },
         ],
     }
@@ -1203,6 +1316,7 @@ fn shared_import_fixture_v0() -> LinkedEmissionFixtureV0 {
                     "linked-shared-entry-before".to_string(),
                     "linked-shared-entry-after".to_string(),
                 ],
+                order_probe: "linked-shared-entry-before".to_string(),
             },
             LinkedEmissionFixtureModuleV0 {
                 path: format!("{root}/left.css"),
@@ -1212,18 +1326,21 @@ fn shared_import_fixture_v0() -> LinkedEmissionFixtureV0 {
                     "linked-shared-left-before".to_string(),
                     "linked-shared-left-after".to_string(),
                 ],
+                order_probe: "linked-shared-left-before".to_string(),
             },
             LinkedEmissionFixtureModuleV0 {
                 path: format!("{root}/right.css"),
                 source: ".linked-shared-right { color: teal; } @import \"./tokens.css\";".to_string(),
                 dialect: StyleDialect::Css,
                 marker_names: vec!["linked-shared-right".to_string()],
+                order_probe: "linked-shared-right".to_string(),
             },
             LinkedEmissionFixtureModuleV0 {
                 path: format!("{root}/tokens.css"),
                 source: ".linked-shared-token { color: purple; }".to_string(),
                 dialect: StyleDialect::Css,
                 marker_names: vec!["linked-shared-token".to_string()],
+                order_probe: "linked-shared-token".to_string(),
             },
         ],
     }
@@ -1251,6 +1368,7 @@ fn product_corpus_fixture_v0() -> Option<LinkedEmissionFixtureV0> {
             "linked-corpus-entry-before".to_string(),
             "linked-corpus-entry-after".to_string(),
         ],
+        order_probe: "linked-corpus-entry-before".to_string(),
     }];
     for (index, sample) in samples.into_iter().enumerate() {
         let marker = format!("linked-corpus-module-{index}");
@@ -1261,7 +1379,8 @@ fn product_corpus_fixture_v0() -> Option<LinkedEmissionFixtureV0> {
                 sample.source
             ),
             dialect: sample.dialect,
-            marker_names: vec![marker],
+            marker_names: vec![marker.clone()],
+            order_probe: marker,
         });
     }
     Some(LinkedEmissionFixtureV0 {
@@ -1412,6 +1531,42 @@ mod tests {
         assert_eq!(
             analysis.case.difference_class,
             LinkedEmissionByteDifferenceClassV0::Unexpected
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn module_placement_reason_requires_import_order_output() -> Result<(), String> {
+        let fixture = linked_emission_fixtures_v0()
+            .into_iter()
+            .find(|fixture| fixture.id == "element-only-reset-module")
+            .ok_or_else(|| "element-only reset fixture is missing".to_string())?;
+        let analysis = analyze_linked_emission_fixture_v0(
+            &fixture,
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+        let lexicographic_output = format!(
+            ".linked-element-only-reset-module-entry {{ color: red; }}\n{}",
+            fixture.modules[1].source
+        );
+        let lexicographic_module_order = output_module_order_v0(&fixture, &lexicographic_output)?;
+
+        assert_ne!(
+            lexicographic_module_order,
+            analysis.case.authoritative_module_order
+        );
+        let difference_observation = LinkedEmissionDifferenceObservationV0 {
+            legacy_css: &analysis.legacy_css,
+            linked_css: &lexicographic_output,
+            authoritative_marker_order: &analysis.case.authoritative_marker_order,
+            legacy_marker_order: &analysis.case.legacy_marker_order,
+            linked_marker_order: &analysis.case.linked_marker_order,
+            linked_output_module_order_matches_authority: false,
+        };
+        let reasons =
+            derive_difference_reasons_v0(&fixture, &analysis.linked_order, &difference_observation);
+        assert!(
+            !reasons.contains(&LinkedEmissionByteDifferenceReasonV0::ImportGraphModulePlacement)
         );
         Ok(())
     }

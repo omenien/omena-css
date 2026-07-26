@@ -10,6 +10,8 @@
   "moduleCount": 22,
   "markerObservableModuleCount": 19,
   "blindSpotModuleCount": 3,
+  "unknownStructuralSelectorCount": 0,
+  "unknownAtRuleCount": 0,
   "shapes": [
     {
       "shapeClass": "bare-layer-statement",
