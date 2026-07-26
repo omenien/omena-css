@@ -1,15 +1,20 @@
 use crate::{
-    ClassExpressionInputV2, EngineInputV2, OmenaQueryStyleSourceInputV0,
+    ClassExpressionInputV2, EngineInputV2, OmenaQueryBundleEmissionPathV0,
+    OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2,
     SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
     StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
+    derive_omena_query_module_reachability_from_engine_input,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
+    run_omena_query_bundle_with_module_reachability_and_options,
     summarize_omena_query_expression_domain_selector_projection_with_precision,
 };
+use omena_parser::{ModuleIdV0, ModuleInstanceKeyV0};
 
 #[test]
 fn consumer_build_inlines_transitive_workspace_imports() -> Result<(), Box<dyn std::error::Error>> {
@@ -489,6 +494,273 @@ fn acyclic_automaton_reachability_satisfies_the_tree_shake_precision_floor() -> 
         })
     );
     Ok(())
+}
+
+#[test]
+fn module_reachability_preserves_projection_union_without_flattening_ownership()
+-> Result<(), String> {
+    let entry_path = "src/entry.module.css";
+    let dependency_path = "src/dependency.module.css";
+    let entry_source =
+        "@import \"./dependency.module.css\"; .shared { color: red; } .entry-dead { color: tan; }";
+    let dependency_source = ".shared { color: green; } .dependency-own { color: blue; } .dependency-dead { color: gray; }";
+    let input = module_reachability_input(
+        &[
+            ("entry-ref", entry_path, "shared"),
+            ("dependency-ref", dependency_path, "dependency-own"),
+        ],
+        &[
+            (entry_path, entry_source, &["shared", "entry-dead"]),
+            (
+                dependency_path,
+                dependency_source,
+                &["shared", "dependency-own", "dependency-dead"],
+            ),
+        ],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
+
+    assert_eq!(reachability.projection_summary_evaluation_count(), 1);
+    assert_eq!(
+        reachability.module_attribution(entry_path).class_names(),
+        &["shared".to_string()]
+    );
+    assert_eq!(
+        reachability
+            .module_attribution(dependency_path)
+            .class_names(),
+        &["dependency-own".to_string()]
+    );
+
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: entry_path.to_string(),
+            style_source: entry_source.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: dependency_path.to_string(),
+            style_source: dependency_source.to_string(),
+        },
+    ];
+    let passes = vec!["tree-shake-class".to_string()];
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let result = run_omena_query_bundle_with_module_reachability_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: entry_path,
+            style_sources: &style_sources,
+            source_map_sources: &style_sources,
+            requested_pass_ids: &passes,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        },
+        &reachability,
+    )?;
+    let report = result.reachability_attribution();
+    assert_eq!(report.projection_summary_evaluation_count(), 1);
+    assert_eq!(
+        report.projected_class_names(),
+        report.attributed_class_names()
+    );
+    assert!(report.lost_class_names().is_empty());
+    assert!(report.unmatched_target_style_paths().is_empty());
+
+    let bundle = result
+        .bundle_result()
+        .closed_world_outcome
+        .bundle()
+        .ok_or_else(|| "module-attributed bundle should close".to_string())?;
+    let entry = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new(entry_path));
+    let dependency = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new(dependency_path));
+    assert_eq!(
+        bundle
+            .reachability()
+            .symbols_for_module(&entry)
+            .ok_or_else(|| "entry module reachability should exist".to_string())?
+            .class_names(),
+        &["shared".to_string()]
+    );
+    let dependency_symbols = bundle
+        .reachability()
+        .symbols_for_module(&dependency)
+        .ok_or_else(|| "dependency module reachability should exist".to_string())?;
+    assert_eq!(
+        dependency_symbols.class_names(),
+        &["dependency-own".to_string()]
+    );
+    assert_ne!(
+        dependency_symbols.class_names(),
+        bundle.reachability().class_names()
+    );
+    assert_eq!(
+        bundle.reachability().class_names(),
+        &["dependency-own".to_string(), "shared".to_string()]
+    );
+    Ok(())
+}
+
+#[test]
+fn unattributed_projection_fans_out_to_every_style_module() {
+    let first_path = "src/first.module.css";
+    let second_path = "src/second.module.css";
+    let input = EngineInputV2 {
+        version: "2".to_string(),
+        sources: Vec::new(),
+        styles: vec![
+            style_input(first_path, ".shared { color: red; }", &["shared"]),
+            style_input(second_path, ".shared { color: blue; }", &["shared"]),
+        ],
+        type_facts: vec![exact_type_fact("unattributed-ref", "shared")],
+    };
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, first_path, true);
+
+    for style_path in [first_path, second_path] {
+        let attribution = reachability.module_attribution(style_path);
+        assert!(attribution.was_attempted());
+        assert_eq!(attribution.targeted_projection_count(), 0);
+        assert!(attribution.unattributed_projection_count() > 0);
+        assert_eq!(attribution.class_names(), &["shared".to_string()]);
+    }
+}
+
+#[test]
+fn attributed_empty_projection_keeps_parse_derived_names() -> Result<(), String> {
+    let style_path = "src/retained.module.css";
+    let style_source = ".retained { color: red; }";
+    let input = module_reachability_input(
+        &[("missing-ref", style_path, "missing")],
+        &[(style_path, style_source, &["retained"])],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, style_path, true);
+    let attribution = reachability.module_attribution(style_path);
+    assert!(attribution.was_attempted());
+    assert!(attribution.class_names().is_empty());
+
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: style_path.to_string(),
+        style_source: style_source.to_string(),
+    }];
+    let passes = vec!["tree-shake-class".to_string()];
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let result = run_omena_query_bundle_with_module_reachability_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: style_path,
+            style_sources: &style_sources,
+            source_map_sources: &style_sources,
+            requested_pass_ids: &passes,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        },
+        &reachability,
+    )?;
+
+    assert_eq!(
+        result
+            .reachability_attribution()
+            .attributed_empty_module_count(),
+        1
+    );
+    assert!(
+        result
+            .bundle_result()
+            .artifact
+            .output_css
+            .contains(".retained")
+    );
+    Ok(())
+}
+
+fn module_reachability_input(
+    references: &[(&str, &str, &str)],
+    styles: &[(&str, &str, &[&str])],
+) -> EngineInputV2 {
+    EngineInputV2 {
+        version: "2".to_string(),
+        sources: references
+            .iter()
+            .map(|(id, style_path, class_name)| SourceAnalysisInputV2 {
+                document: SourceDocumentV2 {
+                    class_expressions: vec![ClassExpressionInputV2 {
+                        id: (*id).to_string(),
+                        kind: "styleAccess".to_string(),
+                        scss_module_path: (*style_path).to_string(),
+                        range: fixture_range(),
+                        class_name: Some((*class_name).to_string()),
+                        root_binding_decl_id: None,
+                        access_path: Some(vec![(*class_name).to_string()]),
+                    }],
+                },
+            })
+            .collect(),
+        styles: styles
+            .iter()
+            .map(|(path, source, selectors)| style_input(path, source, selectors))
+            .collect(),
+        type_facts: references
+            .iter()
+            .map(|(id, _, class_name)| exact_type_fact(id, class_name))
+            .collect(),
+    }
+}
+
+fn style_input(path: &str, source: &str, selectors: &[&str]) -> StyleAnalysisInputV2 {
+    StyleAnalysisInputV2 {
+        file_path: path.to_string(),
+        source: Some(source.to_string()),
+        document: StyleDocumentV2 {
+            selectors: selectors
+                .iter()
+                .map(|name| StyleSelectorV2 {
+                    name: (*name).to_string(),
+                    view_kind: "canonical".to_string(),
+                    canonical_name: Some((*name).to_string()),
+                    range: fixture_range(),
+                    nested_safety: Some("safe".to_string()),
+                    composes: None,
+                    bem_suffix: None,
+                })
+                .collect(),
+        },
+    }
+}
+
+fn exact_type_fact(expression_id: &str, class_name: &str) -> TypeFactEntryV2 {
+    TypeFactEntryV2 {
+        file_path: "src/references.tsx".to_string(),
+        expression_id: expression_id.to_string(),
+        facts: StringTypeFactsV2 {
+            kind: "exact".to_string(),
+            constraint_kind: None,
+            values: Some(vec![class_name.to_string()]),
+            prefix: None,
+            suffix: None,
+            min_len: None,
+            max_len: None,
+            char_must: None,
+            char_may: None,
+            may_include_other_chars: None,
+            provenance: None,
+        },
+        control_flow_graph: None,
+    }
 }
 
 fn fixture_range() -> RangeV2 {

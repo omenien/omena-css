@@ -389,7 +389,7 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
 }
 
 pub(super) struct OmenaQueryEngineInputTransformContextDerivationV0 {
-    pub(super) summary: OmenaQueryTransformContextFromEngineInputSummaryV0,
+    pub(super) module_reachability: OmenaQueryEngineInputModuleReachabilityV0,
     pub(super) reachability_precision: Option<FactPrecision>,
     pub(super) closed_set_enumeration_candidate: bool,
 }
@@ -404,7 +404,21 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
         target_style_path,
         closed_world_requested,
     )
-    .summary
+    .module_reachability
+    .into_summary()
+}
+
+pub fn derive_omena_query_module_reachability_from_engine_input(
+    input: &EngineInputV2,
+    target_style_path: &str,
+    closed_world_requested: bool,
+) -> OmenaQueryEngineInputModuleReachabilityV0 {
+    derive_omena_query_transform_context_from_engine_input(
+        input,
+        target_style_path,
+        closed_world_requested,
+    )
+    .module_reachability
 }
 
 pub(super) fn derive_omena_query_transform_context_from_engine_input(
@@ -428,8 +442,32 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
     let mut reachability_precision_ceiling: Option<FactPrecision> = None;
     let mut closed_set_enumeration_candidate = true;
     let mut selected_projection_count = 0_usize;
+    let mut targeted_class_names_by_style_path = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut targeted_projection_count_by_style_path = BTreeMap::<String, usize>::new();
+    let mut unattributed_class_names = BTreeSet::new();
+    let mut unattributed_projection_count = 0_usize;
+    let mut projected_class_names = BTreeSet::new();
 
     for projection in &projection_summary.projections {
+        projected_class_names.extend(projection.selector_names.iter().cloned());
+        if projection.target_style_paths.is_empty() {
+            unattributed_projection_count += 1;
+            unattributed_class_names.extend(projection.selector_names.iter().cloned());
+        } else {
+            for target_style_path in projection
+                .target_style_paths
+                .iter()
+                .collect::<BTreeSet<_>>()
+            {
+                *targeted_projection_count_by_style_path
+                    .entry(target_style_path.clone())
+                    .or_default() += 1;
+                targeted_class_names_by_style_path
+                    .entry(target_style_path.clone())
+                    .or_default()
+                    .extend(projection.selector_names.iter().cloned());
+            }
+        }
         if projection.target_style_paths.is_empty()
             || projection
                 .target_style_paths
@@ -497,34 +535,48 @@ pub(super) fn derive_omena_query_transform_context_from_engine_input(
         ready_surfaces.push("engineInputStyleSourceTransformContext");
     }
 
+    let summary = OmenaQueryTransformContextFromEngineInputSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-context-from-engine-input",
+        input_version: input.version.clone(),
+        target_style_path: target_style_path.to_string(),
+        closed_world_requested,
+        style_source_count: source_context_summary
+            .as_ref()
+            .map_or(0, |summary| summary.style_count),
+        projection_count: projection_summary.projection_count,
+        selected_projection_count: reachability_sources.len(),
+        import_inline_count: context.import_inlines.len(),
+        class_name_rewrite_count: context.class_name_rewrites.len(),
+        css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
+        css_module_value_resolution_count: context.css_module_value_resolutions.len(),
+        design_token_route_count: context.design_token_routes.len(),
+        reachable_class_name_count: context.reachable_class_names.len(),
+        reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
+        reachable_value_name_count: context.reachable_value_names.len(),
+        reachable_custom_property_name_count: context.reachable_custom_property_names.len(),
+        reachability_sources,
+        context,
+        ready_surfaces,
+    };
+    let targeted_class_names_by_style_path = targeted_class_names_by_style_path
+        .into_iter()
+        .map(|(path, names)| (path, names.into_iter().collect()))
+        .collect();
+    let module_reachability = OmenaQueryEngineInputModuleReachabilityV0::new(
+        summary,
+        targeted_class_names_by_style_path,
+        targeted_projection_count_by_style_path,
+        unattributed_class_names.into_iter().collect(),
+        unattributed_projection_count,
+        projected_class_names.into_iter().collect(),
+    );
+
     OmenaQueryEngineInputTransformContextDerivationV0 {
         reachability_precision: reachability_precision_ceiling,
         closed_set_enumeration_candidate: selected_projection_count > 0
             && closed_set_enumeration_candidate,
-        summary: OmenaQueryTransformContextFromEngineInputSummaryV0 {
-            schema_version: "0",
-            product: "omena-query.transform-context-from-engine-input",
-            input_version: input.version.clone(),
-            target_style_path: target_style_path.to_string(),
-            closed_world_requested,
-            style_source_count: source_context_summary
-                .as_ref()
-                .map_or(0, |summary| summary.style_count),
-            projection_count: projection_summary.projection_count,
-            selected_projection_count: reachability_sources.len(),
-            import_inline_count: context.import_inlines.len(),
-            class_name_rewrite_count: context.class_name_rewrites.len(),
-            css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
-            css_module_value_resolution_count: context.css_module_value_resolutions.len(),
-            design_token_route_count: context.design_token_routes.len(),
-            reachable_class_name_count: context.reachable_class_names.len(),
-            reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
-            reachable_value_name_count: context.reachable_value_names.len(),
-            reachable_custom_property_name_count: context.reachable_custom_property_names.len(),
-            reachability_sources,
-            context,
-            ready_surfaces,
-        },
+        module_reachability,
     }
 }
 

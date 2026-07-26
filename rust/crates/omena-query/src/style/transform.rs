@@ -38,7 +38,10 @@ mod imports;
 mod static_stylesheet;
 
 use context::TransformResolutionContext;
-pub use context::summarize_omena_query_transform_context_from_engine_input;
+pub use context::{
+    derive_omena_query_module_reachability_from_engine_input,
+    summarize_omena_query_transform_context_from_engine_input,
+};
 
 use context::{
     derive_omena_query_transform_context_from_engine_input, find_target_style_source,
@@ -340,6 +343,43 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
     external_sifs: &[OmenaQueryExternalSifInputV0],
     options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> Result<OmenaQueryBundleResultV0, String> {
+    run_omena_query_bundle_with_optional_module_reachability(input, external_sifs, options, None)
+}
+
+pub fn run_omena_query_bundle_with_module_reachability_and_options(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+    module_reachability: &OmenaQueryEngineInputModuleReachabilityV0,
+) -> Result<OmenaQueryModuleAttributedBundleResultV0, String> {
+    let attribution_report = OmenaQueryModuleReachabilityAttributionReportV0::from_style_paths(
+        module_reachability,
+        input
+            .style_sources
+            .iter()
+            .map(|source| source.style_path.as_str()),
+    );
+    let bundle_result = run_omena_query_bundle_with_optional_module_reachability(
+        input,
+        external_sifs,
+        options,
+        Some((module_reachability, &attribution_report)),
+    )?;
+    Ok(OmenaQueryModuleAttributedBundleResultV0::new(
+        bundle_result,
+        attribution_report,
+    ))
+}
+
+fn run_omena_query_bundle_with_optional_module_reachability(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+    module_reachability: Option<(
+        &OmenaQueryEngineInputModuleReachabilityV0,
+        &OmenaQueryModuleReachabilityAttributionReportV0,
+    )>,
+) -> Result<OmenaQueryBundleResultV0, String> {
     let OmenaQueryBundlePlanInputV0 {
         target_style_path,
         style_sources,
@@ -355,13 +395,23 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
             "target style path {target_style_path:?} was not found in workspace style sources"
         ));
     };
-    let base_context = context;
+    let supplied_context = context;
+    let attributed_context = module_reachability.map(|(reachability, _)| {
+        merge_transform_context(supplied_context.clone(), reachability.context())
+    });
+    let base_context = attributed_context.as_ref().unwrap_or(supplied_context);
     let context = merge_workspace_transform_context(
         target_style_path,
         style_sources,
         base_context,
         TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
+    let reachability_context = if module_reachability.is_some() {
+        supplied_context
+    } else {
+        &context
+    };
+    let attribution_report = module_reachability.map(|(_, report)| report);
     let effective_pass_ids = consumer_build_pass_set(requested_pass_ids).effective;
     let legacy_summary =
         (options.bundle_emission_path == OmenaQueryBundleEmissionPathV0::ImportInlineLegacy)
@@ -400,6 +450,8 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
                 style_sources,
                 &effective_pass_ids,
                 &context,
+                reachability_context,
+                attribution_report,
                 resolution_inputs,
                 external_sifs,
                 TransformBundleLinkOptionsV0 {
@@ -414,6 +466,8 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
                 style_sources,
                 &effective_pass_ids,
                 &context,
+                reachability_context,
+                attribution_report,
                 resolution_inputs,
                 external_sifs,
             )
@@ -450,6 +504,7 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
             base_context,
             resolution_inputs,
             options,
+            attribution_report,
         )?;
         (
             linked_execution.execution,
@@ -928,7 +983,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
             style_path,
             style_source,
             requested_pass_ids,
-            &context_derivation.summary.context,
+            context_derivation.module_reachability.context(),
             context_derivation.reachability_precision,
             context_derivation.closed_set_enumeration_candidate,
             &OmenaQueryConsumerBuildOptionsV0::default(),
@@ -1069,6 +1124,8 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_resolution_
                 style_sources,
                 &pass_set.effective,
                 &context,
+                &context,
+                None,
                 resolution_inputs,
                 &[],
             )
@@ -2757,6 +2814,8 @@ fn build_closed_world_outcome_for_style_sources(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
+    reachability_context: &TransformExecutionContextV0,
+    attribution_report: Option<&OmenaQueryModuleReachabilityAttributionReportV0>,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> OmenaQueryClosedWorldOutcomeV0 {
@@ -2766,6 +2825,8 @@ fn build_closed_world_outcome_for_style_sources(
             style_sources,
             requested_pass_ids,
             context,
+            reachability_context,
+            attribution_report,
             resolution_inputs,
             external_sifs,
             TransformBundleLinkOptionsV0::default(),
@@ -2780,6 +2841,8 @@ fn link_closed_world_stylesheet_for_style_sources(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     requested_pass_ids: &[String],
     context: &TransformExecutionContextV0,
+    reachability_context: &TransformExecutionContextV0,
+    attribution_report: Option<&OmenaQueryModuleReachabilityAttributionReportV0>,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     external_sifs: &[OmenaQueryExternalSifInputV0],
     link_options: TransformBundleLinkOptionsV0,
@@ -2788,9 +2851,10 @@ fn link_closed_world_stylesheet_for_style_sources(
         style_sources
             .iter()
             .filter_map(|source| {
-                transform_bundle_semantic_reachability_input_from_context(
+                transform_bundle_semantic_reachability_input_from_context_and_attribution(
                     source.style_path.as_str(),
-                    context,
+                    reachability_context,
+                    attribution_report,
                 )
             })
             .collect::<Vec<_>>()
@@ -3084,6 +3148,7 @@ fn execute_linked_bundle_modules(
     base_context: &TransformExecutionContextV0,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     options: &OmenaQueryConsumerBuildOptionsV0,
+    _attribution_report: Option<&OmenaQueryModuleReachabilityAttributionReportV0>,
 ) -> Result<LinkedBundleExecutionV0, String> {
     let linked_stylesheet = &linked.linked_stylesheet;
     let pass_set = consumer_build_pass_set(effective_pass_ids);
@@ -3428,9 +3493,27 @@ fn transform_bundle_semantic_reachability_input_from_context(
     style_path: &str,
     context: &TransformExecutionContextV0,
 ) -> Option<TransformBundleSemanticReachabilityInputV0> {
+    transform_bundle_semantic_reachability_input_from_context_and_attribution(
+        style_path, context, None,
+    )
+}
+
+fn transform_bundle_semantic_reachability_input_from_context_and_attribution(
+    style_path: &str,
+    context: &TransformExecutionContextV0,
+    attribution_report: Option<&OmenaQueryModuleReachabilityAttributionReportV0>,
+) -> Option<TransformBundleSemanticReachabilityInputV0> {
+    let mut class_names = context.reachable_class_names.clone();
+    if let Some(attribution) =
+        attribution_report.and_then(|report| report.entry_for_style_path(style_path))
+    {
+        class_names.extend(attribution.class_names().iter().cloned());
+    }
+    class_names.sort();
+    class_names.dedup();
     let input = TransformBundleSemanticReachabilityInputV0 {
         source_path: style_path.to_string(),
-        class_names: context.reachable_class_names.clone(),
+        class_names,
         keyframe_names: context.reachable_keyframe_names.clone(),
         value_names: context.reachable_value_names.clone(),
         custom_property_names: context.reachable_custom_property_names.clone(),
