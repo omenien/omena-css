@@ -17,6 +17,7 @@ use crate::{
     summarize_omena_query_expression_domain_selector_projection_with_precision,
 };
 use omena_parser::{ModuleIdV0, ModuleInstanceKeyV0};
+#[cfg(feature = "test-support")]
 use omena_testkit::{InstrumentationSessionV0, with_instrumentation_session};
 
 #[test]
@@ -748,6 +749,7 @@ fn attributed_empty_projection_keeps_parse_derived_names() -> Result<(), String>
 }
 
 #[test]
+#[cfg(feature = "test-support")]
 fn module_reachability_producers_are_hoisted_for_two_module_bundle() -> Result<(), String> {
     assert_module_reachability_producer_counts(
         "src/entry.module.css",
@@ -775,6 +777,7 @@ fn module_reachability_producers_are_hoisted_for_two_module_bundle() -> Result<(
 }
 
 #[test]
+#[cfg(feature = "test-support")]
 fn module_reachability_producers_are_hoisted_for_three_module_bundle() -> Result<(), String> {
     assert_module_reachability_producer_counts(
         "src/entry.module.css",
@@ -799,6 +802,7 @@ fn module_reachability_producers_are_hoisted_for_three_module_bundle() -> Result
     )
 }
 
+#[cfg(feature = "test-support")]
 fn assert_module_reachability_producer_counts(
     entry_path: &str,
     styles: &[(&str, &str, &[&str])],
