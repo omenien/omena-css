@@ -62,6 +62,14 @@ interface LinkedEmissionCoverageCensusV0 {
   readonly blindSpotModuleCount: number;
   readonly unknownStructuralSelectorCount: number;
   readonly unknownAtRuleCount: number;
+  readonly moduleTokenCollisionCount: number;
+  readonly moduleTokenCollisions: ReadonlyArray<{
+    readonly fixtureId: string;
+    readonly emittedToken: string;
+    readonly modulePaths: readonly string[];
+    readonly originalNames: readonly string[];
+    readonly observedEmissionPaths: readonly ["importInlineLegacy", "linkedOrder"];
+  }>;
   readonly shapes: ReadonlyArray<{
     readonly shapeClass: string;
     readonly fixtureIds: readonly string[];
@@ -304,6 +312,18 @@ assert.equal(
   0,
   "the bounded linked-emission corpus projected an unknown at-rule",
 );
+assert.equal(census.moduleTokenCollisionCount, census.moduleTokenCollisions.length);
+assert.ok(
+  census.moduleTokenCollisionCount > 0,
+  "the bounded corpus must retain a cross-module emitted-token collision witness",
+);
+for (const collision of census.moduleTokenCollisions) {
+  assert.ok(collision.fixtureId.length > 0);
+  assert.ok(collision.emittedToken.length > 0);
+  assert.ok(collision.modulePaths.length > 1);
+  assert.ok(collision.originalNames.length > 0);
+  assert.deepEqual(collision.observedEmissionPaths, ["importInlineLegacy", "linkedOrder"]);
+}
 assert.equal(census.placementWitnesses.length, 4);
 const moduleBoundaryShapeClasses = new Set(["empty-module", "comment-only-module"]);
 const moduleBoundaryBlindSpots = census.blindSpots.filter((blindSpot) =>
@@ -478,6 +498,10 @@ for (const entry of report.cases) {
       assert.deepEqual(entry.legacyMarkerOrder, ["entry-marker"]);
       assert.deepEqual(entry.linkedMarkerOrder, ["dependency-own", "entry-marker"]);
       assert.deepEqual(entry.authoritativeMarkerOrder, ["dependency-own", "entry-marker"]);
+    } else if (entry.fixtureId === "module-qualified-composes-reachability") {
+      assert.ok(entry.legacyMarkerOrder.includes("base"));
+      assert.ok(entry.linkedMarkerOrder.includes("base"));
+      assert.ok(entry.linkedMarkerOrder.includes("base-live"));
     } else {
       assert.equal(entry.semanticPreserved, true);
     }
@@ -510,12 +534,22 @@ for (const entry of expectedDivergenceLedger.entries) {
   assert.equal(liveCase.differenceClass, "expected");
   assert.equal(liveCase.byteEqual, false);
   if (entry.classificationArm === "moduleAttributedReachabilityCorrection") {
-    assert.equal(entry.fixtureId, "module-qualified-reachability");
-    assert.equal(liveCase.semanticPreserved, false);
-    assert.equal(liveCase.semanticMismatchCount, 1);
-    assert.deepEqual(liveCase.legacyMarkerOrder, ["entry-marker"]);
-    assert.deepEqual(liveCase.linkedMarkerOrder, ["dependency-own", "entry-marker"]);
-    assert.deepEqual(liveCase.authoritativeMarkerOrder, ["dependency-own", "entry-marker"]);
+    assert.ok(
+      ["module-qualified-reachability", "module-qualified-composes-reachability"].includes(
+        entry.fixtureId,
+      ),
+    );
+    if (entry.fixtureId === "module-qualified-reachability") {
+      assert.equal(liveCase.semanticPreserved, false);
+      assert.equal(liveCase.semanticMismatchCount, 1);
+      assert.deepEqual(liveCase.legacyMarkerOrder, ["entry-marker"]);
+      assert.deepEqual(liveCase.linkedMarkerOrder, ["dependency-own", "entry-marker"]);
+      assert.deepEqual(liveCase.authoritativeMarkerOrder, ["dependency-own", "entry-marker"]);
+    } else {
+      assert.ok(liveCase.legacyMarkerOrder.includes("base"));
+      assert.ok(liveCase.linkedMarkerOrder.includes("base"));
+      assert.ok(liveCase.linkedMarkerOrder.includes("base-live"));
+    }
   } else {
     assert.equal(liveCase.semanticPreserved, true);
   }

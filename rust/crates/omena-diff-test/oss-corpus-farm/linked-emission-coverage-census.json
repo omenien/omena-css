@@ -6,12 +6,25 @@
   "populationCount": 15,
   "coveredShapeCount": 11,
   "notCoveredShapeCount": 4,
-  "fixtureCount": 11,
-  "moduleCount": 28,
-  "markerObservableModuleCount": 23,
+  "fixtureCount": 12,
+  "moduleCount": 30,
+  "markerObservableModuleCount": 25,
   "blindSpotModuleCount": 5,
   "unknownStructuralSelectorCount": 0,
   "unknownAtRuleCount": 0,
+  "moduleTokenCollisionCount": 1,
+  "moduleTokenCollisions": [
+    {
+      "fixtureId": "module-qualified-reachability",
+      "emittedToken": "_shared_0",
+      "modulePaths": [
+        "linked-byte/module-qualified-reachability/app.module.css",
+        "linked-byte/module-qualified-reachability/dependency.module.css"
+      ],
+      "originalNames": ["shared"],
+      "observedEmissionPaths": ["importInlineLegacy", "linkedOrder"]
+    }
+  ],
   "shapes": [
     {
       "shapeClass": "bare-layer-statement",
@@ -55,7 +68,7 @@
     },
     {
       "shapeClass": "module-qualified-reachability",
-      "fixtureIds": ["module-qualified-reachability"]
+      "fixtureIds": ["module-qualified-composes-reachability", "module-qualified-reachability"]
     },
     {
       "shapeClass": "package-export-import",
@@ -119,6 +132,12 @@
     },
     {
       "fixtureId": "module-qualified-reachability",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "module-qualified-composes-reachability",
       "moduleCount": 2,
       "markerObservableModuleCount": 2,
       "blindSpotModuleCount": 0

@@ -22,6 +22,7 @@ use omena_query::{
     derive_omena_query_module_reachability_from_engine_input,
     run_omena_query_bundle_with_module_reachability_and_options,
     run_omena_query_bundle_with_semantic_inputs_and_options,
+    summarize_omena_query_transform_context_from_sources_with_resolution_inputs,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -163,6 +164,18 @@ pub struct LinkedEmissionPlacementWitnessV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
+/// One emitted CSS Modules token produced by declarations from multiple modules.
+pub struct LinkedEmissionModuleTokenCollisionV0 {
+    pub fixture_id: String,
+    pub emitted_token: String,
+    pub module_paths: Vec<String>,
+    pub original_names: Vec<String>,
+    pub observed_emission_paths: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 /// Machine-derived coverage over the independently enumerated bundle-shape population.
 pub struct LinkedEmissionCoverageCensusV0 {
     pub schema_version: &'static str,
@@ -178,6 +191,8 @@ pub struct LinkedEmissionCoverageCensusV0 {
     pub blind_spot_module_count: usize,
     pub unknown_structural_selector_count: usize,
     pub unknown_at_rule_count: usize,
+    pub module_token_collision_count: usize,
+    pub module_token_collisions: Vec<LinkedEmissionModuleTokenCollisionV0>,
     pub shapes: Vec<LinkedEmissionCoverageShapeV0>,
     pub not_covered: Vec<LinkedEmissionNotCoveredShapeV0>,
     pub fixture_observability: Vec<LinkedEmissionFixtureObservabilityV0>,
@@ -416,6 +431,7 @@ fn summarize_linked_emission_coverage_census_v0(
     let mut marker_observable_module_count = 0usize;
     let mut unknown_structural_selector_count = 0usize;
     let mut unknown_at_rule_count = 0usize;
+    let mut module_token_collisions = Vec::new();
 
     for (fixture, analysis) in fixtures.iter().zip(analyses) {
         if fixture.id != analysis.case.fixture_id {
@@ -499,6 +515,7 @@ fn summarize_linked_emission_coverage_census_v0(
                 _ => {}
             }
         }
+        module_token_collisions.extend(summarize_module_token_collisions_v0(fixture, analysis));
         fixture_observability.push(LinkedEmissionFixtureObservabilityV0 {
             fixture_id: fixture.id.clone(),
             module_count: fixture.modules.len(),
@@ -532,6 +549,11 @@ fn summarize_linked_emission_coverage_census_v0(
         .iter()
         .map(summarize_linked_emission_placement_witness_v0)
         .collect::<Result<Vec<_>, _>>()?;
+    module_token_collisions.sort_by(|left, right| {
+        left.fixture_id
+            .cmp(&right.fixture_id)
+            .then_with(|| left.emitted_token.cmp(&right.emitted_token))
+    });
 
     Ok(LinkedEmissionCoverageCensusV0 {
         schema_version: "0",
@@ -551,12 +573,67 @@ fn summarize_linked_emission_coverage_census_v0(
         blind_spot_module_count: blind_spots.len(),
         unknown_structural_selector_count,
         unknown_at_rule_count,
+        module_token_collision_count: module_token_collisions.len(),
+        module_token_collisions,
         shapes,
         not_covered,
         fixture_observability,
         blind_spots,
         placement_witnesses,
     })
+}
+
+fn summarize_module_token_collisions_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    analysis: &LinkedEmissionFixtureAnalysisV0,
+) -> Vec<LinkedEmissionModuleTokenCollisionV0> {
+    let styles = fixture
+        .modules
+        .iter()
+        .map(|module| (module.path.as_str(), module.source.as_str()))
+        .collect::<Vec<_>>();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let mut declarations_by_token = BTreeMap::<String, BTreeMap<String, BTreeSet<String>>>::new();
+    for module in &fixture.modules {
+        let context = summarize_omena_query_transform_context_from_sources_with_resolution_inputs(
+            module.path.as_str(),
+            styles.iter().copied(),
+            &resolution_inputs,
+        )
+        .context;
+        for rewrite in context.class_name_rewrites {
+            declarations_by_token
+                .entry(rewrite.rewritten_name)
+                .or_default()
+                .entry(module.path.clone())
+                .or_default()
+                .insert(rewrite.original_name);
+        }
+    }
+
+    declarations_by_token
+        .into_iter()
+        .filter(|(_, declarations)| declarations.len() > 1)
+        .map(|(emitted_token, declarations)| {
+            let module_paths = declarations.keys().cloned().collect::<Vec<_>>();
+            let original_names = declarations
+                .into_values()
+                .flatten()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            LinkedEmissionModuleTokenCollisionV0 {
+                fixture_id: fixture.id.clone(),
+                emitted_token,
+                module_paths,
+                original_names,
+                observed_emission_paths: vec![
+                    analysis.case.legacy_emission_path,
+                    analysis.case.linked_emission_path,
+                ],
+            }
+        })
+        .collect()
 }
 
 fn analyze_linked_emission_fixture_v0(
@@ -859,6 +936,15 @@ fn module_qualified_reachability_delta_is_expected_v0(
     }
     let legacy_css = remove_ascii_whitespace_v0(legacy_css);
     let linked_css = remove_ascii_whitespace_v0(linked_css);
+    if fixture.id == "module-qualified-composes-reachability" {
+        return legacy_css.contains("padding:2px")
+            && legacy_css.contains("color:red")
+            && !legacy_css.contains("color:gray")
+            && linked_css.contains("padding:2px")
+            && linked_css.contains("color:blue")
+            && linked_css.contains("color:red")
+            && !linked_css.contains("color:gray");
+    }
     legacy_css.contains("padding:8px")
         && legacy_css.contains("color:red")
         && !legacy_css.contains("color:blue")
@@ -1515,6 +1601,7 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
         dialect_fixture_v0("less", StyleDialect::Less, "@import"),
         shared_import_fixture_v0(),
         module_qualified_reachability_fixture_v0(),
+        module_qualified_composes_reachability_fixture_v0(),
         selectorless_module_fixture_v0(
             "element-only-reset-module",
             "element-only-reset",
@@ -1689,7 +1776,7 @@ fn shared_import_fixture_v0() -> LinkedEmissionFixtureV0 {
 
 fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
     let root = "linked-byte/module-qualified-reachability";
-    let entry_path = format!("{root}/app.css");
+    let entry_path = format!("{root}/app.module.css");
     LinkedEmissionFixtureV0 {
         id: "module-qualified-reachability".to_string(),
         entry_path: entry_path.clone(),
@@ -1697,14 +1784,14 @@ fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
         modules: vec![
             LinkedEmissionFixtureModuleV0 {
                 path: entry_path,
-                source: "@import \"./dependency.css\"; .shared { color: red; } .entry-marker { border: 0; } .entry-dead { color: tan; }"
+                source: "@import \"./dependency.module.css\"; .shared { color: red; } .entry-marker { border: 0; } .entry-dead { color: tan; }"
                     .to_string(),
                 dialect: StyleDialect::Css,
                 marker_names: vec!["entry-marker".to_string()],
                 order_probe: "color: red".to_string(),
             },
             LinkedEmissionFixtureModuleV0 {
-                path: format!("{root}/dependency.css"),
+                path: format!("{root}/dependency.module.css"),
                 source: ".shared { padding: 8px; } .dependency-own { color: blue; } .dependency-dead { color: gray; }"
                     .to_string(),
                 dialect: StyleDialect::Css,
@@ -1727,6 +1814,46 @@ fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
                 id: "dependency-reference",
                 module_index: 1,
                 class_name: "dependency-own",
+            },
+        ],
+    }
+}
+
+fn module_qualified_composes_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
+    let root = "linked-byte/module-qualified-composes";
+    let entry_path = format!("{root}/entry.module.css");
+    LinkedEmissionFixtureV0 {
+        id: "module-qualified-composes-reachability".to_string(),
+        entry_path: entry_path.clone(),
+        shape_classes: vec!["module-qualified-reachability"],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: entry_path,
+                source: "@import \"./base.module.css\"; .card { composes: base from \"./base.module.css\"; color: red; }"
+                    .to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["card".to_string()],
+                order_probe: "color: red".to_string(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/base.module.css"),
+                source: ".base { padding: 2px; } .base-live { color: blue; } .base-dead { color: gray; }"
+                    .to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["base".to_string(), "base-live".to_string()],
+                order_probe: "padding: 2px".to_string(),
+            },
+        ],
+        reachability_references: vec![
+            LinkedEmissionReachabilityReferenceV0 {
+                id: "entry-card-reference",
+                module_index: 0,
+                class_name: "card",
+            },
+            LinkedEmissionReachabilityReferenceV0 {
+                id: "base-live-reference",
+                module_index: 1,
+                class_name: "base-live",
             },
         ],
     }
@@ -1823,7 +1950,6 @@ mod tests {
             &analysis.legacy_css,
             &analysis.linked_css.replace("blue", "black")
         ));
-        assert!(!remove_ascii_whitespace_v0(&analysis.linked_css).contains("color:green"));
         assert!(remove_ascii_whitespace_v0(&analysis.linked_css).contains("color:blue"));
         Ok(())
     }
@@ -1852,6 +1978,15 @@ mod tests {
             census.fixture_observability.len(),
             envelope.report.fixture_count
         );
+        assert_eq!(
+            census.module_token_collision_count,
+            census.module_token_collisions.len()
+        );
+        assert!(census.module_token_collision_count > 0);
+        assert!(census.module_token_collisions.iter().all(|collision| {
+            collision.module_paths.len() > 1
+                && collision.observed_emission_paths == ["importInlineLegacy", "linkedOrder"]
+        }));
         Ok(())
     }
 
