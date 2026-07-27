@@ -53,7 +53,7 @@
       "evidence": [
         {
           "path": "rust/crates/omena-cli/src/bundle.rs",
-          "symbol": "run_omena_query_bundle_with_semantic_inputs"
+          "symbol": "run_omena_query_bundle_with_execution_scope_evidence_and_options"
         }
       ],
       "limitation": "The item is skipped when no bundle entries are configured for the workspace."
