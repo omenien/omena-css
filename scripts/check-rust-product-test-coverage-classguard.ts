@@ -127,7 +127,7 @@ assert.match(
 );
 assert.match(
   contractJob,
-  /taiki-e\/install-action@3d7d7cd5ac7f994c1892ae0c06165095b9139094/u,
+  /taiki-e\/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf/u,
   "the API-surface lane must retain the pinned prebuilt tool installer",
 );
 assert.match(

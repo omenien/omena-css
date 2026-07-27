@@ -590,7 +590,7 @@ fn fold_sass_oracle_result(
                 || result.product != "omena-cli.sass-migration-oracle-result"
                 || result.compiler.name != "dart-sass"
                 || result.compiler.package != "sass"
-                || result.compiler.version != "1.101.0"
+                || result.compiler.version != "1.102.0"
             {
                 return Err("Sass migration oracle returned an unsupported contract".to_string());
             }
@@ -614,7 +614,7 @@ fn fold_sass_oracle_result(
                     evidence.push(MigrationEvidenceV0 {
                         id: evidence_id.clone(),
                         kind: "dartSassCompileEquivalence".to_string(),
-                        source: "dart-sass@1.101.0".to_string(),
+                        source: "dart-sass@1.102.0".to_string(),
                         detail: "oracle result omitted this edited Sass source".to_string(),
                     });
                     blockers.push(MigrationBlockerV0 {
@@ -629,7 +629,7 @@ fn fold_sass_oracle_result(
                 evidence.push(MigrationEvidenceV0 {
                     id: evidence_id.clone(),
                     kind: "dartSassCompileEquivalence".to_string(),
-                    source: "dart-sass@1.101.0".to_string(),
+                    source: "dart-sass@1.102.0".to_string(),
                     detail: format!(
                         "beforeStatus={:?}; afterStatus={:?}; beforeCss={:?}; afterCss={:?}; allMatched={}",
                         file_result.before_status,
@@ -661,7 +661,7 @@ fn fold_sass_oracle_result(
                 evidence.push(MigrationEvidenceV0 {
                     id: evidence_id.clone(),
                     kind: "dartSassCompileEquivalence".to_string(),
-                    source: "dart-sass@1.101.0".to_string(),
+                    source: "dart-sass@1.102.0".to_string(),
                     detail: format!("oracle unavailable: {detail}"),
                 });
                 blockers.push(MigrationBlockerV0 {

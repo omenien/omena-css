@@ -17,8 +17,8 @@ export function assertPinnedDartSassVersion(cwd: string): string {
   const version = result.stdout.trim();
   assert.match(
     version,
-    /^1\.101\.0\b/u,
-    `dart-sass oracle must resolve to 1.101.0, got ${version}`,
+    /^1\.102\.0\b/u,
+    `dart-sass oracle must resolve to 1.102.0, got ${version}`,
   );
   return version;
 }

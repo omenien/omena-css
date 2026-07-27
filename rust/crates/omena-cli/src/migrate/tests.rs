@@ -321,7 +321,7 @@ fn sass_oracle_result(
         compiler: SassMigrationOracleCompilerV0 {
             name: "dart-sass".to_string(),
             package: "sass".to_string(),
-            version: "1.101.0".to_string(),
+            version: "1.102.0".to_string(),
         },
         all_matched: matched,
         results,

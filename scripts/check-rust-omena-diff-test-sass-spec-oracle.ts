@@ -47,7 +47,7 @@ interface SassSpecOracleCaptureV0 {
   readonly compiler: {
     readonly name: "dart-sass";
     readonly package: "sass";
-    readonly version: "1.101.0";
+    readonly version: "1.102.0";
     readonly hostMode: "dart-sass-cli";
   };
   readonly chunkId: string;
@@ -72,7 +72,7 @@ const chunkPath = path.join(corpusRoot, "imported-smoke.json");
 const capturePath = path.join(corpusRoot, "imported-smoke-oracle.json");
 const packageJson = readJson<PackageJsonV0>(path.join(repoRoot, "package.json"));
 
-assert.equal(packageJson.devDependencies?.sass, "1.101.0");
+assert.equal(packageJson.devDependencies?.sass, "1.102.0");
 assertPinnedDartSassVersion(repoRoot);
 
 const chunk = readJson<ImportedSassSpecChunkV0>(chunkPath);
@@ -117,7 +117,7 @@ function captureChunk(chunk: ImportedSassSpecChunkV0): SassSpecOracleCaptureV0 {
     compiler: {
       name: "dart-sass",
       package: "sass",
-      version: "1.101.0",
+      version: "1.102.0",
       hostMode: "dart-sass-cli",
     },
     chunkId: chunk.chunkId,

@@ -1,10 +1,10 @@
 {
   "schemaVersion": "0",
   "product": "omena-spec-audit.source-pins",
-  "refreshedAt": "2026-07-19",
+  "refreshedAt": "2026-07-27",
   "refreshPolicy": {
     "maxAgeDays": 30,
-    "nextReviewDueAt": "2026-08-18"
+    "nextReviewDueAt": "2026-08-26"
   },
   "generatedDataReviewGate": {
     "humanReviewRequired": true,
@@ -16,9 +16,9 @@
     {
       "name": "webref-css",
       "package": "@webref/css",
-      "version": "8.7.0",
-      "gitHead": "512c0b511d3c13b2421450ea7e33b80c6c8ef26c",
-      "tarball": "https://registry.npmjs.org/@webref/css/-/css-8.7.0.tgz",
+      "version": "8.7.1",
+      "gitHead": "d3c8b8167e3d550525f84b823b5e99e726c37369",
+      "tarball": "https://registry.npmjs.org/@webref/css/-/css-8.7.1.tgz",
       "role": "primary-css-idl-and-dfn-source"
     },
     {
@@ -48,16 +48,16 @@
     {
       "name": "dart-sass",
       "package": "sass",
-      "version": "1.101.0",
-      "tarball": "https://registry.npmjs.org/sass/-/sass-1.101.0.tgz",
+      "version": "1.102.0",
+      "tarball": "https://registry.npmjs.org/sass/-/sass-1.102.0.tgz",
       "declaredVersionSource": "package.json#devDependencies.sass",
       "role": "external-sass-oracle"
     },
     {
       "name": "lightningcss",
       "package": "lightningcss",
-      "version": "1.32.0",
-      "tarball": "https://registry.npmjs.org/lightningcss/-/lightningcss-1.32.0.tgz",
+      "version": "1.33.0",
+      "tarball": "https://registry.npmjs.org/lightningcss/-/lightningcss-1.33.0.tgz",
       "declaredVersionSource": "package.json#devDependencies.lightningcss",
       "role": "external-css-parser-oracle"
     },

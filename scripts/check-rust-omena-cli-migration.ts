@@ -230,7 +230,7 @@ function verifySassOracle(): void {
   assert.equal(planValue.blockers.length, 0);
   assert(
     planValue.evidence.some(
-      (item) => item.kind === "dartSassCompileEquivalence" && item.source === "dart-sass@1.101.0",
+      (item) => item.kind === "dartSassCompileEquivalence" && item.source === "dart-sass@1.102.0",
     ),
   );
   assertEvidenceAndRollback(planValue);
