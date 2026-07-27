@@ -2506,7 +2506,7 @@ dependencies = [
  "omena-sif",
  "oxc_allocator 0.140.0",
  "oxc_ast 0.140.0",
- "oxc_ast_visit",
+ "oxc_ast_visit 0.140.0",
  "oxc_parser",
  "oxc_semantic",
  "oxc_span 0.140.0",
@@ -3298,6 +3298,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "oxc_ast_visit"
+version = "0.141.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95874e8d4c97ee55054ae50746347fc6d018d0bed9e4f40fef483eb4cf22825a"
+dependencies = [
+ "oxc_allocator 0.141.0",
+ "oxc_ast 0.141.0",
+ "oxc_span 0.141.0",
+ "oxc_syntax 0.141.0",
+]
+
+[[package]]
 name = "oxc_data_structures"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3394,15 +3406,15 @@ dependencies = [
  "memchr",
  "num-bigint 0.5.1",
  "num-traits",
- "oxc_allocator 0.141.0",
- "oxc_ast 0.141.0",
- "oxc_data_structures 0.141.0",
- "oxc_diagnostics 0.141.0",
- "oxc_ecmascript 0.141.0",
- "oxc_regular_expression 0.141.0",
- "oxc_span 0.141.0",
- "oxc_str 0.141.0",
- "oxc_syntax 0.141.0",
+ "oxc_allocator 0.140.0",
+ "oxc_ast 0.140.0",
+ "oxc_data_structures 0.140.0",
+ "oxc_diagnostics 0.140.0",
+ "oxc_ecmascript 0.140.0",
+ "oxc_regular_expression 0.140.0",
+ "oxc_span 0.140.0",
+ "oxc_str 0.140.0",
+ "oxc_syntax 0.140.0",
  "rustc-hash",
  "seq-macro",
 ]
@@ -3443,22 +3455,22 @@ dependencies = [
 
 [[package]]
 name = "oxc_semantic"
-version = "0.140.0"
+version = "0.141.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5967f96881e1694d10b453311fa681b4df0f38760628e1de613b046566cd8c8e"
+checksum = "cdfab481b9838e23958cfd03638fcb14672be7ca1a3a23d9a87c1a47a00c7cd8"
 dependencies = [
  "itertools 0.15.0",
  "memchr",
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_ast_visit",
- "oxc_data_structures 0.140.0",
- "oxc_diagnostics 0.140.0",
- "oxc_ecmascript 0.140.0",
+ "oxc_allocator 0.141.0",
+ "oxc_ast 0.141.0",
+ "oxc_ast_visit 0.141.0",
+ "oxc_data_structures 0.141.0",
+ "oxc_diagnostics 0.141.0",
+ "oxc_ecmascript 0.141.0",
  "oxc_index",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
- "oxc_syntax 0.140.0",
+ "oxc_span 0.141.0",
+ "oxc_str 0.141.0",
+ "oxc_syntax 0.141.0",
  "rustc-hash",
  "self_cell",
  "smallvec",
