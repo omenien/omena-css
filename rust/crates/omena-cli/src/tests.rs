@@ -174,12 +174,48 @@ fn bundle_command_emits_css_and_deterministic_evidence() -> Result<(), String> {
         manifest["reachability"]["guarantee"],
         "notClaimedExactTraversal"
     );
+    assert!(manifest["executionScope"].is_null());
     assert!(css_out.is_file());
     assert!(
         fs::read_to_string(&css_out)
             .map_err(|error| error.to_string())?
             .contains(".app")
     );
+    Ok(())
+}
+
+#[test]
+fn bundle_command_loads_configured_workspace_sources_without_flags() -> Result<(), String> {
+    let root = temp_dir("bundle-command-config-sources");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let entry = root.join("app.css");
+    let dependency = root.join("tokens.css");
+    let css_out = root.join("bundle.css");
+    fs::write(&entry, "@import \"./tokens.css\"; .app { color: green; }")
+        .map_err(|error| error.to_string())?;
+    fs::write(&dependency, ".configured-token { color: blue; }")
+        .map_err(|error| error.to_string())?;
+    fs::write(
+        root.join("omena.toml"),
+        "[build]\nsources = [\"tokens.css\"]\n",
+    )
+    .map_err(|error| error.to_string())?;
+
+    run(Cli {
+        command: Command::Bundle {
+            entry: Some(entry),
+            css_out: Some(css_out.clone()),
+            evidence: None,
+            source_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            sif_paths: Vec::new(),
+            lockfile: None,
+        },
+    })?;
+
+    let css = fs::read_to_string(css_out).map_err(|error| error.to_string())?;
+    assert!(css.contains(".configured-token"));
+    assert!(css.contains(".app"));
     Ok(())
 }
 

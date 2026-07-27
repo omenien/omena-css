@@ -19,7 +19,8 @@ use crate::{
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleEmissionPathV0,
-    OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldOutcomeV0, OmenaQueryConsumerBuildOptionsV0,
+    OmenaQueryBundleExecutionScopeEvidenceV0, OmenaQueryBundlePlanInputV0,
+    OmenaQueryClosedWorldOutcomeV0, OmenaQueryConsumerBuildOptionsV0,
     OmenaQueryConsumerBuildSummaryV0, OmenaQueryStylePackageManifestV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetConsumerBuildInputsV0, OmenaQueryTargetTransformOptionsV0,
@@ -37,8 +38,8 @@ use omena_query::{
     list_omena_query_transform_pass_summaries, load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     rewrite_omena_transform_bundle_asset_urls_in_source,
-    run_omena_query_bundle_with_module_reachability_and_options,
-    run_omena_query_bundle_with_semantic_inputs_and_options,
+    run_omena_query_bundle_with_execution_scope_evidence_and_options,
+    run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options,
     semantic_omena_query_minify_build_profile,
     summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan,
@@ -289,7 +290,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         .unwrap_or(source.as_str());
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
     let resolution_inputs = resolution_inputs_for_build_path(&path, package_manifests.as_slice());
-    let bundle_result = if bundle {
+    let bundle_run = if bundle {
         let plan_input = OmenaQueryBundlePlanInputV0 {
             target_style_path: &style_path,
             style_sources: &workspace_sources,
@@ -305,15 +306,14 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
             bundle_entry_style_paths: &bundle_entry_style_paths,
         };
         let result = if let Some(module_reachability) = engine_module_reachability.as_ref() {
-            run_omena_query_bundle_with_module_reachability_and_options(
+            run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options(
                 plan_input,
                 &[],
                 &build_options,
                 module_reachability,
             )?
-            .into_bundle_result()
         } else {
-            run_omena_query_bundle_with_semantic_inputs_and_options(
+            run_omena_query_bundle_with_execution_scope_evidence_and_options(
                 plan_input,
                 &[],
                 &build_options,
@@ -323,9 +323,9 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     } else {
         None
     };
-    if let Some(OmenaQueryClosedWorldOutcomeV0::Open { blockers }) = bundle_result
+    if let Some(OmenaQueryClosedWorldOutcomeV0::Open { blockers }) = bundle_run
         .as_ref()
-        .map(|result| &result.closed_world_outcome)
+        .map(|result| &result.bundle_result.closed_world_outcome)
     {
         let blockers = serde_json::to_string(blockers)
             .map_err(|error| format!("failed to serialize bundle blockers: {error}"))?;
@@ -333,7 +333,10 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
             "closed-world bundle admission failed with typed blockers: {blockers}"
         ));
     }
-    let bundle_artifact = bundle_result.map(|result| result.artifact);
+    let bundle_execution_scope = bundle_run
+        .as_ref()
+        .and_then(|result| result.execution_scope.clone());
+    let bundle_artifact = bundle_run.map(|result| result.bundle_result.artifact);
     let mut summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
             execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_build_inputs(
@@ -555,6 +558,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
                 .with_config_content_digest(config_content_digest.as_deref()),
             &BuildCommandOutputV0 {
                 summary: &summary,
+                execution_scope: bundle_execution_scope.as_ref(),
                 postcss_compat: postcss_compat_report.as_ref(),
                 postcss_native_differential: postcss_native_differential.as_ref(),
             },
@@ -589,6 +593,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
 struct BuildCommandOutputV0<'a> {
     #[serde(flatten)]
     summary: &'a OmenaQueryConsumerBuildSummaryV0,
+    execution_scope: Option<&'a OmenaQueryBundleExecutionScopeEvidenceV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     postcss_compat: Option<&'a PostcssCompatExecutionV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
