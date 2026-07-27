@@ -53,8 +53,8 @@ if (injectFlipScope) {
 }
 
 assert.deepEqual(
-  [...scopeRows.map((row) => row.fieldName)].sort(),
-  [...executionFields].sort(),
+  scopeRows.map((row) => row.fieldName).toSorted(),
+  executionFields.toSorted(),
   "execution-scope table must classify every published field exactly once",
 );
 const bundleFields = scopeRows.filter((row) => row.scope === "Bundle").map((row) => row.fieldName);
