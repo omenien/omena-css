@@ -1,3 +1,7 @@
+use omena_abstract_value::{
+    AbstractClassValueV0, concatenate_abstract_class_values, exact_class_value,
+    finite_set_class_value,
+};
 use omena_parser::ParserByteSpanV0;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::TSModuleReference;
@@ -26,6 +30,9 @@ use crate::style_intelligence::{
     BuiltInRecipeProviderConfigV0 as VariantRecipeConfigV0, built_in_recipe_provider_configs,
 };
 
+const SOURCE_TYPE_FACT_TARGET_SKIPPED_UNSUPPORTED_EXPRESSION_SHAPE: &str =
+    "unsupportedExpressionShape";
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceSyntaxIndexV0 {
@@ -37,6 +44,10 @@ pub struct SourceSyntaxIndexV0 {
     pub inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     pub selector_references: Vec<SourceSelectorReferenceFactV0>,
     pub type_fact_targets: Vec<SourceTypeFactTargetV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub type_fact_target_skipped: Vec<SourceTypeFactTargetSkippedFactV0>,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub type_fact_target_skipped_count: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub type_fact_provider_unavailable: Vec<SourceTypeFactProviderUnavailableFactV0>,
     pub class_value_universes: Vec<SourceClassValueUniverseEntryV0>,
@@ -261,6 +272,35 @@ pub struct SourceSelectorReferenceFactV0 {
     pub selector_name: Option<String>,
     pub match_kind: SourceSelectorReferenceMatchKindV0,
     pub target_style_uri: Option<String>,
+    #[serde(skip_serializing_if = "source_selector_reference_surface_is_default")]
+    pub surface: SourceSelectorReferenceSurfaceV0,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SourceSelectorReferenceSurfaceV0 {
+    #[default]
+    OmenaQuerySourceSyntaxIndex,
+    OmenaTsgoTypeFactProjection,
+}
+
+impl SourceSelectorReferenceSurfaceV0 {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OmenaQuerySourceSyntaxIndex => "omenaQuerySourceSyntaxIndex",
+            Self::OmenaTsgoTypeFactProjection => "omenaTsgoTypeFactProjection",
+        }
+    }
+}
+
+fn source_selector_reference_surface_is_default(
+    surface: &SourceSelectorReferenceSurfaceV0,
+) -> bool {
+    *surface == SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+}
+
+fn is_zero(value: &usize) -> bool {
+    *value == 0
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -281,6 +321,20 @@ pub struct SourceTypeFactProviderUnavailableFactV0 {
     pub target_style_uri: Option<String>,
     pub provider_id: &'static str,
     pub reason: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceTypeFactTargetSkippedFactV0 {
+    pub byte_span: ParserByteSpanV0,
+    pub expression_id: String,
+    pub target_style_uri: Option<String>,
+    pub reason: &'static str,
+}
+
+struct SourceTypeFactCollection<'a> {
+    targets: &'a mut Vec<SourceTypeFactTargetV0>,
+    skipped: &'a mut Vec<SourceTypeFactTargetSkippedFactV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -419,6 +473,7 @@ impl TemplateScanScope {
 struct SourceClassValue {
     exact: Vec<String>,
     prefixes: Vec<String>,
+    fragment_domain_complete: bool,
 }
 
 impl SourceClassValue {
@@ -429,7 +484,23 @@ impl SourceClassValue {
     fn merge(&mut self, other: SourceClassValue) {
         self.exact.extend(other.exact);
         self.prefixes.extend(other.prefixes);
+        self.fragment_domain_complete &= other.fragment_domain_complete;
         self.canonicalize();
+    }
+
+    fn complete_fragment_domain() -> Self {
+        Self {
+            fragment_domain_complete: true,
+            ..Self::default()
+        }
+    }
+
+    fn mark_fragment_domain_incomplete(&mut self) {
+        self.fragment_domain_complete = false;
+    }
+
+    fn is_fully_enumerated_fragment_domain(&self) -> bool {
+        self.fragment_domain_complete && !self.exact.is_empty() && self.prefixes.is_empty()
     }
 
     fn canonicalize(&mut self) {
@@ -445,6 +516,7 @@ type SourceReferenceDedupeKey = (
     usize,
     Option<String>,
     SourceSelectorReferenceMatchKindV0,
+    SourceSelectorReferenceSurfaceV0,
 );
 type SourceReferenceTargetMap = BTreeMap<SourceReferenceDedupeKey, BTreeSet<Option<String>>>;
 
@@ -496,6 +568,8 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         inline_style_declarations: ast_facts.inline_style_declarations,
         selector_references: Vec::new(),
         type_fact_targets: Vec::new(),
+        type_fact_target_skipped: Vec::new(),
+        type_fact_target_skipped_count: 0,
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: ast_facts.class_value_universes,
         domain_class_references: ast_facts.domain_class_references,
@@ -512,6 +586,10 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         );
     }
     for span in class_name_expression_spans {
+        let mut type_facts = SourceTypeFactCollection {
+            targets: &mut index.type_fact_targets,
+            skipped: &mut index.type_fact_target_skipped,
+        };
         collect_selector_references_from_js_expression(
             source,
             span.start,
@@ -519,7 +597,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
             None,
             &local_class_values,
             &mut index.selector_references,
-            &mut index.type_fact_targets,
+            &mut type_facts,
         );
     }
     for access in &index.style_property_accesses {
@@ -530,6 +608,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
                 selector_name: None,
                 match_kind: SourceSelectorReferenceMatchKindV0::Exact,
                 target_style_uri: access.target_style_uri.clone(),
+                surface: SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
             });
     }
     for argument in classnames_bind_call_arguments {
@@ -537,6 +616,10 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
             .iter()
             .find(|binding| binding.binding_symbol_id == argument.binding_symbol_id)
         {
+            let mut type_facts = SourceTypeFactCollection {
+                targets: &mut index.type_fact_targets,
+                skipped: &mut index.type_fact_target_skipped,
+            };
             collect_selector_references_from_js_expression(
                 source,
                 argument.byte_span.start,
@@ -544,7 +627,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
                 Some(binding.style_uri.as_str()),
                 &local_class_values,
                 &mut index.selector_references,
-                &mut index.type_fact_targets,
+                &mut type_facts,
             );
         }
     }
@@ -562,6 +645,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
         &mut index.selector_references,
     );
     canonicalize_source_selector_references(&mut index.selector_references);
+    index.type_fact_target_skipped_count = index.type_fact_target_skipped.len();
 
     index
 }
@@ -923,13 +1007,14 @@ pub fn canonicalize_source_selector_references(
                 reference.byte_span.end,
                 reference.selector_name.clone(),
                 reference.match_kind,
+                reference.surface,
             ))
             .or_default()
             .insert(reference.target_style_uri.clone());
     }
 
     let mut canonical = Vec::new();
-    for ((start, end, selector_name, match_kind), targets) in targets_by_reference {
+    for ((start, end, selector_name, match_kind, surface), targets) in targets_by_reference {
         let has_targeted_reference = targets.iter().any(Option::is_some);
         for target_style_uri in targets {
             if has_targeted_reference && target_style_uri.is_none() {
@@ -940,6 +1025,7 @@ pub fn canonicalize_source_selector_references(
                 selector_name: selector_name.clone(),
                 match_kind,
                 target_style_uri,
+                surface,
             });
         }
     }
@@ -1336,6 +1422,7 @@ fn push_server_template_class_attribute_selector_references(
             selector_name: None,
             match_kind: SourceSelectorReferenceMatchKindV0::Exact,
             target_style_uri: None,
+            surface: SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
         });
     }
 }
@@ -3962,7 +4049,7 @@ fn collect_selector_references_from_js_expression(
     target_style_uri: Option<&str>,
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
+    type_facts: &mut SourceTypeFactCollection<'_>,
 ) {
     let (start, end) = trim_js_expression(source, start, end);
     let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
@@ -3988,7 +4075,9 @@ fn collect_selector_references_from_js_expression(
                 literal_start,
                 literal_end,
                 target_style_uri,
-                type_fact_targets,
+                local_class_values,
+                references,
+                type_facts,
             );
         }
         return;
@@ -4004,7 +4093,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
+            type_facts,
         );
         return;
     }
@@ -4028,7 +4117,7 @@ fn collect_selector_references_from_js_expression(
                 target_style_uri,
                 local_class_values,
                 references,
-                type_fact_targets,
+                type_facts,
             );
         }
         return;
@@ -4046,7 +4135,7 @@ fn collect_selector_references_from_js_expression(
                 target_style_uri,
                 local_class_values,
                 references,
-                type_fact_targets,
+                type_facts,
             );
         }
         return;
@@ -4062,7 +4151,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
+            type_facts,
         );
         collect_selector_references_from_js_expression(
             source,
@@ -4071,7 +4160,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
+            type_facts,
         );
         return;
     }
@@ -4086,7 +4175,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
+            type_facts,
         );
         return;
     }
@@ -4103,7 +4192,7 @@ fn collect_selector_references_from_js_expression(
                 target_style_uri,
                 "",
                 "",
-                type_fact_targets,
+                type_facts.targets,
             );
         }
         push_source_class_value_reference(
@@ -4136,7 +4225,7 @@ fn collect_selector_references_from_js_expression(
             target_style_uri,
             "",
             "",
-            type_fact_targets,
+            type_facts.targets,
         );
     }
 }
@@ -4205,14 +4294,23 @@ fn collect_local_class_value_reassignments(
         }
         let expression_start = skip_js_trivia(source, equals_offset + 1);
         let expression_end = js_statement_expression_end(source, expression_start);
-        if let Some(value) =
-            source_class_value_from_js_expression(source, expression_start, expression_end, values)
-            && !value.is_empty()
-        {
-            values
-                .entry(identifier.text.to_string())
-                .or_default()
-                .merge(value);
+        match source_class_value_from_js_expression(
+            source,
+            expression_start,
+            expression_end,
+            values,
+        ) {
+            Some(value) if !value.is_empty() => {
+                values
+                    .entry(identifier.text.to_string())
+                    .or_default()
+                    .merge(value);
+            }
+            _ => {
+                if let Some(value) = values.get_mut(identifier.text) {
+                    value.mark_fragment_domain_incomplete();
+                }
+            }
         }
         cursor = expression_end.min(source.len());
     }
@@ -4307,19 +4405,24 @@ fn source_class_value_from_js_expression(
     if let Some((_, true_start, true_end, false_start, false_end)) =
         top_level_conditional_parts(source, start, end)
     {
-        let mut value = SourceClassValue::default();
-        if let Some(true_value) =
-            source_class_value_from_js_expression(source, true_start, true_end, local_class_values)
-        {
-            value.merge(true_value);
+        let mut value = SourceClassValue::complete_fragment_domain();
+        match source_class_value_from_js_expression(
+            source,
+            true_start,
+            true_end,
+            local_class_values,
+        ) {
+            Some(true_value) => value.merge(true_value),
+            None => value.mark_fragment_domain_incomplete(),
         }
-        if let Some(false_value) = source_class_value_from_js_expression(
+        match source_class_value_from_js_expression(
             source,
             false_start,
             false_end,
             local_class_values,
         ) {
-            value.merge(false_value);
+            Some(false_value) => value.merge(false_value),
+            None => value.mark_fragment_domain_incomplete(),
         }
         return Some(value);
     }
@@ -4327,12 +4430,14 @@ fn source_class_value_from_js_expression(
     if let Some(operator_offset) = find_top_level_js_operator(source, start, end, "&&")
         .or_else(|| find_top_level_js_operator(source, start, end, "||"))
     {
-        return source_class_value_from_js_expression(
+        let mut value = source_class_value_from_js_expression(
             source,
             operator_offset + 2,
             end,
             local_class_values,
-        );
+        )?;
+        value.mark_fragment_domain_incomplete();
+        return Some(value);
     }
 
     if let Some(path) = js_expression_path(source, start, end)
@@ -4363,9 +4468,12 @@ fn source_class_value_from_js_literal(
         let prefix_end = literal_start + relative_interpolation;
         push_template_prefix_value(source, literal_start, prefix_end, &mut value);
     } else {
-        value
-            .exact
-            .extend(class_token_strings(source, literal_start, literal_end));
+        let exact = class_token_strings(source, literal_start, literal_end);
+        value.fragment_domain_complete = exact.len() == 1
+            && source
+                .get(literal_start..literal_end)
+                .is_some_and(|literal| literal == exact[0]);
+        value.exact.extend(exact);
     }
     value.canonicalize();
     value
@@ -4437,7 +4545,7 @@ fn collect_object_literal_selector_references(
     target_style_uri: Option<&str>,
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
+    type_facts: &mut SourceTypeFactCollection<'_>,
 ) {
     for (property_start, property_end) in
         split_top_level_js_segments(source, start + 1, end - 1, b',')
@@ -4455,7 +4563,7 @@ fn collect_object_literal_selector_references(
                 target_style_uri,
                 local_class_values,
                 references,
-                type_fact_targets,
+                type_facts,
             );
             continue;
         }
@@ -4468,7 +4576,7 @@ fn collect_object_literal_selector_references(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
+            type_facts,
         );
     }
 }
@@ -4504,7 +4612,7 @@ fn collect_selector_references_from_object_key(
     target_style_uri: Option<&str>,
     local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFactV0>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
+    type_facts: &mut SourceTypeFactCollection<'_>,
 ) {
     let (start, end) = trim_js_expression(source, start, end);
     if start >= end {
@@ -4520,7 +4628,7 @@ fn collect_selector_references_from_object_key(
             target_style_uri,
             local_class_values,
             references,
-            type_fact_targets,
+            type_facts,
         );
         return;
     }
@@ -4542,7 +4650,9 @@ fn collect_selector_references_from_object_key(
                 literal_start,
                 literal_end,
                 target_style_uri,
-                type_fact_targets,
+                local_class_values,
+                references,
+                type_facts,
             );
         }
         return;
@@ -4645,14 +4755,52 @@ fn collect_template_type_fact_targets(
     literal_start: usize,
     literal_end: usize,
     target_style_uri: Option<&str>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+    references: &mut Vec<SourceSelectorReferenceFactV0>,
+    type_facts: &mut SourceTypeFactCollection<'_>,
 ) {
-    let Some((prefix, expression_span, suffix)) =
+    let Some((prefix, expression_span, suffix, selector_span)) =
         single_template_interpolation_projection(source, literal_start, literal_end)
     else {
         return;
     };
     let Some(path) = js_expression_path(source, expression_span.start, expression_span.end) else {
+        let skipped = SourceTypeFactTargetSkippedFactV0 {
+            byte_span: expression_span,
+            expression_id: source_type_fact_skipped_expression_id(expression_span),
+            target_style_uri: target_style_uri.map(ToString::to_string),
+            reason: SOURCE_TYPE_FACT_TARGET_SKIPPED_UNSUPPORTED_EXPRESSION_SHAPE,
+        };
+        if !type_facts.skipped.contains(&skipped) {
+            type_facts.skipped.push(skipped);
+        }
+        if let Some(value) = source_class_value_from_js_expression(
+            source,
+            expression_span.start,
+            expression_span.end,
+            local_class_values,
+        ) && let Some(selector_names) =
+            finite_template_selector_names(prefix.as_str(), &value, suffix.as_str())
+        {
+            retire_template_prefix_reference(
+                references,
+                ParserByteSpanV0 {
+                    start: selector_span.start,
+                    end: selector_span.start + prefix.len(),
+                },
+                prefix.as_str(),
+                target_style_uri,
+            );
+            for selector_name in selector_names {
+                push_selector_reference(
+                    selector_span,
+                    Some(selector_name),
+                    SourceSelectorReferenceMatchKindV0::Exact,
+                    target_style_uri,
+                    references,
+                );
+            }
+        }
         return;
     };
     push_source_type_fact_target(
@@ -4661,15 +4809,22 @@ fn collect_template_type_fact_targets(
         target_style_uri,
         prefix.as_str(),
         suffix.as_str(),
-        type_fact_targets,
+        type_facts.targets,
     );
+}
+
+fn source_type_fact_skipped_expression_id(byte_span: ParserByteSpanV0) -> String {
+    format!(
+        "omena-bridge-source-type-fact-skipped:{}:{}",
+        byte_span.start, byte_span.end
+    )
 }
 
 fn single_template_interpolation_projection(
     source: &str,
     literal_start: usize,
     literal_end: usize,
-) -> Option<(String, ParserByteSpanV0, String)> {
+) -> Option<(String, ParserByteSpanV0, String, ParserByteSpanV0)> {
     let relative_open = source.get(literal_start..literal_end)?.find("${")?;
     let open = literal_start + relative_open;
     if source.get(open + 2..literal_end)?.contains("${") {
@@ -4700,7 +4855,78 @@ fn single_template_interpolation_projection(
             end: expression_end,
         },
         suffix,
+        ParserByteSpanV0 {
+            start: prefix_start,
+            end: suffix_end,
+        },
     ))
+}
+
+fn finite_template_selector_names(
+    prefix: &str,
+    value: &SourceClassValue,
+    suffix: &str,
+) -> Option<Vec<String>> {
+    if !value.is_fully_enumerated_fragment_domain() {
+        return None;
+    }
+    let prefix_value = exact_class_value(prefix);
+    let finite_value = finite_set_class_value(value.exact.clone());
+    let suffix_value = exact_class_value(suffix);
+    let prefixed = concatenate_abstract_class_values(&prefix_value, &finite_value);
+    let composed = concatenate_abstract_class_values(&prefixed, &suffix_value);
+    let mut selector_names = match composed {
+        AbstractClassValueV0::Exact { value } => vec![value],
+        AbstractClassValueV0::FiniteSet { values } => values,
+        _ => return None,
+    };
+    if selector_names
+        .iter()
+        .any(|selector_name| !is_safe_css_identifier(selector_name))
+    {
+        return None;
+    }
+    selector_names.sort();
+    selector_names.dedup();
+    (!selector_names.is_empty()).then_some(selector_names)
+}
+
+fn retire_template_prefix_reference(
+    references: &mut Vec<SourceSelectorReferenceFactV0>,
+    prefix_span: ParserByteSpanV0,
+    prefix: &str,
+    target_style_uri: Option<&str>,
+) {
+    if prefix.is_empty() {
+        return;
+    }
+    references.retain(|reference| {
+        reference.match_kind != SourceSelectorReferenceMatchKindV0::Prefix
+            || reference.surface != SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+            || reference.byte_span != prefix_span
+            || reference.selector_name.as_deref() != Some(prefix)
+            || reference.target_style_uri.as_deref() != target_style_uri
+    });
+}
+
+fn is_safe_css_identifier(value: &str) -> bool {
+    let mut characters = value.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+    match first {
+        character if character.is_ascii_alphabetic() || character == '_' => {}
+        '-' => {
+            let Some(second) = characters.next() else {
+                return false;
+            };
+            if !(second.is_ascii_alphabetic() || matches!(second, '-' | '_')) {
+                return false;
+            }
+        }
+        _ => return false,
+    }
+    characters.all(is_css_identifier_continue)
 }
 
 fn template_token_start(source: &str, literal_start: usize, prefix_end: usize) -> usize {
@@ -4764,6 +4990,7 @@ fn push_selector_reference(
         selector_name,
         match_kind,
         target_style_uri: target_style_uri.map(ToString::to_string),
+        surface: SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
     });
 }
 
@@ -4867,6 +5094,7 @@ fn push_string_literal_selector_references(
             selector_name: None,
             match_kind: SourceSelectorReferenceMatchKindV0::Exact,
             target_style_uri: target_style_uri.clone(),
+            surface: SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
         });
     }
 }

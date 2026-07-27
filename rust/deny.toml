@@ -47,9 +47,12 @@ unmaintained = "workspace"
 # Baseline has 4 duplicate-version warnings (foldhash, hashbrown, thiserror, thiserror-impl).
 # Keep multiple-versions a WARNING so the audit stays green; revisit when the duplicates clear.
 multiple-versions = "warn"
-# wildcards = "deny": no `version = "*"` reqs allowed in a published train (inter-crate
-# pins are exact `=0.2.0`; deps are real semver). Verified 0 wildcard deps before flipping.
+# Shipped dependency pins remain exact. Versionless local dev dependencies are
+# deliberately stripped by Cargo during workspace publication so they cannot
+# create publish-graph cycles; cargo-deny keeps ordinary and build dependencies
+# of public crates under the wildcard ban.
 wildcards = "deny"
+allow-wildcard-paths = true
 
 [sources]
 # All workspace dependencies resolve from crates.io. Deny unknown sources (matches the default),

@@ -118,7 +118,8 @@ use omena_query::{
     summarize_omena_query_static_lif_exports_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_from_engine_input,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_complete_source_corpus,
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_inline_code_actions,
     summarize_omena_query_style_insight_code_actions,
@@ -195,6 +196,10 @@ struct StyleDiagnosticsForFileInputV0 {
     source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
     #[serde(default)]
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+    #[serde(default)]
+    resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    #[serde(default)]
+    source_corpus_complete: bool,
     #[serde(default)]
     classname_transform: Option<String>,
     #[serde(default)]
@@ -459,27 +464,51 @@ fn summarize_style_diagnostics_from_committed_selector(
         // threads the transform.
         let external_mode =
             style_diagnostics_external_mode_from_wire(input.external_mode.as_deref());
-        return summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
-            &input.target_style_path,
-            input.styles.as_slice(),
-            input.source_documents.as_slice(),
-            input.package_manifests.as_slice(),
-            input.classname_transform.as_deref(),
-            external_mode,
-            input.external_sifs.as_slice(),
-        )
-        .ok_or_else(|| "unsupported style module path".into());
+        let diagnostics = if input.source_corpus_complete {
+            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_complete_source_corpus(
+                &input.target_style_path,
+                input.styles.as_slice(),
+                input.source_documents.as_slice(),
+                input.package_manifests.as_slice(),
+                input.classname_transform.as_deref(),
+                external_mode,
+                input.external_sifs.as_slice(),
+                &input.resolution_inputs,
+            )
+        } else {
+            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs(
+                &input.target_style_path,
+                input.styles.as_slice(),
+                input.source_documents.as_slice(),
+                input.package_manifests.as_slice(),
+                input.classname_transform.as_deref(),
+                external_mode,
+                input.external_sifs.as_slice(),
+                &input.resolution_inputs,
+            )
+        };
+        return diagnostics.ok_or_else(|| "unsupported style module path".into());
     }
 
     let mut host = OmenaQueryStyleMemoHostV0::new();
-    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
-    let Some(selector) = host.workspace_revision_selector(
-        input.styles.as_slice(),
-        input.source_documents.as_slice(),
-        input.package_manifests.as_slice(),
-        input.external_sifs.as_slice(),
-        &resolution_inputs,
-    ) else {
+    let selector = if input.source_corpus_complete {
+        host.workspace_revision_selector_with_complete_source_corpus(
+            input.styles.as_slice(),
+            input.source_documents.as_slice(),
+            input.package_manifests.as_slice(),
+            input.external_sifs.as_slice(),
+            &input.resolution_inputs,
+        )
+    } else {
+        host.workspace_revision_selector(
+            input.styles.as_slice(),
+            input.source_documents.as_slice(),
+            input.package_manifests.as_slice(),
+            input.external_sifs.as_slice(),
+            &input.resolution_inputs,
+        )
+    };
+    let Some(selector) = selector else {
         return Err("failed to commit workspace style diagnostics".into());
     };
 

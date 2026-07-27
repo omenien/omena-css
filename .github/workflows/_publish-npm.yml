@@ -85,16 +85,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - name: Run release integrity gates
-        run: |
-          pnpm omena-check run release/check/release-m5-class-value-universe-matrix
-          pnpm omena-check run release/check/release-m5-api-freeze-audit
-          pnpm omena-check run core/check
-          pnpm omena-check run test/test
+      - uses: ./.github/actions/cache-rust
+        with:
+          shared-key: release-integrity
+      - uses: ./.github/actions/release-integrity
 
   # --- 1. Build napi .node binaries across the 5-target genesis matrix --------
   # These match release-cli.yml's target set. Each host emits index.<triple>.node
@@ -129,9 +128,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - name: Install Rust target
         shell: bash
@@ -174,9 +174,10 @@ jobs:
       WASM_PKG_DIR: rust/crates/omena-wasm/pkg
       NAPI_PKG_DIR: rust/crates/omena-napi/pkg
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       # Install the rust-toolchain.toml-pinned 1.96.0 WITH the wasm32 target ON it —
       # wasm-pack runs cargo from rust/ (1.96.0), so a bare `rustup target add` (which
@@ -255,19 +256,18 @@ jobs:
               const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
               const url = typeof pkg.repository === "string" ? pkg.repository : pkg.repository?.url;
               if (url !== expectedUrl) {
-                throw new Error(`${dir}: repository.url is ${url}, expected ${expectedUrl}`);
+                throw new Error(dir + ": repository.url is " + url + ", expected " + expectedUrl);
               }
               if (pkg.version !== axisA) {
-                throw new Error(`${dir}: version is ${pkg.version}, expected axis-A ${axisA}`);
+                throw new Error(dir + ": version is " + pkg.version + ", expected axis-A " + axisA);
               }
-              console.log(`${dir}: name=${pkg.name} version=${pkg.version} repository OK`);
+              console.log(dir + ": name=" + pkg.name + " version=" + pkg.version + " repository OK");
             ' "$dir" "$EXPECTED_URL" "$AXIS_A"
           done
 
-      # 2d. Publish with provenance. The top-level packages use npm Trusted
-      #     Publishing/OIDC. The platform packages are first-published with the
-      #     release environment's NPM_AUTO_TOKEN until each package can establish
-      #     its own trusted publisher.
+      # 2d. Publish with provenance. Every selected package uses npm Trusted
+      #     Publishing/OIDC; platform packages have the same workflow-bound
+      #     publisher contract as their top-level package.
       - name: Publish @omena/wasm
         if: ${{ inputs.publish_wasm }}
         shell: bash
@@ -293,19 +293,9 @@ jobs:
         if: ${{ inputs.publish_napi }}
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
         run: |
           set -euo pipefail
-          if [ "${{ inputs.dry_run }}" != "true" ]; then
-            if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-              echo "::error::NPM_AUTO_TOKEN is empty in the 'release' environment — platform package genesis publish needs an npm automation token" >&2
-              exit 1
-            fi
-            npm_userconfig="${RUNNER_TEMP:-/tmp}/omena-npm-token.npmrc"
-            printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "${npm_userconfig}"
-            export NPM_CONFIG_USERCONFIG="${npm_userconfig}"
-          fi
           publish_dir() {
             local dir="$1"
             local name version
@@ -351,7 +341,10 @@ jobs:
                 const missing = required.filter((name) => optional[name] !== version);
                 if (missing.length > 0) {
                   console.error(
-                    `Published @omena/napi@${version} is immutable and does not declare required optional native packages: ${missing.join(", ")}. Bump the crate-train version before publishing this layout.`
+                    "Published @omena/napi@" + version
+                      + " is immutable and does not declare required optional native packages: "
+                      + missing.join(", ")
+                      + ". Bump the crate-train version before publishing this layout."
                   );
                   process.exit(1);
                 }
@@ -375,9 +368,10 @@ jobs:
     env:
       PLUGIN_PKG_DIR: dist/npm-plugin-packages
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - name: Stage @omena build-tool packages
         run: pnpm omena-check run core/build/omena-plugin-packages -- --out "${PLUGIN_PKG_DIR}"
@@ -394,7 +388,7 @@ jobs:
               exit 1
             fi
             npm_userconfig="${RUNNER_TEMP:-/tmp}/omena-npm-token.npmrc"
-            printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "${npm_userconfig}"
+            printf '%s\n' "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" > "${npm_userconfig}"
             export NPM_CONFIG_USERCONFIG="${npm_userconfig}"
           fi
           publish_dir() {

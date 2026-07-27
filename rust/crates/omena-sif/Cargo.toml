@@ -17,8 +17,8 @@ workspace = true
 
 [dependencies]
 blake3.workspace = true
-omena-parser = { path = "../omena-parser", version = "=0.2.1" }
-omena-value-lattice = { path = "../omena-value-lattice", version = "=0.2.1" }
+omena-parser = { path = "../omena-parser", version = "=0.3.0" }
+omena-value-lattice = { path = "../omena-value-lattice", version = "=0.3.0" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

@@ -193,7 +193,7 @@ pub(super) const OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH: usize = 
 pub(super) fn harvest_omena_query_dynamic_classname_m_tier_diagnostics(
     source_path: &str,
     source: &str,
-    type_fact_targets: &[OmenaQuerySourceTypeFactTargetV0],
+    source_syntax_index: &OmenaQuerySourceSyntaxIndexV0,
     union_selector_universe: &[String],
     selector_universe_by_uri: &BTreeMap<String, Vec<String>>,
     max_context_depth: usize,
@@ -205,7 +205,7 @@ pub(super) fn harvest_omena_query_dynamic_classname_m_tier_diagnostics(
         Option<String>,
         Vec<OmenaQueryDynamicClassnameCallSiteV0>,
     > = BTreeMap::new();
-    for target in type_fact_targets {
+    for target in &source_syntax_index.type_fact_targets {
         let Some(exit_value) =
             harvested_abstract_class_value(target.prefix.as_str(), target.suffix.as_str())
         else {
@@ -223,6 +223,55 @@ pub(super) fn harvest_omena_query_dynamic_classname_m_tier_diagnostics(
                 ],
                 exit_value,
                 reference_range: parser_range_for_byte_span(source, target.byte_span),
+            });
+    }
+    for skipped in &source_syntax_index.type_fact_target_skipped {
+        let exact_references = source_syntax_index
+            .selector_references
+            .iter()
+            .filter(|reference| {
+                reference.match_kind == OmenaQuerySourceSelectorReferenceMatchKindV0::Exact
+                    && reference.surface
+                        == OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+                    && reference.target_style_uri == skipped.target_style_uri
+                    && reference.byte_span.start <= skipped.byte_span.start
+                    && skipped.byte_span.end <= reference.byte_span.end
+            })
+            .collect::<Vec<_>>();
+        let Some(reference_span) = exact_references
+            .iter()
+            .map(|reference| reference.byte_span)
+            .min_by_key(|span| (span.end.saturating_sub(span.start), span.start, span.end))
+        else {
+            continue;
+        };
+        let mut values = exact_references
+            .into_iter()
+            .filter(|reference| reference.byte_span == reference_span)
+            .filter_map(|reference| reference.selector_name.clone())
+            .collect::<Vec<_>>();
+        values.sort();
+        values.dedup();
+        if values.is_empty() {
+            continue;
+        }
+        let exit_value = match values.as_slice() {
+            [value] => OmenaQueryDynamicClassValueInputV0::Exact {
+                value: value.clone(),
+            },
+            _ => OmenaQueryDynamicClassValueInputV0::FiniteSet { values },
+        };
+        call_sites_by_scope
+            .entry(skipped.target_style_uri.clone())
+            .or_default()
+            .push(OmenaQueryDynamicClassnameCallSiteV0 {
+                callee_key: harvested_callee_key(skipped.expression_id.as_str()),
+                call_site_stack: vec![
+                    source_path.to_string(),
+                    format!("{}:{}", skipped.byte_span.start, skipped.byte_span.end),
+                ],
+                exit_value,
+                reference_range: parser_range_for_byte_span(source, reference_span),
             });
     }
 

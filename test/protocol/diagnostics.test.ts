@@ -126,7 +126,7 @@ export const Button = () => <div className={styles.root}>hi</div>;
     const diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.code).toBe("missing-module");
-    expect(diagnostics[0]!.data).toEqual({
+    expect(diagnostics[0]!.data).toMatchObject({
       createModuleFile: {
         uri: "file:///fake/workspace/src/Missing.module.scss",
       },

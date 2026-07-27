@@ -1,8 +1,11 @@
 use std::collections::BTreeSet;
 
 use omena_bundler::{
-    LinkedStylesheetV0, TransformBundleModuleInputV0, TransformBundleSemanticReachabilityInputV0,
+    EmissionItemKindV0, EmissionOrderingPolicyV0, LinkedStylesheetV0, TransformBundleLinkOptionsV0,
+    TransformBundleModuleInputV0, TransformBundleSemanticReachabilityInputV0,
     link_omena_transform_bundle_modules_with_semantic_reachability,
+    link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
+    project_omena_transform_bundle_linker_and_emission_items,
 };
 use omena_parser::StyleDialect;
 use serde_json::json;
@@ -12,7 +15,8 @@ const LINKED_STYLESHEET_BYTE_IDENTITY_SNAPSHOT: &str =
 
 #[test]
 fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
-    let linked = linked_stylesheet_fixture()?;
+    let (modules, reachability) = linked_stylesheet_inputs();
+    let linked = linked_stylesheet_fixture(&modules, &reachability)?;
     assert_linked_stylesheet_fixture_is_non_vacuous(&linked)?;
 
     let snapshot = json!({
@@ -30,7 +34,53 @@ fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
     Ok(())
 }
 
-fn linked_stylesheet_fixture() -> Result<LinkedStylesheetV0, String> {
+#[test]
+fn emission_item_order_covers_non_class_rules_without_widening_legacy_order() -> Result<(), String>
+{
+    let (modules, reachability) = linked_stylesheet_inputs();
+    let projections =
+        project_omena_transform_bundle_linker_and_emission_items(&modules, &reachability);
+    let linked =
+        link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+            &["src/app.module.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            &[],
+            &[],
+            TransformBundleLinkOptionsV0 {
+                emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
+            },
+        )
+        .map_err(|error| format!("{error:?}"))?;
+
+    assert_eq!(linked.linked_stylesheet.global_rule_order.rules.len(), 5);
+    assert!(
+        linked
+            .linked_stylesheet
+            .global_rule_order
+            .rules
+            .iter()
+            .all(|rule| rule.selector_kind == "class")
+    );
+    let theme_items = linked
+        .emission_item_order
+        .items
+        .iter()
+        .filter(|item| item.module_instance.module().as_str() == "src/theme.css")
+        .collect::<Vec<_>>();
+    assert!(theme_items.iter().any(|item| {
+        item.kind == EmissionItemKindV0::SelectorPseudoClass && item.name == ":root"
+    }));
+    assert!(theme_items.iter().any(|item| {
+        item.kind == EmissionItemKindV0::KeyframesDeclaration && item.name == "pulse"
+    }));
+    Ok(())
+}
+
+fn linked_stylesheet_inputs() -> (
+    Vec<TransformBundleModuleInputV0>,
+    Vec<TransformBundleSemanticReachabilityInputV0>,
+) {
     let modules = vec![
         TransformBundleModuleInputV0::new(
             "src/app.module.css",
@@ -59,10 +109,17 @@ fn linked_stylesheet_fixture() -> Result<LinkedStylesheetV0, String> {
         .custom_property_names
         .push("--app-token".to_string());
 
+    (modules, vec![reachability])
+}
+
+fn linked_stylesheet_fixture(
+    modules: &[TransformBundleModuleInputV0],
+    reachability: &[TransformBundleSemanticReachabilityInputV0],
+) -> Result<LinkedStylesheetV0, String> {
     link_omena_transform_bundle_modules_with_semantic_reachability(
         &["src/app.module.css"],
-        &modules,
-        &[reachability],
+        modules,
+        reachability,
     )
     .map_err(|err| format!("{err:?}"))
 }

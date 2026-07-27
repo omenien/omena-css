@@ -20,6 +20,7 @@ import type {
   OmenaQuerySourceDiagnosticV0Json,
   OmenaQuerySourceDiagnosticsForFileV0Json,
 } from "../../../engine-host-node/src/query-diagnostics-idl.generated";
+import { collectSelectedQueryWorkspaceInputs } from "../../../engine-host-node/src/selected-query-workspace-inputs";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import { getRustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-runner";
@@ -81,7 +82,19 @@ function resolveQueryOwnedSourceDiagnostics(
   runJson: RustSelectedQueryBackendJsonRunnerAsync,
 ): Promise<Diagnostic[]> | null {
   if (resolveSelectedQueryBackendKind() !== "rust-selected-query") return null;
-  const styles = collectSourceDiagnosticStyleSources(params, deps);
+  const styleSeeds = collectSourceDiagnosticStyleSources(params, deps);
+  const workspaceInputs = collectSelectedQueryWorkspaceInputs(
+    styleSeeds,
+    {
+      aliasResolver: deps.aliasResolver,
+      buildStyleDocument: deps.buildStyleDocument,
+      readStyleFile: deps.readStyleFile,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      workspaceRoot: deps.workspaceRoot,
+      ...(deps.readOpenDocumentText ? { readOpenDocumentText: deps.readOpenDocumentText } : {}),
+    },
+    params.filePath,
+  );
   const diagnosticScopeRanges = collectQueryOwnedSourceDiagnosticScopeRanges(params, deps);
   if (diagnosticScopeRanges.length === 0) return null;
 
@@ -90,15 +103,18 @@ function resolveQueryOwnedSourceDiagnostics(
     {
       sourcePath: params.filePath,
       sourceSource: params.content,
-      styles,
-      packageManifests: [],
+      styles: workspaceInputs.styles,
+      packageManifests: workspaceInputs.packageManifests,
+      resolutionInputs: workspaceInputs.resolutionInputs,
     },
   ).then((summary) => {
     if (summary.product !== "omena-query.diagnostics-for-file" || summary.fileKind !== "source") {
       return [];
     }
     return summary.diagnostics
-      .filter((diagnostic) => sourceRangeMatchesAny(diagnostic.range, diagnosticScopeRanges))
+      .filter((diagnostic) =>
+        sourceRangeMatchesAny(diagnostic.code, diagnostic.range, diagnosticScopeRanges),
+      )
       .map((diagnostic) => toQueryOwnedSourceDiagnostic(diagnostic, params, deps));
   });
 }
@@ -154,10 +170,15 @@ function collectQueryOwnedSourceDiagnosticScopeRanges(
 }
 
 function sourceRangeMatchesAny(
+  code: string,
   range: SourceCheckerFinding["range"],
   candidates: readonly SourceCheckerFinding["range"][],
 ): boolean {
-  return candidates.some((candidate) => sourceRangeContains(candidate, range));
+  return candidates.some((candidate) =>
+    code === "missingModule"
+      ? sourceRangesOverlap(candidate, range)
+      : sourceRangeContains(candidate, range),
+  );
 }
 
 function sourceRangeContains(
@@ -167,6 +188,13 @@ function sourceRangeContains(
   return (
     comparePositions(outer.start, inner.start) <= 0 && comparePositions(inner.end, outer.end) <= 0
   );
+}
+
+function sourceRangesOverlap(
+  left: SourceCheckerFinding["range"],
+  right: SourceCheckerFinding["range"],
+): boolean {
+  return comparePositions(left.start, right.end) < 0 && comparePositions(right.start, left.end) < 0;
 }
 
 function comparePositions(
@@ -223,8 +251,7 @@ function findMissingModuleCreateFileData(
   for (const styleImport of entry.stylesBindings.values()) {
     if (
       styleImport.kind === "missing" &&
-      sourceRangeContains(styleImport.range, diagnostic.range) &&
-      sourceRangeContains(diagnostic.range, styleImport.range)
+      sourceRangesOverlap(styleImport.range, diagnostic.range)
     ) {
       return { uri: pathToFileUrl(styleImport.absolutePath) };
     }

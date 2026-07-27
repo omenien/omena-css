@@ -603,3 +603,82 @@ pub(crate) fn dynamic_classname_diagnostics_summary(
         })?;
     Ok(summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth(&input))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omena_query::{
+        read_unused_selector_shared_walk_count_for_test,
+        reset_unused_selector_shared_walk_count_for_test,
+    };
+    use std::collections::BTreeSet;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn workspace_style_diagnostics_share_source_usage_across_targets() -> Result<(), String> {
+        const STYLE_COUNT: usize = 50;
+        const SOURCE_COUNT: usize = 100;
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|error| format!("system clock must follow the Unix epoch: {error}"))?
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "omena-cli-unused-selector-workspace-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root)
+            .map_err(|error| format!("failed to create {}: {error}", root.display()))?;
+
+        let mut style_paths = Vec::new();
+        for index in 0..STYLE_COUNT {
+            let file_name = format!("Style{index:03}.module.css");
+            let used = format!("used{index:03}");
+            let unused = format!("ghost{index:03}");
+            let path = root.join(file_name);
+            fs::write(
+                &path,
+                format!(".{used} {{ color: red; }}\n.{unused} {{ color: blue; }}\n"),
+            )
+            .map_err(|error| format!("failed to write {}: {error}", path.display()))?;
+            style_paths.push(path);
+        }
+        let mut source_paths = Vec::new();
+        for source_index in 0..SOURCE_COUNT {
+            let style_index = source_index % STYLE_COUNT;
+            let source_path = root.join(format!("Component{source_index:03}.tsx"));
+            fs::write(
+                &source_path,
+                format!(
+                    "import styles from \"./Style{style_index:03}.module.css\";\n\
+                     export const className{source_index:03} = styles.used{style_index:03};\n"
+                ),
+            )
+            .map_err(|error| format!("failed to write {}: {error}", source_path.display()))?;
+            source_paths.push(source_path);
+        }
+
+        reset_unused_selector_shared_walk_count_for_test();
+        let summaries = workspace_style_diagnostics_summaries(&style_paths, &source_paths, &[])?;
+        let walk_count = read_unused_selector_shared_walk_count_for_test();
+        let unused_messages = summaries
+            .iter()
+            .flat_map(|summary| summary.diagnostics.iter())
+            .filter(|diagnostic| diagnostic.code == "unusedSelector")
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<BTreeSet<_>>();
+        let expected_unused_messages = (0..STYLE_COUNT)
+            .map(|index| format!("Selector '.ghost{index:03}' is declared but never used."))
+            .collect::<BTreeSet<_>>();
+        fs::remove_dir_all(&root)
+            .map_err(|error| format!("failed to remove {}: {error}", root.display()))?;
+
+        assert_eq!(summaries.len(), STYLE_COUNT);
+        assert_eq!(unused_messages, expected_unused_messages);
+        assert_eq!(
+            walk_count, 1,
+            "one committed workspace revision must share one source-usage walk across style targets"
+        );
+        Ok(())
+    }
+}

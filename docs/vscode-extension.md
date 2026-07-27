@@ -114,5 +114,5 @@ missing.
 ## Other Editors
 
 The language server is distributed independently of VS Code. See the
-[Zed guide](clients/zed.md) and [Neovim guide](clients/neovim.md) for standalone
-installation and client configuration.
+[editor setup index](clients/README.md) for Zed, Neovim, and generic LSP
+clients, including the host resolution environment variables.

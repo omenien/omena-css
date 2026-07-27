@@ -1856,6 +1856,95 @@ fn build_bundle_mode_emits_code_split_outputs() -> Result<(), String> {
 }
 
 #[test]
+fn build_bundle_mode_emits_sass_dependency_without_rewriting_module_directive() -> Result<(), String>
+{
+    let root = temp_dir("bundle-code-split-sass-output");
+    let split_dir = root.join("split");
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("fixture root should be writable: {error}"))?;
+    let target_path = root.join("entry.scss");
+    let tokens_path = root.join("_tokens.scss");
+    fs::write(
+        &target_path,
+        "@use \"./tokens\";\n.entry { color: green; }\n",
+    )
+    .map_err(|error| format!("fixture target source should be writable: {error}"))?;
+    fs::write(&tokens_path, ".token { color: teal; }\n")
+        .map_err(|error| format!("fixture dependency source should be writable: {error}"))?;
+
+    let result = run(Cli {
+        command: Command::Build {
+            path: target_path.clone(),
+            output: None,
+            passes: Vec::new(),
+            minify: false,
+            strict_verification: false,
+            target_query: None,
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+            drop_dark_mode_media_queries: false,
+            context_json: None,
+            engine_input_json: None,
+            closed_style_world: false,
+            tree_shake: false,
+            bundle: true,
+            linked_emission: false,
+            split_out_dir: Some(split_dir.clone()),
+            bundle_entry_paths: Vec::new(),
+            source_paths: vec![tokens_path.clone()],
+            package_manifest_paths: Vec::new(),
+            source_map: false,
+            input_source_maps: Vec::new(),
+            json: false,
+        },
+    });
+
+    assert!(result.is_ok(), "{result:?}");
+    let manifest_json = fs::read_to_string(split_dir.join(BUNDLE_CODE_SPLIT_MANIFEST_FILE_NAME))
+        .map_err(|error| format!("split manifest should be readable: {error}"))?;
+    let manifest: serde_json::Value = serde_json::from_str(&manifest_json)
+        .map_err(|error| format!("split manifest should be valid JSON: {error}"))?;
+    assert_eq!(
+        manifest.get("outputCount").and_then(|value| value.as_u64()),
+        Some(2)
+    );
+    let outputs = manifest
+        .get("outputs")
+        .and_then(|value| value.as_array())
+        .ok_or_else(|| "split manifest should include outputs".to_string())?;
+    assert!(outputs.iter().any(|output| {
+        output.get("sourcePath").and_then(|value| value.as_str())
+            == Some(path_string(&tokens_path).as_str())
+            && output.get("splitBoundary").and_then(|value| value.as_str())
+                == Some("styleDependency")
+    }));
+    let entry_output = outputs
+        .iter()
+        .find(|output| output.get("isEntry").and_then(|value| value.as_bool()) == Some(true))
+        .ok_or_else(|| "split manifest should include the entry output".to_string())?;
+    assert_eq!(
+        entry_output
+            .get("imports")
+            .and_then(|value| value.as_array())
+            .map(Vec::len),
+        Some(0)
+    );
+    let entry_file = entry_output
+        .get("fileName")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| "entry output should name its file".to_string())?;
+    let entry_css = fs::read_to_string(split_dir.join(entry_file))
+        .map_err(|error| format!("entry split output should be readable: {error}"))?;
+    assert!(entry_css.contains("@use \"./tokens\""));
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
 fn build_bundle_mode_tree_shakes_code_split_outputs() -> Result<(), String> {
     let root = temp_dir("bundle-code-split-tree-shake");
     let theme_dir = root.join("theme");
@@ -2420,8 +2509,11 @@ fn build_bundle_mode_combines_json_source_map_origin_chain() -> Result<(), Strin
 #[test]
 fn compress_command_enforces_budget_bits() -> Result<(), String> {
     let source_path = temp_path("compress.css");
-    fs::write(&source_path, ".card { color: red; }\n")
-        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+    fs::write(
+        &source_path,
+        ".card {\n  color: red;\n  background: blue;\n}\n",
+    )
+    .map_err(|error| format!("fixture source should be writable: {error}"))?;
 
     let result = run(Cli {
         command: Command::Compress {

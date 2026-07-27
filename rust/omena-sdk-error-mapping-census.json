@@ -679,7 +679,7 @@
       "emitter": "io-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
-      "line": 1063,
+      "line": 1114,
       "source": ".map_err(|_| io::Error::other(\"shared writer poisoned\"))?",
       "errorClass": "internal"
     },
