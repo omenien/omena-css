@@ -3262,7 +3262,7 @@ fn execute_linked_bundle_modules(
         .first()
         .ok_or_else(|| format!("linked bundle has no entrypoint for {target_style_path:?}"))?;
     let mut transformed_modules = Vec::with_capacity(linked_stylesheet.module_instances.len());
-    let mut target_execution = None;
+    let mut module_executions = Vec::with_capacity(linked_stylesheet.module_instances.len());
 
     let mut module_inputs = Vec::with_capacity(linked_stylesheet.module_instances.len());
     for module_instance in &linked_stylesheet.module_instances {
@@ -3317,8 +3317,8 @@ fn execute_linked_bundle_modules(
                 },
                 options,
             )?;
-        let non_empty_import_replacement_count = summary
-            .execution
+        let execution = summary.execution;
+        let non_empty_import_replacement_count = execution
             .css_import_inlines
             .iter()
             .filter(|inline| !inline.replacement_css.is_empty())
@@ -3326,13 +3326,14 @@ fn execute_linked_bundle_modules(
         transformed_modules.push(
             TransformBundleTransformedModuleV0::new(
                 module_instance.clone(),
-                summary.execution.output_css.clone(),
+                execution.output_css.clone(),
             )
             .with_non_empty_import_replacement_count(non_empty_import_replacement_count),
         );
-        if module_instance == target_instance {
-            target_execution = Some(summary.execution);
-        }
+        module_executions.push(LinkedModuleExecutionV0 {
+            module_instance: module_instance.clone(),
+            execution,
+        });
     }
 
     let materialized = materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(
@@ -3340,7 +3341,11 @@ fn execute_linked_bundle_modules(
         &transformed_modules,
     )
     .map_err(|error| format!("linked bundle materialization failed: {error:?}"))?;
-    let Some(mut execution) = target_execution else {
+    let Some(mut execution) = module_executions
+        .iter()
+        .find(|module| &module.module_instance == target_instance)
+        .map(|module| module.execution.clone())
+    else {
         return Err(format!(
             "linked entrypoint {target_style_path:?} was not transformed"
         ));
@@ -3349,8 +3354,14 @@ fn execute_linked_bundle_modules(
     execution.output_css.clone_from(&materialized.output_css);
     Ok(LinkedBundleExecutionV0 {
         execution,
+        module_executions,
         materialization: materialized,
     })
+}
+
+struct LinkedModuleExecutionV0 {
+    module_instance: omena_parser::ModuleInstanceKeyV0,
+    execution: TransformExecutionSummaryV0,
 }
 
 struct LinkedModuleExecutionInputV0<'a> {
@@ -3421,6 +3432,7 @@ fn retained_class_names_for_live_linked_emission_tokens(
 
 struct LinkedBundleExecutionV0 {
     execution: TransformExecutionSummaryV0,
+    module_executions: Vec<LinkedModuleExecutionV0>,
     materialization: LinkedEmissionArtifactV0,
 }
 
@@ -3691,6 +3703,88 @@ fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPassKind> {
 #[cfg(test)]
 mod linked_source_map_tests {
     use super::*;
+
+    #[test]
+    fn linked_bundle_retains_each_module_execution_before_bundle_projection() -> Result<(), String>
+    {
+        let style_sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/app.css".to_string(),
+                style_source: "@import \"./tokens.css\";\n.app { color: green; }\n".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/tokens.css".to_string(),
+                style_source: "@import \"./base.css\";\n.token { color: blue; }\n".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/base.css".to_string(),
+                style_source: ".base { color: red; }\n".to_string(),
+            },
+        ];
+        let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+        let context = OmenaQueryTransformExecutionContextV0::default();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let link_options = TransformBundleLinkOptionsV0 {
+            emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
+        };
+        let admission = link_closed_world_stylesheet_for_style_sources(
+            ClosedWorldStylesheetRequestV0 {
+                target_style_path: "src/app.css",
+                style_sources: &style_sources,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                reachability_context: &context,
+                attribution_report: None,
+                resolution_inputs: &resolution_inputs,
+                external_sifs: &[],
+            },
+            link_options,
+        );
+        let linked = admission
+            .into_requested_policy_result()
+            .map_err(|error| format!("retention fixture should link: {error:?}"))?;
+        let execution = execute_linked_bundle_modules(
+            &linked,
+            "src/app.css",
+            &style_sources,
+            &pass_ids,
+            &context,
+            &resolution_inputs,
+            &OmenaQueryConsumerBuildOptionsV0 {
+                bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+                ..OmenaQueryConsumerBuildOptionsV0::default()
+            },
+        )?;
+
+        assert_eq!(
+            execution.module_executions.len(),
+            linked.linked_stylesheet.module_instances.len()
+        );
+        let retained_keys = execution
+            .module_executions
+            .iter()
+            .map(|module| module.module_instance.clone())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(retained_keys.len(), execution.module_executions.len());
+
+        let target_instance = linked
+            .linked_stylesheet
+            .entrypoints
+            .first()
+            .ok_or_else(|| "retention fixture should have an entrypoint".to_string())?;
+        let retained_entry = execution
+            .module_executions
+            .iter()
+            .find(|module| &module.module_instance == target_instance)
+            .ok_or_else(|| "entry execution should be retained".to_string())?;
+        let mut projected_entry = retained_entry.execution.clone();
+        projected_entry.output_byte_len = execution.materialization.output_css.len();
+        projected_entry
+            .output_css
+            .clone_from(&execution.materialization.output_css);
+        assert_eq!(projected_entry, execution.execution);
+        Ok(())
+    }
 
     #[test]
     fn linked_bundle_source_map_uses_materialized_module_offsets() -> Result<(), String> {
