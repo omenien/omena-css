@@ -508,10 +508,7 @@ for (const entry of report.cases) {
       assert.equal(entry.semanticMismatchCount, 1);
       assert.deepEqual(entry.legacyMarkerOrder, ["_entry-marker_1"]);
       assert.deepEqual(entry.linkedMarkerOrder, ["_dependency-own_1", "_entry-marker_1"]);
-      assert.deepEqual(entry.authoritativeMarkerOrder, [
-        "_dependency-own_1",
-        "_entry-marker_1",
-      ]);
+      assert.deepEqual(entry.authoritativeMarkerOrder, ["_dependency-own_1", "_entry-marker_1"]);
     } else if (entry.fixtureId === "module-qualified-composes-reachability") {
       assert.ok(entry.legacyMarkerOrder.includes("_card_0"));
       assert.ok(entry.linkedMarkerOrder.includes("_base_0"));
@@ -557,14 +554,8 @@ for (const entry of expectedDivergenceLedger.entries) {
       assert.equal(liveCase.semanticPreserved, false);
       assert.equal(liveCase.semanticMismatchCount, 1);
       assert.deepEqual(liveCase.legacyMarkerOrder, ["_entry-marker_1"]);
-      assert.deepEqual(liveCase.linkedMarkerOrder, [
-        "_dependency-own_1",
-        "_entry-marker_1",
-      ]);
-      assert.deepEqual(liveCase.authoritativeMarkerOrder, [
-        "_dependency-own_1",
-        "_entry-marker_1",
-      ]);
+      assert.deepEqual(liveCase.linkedMarkerOrder, ["_dependency-own_1", "_entry-marker_1"]);
+      assert.deepEqual(liveCase.authoritativeMarkerOrder, ["_dependency-own_1", "_entry-marker_1"]);
     } else {
       assert.ok(liveCase.legacyMarkerOrder.includes("_card_0"));
       assert.ok(liveCase.linkedMarkerOrder.includes("_base_0"));
