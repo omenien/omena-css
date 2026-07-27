@@ -304,6 +304,157 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
 }
 
 #[test]
+fn workspace_reachability_outside_build_sources_does_not_block_cli_bundle() -> Result<(), String> {
+    let fixture = FixtureDir::new("workspace-reachability-build-domain")?;
+    let entry_path = fixture.path().join("entry.module.css");
+    let workspace_only_path = fixture.path().join("workspace-only.module.css");
+    let engine_input_path = fixture.path().join("engine-input.json");
+    let entry_source = ".entry-live { color: red; } .entry-dead { color: gray; }";
+    let workspace_only_source = ".workspace-only { color: blue; }";
+
+    fs::write(&entry_path, entry_source)
+        .map_err(|error| format!("failed to write {}: {error}", entry_path.display()))?;
+    fs::write(&workspace_only_path, workspace_only_source)
+        .map_err(|error| format!("failed to write {}: {error}", workspace_only_path.display()))?;
+
+    let range = serde_json::json!({
+        "start": { "line": 0, "character": 0 },
+        "end": { "line": 0, "character": 1 }
+    });
+    let selector = |name: &str| {
+        serde_json::json!({
+            "name": name,
+            "viewKind": "canonical",
+            "canonicalName": name,
+            "range": range,
+            "nestedSafety": "safe",
+            "composes": null,
+            "bemSuffix": null
+        })
+    };
+    let source_reference = |id: &str, style_path: &Path, class_name: &str| {
+        serde_json::json!({
+            "filePath": fixture.path().join(format!("{id}.tsx")),
+            "document": {
+                "classExpressions": [{
+                    "id": id,
+                    "kind": "styleAccess",
+                    "scssModulePath": style_path,
+                    "range": range,
+                    "className": class_name,
+                    "rootBindingDeclId": null,
+                    "accessPath": [class_name]
+                }]
+            },
+            "bindingGraph": null
+        })
+    };
+    let type_fact = |id: &str, class_name: &str| {
+        serde_json::json!({
+            "filePath": fixture.path().join(format!("{id}.tsx")),
+            "expressionId": id,
+            "facts": {
+                "kind": "exact",
+                "values": [class_name]
+            },
+            "controlFlowGraph": null
+        })
+    };
+    let engine_input = serde_json::json!({
+        "version": "2",
+        "workspace": {
+            "root": fixture.path(),
+            "classnameTransform": "asIs",
+            "settingsKey": "workspace-reachability-build-domain"
+        },
+        "sources": [
+            source_reference("entry-live", &entry_path, "entry-live"),
+            source_reference(
+                "workspace-only",
+                &workspace_only_path,
+                "workspace-only"
+            )
+        ],
+        "styles": [
+            {
+                "filePath": entry_path,
+                "source": entry_source,
+                "document": {
+                    "selectors": [
+                        selector("entry-live"),
+                        selector("entry-dead")
+                    ]
+                }
+            },
+            {
+                "filePath": workspace_only_path,
+                "source": workspace_only_source,
+                "document": {
+                    "selectors": [selector("workspace-only")]
+                }
+            }
+        ],
+        "typeFacts": [
+            type_fact("entry-live", "entry-live"),
+            type_fact("workspace-only", "workspace-only")
+        ]
+    });
+    fs::write(
+        &engine_input_path,
+        serde_json::to_vec_pretty(&engine_input)
+            .map_err(|error| format!("failed to serialize engine input: {error}"))?,
+    )
+    .map_err(|error| format!("failed to write {}: {error}", engine_input_path.display()))?;
+
+    for linked in [false, true] {
+        let label = if linked { "linked" } else { "default" };
+        let output_path = fixture.path().join(format!("{label}.css"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_omena"));
+        command
+            .current_dir(fixture.path())
+            .arg("build")
+            .arg(&entry_path)
+            .arg("--bundle")
+            .arg("--tree-shake")
+            .arg("--strict-verification")
+            .arg("--engine-input-json")
+            .arg(&engine_input_path)
+            .arg("--output")
+            .arg(&output_path);
+        if linked {
+            command.arg("--linked-emission");
+        }
+        let output = command
+            .output()
+            .map_err(|error| format!("failed to run {label} omena build: {error}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "{label} omena build failed\nstdout={}\nstderr={}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let css = fs::read_to_string(&output_path)
+            .map_err(|error| format!("failed to read {}: {error}", output_path.display()))?;
+        assert!(
+            css.contains("color: red"),
+            "{label} build must retain the referenced entry selector: {css:?}"
+        );
+        assert!(
+            !css.contains("color: gray"),
+            "{label} build must remove the unreferenced entry selector: {css:?}"
+        );
+        assert!(
+            !css.contains("color: blue"),
+            "{label} build must not emit a workspace style outside its source domain: {css:?}"
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
 fn linked_emission_preserves_composes_target_from_dependency() -> Result<(), String> {
     let fixture = FixtureDir::new("composes-target-reachability")?;
     let entry_path = fixture.path().join("entry.module.css");

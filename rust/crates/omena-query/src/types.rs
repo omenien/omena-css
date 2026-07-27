@@ -1214,6 +1214,42 @@ impl OmenaQueryEngineInputModuleReachabilityV0 {
             .keys()
             .map(String::as_str)
     }
+
+    pub(crate) fn flat_class_names_for_style_paths<'a>(
+        &self,
+        style_paths: impl IntoIterator<Item = &'a str>,
+        candidate_class_names: &[String],
+    ) -> Vec<String> {
+        let style_paths = style_paths
+            .into_iter()
+            .map(|style_path| {
+                resolve_omena_query_style_path_against_known(
+                    style_path,
+                    self.known_style_paths.as_slice(),
+                )
+                .unwrap_or_else(|| normalize_omena_query_style_path(style_path))
+            })
+            .collect::<BTreeSet<_>>();
+
+        candidate_class_names
+            .iter()
+            .filter(|class_name| {
+                let mut declared_owner_paths = self
+                    .declared_class_names_by_style_path
+                    .iter()
+                    .filter(|(_, names)| names.contains(class_name))
+                    .map(|(style_path, _)| style_path);
+                let Some(first_owner_path) = declared_owner_paths.next() else {
+                    return true;
+                };
+                style_paths.contains(first_owner_path)
+                    || declared_owner_paths.any(|style_path| style_paths.contains(style_path))
+            })
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
 }
 
 pub(crate) fn normalize_omena_query_style_path(style_path: &str) -> String {
@@ -1295,11 +1331,11 @@ pub struct OmenaQueryModuleReachabilityAttributionReportV0 {
 }
 
 impl OmenaQueryModuleReachabilityAttributionReportV0 {
-    pub(crate) fn from_style_paths<'a>(
+    pub(crate) fn try_from_style_paths<'a>(
         attribution: &OmenaQueryEngineInputModuleReachabilityV0,
         style_paths: impl IntoIterator<Item = &'a str>,
         flat_class_names: &[String],
-    ) -> Self {
+    ) -> Result<Self, String> {
         let mut style_paths = style_paths
             .into_iter()
             .map(str::to_string)
@@ -1366,7 +1402,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             .iter()
             .filter(|entry| entry.was_attempted() && entry.class_names.is_empty())
             .count();
-        Self {
+        let report = Self {
             entries,
             projection_summary_evaluation_count: attribution.projection_summary_evaluation_count(),
             projected_class_names: attribution.projected_class_names.clone(),
@@ -1376,6 +1412,14 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             unmatched_target_style_paths,
             attempted_module_count,
             attributed_empty_module_count,
+        };
+        if report.lost_class_names.is_empty() {
+            Ok(report)
+        } else {
+            Err(format!(
+                "module reachability partition lost flat class names: {}",
+                report.lost_class_names.join(", ")
+            ))
         }
     }
 
@@ -1431,17 +1475,6 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
 
     pub fn attributed_empty_module_count(&self) -> usize {
         self.attributed_empty_module_count
-    }
-
-    pub(crate) fn validate_flat_partition(&self) -> Result<(), String> {
-        if self.lost_class_names.is_empty() {
-            Ok(())
-        } else {
-            Err(format!(
-                "module reachability partition lost flat class names: {}",
-                self.lost_class_names.join(", ")
-            ))
-        }
     }
 }
 

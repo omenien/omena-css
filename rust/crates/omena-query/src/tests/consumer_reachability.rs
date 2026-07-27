@@ -1,12 +1,13 @@
 use crate::{
     ClassExpressionInputV2, EngineInputV2, OmenaQueryBundleEmissionPathV0,
-    OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0, OmenaQueryExplainAvailabilityV0,
+    OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldBlockerV0, OmenaQueryClosedWorldOutcomeV0,
+    OmenaQueryConsumerBuildOptionsV0, OmenaQueryExplainAvailabilityV0,
     OmenaQueryExplainFactValueV0, OmenaQueryExplainInputV0, OmenaQueryExplainSymbolKindV0,
-    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2,
-    SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
-    StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
-    derive_omena_query_module_reachability_from_engine_input,
+    OmenaQueryModuleReachabilityAttributionReportV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2, SourceAnalysisInputV2,
+    SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
+    TypeFactEntryV2, derive_omena_query_module_reachability_from_engine_input,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
@@ -672,6 +673,159 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     assert_eq!(unknown.reachable(), None);
     assert!(!unknown.emission_guard_retained());
     Ok(())
+}
+
+#[test]
+fn workspace_reachability_outside_bundle_sources_does_not_block_entry_build() -> Result<(), String>
+{
+    let entry_path = "src/a.module.css";
+    let outside_path = "src/b.module.css";
+    let entry_source = ".a-live { padding: 1px; } .a-dead { padding: 2px; }";
+    let outside_source = ".b-live { color: blue; }";
+    let input = module_reachability_input(
+        &[
+            ("entry-ref", entry_path, "a-live"),
+            ("outside-ref", outside_path, "b-live"),
+        ],
+        &[
+            (entry_path, entry_source, &["a-live", "a-dead"]),
+            (outside_path, outside_source, &["b-live"]),
+        ],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: entry_path.to_string(),
+        style_source: entry_source.to_string(),
+    }];
+    let result = run_omena_query_bundle_with_module_reachability_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: entry_path,
+            style_sources: &style_sources,
+            source_map_sources: &style_sources,
+            requested_pass_ids: &["tree-shake-class".to_string()],
+            context: &OmenaQueryTransformExecutionContextV0::default(),
+            resolution_inputs: &OmenaQueryStyleResolutionInputsV0::default(),
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+        &reachability,
+    )?;
+
+    assert_eq!(
+        result.reachability_attribution().flat_class_names(),
+        &["a-live".to_string()]
+    );
+    assert!(
+        result
+            .reachability_attribution()
+            .lost_class_names()
+            .is_empty()
+    );
+    assert!(
+        result
+            .bundle_result()
+            .artifact
+            .output_css
+            .contains("padding: 1px")
+    );
+    assert!(
+        !result
+            .bundle_result()
+            .artifact
+            .output_css
+            .contains("padding: 2px")
+    );
+    Ok(())
+}
+
+#[test]
+fn workspace_reachability_does_not_hide_missing_dependency_blocker() -> Result<(), String> {
+    let entry_path = "src/entry.module.css";
+    let missing_path = "src/missing.module.css";
+    let entry_source =
+        "@import \"./missing.module.css\"; .entry-live { color: red; } .entry-dead { color: tan; }";
+    let missing_source = ".dependency-live { color: blue; }";
+    let input = module_reachability_input(
+        &[
+            ("entry-ref", entry_path, "entry-live"),
+            ("dependency-ref", missing_path, "dependency-live"),
+        ],
+        &[
+            (entry_path, entry_source, &["entry-live", "entry-dead"]),
+            (missing_path, missing_source, &["dependency-live"]),
+        ],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: entry_path.to_string(),
+        style_source: entry_source.to_string(),
+    }];
+    let result = run_omena_query_bundle_with_module_reachability_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: entry_path,
+            style_sources: &style_sources,
+            source_map_sources: &style_sources,
+            requested_pass_ids: &["tree-shake-class".to_string()],
+            context: &OmenaQueryTransformExecutionContextV0::default(),
+            resolution_inputs: &OmenaQueryStyleResolutionInputsV0::default(),
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+        &reachability,
+    )?;
+
+    assert!(matches!(
+        &result.bundle_result().closed_world_outcome,
+        OmenaQueryClosedWorldOutcomeV0::Open { blockers }
+            if blockers.iter().any(|blocker| matches!(
+                blocker,
+                OmenaQueryClosedWorldBlockerV0::MissingDependency {
+                    source_path,
+                    import_source,
+                } if source_path == entry_path && import_source == "./missing.module.css"
+            ))
+    ));
+    assert!(
+        result
+            .bundle_result()
+            .artifact
+            .output_css
+            .contains("entry-dead")
+    );
+    Ok(())
+}
+
+#[test]
+fn module_reachability_partition_rejects_unassigned_live_names() {
+    let entry_path = "src/entry.module.css";
+    let outside_path = "src/outside.module.css";
+    let input = module_reachability_input(
+        &[("outside-ref", outside_path, "outside-live")],
+        &[
+            (entry_path, ".entry { color: red; }", &["entry"]),
+            (
+                outside_path,
+                ".outside-live { color: blue; }",
+                &["outside-live"],
+            ),
+        ],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
+    assert_eq!(
+        OmenaQueryModuleReachabilityAttributionReportV0::try_from_style_paths(
+            &reachability,
+            [entry_path],
+            &["outside-live".to_string()],
+        ),
+        Err("module reachability partition lost flat class names: outside-live".to_string())
+    );
 }
 
 #[test]

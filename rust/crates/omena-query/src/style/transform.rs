@@ -361,15 +361,20 @@ pub fn run_omena_query_bundle_with_module_reachability_and_options(
         .extend(module_reachability.projected_class_names().iter().cloned());
     flat_context.reachable_class_names.sort();
     flat_context.reachable_class_names.dedup();
-    let attribution_report = OmenaQueryModuleReachabilityAttributionReportV0::from_style_paths(
-        module_reachability,
-        input
-            .style_sources
-            .iter()
-            .map(|source| source.style_path.as_str()),
+    let style_paths = input
+        .style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<Vec<_>>();
+    let flat_class_names = module_reachability.flat_class_names_for_style_paths(
+        style_paths.iter().copied(),
         flat_context.reachable_class_names.as_slice(),
     );
-    attribution_report.validate_flat_partition()?;
+    let attribution_report = OmenaQueryModuleReachabilityAttributionReportV0::try_from_style_paths(
+        module_reachability,
+        style_paths.iter().copied(),
+        flat_class_names.as_slice(),
+    )?;
     let bundle_result = run_omena_query_bundle_with_optional_module_reachability(
         input,
         external_sifs,
