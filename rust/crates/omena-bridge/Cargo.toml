@@ -23,7 +23,7 @@ omena-resolver = { path = "../omena-resolver", version = "=0.3.0" }
 omena-semantic = { path = "../omena-semantic", version = "=0.3.0" }
 omena-sif = { path = "../omena-sif", version = "=0.3.0" }
 oxc_allocator = "0.140.0"
-oxc_ast = "0.140.0"
+oxc_ast = "0.141.0"
 oxc_ast_visit = "0.140.0"
 oxc_parser = "0.140.0"
 oxc_semantic = "0.140.0"
