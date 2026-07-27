@@ -5,13 +5,24 @@ use omena_parser::{
     ClosedWorldSourcePrecisionSummaryV0, OpenWorldSnapshotV0,
 };
 use omena_query_transform_runner::{
-    EmissionOrderingPolicyV0, LinkedEmissionArtifactV0, LinkedStylesheetV0,
-    TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+    EmissionOrderingPolicyV0, LinkedEmissionArtifactV0, LinkedStylesheetWithEmissionItemsV0,
+    TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
+    TransformBundleEmissionAdmissionV0, TransformBundleEmissionItemProjectionV0,
+    TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleLinkerProjectionV0,
+    TransformBundleParsedModuleInputV0, TransformBundleResolvedDependencyV0,
     TransformBundleSemanticReachabilityInputV0, TransformBundleTransformedModuleV0,
-    classify_transform_reachability_precision, link_omena_transform_bundle_modules,
-    link_omena_transform_bundle_modules_with_options,
-    link_omena_transform_bundle_modules_with_semantic_reachability,
-    link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
+    TransformModuleQualifiedExecutionErrorV0, bundle_edge_is_module_dependency,
+    classify_transform_reachability_precision,
+    evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options,
+    execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names,
+    link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
+    materialize_omena_transform_bundle_linked_stylesheet_with_emission_items,
+    project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules,
+    project_omena_transform_bundle_linker_inputs_from_parsed_modules,
+};
+#[cfg(test)]
+use omena_query_transform_runner::{
+    TransformBundleModuleInputV0, link_omena_transform_bundle_modules,
     materialize_omena_transform_bundle_linked_stylesheet,
 };
 use omena_query_transform_runner::{
@@ -29,11 +40,14 @@ mod imports;
 mod static_stylesheet;
 
 use context::TransformResolutionContext;
-pub use context::summarize_omena_query_transform_context_from_engine_input;
+pub use context::{
+    derive_omena_query_module_reachability_from_engine_input,
+    summarize_omena_query_transform_context_from_engine_input,
+};
 
 use context::{
-    derive_omena_query_transform_context_from_engine_input, find_target_style_source,
-    merge_target_options_transform_context, merge_transform_context,
+    css_identifier_names_match, derive_omena_query_transform_context_from_engine_input,
+    find_target_style_source, merge_target_options_transform_context, merge_transform_context,
     summarize_omena_query_transform_context_from_sources_with_resolution_context,
 };
 use imports::resolve_import_inline_replacement_for_transform_context;
@@ -331,6 +345,57 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
     external_sifs: &[OmenaQueryExternalSifInputV0],
     options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> Result<OmenaQueryBundleResultV0, String> {
+    run_omena_query_bundle_with_optional_module_reachability(input, external_sifs, options, None)
+}
+
+pub fn run_omena_query_bundle_with_module_reachability_and_options(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+    module_reachability: &OmenaQueryEngineInputModuleReachabilityV0,
+) -> Result<OmenaQueryModuleAttributedBundleResultV0, String> {
+    let mut flat_context =
+        merge_transform_context(input.context.clone(), module_reachability.context());
+    flat_context
+        .reachable_class_names
+        .extend(module_reachability.projected_class_names().iter().cloned());
+    flat_context.reachable_class_names.sort();
+    flat_context.reachable_class_names.dedup();
+    let style_paths = input
+        .style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<Vec<_>>();
+    let flat_class_names = module_reachability.flat_class_names_for_style_paths(
+        style_paths.iter().copied(),
+        flat_context.reachable_class_names.as_slice(),
+    );
+    let attribution_report = OmenaQueryModuleReachabilityAttributionReportV0::try_from_style_paths(
+        module_reachability,
+        style_paths.iter().copied(),
+        flat_class_names.as_slice(),
+    )?;
+    let bundle_result = run_omena_query_bundle_with_optional_module_reachability(
+        input,
+        external_sifs,
+        options,
+        Some((module_reachability, &attribution_report)),
+    )?;
+    Ok(OmenaQueryModuleAttributedBundleResultV0::new(
+        bundle_result,
+        attribution_report,
+    ))
+}
+
+fn run_omena_query_bundle_with_optional_module_reachability(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+    module_reachability: Option<(
+        &OmenaQueryEngineInputModuleReachabilityV0,
+        &OmenaQueryModuleReachabilityAttributionReportV0,
+    )>,
+) -> Result<OmenaQueryBundleResultV0, String> {
     let OmenaQueryBundlePlanInputV0 {
         target_style_path,
         style_sources,
@@ -346,13 +411,23 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
             "target style path {target_style_path:?} was not found in workspace style sources"
         ));
     };
-    let base_context = context;
+    let supplied_context = context;
+    let attributed_context = module_reachability.map(|(reachability, _)| {
+        merge_transform_context(supplied_context.clone(), reachability.context())
+    });
+    let base_context = attributed_context.as_ref().unwrap_or(supplied_context);
     let context = merge_workspace_transform_context(
         target_style_path,
         style_sources,
         base_context,
         TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
+    let reachability_context = if module_reachability.is_some() {
+        supplied_context
+    } else {
+        &context
+    };
+    let attribution_report = module_reachability.map(|(_, report)| report);
     let effective_pass_ids = consumer_build_pass_set(requested_pass_ids).effective;
     let legacy_summary =
         (options.bundle_emission_path == OmenaQueryBundleEmissionPathV0::ImportInlineLegacy)
@@ -384,36 +459,31 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
         resolution_inputs,
     )?
     .outputs;
-    let linked_result =
-        (options.bundle_emission_path == OmenaQueryBundleEmissionPathV0::LinkedOrder).then(|| {
-            link_closed_world_stylesheet_for_style_sources(
-                target_style_path,
-                style_sources,
-                &effective_pass_ids,
-                &context,
-                external_sifs,
-                TransformBundleLinkOptionsV0 {
-                    emission_ordering_policy: EmissionOrderingPolicyV0::ModuleIdLegacy,
-                },
-            )
-        });
-    let closed_world_outcome = linked_result.as_ref().map_or_else(
-        || {
-            build_closed_world_outcome_for_style_sources(
-                target_style_path,
-                style_sources,
-                &effective_pass_ids,
-                &context,
-                external_sifs,
-            )
+    let link_options = match options.bundle_emission_path {
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy => {
+            TransformBundleLinkOptionsV0::default()
+        }
+        OmenaQueryBundleEmissionPathV0::LinkedOrder => TransformBundleLinkOptionsV0 {
+            emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
         },
-        |result| closed_world_outcome_from_link_result(result.clone(), &effective_pass_ids),
-    );
-    let legacy_open_decision = legacy_bundle_open_decision(
-        target_style_path,
-        style_sources,
+    };
+    let (legacy_open_decision, linked_result) = link_closed_world_stylesheet_for_style_sources(
+        ClosedWorldStylesheetRequestV0 {
+            target_style_path,
+            style_sources,
+            requested_pass_ids: &effective_pass_ids,
+            context: &context,
+            reachability_context,
+            attribution_report,
+            resolution_inputs,
+            external_sifs,
+        },
+        link_options,
+    )
+    .into_parts();
+    let closed_world_outcome = closed_world_outcome_from_link_result(
+        linked_result.clone().map(|linked| linked.linked_stylesheet),
         &effective_pass_ids,
-        &context,
     );
     let closed_world_decision_parity = OmenaQueryClosedWorldDecisionParityV0 {
         legacy_open_decision,
@@ -422,34 +492,36 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
     };
     validate_omena_query_closed_world_decision_parity(&closed_world_decision_parity)?;
 
-    let (execution, linked_materialization, emission_path) = if let Some(Ok(linked)) =
-        linked_result.as_ref()
-    {
-        let linked_execution = execute_linked_bundle_modules(
-            linked,
-            target_style_path,
-            style_sources,
-            &effective_pass_ids,
-            base_context,
-            resolution_inputs,
-            options,
-        )?;
-        (
-            linked_execution.execution,
-            Some(linked_execution.materialization),
-            OmenaQueryBundleEmissionPathV0::LinkedOrder,
-        )
-    } else if let Some(Err(error)) = linked_result.as_ref() {
-        return Err(format!("linked bundle emission failed: {error:?}"));
-    } else {
-        let Some(summary) = legacy_summary else {
-            return Err("linked bundle emission requires a closed linked stylesheet".to_string());
-        };
-        (
-            summary.execution,
-            None,
-            OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
-        )
+    let (execution, linked_materialization, emission_path) = match options.bundle_emission_path {
+        OmenaQueryBundleEmissionPathV0::LinkedOrder => match linked_result.as_ref() {
+            Ok(linked) => {
+                let linked_execution = execute_linked_bundle_modules(
+                    linked,
+                    target_style_path,
+                    style_sources,
+                    &effective_pass_ids,
+                    base_context,
+                    resolution_inputs,
+                    options,
+                )?;
+                (
+                    linked_execution.execution,
+                    Some(linked_execution.materialization),
+                    OmenaQueryBundleEmissionPathV0::LinkedOrder,
+                )
+            }
+            Err(error) => return Err(format!("linked bundle emission failed: {error:?}")),
+        },
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy => {
+            let Some(summary) = legacy_summary else {
+                return Err("legacy bundle emission requires a consumer build summary".to_string());
+            };
+            (
+                summary.execution,
+                None,
+                OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+            )
+        }
     };
     let source_map_v3 = if let Some(materialization) = linked_materialization.as_ref() {
         summarize_omena_query_linked_bundle_source_map_v3(
@@ -894,6 +966,60 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world
     }
 }
 
+struct ModuleQualifiedExecutionInputsV0<'a> {
+    closed_world_bundle: &'a ClosedWorldBundleV0,
+    module_instance: &'a omena_parser::ModuleInstanceKeyV0,
+    reachability_precision: FactPrecision,
+    retained_class_names: &'a [String],
+}
+
+fn execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
+    style_path: &str,
+    style_source: &str,
+    pass_set: &ConsumerBuildPassSetV0,
+    context: &TransformExecutionContextV0,
+    execution_inputs: ModuleQualifiedExecutionInputsV0<'_>,
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    let context = merge_single_source_transform_context(style_path, style_source, context);
+    let execution_policy = execution_policy_for_build_options(options);
+    let execution_summary =
+        execute_omena_query_transform_passes_from_module_with_context_and_closed_world_bundle(
+            style_path,
+            style_source,
+            &pass_set.effective,
+            &context,
+            execution_inputs,
+            &execution_policy,
+        )
+        .map_err(|error| format!("module-qualified transform execution failed: {error:?}"))?;
+
+    Ok(OmenaQueryConsumerBuildSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.consumer-build-style-source",
+        style_path: style_path.to_string(),
+        dialect: omena_parser_style_dialect_label(omena_parser_dialect_for_style_path(style_path)),
+        requested_pass_ids: pass_set.requested.clone(),
+        effective_pass_ids: pass_set.effective.clone(),
+        target_query: None,
+        unknown_pass_ids: execution_summary.unknown_pass_ids,
+        semantic_removal_count: execution_summary.semantic_removal_count,
+        execution: execution_summary.execution,
+        bundle: None,
+        bundle_emission_path: None,
+        source_map_v3: None,
+        open_world_snapshot: None,
+        ready_surfaces: vec![
+            "consumerBuildFacade",
+            "singleSourceTransformContextProducer",
+            "closedWorldBundle",
+            "moduleQualifiedReachability",
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+        ],
+    })
+}
+
 pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context(
     style_path: &str,
     style_source: &str,
@@ -911,7 +1037,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
             style_path,
             style_source,
             requested_pass_ids,
-            &context_derivation.summary.context,
+            context_derivation.module_reachability.context(),
             context_derivation.reachability_precision,
             context_derivation.closed_set_enumeration_candidate,
             &OmenaQueryConsumerBuildOptionsV0::default(),
@@ -1047,13 +1173,16 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_resolution_
     let pass_set = consumer_build_pass_set(requested_pass_ids);
     let closed_world_outcome =
         pass_ids_require_closed_world_bundle(&pass_set.effective).then(|| {
-            build_closed_world_outcome_for_style_sources(
+            build_closed_world_outcome_for_style_sources(ClosedWorldStylesheetRequestV0 {
                 target_style_path,
                 style_sources,
-                &pass_set.effective,
-                &context,
-                &[],
-            )
+                requested_pass_ids: &pass_set.effective,
+                context: &context,
+                reachability_context: &context,
+                attribution_report: None,
+                resolution_inputs,
+                external_sifs: &[],
+            })
         });
     let mut summary = if let Some(closed_world_bundle) = closed_world_outcome
         .as_ref()
@@ -1461,14 +1590,12 @@ pub fn summarize_omena_query_bundle_code_split_workspace_plan(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Result<OmenaQueryBundleCodeSplitWorkspacePlanV0, String> {
-    let source_by_path = style_sources
-        .iter()
-        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
-        .collect::<BTreeMap<_, _>>();
     let available_style_paths = style_sources
         .iter()
         .map(|source| source.style_path.as_str())
         .collect::<BTreeSet<_>>();
+    let dependency_specifiers_by_path =
+        collect_omena_query_bundle_code_split_dependency_specifiers(style_sources);
     let mut entry_style_paths = vec![primary_entry_style_path.to_string()];
     for configured_entry in bundle_entry_style_paths {
         if configured_entry != primary_entry_style_path
@@ -1478,7 +1605,7 @@ pub fn summarize_omena_query_bundle_code_split_workspace_plan(
         }
     }
     for entry_style_path in &entry_style_paths {
-        if !source_by_path.contains_key(entry_style_path.as_str()) {
+        if !available_style_paths.contains(entry_style_path.as_str()) {
             return Err(format!(
                 "bundle entry source is not loaded: {entry_style_path}"
             ));
@@ -1488,7 +1615,7 @@ pub fn summarize_omena_query_bundle_code_split_workspace_plan(
     let entry_style_path_set = entry_style_paths.iter().cloned().collect::<BTreeSet<_>>();
     let entry_reachability = collect_omena_query_bundle_code_split_entry_reachability(
         entry_style_paths.as_slice(),
-        &source_by_path,
+        &dependency_specifiers_by_path,
         &available_style_paths,
         resolution_inputs,
     );
@@ -1536,9 +1663,46 @@ pub fn summarize_omena_query_bundle_code_split_workspace_plan(
     })
 }
 
+fn collect_omena_query_bundle_code_split_dependency_specifiers(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> BTreeMap<&str, Vec<String>> {
+    let modules = style_sources_to_transform_bundle_modules(style_sources);
+    let projection =
+        project_omena_transform_bundle_linker_inputs_from_parsed_modules(&modules, &[]);
+    let projection_path_by_source_path =
+        projection_path_by_source_path(modules.as_slice(), style_sources);
+    let dependency_specifiers_by_projection_path = projection
+        .inputs()
+        .iter()
+        .map(|input| {
+            let specifiers = input
+                .dependency_edges
+                .iter()
+                .filter(|edge| bundle_edge_is_module_dependency(edge.kind))
+                .map(|edge| edge.import_source.clone())
+                .collect::<Vec<_>>();
+            (input.source_path.as_str(), specifiers)
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    style_sources
+        .iter()
+        .map(|source| {
+            let specifiers = projection_path_by_source_path
+                .get(source.style_path.as_str())
+                .and_then(|projection_path| {
+                    dependency_specifiers_by_projection_path.get(projection_path.as_str())
+                })
+                .cloned()
+                .unwrap_or_default();
+            (source.style_path.as_str(), specifiers)
+        })
+        .collect()
+}
+
 fn collect_omena_query_bundle_code_split_entry_reachability(
     entry_style_paths: &[String],
-    source_by_path: &BTreeMap<&str, &str>,
+    dependency_specifiers_by_path: &BTreeMap<&str, Vec<String>>,
     available_style_paths: &BTreeSet<&str>,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> BTreeMap<String, BTreeSet<String>> {
@@ -1553,28 +1717,15 @@ fn collect_omena_query_bundle_code_split_entry_reachability(
             if !visited.insert(style_path.clone()) {
                 continue;
             }
-            let Some(source) = source_by_path.get(style_path.as_str()) else {
+            let Some(import_sources) = dependency_specifiers_by_path.get(style_path.as_str())
+            else {
                 continue;
             };
             reachability
                 .entry(style_path.clone())
                 .or_default()
                 .insert(entry_style_path.clone());
-            let bundle = summarize_omena_transform_bundle_from_source(
-                style_path.as_str(),
-                source,
-                omena_parser_dialect_for_style_path(style_path.as_str()),
-            );
-            for edge in bundle.bundle_edges {
-                if !matches!(
-                    edge.kind,
-                    TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
-                ) {
-                    continue;
-                }
-                let Some(import_source) = edge.import_source.as_deref() else {
-                    continue;
-                };
+            for import_source in import_sources {
                 let Some(target_path) = resolution_context.resolve_style_module_source(
                     style_path.as_str(),
                     import_source,
@@ -1582,7 +1733,7 @@ fn collect_omena_query_bundle_code_split_entry_reachability(
                 ) else {
                     continue;
                 };
-                if source_by_path.contains_key(target_path.as_str()) {
+                if dependency_specifiers_by_path.contains_key(target_path.as_str()) {
                     stack.push(target_path);
                 }
             }
@@ -2397,6 +2548,55 @@ fn execute_omena_query_transform_passes_from_source_with_context_and_closed_worl
     }
 }
 
+fn execute_omena_query_transform_passes_from_module_with_context_and_closed_world_bundle(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    execution_inputs: ModuleQualifiedExecutionInputsV0<'_>,
+    execution_policy: &TransformExecutionPolicyV0,
+) -> Result<OmenaQueryTransformExecuteSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+    let (requested_passes, unknown_pass_ids) =
+        requested_transform_passes_from_ids(requested_pass_ids);
+    let (admitted_passes, preflight_refusals) =
+        strict_query_preflight(requested_pass_ids, requested_passes, execution_policy, true);
+    let expected_decision_count = admitted_passes.len();
+
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let mut execution =
+        execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names(
+            style_source,
+            dialect,
+            &admitted_passes,
+            context,
+            execution_inputs.closed_world_bundle,
+            execution_inputs.module_instance,
+            execution_inputs.reachability_precision,
+            execution_policy,
+            execution_inputs.retained_class_names,
+        )?;
+    merge_strict_preflight_refusals(&mut execution, preflight_refusals);
+    enforce_strict_decision_coverage(&mut execution, execution_policy, expected_decision_count);
+    let semantic_removal_count = execution.semantic_removals.len();
+
+    Ok(OmenaQueryTransformExecuteSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-execute",
+        style_path: style_path.to_string(),
+        requested_pass_ids: requested_pass_ids.to_vec(),
+        unknown_pass_ids,
+        execution,
+        semantic_removal_count,
+        open_world_snapshot: None,
+        ready_surfaces: vec![
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+            "closedWorldBundle",
+            "moduleQualifiedReachability",
+        ],
+    })
+}
+
 fn strict_query_preflight(
     requested_pass_ids: &[String],
     requested_passes: Vec<TransformPassKind>,
@@ -2712,61 +2912,335 @@ fn requested_pass_ids_include_tree_shake(requested_pass_ids: &[String]) -> bool 
         })
 }
 
+#[derive(Clone, Copy)]
+struct ClosedWorldStylesheetRequestV0<'a> {
+    target_style_path: &'a str,
+    style_sources: &'a [OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &'a [String],
+    context: &'a TransformExecutionContextV0,
+    reachability_context: &'a TransformExecutionContextV0,
+    attribution_report: Option<&'a OmenaQueryModuleReachabilityAttributionReportV0>,
+    resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    external_sifs: &'a [OmenaQueryExternalSifInputV0],
+}
+
 fn build_closed_world_outcome_for_style_sources(
-    target_style_path: &str,
-    style_sources: &[OmenaQueryStyleSourceInputV0],
-    requested_pass_ids: &[String],
-    context: &TransformExecutionContextV0,
-    external_sifs: &[OmenaQueryExternalSifInputV0],
+    request: ClosedWorldStylesheetRequestV0<'_>,
 ) -> OmenaQueryClosedWorldOutcomeV0 {
     closed_world_outcome_from_link_result(
         link_closed_world_stylesheet_for_style_sources(
-            target_style_path,
-            style_sources,
-            requested_pass_ids,
-            context,
-            external_sifs,
+            request,
             TransformBundleLinkOptionsV0::default(),
-        ),
-        requested_pass_ids,
+        )
+        .into_requested_policy_result()
+        .map(|linked| linked.linked_stylesheet),
+        request.requested_pass_ids,
     )
 }
 
 fn link_closed_world_stylesheet_for_style_sources(
-    target_style_path: &str,
-    style_sources: &[OmenaQueryStyleSourceInputV0],
-    requested_pass_ids: &[String],
-    context: &TransformExecutionContextV0,
-    external_sifs: &[OmenaQueryExternalSifInputV0],
+    request: ClosedWorldStylesheetRequestV0<'_>,
     link_options: TransformBundleLinkOptionsV0,
-) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
-    let reachability_inputs = if requested_pass_ids_include_tree_shake(requested_pass_ids) {
-        style_sources
+) -> TransformBundleEmissionAdmissionV0 {
+    let reachability_inputs = if requested_pass_ids_include_tree_shake(request.requested_pass_ids) {
+        request
+            .style_sources
             .iter()
             .filter_map(|source| {
-                transform_bundle_semantic_reachability_input_from_context(
+                transform_bundle_semantic_reachability_input_from_context_and_attribution(
                     source.style_path.as_str(),
-                    context,
+                    request.reachability_context,
+                    request.attribution_report,
                 )
             })
             .collect::<Vec<_>>()
     } else {
         Vec::new()
     };
-    let modules = style_sources_to_transform_bundle_modules(style_sources);
-    let module_metadata =
-        style_sources_to_closed_world_metadata(style_sources, &modules, context, external_sifs);
-    link_omena_transform_bundle_modules_with_options(
-        &[target_style_path],
-        &modules,
+    let prepared = prepare_transform_bundle_linker_projection(
+        &[request.target_style_path],
+        request.style_sources,
         reachability_inputs.as_slice(),
+        TransformResolutionContext::from_resolution_inputs(request.resolution_inputs),
+    );
+    let module_metadata = style_sources_to_closed_world_metadata(
+        &prepared.projection,
+        request.context,
+        request.external_sifs,
+    );
+    evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options(
+        &[request.target_style_path],
+        &prepared.projection,
+        &prepared.emission_item_projection,
+        prepared.resolved_dependencies.as_slice(),
         &module_metadata,
         link_options,
     )
 }
 
+struct PreparedTransformBundleLinkerProjectionV0 {
+    projection: TransformBundleLinkerProjectionV0,
+    emission_item_projection: TransformBundleEmissionItemProjectionV0,
+    resolved_dependencies: Vec<TransformBundleResolvedDependencyV0>,
+}
+
+struct TransformBundleDependencyResolutionTemplateV0 {
+    source_path: String,
+    edge_kind: TransformBundleEdgeKind,
+    import_source: String,
+    import_ordinal: Option<u32>,
+    policy_step_keys: Vec<&'static str>,
+    resolution_kind: &'static str,
+    candidate_count: usize,
+    target_source_path: Option<String>,
+    target_configuration: omena_parser::ConfigurationHashV0,
+}
+
+fn prepare_transform_bundle_linker_projection(
+    entrypoint_paths: &[&str],
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+    resolution_context: TransformResolutionContext<'_>,
+) -> PreparedTransformBundleLinkerProjectionV0 {
+    let mut modules = style_sources_to_transform_bundle_modules(style_sources);
+    let provisional_projection =
+        project_omena_transform_bundle_linker_inputs_from_parsed_modules(&modules, &[]);
+    let (templates, mut configurations_by_source_path) =
+        resolve_transform_bundle_projection_dependency_templates(
+            &provisional_projection,
+            modules.as_slice(),
+            style_sources,
+            resolution_context,
+        );
+    let projection_path_by_source_path =
+        projection_path_by_source_path(modules.as_slice(), style_sources);
+    for entrypoint_path in entrypoint_paths {
+        if let Some(projection_path) = projection_path_by_source_path.get(*entrypoint_path) {
+            configurations_by_source_path
+                .entry(projection_path.clone())
+                .or_default()
+                .insert(omena_parser::ConfigurationHashV0::none());
+        }
+    }
+    for configurations in configurations_by_source_path.values_mut() {
+        if configurations.is_empty() {
+            configurations.insert(omena_parser::ConfigurationHashV0::none());
+        }
+    }
+
+    modules = modules
+        .into_iter()
+        .map(|module| {
+            let projection_path = module
+                .module_instance_keys()
+                .into_iter()
+                .next()
+                .map(|instance| instance.module().as_str().to_string())
+                .unwrap_or_else(|| module.source_path().to_string());
+            let configurations = configurations_by_source_path
+                .remove(&projection_path)
+                .unwrap_or_else(|| BTreeSet::from([omena_parser::ConfigurationHashV0::none()]))
+                .into_iter()
+                .collect();
+            module.with_configuration_hashes(configurations)
+        })
+        .collect();
+
+    let projections = project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(
+        modules.as_slice(),
+        reachability_inputs,
+    );
+    let projection = projections.linker_projection().clone();
+    let resolved_dependencies =
+        materialize_transform_bundle_resolved_dependencies(&projection, templates);
+    PreparedTransformBundleLinkerProjectionV0 {
+        projection,
+        emission_item_projection: projections.emission_item_projection().clone(),
+        resolved_dependencies,
+    }
+}
+
+fn resolve_transform_bundle_projection_dependency_templates(
+    projection: &TransformBundleLinkerProjectionV0,
+    modules: &[TransformBundleParsedModuleInputV0],
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    resolution_context: TransformResolutionContext<'_>,
+) -> (
+    Vec<TransformBundleDependencyResolutionTemplateV0>,
+    BTreeMap<String, BTreeSet<omena_parser::ConfigurationHashV0>>,
+) {
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let projection_path_by_source_path = projection_path_by_source_path(modules, style_sources);
+    let source_by_projection_path = modules
+        .iter()
+        .zip(style_sources)
+        .filter_map(|(module, source)| {
+            module
+                .module_instance_keys()
+                .into_iter()
+                .next()
+                .map(|instance| {
+                    (
+                        instance.module().as_str().to_string(),
+                        source.style_source.as_str(),
+                    )
+                })
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut configurations_by_source_path = projection
+        .inputs()
+        .iter()
+        .map(|input| (input.source_path.clone(), BTreeSet::new()))
+        .collect::<BTreeMap<_, _>>();
+    let policy_step_keys = summarize_omena_query_style_resolution_policy_v0()
+        .steps
+        .into_iter()
+        .map(|step| step.key)
+        .collect::<Vec<_>>();
+    let mut templates = Vec::new();
+    for input in projection.inputs() {
+        let source = source_by_projection_path
+            .get(input.source_path.as_str())
+            .copied()
+            .unwrap_or_default();
+        let mut sass_use_ordinal = 0usize;
+        let mut sass_forward_ordinal = 0usize;
+        for edge in &input.dependency_edges {
+            let target_configuration = match edge.kind {
+                TransformBundleEdgeKind::SassUse => {
+                    let overrides =
+                        omena_semantic::derive_sass_module_rule_variable_overrides_at_ordinal(
+                            source,
+                            "@use",
+                            sass_use_ordinal,
+                        );
+                    sass_use_ordinal += 1;
+                    omena_parser::ConfigurationHashV0::new(
+                        omena_semantic::summarize_sass_module_configuration_signature(&overrides),
+                    )
+                }
+                TransformBundleEdgeKind::SassForward => {
+                    let overrides =
+                        omena_semantic::derive_sass_module_forward_variable_override_values_at_ordinal(
+                            source,
+                            sass_forward_ordinal,
+                        );
+                    sass_forward_ordinal += 1;
+                    omena_parser::ConfigurationHashV0::new(
+                        omena_semantic::summarize_sass_module_configuration_signature(&overrides),
+                    )
+                }
+                _ => omena_parser::ConfigurationHashV0::none(),
+            };
+            let resolution = resolution_context.resolve_style_module(
+                input.source_path.as_str(),
+                edge.import_source.as_str(),
+                &available_style_paths,
+            );
+            let target_source_path = resolution
+                .resolved_style_path
+                .as_deref()
+                .and_then(|path| projection_path_by_source_path.get(path))
+                .cloned();
+            if let Some(target_source_path) = target_source_path.as_ref() {
+                configurations_by_source_path
+                    .entry(target_source_path.clone())
+                    .or_default()
+                    .insert(target_configuration.clone());
+            }
+            templates.push(TransformBundleDependencyResolutionTemplateV0 {
+                source_path: input.source_path.clone(),
+                edge_kind: edge.kind,
+                import_source: edge.import_source.clone(),
+                import_ordinal: edge.import_ordinal,
+                policy_step_keys: policy_step_keys.clone(),
+                resolution_kind: resolution.resolution_kind,
+                candidate_count: resolution.candidate_count,
+                target_source_path,
+                target_configuration,
+            });
+        }
+    }
+    (templates, configurations_by_source_path)
+}
+
+fn projection_path_by_source_path(
+    modules: &[TransformBundleParsedModuleInputV0],
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> BTreeMap<String, String> {
+    let mut projection_path_by_source_path = BTreeMap::new();
+    for (module, source) in modules.iter().zip(style_sources) {
+        let Some(instance) = module.module_instance_keys().into_iter().next() else {
+            continue;
+        };
+        let projection_path = instance.module().as_str().to_string();
+        projection_path_by_source_path.insert(source.style_path.clone(), projection_path.clone());
+        projection_path_by_source_path.insert(projection_path.clone(), projection_path);
+    }
+    projection_path_by_source_path
+}
+
+fn materialize_transform_bundle_resolved_dependencies(
+    projection: &TransformBundleLinkerProjectionV0,
+    templates: Vec<TransformBundleDependencyResolutionTemplateV0>,
+) -> Vec<TransformBundleResolvedDependencyV0> {
+    let instance_by_path_and_configuration = projection
+        .inputs()
+        .iter()
+        .map(|input| {
+            (
+                (
+                    input.source_path.as_str(),
+                    input.instance.configuration().as_str(),
+                ),
+                input.instance.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let source_instances_by_path = projection.inputs().iter().fold(
+        BTreeMap::<&str, Vec<omena_parser::ModuleInstanceKeyV0>>::new(),
+        |mut by_path, input| {
+            by_path
+                .entry(input.source_path.as_str())
+                .or_default()
+                .push(input.instance.clone());
+            by_path
+        },
+    );
+    let mut resolved_dependencies = Vec::new();
+    for template in templates {
+        let target_instance = template.target_source_path.as_deref().and_then(|path| {
+            instance_by_path_and_configuration
+                .get(&(path, template.target_configuration.as_str()))
+                .cloned()
+        });
+        let Some(source_instances) = source_instances_by_path.get(template.source_path.as_str())
+        else {
+            continue;
+        };
+        for source_instance in source_instances {
+            resolved_dependencies.push(TransformBundleResolvedDependencyV0::new(
+                source_instance.clone(),
+                template.edge_kind,
+                template.import_source.as_str(),
+                template.import_ordinal,
+                TransformBundleDependencyResolutionV0::attempted(
+                    template.policy_step_keys.clone(),
+                    template.resolution_kind,
+                    template.candidate_count,
+                    target_instance.clone(),
+                ),
+            ));
+        }
+    }
+    resolved_dependencies
+}
+
 fn execute_linked_bundle_modules(
-    linked: &LinkedStylesheetV0,
+    linked: &LinkedStylesheetWithEmissionItemsV0,
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     effective_pass_ids: &[String],
@@ -2774,16 +3248,18 @@ fn execute_linked_bundle_modules(
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> Result<LinkedBundleExecutionV0, String> {
+    let linked_stylesheet = &linked.linked_stylesheet;
     let pass_set = consumer_build_pass_set(effective_pass_ids);
     let resolution_context = TransformResolutionContext::from_resolution_inputs(resolution_inputs);
-    let target_instance = linked
+    let target_instance = linked_stylesheet
         .entrypoints
         .first()
         .ok_or_else(|| format!("linked bundle has no entrypoint for {target_style_path:?}"))?;
-    let mut transformed_modules = Vec::with_capacity(linked.module_instances.len());
+    let mut transformed_modules = Vec::with_capacity(linked_stylesheet.module_instances.len());
     let mut target_execution = None;
 
-    for module_instance in &linked.module_instances {
+    let mut module_inputs = Vec::with_capacity(linked_stylesheet.module_instances.len());
+    for module_instance in &linked_stylesheet.module_instances {
         let style_path = module_instance.module().as_str();
         let Some(style_source) = find_target_style_source(style_path, style_sources) else {
             return Err(format!(
@@ -2799,16 +3275,42 @@ fn execute_linked_bundle_modules(
         for inline in &mut module_context.import_inlines {
             inline.replacement_css.clear();
         }
+        module_inputs.push(LinkedModuleExecutionInputV0 {
+            module_instance,
+            style_source,
+            context: module_context,
+        });
+    }
+    let retained_class_names_by_module = retained_class_names_for_live_linked_emission_tokens(
+        &linked_stylesheet.closed_world_bundle,
+        module_inputs.as_slice(),
+    );
+
+    for module_input in module_inputs {
+        let module_instance = module_input.module_instance;
+        let style_path = module_instance.module().as_str();
+        let retained_class_names = retained_class_names_by_module
+            .get(module_instance)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         let summary =
-            execute_omena_query_consumer_build_style_source_with_context_and_closed_world_bundle(
+            execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
                 style_path,
-                style_source,
+                module_input.style_source,
                 &pass_set,
-                &module_context,
-                &linked.closed_world_bundle,
-                classify_transform_reachability_precision(&module_context, true, None),
+                &module_input.context,
+                ModuleQualifiedExecutionInputsV0 {
+                    closed_world_bundle: &linked_stylesheet.closed_world_bundle,
+                    module_instance,
+                    reachability_precision: classify_transform_reachability_precision(
+                        &module_input.context,
+                        true,
+                        None,
+                    ),
+                    retained_class_names,
+                },
                 options,
-            );
+            )?;
         let non_empty_import_replacement_count = summary
             .execution
             .css_import_inlines
@@ -2827,9 +3329,11 @@ fn execute_linked_bundle_modules(
         }
     }
 
-    let materialized =
-        materialize_omena_transform_bundle_linked_stylesheet(linked, &transformed_modules)
-            .map_err(|error| format!("linked bundle materialization failed: {error:?}"))?;
+    let materialized = materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(
+        linked,
+        &transformed_modules,
+    )
+    .map_err(|error| format!("linked bundle materialization failed: {error:?}"))?;
     let Some(mut execution) = target_execution else {
         return Err(format!(
             "linked entrypoint {target_style_path:?} was not transformed"
@@ -2843,50 +3347,75 @@ fn execute_linked_bundle_modules(
     })
 }
 
+struct LinkedModuleExecutionInputV0<'a> {
+    module_instance: &'a omena_parser::ModuleInstanceKeyV0,
+    style_source: &'a str,
+    context: TransformExecutionContextV0,
+}
+
+fn retained_class_names_for_live_linked_emission_tokens(
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_inputs: &[LinkedModuleExecutionInputV0<'_>],
+) -> BTreeMap<omena_parser::ModuleInstanceKeyV0, Vec<String>> {
+    let mut live_emitted_tokens = BTreeSet::new();
+    for module_input in module_inputs {
+        let Some(symbols) = closed_world_bundle
+            .reachability()
+            .symbols_for_module(module_input.module_instance)
+        else {
+            continue;
+        };
+        for class_name in symbols.class_names() {
+            let emitted_token = module_input
+                .context
+                .class_name_rewrites
+                .iter()
+                .find(|rewrite| {
+                    css_identifier_names_match(rewrite.original_name.as_str(), class_name)
+                })
+                .map_or(class_name.as_str(), |rewrite| {
+                    rewrite.rewritten_name.as_str()
+                });
+            live_emitted_tokens.insert(emitted_token.to_string());
+        }
+    }
+
+    module_inputs
+        .iter()
+        .map(|module_input| {
+            let own_reachable = closed_world_bundle
+                .reachability()
+                .symbols_for_module(module_input.module_instance)
+                .map(|symbols| symbols.class_names())
+                .unwrap_or_default();
+            let retained = if css_modules::style_path_is_css_module_path(
+                module_input.module_instance.module().as_str(),
+            ) {
+                module_input
+                    .context
+                    .class_name_rewrites
+                    .iter()
+                    .filter(|rewrite| live_emitted_tokens.contains(&rewrite.rewritten_name))
+                    .map(|rewrite| rewrite.original_name.clone())
+                    .collect::<BTreeSet<_>>()
+            } else {
+                live_emitted_tokens.clone()
+            }
+            .into_iter()
+            .filter(|name| {
+                !own_reachable
+                    .iter()
+                    .any(|own| css_identifier_names_match(own, name))
+            })
+            .collect::<Vec<_>>();
+            (module_input.module_instance.clone(), retained)
+        })
+        .collect()
+}
+
 struct LinkedBundleExecutionV0 {
     execution: TransformExecutionSummaryV0,
     materialization: LinkedEmissionArtifactV0,
-}
-
-fn legacy_bundle_open_decision(
-    target_style_path: &str,
-    style_sources: &[OmenaQueryStyleSourceInputV0],
-    requested_pass_ids: &[String],
-    context: &TransformExecutionContextV0,
-) -> bool {
-    let modules = style_sources
-        .iter()
-        .map(|source| {
-            TransformBundleModuleInputV0::new(
-                source.style_path.as_str(),
-                source.style_source.as_str(),
-                omena_parser_dialect_for_style_path(source.style_path.as_str()),
-            )
-        })
-        .collect::<Vec<_>>();
-    let reachability_inputs = if requested_pass_ids_include_tree_shake(requested_pass_ids) {
-        style_sources
-            .iter()
-            .filter_map(|source| {
-                transform_bundle_semantic_reachability_input_from_context(
-                    source.style_path.as_str(),
-                    context,
-                )
-            })
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
-    if reachability_inputs.is_empty() {
-        link_omena_transform_bundle_modules(&[target_style_path], &modules).is_err()
-    } else {
-        link_omena_transform_bundle_modules_with_semantic_reachability(
-            &[target_style_path],
-            &modules,
-            reachability_inputs.as_slice(),
-        )
-        .is_err()
-    }
 }
 
 pub(crate) fn build_closed_world_bundle_for_single_style_source_context(
@@ -2931,11 +3460,19 @@ fn build_closed_world_outcome_for_single_style_source_context(
         style_source: style_source.to_string(),
     };
     let sources = std::slice::from_ref(&source);
-    let modules = style_sources_to_transform_bundle_modules(sources);
-    let module_metadata = style_sources_to_closed_world_metadata(sources, &modules, context, &[]);
-    let Some(reachability_input) =
-        transform_bundle_semantic_reachability_input_from_context(style_path, context)
-    else {
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let reachability_input =
+        transform_bundle_semantic_reachability_input_from_context(style_path, context);
+    let reachability_inputs = reachability_input.as_slice();
+    let prepared = prepare_transform_bundle_linker_projection(
+        &[style_path],
+        sources,
+        reachability_inputs,
+        TransformResolutionContext::from_resolution_inputs(&resolution_inputs),
+    );
+    let module_metadata =
+        style_sources_to_closed_world_metadata(&prepared.projection, context, &[]);
+    if reachability_input.is_none() {
         if requested_pass_ids_include_tree_shake(requested_pass_ids) {
             return OmenaQueryClosedWorldOutcomeV0::Open {
                 blockers: vec![OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable {
@@ -2944,22 +3481,24 @@ fn build_closed_world_outcome_for_single_style_source_context(
             };
         }
         return closed_world_outcome_from_link_result(
-            link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata(
+            link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
                 &[style_path],
-                &modules,
-                &[],
+                &prepared.projection,
+                prepared.resolved_dependencies.as_slice(),
                 &module_metadata,
+                TransformBundleLinkOptionsV0::default(),
             ),
             requested_pass_ids,
         );
-    };
+    }
 
     closed_world_outcome_from_link_result(
-        link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata(
+        link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
             &[style_path],
-            &modules,
-            std::slice::from_ref(&reachability_input),
+            &prepared.projection,
+            prepared.resolved_dependencies.as_slice(),
             &module_metadata,
+            TransformBundleLinkOptionsV0::default(),
         ),
         requested_pass_ids,
     )
@@ -2967,34 +3506,42 @@ fn build_closed_world_outcome_for_single_style_source_context(
 
 fn style_sources_to_transform_bundle_modules(
     style_sources: &[OmenaQueryStyleSourceInputV0],
-) -> Vec<TransformBundleModuleInputV0> {
+) -> Vec<TransformBundleParsedModuleInputV0> {
     style_sources
         .iter()
         .map(|source| {
-            TransformBundleModuleInputV0::new(
+            let dialect = omena_parser_dialect_for_style_path(source.style_path.as_str());
+            let parsed =
+                parse_omena_query_omena_parser_style_source(source.style_source.as_str(), dialect);
+            TransformBundleParsedModuleInputV0::new(
                 source.style_path.as_str(),
-                source.style_source.as_str(),
-                omena_parser_dialect_for_style_path(source.style_path.as_str()),
+                dialect,
+                omena_parser::facts_from_cst(source.style_source.as_str(), &parsed),
+            )
+            .with_emission_selectors(
+                omena_parser::collect_emission_selector_facts_from_cst(
+                    source.style_source.as_str(),
+                    &parsed,
+                ),
             )
         })
         .collect()
 }
 
 fn style_sources_to_closed_world_metadata(
-    style_sources: &[OmenaQueryStyleSourceInputV0],
-    modules: &[TransformBundleModuleInputV0],
+    projection: &TransformBundleLinkerProjectionV0,
     context: &TransformExecutionContextV0,
     external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> Vec<ClosedWorldModuleMetadataV0> {
     let source_precision = closed_world_source_precision_summary(context);
-    style_sources
+    projection
+        .inputs()
         .iter()
-        .zip(modules)
-        .map(|(source, module)| {
-            let mut metadata = ClosedWorldModuleMetadataV0::new(module.module_instance_key())
+        .map(|input| {
+            let mut metadata = ClosedWorldModuleMetadataV0::new(input.instance.clone())
                 .with_source_precision(source_precision);
             if let Some(interface_hash) = external_sifs.iter().find_map(|external_sif| {
-                sif_matches_style_path(external_sif, source.style_path.as_str()).then(|| {
+                sif_matches_style_path(external_sif, input.source_path.as_str()).then(|| {
                     external_sif
                         .sif
                         .fingerprints
@@ -3101,9 +3648,27 @@ fn transform_bundle_semantic_reachability_input_from_context(
     style_path: &str,
     context: &TransformExecutionContextV0,
 ) -> Option<TransformBundleSemanticReachabilityInputV0> {
+    transform_bundle_semantic_reachability_input_from_context_and_attribution(
+        style_path, context, None,
+    )
+}
+
+fn transform_bundle_semantic_reachability_input_from_context_and_attribution(
+    style_path: &str,
+    context: &TransformExecutionContextV0,
+    attribution_report: Option<&OmenaQueryModuleReachabilityAttributionReportV0>,
+) -> Option<TransformBundleSemanticReachabilityInputV0> {
+    let mut class_names = context.reachable_class_names.clone();
+    if let Some(attribution) =
+        attribution_report.and_then(|report| report.entry_for_style_path(style_path))
+    {
+        class_names.extend(attribution.class_names().iter().cloned());
+    }
+    class_names.sort();
+    class_names.dedup();
     let input = TransformBundleSemanticReachabilityInputV0 {
         source_path: style_path.to_string(),
-        class_names: context.reachable_class_names.clone(),
+        class_names,
         keyframe_names: context.reachable_keyframe_names.clone(),
         value_names: context.reachable_value_names.clone(),
         custom_property_names: context.reachable_custom_property_names.clone(),
@@ -3186,6 +3751,251 @@ mod linked_source_map_tests {
             assert_eq!(segment.generated_start_point.byte_offset, generated_start);
             assert_eq!(segment.pass_id, "linked-order-emission");
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod dependency_resolution_tests {
+    use super::*;
+
+    fn configured_sass_sources() -> Vec<OmenaQueryStyleSourceInputV0> {
+        vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/blue.scss".to_string(),
+                style_source:
+                    r#"@use "./theme" with ($brand: blue); .blue { color: theme.$brand; }"#
+                        .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/red.scss".to_string(),
+                style_source: r#"@use "./theme" with ($brand: red); .red { color: theme.$brand; }"#
+                    .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/theme.scss".to_string(),
+                style_source:
+                    "$brand: black !default; .kept { color: $brand; } .dead { color: gray; }"
+                        .to_string(),
+            },
+        ]
+    }
+
+    #[test]
+    fn linker_projection_records_resolver_attempt_provenance() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/app.css".to_string(),
+                style_source: r#"@import "@acme/theme/tokens.css"; .app { color: green; }"#
+                    .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "node_modules/@acme/theme/dist/tokens.css".to_string(),
+                style_source: ".token { color: rebeccapurple; }".to_string(),
+            },
+        ];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+            package_manifests: vec![OmenaQueryStylePackageManifestV0 {
+                package_json_path: "node_modules/@acme/theme/package.json".to_string(),
+                package_json_source:
+                    r#"{"name":"@acme/theme","exports":{"./tokens.css":"./dist/tokens.css"}}"#
+                        .to_string(),
+            }],
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        };
+        let prepared = prepare_transform_bundle_linker_projection(
+            &["src/app.css"],
+            &sources,
+            &[],
+            TransformResolutionContext::from_resolution_inputs(&resolution_inputs),
+        );
+        let resolved = prepared.resolved_dependencies;
+
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].resolution.attempt_state, "attempted");
+        assert_eq!(
+            resolved[0].resolution.resolution_kind,
+            Some("packageStyleModule")
+        );
+        assert_eq!(
+            resolved[0].resolution.policy_step_keys,
+            vec![
+                "externalUrlBoundary",
+                "bundlerPathMapping",
+                "tsconfigPathMapping",
+                "sassPkgImporter",
+                "fileRelativeOrAbsolute",
+                "packageManifestSubpath",
+                "nodePackageFallback",
+                "sassLoadPathRoot",
+            ]
+        );
+        assert_eq!(
+            resolved[0].resolution.target_instance,
+            prepared
+                .projection
+                .inputs()
+                .iter()
+                .find(|input| { input.source_path == "node_modules/@acme/theme/dist/tokens.css" })
+                .map(|input| input.instance.clone())
+        );
+    }
+
+    #[test]
+    fn configured_sass_edges_select_distinct_instances_without_reparsing() -> Result<(), String> {
+        let sources = configured_sass_sources();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut reachability = TransformBundleSemanticReachabilityInputV0::new("src/theme.scss");
+        reachability.class_names.push("kept".to_string());
+        let (prepared, parser_snapshot) =
+            omena_parser::with_omena_parser_parse_instrumentation(|| {
+                prepare_transform_bundle_linker_projection(
+                    &["src/blue.scss", "src/red.scss"],
+                    &sources,
+                    std::slice::from_ref(&reachability),
+                    TransformResolutionContext::from_resolution_inputs(&resolution_inputs),
+                )
+            });
+
+        assert_eq!(parser_snapshot.parse_invocation_count, 3);
+        let theme_inputs = prepared
+            .projection
+            .inputs()
+            .iter()
+            .filter(|input| input.source_path == "src/theme.scss")
+            .collect::<Vec<_>>();
+        assert_eq!(theme_inputs.len(), 2);
+        assert_eq!(
+            theme_inputs
+                .iter()
+                .map(|input| input.instance.configuration().as_str())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["with|5:brand=3:red", "with|5:brand=4:blue"])
+        );
+        assert!(theme_inputs.iter().all(|input| {
+            input.class_names == ["kept".to_string()]
+                && !input.class_names.contains(&"dead".to_string())
+        }));
+
+        let target_by_source = prepared
+            .resolved_dependencies
+            .iter()
+            .map(|dependency| {
+                (
+                    dependency.source_instance.module().as_str(),
+                    dependency
+                        .resolution
+                        .target_instance
+                        .as_ref()
+                        .map(|instance| instance.configuration().as_str()),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            target_by_source.get("src/blue.scss").copied().flatten(),
+            Some("with|5:brand=4:blue")
+        );
+        assert_eq!(
+            target_by_source.get("src/red.scss").copied().flatten(),
+            Some("with|5:brand=3:red")
+        );
+
+        let linked = link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
+            &["src/blue.scss", "src/red.scss"],
+            &prepared.projection,
+            prepared.resolved_dependencies.as_slice(),
+            &[],
+            TransformBundleLinkOptionsV0::default(),
+        )
+        .map_err(|error| format!("configured Sass workspace should link: {error:?}"))?;
+        assert_eq!(
+            linked
+                .module_instances
+                .iter()
+                .filter(|instance| instance.module().as_str() == "src/theme.scss")
+                .count(),
+            2
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn configured_module_path_can_also_be_an_unconfigured_entrypoint() -> Result<(), String> {
+        let sources = configured_sass_sources();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let prepared = prepare_transform_bundle_linker_projection(
+            &["src/blue.scss", "src/red.scss", "src/theme.scss"],
+            &sources,
+            &[],
+            TransformResolutionContext::from_resolution_inputs(&resolution_inputs),
+        );
+        let linked = link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
+            &["src/blue.scss", "src/red.scss", "src/theme.scss"],
+            &prepared.projection,
+            prepared.resolved_dependencies.as_slice(),
+            &[],
+            TransformBundleLinkOptionsV0::default(),
+        )
+        .map_err(|error| format!("configured module entrypoint should link: {error:?}"))?;
+
+        let theme_entrypoint = linked
+            .entrypoints
+            .iter()
+            .find(|entrypoint| entrypoint.module().as_str() == "src/theme.scss")
+            .ok_or_else(|| "theme entrypoint was not selected".to_string())?;
+        assert_eq!(
+            theme_entrypoint.configuration(),
+            &omena_parser::ConfigurationHashV0::none()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unconfigured_projection_preserves_closure_identity() -> Result<(), String> {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/app.css".to_string(),
+                style_source: r#"@import "./theme.css"; .app { color: green; }"#.to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/theme.css".to_string(),
+                style_source: ".theme { color: rebeccapurple; }".to_string(),
+            },
+        ];
+        let legacy_modules = sources
+            .iter()
+            .map(|source| {
+                TransformBundleModuleInputV0::new(
+                    source.style_path.as_str(),
+                    source.style_source.as_str(),
+                    omena_parser::StyleDialect::Css,
+                )
+            })
+            .collect::<Vec<_>>();
+        let legacy = link_omena_transform_bundle_modules(&["src/app.css"], &legacy_modules)
+            .map_err(|error| format!("legacy unconfigured fixture should link: {error:?}"))?;
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let prepared = prepare_transform_bundle_linker_projection(
+            &["src/app.css"],
+            &sources,
+            &[],
+            TransformResolutionContext::from_resolution_inputs(&resolution_inputs),
+        );
+        let current =
+            link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
+                &["src/app.css"],
+                &prepared.projection,
+                prepared.resolved_dependencies.as_slice(),
+                &[],
+                TransformBundleLinkOptionsV0::default(),
+            )
+            .map_err(|error| format!("prepared unconfigured fixture should link: {error:?}"))?;
+
+        assert_eq!(current.module_instances, legacy.module_instances);
+        assert_eq!(
+            current.closed_world_bundle.closure_hash(),
+            legacy.closed_world_bundle.closure_hash()
+        );
         Ok(())
     }
 }

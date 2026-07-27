@@ -143,6 +143,93 @@ fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
 }
 
 #[test]
+fn runtime_state_payload_preserves_unknown_selector_activation() -> TestResult {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".b { color: blue; color: navy; }\n.a:hover .b { color: red; }",
+                },
+            },
+        }),
+    );
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("style diagnostics result"))?;
+    let unreachable = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!("unreachableDeclaration")))
+        .ok_or_else(|| std::io::Error::other("unreachable declaration diagnostic"))?;
+    let runtime_state = unreachable
+        .pointer("/data/runtimeState")
+        .ok_or_else(|| std::io::Error::other("runtime state payload"))?;
+    let scenarios = runtime_state
+        .pointer("/scenarios")
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("runtime state scenarios"))?;
+
+    assert_eq!(
+        runtime_state.pointer("/confidenceTier"),
+        Some(&json!("staticDefinite"))
+    );
+    assert_eq!(
+        runtime_state.pointer("/resultCertainty"),
+        Some(&json!("staticUnknown"))
+    );
+    assert_eq!(
+        runtime_state.pointer("/resultCertaintyWithinModeledEnvironment"),
+        Some(&json!("staticUnknownWithinModeledEnvironment"))
+    );
+    assert!(scenarios.iter().any(|scenario| {
+        let Some(unknown_ids) = scenario
+            .pointer("/unknownActivationDeclarationIds")
+            .and_then(Value::as_array)
+        else {
+            return false;
+        };
+        let Some(declaration_ids) = scenario
+            .pointer("/declarationIds")
+            .and_then(Value::as_array)
+        else {
+            return false;
+        };
+        !unknown_ids.is_empty()
+            && unknown_ids
+                .iter()
+                .all(|unknown_id| declaration_ids.contains(unknown_id))
+    }));
+    assert!(
+        scenarios
+            .iter()
+            .all(|scenario| scenario.pointer("/winnerValue") != Some(&json!("navy")))
+    );
+    Ok(())
+}
+
+#[test]
 fn cascade_narrowing_prunes_to_requested_condition_and_layer_branch() -> TestResult {
     let mut state = LspShellState::default();
     handle_lsp_message(

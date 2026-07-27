@@ -14,9 +14,13 @@ The project has three independent version lines:
 | VS Code extension          | root `package.json`                 | `vscode-vX.Y.Z`  | Marketplace, Open VSX, VSIX, SBOM, attestation |
 | Private TypeScript tooling | package-local manifests             | none             | not published                                  |
 
-The published crate/npm baseline is `0.2.0`; the workspace may carry the next
-unpublished crate-train version. `5.2.0` is the published extension baseline,
-with tag `vscode-v5.2.0`.
+The machine-checked axis and reservation policy is documented in
+[`docs/governance/version-governance.md`](docs/governance/version-governance.md).
+The registry crate baseline is `0.2.0` and the published npm binding baseline is
+`0.2.1`; the source workspace may carry the next unpublished crate-train
+version. `5.2.0` is the published extension baseline, with tag
+`vscode-v5.2.0`. The coordinated source candidate is crate/npm `0.3.0` and
+extension `5.3.0` until channel publication is accepted.
 
 Earlier releases must not be reused as closure artifacts. The `5.0.0` and
 `5.1.x` tags remain historical records.
@@ -33,7 +37,9 @@ is historical evidence, not a list of reusable versions.
 2. Put user-visible changes under the matching version in `CHANGELOG.md` and
    review any changeset-generated version commit.
 3. Confirm `package.json`, `rust/Cargo.toml`, exact inter-crate pins, lockfiles,
-   package manifests, and intended tags agree with the selected release axis.
+   generated package manifests, and intended tags agree with the selected
+   release axis. Run `pnpm omena-check run docs/version-governance` to check the
+   documented policy against those authorities.
 4. Install the committed dependency graph and run the release bundle:
 
 ```bash
@@ -58,11 +64,20 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   verification.
 - Dispatch `_Publish Crate Train` with `mode=oidc`, `dry_run=true`, and
   `resume=false`. Review the canonical publish order and every package dry-run.
+- Cargo packages and verifies every selected workspace member before its
+  dependency-ordered upload loop. Both dry-run and real publish therefore use a
+  temporary `[patch.crates-io]` map derived from workspace metadata so the new
+  exact-pin train resolves locally before its first member exists on crates.io.
+  This command-scoped map is not packaged: uploaded manifests retain their exact
+  crates.io version requirements and contain no local dependency paths.
 - Push `release-vX.Y.Z` only after the dry-run is green. The tag starts the crate
   publish and the five-target `Release CLI` archive/checksum workflow.
 - Existing crate names use crates.io Trusted Publishing. A never-published name
   requires one `mode=bootstrap` run with the protected `CRATES_IO_TOKEN`, then
-  registration for OIDC.
+  registration for OIDC. Because Cargo publishes the workspace as one train, a
+  release containing any never-published name uses bootstrap authentication for
+  that whole run; tag-triggered releases derive this choice from live registry
+  state and return to OIDC once every name is registered.
 - Confirm every publishable crate at the exact version, the sparse-index poll,
   install smoke, GitHub release, CLI archives, and checksums.
 - Publishing is non-atomic and irreversible. If a train stops after partial
@@ -74,8 +89,8 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   Select `publish_wasm`, `publish_napi`, and `publish_plugins` deliberately.
 - Inspect packed names, versions, repository URLs, native optional-dependency
   names, and the five NAPI target artifacts before setting `dry_run=false`.
-- `@omena/wasm` and `@omena/napi` use Trusted Publishing where configured.
-  First-publish platform packages and build-tool packages use the protected
+- `@omena/wasm`, `@omena/napi`, and the established NAPI platform packages use
+  Trusted Publishing. First-publish build-tool packages use the protected
   `NPM_AUTO_TOKEN`; all uploads include npm provenance.
 - Confirm `@omena/napi` declares every published platform package. An immutable
   main package with an incomplete optional-dependency map requires a new
@@ -125,9 +140,10 @@ in README, CHANGELOG, release notes, and registry descriptions.
   workspace/paradigm RFC as complete without separate product evidence.
 - Automation and testkit surfaces are release-framed only when their fixture
   grammar, schema, known-failure policy, and failure modes are gated.
-- Cargo crate versioning stays on the gradual `0.2.x` line for this release
-  chapter. Do not publish or describe a Cargo `1.0.0` API-freeze line until its
-  evidence exists.
+- Cargo crate versioning stays on the gradual `0.x` line. Breaking public
+  contracts advance the minor version; compatible fixes may advance the patch.
+  Do not publish or describe a Cargo `1.0.0` API-freeze line until a train-wide
+  public API freeze artifact and review exist.
 
 `pnpm check:release-m5-class-value-universe-matrix` is the release-facing
 fixture matrix for the issue #61 Finding-D slice. It verifies CSS Modules finite

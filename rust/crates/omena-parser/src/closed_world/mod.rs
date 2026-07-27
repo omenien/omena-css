@@ -188,6 +188,42 @@ mod tests {
     }
 
     #[test]
+    fn module_qualified_ownership_digest_distinguishes_symbol_partitions() -> Result<(), String> {
+        let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/app.css"));
+        let dependency = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/dependency.css"));
+        let first = ClosedWorldBundleV0::try_from_linked_modules(
+            vec![app.clone()],
+            vec![
+                ClosedWorldLinkedModuleV0::new(app.clone())
+                    .with_dependency(dependency.clone())
+                    .with_class_name("shared"),
+                ClosedWorldLinkedModuleV0::new(dependency.clone()),
+            ],
+        )
+        .map_err(|err| format!("{err:?}"))?;
+        let second = ClosedWorldBundleV0::try_from_linked_modules(
+            vec![app.clone()],
+            vec![
+                ClosedWorldLinkedModuleV0::new(app).with_dependency(dependency.clone()),
+                ClosedWorldLinkedModuleV0::new(dependency).with_class_name("shared"),
+            ],
+        )
+        .map_err(|err| format!("{err:?}"))?;
+
+        assert_eq!(first.closure_hash(), second.closure_hash());
+        assert_ne!(
+            first.module_qualified_ownership_digest(),
+            second.module_qualified_ownership_digest()
+        );
+        let serialized = serde_json::to_value(&first).map_err(|err| err.to_string())?;
+        assert!(
+            serialized.get("moduleQualifiedOwnershipDigest").is_none(),
+            "the computed digest must not add a stored wire field"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn closed_world_bitset_reachability_preserves_closure_hash() -> Result<(), String> {
         let app = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/app.css"));
         let tokens = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/tokens.css"));

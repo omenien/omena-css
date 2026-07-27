@@ -232,7 +232,7 @@ fn deferred_style_diagnostics_streaming_reads_committed_cross_file_summary() -> 
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -1088,8 +1088,16 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             selector_name: Some("cachedRoot".to_string()),
             match_kind: SourceSelectorReferenceMatchKind::Exact,
             target_style_uri: Some(style_uri.clone()),
+            surface: SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection,
         }],
         type_fact_targets: Vec::new(),
+        type_fact_target_skipped: vec![omena_query::OmenaQuerySourceTypeFactTargetSkippedFactV0 {
+            byte_span: selector_span,
+            expression_id: "fixture-type-fact-target".to_string(),
+            target_style_uri: Some(style_uri.clone()),
+            reason: "unsupportedExpressionShape",
+        }],
+        type_fact_target_skipped_count: 1,
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: vec![omena_query::OmenaQuerySourceClassValueUniverseEntryV0 {
             plugin_id: "cva-recipe-domain",
@@ -1231,6 +1239,18 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             .len(),
         1,
         "source syntax sidecar must preserve inline style declarations"
+    );
+    assert_eq!(
+        indexed_source.source_syntax_index.selector_references[0].surface,
+        SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection,
+        "source syntax sidecar must preserve selector-reference provenance"
+    );
+    assert_eq!(
+        indexed_source
+            .source_syntax_index
+            .type_fact_target_skipped_count,
+        1,
+        "source syntax sidecar must preserve skipped type-fact observability"
     );
     assert_eq!(
         indexed_source
@@ -1828,7 +1848,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -1884,7 +1904,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -1936,7 +1956,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -1973,7 +1993,7 @@ fn background_workspace_index_delta_diagnostics_recompute_only_changed_style_fac
         crate::diagnostics_scheduler::DiagnosticsScheduleEvent::TextDocument {
             uri: app_uri.clone(),
             is_close: false,
-            content_changed: true,
+            content_changed: false,
         },
     );
     assert_eq!(
@@ -2063,7 +2083,7 @@ fn workspace_index_follow_up_wave_count_stays_within_baseline() -> TestResult {
         std::io::Error::other("workspace-index result did not schedule external SIF refresh")
     })?;
     // One settle window admits exactly one refresh tide: the lane is drained
-    // and in flight, so a second prepare must be a no-op (rfcs#111 I1).
+    // and in flight, so a second prepare must be a no-op.
     let refresh_revision_delta: u64 =
         if prepare_deferred_external_sif_refresh_job(&mut state).is_some() {
             2
@@ -2935,6 +2955,10 @@ fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> 
         !published_after_config_change.contains(&source_uri),
         "never-opened indexed source documents must not receive publishDiagnostics after config changes: {published_after_config_change:?}"
     );
+    assert!(
+        published_after_config_change.contains(&style_uri),
+        "the indexed style payload must be delivered before the duplicate-open check: {published_after_config_change:?}"
+    );
 
     let open_style_outputs = handle_lsp_message_outputs(
         &mut state,
@@ -2953,8 +2977,8 @@ fn indexed_source_files_do_not_receive_style_change_diagnostics_until_open() -> 
     );
     let published_uris = published_diagnostics_uris(open_style_outputs.as_slice());
     assert!(
-        published_uris.contains(&style_uri),
-        "style open should publish diagnostics for the opened style document: {published_uris:?}"
+        !published_uris.contains(&style_uri),
+        "style open must not redeliver diagnostics already published by the config refresh: {published_uris:?}"
     );
     assert!(
         !published_uris.contains(&source_uri),
@@ -3068,6 +3092,7 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
                 selector_name: Some("ghost".to_string()),
                 match_kind: SourceSelectorReferenceMatchKind::Exact,
                 target_style_uri: Some(style_uri.clone()),
+                surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
             },
             SourceSelectorReferenceFact {
                 byte_span: ParserByteSpanV0 {
@@ -3077,6 +3102,7 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
                 selector_name: Some("buttonPrimary".to_string()),
                 match_kind: SourceSelectorReferenceMatchKind::Exact,
                 target_style_uri: Some(style_uri.clone()),
+                surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
             },
             SourceSelectorReferenceFact {
                 byte_span: ParserByteSpanV0 {
@@ -3086,6 +3112,7 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
                 selector_name: Some("lost".to_string()),
                 match_kind: SourceSelectorReferenceMatchKind::Prefix,
                 target_style_uri: Some(style_uri.clone()),
+                surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
             },
             SourceSelectorReferenceFact {
                 byte_span: ParserByteSpanV0 {
@@ -3095,9 +3122,12 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
                 selector_name: Some("emptyGhost".to_string()),
                 match_kind: SourceSelectorReferenceMatchKind::Prefix,
                 target_style_uri: Some(style_uri.clone()),
+                surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
             },
         ],
         type_fact_targets: Vec::new(),
+        type_fact_target_skipped: Vec::new(),
+        type_fact_target_skipped_count: 0,
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: Vec::new(),
         domain_class_references: Vec::new(),
@@ -3229,8 +3259,11 @@ fn persisted_source_syntax_sidecar_feeds_unused_selector_diagnostics_without_rep
             selector_name: Some("cachedRoot".to_string()),
             match_kind: SourceSelectorReferenceMatchKind::Exact,
             target_style_uri: Some(style_uri.clone()),
+            surface: SourceSelectorReferenceSurface::OmenaQuerySourceSyntaxIndex,
         }],
         type_fact_targets: Vec::new(),
+        type_fact_target_skipped: Vec::new(),
+        type_fact_target_skipped_count: 0,
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: Vec::new(),
         domain_class_references: Vec::new(),

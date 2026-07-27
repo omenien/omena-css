@@ -1,6 +1,6 @@
 # Architecture
 
-Last code-level revisit: 2026-07-19.
+Last code-level revisit: 2026-07-24.
 
 omena-css has one architectural problem: CSS-family facts, source-language
 bindings, diagnostics, transforms, and editor features must answer the same
@@ -30,7 +30,7 @@ consumption. It is not a second semantic authority.
 ## Crate Families
 
 `rust/omena-product-path-matrix.json` is the machine-checked role inventory. Its
-current product path spans 41 crates; names are grouped here by responsibility,
+current product path spans 42 crates; names are grouped here by responsibility,
 not by dependency order.
 
 Syntax, identity, and fact authority:
@@ -51,7 +51,7 @@ Transform, build, and editor runtime:
 
 - `omena-transform-cst`, `omena-transform-passes`, `omena-transform-target`
 - `omena-transform-print`, `omena-transform-egg`, `omena-bundler`
-- `omena-lsp-server`
+- `omena-reactive`, `omena-lsp-server`
 
 Shipped entry points and bindings:
 
@@ -177,12 +177,18 @@ under revision/coalescing rules. A stale worker cannot overwrite a newer edit,
 and a read view cannot become a live mutable-host escape hatch. These are
 correctness properties first and latency optimizations second.
 
+Session hosting follows the same contract: `omena-query` is the single semantic
+authority, and the resident `omenad` process is an optional transport that is
+never a second engine and never mandatory. Session identity is the workspace
+root plus the resolved-config digest, and snapshot-named requests fail closed
+when the snapshot is stale.
+
 Workspace routing, crate ownership, and wire ownership are documented in these
 gate-backed maps:
 
-- [Workspace session routing](docs/workspace-session-routing.md)
-- [Crate boundary review](docs/governance/crate-boundary-review.md)
-- [Engine V2 contract IDL decisions](docs/engine-v2-contract-idl-decisions.md)
+- [Workspace session routing](docs/internals/workspace-session-routing.md)
+- [Crate boundary review](CONTRIBUTING.md#proposing-a-new-crate-boundary)
+- [Engine V2 contract IDL decisions](server/engine-core-ts/src/contracts/engine-v2-contract-idl-decisions.md)
 
 ## Invariants As Absence
 

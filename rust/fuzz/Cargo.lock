@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "omena-abstract-value"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-evidence-graph",
  "omena-incremental",
@@ -289,15 +289,17 @@ dependencies = [
 
 [[package]]
 name = "omena-cascade"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-refinement-trait",
+ "omena-syntax",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
 name = "omena-cascade-proof"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "blake3",
  "omena-cascade",
@@ -309,7 +311,7 @@ dependencies = [
 
 [[package]]
 name = "omena-cross-file-summary"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-abstract-value",
  "serde",
@@ -328,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "omena-engine-input-producers"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-abstract-value",
  "serde",
@@ -337,14 +339,14 @@ dependencies = [
 
 [[package]]
 name = "omena-evidence-graph"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "omena-incremental"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-cascade",
  "omena-evidence-graph",
@@ -354,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "omena-interner"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-syntax",
  "salsa",
@@ -363,11 +365,11 @@ dependencies = [
 
 [[package]]
 name = "omena-meta-macros"
-version = "0.2.1"
+version = "0.3.0"
 
 [[package]]
 name = "omena-parser"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "cstree",
  "omena-interner",
@@ -379,24 +381,23 @@ dependencies = [
 
 [[package]]
 name = "omena-refinement-trait"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "omena-resolver"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-engine-input-producers",
- "omena-testkit",
  "serde",
  "serde_json",
 ]
 
 [[package]]
 name = "omena-scss-eval"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "cstree",
  "omena-abstract-value",
@@ -411,7 +412,7 @@ dependencies = [
 
 [[package]]
 name = "omena-semantic"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-cascade",
  "omena-cross-file-summary",
@@ -427,7 +428,7 @@ dependencies = [
 
 [[package]]
 name = "omena-spec-audit"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-meta-macros",
  "serde",
@@ -436,22 +437,14 @@ dependencies = [
 
 [[package]]
 name = "omena-syntax"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "cstree",
 ]
 
 [[package]]
-name = "omena-testkit"
-version = "0.2.1"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "omena-transform-cst"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-cascade-proof",
  "omena-evidence-graph",
@@ -462,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "omena-transform-passes"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "blake3",
  "cstree",
@@ -483,7 +476,7 @@ dependencies = [
 
 [[package]]
 name = "omena-value-lattice"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "omena-parser",
  "omena-syntax",
@@ -577,9 +570,9 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "salsa"
-version = "0.28.0"
+version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63ad5919b18c2deaf18921fffd5c84d6e41416d1ef80b6b541d629aa30ce8556"
+checksum = "a14fdadbf856222e731756d7fdbdf193a7abf8fdab009bb45f48671a42719a84"
 dependencies = [
  "boxcar",
  "crossbeam-queue",
@@ -602,19 +595,19 @@ dependencies = [
 
 [[package]]
 name = "salsa-macro-rules"
-version = "0.28.0"
+version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d50068b1f8b1ac7567a4a70eb6cc15daa9dc997b73a6b5aa3248dd960755cddb"
+checksum = "50d7dc08ba69b9aedfa61dfc4d65548ae42c0d8b90bbd62cd121776920841bcf"
 
 [[package]]
 name = "salsa-macros"
-version = "0.28.0"
+version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b26cb1c61fc424f7ff36e0606491429f58d1738bb0917cd999d680baae0c52c"
+checksum = "ec5c48c5a4a53a6e2be9762f56566f1325d4394c011c00b3ea86ba2d13411e71"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -625,9 +618,9 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "serde"
-version = "1.0.228"
+version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
  "serde_derive",
@@ -635,29 +628,29 @@ dependencies = [
 
 [[package]]
 name = "serde_core"
-version = "1.0.228"
+version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+checksum = "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.228"
+version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
+checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 3.0.3",
 ]
 
 [[package]]
 name = "serde_json"
-version = "1.0.150"
+version = "1.0.151"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
+checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
 dependencies = [
  "indexmap",
  "itoa",
@@ -700,6 +693,17 @@ name = "syn"
 version = "2.0.117"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e665b8803e7b1d2a727f4023456bbbbe74da67099c585258af0ad9c5013b9b99"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
+name = "syn"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
 dependencies = [
  "proc-macro2",
  "quote",

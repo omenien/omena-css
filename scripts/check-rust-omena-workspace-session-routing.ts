@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const routing = read("docs/workspace-session-routing.md");
+const routing = read("docs/internals/workspace-session-routing.md");
 const schema = read("rust/crates/omena-cli/src/config/schema.rs");
 const daemon = read("rust/crates/omena-cli/src/daemon.rs");
 const napi = read("rust/crates/omena-napi/src/sdk_workspace.rs");

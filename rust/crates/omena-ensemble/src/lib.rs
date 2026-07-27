@@ -5,8 +5,8 @@
 //! graph an input (rather than reaching into `omena-query`) leaves the crate a DAG
 //! leaf, so the real query/LSP diagnostic path can depend on it without a cycle.
 //!
-//! claim_level: product-wired cross-file consistency hint substrate, not a
-//! default product decision mechanism.
+//! claim_level: lab-only cross-file consistency hint substrate, not a default
+//! product decision mechanism.
 
 pub mod types;
 

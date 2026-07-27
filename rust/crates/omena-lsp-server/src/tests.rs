@@ -296,7 +296,8 @@ fn admitted_document_identity_comparisons_do_not_recanonicalize_paths() -> TestR
     let real_uri = raw_test_file_uri(real_style.as_path());
     let linked_uri = raw_test_file_uri(linked_style.as_path());
 
-    crate::protocol::reset_file_uri_identity_cache_for_test();
+    let _cache_measurement_guard =
+        crate::protocol::file_uri_identity_cache_measurement_guard_for_test();
     let mut state = LspShellState::default();
     for uri in [linked_uri.as_str(), real_uri.as_str()] {
         handle_lsp_message(
@@ -458,7 +459,8 @@ fn workspace_wave_document_admission_keeps_canonicalize_syscalls_linear() -> Tes
         uris.push(raw_test_file_uri(path.as_path()));
     }
 
-    crate::protocol::reset_file_uri_identity_cache_for_test();
+    let _cache_measurement_guard =
+        crate::protocol::file_uri_identity_cache_measurement_guard_for_test();
     let mut state = LspShellState::default();
     let resolution_inputs = resolution_inputs_for_workspace_uri(&state, None);
     for uri in uris.iter().take(12) {

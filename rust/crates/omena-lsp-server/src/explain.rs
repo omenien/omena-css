@@ -261,12 +261,15 @@ fn invalid_explain_request(message: &'static str) -> Value {
 }
 
 #[cfg(test)]
-static HOVER_EGRESS_PROJECTION_COUNT: std::sync::atomic::AtomicUsize =
-    std::sync::atomic::AtomicUsize::new(0);
+std::thread_local! {
+    static HOVER_EGRESS_PROJECTION_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
+}
 
 #[cfg(test)]
 fn record_hover_egress_projection() {
-    HOVER_EGRESS_PROJECTION_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    HOVER_EGRESS_PROJECTION_COUNT.with(|count| count.set(count.get().saturating_add(1)));
 }
 
 #[cfg(not(test))]
@@ -274,5 +277,5 @@ fn record_hover_egress_projection() {}
 
 #[cfg(test)]
 pub(crate) fn hover_egress_projection_count() -> usize {
-    HOVER_EGRESS_PROJECTION_COUNT.load(std::sync::atomic::Ordering::Relaxed)
+    HOVER_EGRESS_PROJECTION_COUNT.with(std::cell::Cell::get)
 }

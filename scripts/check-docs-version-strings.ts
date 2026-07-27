@@ -100,12 +100,15 @@ function lintCurrentStateProse(relativePath: string, source: string): void {
 
     for (const match of line.matchAll(/\b([0-9]+\.[0-9]+\.[0-9]+)\b/gu)) {
       const version = match[1]!;
-      const extensionClaim =
-        relativePath === "README.md" ||
-        relativePath === "docs/vscode-extension.md" ||
-        /\b(?:extension|VS Code|release|current|stable core|version)\b/iu.test(line);
       const workspaceClaim =
         /\b(?:crate|Cargo|crates\.io|omena-lsp-server|workspace version)\b/iu.test(line);
+      const explicitExtensionClaim =
+        relativePath === "README.md" ||
+        relativePath === "docs/vscode-extension.md" ||
+        /\b(?:extension|VS Code|stable core)\b/iu.test(line);
+      const extensionClaim =
+        explicitExtensionClaim ||
+        (!workspaceClaim && /\b(?:release|current|version)\b/iu.test(line));
       if (extensionClaim && formerExtensionVersions.has(version)) {
         diagnostics.push(
           `${relativePath}:${index + 1} uses former extension version ${version} in a current-state claim`,

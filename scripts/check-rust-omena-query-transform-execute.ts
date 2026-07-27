@@ -1,5 +1,53 @@
-import { spawnSync } from "node:child_process";
+import {
+  spawnSync as spawnSyncProcess,
+  type SpawnSyncOptionsWithStringEncoding,
+  type SpawnSyncReturns,
+} from "node:child_process";
 import { strict as assert } from "node:assert";
+import { existsSync } from "node:fs";
+import path from "node:path";
+
+const runnerExecutable = path.resolve(
+  process.cwd(),
+  process.env.CARGO_TARGET_DIR ?? "rust/target",
+  "debug",
+  process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner",
+);
+
+function ensureRunnerExecutable(): void {
+  if (existsSync(runnerExecutable)) return;
+
+  const build = spawnSyncProcess(
+    "cargo",
+    ["build", "--manifest-path", "rust/Cargo.toml", "-p", "engine-shadow-runner"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: "inherit",
+    },
+  );
+  assert.equal(build.status, 0, build.error?.message ?? "engine-shadow-runner build failed");
+}
+
+function spawnSync(
+  command: string,
+  args: readonly string[],
+  options: SpawnSyncOptionsWithStringEncoding,
+): SpawnSyncReturns<string> {
+  assert.equal(command, "cargo", "transform execution checks must use the governed runner");
+  const separatorIndex = args.indexOf("--");
+  assert.ok(separatorIndex >= 0, "runner invocation must include a Cargo argument separator");
+  const mode = args[separatorIndex + 1];
+  assert.ok(
+    mode === "transform-execute" ||
+      mode === "consumer-build-style-source" ||
+      mode === "consumer-build-style-sources",
+    `unsupported engine-shadow-runner mode: ${mode ?? "missing"}`,
+  );
+
+  ensureRunnerExecutable();
+  return spawnSyncProcess(runnerExecutable, [mode], options);
+}
 
 interface TransformExecuteSummaryV0 {
   readonly schemaVersion: string;

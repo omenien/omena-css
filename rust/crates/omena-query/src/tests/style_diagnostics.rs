@@ -477,6 +477,9 @@ fn workspace_cascade_diagnostics_join_runtime_state_scenarios_and_inline_overrid
     color: green;
   }
 }
+@supports not (display: grid) {
+  .btn { color: orange; }
+}
 "#
         .to_string(),
     }];
@@ -525,6 +528,11 @@ export function App() {
         runtime_state.confidence_tier_within_modeled_environment,
         "conditionalDefiniteWithinModeledEnvironment"
     );
+    assert_eq!(runtime_state.result_certainty(), "conditionalIndeterminate");
+    assert_eq!(
+        runtime_state.result_certainty_within_modeled_environment(),
+        "conditionalIndeterminateWithinModeledEnvironment"
+    );
     let serialized_runtime_state =
         serde_json::to_value(runtime_state).map_err(|_| "serialize runtime state")?;
     assert_eq!(
@@ -534,6 +542,39 @@ export function App() {
     assert_eq!(
         serialized_runtime_state["confidenceTierWithinModeledEnvironment"],
         "conditionalDefiniteWithinModeledEnvironment"
+    );
+    assert_eq!(
+        serialized_runtime_state["resultCertainty"],
+        "conditionalIndeterminate"
+    );
+    assert_eq!(
+        serialized_runtime_state["resultCertaintyWithinModeledEnvironment"],
+        "conditionalIndeterminateWithinModeledEnvironment"
+    );
+    assert_eq!(
+        serialized_runtime_state
+            .as_object()
+            .ok_or("runtime state object")?
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec![
+            "schemaVersion",
+            "product",
+            "selector",
+            "selectorClassNames",
+            "propertyName",
+            "scenarioJoinKind",
+            "confidenceTier",
+            "confidenceTierWithinModeledEnvironment",
+            "resultCertainty",
+            "resultCertaintyWithinModeledEnvironment",
+            "staticBoundary",
+            "driverSummaries",
+            "scenarios",
+            "staticConditionPruning",
+            "inlineStyleOverrides",
+        ]
     );
     assert!(
         runtime_state
@@ -592,6 +633,130 @@ export function App() {
     );
     assert!(!runtime_state.static_boundary.tracks_class_list_mutation);
     Ok(())
+}
+
+#[test]
+fn runtime_state_payload_preserves_unknown_complex_selector_activation() -> Result<(), &'static str>
+{
+    let runtime_state = runtime_state_payload_for_unreachable_declaration(
+        ".b { color: blue; color: navy; }\n.a:hover .b { color: red; }",
+    )?;
+
+    assert_eq!(runtime_state["confidenceTier"], "staticDefinite");
+    assert_eq!(runtime_state["resultCertainty"], "staticUnknown");
+    assert_eq!(
+        runtime_state["resultCertaintyWithinModeledEnvironment"],
+        "staticUnknownWithinModeledEnvironment"
+    );
+    let scenarios = runtime_state["scenarios"]
+        .as_array()
+        .ok_or("runtime state scenarios")?;
+    let unknown_scenario = scenarios
+        .iter()
+        .find(|scenario| {
+            scenario["unknownActivationDeclarationIds"]
+                .as_array()
+                .is_some_and(|ids| !ids.is_empty())
+        })
+        .ok_or("Unknown activation scenario")?;
+    let unknown_ids = unknown_scenario["unknownActivationDeclarationIds"]
+        .as_array()
+        .ok_or("Unknown activation declaration IDs")?;
+    let declaration_ids = unknown_scenario["declarationIds"]
+        .as_array()
+        .ok_or("scenario declaration IDs")?;
+    assert!(
+        unknown_ids
+            .iter()
+            .all(|unknown_id| declaration_ids.contains(unknown_id)),
+        "Unknown activations must remain members of the scenario universe: {runtime_state}"
+    );
+    assert!(
+        declaration_ids
+            .iter()
+            .all(|declaration_id| !declaration_id.as_str().is_some_and(|id| id.contains('\0'))),
+        "internal activation markers must not cross the JSON boundary: {runtime_state}"
+    );
+    assert_eq!(
+        unknown_scenario
+            .as_object()
+            .ok_or("Unknown activation scenario object")?
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec![
+            "scenarioKind",
+            "conditionContext",
+            "declarationIds",
+            "unknownActivationDeclarationIds",
+            "propertyValueNarrowing",
+        ],
+        "Unknown activation schema names and order must remain exact"
+    );
+    assert!(
+        scenarios
+            .iter()
+            .all(|scenario| scenario["winnerValue"] != "navy"),
+        "Unknown activation must forbid the previous definite winner: {runtime_state}"
+    );
+    Ok(())
+}
+
+#[test]
+fn runtime_state_payload_separates_static_result_certainty() -> Result<(), &'static str> {
+    let runtime_state = runtime_state_payload_for_unreachable_declaration(
+        ":is(.target, :unknown(.fallback)) { color: red; color: blue; }",
+    )?;
+
+    assert_eq!(runtime_state["confidenceTier"], "staticDefinite");
+    assert_eq!(runtime_state["resultCertainty"], "staticIndeterminate");
+    assert_eq!(
+        runtime_state["resultCertaintyWithinModeledEnvironment"],
+        "staticIndeterminateWithinModeledEnvironment"
+    );
+    let scenarios = runtime_state["scenarios"]
+        .as_array()
+        .ok_or("runtime state scenarios")?;
+    assert!(
+        scenarios
+            .iter()
+            .all(|scenario| scenario["winnerDeclarationId"].is_null()),
+        "inexact specificity must not claim a winner: {runtime_state}"
+    );
+    assert!(
+        scenarios
+            .iter()
+            .all(|scenario| scenario.get("unknownActivationDeclarationIds").is_none()),
+        "parse-successful inexact specificity is Indeterminate, not Unknown: {runtime_state}"
+    );
+    Ok(())
+}
+
+fn runtime_state_payload_for_unreachable_declaration(
+    source: &str,
+) -> Result<serde_json::Value, &'static str> {
+    let target_style_path = "file:///workspace/src/RuntimeState.module.scss";
+    let style_sources = [OmenaQueryStyleSourceInputV0 {
+        style_path: target_style_path.to_string(),
+        style_source: source.to_string(),
+    }];
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_style_path,
+        style_sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .ok_or("runtime state scenario evidence")?;
+
+    serde_json::to_value(runtime_state).map_err(|_| "serialize runtime state")
 }
 
 #[test]
@@ -1386,6 +1551,14 @@ fn lab_backed_style_diagnostics_keep_serialized_contract() -> Result<(), &'stati
         r#",{"code":"rgFlowRelevantOperator","severity":"hint","message":"RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.","provenance":["omena-query-checker-orchestrator.rg-flow-gate","omena-checker.rg-flow-rules","omena-query.cascade-checker","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
         r#",{"code":"circularVar","severity":"warning","message":"Custom property dependency graph contains a cycle.","provenance":["omena-query-checker-orchestrator.cascade-gate","omena-checker.cascade-rules","omena-query.cascade-checker","omena-query-checker-orchestrator.rg-flow-gate","omena-checker.rg-flow-rules","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.categorical-gate","omena-checker.categorical-rules","omena-categorical.cascade-primitive-role-functor","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
         r#",{"code":"replicaEnsembleInconsistency","severity":"hint","message":"Replica-ensemble cross-file consistency hint found inconsistent cascade outcomes; this is not a default product decision mechanism.","provenance":["omena-query-checker-orchestrator.replica-ensemble-gate","omena-checker.replica-ensemble-rules","omena-ensemble.cross-file-inconsistency-report","omena-query.cross-file-replica-ensemble","omena-ensemble.cross-file-inconsistency-report","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}]"#,
+    )
+    .replace(
+        "omena-smt.backend.stub",
+        if cfg!(feature = "smt-z3") {
+            "omena-smt.backend.z3"
+        } else {
+            "omena-smt.backend.stub"
+        },
     );
     assert_eq!(actual, expected);
     Ok(())
@@ -3082,8 +3255,8 @@ fn style_diagnostics_external_sif_mode_classifies_stale_boundary() -> Result<(),
 #[test]
 fn style_diagnostics_strictness_sigil_strict_escalates_missing_boundary_to_error()
 -> Result<(), &'static str> {
-    // RFC 0004 #28 / #35: `// @omena-strict: strict` escalates a Missing boundary's severity
-    // from the default `warning` to `error`, while leaving the code/message intact.
+    // Strict mode escalates a missing external boundary from warning to error
+    // while preserving the diagnostic code and message.
     let strict_sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "/tmp/App.module.scss".to_string(),
         style_source: r#"// @omena-strict: strict
@@ -3409,6 +3582,72 @@ export function App() {
 }
 
 #[test]
+fn complete_empty_source_corpus_reports_unused_selectors() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.css".to_string(),
+        style_source: ".unused { color: red; }".to_string(),
+    }];
+    let resolution_inputs = crate::OmenaQueryStyleResolutionInputsV0::default();
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_complete_source_corpus(
+        "/workspace/src/App.module.css",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+        crate::OmenaQueryExternalModuleModeV0::Ignored,
+        &[],
+        &resolution_inputs,
+    )
+    .ok_or("workspace style diagnostics")?;
+
+    assert_eq!(
+        unused_selector_messages(&diagnostics),
+        vec!["Selector '.unused' is declared but never used."]
+    );
+    Ok(())
+}
+
+#[test]
+#[cfg(feature = "salsa-memo")]
+fn committed_selector_preserves_complete_empty_source_corpus() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.css".to_string(),
+        style_source: ".unused { color: red; }".to_string(),
+    }];
+    let resolution_inputs = crate::OmenaQueryStyleResolutionInputsV0::default();
+    let mut host = crate::OmenaQueryStyleMemoHostV0::new();
+    let incomplete_selector = host
+        .workspace_revision_selector(sources.as_slice(), &[], &[], &[], &resolution_inputs)
+        .ok_or("incomplete committed selector")?;
+    let incomplete_revision = incomplete_selector.revision();
+    let incomplete_diagnostics = incomplete_selector
+        .workspace_style_diagnostics("/workspace/src/App.module.css")
+        .ok_or("incomplete workspace style diagnostics")?;
+    assert!(unused_selector_messages(&incomplete_diagnostics).is_empty());
+
+    let selector = host
+        .workspace_revision_selector_with_complete_source_corpus(
+            sources.as_slice(),
+            &[],
+            &[],
+            &[],
+            &resolution_inputs,
+        )
+        .ok_or("committed selector")?;
+    assert_eq!(selector.revision().value, incomplete_revision.value + 1);
+    let diagnostics = selector
+        .workspace_style_diagnostics("/workspace/src/App.module.css")
+        .ok_or("workspace style diagnostics")?;
+
+    assert_eq!(
+        unused_selector_messages(&diagnostics),
+        vec!["Selector '.unused' is declared but never used."]
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_unused_selector_consumes_precomputed_source_syntax_index()
 -> Result<(), &'static str> {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
@@ -3440,8 +3679,11 @@ fn style_diagnostics_unused_selector_consumes_precomputed_source_syntax_index()
                 selector_name: Some("used".to_string()),
                 match_kind: OmenaQuerySourceSelectorReferenceMatchKindV0::Exact,
                 target_style_uri: Some("/workspace/src/App.module.css".to_string()),
+                surface: Default::default(),
             }],
             type_fact_targets: Vec::new(),
+            type_fact_target_skipped: Vec::new(),
+            type_fact_target_skipped_count: 0,
             type_fact_provider_unavailable: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
@@ -3492,6 +3734,8 @@ fn style_diagnostics_unused_selector_falls_back_when_source_syntax_index_is_empt
             inline_style_declarations: Vec::new(),
             selector_references: Vec::new(),
             type_fact_targets: Vec::new(),
+            type_fact_target_skipped: Vec::new(),
+            type_fact_target_skipped_count: 0,
             type_fact_provider_unavailable: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
@@ -3554,6 +3798,8 @@ fn style_diagnostics_unused_selector_consumes_precomputed_style_property_accesse
             inline_style_declarations: Vec::new(),
             selector_references: Vec::new(),
             type_fact_targets: Vec::new(),
+            type_fact_target_skipped: Vec::new(),
+            type_fact_target_skipped_count: 0,
             type_fact_provider_unavailable: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
@@ -3630,6 +3876,8 @@ fn style_diagnostics_unused_selector_consumes_provider_fixture_property_accesses
             inline_style_declarations: Vec::new(),
             selector_references: Vec::new(),
             type_fact_targets: Vec::new(),
+            type_fact_target_skipped: Vec::new(),
+            type_fact_target_skipped_count: 0,
             type_fact_provider_unavailable: Vec::new(),
             class_value_universes: Vec::new(),
             domain_class_references: Vec::new(),
@@ -4407,10 +4655,9 @@ fn missing_extend_target_workspace_resolves_class_through_transitive_forward()
     Ok(())
 }
 
-// rfcs#59 (residual sibling of rfcs#54): an `@extend` whose target placeholder lives in a partial
-// reachable ONLY through a tsconfig-aliased `@use` must NOT fire once the workspace's path
-// mappings are threaded into the extend-target reachability walk — while a target declared
-// nowhere in the closure still fires in the same file (no blanket suppression).
+// A placeholder reachable only through a tsconfig-aliased `@use` must not
+// produce an `@extend` error once path mappings reach the dependency walk.
+// A target absent from the whole closure must still report in the same file.
 #[test]
 fn missing_extend_target_workspace_resolves_placeholder_behind_tsconfig_alias()
 -> Result<(), &'static str> {

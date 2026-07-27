@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildAffectedCheckPlan } from "../affected";
 import {
@@ -96,7 +96,7 @@ function runProbeCommand(parsed: ParsedArgs): void {
     console.log(renderGateCommands(gate, []).map(formatCommandDisplay).join("\n"));
     return;
   }
-  process.exit(executeGate(gate, [], new Set<string>()));
+  process.exit(executeGate(gate, [], new Set<string>(), new Set<string>()));
 }
 
 function printAffectedChecks(parsed: ParsedArgs): void {
@@ -240,7 +240,7 @@ async function runTarget(parsed: ParsedArgs, bundleOnly: boolean): Promise<void>
     return;
   }
 
-  process.exit(executeGate(gate, parsed.extraArgs, new Set<string>()));
+  process.exit(executeGate(gate, parsed.extraArgs, new Set<string>(), new Set<string>()));
 }
 
 interface CheckResult {
@@ -269,6 +269,7 @@ async function runWithSummary(
   extraArgs: readonly string[],
   shard: string | null = null,
 ): Promise<never> {
+  const summaryStartedAt = performance.now();
   const isCI = Boolean(process.env.GITHUB_ACTIONS || process.env.CI);
   const isGitHub = Boolean(process.env.GITHUB_ACTIONS);
   const memberSpecs = getReferencedTargetSpecs(gate);
@@ -303,10 +304,14 @@ async function runWithSummary(
   }
 
   const results: CheckResult[] = [];
+  // Reuse only dependencies from fully successful members so a failed gate is never
+  // hidden by the summary runner's cross-member deduplication.
+  const completed = new Set<string>();
   for (const targetSpec of members) {
     const member = resolveTarget(targetSpec.target);
     const memberArgs = getDepExtraArgs(gate, targetSpec.args ?? [], extraArgs);
-    const commands = renderGateCommands(member, memberArgs);
+    const memberCompleted = new Set(completed);
+    const commands = renderGateCommands(member, memberArgs, memberCompleted);
     const start = performance.now();
     let status: "pass" | "fail" = "pass";
     let output = "";
@@ -325,6 +330,11 @@ async function runWithSummary(
         break;
       }
     }
+    if (status === "pass") {
+      for (const executionKey of memberCompleted) {
+        completed.add(executionKey);
+      }
+    }
     const result: CheckResult = {
       status,
       title: member.id,
@@ -336,7 +346,8 @@ async function runWithSummary(
   }
 
   renderSummaryTable(gate.id, results);
-  writeSummaryArtifact(gate.id, results);
+  writeSummaryArtifact(gate.id, shard, results, Math.round(performance.now() - summaryStartedAt));
+  appendGitHubStepSummary(gate.id, shard, results);
   const failed = results.filter((result) => result.status === "fail");
   if (isGitHub) {
     let annotated = 0;
@@ -459,16 +470,73 @@ function renderSummaryTable(bundleId: string, results: readonly CheckResult[]): 
   console.log(`${tally}  ${dim(`(${results.length} gates, ${formatDuration(total)})`)}`);
 }
 
-function writeSummaryArtifact(bundleId: string, results: readonly CheckResult[]): void {
-  const artifactPath = process.env.OMENA_CHECK_SUMMARY_JSON;
+function writeSummaryArtifact(
+  bundleId: string,
+  shard: string | null,
+  results: readonly CheckResult[],
+  wallDurationMs: number,
+): void {
+  const artifactPath =
+    process.env.OMENA_CHECK_SUMMARY_JSON ??
+    (process.env.GITHUB_ACTIONS
+      ? path.join(
+          manifest.rootDir,
+          ".omena-ci",
+          `check-summary-${sanitizeArtifactSegment(bundleId)}${shard ? `-${sanitizeArtifactSegment(shard)}` : ""}.json`,
+        )
+      : null);
   if (!artifactPath) {
     return;
   }
+  mkdirSync(path.dirname(artifactPath), { recursive: true });
   const payload = {
+    schemaVersion: "1",
     bundle: bundleId,
+    shard,
+    generatedAt: new Date().toISOString(),
+    gitSha: process.env.GITHUB_SHA ?? null,
+    runId: process.env.GITHUB_RUN_ID ?? null,
+    wallDurationMs,
+    cumulativeGateDurationMs: results.reduce((sum, result) => sum + result.durationMs, 0),
+    passedCount: results.filter((result) => result.status === "pass").length,
+    failedCount: results.filter((result) => result.status === "fail").length,
     results: results.map(({ status, title, durationMs }) => ({ status, title, durationMs })),
   };
   writeFileSync(artifactPath, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function appendGitHubStepSummary(
+  bundleId: string,
+  shard: string | null,
+  results: readonly CheckResult[],
+): void {
+  const stepSummaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (!stepSummaryPath) return;
+
+  const passed = results.filter((result) => result.status === "pass").length;
+  const rows = results
+    .map(
+      (result) =>
+        `| ${result.status === "pass" ? "PASS" : "FAIL"} | \`${result.title}\` | ${formatDuration(result.durationMs)} |`,
+    )
+    .join("\n");
+  appendFileSync(
+    stepSummaryPath,
+    [
+      `## ${bundleId}${shard ? ` / ${shard}` : ""}`,
+      "",
+      `Passed ${passed}/${results.length} gates.`,
+      "",
+      "| Result | Gate | Duration |",
+      "| --- | --- | ---: |",
+      rows,
+      "",
+    ].join("\n"),
+  );
+}
+
+function sanitizeArtifactSegment(value: string): string {
+  return value.replaceAll(/[^A-Za-z0-9._-]+/g, "-").replaceAll(/^-+|-+$/g, "");
 }
 
 function printPlan(parsed: ParsedArgs): void {
@@ -499,7 +567,16 @@ interface RunnableCommand {
   readonly display: readonly string[];
 }
 
-function executeGate(gate: CheckGate, extraArgs: readonly string[], stack: Set<string>): number {
+function executeGate(
+  gate: CheckGate,
+  extraArgs: readonly string[],
+  stack: Set<string>,
+  completed: Set<string>,
+): number {
+  const executionKey = gateExecutionKey(gate, extraArgs);
+  if (completed.has(executionKey)) {
+    return 0;
+  }
   if (stack.has(gate.id)) {
     fail(`Declared gate dependency cycle reached "${gate.id}".`);
   }
@@ -523,7 +600,11 @@ function executeGate(gate: CheckGate, extraArgs: readonly string[], stack: Set<s
     if (result.error) {
       console.error(`Failed to start "${command.display[0]}": ${result.error.message}`);
     }
-    return result.status ?? 1;
+    const status = result.status ?? 1;
+    if (status === 0) {
+      completed.add(executionKey);
+    }
+    return status;
   }
 
   if (!gate.referencedTargets || gate.referencedTargets.length === 0) {
@@ -542,6 +623,7 @@ function executeGate(gate: CheckGate, extraArgs: readonly string[], stack: Set<s
       resolveTarget(targetSpec.target),
       getDepExtraArgs(gate, targetSpec.args ?? [], extraArgs),
       stack,
+      completed,
     );
     if (status !== 0) {
       stack.delete(gate.id);
@@ -549,18 +631,31 @@ function executeGate(gate: CheckGate, extraArgs: readonly string[], stack: Set<s
     }
   }
   stack.delete(gate.id);
+  completed.add(executionKey);
   return 0;
 }
 
 function renderGateCommands(
   gate: CheckGate,
   extraArgs: readonly string[],
+  completed: Set<string> = new Set<string>(),
+  stack: Set<string> = new Set<string>(),
 ): readonly RunnableCommand[] {
+  const executionKey = gateExecutionKey(gate, extraArgs);
+  if (completed.has(executionKey)) {
+    return [];
+  }
+  if (stack.has(gate.id)) {
+    fail(`Declared gate dependency cycle reached "${gate.id}".`);
+  }
+
   if (gate.commandParts) {
+    completed.add(executionKey);
     return [directCommand(gate.commandParts, extraArgs)];
   }
 
   if (gate.origin !== "declared") {
+    completed.add(executionKey);
     return [pnpmRunCommand(gate.scriptName, extraArgs)];
   }
 
@@ -570,12 +665,22 @@ function renderGateCommands(
     );
   }
 
-  return getReferencedTargetSpecs(gate).flatMap((targetSpec) =>
+  stack.add(gate.id);
+  const commands = getReferencedTargetSpecs(gate).flatMap((targetSpec) =>
     renderGateCommands(
       resolveTarget(targetSpec.target),
       getDepExtraArgs(gate, targetSpec.args ?? [], extraArgs),
+      completed,
+      stack,
     ),
   );
+  stack.delete(gate.id);
+  completed.add(executionKey);
+  return commands;
+}
+
+function gateExecutionKey(gate: CheckGate, extraArgs: readonly string[]): string {
+  return `${gate.id}\0${JSON.stringify(extraArgs)}`;
 }
 
 function getReferencedTargetSpecs(gate: CheckGate): readonly CheckTargetRef[] {

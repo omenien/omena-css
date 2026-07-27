@@ -24,9 +24,12 @@ export function assertPinnedDartSassVersion(cwd: string): string {
 }
 
 export function runPinnedDartSass(args: readonly string[], cwd: string): DartSassRunResult {
+  const env = { ...process.env, NO_COLOR: "1" };
+  delete env.FORCE_COLOR;
   const result = spawnSync("pnpm", ["exec", "sass", ...args], {
     cwd,
     encoding: "utf8",
+    env,
     maxBuffer: 1024 * 1024 * 16,
   });
   return {
