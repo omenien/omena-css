@@ -2337,7 +2337,7 @@ mod tests {
                 category.missing_syntax_count,
                 category.grammar_defect_count,
             )),
-            Some((815, 810, 5, 0))
+            Some((817, 812, 5, 0))
         );
         assert_eq!(
             (
@@ -2345,7 +2345,7 @@ mod tests {
                 audit.missing_syntax_count,
                 audit.grammar_defect_count,
             ),
-            (1_526, 132, 57)
+            (1_529, 131, 57)
         );
     }
 
