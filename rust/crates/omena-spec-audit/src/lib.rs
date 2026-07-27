@@ -22,9 +22,7 @@ const SPEC_SOURCE_PINS_SOURCE: &str = include_str!("../data/spec-sources.json");
 const OMENA_SPEC_MANIFEST_SOURCE: &str = include_str!("../data/omena-spec-manifest.json");
 const WEBREF_GRAMMAR_SOURCE: &str = include_str!("../data/webref-grammar.json");
 const VALUE_GRAMMAR_OVERRIDES_SOURCE: &str = include_str!("../data/value-grammar-overrides.json");
-const PACKAGE_JSON_SOURCE: &str = include_str!("../../../../package.json");
-const SASS_SPEC_CORPUS_MANIFEST_SOURCE: &str =
-    include_str!("../../omena-diff-test/sass-spec-corpus/manifest.json");
+const ORACLE_SOURCE_LOCK_SOURCE: &str = include_str!("../data/oracle-source-lock.json");
 
 /// Boundary summary for the Stage 1 spec audit substrate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -131,6 +129,29 @@ struct SpecSourcePinV0 {
     #[serde(default)]
     declared_version_source: Option<String>,
     role: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OracleSourceLockV0 {
+    schema_version: String,
+    product: String,
+    npm_packages: BTreeMap<String, OracleNpmPackagePinV0>,
+    sass_spec_archive: OracleRepositoryPinV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OracleNpmPackagePinV0 {
+    version: String,
+    declared_version_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OracleRepositoryPinV0 {
+    pin: String,
+    declared_version_source: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -412,41 +433,50 @@ fn oracle_pin_consistency_is_valid(source_pins: &SpecSourcePinsV0) -> bool {
     let Some(sass_spec_pin) = source_by_name.get("sass-spec-archive") else {
         return false;
     };
-    package_dev_dependency_version("sass").is_some_and(|version| {
-        dart_sass_pin.package == "sass"
-            && dart_sass_pin.version == version
-            && dart_sass_pin.declared_version_source.as_deref()
-                == Some("package.json#devDependencies.sass")
-    }) && package_dev_dependency_version("lightningcss").is_some_and(|version| {
-        lightningcss_pin.package == "lightningcss"
-            && lightningcss_pin.version == version
-            && lightningcss_pin.declared_version_source.as_deref()
-                == Some("package.json#devDependencies.lightningcss")
-    }) && sass_spec_envelope_source_pin().is_some_and(|pin| {
-        sass_spec_pin.repo_pin.as_deref() == Some(pin.as_str())
-            && sass_spec_pin.version == pin.rsplit_once('@').map(|(_, sha)| sha).unwrap_or_default()
-            && sass_spec_pin.declared_version_source.as_deref()
-                == Some("rust/crates/omena-diff-test/sass-spec-corpus/manifest.json#source.pin")
-    })
+    let Some(oracle_source_lock) = oracle_source_lock() else {
+        return false;
+    };
+    if oracle_source_lock.schema_version != "0"
+        || oracle_source_lock.product != "omena-spec-audit.oracle-source-lock"
+    {
+        return false;
+    }
+    oracle_source_lock
+        .npm_packages
+        .get("sass")
+        .is_some_and(|package| {
+            dart_sass_pin.package == "sass"
+                && dart_sass_pin.version == package.version
+                && dart_sass_pin.declared_version_source.as_deref()
+                    == Some(package.declared_version_source.as_str())
+        })
+        && oracle_source_lock
+            .npm_packages
+            .get("lightningcss")
+            .is_some_and(|package| {
+                lightningcss_pin.package == "lightningcss"
+                    && lightningcss_pin.version == package.version
+                    && lightningcss_pin.declared_version_source.as_deref()
+                        == Some(package.declared_version_source.as_str())
+            })
+        && {
+            let repository = &oracle_source_lock.sass_spec_archive;
+            sass_spec_pin.repo_pin.as_deref() == Some(repository.pin.as_str())
+                && sass_spec_pin.version
+                    == repository
+                        .pin
+                        .rsplit_once('@')
+                        .map(|(_, sha)| sha)
+                        .unwrap_or_default()
+                && sass_spec_pin.declared_version_source.as_deref()
+                    == Some(repository.declared_version_source.as_str())
+        }
 }
 
-fn package_dev_dependency_version(package_name: &str) -> Option<String> {
-    let package_json = serde_json::from_str::<serde_json::Value>(PACKAGE_JSON_SOURCE).ok()?;
-    package_json
-        .get("devDependencies")?
-        .get(package_name)?
-        .as_str()
-        .map(str::to_string)
-}
-
-fn sass_spec_envelope_source_pin() -> Option<String> {
-    let manifest =
-        serde_json::from_str::<serde_json::Value>(SASS_SPEC_CORPUS_MANIFEST_SOURCE).ok()?;
-    manifest
-        .get("source")?
-        .get("pin")?
-        .as_str()
-        .map(str::to_string)
+fn oracle_source_lock() -> Option<&'static OracleSourceLockV0> {
+    static LOCK: OnceLock<Option<OracleSourceLockV0>> = OnceLock::new();
+    LOCK.get_or_init(|| serde_json::from_str(ORACLE_SOURCE_LOCK_SOURCE).ok())
+        .as_ref()
 }
 
 fn is_yyyy_mm_dd(value: &str) -> bool {

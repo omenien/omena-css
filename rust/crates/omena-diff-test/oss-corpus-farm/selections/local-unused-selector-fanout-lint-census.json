@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.oss-corpus-farm.selection",
+  "id": "local-unused-selector-fanout-lint-census",
+  "sourceKind": "local-workspace",
+  "workspacePath": "scripts/fixtures/unused-selector-fanout",
+  "includedExtensions": ["css", "json", "tsx"],
+  "selectedFileCount": 201
+}

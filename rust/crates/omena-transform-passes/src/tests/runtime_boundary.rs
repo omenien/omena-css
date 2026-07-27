@@ -1,10 +1,11 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    TransformExecutionContextV0, TransformModuleQualifiedExecutionErrorV0,
-    TransformPassDispatchKindV0, default_transform_pass_registry,
-    execute_transform_passes_incremental_with_database,
+    TransformExecutionContextV0, TransformExecutionPolicyV0,
+    TransformModuleQualifiedExecutionErrorV0, TransformPassDispatchKindV0,
+    default_transform_pass_registry, execute_transform_passes_incremental_with_database,
     execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle,
+    execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle,
     execute_transform_passes_on_source,
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
@@ -17,6 +18,7 @@ use crate::{
     run_transform_fuzz_seed_corpus, summarize_omena_transform_passes_boundary,
     summarize_structural_ir_shadow_equivalence_v0, transform_pass_incremental_graph_input,
 };
+use omena_abstract_value::FactPrecision;
 use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::{
     ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
@@ -862,14 +864,38 @@ fn module_qualified_tree_shake_distinguishes_same_name_owners() -> Result<(), St
     assert_eq!(qualified_shake.module_instance, detached);
     assert_eq!(qualified_shake.removed_count, 2);
 
+    let strict_policy =
+        TransformExecutionPolicyV0::for_profile("strict-verification").unwrap_or_default();
+    let strict_qualified_execution =
+        execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle(
+            source,
+            StyleDialect::Css,
+            &requested,
+            &TransformExecutionContextV0::default(),
+            &bundle,
+            &detached,
+            FactPrecision::Conservative,
+            &strict_policy,
+        )
+        .map_err(|error| format!("strict module execution should be accepted: {error:?}"))?;
     assert_eq!(
-        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+        strict_qualified_execution
+            .strict_policy
+            .profile_id
+            .as_deref(),
+        Some("strict-verification")
+    );
+
+    assert_eq!(
+        execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle(
             source,
             StyleDialect::Css,
             &requested,
             &TransformExecutionContextV0::default(),
             &bundle,
             &unknown,
+            FactPrecision::Conservative,
+            &strict_policy,
         ),
         Err(
             TransformModuleQualifiedExecutionErrorV0::UnknownModuleInstance {

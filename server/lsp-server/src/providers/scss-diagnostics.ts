@@ -26,6 +26,11 @@ import type {
   OmenaQueryStyleDiagnosticV0Json,
   OmenaQueryStyleDiagnosticsForFileV0Json,
 } from "../../../engine-host-node/src/query-diagnostics-idl.generated";
+import {
+  collectSelectedQueryWorkspaceInputs,
+  deriveSelectedQuerySourceCorpusComplete,
+  type SelectedQuerySourceDocumentInput,
+} from "../../../engine-host-node/src/selected-query-workspace-inputs";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 
@@ -33,6 +38,8 @@ type RuntimeStyleDiagnosticsDeps = Partial<
   Pick<
     ProviderDeps,
     | "analysisCache"
+    | "buildStyleDocument"
+    | "readOpenDocumentText"
     | "readStyleFile"
     | "styleDocumentForPath"
     | "typeResolver"
@@ -46,16 +53,12 @@ type RuntimeStyleDiagnosticsDeps = Partial<
   readonly styleSemanticGraphCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphCache"];
   readonly styleSemanticGraphBatchOutputCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphBatchOutputCache"];
   readonly selectorUsagePayloadCache?: StyleDiagnosticsQueryOptions["selectorUsagePayloadCache"];
-  readonly sourceDocuments?: readonly QuerySourceDocumentInputV0[];
+  readonly sourceDocuments?: readonly SelectedQuerySourceDocumentInput[];
+  readonly completeSourcePathEnumeration?: readonly string[];
   readonly externalMode?: "ignored" | "sif";
   readonly externalSifs?: readonly QueryExternalSifInputV0[];
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 };
-
-interface QuerySourceDocumentInputV0 {
-  readonly sourcePath: string;
-  readonly sourceSource: string;
-}
 
 /**
  * Compute "unused selector" diagnostics for a single SCSS module file.
@@ -190,19 +193,57 @@ function resolveQueryOwnedStyleDiagnostics(
   if (!runJson) return null;
   const styleSource = runtimeDeps.styleSource ?? runtimeDeps.readStyleFile?.(args.scssPath);
   if (!styleSource) return null;
+  const sourceCorpus = {
+    documents: runtimeDeps.sourceDocuments ?? [],
+    completeSourcePathEnumeration: runtimeDeps.completeSourcePathEnumeration ?? null,
+  };
+  const workspaceInputs =
+    runtimeDeps.aliasResolver &&
+    runtimeDeps.buildStyleDocument &&
+    runtimeDeps.readStyleFile &&
+    runtimeDeps.styleDocumentForPath &&
+    runtimeDeps.workspaceRoot
+      ? collectSelectedQueryWorkspaceInputs(
+          [
+            {
+              stylePath: args.scssPath,
+              styleSource,
+              styleDocument: args.styleDocument,
+            },
+          ],
+          {
+            aliasResolver: runtimeDeps.aliasResolver,
+            buildStyleDocument: runtimeDeps.buildStyleDocument,
+            readStyleFile: runtimeDeps.readStyleFile,
+            styleDocumentForPath: runtimeDeps.styleDocumentForPath,
+            workspaceRoot: runtimeDeps.workspaceRoot,
+            ...(runtimeDeps.readOpenDocumentText
+              ? { readOpenDocumentText: runtimeDeps.readOpenDocumentText }
+              : {}),
+          },
+          args.scssPath,
+          sourceCorpus,
+        )
+      : {
+          styles: [{ stylePath: args.scssPath, styleSource }],
+          packageManifests: [],
+          sourceCorpusComplete: deriveSelectedQuerySourceCorpusComplete(sourceCorpus),
+          resolutionInputs: {
+            packageManifests: [],
+            tsconfigPathMappings: [],
+            bundlerPathMappings: [],
+          },
+        };
 
   return runJson<OmenaQueryStyleDiagnosticsForFileV0Json>(
     SELECTED_QUERY_RUNNER_COMMANDS.styleDiagnosticsForFile,
     {
       targetStylePath: args.scssPath,
-      styles: [
-        {
-          stylePath: args.scssPath,
-          styleSource,
-        },
-      ],
-      sourceDocuments: runtimeDeps.sourceDocuments ?? [],
-      packageManifests: [],
+      styles: workspaceInputs.styles,
+      sourceDocuments: sourceCorpus.documents,
+      packageManifests: workspaceInputs.packageManifests,
+      resolutionInputs: workspaceInputs.resolutionInputs,
+      sourceCorpusComplete: workspaceInputs.sourceCorpusComplete,
       classnameTransform: runtimeDeps.settings?.scss.classnameTransform,
       // Omit external* entirely when no SIFs are supplied so the engine wire
       // defaults to today's `Ignored` + empty-SIF behaviour (#32).

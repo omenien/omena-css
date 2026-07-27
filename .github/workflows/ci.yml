@@ -19,29 +19,90 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  preflight:
     # omena-ci-tier: verify
+    # omena-ci-required: false
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - run: pnpm omena-check doctor
+      - run: pnpm omena-check run tooling/orchestrator-inventory
+
+  verify-core:
+    # omena-ci-tier: verify
+    # omena-ci-required: false
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/check
-      - run: pnpm omena-check doctor
-      - run: pnpm omena-check run tooling/orchestrator-inventory
+      - run: pnpm omena-check bundle contract/engine-v2-contract-idl
+      - run: pnpm omena-check run workspace/backend-typecheck-smoke
+
+  verify-docs:
+    # omena-ci-tier: verify
+    # omena-ci-required: false
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
       - run: pnpm omena-check run docs/reference-surface
       - run: pnpm omena-check run docs/readme-example
       - run: pnpm omena-check run docs/version-strings
+      - run: pnpm omena-check run docs/version-governance
       - run: pnpm omena-check run docs/publication-material
-      - run: pnpm omena-check bundle contract/engine-v2-contract-idl
-      - run: pnpm omena-check run workspace/backend-typecheck-smoke
+
+  verify-native-linux:
+    # omena-ci-tier: verify
+    # omena-ci-required: false
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build/omena-napi
       - run: pnpm omena-check run contract/type-fact-backend-parity
       - run: pnpm omena-check run test/test
+      - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: omena-napi-linux-x64
+          path: rust/crates/omena-napi/pkg/
+          retention-days: 1
+          if-no-files-found: error
+
+  build-output:
+    # omena-ci-tier: verify
+    # omena-ci-required: false
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -50,9 +111,29 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  verify:
+    # omena-ci-required: true
+    needs:
+      - preflight
+      - verify-core
+      - verify-docs
+      - verify-native-linux
+      - build-output
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node ./scripts/check-ci-required-results.mjs
+        env:
+          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
+
   protocol-matrix:
     # omena-ci-tier: protocol
-    # Linux protocol coverage comes from verify's test/test; matrix runs the OS-sensitive legs.
+    # omena-ci-required: true
+    needs: preflight
     strategy:
       fail-fast: false
       matrix:
@@ -60,29 +141,58 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build/omena-napi
       - run: pnpm omena-check run test/protocol
+      - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform
 
   native-runner-matrix:
-    # omena-ci-tier: native
+    # omena-ci-required: true
+    needs: preflight
+    permissions:
+      contents: read
     uses: ./.github/workflows/_build-native-binaries.yml
 
-  rust-workspace:
+  rust-static:
     # omena-ci-tier: rust-workspace
+    # omena-ci-required: false
+    needs: preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
     env:
       READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/workspace
+
+  rust-contracts:
+    # omena-ci-tier: rust-workspace
+    # omena-ci-required: false
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run rust/omena-reactive/contract
+      - run: pnpm omena-check run rust/omena-lsp-server/tide-sole-authority
+      - run: pnpm omena-check run rust/omena-lsp-server/reactive-shadow-parity
       - run: pnpm omena-check run rust/omena-cascade/property-metadata
       - run: pnpm omena-check run rust/omena-transform-cst/observation-census
       - run: pnpm omena-check run rust/transform-winner-equality-audit
@@ -91,30 +201,158 @@ jobs:
       - run: pnpm omena-check run rust/omena-cli-postcss-compat
       - run: pnpm omena-check run rust/omena-query/transform-differential
       - run: pnpm omena-check run rust/omena-transform-target/boundary
-      - run: pnpm omena-check run rust/product-test-execution
+
+  rust-product-test-plan:
+    # omena-ci-tier: rust-workspace
+    # omena-ci-required: false
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
       - run: pnpm omena-check run rust/product-test-coverage-classguard
+
+  rust-product-test-crates:
+    # omena-ci-tier: rust-workspace
+    # omena-ci-required: false
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        product-shard: [workspace, differential, benchmarks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run rust/product-test-execution -- ${{ matrix.product-shard }}
+
+  rust-product-test-contracts:
+    # omena-ci-tier: rust-workspace
+    # omena-ci-required: false
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        contract-shard: [api-surface, structural-shadow, rest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - name: Cache Rust API tools
+        id: rust-api-tools-cache
+        if: matrix.contract-shard == 'api-surface'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin/cargo-public-api
+            ~/.cargo/bin/cargo-semver-checks
+          key: rust-api-tools-${{ runner.os }}-${{ runner.arch }}-public-api-0.52.0-semver-checks-0.48.0
+      - name: Install Rust API tools
+        if: matrix.contract-shard == 'api-surface' && steps.rust-api-tools-cache.outputs.cache-hit != 'true'
+        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        with:
+          tool: cargo-public-api@0.52.0,cargo-semver-checks@0.48.0
+      - run: pnpm omena-check bundle rust/product-test-contracts --summary --shard=${{ matrix.contract-shard }}
+
+  rust-product-tests:
+    # omena-ci-tier: rust-workspace
+    # omena-ci-required: false
+    needs:
+      - rust-product-test-plan
+      - rust-product-test-crates
+      - rust-product-test-contracts
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node ./scripts/check-ci-required-results.mjs
+        env:
+          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
+
+  rust-workspace:
+    # omena-ci-required: true
+    needs:
+      - rust-static
+      - rust-contracts
+      - rust-product-tests
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node ./scripts/check-ci-required-results.mjs
+        env:
+          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
 
   resolver-path-identity-advisory:
     # omena-ci-tier: none
+    # omena-ci-required: false
+    needs: preflight
     runs-on: windows-latest
     continue-on-error: true
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: cargo test --manifest-path rust/Cargo.toml -p omena-testkit path_identity
 
-  benchmark-gates:
+  benchmark-contracts:
     # omena-ci-tier: verify
+    # omena-ci-required: false
+    needs: preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      OMENA_Z5_COMPLEXITY_SLOPE_REPORT: .omena-ci/z5-complexity-slope-report.json
-      OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run rust/benchmark/ci-reachability
+      - run: pnpm omena-check run rust/benchmark/emitted-css-golden-gate
+      - run: pnpm omena-check run rust/benchmark/headline-axis
+      - run: pnpm omena-check run rust/benchmark/transform-relex-baseline
+      - run: pnpm omena-check run rust/z5-parser-product-cutover
+      - run: pnpm omena-check run rust/z5-perf-per-file-invariant
+
+  benchmark-instructions:
+    # omena-ci-tier: verify
+    # omena-ci-required: false
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
@@ -123,41 +361,78 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y valgrind
           valgrind --version
-      - run: pnpm omena-check run rust/benchmark/ci-reachability
-      - run: pnpm omena-check run rust/benchmark/emitted-css-golden-gate
-      - run: pnpm omena-check run rust/benchmark/headline-axis
-      - run: pnpm omena-check run rust/benchmark/transform-relex-baseline
-      - run: pnpm omena-check run rust/z5-parser-product-cutover
       - run: pnpm omena-check run rust/z5-perf-baseline
-      - run: pnpm omena-check run rust/z5-perf-per-file-invariant
-      - run: pnpm omena-check run rust/z5-perf-complexity-slope
-      - run: pnpm omena-check run rust/streaming-ifds-relocation-gate-bound
       - run: pnpm omena-check run rust/z5-perf-warmup-wave-count
       - run: pnpm omena-check run rust/z5-perf-no-regression
-      - run: pnpm omena-check run rust/bundler-productization-benchmark
 
-  omena-napi-install:
-    # omena-ci-tier: native
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+  benchmark-complexity:
+    # omena-ci-tier: verify
+    # omena-ci-required: false
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OMENA_Z5_COMPLEXITY_SLOPE_REPORT: .omena-ci/z5-complexity-slope-report.json
+      OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run core/build/omena-napi
-      - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valgrind
+          valgrind --version
+      - run: pnpm omena-check run rust/z5-perf-complexity-slope
+      - run: pnpm omena-check run rust/streaming-ifds-relocation-gate-bound
 
-  plugin-consumers:
-    # omena-ci-tier: plugin
+  benchmark-products:
+    # omena-ci-tier: verify
+    # omena-ci-required: false
+    needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run rust/bundler-productization-benchmark
+      - run: pnpm omena-check run rust/omena-reactive/performance
+
+  benchmark-gates:
+    # omena-ci-required: true
+    needs:
+      - benchmark-contracts
+      - benchmark-instructions
+      - benchmark-complexity
+      - benchmark-products
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node ./scripts/check-ci-required-results.mjs
+        env:
+          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
+
+  plugin-consumers:
+    # omena-ci-tier: plugin
+    # omena-ci-required: true
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
@@ -198,63 +473,76 @@ jobs:
           "${chrome}" --version
       - run: pnpm omena-check run plugin/consumers
 
-  closure-fast:
+  closure-fast-shards:
     # omena-ci-tier: closure-fast
+    # omena-ci-required: false
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - rest
+          - query-core
+          - query-transform
+          - query-language
+          - diff-core
+          - diff-wpt
+          - diff-sass
+          - semantic-analysis
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
       READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - name: Run closure-fast gates (rest shard)
-        run: pnpm omena-check run rust/closure-fast --summary --shard=rest
+      - name: Build semantic analysis native prerequisites
+        if: ${{ matrix.shard == 'semantic-analysis' }}
+        run: |
+          cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner
+          pnpm omena-check run core/build/omena-napi
+      - name: Run closure-fast gates (${{ matrix.shard }} shard)
+        run: pnpm omena-check run rust/closure-fast --summary --shard=${{ matrix.shard }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: closure-fast-summary-${{ matrix.shard }}
+          path: .omena-ci/check-summary-*.json
+          retention-days: 14
+          if-no-files-found: warn
 
-  closure-fast-query:
-    # omena-ci-tier: closure-fast
+  closure-fast:
+    # omena-ci-required: true
+    needs: closure-fast-shards
+    if: ${{ always() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      GH_TOKEN: ${{ github.token }}
-      READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ./.github/actions/setup-pnpm
-      - uses: ./.github/actions/cache-rust
-      - uses: ./.github/actions/sync-release-metadata
-      - run: cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner
-      - name: Run closure-fast gates (heavy-query shard)
-        run: pnpm omena-check run rust/closure-fast --summary --shard=heavy-query
-
-  closure-fast-diff-test:
-    # omena-ci-tier: closure-fast
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      GH_TOKEN: ${{ github.token }}
-      READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ./.github/actions/setup-pnpm
-      - uses: ./.github/actions/cache-rust
-      - uses: ./.github/actions/sync-release-metadata
-      - run: cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner
-      - run: pnpm omena-check run core/build/omena-napi
-      - name: Run closure-fast gates (diff-test shard)
-        run: pnpm omena-check run rust/closure-fast --summary --shard=diff-test
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node ./scripts/check-ci-required-results.mjs
+        env:
+          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
 
   extension-host-smoke:
     # omena-ci-tier: extension-host
-    needs: verify
+    # omena-ci-required: true
+    needs:
+      - verify
+      - build-output
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -265,11 +553,17 @@ jobs:
 
   package:
     # omena-ci-tier: package
-    needs: [verify, native-runner-matrix]
+    # omena-ci-required: true
+    needs:
+      - verify
+      - native-runner-matrix
+      - build-output
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -300,3 +594,26 @@ jobs:
           name: vsix
           path: "*.vsix"
           if-no-files-found: error
+
+  ci-required:
+    # omena-ci-required: false
+    needs:
+      - verify
+      - protocol-matrix
+      - native-runner-matrix
+      - rust-workspace
+      - benchmark-gates
+      - plugin-consumers
+      - closure-fast
+      - extension-host-smoke
+      - package
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: node ./scripts/check-ci-required-results.mjs
+        env:
+          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}

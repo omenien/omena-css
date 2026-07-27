@@ -17,10 +17,10 @@ pillar = "theoretical-rigor"
 workspace = true
 
 [dependencies]
-omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.2.1" }
-omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.2.1" }
-omena-parser = { path = "../omena-parser", version = "=0.2.1" }
-omena-syntax = { path = "../omena-syntax", version = "=0.2.1" }
+omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.3.0" }
+omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.3.0" }
+omena-parser = { path = "../omena-parser", version = "=0.3.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }
 serde.workspace = true
 
 [dev-dependencies]

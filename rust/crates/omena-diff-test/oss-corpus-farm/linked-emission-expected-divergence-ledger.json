@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.linked-emission-expected-divergence-ledger",
+  "entries": [
+    {
+      "fixtureId": "dialect-css-import-order",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
+      "witnessDigest": "8b865a6bcf57182d3fc6ae05d61d759f249adcbd9b774778784d3d37fd63ac3a",
+      "justification": "Dependency-first linked emission groups each CSS module and places imported modules before the entry without changing parsed semantics."
+    },
+    {
+      "fixtureId": "dialect-scss-import-order",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
+      "witnessDigest": "df3f166fce73577cc606548b2509b01565945f4d6286cae23303480daba126c7",
+      "justification": "Dependency-first linked emission groups each SCSS module and places imported modules before the entry without changing parsed semantics."
+    },
+    {
+      "fixtureId": "dialect-less-import-order",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
+      "witnessDigest": "e6f27d588eccdcd20cc2be5d644d7eabc82554f4ed71cb0a32278accb6a0ba3a",
+      "justification": "Dependency-first linked emission groups each Less module and places imported modules before the entry without changing parsed semantics."
+    },
+    {
+      "fixtureId": "shared-import-diamond",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": [
+        "globalModuleOrder",
+        "entryInterleaveCollapse",
+        "perModuleGrouping",
+        "sharedImportSingleEmission"
+      ],
+      "witnessDigest": "f8e606334531e6a22cb2a1043438d0e9d0f1bff9fed8ca9d0a314a37dfa978d5",
+      "justification": "The linked path emits the shared dependency once, groups modules, and preserves dependency-first order while the legacy path repeats the shared import."
+    },
+    {
+      "fixtureId": "module-qualified-reachability",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "94a5537879affe5ecd7a025afef0e5feb1880b8f1ed2f650e86f033e31e9796c",
+      "justification": "The linked path restores the dependency-owned selector selected by its own source reference, preserves declarations sharing a live emitted selector token, and removes unrelated dead selectors."
+    },
+    {
+      "fixtureId": "module-qualified-composes-reachability",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "9b74181bcfc0ec9780bfff77511dbbb56f49eec2a95487b6f77877444b2acad0",
+      "justification": "The linked path retains the dependency declaration reached through composes, keeps the dependency-owned live selector, and removes the unrelated dead selector."
+    },
+    {
+      "fixtureId": "element-only-reset-module",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
+      "witnessDigest": "e5450284c568c672ad89ce75d4377b881e1b2dc4a2db7f0c1a851b3090c16b8f",
+      "justification": "The element-only dependency is emitted before its importer according to the declared import order; the remaining byte difference is ASCII whitespace."
+    },
+    {
+      "fixtureId": "bare-layer-statement-module",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
+      "witnessDigest": "2eb69b3c6a6885a0725145b4e517e8dd9814123cf960bda731bf60900d8f8c3e",
+      "justification": "The bare layer statement is emitted before its importer according to the declared import order; the remaining byte difference is ASCII whitespace."
+    },
+    {
+      "fixtureId": "comment-only-module-boundary",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
+      "witnessDigest": "8636e18c2f777a8608ae58708dbfdac09b25d2919cbd868f9c7004083f0baaee",
+      "justification": "The comment-only dependency retains an explicit module boundary and is emitted before its importer; the remaining byte difference is ASCII whitespace."
+    },
+    {
+      "fixtureId": "bundler-productization-corpus",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
+      "witnessDigest": "63557d11e746d2051cdbf9df205c794aa5e7653d6611675dbbdd775aff2ef4c5",
+      "justification": "The bounded product corpus follows dependency-first module grouping while retaining the same parsed semantics as legacy import inlining."
+    }
+  ]
+}

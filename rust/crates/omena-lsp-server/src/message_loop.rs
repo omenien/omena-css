@@ -322,7 +322,7 @@ fn cancelled_request_response(request_id: Value) -> Value {
 pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> Vec<Value> {
     handle_lsp_message_scheduled_outputs(state, message)
         .into_iter()
-        .map(ScheduledLspOutput::into_value)
+        .filter_map(ScheduledLspOutput::into_delivered_value)
         .collect()
 }
 
