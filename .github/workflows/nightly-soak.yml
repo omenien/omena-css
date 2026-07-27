@@ -11,18 +11,57 @@ concurrency:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
-  vite-bundler-host-hmr:
+  native-api:
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build/omena-napi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nightly-omena-napi-linux-x64
+          path: rust/crates/omena-napi/pkg/
+          retention-days: 1
+          if-no-files-found: error
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: nightly-soak / native-api"
+          body: |
+            The shared nightly Linux NAPI build failed.
+          workflow-name: Nightly Soak
+          job-name: native-api
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  vite-bundler-host-hmr:
+    needs: native-api
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nightly-omena-napi-linux-x64
+          path: rust/crates/omena-napi/pkg/
       - name: Resolve Chrome for Vite browser gate
         shell: bash
         run: |
@@ -60,12 +99,16 @@ jobs:
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   sdk-cross-surface-parity:
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/setup-wasm-pack
@@ -83,15 +126,24 @@ jobs:
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   tsgo-operational:
+    needs: native-api
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build
-      - run: pnpm omena-check run core/build/omena-napi
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nightly-omena-napi-linux-x64
+          path: rust/crates/omena-napi/pkg/
       - run: pnpm omena-check run tsgo/release-batch
       - run: pnpm omena-check run tsgo/real-project-corpus
       - run: pnpm omena-check run tsgo/lsp-server-smoke
@@ -108,15 +160,24 @@ jobs:
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   ts7-phase-a:
+    needs: native-api
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build
-      - run: pnpm omena-check run core/build/omena-napi
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nightly-omena-napi-linux-x64
+          path: rust/crates/omena-napi/pkg/
       - run: pnpm omena-check bundle ts7/phase-a/readiness
       - run: pnpm omena-check bundle ts7/phase-a/shadow
       - run: pnpm omena-check run ts7/phase-a/stability
@@ -132,14 +193,23 @@ jobs:
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   selected-query-default:
+    needs: native-api
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run core/build/omena-napi
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nightly-omena-napi-linux-x64
+          path: rust/crates/omena-napi/pkg/
       - run: pnpm omena-check run rust/selected-query/default-candidate
       - name: Escalate scheduled failure
         if: ${{ failure() }}
@@ -153,16 +223,24 @@ jobs:
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   checker-release-gate:
+    needs: native-api
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run core/build/omena-napi
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nightly-omena-napi-linux-x64
+          path: rust/crates/omena-napi/pkg/
       - run: pnpm omena-check run rust/checker/release-gate-shadow
       - name: Escalate scheduled failure
         if: ${{ failure() }}
@@ -176,10 +254,15 @@ jobs:
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   sass-spec-conformance:
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
@@ -199,14 +282,23 @@ jobs:
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   oss-corpus-farm:
+    needs: native-api
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run core/build/omena-napi
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nightly-omena-napi-linux-x64
+          path: rust/crates/omena-napi/pkg/
       - run: pnpm omena-check run rust/oss-corpus-farm
         env:
           OMENA_OSS_CORPUS_CAPTURE_RAW: "1"
@@ -230,13 +322,18 @@ jobs:
           if-no-files-found: ignore
 
   streaming-ifds-settle-soak:
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       OMENA_Z5_COMPLEXITY_SLOPE_REPORT: .omena-ci/z5-complexity-slope-report.json
       OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata

@@ -480,6 +480,13 @@ impl ElementSignature {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SelectorFunctionalPseudoConstraintV0 {
+    pub name: String,
+    pub arguments: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SelectorSignature {
     pub selector: String,
     pub required_tag: Option<String>,
@@ -487,6 +494,7 @@ pub struct SelectorSignature {
     pub required_classes: BTreeSet<String>,
     pub required_attributes: BTreeSet<String>,
     pub required_pseudo_states: BTreeSet<String>,
+    pub functional_pseudo_constraints: Vec<SelectorFunctionalPseudoConstraintV0>,
     pub specificity: Specificity,
     pub specificity_exactness: SpecificityExactnessV0,
 }
@@ -521,6 +529,7 @@ pub struct SelectorMatchWitness {
     pub verdict: SelectorMatchVerdict,
     pub reason: SelectorMatchReason,
     pub specificity: Specificity,
+    pub specificity_exactness: SpecificityExactnessV0,
     pub missing_tag: Option<String>,
     pub missing_id: Option<String>,
     pub missing_classes: BTreeSet<String>,
@@ -537,6 +546,7 @@ impl SelectorMatchWitness {
             verdict: SelectorMatchVerdict::Maybe,
             reason: SelectorMatchReason::UnsupportedSelector,
             specificity: Specificity::ZERO,
+            specificity_exactness: SpecificityExactnessV0::Inexact,
             missing_tag: None,
             missing_id: None,
             missing_classes: BTreeSet::new(),
@@ -645,16 +655,29 @@ pub struct CustomPropertyLeastFixedPointSummaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
+/// Historical compatibility shape for the bounded custom-property computation witness.
+///
+/// New code should prefer [`CustomPropertyBoundedFixedPointComputationWitnessV0`].
+/// The proof-oriented name and fields remain available for 0.x consumers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomPropertyLeastFixedPointProofV0 {
     pub finite_domain: &'static str,
     pub transfer_function: &'static str,
+    #[serde(skip_serializing)]
+    pub bounded_fixed_point_computation_witness: &'static str,
+    /// Compatibility wording; prefer [`Self::monotonic_progress_witness`].
     pub monotone_witness: &'static str,
+    #[serde(skip_serializing)]
+    pub monotonic_progress_witness: &'static str,
     pub iteration_bound_formula: &'static str,
     pub cycle_policy: &'static str,
+    /// Compatibility wording retained alongside the computation-witness fields.
     pub proof_obligations: Vec<&'static str>,
 }
+
+/// Preferred machine-readable name for the bounded custom-property computation witness.
+pub type CustomPropertyBoundedFixedPointComputationWitnessV0 = CustomPropertyLeastFixedPointProofV0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -151,6 +151,7 @@ fn dedupes_watched_style_diagnostics_notifications() {
         }),
     );
 
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
     let outputs = handle_lsp_message_outputs(
         &mut state,
         json!({
@@ -175,7 +176,15 @@ fn dedupes_watched_style_diagnostics_notifications() {
         .filter_map(|value| value.pointer("/params/uri").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert_eq!(published_uris, vec![style_uri, source_uri]);
+    assert!(
+        published_uris.is_empty(),
+        "duplicate watched-file events must not redeliver unchanged diagnostics: {published_uris:?}"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        1,
+        "duplicate watched URIs must still collapse to one dependency refresh"
+    );
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -474,6 +483,371 @@ fn style_text_edit_skips_source_republish_when_module_interface_is_unchanged() {
     );
 }
 
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
+fn disk_backed_style_close_and_identical_reopen_skip_source_fanout() -> TestResult {
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-lsp-style-lifecycle-{}-{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let src_dir = workspace_path.join("src");
+    fs::create_dir_all(src_dir.as_path())?;
+    let style_path = src_dir.join("Widget.module.scss");
+    let style_text = ".root { color: red; }\n";
+    fs::write(style_path.as_path(), style_text)?;
+    let style_uri = path_to_file_uri(style_path.as_path());
+    let source_uris = (0..5)
+        .map(|index| path_to_file_uri(src_dir.join(format!("View{index}.tsx")).as_path()))
+        .collect::<Vec<_>>();
+
+    let mut state = LspShellState::default();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{
+                    "uri": path_to_file_uri(workspace_path.as_path()),
+                    "name": "style-lifecycle",
+                }],
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": style_text,
+                },
+            },
+        }),
+    );
+    for source_uri in &source_uris {
+        let _ = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": "import styles from \"./Widget.module.scss\";\nconst view = <div className={styles.root} />;",
+                    },
+                },
+            }),
+        );
+    }
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let close_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+            },
+        }),
+    );
+    let reopen_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 2,
+                    "text": style_text,
+                },
+            },
+        }),
+    );
+
+    assert_eq!(
+        close_outputs
+            .iter()
+            .find(|output| output.pointer("/params/uri") == Some(&json!(style_uri)))
+            .and_then(|output| output.pointer("/params/diagnostics")),
+        Some(&json!([])),
+        "closing the document must still clear its diagnostics"
+    );
+    assert!(
+        reopen_outputs
+            .iter()
+            .any(|output| output.pointer("/params/uri") == Some(&json!(style_uri))),
+        "reopening the document must publish its own diagnostics"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        0,
+        "a disk-backed byte-identical close and reopen must not republish source dependents"
+    );
+
+    let dirty_text = ".renamed { color: blue; }\n";
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "version": 3,
+                },
+                "contentChanges": [{
+                    "text": dirty_text,
+                }],
+            },
+        }),
+    );
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+            },
+        }),
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        source_uris.len() as u64,
+        "closing a dirty buffer must republish the affected source cone after restoring disk state"
+    );
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 4,
+                    "text": dirty_text,
+                },
+            },
+        }),
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        source_uris.len() as u64,
+        "reopening with a genuinely changed module interface must republish the affected source cone"
+    );
+
+    let _ = fs::remove_dir_all(workspace_path.as_path());
+    Ok(())
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
+fn style_peer_republish_requires_a_module_interface_change() -> TestResult {
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-lsp-style-peer-interface-{}-{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let src_dir = workspace_path.join("src");
+    fs::create_dir_all(src_dir.as_path())?;
+    let consumer_path = src_dir.join("App.module.scss");
+    let partial_path = src_dir.join("_tokens.scss");
+    let consumer_text = "@use \"./tokens\";\n.app { color: tokens.$tone; }\n";
+    let partial_text = "$tone: red;\n";
+    fs::write(consumer_path.as_path(), consumer_text)?;
+    fs::write(partial_path.as_path(), partial_text)?;
+    let consumer_uri = path_to_file_uri(consumer_path.as_path());
+    let partial_uri = path_to_file_uri(partial_path.as_path());
+
+    let mut state = LspShellState::default();
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{
+                    "uri": path_to_file_uri(workspace_path.as_path()),
+                    "name": "style-peer-interface",
+                }],
+            },
+        }),
+    );
+    for (uri, text) in [
+        (consumer_uri.as_str(), consumer_text),
+        (partial_uri.as_str(), partial_text),
+    ] {
+        let _ = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+    }
+
+    crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();
+    crate::diagnostics_scheduler::reset_peer_change_republish_fanout_for_test();
+    let body_only_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": partial_uri,
+                    "version": 2,
+                },
+                "contentChanges": [{
+                    "text": "$tone: blue;\n",
+                }],
+            },
+        }),
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_peer_change_republish_fanout_for_test(),
+        0,
+        "a body-only edit must have zero style-peer fanout"
+    );
+    assert!(
+        !body_only_outputs
+            .iter()
+            .any(|output| output.pointer("/params/uri") == Some(&json!(consumer_uri))),
+        "a body-only partial edit must not republish importer diagnostics"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
+        0,
+        "evaluating the shared interface verdict must not create source fanout without sources"
+    );
+
+    crate::diagnostics_scheduler::reset_peer_change_republish_fanout_for_test();
+    let interface_outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": partial_uri,
+                    "version": 3,
+                },
+                "contentChanges": [{
+                    "text": "$accent: blue;\n",
+                }],
+            },
+        }),
+    );
+    assert!(
+        interface_outputs
+            .iter()
+            .any(|output| output.pointer("/params/uri") == Some(&json!(consumer_uri))),
+        "an interface-affecting partial edit must republish importer diagnostics"
+    );
+    assert!(
+        crate::diagnostics_scheduler::read_peer_change_republish_fanout_for_test() >= 1,
+        "an interface-affecting edit must retain conservative style-peer fanout"
+    );
+    assert!(
+        interface_outputs.iter().any(|output| {
+            output.pointer("/params/uri") == Some(&json!(consumer_uri))
+                && output
+                    .pointer("/params/diagnostics")
+                    .and_then(Value::as_array)
+                    .is_some_and(|diagnostics| {
+                        diagnostics.iter().any(|diagnostic| {
+                            diagnostic.pointer("/code") == Some(&json!("missingSassSymbol"))
+                        })
+                    })
+        }),
+        "removing a referenced Sass variable must refresh the importer with a missing-symbol diagnostic"
+    );
+
+    let _ = fs::remove_dir_all(workspace_path.as_path());
+    Ok(())
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+#[test]
+fn removing_a_style_document_evicts_its_module_interface_projection() {
+    let style_uri = "file:///workspace-style-interface-lifecycle/_tokens.scss";
+    let mut state = LspShellState::default();
+
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": "$tone: red;\n",
+                },
+            },
+        }),
+    );
+    assert!(
+        state
+            .style_module_interface_memo
+            .borrow()
+            .contains_key(style_uri),
+        "opening a style document must record the interface projection used by fanout"
+    );
+
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                },
+            },
+        }),
+    );
+
+    assert!(state.document(style_uri).is_none());
+    assert!(
+        !state
+            .style_module_interface_memo
+            .borrow()
+            .contains_key(style_uri),
+        "a projection must not outlive a document that leaves the server state"
+    );
+}
+
 #[test]
 fn watched_style_change_fails_open_when_dependency_scope_is_unavailable() {
     let workspace_uri = "file:///workspace-source-republish-fail-open";
@@ -535,8 +909,8 @@ fn watched_style_change_fails_open_when_dependency_scope_is_unavailable() {
         .collect::<Vec<_>>();
 
     assert!(
-        published_uris.contains(&source_uri),
-        "source documents must still republish when dependency scope is unavailable: {published_uris:?}"
+        !published_uris.contains(&source_uri),
+        "an unchanged source payload must not be redelivered after the fail-open dependency refresh: {published_uris:?}"
     );
     assert_eq!(
         crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
@@ -654,8 +1028,8 @@ fn watched_style_change_republishes_source_across_symlinked_path_identity() -> T
         .collect::<Vec<_>>();
 
     assert!(
-        published_uris.contains(&source_uri.as_str()),
-        "watched style aliases must preserve dependent source republishing: {published_uris:?}"
+        !published_uris.contains(&source_uri.as_str()),
+        "an alias-resolved refresh must not redeliver an unchanged source payload: {published_uris:?}"
     );
     assert_eq!(
         crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),
@@ -668,7 +1042,7 @@ fn watched_style_change_republishes_source_across_symlinked_path_identity() -> T
 
 #[cfg(feature = "salsa-style-diagnostics")]
 #[test]
-fn style_text_edit_republishes_transitive_source_dependents() {
+fn style_text_edit_refreshes_transitive_source_dependents_without_redundant_delivery() {
     let workspace_uri = "file:///workspace-source-republish-transitive";
     let base_uri = "file:///workspace-source-republish-transitive/src/Base.module.scss";
     let mid_uri = "file:///workspace-source-republish-transitive/src/Mid.module.scss";
@@ -755,8 +1129,8 @@ fn style_text_edit_republishes_transitive_source_dependents() {
         .collect::<Vec<_>>();
 
     assert!(
-        published_uris.contains(&source_uri),
-        "transitive source dependent must be republished: {published_uris:?}"
+        !published_uris.contains(&source_uri),
+        "a transitive source dependent with unchanged diagnostics must not be redelivered: {published_uris:?}"
     );
     assert_eq!(
         crate::diagnostics_scheduler::read_source_change_republish_fanout_for_test(),

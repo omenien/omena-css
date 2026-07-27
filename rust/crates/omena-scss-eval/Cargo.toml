@@ -21,11 +21,11 @@ workspace = true
 
 [dependencies]
 cstree.workspace = true
-omena-abstract-value = { path = "../omena-abstract-value", version = "=0.2.1" }
-omena-cascade = { path = "../omena-cascade", version = "=0.2.1" }
-omena-parser = { path = "../omena-parser", version = "=0.2.1" }
-omena-syntax = { path = "../omena-syntax", version = "=0.2.1" }
-omena-transform-cst = { path = "../omena-transform-cst", version = "=0.2.1" }
-omena-value-lattice = { path = "../omena-value-lattice", version = "=0.2.1" }
+omena-abstract-value = { path = "../omena-abstract-value", version = "=0.3.0" }
+omena-cascade = { path = "../omena-cascade", version = "=0.3.0" }
+omena-parser = { path = "../omena-parser", version = "=0.3.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }
+omena-transform-cst = { path = "../omena-transform-cst", version = "=0.3.0" }
+omena-value-lattice = { path = "../omena-value-lattice", version = "=0.3.0" }
 serde.workspace = true
 serde_json.workspace = true

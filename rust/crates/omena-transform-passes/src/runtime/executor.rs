@@ -165,6 +165,7 @@ struct TransformExecutionRuntimePolicyV0<'a> {
     verification: &'a TransformExecutionPolicyV0,
     semantic_trust_recording: TransformSemanticTrustRecordingV0,
     module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+    retained_class_names: &'a [String],
 }
 
 impl TransformDecisionDraftV0 {
@@ -697,6 +698,7 @@ struct TransformStructuralPassInputV0<'a> {
     context: &'a TransformExecutionContextV0,
     closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
     module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+    module_reachable_class_names: Option<&'a [String]>,
 }
 
 impl TransformStructuralPassInputV0<'_> {
@@ -1144,6 +1146,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_and_policy(
                 verification: execution_policy,
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: None,
+                retained_class_names: &[],
             },
         )
     })
@@ -1206,6 +1209,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bund
                 verification: execution_policy,
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: None,
+                retained_class_names: &[],
             },
         )
     })
@@ -1219,6 +1223,56 @@ pub fn execute_transform_passes_on_module_with_dialect_context_and_closed_world_
     closed_world_bundle: &ClosedWorldBundleV0,
     module_instance: &ModuleInstanceKeyV0,
 ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+    execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle(
+        source,
+        dialect,
+        requested,
+        context,
+        closed_world_bundle,
+        module_instance,
+        classify_transform_reachability_precision(context, true, None),
+        &TransformExecutionPolicyV0::default(),
+    )
+}
+
+// Keep each execution authority explicit at this compatibility boundary.
+#[allow(clippy::too_many_arguments)]
+pub fn execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_instance: &ModuleInstanceKeyV0,
+    reachability_precision: FactPrecision,
+    execution_policy: &TransformExecutionPolicyV0,
+) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+    execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names(
+        source,
+        dialect,
+        requested,
+        context,
+        closed_world_bundle,
+        module_instance,
+        reachability_precision,
+        execution_policy,
+        &[],
+    )
+}
+
+// Keep each execution authority explicit at this compatibility boundary.
+#[allow(clippy::too_many_arguments)]
+pub fn execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_instance: &ModuleInstanceKeyV0,
+    reachability_precision: FactPrecision,
+    execution_policy: &TransformExecutionPolicyV0,
+    retained_class_names: &[String],
+) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
     let Some(module_qualified_symbols) = closed_world_bundle
         .reachability()
         .symbols_for_module(module_instance)
@@ -1229,7 +1283,6 @@ pub fn execute_transform_passes_on_module_with_dialect_context_and_closed_world_
             },
         );
     };
-    let reachability_precision = classify_transform_reachability_precision(context, true, None);
 
     Ok(super::lex_cache::with_transform_lex_cache(|| {
         execute_transform_passes_on_source_with_active_lex_cache(
@@ -1240,9 +1293,10 @@ pub fn execute_transform_passes_on_module_with_dialect_context_and_closed_world_
             Some(closed_world_bundle),
             Some(reachability_precision),
             TransformExecutionRuntimePolicyV0 {
-                verification: &TransformExecutionPolicyV0::default(),
+                verification: execution_policy,
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: Some(module_qualified_symbols),
+                retained_class_names,
             },
         )
     }))
@@ -1266,6 +1320,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
             verification: &TransformExecutionPolicyV0::default(),
             semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
             module_qualified_symbols: None,
+            retained_class_names: &[],
         },
     )
 }
@@ -1289,6 +1344,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_seman
                 verification: &TransformExecutionPolicyV0::default(),
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::OmitForMeasurement,
                 module_qualified_symbols: None,
+                retained_class_names: &[],
             },
         )
     })
@@ -1584,6 +1640,7 @@ fn dispatch_structural_pass(
         context: context.execution,
         closed_world_bundle: context.closed_world_bundle,
         module_qualified_symbols: context.module_qualified_symbols,
+        module_reachable_class_names: context.module_reachable_class_names,
     });
     let span_batches = take_structural_ir_transaction_mutation_span_batches();
     if let Some(mutation_spans) = compose_ir_transaction_mutation_span_batches(
@@ -1602,6 +1659,7 @@ struct TransformStructuralDispatchContextV0<'a> {
     execution: &'a TransformExecutionContextV0,
     closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
     module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+    module_reachable_class_names: Option<&'a [String]>,
     reachability_precision_ceiling: Option<FactPrecision>,
 }
 
@@ -2009,9 +2067,9 @@ fn run_tree_shake_class_structural(
         );
     };
     let dialect = input.dialect;
-    let reachable_class_names = input.module_qualified_symbols.map_or_else(
+    let reachable_class_names = input.module_reachable_class_names.map_or_else(
         || bundle.reachability().class_names().to_vec(),
-        |symbols| symbols.class_names().to_vec(),
+        <[String]>::to_vec,
     );
     let Ok(removals) =
         tree_shake_css_class_rules_in_ir(input.current_ir_mut(), dialect, &reachable_class_names)
@@ -2057,9 +2115,9 @@ fn run_tree_shake_keyframes_structural(
         || bundle.reachability().keyframe_names().to_vec(),
         |symbols| symbols.keyframe_names().to_vec(),
     );
-    let reachable_class_names = input.module_qualified_symbols.map_or_else(
+    let reachable_class_names = input.module_reachable_class_names.map_or_else(
         || bundle.reachability().class_names().to_vec(),
-        |symbols| symbols.class_names().to_vec(),
+        <[String]>::to_vec,
     );
     let Ok(removals) = tree_shake_css_keyframes_in_ir(
         input.current_ir_mut(),
@@ -2113,9 +2171,9 @@ fn run_tree_shake_value_structural(
         || bundle.reachability().keyframe_names().to_vec(),
         |symbols| symbols.keyframe_names().to_vec(),
     );
-    let reachable_class_names = input.module_qualified_symbols.map_or_else(
+    let reachable_class_names = input.module_reachable_class_names.map_or_else(
         || bundle.reachability().class_names().to_vec(),
-        |symbols| symbols.class_names().to_vec(),
+        <[String]>::to_vec,
     );
     let Ok(removals) = tree_shake_css_modules_values_in_ir(
         input.current_ir_mut(),
@@ -2170,9 +2228,9 @@ fn run_tree_shake_custom_property_structural(
         || bundle.reachability().keyframe_names().to_vec(),
         |symbols| symbols.keyframe_names().to_vec(),
     );
-    let reachable_class_names = input.module_qualified_symbols.map_or_else(
+    let reachable_class_names = input.module_reachable_class_names.map_or_else(
         || bundle.reachability().class_names().to_vec(),
-        |symbols| symbols.class_names().to_vec(),
+        <[String]>::to_vec,
     );
     let Ok(removals) = tree_shake_css_custom_properties_in_ir(
         input.current_ir_mut(),
@@ -2232,6 +2290,13 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
     let mut document = TransformExecutionDocumentV0::new(source, dialect);
     let closed_world_bundle = explicit_closed_world_bundle;
     let module_qualified_symbols = runtime_policy.module_qualified_symbols;
+    let module_reachable_class_names = module_qualified_symbols.map(|symbols| {
+        let mut class_names = symbols.class_names().to_vec();
+        class_names.extend(runtime_policy.retained_class_names.iter().cloned());
+        class_names.sort();
+        class_names.dedup();
+        class_names
+    });
     let mut decisions = Vec::new();
     let mut outcomes = Vec::new();
     let mut css_module_evaluation = None;
@@ -2283,6 +2348,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     dialect,
                     closed_world_bundle,
                     module_qualified_symbols,
+                    module_reachable_class_names.as_deref(),
                 )
             })
             .unwrap_or_default();
@@ -2391,6 +2457,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                             execution: context,
                             closed_world_bundle,
                             module_qualified_symbols,
+                            module_reachable_class_names: module_reachable_class_names.as_deref(),
                             reachability_precision_ceiling,
                         },
                     )
@@ -2419,6 +2486,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             let enforcement_context = TransformSemanticPreservationEnforcementContextV0 {
                 closed_world_bundle,
                 module_qualified_symbols,
+                module_reachable_class_names: module_reachable_class_names.as_deref(),
                 projection: &semantic_preservation_projection,
                 mutation_spans: semantic_mutation_spans.as_slice(),
                 cascade_environment: context.cascade_environment.as_ref(),
@@ -2740,6 +2808,7 @@ fn apply_strict_winner_rollback(
 struct TransformSemanticPreservationEnforcementContextV0<'a> {
     closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
     module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+    module_reachable_class_names: Option<&'a [String]>,
     projection: &'a SemanticObservationProjectionV0,
     mutation_spans: &'a [TransformProvenanceMutationSpanV0],
     cascade_environment: Option<&'a crate::model::TransformCascadeEnvironmentV0>,
@@ -2762,6 +2831,7 @@ fn enforce_semantic_preservation_for_dispatch_result(
         document.dialect,
         context.closed_world_bundle,
         context.module_qualified_symbols,
+        context.module_reachable_class_names,
         context.projection,
     );
     let output_scope = input_scope.without_ignored_source_ranges();
@@ -4099,6 +4169,7 @@ mod dispatch_table_tests {
                 context: &context,
                 closed_world_bundle: Some(&bundle),
                 module_qualified_symbols: None,
+                module_reachable_class_names: None,
             });
 
             assert!(
@@ -4136,6 +4207,7 @@ mod dispatch_table_tests {
         let enforcement_context = TransformSemanticPreservationEnforcementContextV0 {
             closed_world_bundle: None,
             module_qualified_symbols: None,
+            module_reachable_class_names: None,
             projection: &SemanticObservationProjectionV0::default(),
             mutation_spans: &[TransformProvenanceMutationSpanV0 {
                 source_span_start: 0,

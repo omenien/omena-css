@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena.fact-precision-production-census",
-  "rawReferenceCount": 117,
+  "rawReferenceCount": 119,
   "productionSiteCount": 20,
   "productionOverrideCount": 14,
   "classifiedSites": [
@@ -767,6 +767,21 @@
         "Unknown": 0
       },
       "occurrenceCount": 1,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
+    },
+    {
+      "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+      "owner": "fn module_qualified_tree_shake_distinguishes_same_name_owners",
+      "lexicalContext": "code",
+      "testOnly": true,
+      "variantCounts": {
+        "Exact": 0,
+        "Conservative": 2,
+        "Heuristic": 0,
+        "Unknown": 0
+      },
+      "occurrenceCount": 2,
       "disposition": "test",
       "authority": "test-only precision expectation or mutation fixture"
     },

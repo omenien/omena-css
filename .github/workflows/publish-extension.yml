@@ -36,12 +36,12 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
   native-runner-matrix:
+    permissions:
+      contents: read
     uses: ./.github/workflows/_build-native-binaries.yml
     with:
       ref: ${{ github.event.inputs.ref }}
@@ -51,8 +51,13 @@ jobs:
     needs: native-runner-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     env:
       RELEASE_CHANNEL: ${{ github.event.inputs.channel }}
+      RELEASE_REF: ${{ github.event.inputs.ref }}
       PUBLISH_MARKETPLACE: ${{ github.event.inputs.publish_marketplace }}
       PUBLISH_OPENVSX: ${{ github.event.inputs.publish_openvsx }}
       OMENA_PACKAGED_RUNNER_MIN_TARGETS: "3"
@@ -62,25 +67,36 @@ jobs:
       OMENA_PACKAGED_LSP_SERVER_MIN_TARGETS: "3"
       OMENA_PACKAGED_LSP_SERVER_REQUIRED_PLATFORMS: linux,darwin,win32
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.inputs.ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/setup-rust-pinned
+      - uses: ./.github/actions/cache-rust
+        with:
+          shared-key: publish-extension-napi
+      # The checked-out release ref can predate this workflow repair. Build its
+      # current NAPI binding before the release script runs tests that require
+      # the Rust source frontend.
+      - name: Build omena-napi for release verification
+        run: pnpm omena-check run core/build/omena-napi
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: engine-shadow-runner-*
           path: .runner-artifacts
       - run: ./scripts/publish-extension.sh
         env:
+          OMENA_RELEASE_NAPI_READY: "true"
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
       - name: Generate SBOM
         run: |
           pnpm dlx @cyclonedx/cyclonedx-npm --ignore-npm-errors --output-format json --output-file sbom.json 2> cyclonedx-npm.log
-          node -e 'const fs = require("node:fs"); const sbom = JSON.parse(fs.readFileSync("sbom.json", "utf8")); const components = sbom.components?.length ?? 0; if (components === 0) throw new Error("Generated SBOM has no components"); console.log(`Generated SBOM: ${components} components`);'
+          node -e 'const fs = require("node:fs"); const sbom = JSON.parse(fs.readFileSync("sbom.json", "utf8")); const components = sbom.components?.length ?? 0; if (components === 0) throw new Error("Generated SBOM has no components"); console.log("Generated SBOM: " + components + " components");'
       - name: Upload release artifacts
         if: github.event.inputs.create_github_release == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: extension-release-${{ github.run_id }}
           path: |
@@ -104,12 +120,14 @@ jobs:
             PRERELEASE=false
             NAME="Omena CSS Modules v${VERSION}"
           fi
-          TARGET_COMMIT="$(git rev-parse "${{ github.event.inputs.ref }}^{commit}")"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
-          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
-          echo "target_commit=${TARGET_COMMIT}" >> "$GITHUB_OUTPUT"
+          TARGET_COMMIT="$(git rev-parse "${RELEASE_REF}^{commit}")"
+          {
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+            echo "prerelease=${PRERELEASE}"
+            echo "name=${NAME}"
+            echo "target_commit=${TARGET_COMMIT}"
+          } >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         if: github.event.inputs.create_github_release == 'true'
         with:

@@ -37,17 +37,19 @@ const packageJson = JSON.parse(read("package.json")) as {
 };
 const changelog = read("CHANGELOG.md");
 const unreleased = extractSection(changelog, "## [Unreleased]");
-const releaseNotes = extractSection(changelog, `## [${packageJson.version}]`);
+const currentReleaseNotes = extractSection(changelog, `## [${packageJson.version}]`);
+const historicalM5ReleaseNotes = extractSection(changelog, "## [5.2.0]");
 const releasing = read("RELEASING.md");
 const cargoToml = read("rust/Cargo.toml");
 const cargoWorkspaceVersion = cargoToml.match(/^version = "([^"]+)"/m)?.[1];
 const publishScript = read("scripts/publish-extension.sh");
+const publishWorkflow = read(".github/workflows/publish-extension.yml");
 
 const M5_AUDIT_TARGET = "release/check/release-m5-api-freeze-audit";
 const M5_AUDIT_SCRIPT = "check:release-m5-api-freeze-audit";
 const M5_CLASS_VALUE_MATRIX_TARGET = "release/check/release-m5-class-value-universe-matrix";
 const M5_CLASS_VALUE_MATRIX_SCRIPT = "check:release-m5-class-value-universe-matrix";
-const LAST_PUBLISHED_EXTENSION_VERSION = "5.1.0";
+const LAST_PUBLISHED_EXTENSION_VERSION = latestFormerReleaseVersion(changelog, packageJson.version);
 
 const dispositionTable: readonly ReleaseDisposition[] = [
   {
@@ -164,6 +166,8 @@ assertReleaseVerifyPlanIncludes(M5_AUDIT_TARGET);
 assertIncludes(read("scripts/package-extension-vsix.ts"), 'copyRequiredFile(".vscodeignore")');
 assertIncludes(publishScript, `pnpm ${M5_CLASS_VALUE_MATRIX_SCRIPT}`);
 assertIncludes(publishScript, `pnpm ${M5_AUDIT_SCRIPT}`);
+assertBefore(publishScript, "core/build/omena-napi", "pnpm test");
+assertBefore(publishWorkflow, "core/build/omena-napi", "./scripts/publish-extension.sh");
 assertIncludes(publishScript, "package-extension-vsix.ts");
 assertIncludes(publishScript, "vsce publish --packagePath");
 assertIncludes(
@@ -172,23 +176,26 @@ assertIncludes(
 );
 assertIncludes(publishScript, "pnpm check:packaged-omena-lsp-server-type-fact-protocol");
 
-assertNoInternalMilestoneJargon(releaseNotes);
-assertIncludes(releaseNotes, "Variant recipe class-value substrate");
-assertIncludes(releaseNotes, "ClassValueUniverseProviderV0");
-assertIncludes(releaseNotes, "vanilla-extract recipes");
-assertIncludes(releaseNotes, "cva phase 1");
-assertIncludes(releaseNotes, "without introducing a\n  public plugin ABI");
-assertIncludes(releaseNotes, "V0 theory contract substrate");
+assertNoInternalMilestoneJargon(currentReleaseNotes);
+assertIncludes(historicalM5ReleaseNotes, "Variant recipe class-value substrate");
+assertIncludes(historicalM5ReleaseNotes, "ClassValueUniverseProviderV0");
+assertIncludes(historicalM5ReleaseNotes, "vanilla-extract recipes");
+assertIncludes(historicalM5ReleaseNotes, "cva phase 1");
+assertIncludes(historicalM5ReleaseNotes, "without introducing a\n  public plugin ABI");
+assertIncludes(historicalM5ReleaseNotes, "V0 theory contract substrate");
 assertIncludes(
-  releaseNotes,
+  historicalM5ReleaseNotes,
   "keeping Datalog host, modal theorem, belief-propagation paper, and safety-margin\n  claims out of public release wording",
 );
-assertIncludes(releaseNotes, "staged research contracts");
-assertIncludes(releaseNotes, "final APIs or completed theory claims");
+assertIncludes(historicalM5ReleaseNotes, "staged research contracts");
+assertIncludes(historicalM5ReleaseNotes, "final APIs or completed theory claims");
 
 assertIncludes(releasing, "Release claim discipline");
-assertIncludes(releasing, "`5.2.0` is the published extension baseline");
-assertIncludes(releasing, "tag `vscode-v5.2.0`");
+assertIncludes(
+  releasing,
+  `\`${LAST_PUBLISHED_EXTENSION_VERSION}\` is the published extension baseline`,
+);
+assertIncludes(releasing, `\`vscode-v${LAST_PUBLISHED_EXTENSION_VERSION}\``);
 assertIncludes(releasing, "must not be reused as closure artifacts");
 assertIncludes(releasing, "Publish Extension` workflow");
 assertIncludes(releasing, "pnpm check:release-m5-api-freeze-audit");
@@ -206,7 +213,7 @@ assertIncludes(
   releasing,
   "Automation and testkit surfaces are release-framed only when their fixture",
 );
-assertIncludes(releasing, "Cargo crate versioning stays on the gradual `0.2.x` line");
+assertIncludes(releasing, "Cargo crate versioning stays on the gradual `0.x` line");
 assertIncludes(releasing, "Do not publish or describe a Cargo `1.0.0` API-freeze line");
 
 assertEvidenceMarkers();
@@ -259,6 +266,14 @@ function assertIncludes(source: string | undefined, marker: string): void {
   assert.ok(source.includes(marker), `missing marker: ${marker}`);
 }
 
+function assertBefore(source: string, prerequisite: string, dependent: string): void {
+  const prerequisiteIndex = source.indexOf(prerequisite);
+  const dependentIndex = source.indexOf(dependent);
+  assert.ok(prerequisiteIndex >= 0, `missing prerequisite marker: ${prerequisite}`);
+  assert.ok(dependentIndex >= 0, `missing dependent marker: ${dependent}`);
+  assert.ok(prerequisiteIndex < dependentIndex, `${prerequisite} must appear before ${dependent}`);
+}
+
 function assertSemver(version: string): void {
   assert.match(version, /^\d+\.\d+\.\d+$/, "extension release version must be stable semver");
 }
@@ -273,6 +288,16 @@ function compareSemver(left: string, right: string): number {
     }
   }
   return 0;
+}
+
+function latestFormerReleaseVersion(source: string, currentVersion: string): string {
+  const versions = [...source.matchAll(/^## \[([0-9]+\.[0-9]+\.[0-9]+)\]/gmu)]
+    .map((match) => match[1]!)
+    .filter((version) => version !== currentVersion)
+    .sort(compareSemver);
+  const latest = versions.at(-1);
+  assert.ok(latest, "CHANGELOG.md must retain at least one former release section");
+  return latest;
 }
 
 function extractSection(source: string, heading: string): string {

@@ -212,6 +212,17 @@
       ]
     },
     {
+      "crate": "omena-reactive",
+      "role": "R1",
+      "surface": "product-runtime",
+      "entrypoints": ["read-only reactive observation graph consumed by the LSP server"],
+      "evidence": [
+        "rust/crates/omena-reactive/src/lib.rs",
+        "rust/crates/omena-lsp-server/Cargo.toml"
+      ],
+      "gates": ["rust/omena-lsp-server/reactive-shadow-parity"]
+    },
+    {
       "crate": "omena-meta-macros",
       "role": "S",
       "surface": "support",

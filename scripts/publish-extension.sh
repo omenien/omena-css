@@ -27,6 +27,9 @@ fi
 pnpm check:release-m5-class-value-universe-matrix
 pnpm check:release-m5-api-freeze-audit
 pnpm check
+if [ "${OMENA_RELEASE_NAPI_READY:-false}" != "true" ]; then
+  pnpm omena-check run core/build/omena-napi
+fi
 pnpm test
 pnpm build
 node ./scripts/merge-engine-shadow-runner-artifacts.mjs

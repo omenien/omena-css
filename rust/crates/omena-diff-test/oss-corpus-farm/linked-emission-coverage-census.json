@@ -1,0 +1,305 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.linked-emission-coverage-census",
+  "coverageScope": "boundedMultiModuleFixtures",
+  "fullCorpusCoverage": false,
+  "populationCount": 15,
+  "coveredShapeCount": 11,
+  "notCoveredShapeCount": 4,
+  "fixtureCount": 12,
+  "moduleCount": 30,
+  "markerObservableModuleCount": 25,
+  "blindSpotModuleCount": 5,
+  "unknownStructuralSelectorCount": 0,
+  "unknownAtRuleCount": 0,
+  "moduleTokenCollisionScope": "boundedFixtureRegressionTripwire",
+  "moduleTokenCollisionCount": 1,
+  "moduleTokenCollisions": [
+    {
+      "fixtureId": "module-qualified-reachability",
+      "emittedToken": "shared",
+      "modulePaths": [
+        "linked-byte/module-qualified-reachability/app.module.css",
+        "linked-byte/module-qualified-reachability/dependency.module.css"
+      ],
+      "originalNames": ["shared"],
+      "observedEmissionPaths": ["importInlineLegacy", "linkedOrder"]
+    }
+  ],
+  "shapes": [
+    {
+      "shapeClass": "bare-layer-statement",
+      "fixtureIds": ["bare-layer-statement-module"]
+    },
+    {
+      "shapeClass": "code-split-entry-closure",
+      "fixtureIds": []
+    },
+    {
+      "shapeClass": "comment-only-module",
+      "fixtureIds": ["comment-only-module-boundary"]
+    },
+    {
+      "shapeClass": "configured-sass-module-instance",
+      "fixtureIds": []
+    },
+    {
+      "shapeClass": "css-import-order",
+      "fixtureIds": ["dialect-css-import-order"]
+    },
+    {
+      "shapeClass": "element-only-reset",
+      "fixtureIds": ["element-only-reset-module"]
+    },
+    {
+      "shapeClass": "empty-module",
+      "fixtureIds": ["empty-module-boundary"]
+    },
+    {
+      "shapeClass": "font-face-only",
+      "fixtureIds": ["font-face-only-module"]
+    },
+    {
+      "shapeClass": "large-product-corpus",
+      "fixtureIds": ["bundler-productization-corpus"]
+    },
+    {
+      "shapeClass": "less-import-order",
+      "fixtureIds": ["dialect-less-import-order"]
+    },
+    {
+      "shapeClass": "module-qualified-reachability",
+      "fixtureIds": ["module-qualified-composes-reachability", "module-qualified-reachability"]
+    },
+    {
+      "shapeClass": "package-export-import",
+      "fixtureIds": []
+    },
+    {
+      "shapeClass": "scss-import-order",
+      "fixtureIds": ["dialect-scss-import-order"]
+    },
+    {
+      "shapeClass": "shared-import-diamond",
+      "fixtureIds": ["shared-import-diamond"]
+    },
+    {
+      "shapeClass": "tsconfig-path-alias-import",
+      "fixtureIds": []
+    }
+  ],
+  "notCovered": [
+    {
+      "shapeClass": "code-split-entry-closure",
+      "reentry": "add multiple bundle entries with independently measured dependency closures"
+    },
+    {
+      "shapeClass": "configured-sass-module-instance",
+      "reentry": "add two configured instances of one Sass module to the differential corpus"
+    },
+    {
+      "shapeClass": "package-export-import",
+      "reentry": "add a linked fixture resolved through package exports"
+    },
+    {
+      "shapeClass": "tsconfig-path-alias-import",
+      "reentry": "add a linked fixture resolved through a tsconfig path mapping"
+    }
+  ],
+  "fixtureObservability": [
+    {
+      "fixtureId": "dialect-css-import-order",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "dialect-scss-import-order",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "dialect-less-import-order",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "shared-import-diamond",
+      "moduleCount": 4,
+      "markerObservableModuleCount": 4,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "module-qualified-reachability",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "module-qualified-composes-reachability",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "element-only-reset-module",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
+      "fixtureId": "bare-layer-statement-module",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
+      "fixtureId": "font-face-only-module",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
+      "fixtureId": "empty-module-boundary",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
+      "fixtureId": "comment-only-module-boundary",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 1,
+      "blindSpotModuleCount": 1
+    },
+    {
+      "fixtureId": "bundler-productization-corpus",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
+      "blindSpotModuleCount": 0
+    }
+  ],
+  "blindSpots": [
+    {
+      "fixtureId": "element-only-reset-module",
+      "modulePath": "linked-byte/element-only-reset-module/reset.css",
+      "shapeClasses": ["element-only-reset"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": ["emissionSelectors"],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "bare-layer-statement-module",
+      "modulePath": "linked-byte/bare-layer-statement-module/layers.css",
+      "shapeClasses": ["bare-layer-statement"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": ["atRules"],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "font-face-only-module",
+      "modulePath": "linked-byte/font-face-only-module/fonts.css",
+      "shapeClasses": ["font-face-only"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": ["atRules"],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "empty-module-boundary",
+      "modulePath": "linked-byte/empty-module-boundary/empty.css",
+      "shapeClasses": ["empty-module"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": [],
+      "outputBytesDiffer": false,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    },
+    {
+      "fixtureId": "comment-only-module-boundary",
+      "modulePath": "linked-byte/comment-only-module-boundary/license.css",
+      "shapeClasses": ["comment-only-module"],
+      "emissionPlanEntryCount": 1,
+      "factCategories": [],
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true
+    }
+  ],
+  "placementWitnesses": [
+    {
+      "witnessId": "element-selector-winner",
+      "selectorlessModulePaths": [
+        "linked-order-witness/element/app.css",
+        "linked-order-witness/element/reset.css"
+      ],
+      "emissionPlanEntryCount": 3,
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true,
+      "importGraphWinner": "red",
+      "legacyWinner": "red",
+      "linkedWinner": "red"
+    },
+    {
+      "witnessId": "element-selector-after-rule-bearing-module",
+      "selectorlessModulePaths": ["linked-order-witness/mixed/reset.css"],
+      "emissionPlanEntryCount": 1,
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true,
+      "importGraphWinner": "red",
+      "legacyWinner": "red",
+      "linkedWinner": "red"
+    },
+    {
+      "witnessId": "path-name-independence",
+      "selectorlessModulePaths": [
+        "linked-order-witness/names/zzz-app.css",
+        "linked-order-witness/names/aaa-reset.css"
+      ],
+      "emissionPlanEntryCount": 3,
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true,
+      "importGraphWinner": "red",
+      "legacyWinner": "red",
+      "linkedWinner": "red"
+    },
+    {
+      "witnessId": "cascade-layer-declaration-order",
+      "selectorlessModulePaths": ["linked-order-witness/layers/layers.css"],
+      "emissionPlanEntryCount": 1,
+      "outputBytesDiffer": true,
+      "markerOrdersAgree": true,
+      "linkedMarkerOrderMatchesAuthority": true,
+      "semanticDifferenceObserved": false,
+      "differenceReasonObserved": true,
+      "importGraphWinner": "blue",
+      "legacyWinner": "blue",
+      "linkedWinner": "blue"
+    }
+  ]
+}

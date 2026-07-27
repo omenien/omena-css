@@ -10,6 +10,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static CANONICALIZE_PATH_CACHE_VERSION: AtomicU64 = AtomicU64::new(0);
 
+#[cfg(test)]
+static CANONICALIZE_PATH_CACHE_MEASUREMENT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 thread_local! {
     static CANONICALIZE_PATH_CACHE: RefCell<CanonicalizePathCache> = const {
         RefCell::new(CanonicalizePathCache {
@@ -28,6 +31,14 @@ struct CanonicalizePathCache {
 }
 
 pub(crate) fn invalidate_file_uri_identity_cache() {
+    #[cfg(test)]
+    let _invalidation_guard = CANONICALIZE_PATH_CACHE_MEASUREMENT_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    invalidate_file_uri_identity_cache_unlocked();
+}
+
+fn invalidate_file_uri_identity_cache_unlocked() {
     let next_version = CANONICALIZE_PATH_CACHE_VERSION
         .fetch_add(1, Ordering::AcqRel)
         .saturating_add(1);
@@ -39,9 +50,14 @@ pub(crate) fn invalidate_file_uri_identity_cache() {
 }
 
 #[cfg(test)]
-pub(crate) fn reset_file_uri_identity_cache_for_test() {
-    invalidate_file_uri_identity_cache();
+pub(crate) fn file_uri_identity_cache_measurement_guard_for_test()
+-> std::sync::MutexGuard<'static, ()> {
+    let guard = CANONICALIZE_PATH_CACHE_MEASUREMENT_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    invalidate_file_uri_identity_cache_unlocked();
     reset_file_uri_identity_canonicalize_syscall_count_for_test();
+    guard
 }
 
 #[cfg(test)]

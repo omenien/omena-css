@@ -38,6 +38,7 @@ const RUST_FAMILIES = [
   "omena-ensemble",
   "omena-parser",
   "omena-query",
+  "omena-reactive",
   "omena-refinement",
   "omena-refinement-trait",
   "omena-rg-flow",
