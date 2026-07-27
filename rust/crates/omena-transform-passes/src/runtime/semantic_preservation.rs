@@ -411,6 +411,7 @@ impl<'a> SemanticObservationScopeV0<'a> {
         dialect: StyleDialect,
         closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
         module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+        module_reachable_class_names: Option<&'a [String]>,
         projection: &'a SemanticObservationProjectionV0,
     ) -> Self {
         match pass {
@@ -418,8 +419,10 @@ impl<'a> SemanticObservationScopeV0<'a> {
             | TransformPassKind::TreeShakeKeyframes
             | TransformPassKind::TreeShakeValue
             | TransformPassKind::TreeShakeCustomProperty => Self::from_parts(
-                module_qualified_symbols
-                    .map(ModuleQualifiedSymbolSetV0::class_names)
+                module_reachable_class_names
+                    .or_else(|| {
+                        module_qualified_symbols.map(ModuleQualifiedSymbolSetV0::class_names)
+                    })
                     .or_else(|| {
                         closed_world_bundle.map(|bundle| bundle.reachability().class_names())
                     }),
@@ -483,14 +486,17 @@ impl SemanticObservationProjectionV0 {
         dialect: StyleDialect,
         closed_world_bundle: Option<&ClosedWorldBundleV0>,
         module_qualified_symbols: Option<&ModuleQualifiedSymbolSetV0>,
+        module_reachable_class_names: Option<&[String]>,
     ) -> Self {
         let Some(bundle) = closed_world_bundle else {
             return Self::default();
         };
-        let reachable_class_names = module_qualified_symbols.map_or_else(
-            || bundle.reachability().class_names(),
-            ModuleQualifiedSymbolSetV0::class_names,
-        );
+        let reachable_class_names = module_reachable_class_names.unwrap_or_else(|| {
+            module_qualified_symbols.map_or_else(
+                || bundle.reachability().class_names(),
+                ModuleQualifiedSymbolSetV0::class_names,
+            )
+        });
         let reachable_keyframe_names = module_qualified_symbols.map_or_else(
             || bundle.reachability().keyframe_names(),
             ModuleQualifiedSymbolSetV0::keyframe_names,

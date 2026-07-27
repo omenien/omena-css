@@ -12,6 +12,10 @@ readme = "README.md"
 [package.metadata.omena]
 role = "R2"
 
+[features]
+default = []
+test-support = []
+
 [lints]
 workspace = true
 

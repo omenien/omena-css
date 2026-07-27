@@ -1,9 +1,10 @@
 use crate::{
-    DiagnosticsPipelineTierPlanV0, LspDeferredDiagnosticsDispatchV0, LspOptimizingTierFeedback,
-    LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
+    DiagnosticsPipelineTierPlanV0, DiagnosticsPublishTierV0, LspDeferredDiagnosticsDispatchV0,
+    LspOptimizingTierFeedback, LspShellState, OPTIMIZING_DIAGNOSTICS_DELAY_MS, ScheduledLspOutput,
     is_resolution_config_document_uri, is_style_document_uri,
     prepare_deferred_source_diagnostics_for_uri, prepare_deferred_style_diagnostics_for_uri,
     protocol::{canonical_file_uri, file_uri_equivalent, file_uri_to_path},
+    reactive_shadow::ReactiveShadowStampsV0,
     resolution_inputs_for_workspace_uri, resolve_document_diagnostics_for_uri,
     resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
 };
@@ -17,7 +18,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 #[cfg(any(test, feature = "test-support"))]
 use std::cell::Cell;
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs;
 
 /// rfcs#61 FIX-1: per peer-recompute walk, the maximum number of style files whose
@@ -25,10 +26,13 @@ use std::fs;
 /// (transitively) imports the changed one. Mirrors the workspace-index budgeting
 /// philosophy so a pathological import graph cannot stall the loop.
 const STYLE_PEER_DISK_WALK_MAX_FILES: usize = 64;
+const STYLE_MODULE_INTERFACE_MEMO_ENTRY_LIMIT: usize = 2_048;
 
 #[cfg(any(test, feature = "test-support"))]
 thread_local! {
     static SOURCE_CHANGE_REPUBLISH_FANOUT: Cell<u64> = const { Cell::new(0) };
+    static PEER_CHANGE_REPUBLISH_FANOUT: Cell<u64> = const { Cell::new(0) };
+    static REACTIVE_SHADOW_TARGET_PERTURBATION: Cell<bool> = const { Cell::new(false) };
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -52,6 +56,33 @@ fn record_source_change_republish_fanout_for_test(count: usize) {
 
 #[cfg(not(any(test, feature = "test-support")))]
 fn record_source_change_republish_fanout_for_test(_count: usize) {}
+
+#[cfg(any(test, feature = "test-support"))]
+#[allow(dead_code)]
+pub(crate) fn reset_peer_change_republish_fanout_for_test() {
+    PEER_CHANGE_REPUBLISH_FANOUT.with(|cell| cell.set(0));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+#[allow(dead_code)]
+pub(crate) fn read_peer_change_republish_fanout_for_test() -> u64 {
+    PEER_CHANGE_REPUBLISH_FANOUT.with(Cell::get)
+}
+
+#[cfg(test)]
+pub(crate) fn set_reactive_shadow_target_perturbation_for_test(enabled: bool) {
+    REACTIVE_SHADOW_TARGET_PERTURBATION.with(|cell| cell.set(enabled));
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn record_peer_change_republish_fanout_for_test(count: usize) {
+    PEER_CHANGE_REPUBLISH_FANOUT.with(|cell| {
+        cell.set(cell.get() + count as u64);
+    });
+}
+
+#[cfg(not(any(test, feature = "test-support")))]
+fn record_peer_change_republish_fanout_for_test(_count: usize) {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -187,7 +218,13 @@ fn run_diagnostics_schedule_effects_with_deferral(
     event: DiagnosticsScheduleEvent,
     enable_deferred_style_diagnostics: bool,
 ) -> DiagnosticsScheduleEffectsV0 {
-    match event {
+    let reactive_shadow_flush_id = state
+        .diagnostics_publish_digest_registry
+        .begin_reactive_shadow_flush(reactive_shadow_stamps(state));
+    let independently_projected_target_uris = reactive_shadow_flush_id
+        .map(|_| independently_project_reactive_shadow_targets(state, &event))
+        .unwrap_or_default();
+    let effects = match event {
         DiagnosticsScheduleEvent::TextDocument {
             uri,
             is_close,
@@ -205,7 +242,131 @@ fn run_diagnostics_schedule_effects_with_deferral(
         DiagnosticsScheduleEvent::ConfigurationChanged | DiagnosticsScheduleEvent::Initialized => {
             diagnostics_for_open_documents(state, enable_deferred_style_diagnostics)
         }
+    };
+    let target_uris = reactive_shadow_target_uris(&effects);
+    state
+        .diagnostics_publish_digest_registry
+        .complete_reactive_shadow_flush(
+            reactive_shadow_flush_id,
+            target_uris,
+            independently_projected_target_uris,
+            reactive_shadow_stamps(state),
+        );
+    effects
+}
+
+fn independently_project_reactive_shadow_targets(
+    state: &LspShellState,
+    event: &DiagnosticsScheduleEvent,
+) -> BTreeSet<String> {
+    match event {
+        DiagnosticsScheduleEvent::TextDocument {
+            uri,
+            is_close: _,
+            content_changed,
+        } => {
+            let mut target_uris = BTreeSet::from([uri.clone()]);
+            if !is_style_document_uri(uri.as_str()) || !content_changed {
+                return target_uris;
+            }
+            let projection = state.document(uri.as_str()).map(|document| {
+                omena_query::summarize_omena_query_module_interface_change_projection(
+                    uri.as_str(),
+                    document.text.as_str(),
+                )
+            });
+            let module_interface_changed = state
+                .diagnostics_publish_digest_registry
+                .reactive_shadow_module_interface_changed(uri.as_str(), projection)
+                .unwrap_or(true);
+            target_uris.extend(source_uris_for_text_style_change_projection(
+                state,
+                uri.as_str(),
+                module_interface_changed,
+            ));
+            if module_interface_changed {
+                target_uris.extend(style_uris_for_style_peer_change_diagnostics(
+                    state,
+                    uri.as_str(),
+                ));
+            }
+            target_uris
+        }
+        DiagnosticsScheduleEvent::WatchedFiles { uris } => {
+            let mut target_uris = BTreeSet::new();
+            for uri in uris {
+                if is_style_document_uri(uri.as_str()) {
+                    target_uris.insert(uri.clone());
+                    target_uris
+                        .extend(source_uris_for_style_change_projection(state, uri.as_str()));
+                    target_uris.extend(style_uris_for_style_peer_change_diagnostics(
+                        state,
+                        uri.as_str(),
+                    ));
+                } else if is_resolution_config_document_uri(uri.as_str()) {
+                    target_uris.extend(document_uris_for_resolution_config_change_diagnostics(
+                        state,
+                        uri.as_str(),
+                    ));
+                }
+            }
+            target_uris
+        }
+        DiagnosticsScheduleEvent::ConfigurationChanged | DiagnosticsScheduleEvent::Initialized => {
+            open_document_uris_for_diagnostics(state)
+                .into_iter()
+                .collect()
+        }
     }
+}
+
+fn reactive_shadow_stamps(state: &LspShellState) -> ReactiveShadowStampsV0 {
+    #[cfg(feature = "salsa-style-diagnostics")]
+    let style_snapshot_revision = state.style_workspace_snapshot_revision_hint.max(1);
+    #[cfg(not(feature = "salsa-style-diagnostics"))]
+    let style_snapshot_revision = state.workspace_index_revision.max(1);
+
+    ReactiveShadowStampsV0 {
+        corpus_revision: state.tide_ledger.epoch(),
+        style_snapshot_revision,
+        demand_generation: state.tide_republish_lane.generation(),
+    }
+}
+
+fn reactive_shadow_target_uris(effects: &DiagnosticsScheduleEffectsV0) -> BTreeSet<String> {
+    let target_uris = effects
+        .outputs
+        .iter()
+        .filter(|output| {
+            output.value.get("method").and_then(Value::as_str)
+                == Some("textDocument/publishDiagnostics")
+        })
+        .filter_map(|output| {
+            output
+                .value
+                .pointer("/params/uri")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .chain(
+            effects
+                .deferred_diagnostics
+                .iter()
+                .map(|dispatch| dispatch.uri.clone()),
+        )
+        .collect::<BTreeSet<_>>();
+    #[cfg(test)]
+    {
+        let mut target_uris = target_uris;
+        REACTIVE_SHADOW_TARGET_PERTURBATION.with(|cell| {
+            if cell.get() {
+                target_uris.insert("file:///workspace/Unplanned.module.scss".to_string());
+            }
+        });
+        target_uris
+    }
+    #[cfg(not(test))]
+    target_uris
 }
 
 fn diagnostics_for_text_document_event(
@@ -217,10 +378,8 @@ fn diagnostics_for_text_document_event(
 ) -> DiagnosticsScheduleEffectsV0 {
     let phase_started = std::time::Instant::now();
     let mut effects = if is_close {
-        state.style_module_interface_memo.borrow_mut().remove(uri);
-        DiagnosticsScheduleEffectsV0::from_outputs(vec![publish_immediate_diagnostics_output(
-            uri,
-            json!([]),
+        DiagnosticsScheduleEffectsV0::from_outputs(vec![publish_diagnostics_clear_output(
+            state, uri,
         )])
     } else if enable_deferred_style_diagnostics
         && let Some(effects) = deferred_diagnostics_for_uri(state, uri)
@@ -246,7 +405,10 @@ fn diagnostics_for_text_document_event(
     // below exist for content changes, and even their scoping pays a
     // committed-selector build on the loop.
     if is_style_document_uri(uri) && content_changed {
-        for source_uri in source_uris_for_text_style_change_diagnostics(state, uri) {
+        let module_interface_changed = style_module_interface_changed_for_text_event(state, uri);
+        for source_uri in
+            source_uris_for_text_style_change_diagnostics(state, uri, module_interface_changed)
+        {
             effects.extend(
                 if enable_deferred_style_diagnostics {
                     deferred_diagnostics_for_uri(state, source_uri.as_str())
@@ -272,7 +434,13 @@ fn diagnostics_for_text_document_event(
             phase_started.elapsed().as_millis()
         );
         let phase_started = std::time::Instant::now();
-        for peer_uri in style_uris_for_style_peer_change_diagnostics(state, uri) {
+        let peer_uris = if module_interface_changed {
+            style_uris_for_style_peer_change_diagnostics(state, uri)
+        } else {
+            Vec::new()
+        };
+        record_peer_change_republish_fanout_for_test(peer_uris.len());
+        for peer_uri in peer_uris {
             effects.extend(
                 if enable_deferred_style_diagnostics {
                     deferred_diagnostics_for_uri(state, peer_uri.as_str())
@@ -474,8 +642,20 @@ pub(crate) fn open_document_uris_for_diagnostics(state: &LspShellState) -> Vec<S
 fn source_uris_for_text_style_change_diagnostics(
     state: &LspShellState,
     style_uri: &str,
+    module_interface_changed: bool,
 ) -> Vec<String> {
-    let source_uris = if style_module_interface_changed_for_text_event(state, style_uri) {
+    let source_uris =
+        source_uris_for_text_style_change_projection(state, style_uri, module_interface_changed);
+    record_source_change_republish_fanout_for_test(source_uris.len());
+    source_uris
+}
+
+fn source_uris_for_text_style_change_projection(
+    state: &LspShellState,
+    style_uri: &str,
+    module_interface_changed: bool,
+) -> Vec<String> {
+    if module_interface_changed {
         let broad_source_uris = state
             .documents
             .values()
@@ -494,9 +674,7 @@ fn source_uris_for_text_style_change_diagnostics(
         scoped_source_republish_uris_for_style_change(state, style_uri, broad_source_uris)
     } else {
         Vec::new()
-    };
-    record_source_change_republish_fanout_for_test(source_uris.len());
-    source_uris
+    }
 }
 
 /// Compare the style document's CURRENT module-interface projection against
@@ -504,12 +682,13 @@ fn source_uris_for_text_style_change_diagnostics(
 /// mean an interface-preserving edit — the transaction commit would report
 /// no `changed_module_interface_paths`, so no open source document's
 /// diagnostics can move. One single-file parse; never a selector build.
-/// First sight of a document (didOpen, post-close reopen) reads as changed.
+/// First sight reads as changed. Disk-backed close keeps the projection for
+/// restored-text comparison; documents removed from state evict it.
 fn style_module_interface_changed_for_text_event(state: &LspShellState, style_uri: &str) -> bool {
     let Some(document) = state.document(style_uri) else {
         return true;
     };
-    let projection = omena_query::summarize_omena_query_module_interface_projection(
+    let projection = omena_query::summarize_omena_query_module_interface_change_projection(
         style_uri,
         document.text.as_str(),
     );
@@ -517,13 +696,44 @@ fn style_module_interface_changed_for_text_event(state: &LspShellState, style_ur
     match memo.get(style_uri) {
         Some(previous) if *previous == projection => false,
         _ => {
-            memo.insert(style_uri.to_string(), projection);
+            insert_style_module_interface_projection(
+                &mut memo,
+                style_uri,
+                projection,
+                STYLE_MODULE_INTERFACE_MEMO_ENTRY_LIMIT,
+            );
             true
         }
     }
 }
 
+fn insert_style_module_interface_projection(
+    memo: &mut BTreeMap<String, omena_query::OmenaQueryModuleInterfaceChangeProjectionV0>,
+    style_uri: &str,
+    projection: omena_query::OmenaQueryModuleInterfaceChangeProjectionV0,
+    entry_limit: usize,
+) {
+    memo.insert(style_uri.to_string(), projection);
+    while memo.len() > entry_limit {
+        let evicted_uri = memo
+            .keys()
+            .find(|candidate| candidate.as_str() != style_uri)
+            .cloned()
+            .or_else(|| memo.keys().next().cloned());
+        let Some(evicted_uri) = evicted_uri else {
+            break;
+        };
+        memo.remove(evicted_uri.as_str());
+    }
+}
+
 fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &str) -> Vec<String> {
+    let source_uris = source_uris_for_style_change_projection(state, style_uri);
+    record_source_change_republish_fanout_for_test(source_uris.len());
+    source_uris
+}
+
+fn source_uris_for_style_change_projection(state: &LspShellState, style_uri: &str) -> Vec<String> {
     let workspace_folder_uri = state
         .document(style_uri)
         .and_then(|document| document.workspace_folder_uri.clone())
@@ -540,9 +750,7 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
         })
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
-    let source_uris = scoped_source_republish_uris_for_style_change(state, style_uri, source_uris);
-    record_source_change_republish_fanout_for_test(source_uris.len());
-    source_uris
+    scoped_source_republish_uris_for_style_change(state, style_uri, source_uris)
 }
 
 /// Keep a source document iff it can DEPEND on the changed style module:
@@ -897,20 +1105,23 @@ pub(crate) fn publish_tiered_diagnostics_notifications(
     let baseline_diagnostics = baseline_diagnostics_for_slice(diagnostics, tier_plan);
     let full_diagnostics = full_diagnostics_for_slice(diagnostics, tier_plan);
 
-    let mut outputs = if baseline_diagnostics.is_empty() && full_diagnostics != baseline_diagnostics
-    {
+    let has_optimizing_transition = full_diagnostics != baseline_diagnostics;
+    let mut outputs = if baseline_diagnostics.is_empty() && has_optimizing_transition {
         Vec::new()
     } else {
-        vec![publish_immediate_diagnostics_output(
+        vec![publish_immediate_tier_diagnostics_output(
+            state,
             uri,
             json!(baseline_diagnostics),
+            DiagnosticsPublishTierV0::Baseline,
+            !has_optimizing_transition,
         )]
     };
-    if full_diagnostics != baseline_diagnostics {
-        outputs.push(ScheduledLspOutput::delayed_coalesced(
-            publish_diagnostics_notification(uri, json!(full_diagnostics)),
-            OPTIMIZING_DIAGNOSTICS_DELAY_MS,
-            diagnostics_coalesce_key(uri),
+    if has_optimizing_transition {
+        outputs.push(publish_delayed_optimizing_diagnostics_output(
+            state,
+            uri,
+            json!(full_diagnostics),
         ));
     }
     outputs
@@ -935,9 +1146,12 @@ fn deferred_diagnostics_for_uri(
     let outputs = if baseline_diagnostics.is_empty() {
         Vec::new()
     } else {
-        vec![publish_immediate_diagnostics_output(
+        vec![publish_immediate_tier_diagnostics_output(
+            state,
             uri,
             json!(baseline_diagnostics),
+            DiagnosticsPublishTierV0::Baseline,
+            false,
         )]
     };
     Some(DiagnosticsScheduleEffectsV0 {
@@ -962,12 +1176,15 @@ fn deferred_style_diagnostics_for_text_document_event(
     dispatch.coalesce_key = diagnostics_coalesce_key(uri);
     dispatch.tier_plan = tier_plan;
     Some(DiagnosticsScheduleEffectsV0 {
-        outputs: vec![publish_immediate_diagnostics_output(
+        outputs: vec![publish_immediate_tier_diagnostics_output(
+            state,
             uri,
             json!(baseline_diagnostics_for_plan(
                 &baseline_diagnostics,
                 tier_plan
             )),
+            DiagnosticsPublishTierV0::Baseline,
+            false,
         )],
         deferred_diagnostics: vec![dispatch],
     })
@@ -977,6 +1194,58 @@ fn publish_immediate_diagnostics_output(uri: &str, diagnostics: Value) -> Schedu
     ScheduledLspOutput::immediate_coalesced(
         publish_diagnostics_notification(uri, diagnostics),
         diagnostics_coalesce_key(uri),
+    )
+}
+
+fn publish_immediate_tier_diagnostics_output(
+    state: &LspShellState,
+    uri: &str,
+    diagnostics: Value,
+    tier: DiagnosticsPublishTierV0,
+    terminal_for_revision: bool,
+) -> ScheduledLspOutput {
+    let receipt = state.diagnostics_publish_digest_registry.tier_receipt(
+        uri,
+        tier,
+        &diagnostics,
+        terminal_for_revision,
+    );
+    let output = publish_immediate_diagnostics_output(uri, diagnostics);
+    if let Some(receipt) = receipt {
+        output.with_diagnostics_publish_receipt(receipt)
+    } else {
+        output
+    }
+}
+
+fn publish_delayed_optimizing_diagnostics_output(
+    state: &LspShellState,
+    uri: &str,
+    diagnostics: Value,
+) -> ScheduledLspOutput {
+    let receipt = state.diagnostics_publish_digest_registry.tier_receipt(
+        uri,
+        DiagnosticsPublishTierV0::Optimizing,
+        &diagnostics,
+        true,
+    );
+    let output = ScheduledLspOutput::delayed_coalesced(
+        publish_diagnostics_notification(uri, diagnostics),
+        OPTIMIZING_DIAGNOSTICS_DELAY_MS,
+        diagnostics_coalesce_key(uri),
+    );
+    if let Some(receipt) = receipt {
+        output.with_diagnostics_publish_receipt(receipt)
+    } else {
+        output
+    }
+}
+
+fn publish_diagnostics_clear_output(state: &LspShellState, uri: &str) -> ScheduledLspOutput {
+    publish_immediate_diagnostics_output(uri, json!([])).with_diagnostics_publish_receipt(
+        state
+            .diagnostics_publish_digest_registry
+            .clear_document_receipt(uri),
     )
 }
 
@@ -1191,6 +1460,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn module_interface_memo_evicts_deterministically_at_its_entry_limit() {
+        let mut memo = BTreeMap::new();
+        for uri in [
+            "file:///workspace/b.scss",
+            "file:///workspace/a.scss",
+            "file:///workspace/c.scss",
+        ] {
+            insert_style_module_interface_projection(
+                &mut memo,
+                uri,
+                omena_query::summarize_omena_query_module_interface_change_projection(
+                    uri,
+                    "$tone: red;\n",
+                ),
+                2,
+            );
+        }
+
+        assert_eq!(memo.len(), 2);
+        assert!(!memo.contains_key("file:///workspace/a.scss"));
+        assert!(memo.contains_key("file:///workspace/b.scss"));
+        assert!(memo.contains_key("file:///workspace/c.scss"));
+    }
+
+    #[test]
     fn maps_lsp_events_to_diagnostics_schedule_events() {
         assert_eq!(
             diagnostics_schedule_event(
@@ -1306,6 +1600,118 @@ mod tests {
                         && diagnostic.pointer("/data/pipelineTierEvidence")
                             == Some(&json!("analyzedGraphV0"))
                 ))
+        );
+    }
+
+    #[test]
+    fn identical_diagnostics_are_delivered_once_per_tier_and_reset_on_close() {
+        let uri = "file:///workspace-diagnostics-receipt/src/App.module.scss";
+        let text =
+            ":root { --brand: red; }\n.btn { width: var(--missing); color: red; color: blue; }";
+        let mut state = LspShellState::default();
+        let first = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            first.len(),
+            2,
+            "the first revision must deliver baseline and optimizing diagnostics"
+        );
+
+        let warmed = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "version": 2,
+                    },
+                    "contentChanges": [{
+                        "text": text,
+                    }],
+                },
+            }),
+        );
+        assert_eq!(
+            warmed.len(),
+            2,
+            "a newly attached pipeline feedback fact changes both payloads and must be delivered"
+        );
+
+        let repeated = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "version": 3,
+                    },
+                    "contentChanges": [{
+                        "text": text,
+                    }],
+                },
+            }),
+        );
+        assert!(
+            repeated.is_empty(),
+            "byte-identical diagnostics must not be delivered again for either tier: {repeated:?}"
+        );
+
+        let closed = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didClose",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            closed
+                .first()
+                .and_then(|output| output.pointer("/params/diagnostics")),
+            Some(&json!([])),
+            "close must always clear diagnostics"
+        );
+
+        let reopened = crate::handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": "scss",
+                        "version": 4,
+                        "text": text,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            reopened.len(),
+            2,
+            "close must reset both tier receipts so reopen delivers both tiers once"
         );
     }
 
@@ -1790,16 +2196,33 @@ mod tests {
             );
         }
 
-        let effects = run_diagnostics_schedule_effects(
+        let turn = crate::handle_lsp_message_scheduled_outputs_or_dispatch(
             &mut state,
-            DiagnosticsScheduleEvent::TextDocument {
-                uri: shared_uri,
-                is_close: false,
-                content_changed: true,
-            },
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": {
+                        "uri": shared_uri,
+                        "version": 2,
+                    },
+                    "contentChanges": [{
+                        "text": "$tone: red;\n.token { color: red; }\n",
+                    }],
+                },
+            }),
         );
-        let importer_outputs = effects
-            .outputs
+        let crate::LspLoopTurnV0::OutputsAndDeferredDiagnostics {
+            outputs,
+            deferred_diagnostics,
+            ..
+        } = turn
+        else {
+            return Err(format!(
+                "interface-changing style edit must defer peer diagnostics: {turn:?}"
+            ));
+        };
+        let importer_outputs = outputs
             .iter()
             .filter(|output| {
                 output
@@ -1831,8 +2254,7 @@ mod tests {
             "loop-side fan-out publishes must only carry baseline diagnostics"
         );
 
-        let importer_dispatches = effects
-            .deferred_diagnostics
+        let importer_dispatches = deferred_diagnostics
             .iter()
             .filter(|dispatch| importer_uris.contains(dispatch.uri.as_str()))
             .collect::<Vec<_>>();

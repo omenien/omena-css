@@ -9,13 +9,15 @@ runs:
   using: composite
   steps:
     - shell: bash
+      env:
+        WASM_PACK_VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
 
-        expected="wasm-pack ${{ inputs.version }}"
+        expected="wasm-pack ${WASM_PACK_VERSION}"
         if wasm-pack --version 2>/dev/null | grep -Fq "$expected"; then
           echo "$expected already installed"
           exit 0
         fi
 
-        cargo install wasm-pack --version "${{ inputs.version }}" --locked
+        cargo install wasm-pack --version "${WASM_PACK_VERSION}" --locked

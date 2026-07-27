@@ -64,11 +64,20 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   verification.
 - Dispatch `_Publish Crate Train` with `mode=oidc`, `dry_run=true`, and
   `resume=false`. Review the canonical publish order and every package dry-run.
+- Cargo packages and verifies every selected workspace member before its
+  dependency-ordered upload loop. Both dry-run and real publish therefore use a
+  temporary `[patch.crates-io]` map derived from workspace metadata so the new
+  exact-pin train resolves locally before its first member exists on crates.io.
+  This command-scoped map is not packaged: uploaded manifests retain their exact
+  crates.io version requirements and contain no local dependency paths.
 - Push `release-vX.Y.Z` only after the dry-run is green. The tag starts the crate
   publish and the five-target `Release CLI` archive/checksum workflow.
 - Existing crate names use crates.io Trusted Publishing. A never-published name
   requires one `mode=bootstrap` run with the protected `CRATES_IO_TOKEN`, then
-  registration for OIDC.
+  registration for OIDC. Because Cargo publishes the workspace as one train, a
+  release containing any never-published name uses bootstrap authentication for
+  that whole run; tag-triggered releases derive this choice from live registry
+  state and return to OIDC once every name is registered.
 - Confirm every publishable crate at the exact version, the sparse-index poll,
   install smoke, GitHub release, CLI archives, and checksums.
 - Publishing is non-atomic and irreversible. If a train stops after partial
@@ -80,8 +89,8 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   Select `publish_wasm`, `publish_napi`, and `publish_plugins` deliberately.
 - Inspect packed names, versions, repository URLs, native optional-dependency
   names, and the five NAPI target artifacts before setting `dry_run=false`.
-- `@omena/wasm` and `@omena/napi` use Trusted Publishing where configured.
-  First-publish platform packages and build-tool packages use the protected
+- `@omena/wasm`, `@omena/napi`, and the established NAPI platform packages use
+  Trusted Publishing. First-publish build-tool packages use the protected
   `NPM_AUTO_TOKEN`; all uploads include npm provenance.
 - Confirm `@omena/napi` declares every published platform package. An immutable
   main package with an incomplete optional-dependency map requires a new

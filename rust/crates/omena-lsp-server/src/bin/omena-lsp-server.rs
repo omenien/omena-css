@@ -9,11 +9,10 @@ use std::{collections::BTreeMap, sync::MutexGuard};
 
 #[cfg(not(feature = "parallel-style-diagnostics"))]
 use omena_lsp_server::tide_workspace_republish_flush_effects;
-#[cfg(feature = "salsa-style-diagnostics")]
-use omena_lsp_server::{LspDeferredDiagnosticsDispatchV0, OPTIMIZING_DIAGNOSTICS_DELAY_MS};
 use omena_lsp_server::{
-    LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0, LspLoopTurnV0, LspQueryDispatchV0,
-    LspShellState, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, ScheduledLspOutput,
+    DiagnosticsPublishReceiptV0, LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
+    LspLoopTurnV0, LspQueryDispatchV0, LspShellState, LspWorkspaceIndexJobV0,
+    LspWorkspaceIndexResultV0, REACTIVE_SHADOW_ENV, ScheduledLspOutput,
     apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
     collect_background_workspace_index, collect_deferred_external_sif_refresh,
     complete_dispatched_query_response, dispatched_query_internal_error_response,
@@ -21,6 +20,8 @@ use omena_lsp_server::{
     prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
     resolve_dispatched_query_response, workspace_index_progress_end_output,
 };
+#[cfg(feature = "salsa-style-diagnostics")]
+use omena_lsp_server::{LspDeferredDiagnosticsDispatchV0, OPTIMIZING_DIAGNOSTICS_DELAY_MS};
 #[cfg(feature = "parallel-style-diagnostics")]
 use omena_lsp_server::{
     TideWorkspaceRepublishItemV0, TideWorkspaceRepublishJobV0, TideWorkspaceRepublishResultV0,
@@ -68,6 +69,9 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
     enable_deferred_external_sif_refresh(&mut state);
+    if std::env::var(REACTIVE_SHADOW_ENV).as_deref() == Ok("1") {
+        state.enable_reactive_shadow_observer()?;
+    }
     let writer = Arc::new(Mutex::new(writer));
     let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
     let mut delayed_outputs: Vec<JoinHandle<Result<(), String>>> = Vec::new();
@@ -235,11 +239,27 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
                     )?;
                     continue;
                 }
+                let receipt = work.dispatch.optimizing_publish_receipt(&notification);
                 let mut writer = writer
                     .lock()
                     .map_err(|_| "stdout lock poisoned".to_string())?;
-                write_lsp_response(&mut *writer, &notification)
-                    .map_err(|error| error.to_string())?;
+                if !lock_coalescer(&coalescer)
+                    .is_current(work.dispatch.coalesce_key.as_str(), work.revision)
+                {
+                    drop(writer);
+                    send_deferred_diagnostics_completion(
+                        &diagnostics_completion_sender,
+                        &work.dispatch,
+                        work.revision,
+                    )?;
+                    continue;
+                }
+                write_lsp_response_with_diagnostics_receipt(
+                    &mut *writer,
+                    &notification,
+                    receipt.as_ref(),
+                )
+                .map_err(|error| error.to_string())?;
                 drop(writer);
                 send_deferred_diagnostics_completion_with_refresh(
                     &diagnostics_completion_sender,
@@ -835,6 +855,21 @@ fn write_lsp_response<W: Write>(
     Ok(())
 }
 
+fn write_lsp_response_with_diagnostics_receipt<W: Write>(
+    writer: &mut W,
+    response: &serde_json::Value,
+    receipt: Option<&DiagnosticsPublishReceiptV0>,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    if receipt.is_some_and(|receipt| !receipt.should_deliver()) {
+        return Ok(false);
+    }
+    write_lsp_response(writer, response)?;
+    if let Some(receipt) = receipt {
+        receipt.record_delivered();
+    }
+    Ok(true)
+}
+
 fn write_scheduled_lsp_output<W: Write + Send + 'static>(
     writer: &Arc<Mutex<W>>,
     coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
@@ -859,13 +894,29 @@ fn write_scheduled_lsp_output<W: Write + Send + 'static>(
             let mut writer = writer
                 .lock()
                 .map_err(|_| "stdout lock poisoned".to_string())?;
-            write_lsp_response(&mut *writer, &output.value).map_err(|error| error.to_string())
+            if let (Some(key), Some(revision)) = (output.coalesce_key.as_ref(), scheduled_revision)
+                && !lock_coalescer(&coalescer).is_current(key, revision)
+            {
+                return Ok(());
+            }
+            write_lsp_response_with_diagnostics_receipt(
+                &mut *writer,
+                &output.value,
+                output.diagnostics_publish_receipt.as_ref(),
+            )
+            .map(|_| ())
+            .map_err(|error| error.to_string())
         }));
         return Ok(());
     }
 
     let mut writer = writer.lock().map_err(|_| "stdout lock poisoned")?;
-    write_lsp_response(&mut *writer, &output.value)
+    write_lsp_response_with_diagnostics_receipt(
+        &mut *writer,
+        &output.value,
+        output.diagnostics_publish_receipt.as_ref(),
+    )
+    .map(|_| ())
 }
 
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -1283,15 +1334,24 @@ mod tests {
             let workspace_root = std::fs::canonicalize(requested_workspace_root.as_path())
                 .map_err(|error| error.to_string())?;
             let src_dir = workspace_root.join("src");
-            let theme_path = src_dir.join("theme.scss");
+            let theme_path = src_dir.join("_theme.scss");
             let peer_path = src_dir.join("Importer.module.scss");
             let source_path = src_dir.join("App.tsx");
-            let theme_initial_text = ".shared { color: red; }".to_string();
-            let theme_changed_text = ".sharedRenamed { color: green; }".to_string();
-            let peer_text =
-                "@use \"./theme\";\n.peer { width: var(--missing); color: red; color: blue; }"
-                    .to_string();
-            let source_text = "import styles from \"./Importer.module.scss\";\nconst view = <div className={styles.missing} />;".to_string();
+            let theme_initial_text = "$tone: red;\n.shared { color: red; }".to_string();
+            let theme_changed_text =
+                "$tone-renamed: green;\n.sharedRenamed { color: green; }".to_string();
+            let peer_text = concat!(
+                "@use \"./theme\" as theme;\n",
+                ".peer { composes: shared from \"./_theme.scss\"; ",
+                "width: var(--missing); color: theme.$tone; ",
+                "border-color: red; border-color: blue; }",
+            )
+            .to_string();
+            let source_text = concat!(
+                "import styles from \"./_theme.scss\";\n",
+                "const view = <div className={styles.shared} />;",
+            )
+            .to_string();
             std::fs::write(theme_path.as_path(), theme_initial_text.as_str())
                 .map_err(|error| error.to_string())?;
             std::fs::write(peer_path.as_path(), peer_text.as_str())
@@ -2416,7 +2476,18 @@ const view = button({ intent: "ghost" });
         let writer = Arc::new(Mutex::new(Vec::<u8>::new()));
         let coalescer = Arc::new(Mutex::new(ScheduledOutputCoalescer::default()));
         let mut delayed_outputs = Vec::new();
-        let key = "textDocument/publishDiagnostics:file:///workspace/App.module.scss".to_string();
+        let uri = "file:///workspace/App.module.scss";
+        let key = format!("textDocument/publishDiagnostics:{uri}");
+        let diagnostics = json!([{"code": "same-optimizing-payload"}]);
+        let registry = omena_lsp_server::DiagnosticsPublishDigestRegistryV0::default();
+        let stale_receipt = registry
+            .tier_receipt(
+                uri,
+                omena_lsp_server::DiagnosticsPublishTierV0::Optimizing,
+                &diagnostics,
+                true,
+            )
+            .ok_or_else(|| "diagnostics payload must serialize".to_string())?;
 
         write_scheduled_lsp_output(
             &writer,
@@ -2428,7 +2499,8 @@ const view = button({ intent: "ghost" });
                 }),
                 10,
                 key.clone(),
-            ),
+            )
+            .with_diagnostics_publish_receipt(stale_receipt),
             &mut delayed_outputs,
         )
         .map_err(|error| error.to_string())?;
@@ -2441,7 +2513,7 @@ const view = button({ intent: "ghost" });
                     "jsonrpc": "2.0",
                     "method": "newBaselineDiagnostics",
                 }),
-                key,
+                key.clone(),
             ),
             &mut delayed_outputs,
         )
@@ -2453,6 +2525,33 @@ const view = button({ intent: "ghost" });
                 .map_err(|_| "delayed writer panicked".to_string())??;
         }
 
+        let retry_receipt = registry
+            .tier_receipt(
+                uri,
+                omena_lsp_server::DiagnosticsPublishTierV0::Optimizing,
+                &diagnostics,
+                true,
+            )
+            .ok_or_else(|| "diagnostics payload must serialize".to_string())?;
+        assert!(
+            retry_receipt.should_deliver(),
+            "stale work must not commit a digest that suppresses a later delivery"
+        );
+        write_scheduled_lsp_output(
+            &writer,
+            &coalescer,
+            ScheduledLspOutput::immediate_coalesced(
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "retryOptimizingDiagnostics",
+                }),
+                key,
+            )
+            .with_diagnostics_publish_receipt(retry_receipt),
+            &mut Vec::new(),
+        )
+        .map_err(|error| error.to_string())?;
+
         let body = String::from_utf8(
             writer
                 .lock()
@@ -2463,7 +2562,119 @@ const view = button({ intent: "ghost" });
 
         assert!(body.contains("\"method\":\"newBaselineDiagnostics\""));
         assert!(!body.contains("\"method\":\"oldOptimizingDiagnostics\""));
+        assert!(body.contains("\"method\":\"retryOptimizingDiagnostics\""));
 
+        Ok(())
+    }
+
+    #[test]
+    fn diagnostics_digest_is_recorded_only_after_a_successful_write() -> Result<(), String> {
+        struct FailingWriter;
+
+        impl Write for FailingWriter {
+            fn write(&mut self, _buffer: &[u8]) -> io::Result<usize> {
+                Err(io::Error::from(io::ErrorKind::BrokenPipe))
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let uri = "file:///workspace/App.module.scss";
+        let diagnostics = json!([{"code": "retryable"}]);
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/publishDiagnostics",
+            "params": {
+                "uri": uri,
+                "diagnostics": diagnostics.clone(),
+            },
+        });
+        let registry = omena_lsp_server::DiagnosticsPublishDigestRegistryV0::default();
+        let failed_receipt = registry
+            .tier_receipt(
+                uri,
+                omena_lsp_server::DiagnosticsPublishTierV0::Baseline,
+                &diagnostics,
+                true,
+            )
+            .ok_or_else(|| "diagnostics payload must serialize".to_string())?;
+        assert!(
+            write_lsp_response_with_diagnostics_receipt(
+                &mut FailingWriter,
+                &notification,
+                Some(&failed_receipt),
+            )
+            .is_err()
+        );
+
+        let retry_receipt = registry
+            .tier_receipt(
+                uri,
+                omena_lsp_server::DiagnosticsPublishTierV0::Baseline,
+                &diagnostics,
+                true,
+            )
+            .ok_or_else(|| "diagnostics payload must serialize".to_string())?;
+        assert!(
+            retry_receipt.should_deliver(),
+            "a failed write must leave the payload eligible for retry"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn diagnostics_digest_suppresses_only_a_previously_written_payload() -> Result<(), String> {
+        let uri = "file:///workspace/App.module.scss";
+        let diagnostics = json!([{"code": "stable"}]);
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/publishDiagnostics",
+            "params": {
+                "uri": uri,
+                "diagnostics": diagnostics.clone(),
+            },
+        });
+        let registry = omena_lsp_server::DiagnosticsPublishDigestRegistryV0::default();
+        let mut writer = Vec::<u8>::new();
+
+        let first = registry
+            .tier_receipt(
+                uri,
+                omena_lsp_server::DiagnosticsPublishTierV0::Baseline,
+                &diagnostics,
+                true,
+            )
+            .ok_or_else(|| "diagnostics payload must serialize".to_string())?;
+        assert!(
+            write_lsp_response_with_diagnostics_receipt(&mut writer, &notification, Some(&first),)
+                .map_err(|error| error.to_string())?
+        );
+
+        let duplicate = registry
+            .tier_receipt(
+                uri,
+                omena_lsp_server::DiagnosticsPublishTierV0::Baseline,
+                &diagnostics,
+                true,
+            )
+            .ok_or_else(|| "diagnostics payload must serialize".to_string())?;
+        assert!(
+            !write_lsp_response_with_diagnostics_receipt(
+                &mut writer,
+                &notification,
+                Some(&duplicate),
+            )
+            .map_err(|error| error.to_string())?
+        );
+        assert_eq!(
+            String::from_utf8(writer)
+                .map_err(|error| error.to_string())?
+                .matches("\"method\":\"textDocument/publishDiagnostics\"")
+                .count(),
+            1
+        );
         Ok(())
     }
 }

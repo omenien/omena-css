@@ -15,7 +15,7 @@ const readDoc = (relativePath: string): string =>
   readFileSync(path.join(repoRoot, relativePath), "utf8");
 
 const positioning = readDoc("docs/positioning.md");
-const benchmarks = readDoc("docs/benchmarks.md");
+const benchmarks = readDoc("docs/performance.md");
 
 for (const tool of ["Lightning CSS", "PostCSS", "Dart Sass", "Biome CSS"]) {
   assertIncludes(positioning, tool);
@@ -33,11 +33,10 @@ for (const requiredPositioningBoundary of [
   "build, bundle, minify",
   "External speed comparisons require same-corpus",
   "Research-facing semantic substrates remain bounded",
-  "No direct speed ranking",
-  "No Sass compiler replacement claim",
-  "No PostCSS ecosystem replacement claim",
-  "No theorem-complete cascade",
-  "No public Cargo 1.0 API freeze claim",
+  "publishes speed comparisons only with same-corpus, same-machine",
+  "does not compile Sass",
+  "not a general PostCSS plugin host",
+  "has no 1.0 freeze",
 ]) {
   assertIncludes(positioning, requiredPositioningBoundary);
 }
@@ -55,6 +54,12 @@ for (const unsupportedClaim of [
   "replaces Dart Sass",
   "is faster than Lightning CSS",
   "theorem-proven cascade semantics",
+  "sheaf",
+  "cosheaf",
+  "modal",
+  "Datalog",
+  "egglog",
+  "perceptual",
   "full WPT/spec conformance",
   "Cargo 1.0.0 API freeze is complete",
   "Cascade-Proven",

@@ -35,6 +35,18 @@ export interface TsconfigPathAliases {
   readonly paths: Readonly<Record<string, readonly string[]>>;
 }
 
+export interface StyleResolutionPathInputs {
+  readonly tsconfigPathMappings: readonly {
+    readonly basePath: string;
+    readonly pattern: string;
+    readonly targetPatterns: readonly string[];
+  }[];
+  readonly bundlerPathMappings: readonly {
+    readonly pattern: string;
+    readonly targetPath: string;
+  }[];
+}
+
 type AliasEntry =
   | {
       readonly kind: "prefix";
@@ -257,6 +269,45 @@ export class AliasResolver {
       specifier,
       fileExists,
     );
+  }
+
+  /**
+   * Capture the resolver's effective path-mapping state for a
+   * request-boundary consumer. Targets are absolute, so the Rust
+   * resolver observes the same settings, bundler, and nearest
+   * tsconfig choices as the TypeScript host.
+   */
+  styleResolutionPathInputs(containingFilePath?: string): StyleResolutionPathInputs {
+    const bundlerPathMappings: StyleResolutionPathInputs["bundlerPathMappings"][number][] = [];
+    const seenBundlerPatterns = new Set<string>();
+    for (const entry of [...this.settingsEntries, ...this.bundlerEntries]) {
+      if (entry.kind !== "prefix" || seenBundlerPatterns.has(entry.pattern)) continue;
+      seenBundlerPatterns.add(entry.pattern);
+      bundlerPathMappings.push({
+        pattern: entry.pattern,
+        targetPath: entry.target,
+      });
+    }
+
+    const tsconfigTargetsByPattern = new Map<string, string[]>();
+    for (const entry of this.resolveTsconfigEntries(containingFilePath)) {
+      const targets = tsconfigTargetsByPattern.get(entry.pattern) ?? [];
+      if (entry.kind === "prefix") {
+        targets.push(entry.target);
+      } else {
+        targets.push(...entry.targets);
+      }
+      tsconfigTargetsByPattern.set(entry.pattern, targets);
+    }
+
+    return {
+      bundlerPathMappings,
+      tsconfigPathMappings: [...tsconfigTargetsByPattern].map(([pattern, targetPatterns]) => ({
+        basePath: this.workspaceRoot,
+        pattern,
+        targetPatterns: [...new Set(targetPatterns)],
+      })),
+    };
   }
 
   private resolveTsconfigEntries(containingFilePath: string | undefined): readonly AliasEntry[] {

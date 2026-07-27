@@ -197,7 +197,7 @@ pub fn summarize_omena_query_source_selector_occurrence_index(
                 kind: workspace_occurrence_kind_from_source_reference_kind(reference.kind)
                     .unwrap_or(OmenaWorkspaceOccurrenceKindV0::SourceSelectorReference),
                 role: OmenaWorkspaceOccurrenceRoleV0::Reference,
-                source: OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
+                source: source_reference_occurrence_surface(reference.projection_surface()),
                 target_style_uri: reference.target_style_uri.clone(),
                 rename_target: reference.kind == "sourceSelectorReference"
                     && reference.name == selector_name,
@@ -233,6 +233,18 @@ pub fn summarize_omena_query_source_selector_occurrence_index(
             "workspaceWideSelectorReferences",
             "workspaceWideSelectorRename",
         ],
+    }
+}
+
+fn source_reference_occurrence_surface(
+    surface: OmenaQuerySourceSelectorReferenceSurfaceV0,
+) -> OmenaWorkspaceOccurrenceSurfaceV0 {
+    match surface {
+        OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+        | OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaTsgoTypeFactProjection => {
+            // The published workspace V0 groups source-side projections together.
+            OmenaWorkspaceOccurrenceSurfaceV0::OmenaQuerySourceSyntaxIndex
+        }
     }
 }
 
@@ -490,7 +502,7 @@ pub fn summarize_omena_query_global_class_fallthrough_diagnostic(
         .filter(|label| !label.is_empty())
         .unwrap_or(global_definition_uri);
     // LSP-provided URIs percent-encode non-ASCII filenames; decode after the
-    // split so the user-facing message shows the readable name (rfcs#122).
+    // split so the user-facing message shows the readable name.
     let global_file =
         percent_decode_uri_path(global_file_label).unwrap_or_else(|| global_file_label.to_string());
     // The one action that changes the scoping fact: adding the selector to
@@ -889,7 +901,7 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
             diagnostics.extend(harvest_omena_query_dynamic_classname_m_tier_diagnostics(
                 source_path,
                 source_source,
-                index.type_fact_targets.as_slice(),
+                index,
                 selector_universe.as_slice(),
                 &selector_universe_by_uri,
                 options.max_context_depth,
@@ -945,6 +957,17 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
                         .find(|(style_uri, _)| file_uri_equivalent(style_uri, target_style_uri))
                         .map(|(_, source)| *source)
                 });
+            let value_domain_size = index
+                .selector_references
+                .iter()
+                .filter(|candidate| {
+                    candidate.byte_span == reference.byte_span
+                        && candidate.target_style_uri == reference.target_style_uri
+                        && candidate.match_kind == reference.match_kind
+                })
+                .filter_map(|candidate| candidate.selector_name.as_deref())
+                .collect::<BTreeSet<_>>()
+                .len();
             diagnostics.push(
                 summarize_omena_query_unresolved_source_reference_diagnostic(
                     source_source,
@@ -952,6 +975,7 @@ fn summarize_omena_query_source_diagnostics_from_syntax_index(
                     selector_name.as_str(),
                     target_style_source,
                     workspace_facts.definitions,
+                    value_domain_size,
                 ),
             );
         }
@@ -1225,7 +1249,7 @@ pub(super) fn collect_omena_query_source_selector_references_with_resolution_inp
                     },
                     name,
                     range: parser_range_for_byte_span(&document.source_source, reference.byte_span),
-                    source: "omenaQuerySourceSyntaxIndex",
+                    source: reference.surface.as_str(),
                     target_style_uri: reference.target_style_uri,
                 },
             });
@@ -1322,6 +1346,7 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
     selector_name: &str,
     target_style_source: Option<&str>,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    value_domain_size: usize,
 ) -> OmenaQuerySourceDiagnosticV0 {
     let range = parser_range_for_byte_span(source, reference.byte_span);
     let reference_text = source
@@ -1385,7 +1410,12 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
             "omena-query.style-selector-definitions",
         ],
         range,
-        message: query_source_diagnostic_message(code, selector_name, suggestion.as_deref()),
+        message: query_source_diagnostic_message(
+            code,
+            selector_name,
+            suggestion.as_deref(),
+            value_domain_size,
+        ),
         precision: Some(source_diagnostic_precision(
             "classValueResolution",
             "sourceSelectorReference",
@@ -1405,6 +1435,7 @@ fn query_source_diagnostic_message(
     code: &str,
     selector_name: &str,
     suggestion: Option<&str>,
+    value_domain_size: usize,
 ) -> String {
     match code {
         "missingStaticClass" => {
@@ -1417,7 +1448,9 @@ fn query_source_diagnostic_message(
             format!("No class starting with '{selector_name}' found in target CSS Module.")
         }
         "missingResolvedClassValues" => {
-            format!("Missing class for possible value: '{selector_name}'.")
+            format!(
+                "Missing class for possible value: '{selector_name}'. Analysis reason: analysis preserved multiple finite candidate values. Analysis shape: bounded finite ({value_domain_size})."
+            )
         }
         "missingResolvedClassDomain" => {
             format!("No class matched resolved prefix '{selector_name}'.")

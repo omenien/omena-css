@@ -1,4 +1,5 @@
 use crate::disk_cache::DiskDiagnosticsCacheSessionV0;
+use crate::lsp_output::DiagnosticsPublishDigestRegistryV0;
 use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -59,6 +60,8 @@ pub struct LspTextDocumentState {
     pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
     #[serde(skip)]
     pub(crate) source_type_fact_selector_references: Vec<SourceSelectorReferenceFact>,
+    #[serde(skip)]
+    pub(crate) source_type_fact_retired_prefix_references: Vec<SourceSelectorReferenceFact>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -641,13 +644,17 @@ pub struct LspShellState {
     pub(crate) document_color_cache: Arc<Mutex<LspDocumentColorCacheV0>>,
     #[cfg(feature = "salsa-style-diagnostics")]
     pub(crate) reverse_dependency_index_memo: RefCell<Option<LspReverseDependencyIndexMemo>>,
-    /// Module-interface projection of the LAST text the source fan-out saw,
-    /// per open style URI. A didChange whose projection compares equal is an
-    /// interface-preserving edit — no open source document's diagnostics can
-    /// move, so the fan-out is skipped from ONE single-file parse instead of
-    /// a workspace selector build. Evicted on didClose; loop-owned.
+    /// Module-interface projection of the LAST text the source and style-peer
+    /// fan-outs saw. A didChange whose projection compares equal is an
+    /// interface-preserving edit, while a disk-backed close compares the
+    /// restored on-disk projection against the retained open-buffer projection.
+    /// Entries are retained across disk-backed close, removed with documents
+    /// that leave the state, and capped by the diagnostics scheduler.
     pub(crate) style_module_interface_memo:
-        RefCell<BTreeMap<String, omena_query::OmenaQueryModuleInterfaceProjectionV0>>,
+        RefCell<BTreeMap<String, omena_query::OmenaQueryModuleInterfaceChangeProjectionV0>>,
+    /// Shared with delayed diagnostics workers and updated only after a payload
+    /// reaches the client writer, so stale or failed work cannot suppress a retry.
+    pub(crate) diagnostics_publish_digest_registry: DiagnosticsPublishDigestRegistryV0,
     pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind
@@ -765,7 +772,15 @@ impl LspShellState {
 
     pub(crate) fn remove_document_uri(&mut self, uri: &str) -> Option<LspTextDocumentState> {
         let file_id = self.file_identity.file_id_for_uri(uri)?;
-        self.documents.remove(&file_id).map(Arc::unwrap_or_clone)
+        let document = self.documents.remove(&file_id).map(Arc::unwrap_or_clone)?;
+        let memo = self.style_module_interface_memo.get_mut();
+        memo.remove(uri);
+        memo.remove(document.uri.as_str());
+        self.diagnostics_publish_digest_registry
+            .forget_reactive_shadow_module_interface(uri);
+        self.diagnostics_publish_digest_registry
+            .forget_reactive_shadow_module_interface(document.uri.as_str());
+        Some(document)
     }
 
     pub(crate) fn contains_document_uri(&self, uri: &str) -> bool {

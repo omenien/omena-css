@@ -31,6 +31,7 @@ members = [
   "crates/omena-query-core",
   "crates/omena-query-checker-orchestrator",
   "crates/omena-query-transform-runner",
+  "crates/omena-reactive",
   "crates/omena-reachability-datalog-lab",
   "crates/omena-refinement",
   "crates/omena-refinement-trait",

@@ -430,6 +430,7 @@ describe("computeScssUnusedDiagnostics", () => {
       targetStylePath: SCSS_PATH,
       styles: [{ stylePath: SCSS_PATH, styleSource }],
       sourceDocuments,
+      sourceCorpusComplete: false,
     });
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatchObject({

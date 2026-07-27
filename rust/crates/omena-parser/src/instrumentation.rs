@@ -31,6 +31,8 @@ thread_local! {
     #[cfg(test)]
     static SYNTAX_ROOT_MATERIALIZATION_COUNT: AtomicUsize =
         const { AtomicUsize::new(0) };
+    #[cfg(feature = "test-support")]
+    static CLOSED_WORLD_BUNDLE_CONSTRUCTION_COUNT: Cell<usize> = const { Cell::new(0) };
 }
 
 pub fn with_omena_parser_lex_instrumentation<T>(
@@ -79,6 +81,21 @@ pub(crate) fn record_omena_parser_parse_materialization(token_count: usize) {
             instrumentation.set(Some(snapshot));
         }
     });
+}
+
+#[cfg(feature = "test-support")]
+pub(crate) fn record_closed_world_bundle_construction_for_test() {
+    CLOSED_WORLD_BUNDLE_CONSTRUCTION_COUNT.with(|counter| counter.set(counter.get() + 1));
+}
+
+#[cfg(feature = "test-support")]
+pub fn reset_closed_world_bundle_construction_count_for_test() {
+    CLOSED_WORLD_BUNDLE_CONSTRUCTION_COUNT.with(|counter| counter.set(0));
+}
+
+#[cfg(feature = "test-support")]
+pub fn closed_world_bundle_construction_count_for_test() -> usize {
+    CLOSED_WORLD_BUNDLE_CONSTRUCTION_COUNT.with(Cell::get)
 }
 
 #[cfg(test)]

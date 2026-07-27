@@ -1,4 +1,13 @@
 artifacts/
-corpus/
+corpus/*
+!corpus/selector_matching_precision/
+corpus/selector_matching_precision/*
+!corpus/selector_matching_precision/attribute-equals
+!corpus/selector_matching_precision/attribute-prefix
+!corpus/selector_matching_precision/combinator
+!corpus/selector_matching_precision/functional-is
+!corpus/selector_matching_precision/functional-not
+!corpus/selector_matching_precision/functional-where
+!corpus/selector_matching_precision/pseudo-after
+!corpus/selector_matching_precision/pseudo-before
 target/
-

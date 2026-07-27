@@ -65,4 +65,4 @@ sigstore-verify = { version = "0.11.0", default-features = false }
 lightningcss = { workspace = true, optional = true }
 
 [dev-dependencies]
-omena-query = { path = "../omena-query", version = "=0.3.0", features = ["test-support"] }
+omena-query = { path = "../omena-query", features = ["test-support"] }

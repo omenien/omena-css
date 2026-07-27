@@ -118,8 +118,12 @@ pub use fold_reachability_soundness::{
 };
 pub use linked_emission::{
     LinkedEmissionByteDifferenceClassV0, LinkedEmissionByteDifferenceReasonV0,
-    LinkedEmissionByteDifferentialCaseV0, LinkedEmissionByteDifferentialPerturbationV0,
-    LinkedEmissionByteDifferentialReportV0, summarize_linked_emission_byte_differential_v0,
+    LinkedEmissionByteDifferentialCaseV0, LinkedEmissionByteDifferentialEnvelopeV0,
+    LinkedEmissionByteDifferentialPerturbationV0, LinkedEmissionByteDifferentialReportV0,
+    LinkedEmissionCoverageCensusV0, LinkedEmissionCoverageShapeV0,
+    LinkedEmissionFixtureObservabilityV0, LinkedEmissionMarkerBlindSpotV0,
+    LinkedEmissionNotCoveredShapeV0, summarize_linked_emission_byte_differential_envelope_v0,
+    summarize_linked_emission_byte_differential_v0,
 };
 pub use oss_corpus_farm::{
     OmenaDiffOssCorpusFarmManifestReportV0, summarize_oss_corpus_farm_manifest_v0,

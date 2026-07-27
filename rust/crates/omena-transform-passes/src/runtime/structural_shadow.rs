@@ -979,11 +979,13 @@ fn string_path_semantic_preservation_allows(
         fixture.dialect,
         closed_bundle.as_ref(),
         None,
+        None,
     );
     let input_scope = SemanticObservationScopeV0::for_pass(
         fixture.pass,
         fixture.dialect,
         closed_bundle.as_ref(),
+        None,
         None,
         &projection,
     );

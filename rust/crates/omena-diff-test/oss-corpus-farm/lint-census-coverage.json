@@ -11,6 +11,11 @@
       "id": "local-real-workspace-lint-census",
       "workspacePath": "scripts/fixtures/real-workspace-lint-corpus",
       "scope": "CSS Modules, Sass module and legacy imports, React source, utility classes, and tsconfig path mappings"
+    },
+    {
+      "id": "local-unused-selector-fanout-lint-census",
+      "workspacePath": "scripts/fixtures/unused-selector-fanout",
+      "scope": "100 CSS Modules and 100 React source files with repeated selector references for workspace fan-out"
     }
   ],
   "covered": [
@@ -42,6 +47,13 @@
         "examples/src/scenarios/06-alias/Alias.module.scss",
         "scripts/fixtures/real-workspace-lint-corpus/src/styles/Card.module.scss"
       ]
+    },
+    {
+      "shape": "workspace selector fan-out",
+      "evidence": [
+        "scripts/fixtures/unused-selector-fanout/src/styles",
+        "scripts/fixtures/unused-selector-fanout/src"
+      ]
     }
   ],
   "notCovered": [
@@ -68,6 +80,10 @@
     {
       "shape": "Vue single-file components",
       "reentry": "add a Vue workspace entry when the lint source frontend is product-routed"
+    },
+    {
+      "shape": "unusedSelector rule activation (Strict-preset only, farm runs --profile recommended)",
+      "reentry": "add a separately governed Strict-profile corpus entry before pinning unused-selector findings"
     }
   ]
 }

@@ -6,9 +6,17 @@ const sourcePath = "rust/crates/omena-query/src/style/transform.rs";
 const source = readFileSync(sourcePath, "utf8");
 const injectLinkedNeedle = process.argv.includes("--inject-linked-needle");
 
-const bundleBody = extractFunctionBody(
+const semanticBundleBody = extractFunctionBody(
   source,
   "run_omena_query_bundle_with_semantic_inputs_and_options",
+);
+const attributedBundleBody = extractFunctionBody(
+  source,
+  "run_omena_query_bundle_with_module_reachability_and_options",
+);
+const bundleBody = extractFunctionBody(
+  source,
+  "run_omena_query_bundle_with_optional_module_reachability",
 );
 let linkedSourceMapBody = extractFunctionBody(
   source,
@@ -22,6 +30,17 @@ if (injectLinkedNeedle) {
   linkedSourceMapBody += "\nfind_import_origin_generated_range(";
 }
 
+for (const entrypointBody of [semanticBundleBody, attributedBundleBody]) {
+  assert.equal(
+    countCalls(entrypointBody, "run_omena_query_bundle_with_optional_module_reachability"),
+    1,
+  );
+  assert.doesNotMatch(entrypointBody, /summarize_omena_query_linked_bundle_source_map_v3\s*\(/u);
+  assert.doesNotMatch(
+    entrypointBody,
+    /summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs\s*\(/u,
+  );
+}
 assert.match(bundleBody, /if let Some\(materialization\)/u);
 assert.match(bundleBody, /summarize_omena_query_linked_bundle_source_map_v3\s*\(/u);
 assert.match(
@@ -58,6 +77,7 @@ console.log(
       schemaVersion: "0",
       product: "omena-query.linked-source-map-boundary",
       linkedSourceMapAuthority: "materializedModuleRegions",
+      sharedBundleEntrypointCount: 2,
       linkedNeedleCallCount: 0,
       legacyNeedleCallCount: 2,
       exactOffsetTestPassed: true,

@@ -4,6 +4,8 @@
 //! state. `omena-query` re-exports these surfaces, but no longer needs to depend
 //! directly on each lower-level producer crate for this part of the dataflow.
 
+#[cfg(feature = "test-support")]
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use engine_input_producers::{
@@ -74,6 +76,26 @@ use serde::{Deserialize, Serialize};
 
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION: &str = "0";
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL: &str = "V0";
+
+#[cfg(feature = "test-support")]
+thread_local! {
+    static SELECTOR_PROJECTION_EVALUATION_COUNT: Cell<usize> = const { Cell::new(0) };
+}
+
+#[cfg(feature = "test-support")]
+pub fn reset_selector_projection_evaluation_count_for_test() {
+    SELECTOR_PROJECTION_EVALUATION_COUNT.with(|counter| counter.set(0));
+}
+
+#[cfg(feature = "test-support")]
+pub fn selector_projection_evaluation_count_for_test() -> usize {
+    SELECTOR_PROJECTION_EVALUATION_COUNT.with(Cell::get)
+}
+
+#[cfg(feature = "test-support")]
+fn record_selector_projection_evaluation_for_test() {
+    SELECTOR_PROJECTION_EVALUATION_COUNT.with(|counter| counter.set(counter.get() + 1));
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -371,7 +393,28 @@ pub fn summarize_omena_query_expression_domain_selector_projection_with_precisio
     OmenaQueryExpressionDomainSelectorProjectionV0,
     Vec<OmenaQueryExpressionDomainSelectorPrecisionV0>,
 ) {
+    summarize_omena_query_expression_domain_selector_projection_with_precision_and_style_path_resolver(
+        input,
+        |target, _known| Some(target.to_string()),
+    )
+}
+
+pub fn summarize_omena_query_expression_domain_selector_projection_with_precision_and_style_path_resolver<
+    F,
+>(
+    input: &EngineInputV2,
+    resolve_style_path: F,
+) -> (
+    OmenaQueryExpressionDomainSelectorProjectionV0,
+    Vec<OmenaQueryExpressionDomainSelectorPrecisionV0>,
+)
+where
+    F: Fn(&str, &[String]) -> Option<String>,
+{
+    #[cfg(feature = "test-support")]
+    record_selector_projection_evaluation_for_test();
     let style_selectors_by_path = style_selector_universe_by_path(input);
+    let known_style_paths = style_selectors_by_path.keys().cloned().collect::<Vec<_>>();
     let expression_targets = expression_target_style_paths(input);
     let flow_analysis = summarize_omena_query_expression_domain_flow_analysis(input);
     let mut projections = Vec::new();
@@ -384,8 +427,12 @@ pub fn summarize_omena_query_expression_domain_selector_projection_with_precisio
                 node.predecessor_ids.as_slice(),
                 &expression_targets,
             );
+            let resolved_target_style_paths = target_style_paths
+                .iter()
+                .map(|path| resolve_style_path(path, known_style_paths.as_slice()))
+                .collect::<Option<Vec<_>>>();
             let selector_universe = selector_universe_for_targets(
-                target_style_paths.as_slice(),
+                resolved_target_style_paths.as_deref(),
                 &style_selectors_by_path,
             );
             let projection = project_abstract_value_selectors(&node.value, &selector_universe);
@@ -469,15 +516,15 @@ fn target_style_paths_for_flow_node(
 }
 
 fn selector_universe_for_targets(
-    target_style_paths: &[String],
+    target_style_paths: Option<&[String]>,
     style_selectors_by_path: &BTreeMap<String, Vec<String>>,
 ) -> Vec<String> {
     let mut selectors = BTreeSet::new();
-    if target_style_paths.is_empty() {
+    if target_style_paths.is_none_or(<[String]>::is_empty) {
         for selector_names in style_selectors_by_path.values() {
             selectors.extend(selector_names.iter().cloned());
         }
-    } else {
+    } else if let Some(target_style_paths) = target_style_paths {
         for target_style_path in target_style_paths {
             if let Some(selector_names) = style_selectors_by_path.get(target_style_path) {
                 selectors.extend(selector_names.iter().cloned());

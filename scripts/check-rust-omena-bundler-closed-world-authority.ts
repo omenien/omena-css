@@ -24,8 +24,14 @@ assert.deepEqual(
 const querySource = read("rust/crates/omena-query/src/style/transform.rs");
 const bundlerSource = read("rust/crates/omena-bundler/src/lib.rs");
 assert.ok(
-  querySource.includes("link_omena_transform_bundle_modules_with_semantic_reachability("),
-  "omena-query transform execution must request closed-world bundles through the bundler linker",
+  querySource.includes("prepare_transform_bundle_linker_projection("),
+  "omena-query transform execution must prepare linker inputs through its projection boundary",
+);
+assert.ok(
+  querySource.includes(
+    "link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(",
+  ),
+  "omena-query transform execution must request closed-world bundles through the resolved bundler linker",
 );
 assert.ok(
   !querySource.includes(constructorNeedle),

@@ -1,15 +1,15 @@
-//! Custom-property substitution and least-fixed-point summaries.
+//! Custom-property substitution and bounded fixed-point computation summaries.
 //!
 //! This module keeps custom-property resolution finite by exposing explicit
-//! iteration traces, monotonicity witnesses, and cycle-to-guaranteed-invalid
-//! behavior for downstream transform proof obligations.
+//! iteration traces, monotonic progress witnesses, and cycle-to-guaranteed-invalid
+//! behavior. Historical proof-oriented API names remain as compatibility aliases.
 
 use std::collections::BTreeSet;
 
 use crate::{
-    CascadeValue, CustomPropertyEnv, CustomPropertyLeastFixedPointEntryV0,
-    CustomPropertyLeastFixedPointIterationV0, CustomPropertyLeastFixedPointProofV0,
-    CustomPropertyLeastFixedPointSummaryV0,
+    CascadeValue, CustomPropertyBoundedFixedPointComputationWitnessV0, CustomPropertyEnv,
+    CustomPropertyLeastFixedPointEntryV0, CustomPropertyLeastFixedPointIterationV0,
+    CustomPropertyLeastFixedPointProofV0, CustomPropertyLeastFixedPointSummaryV0,
 };
 
 pub fn substitute_custom_properties(value: &CascadeValue, env: &CustomPropertyEnv) -> CascadeValue {
@@ -172,11 +172,16 @@ fn cascade_value_contains_var_reference(value: &CascadeValue) -> bool {
     }
 }
 
-fn custom_property_least_fixed_point_proof() -> CustomPropertyLeastFixedPointProofV0 {
+/// Describes the finite computation and monotonic progress observations used by
+/// custom-property substitution.
+pub fn custom_property_bounded_fixed_point_computation_witness()
+-> CustomPropertyBoundedFixedPointComputationWitnessV0 {
     CustomPropertyLeastFixedPointProofV0 {
         finite_domain: "custom-property environment keys are fixed during iteration",
         transfer_function: "each step substitutes every original binding against the previous environment approximation",
+        bounded_fixed_point_computation_witness: "iteration stops on environment equality or the explicit env-size bound",
         monotone_witness: "iteration trace records a nondecreasing settled-value count across the fixed-key environment",
+        monotonic_progress_witness: "settled-value count never decreases between recorded iterations",
         iteration_bound_formula: "max(1, env.len() + 1)",
         cycle_policy: "recursive var() cycles are detected by the visiting set and collapsed to guaranteed-invalid or fallback",
         proof_obligations: vec![
@@ -188,6 +193,11 @@ fn custom_property_least_fixed_point_proof() -> CustomPropertyLeastFixedPointPro
             "explicit fixed-point equality check",
         ],
     }
+}
+
+/// Compatibility wrapper for the earlier proof-oriented name.
+fn custom_property_least_fixed_point_proof() -> CustomPropertyLeastFixedPointProofV0 {
+    custom_property_bounded_fixed_point_computation_witness()
 }
 
 fn substitute_custom_properties_inner(

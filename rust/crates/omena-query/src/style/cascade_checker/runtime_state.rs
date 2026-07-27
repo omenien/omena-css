@@ -14,6 +14,10 @@ use omena_query_core::{
     narrow_abstract_property_value_for_cascade_branch, prefix_suffix_class_value,
 };
 
+#[cfg(test)]
+use crate::types::runtime_state_result_certainty_labels;
+use crate::types::runtime_state_unknown_activation_declaration_id;
+
 use super::super::{
     OmenaQueryInlineStyleRuntimeOverrideV0, OmenaQueryRuntimeStateDriverSummaryV0,
     OmenaQueryRuntimeStateScenarioEvidenceV0, OmenaQueryRuntimeStateScenarioV0,
@@ -21,6 +25,13 @@ use super::super::{
 };
 
 const RUNTIME_STATE_STATIC_BOUNDARY_KIND: &str = "staticValueAssumingNoRuntimeOverride";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScenarioActivation {
+    Active,
+    Inactive,
+    Unknown,
+}
 
 pub(super) fn summarize_query_runtime_state_for_evaluation(
     evaluation: &OmenaCheckerCascadeEvaluationV0,
@@ -89,7 +100,6 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
             &[],
             static_boundary.boundary_kind,
         );
-
     Some(OmenaQueryRuntimeStateScenarioEvidenceV0 {
         schema_version: "0",
         product: "omena-query.runtime-state-scenario-evidence",
@@ -189,14 +199,23 @@ pub(super) fn query_runtime_selector_matches_anchor_classes(
 fn query_runtime_candidate_pseudo_states(
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
 ) -> Vec<String> {
-    declarations
-        .iter()
-        .filter_map(|declaration| parse_simple_selector_signature(declaration.selector.as_str()))
-        .flat_map(|signature| signature.required_pseudo_states.into_iter())
-        .filter(|pseudo_state| query_runtime_pseudo_state_is_dynamic(pseudo_state.as_str()))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
+    let mut pseudo_states = BTreeSet::new();
+    for declaration in declarations {
+        let Some(signature) = parse_simple_selector_signature(declaration.selector.as_str()) else {
+            // The selector remains represented as an Unknown activation in the
+            // default scenario; do not fabricate a pseudo-state name from text.
+            continue;
+        };
+        pseudo_states.extend(
+            signature
+                .required_pseudo_states
+                .into_iter()
+                .filter(|pseudo_state| {
+                    query_runtime_pseudo_state_is_dynamic(pseudo_state.as_str())
+                }),
+        );
+    }
+    pseudo_states.into_iter().collect()
 }
 
 fn query_runtime_pseudo_state_is_dynamic(pseudo_state: &str) -> bool {
@@ -341,12 +360,28 @@ fn query_runtime_state_scenario(
     condition_context: &[String],
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
 ) -> OmenaQueryRuntimeStateScenarioV0 {
-    let active_declarations = declarations
+    let scenario_declarations = declarations
         .iter()
         .copied()
         .filter(|declaration| declaration.condition_context == condition_context)
-        .filter(|declaration| {
-            query_runtime_selector_active_for_pseudo_state(declaration, pseudo_state)
+        .map(|declaration| {
+            let activation =
+                query_runtime_selector_active_for_pseudo_state(declaration, pseudo_state);
+            (declaration, activation)
+        })
+        .collect::<Vec<_>>();
+    let has_unknown_activation =
+        scenario_declarations
+            .iter()
+            .any(|(_, activation)| match activation {
+                ScenarioActivation::Active | ScenarioActivation::Inactive => false,
+                ScenarioActivation::Unknown => true,
+            });
+    let active_declarations = scenario_declarations
+        .iter()
+        .filter_map(|(declaration, activation)| match activation {
+            ScenarioActivation::Active | ScenarioActivation::Unknown => Some(*declaration),
+            ScenarioActivation::Inactive => None,
         })
         .collect::<Vec<_>>();
     let property_candidates = active_declarations
@@ -383,15 +418,19 @@ fn query_runtime_state_scenario(
             property_name,
         )
     };
-    let (winner_declaration_id, winner_value) = match outcome {
-        CascadeOutcome::Definite { winner, .. } => {
-            let value = match winner.value {
-                CascadeValue::Literal(value) => Some(value),
-                _ => None,
-            };
-            (Some(winner.id), value)
+    let (winner_declaration_id, winner_value) = if has_unknown_activation {
+        (None, None)
+    } else {
+        match outcome {
+            CascadeOutcome::Definite { winner, .. } => {
+                let value = match winner.value {
+                    CascadeValue::Literal(value) => Some(value),
+                    _ => None,
+                };
+                (Some(winner.id), value)
+            }
+            _ => (None, None),
         }
-        _ => (None, None),
     };
 
     OmenaQueryRuntimeStateScenarioV0 {
@@ -402,9 +441,17 @@ fn query_runtime_state_scenario(
         },
         pseudo_state: pseudo_state.map(str::to_string),
         condition_context: condition_context.to_vec(),
-        declaration_ids: active_declarations
-            .into_iter()
-            .map(|declaration| declaration.declaration_id.clone())
+        declaration_ids: scenario_declarations
+            .iter()
+            .filter_map(|(declaration, activation)| match activation {
+                ScenarioActivation::Active => Some(declaration.declaration_id.clone()),
+                ScenarioActivation::Inactive => None,
+                ScenarioActivation::Unknown => {
+                    Some(runtime_state_unknown_activation_declaration_id(
+                        declaration.declaration_id.as_str(),
+                    ))
+                }
+            })
             .collect(),
         winner_declaration_id,
         winner_value,
@@ -415,23 +462,22 @@ fn query_runtime_state_scenario(
 fn query_runtime_selector_active_for_pseudo_state(
     declaration: &OmenaCheckerCascadeDeclarationInputV0,
     pseudo_state: Option<&str>,
-) -> bool {
+) -> ScenarioActivation {
     let Some(signature) = parse_simple_selector_signature(declaration.selector.as_str()) else {
-        return declaration
-            .selector
-            .as_str()
-            .split(':')
-            .nth(1)
-            .is_none_or(|required| Some(required) == pseudo_state);
+        return ScenarioActivation::Unknown;
     };
     let required = signature
         .required_pseudo_states
         .into_iter()
         .filter(|state| query_runtime_pseudo_state_is_dynamic(state.as_str()))
         .collect::<BTreeSet<_>>();
-    match pseudo_state {
+    let active = match pseudo_state {
         Some(pseudo_state) => required.is_empty() || required.contains(pseudo_state),
         None => required.is_empty(),
+    };
+    match active {
+        true => ScenarioActivation::Active,
+        false => ScenarioActivation::Inactive,
     }
 }
 
@@ -683,9 +729,84 @@ mod tests {
             "conditionalDefiniteWithinModeledEnvironment"
         );
 
+        let definite_declarations = [selector_declaration("decl-0", ".target", "red", 0)];
+        let definite_references = definite_declarations.iter().collect::<Vec<_>>();
+        let definite_scenario =
+            query_runtime_state_scenario("color", None, &[], &definite_references);
+        let unknown_scenario = OmenaQueryRuntimeStateScenarioV0 {
+            declaration_ids: vec![runtime_state_unknown_activation_declaration_id("decl-1")],
+            winner_declaration_id: None,
+            winner_value: None,
+            ..definite_scenario.clone()
+        };
+        assert_eq!(
+            unknown_scenario.unknown_activation_declaration_ids(),
+            vec!["decl-1"]
+        );
+        let indeterminate_scenario = OmenaQueryRuntimeStateScenarioV0 {
+            winner_declaration_id: None,
+            winner_value: None,
+            ..definite_scenario.clone()
+        };
+        let certainty_tiers = [
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&definite_scenario),
+                static_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&indeterminate_scenario),
+                static_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&unknown_scenario),
+                static_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&definite_scenario),
+                conditional_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&indeterminate_scenario),
+                conditional_tier,
+            ),
+            runtime_state_result_certainty_labels(
+                std::slice::from_ref(&unknown_scenario),
+                conditional_tier,
+            ),
+        ];
+        assert_eq!(
+            certainty_tiers,
+            [
+                ("staticDefinite", "staticDefiniteWithinModeledEnvironment"),
+                (
+                    "staticIndeterminate",
+                    "staticIndeterminateWithinModeledEnvironment",
+                ),
+                ("staticUnknown", "staticUnknownWithinModeledEnvironment"),
+                (
+                    "conditionalDefinite",
+                    "conditionalDefiniteWithinModeledEnvironment",
+                ),
+                (
+                    "conditionalIndeterminate",
+                    "conditionalIndeterminateWithinModeledEnvironment",
+                ),
+                (
+                    "conditionalUnknown",
+                    "conditionalUnknownWithinModeledEnvironment",
+                ),
+            ]
+        );
+
         for qualified_tier in [
             static_tier_within_modeled_environment,
             conditional_tier_within_modeled_environment,
+            certainty_tiers[0].1,
+            certainty_tiers[1].1,
+            certainty_tiers[2].1,
+            certainty_tiers[3].1,
+            certainty_tiers[4].1,
+            certainty_tiers[5].1,
         ] {
             assert!(qualified_tier.ends_with("WithinModeledEnvironment"));
             assert!(

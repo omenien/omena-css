@@ -8,11 +8,12 @@ import { NOOP_LOG_ERROR } from "../../../engine-core-ts/src/provider-deps";
 import { DEFAULT_SETTINGS } from "../../../engine-core-ts/src/settings";
 import { buildEngineInputV2Async } from "../engine-input-v2";
 import {
+  getEngineShadowRunnerDaemonJsonRunner,
   resolveSelectedQueryBackendKind,
   usesRustStyleSemanticGraphBackend,
 } from "../selected-query-backend";
-import { resolveSourceDiagnosticFindings } from "../source-diagnostics-query";
-import { resolveStyleDiagnosticFindings } from "../style-diagnostics-query";
+import { resolveSourceDiagnosticFindingsAsync } from "../source-diagnostics-query";
+import { resolveStyleDiagnosticFindingsAsync } from "../style-diagnostics-query";
 import type { SelectorUsagePayloadCache } from "../selector-usage-query-backend";
 import type { StyleSemanticGraphCache } from "../style-semantic-graph-query-backend";
 import type { TypeFactBackendKind } from "../type-backend";
@@ -82,10 +83,15 @@ export async function checkWorkspace(
   const sourceDocuments = collectSourceDocuments(sourceFiles, analysisHost.analysisCache);
 
   const findings: WorkspaceCheckerFinding[] = [];
-  const sourceDiagnosticOptions = options.env ? { env: options.env } : {};
   const styleSemanticGraphCache: StyleSemanticGraphCache = new Map();
   const selectorUsagePayloadCache: SelectorUsagePayloadCache = new Map();
-  const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env ?? process.env);
+  const queryEnv = options.env ?? process.env;
+  const selectedQueryBackend = resolveSelectedQueryBackendKind(queryEnv);
+  const runRustSelectedQueryBackendJsonAsync = getEngineShadowRunnerDaemonJsonRunner(queryEnv);
+  const sourceDiagnosticOptions = {
+    ...(options.env ? { env: options.env } : {}),
+    ...(runRustSelectedQueryBackendJsonAsync ? { runRustSelectedQueryBackendJsonAsync } : {}),
+  };
   const styleSemanticGraphEngineInput = usesRustStyleSemanticGraphBackend(selectedQueryBackend)
     ? await buildEngineInputV2Async({
         workspaceRoot,
@@ -96,6 +102,8 @@ export async function checkWorkspace(
         analysisCache: analysisHost.analysisCache,
         styleDocumentForPath: styleHost.styleDocumentForPath,
         typeResolver: analysisHost.typeResolver,
+        ...(options.typeBackend ? { typeBackend: options.typeBackend } : {}),
+        env: queryEnv,
       })
     : undefined;
   const styleDiagnosticOptions = {
@@ -105,6 +113,7 @@ export async function checkWorkspace(
     styleFiles,
     styleSemanticGraphCache,
     selectorUsagePayloadCache,
+    ...(runRustSelectedQueryBackendJsonAsync ? { runRustSelectedQueryBackendJsonAsync } : {}),
     ...(options.includeUnusedSelectors !== undefined
       ? { includeUnusedSelectors: options.includeUnusedSelectors }
       : {}),
@@ -114,7 +123,10 @@ export async function checkWorkspace(
   };
 
   for (const document of sourceDocuments) {
-    for (const finding of resolveSourceDiagnosticFindings(
+    // The shared Rust daemon consumes one JSON line at a time; awaiting here
+    // bounds queued workspace payloads without reducing backend parallelism.
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    for (const finding of await resolveSourceDiagnosticFindingsAsync(
       {
         documentUri: document.uri,
         content: document.content,
@@ -138,7 +150,10 @@ export async function checkWorkspace(
   for (const styleFile of styleFiles) {
     const styleDocument = styleHost.styleDocumentForPath(styleFile);
     if (!styleDocument) continue;
-    for (const finding of resolveStyleDiagnosticFindings(
+    // Keep the single-consumer daemon backpressured instead of buffering every
+    // full-corpus style request in the Node process.
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    for (const finding of await resolveStyleDiagnosticFindingsAsync(
       {
         scssPath: styleFile,
         styleDocument,

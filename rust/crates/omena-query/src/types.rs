@@ -3,8 +3,14 @@ use omena_evidence_graph::{
     EvidenceAnalysisPrecisionV0, EvidenceDemandEdgeV0, EvidenceNodeKeyV0, EvidenceNodeSeedV0,
     GuaranteeKindV0, build_evidence_graph_from_edges_v0,
 };
+use omena_query_transform_runner::normalize_omena_transform_bundle_path;
 use omena_sif::OmenaSifV1;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+
+mod runtime_state_serialization;
+#[cfg(test)]
+pub(crate) use runtime_state_serialization::runtime_state_result_certainty_labels;
+pub(crate) use runtime_state_serialization::runtime_state_unknown_activation_declaration_id;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -789,6 +795,38 @@ pub struct OmenaQueryBundleResultV0 {
     pub closed_world_decision_parity: OmenaQueryClosedWorldDecisionParityV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryModuleAttributedBundleResultV0 {
+    bundle_result: OmenaQueryBundleResultV0,
+    reachability_attribution: OmenaQueryModuleReachabilityAttributionReportV0,
+}
+
+impl OmenaQueryModuleAttributedBundleResultV0 {
+    pub(crate) fn new(
+        bundle_result: OmenaQueryBundleResultV0,
+        reachability_attribution: OmenaQueryModuleReachabilityAttributionReportV0,
+    ) -> Self {
+        Self {
+            bundle_result,
+            reachability_attribution,
+        }
+    }
+
+    pub fn bundle_result(&self) -> &OmenaQueryBundleResultV0 {
+        &self.bundle_result
+    }
+
+    pub fn reachability_attribution(&self) -> &OmenaQueryModuleReachabilityAttributionReportV0 {
+        &self.reachability_attribution
+    }
+
+    pub fn into_bundle_result(self) -> OmenaQueryBundleResultV0 {
+        self.bundle_result
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryClosedWorldDecisionParityV0 {
@@ -983,6 +1021,461 @@ pub struct OmenaQuerySemanticReachabilitySourceV0 {
     pub reduced_product: Option<ReducedClassValueProductV0>,
     pub selector_names: Vec<String>,
     pub certainty: SelectorProjectionCertaintyV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum OmenaQueryModuleReachabilityAttributionKindV0 {
+    TargetedProjection,
+    UnattributedProjectionFanout,
+    TargetedAndUnattributedProjection,
+    NoApplicableProjection,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryModuleReachabilityAttributionV0 {
+    style_path: String,
+    class_names: Vec<String>,
+    targeted_projection_count: usize,
+    unattributed_projection_count: usize,
+    attribution_kind: OmenaQueryModuleReachabilityAttributionKindV0,
+}
+
+impl OmenaQueryModuleReachabilityAttributionV0 {
+    pub(crate) fn new(
+        style_path: String,
+        class_names: Vec<String>,
+        targeted_projection_count: usize,
+        unattributed_projection_count: usize,
+    ) -> Self {
+        let attribution_kind = match (
+            targeted_projection_count > 0,
+            unattributed_projection_count > 0,
+        ) {
+            (true, true) => {
+                OmenaQueryModuleReachabilityAttributionKindV0::TargetedAndUnattributedProjection
+            }
+            (true, false) => OmenaQueryModuleReachabilityAttributionKindV0::TargetedProjection,
+            (false, true) => {
+                OmenaQueryModuleReachabilityAttributionKindV0::UnattributedProjectionFanout
+            }
+            (false, false) => OmenaQueryModuleReachabilityAttributionKindV0::NoApplicableProjection,
+        };
+        Self {
+            style_path,
+            class_names,
+            targeted_projection_count,
+            unattributed_projection_count,
+            attribution_kind,
+        }
+    }
+
+    pub fn style_path(&self) -> &str {
+        self.style_path.as_str()
+    }
+
+    pub fn class_names(&self) -> &[String] {
+        self.class_names.as_slice()
+    }
+
+    pub fn targeted_projection_count(&self) -> usize {
+        self.targeted_projection_count
+    }
+
+    pub fn unattributed_projection_count(&self) -> usize {
+        self.unattributed_projection_count
+    }
+
+    pub fn attribution_kind(&self) -> OmenaQueryModuleReachabilityAttributionKindV0 {
+        self.attribution_kind
+    }
+
+    pub fn was_attempted(&self) -> bool {
+        self.targeted_projection_count > 0 || self.unattributed_projection_count > 0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OmenaQueryEngineInputModuleAttributionV0 {
+    declared_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+    targeted_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+    targeted_projection_count_by_style_path: BTreeMap<String, usize>,
+}
+
+impl OmenaQueryEngineInputModuleAttributionV0 {
+    pub(crate) fn new(
+        declared_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+        targeted_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+        targeted_projection_count_by_style_path: BTreeMap<String, usize>,
+    ) -> Self {
+        Self {
+            declared_class_names_by_style_path,
+            targeted_class_names_by_style_path,
+            targeted_projection_count_by_style_path,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct OmenaQueryEngineInputModuleReachabilityV0 {
+    summary: OmenaQueryTransformContextFromEngineInputSummaryV0,
+    known_style_paths: Vec<String>,
+    declared_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+    targeted_class_names_by_style_path: BTreeMap<String, Vec<String>>,
+    targeted_projection_count_by_style_path: BTreeMap<String, usize>,
+    unattributed_class_names: Vec<String>,
+    unattributed_projection_count: usize,
+    projected_class_names: Vec<String>,
+    projection_summary_evaluation_count: usize,
+}
+
+impl OmenaQueryEngineInputModuleReachabilityV0 {
+    pub(crate) fn new(
+        summary: OmenaQueryTransformContextFromEngineInputSummaryV0,
+        known_style_paths: Vec<String>,
+        module_attribution: OmenaQueryEngineInputModuleAttributionV0,
+        unattributed_class_names: Vec<String>,
+        unattributed_projection_count: usize,
+        projected_class_names: Vec<String>,
+    ) -> Self {
+        let OmenaQueryEngineInputModuleAttributionV0 {
+            declared_class_names_by_style_path,
+            targeted_class_names_by_style_path,
+            targeted_projection_count_by_style_path,
+        } = module_attribution;
+        Self {
+            summary,
+            known_style_paths,
+            declared_class_names_by_style_path,
+            targeted_class_names_by_style_path,
+            targeted_projection_count_by_style_path,
+            unattributed_class_names,
+            unattributed_projection_count,
+            projected_class_names,
+            projection_summary_evaluation_count: 1,
+        }
+    }
+
+    pub fn summary(&self) -> &OmenaQueryTransformContextFromEngineInputSummaryV0 {
+        &self.summary
+    }
+
+    pub fn context(&self) -> &TransformExecutionContextV0 {
+        &self.summary.context
+    }
+
+    pub fn into_summary(self) -> OmenaQueryTransformContextFromEngineInputSummaryV0 {
+        self.summary
+    }
+
+    pub fn projected_class_names(&self) -> &[String] {
+        self.projected_class_names.as_slice()
+    }
+
+    pub fn projection_summary_evaluation_count(&self) -> usize {
+        self.projection_summary_evaluation_count
+    }
+
+    pub fn module_attribution(
+        &self,
+        style_path: &str,
+    ) -> OmenaQueryModuleReachabilityAttributionV0 {
+        let style_path = resolve_omena_query_style_path_against_known(
+            style_path,
+            self.known_style_paths.as_slice(),
+        )
+        .unwrap_or_else(|| normalize_omena_query_style_path(style_path));
+        let mut class_names = self.unattributed_class_names.clone();
+        if let Some(targeted_class_names) = self
+            .targeted_class_names_by_style_path
+            .get(style_path.as_str())
+        {
+            class_names.extend(targeted_class_names.iter().cloned());
+        }
+        class_names.sort();
+        class_names.dedup();
+        OmenaQueryModuleReachabilityAttributionV0::new(
+            style_path.clone(),
+            class_names,
+            self.targeted_projection_count_by_style_path
+                .get(style_path.as_str())
+                .copied()
+                .unwrap_or_default(),
+            self.unattributed_projection_count,
+        )
+    }
+
+    pub(crate) fn targeted_style_paths(&self) -> impl Iterator<Item = &str> {
+        self.targeted_projection_count_by_style_path
+            .keys()
+            .map(String::as_str)
+    }
+
+    pub(crate) fn flat_class_names_for_style_paths<'a>(
+        &self,
+        style_paths: impl IntoIterator<Item = &'a str>,
+        candidate_class_names: &[String],
+    ) -> Vec<String> {
+        let style_paths = style_paths
+            .into_iter()
+            .map(|style_path| {
+                resolve_omena_query_style_path_against_known(
+                    style_path,
+                    self.known_style_paths.as_slice(),
+                )
+                .unwrap_or_else(|| normalize_omena_query_style_path(style_path))
+            })
+            .collect::<BTreeSet<_>>();
+
+        candidate_class_names
+            .iter()
+            .filter(|class_name| {
+                let mut declared_owner_paths = self
+                    .declared_class_names_by_style_path
+                    .iter()
+                    .filter(|(_, names)| names.contains(class_name))
+                    .map(|(style_path, _)| style_path);
+                let Some(first_owner_path) = declared_owner_paths.next() else {
+                    return true;
+                };
+                style_paths.contains(first_owner_path)
+                    || declared_owner_paths.any(|style_path| style_paths.contains(style_path))
+            })
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+}
+
+pub(crate) fn normalize_omena_query_style_path(style_path: &str) -> String {
+    normalize_omena_transform_bundle_path(style_path)
+}
+
+pub(crate) fn resolve_omena_query_style_path_against_known(
+    style_path: &str,
+    known_style_paths: &[String],
+) -> Option<String> {
+    let normalized = normalize_omena_query_style_path(style_path);
+    unique_style_path_match(known_style_paths, |known| {
+        normalize_omena_query_style_path(known) == normalized
+    })
+    .or_else(|| {
+        unique_style_path_match(known_style_paths, |known| {
+            normalize_omena_query_style_path(known).eq_ignore_ascii_case(normalized.as_str())
+        })
+    })
+    .or_else(|| {
+        unique_style_path_match(known_style_paths, |known| {
+            style_path_component_suffix_matches(
+                normalize_omena_query_style_path(known).as_str(),
+                normalized.as_str(),
+                false,
+            )
+        })
+    })
+    .or_else(|| {
+        unique_style_path_match(known_style_paths, |known| {
+            style_path_component_suffix_matches(
+                normalize_omena_query_style_path(known).as_str(),
+                normalized.as_str(),
+                true,
+            )
+        })
+    })
+}
+
+fn unique_style_path_match(
+    known_style_paths: &[String],
+    matches: impl Fn(&String) -> bool,
+) -> Option<String> {
+    let mut matching = known_style_paths.iter().filter(|known| matches(known));
+    let first = matching.next()?;
+    matching.next().is_none().then(|| first.clone())
+}
+
+fn style_path_component_suffix_matches(left: &str, right: &str, ignore_case: bool) -> bool {
+    let left = left.trim_matches('/');
+    let right = right.trim_matches('/');
+    let (left, right) = if ignore_case {
+        (left.to_ascii_lowercase(), right.to_ascii_lowercase())
+    } else {
+        (left.to_string(), right.to_string())
+    };
+    left == right
+        || left
+            .strip_suffix(right.as_str())
+            .is_some_and(|prefix| prefix.ends_with('/'))
+        || right
+            .strip_suffix(left.as_str())
+            .is_some_and(|prefix| prefix.ends_with('/'))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryModuleReachabilityAttributionReportV0 {
+    entries: Vec<OmenaQueryModuleReachabilityAttributionV0>,
+    projection_summary_evaluation_count: usize,
+    projected_class_names: Vec<String>,
+    flat_class_names: Vec<String>,
+    attributed_class_names: Vec<String>,
+    lost_class_names: Vec<String>,
+    unmatched_target_style_paths: Vec<String>,
+    attempted_module_count: usize,
+    attributed_empty_module_count: usize,
+}
+
+impl OmenaQueryModuleReachabilityAttributionReportV0 {
+    pub(crate) fn try_from_style_paths<'a>(
+        attribution: &OmenaQueryEngineInputModuleReachabilityV0,
+        style_paths: impl IntoIterator<Item = &'a str>,
+        flat_class_names: &[String],
+    ) -> Result<Self, String> {
+        let mut style_paths = style_paths
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        style_paths.sort();
+        style_paths.dedup();
+        let mut entries = style_paths
+            .iter()
+            .map(|style_path| attribution.module_attribution(style_path))
+            .collect::<Vec<_>>();
+        entries.sort_by(|left, right| left.style_path().cmp(right.style_path()));
+        entries.dedup_by(|left, right| left.style_path() == right.style_path());
+
+        let mut flat_class_names = flat_class_names.to_vec();
+        flat_class_names.sort();
+        flat_class_names.dedup();
+        let directly_attributed_class_names = entries
+            .iter()
+            .flat_map(|entry| entry.class_names.iter().cloned())
+            .collect::<BTreeSet<_>>();
+        for class_name in &flat_class_names {
+            if directly_attributed_class_names.contains(class_name) {
+                continue;
+            }
+            let declared_owner_paths = attribution
+                .declared_class_names_by_style_path
+                .iter()
+                .filter(|(_, names)| names.contains(class_name))
+                .map(|(style_path, _)| style_path.as_str())
+                .collect::<BTreeSet<_>>();
+            for entry in &mut entries {
+                if declared_owner_paths.is_empty()
+                    || declared_owner_paths.contains(entry.style_path.as_str())
+                {
+                    entry.class_names.push(class_name.clone());
+                    entry.class_names.sort();
+                    entry.class_names.dedup();
+                }
+            }
+        }
+
+        let style_path_set = entries
+            .iter()
+            .map(OmenaQueryModuleReachabilityAttributionV0::style_path)
+            .collect::<BTreeSet<_>>();
+        let attributed_class_names = entries
+            .iter()
+            .flat_map(|entry| entry.class_names.iter().cloned())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let lost_class_names = flat_class_names
+            .iter()
+            .filter(|name| !attributed_class_names.contains(name))
+            .cloned()
+            .collect::<Vec<_>>();
+        let unmatched_target_style_paths = attribution
+            .targeted_style_paths()
+            .filter(|path| !style_path_set.contains(path))
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let attempted_module_count = entries.iter().filter(|entry| entry.was_attempted()).count();
+        let attributed_empty_module_count = entries
+            .iter()
+            .filter(|entry| entry.was_attempted() && entry.class_names.is_empty())
+            .count();
+        let report = Self {
+            entries,
+            projection_summary_evaluation_count: attribution.projection_summary_evaluation_count(),
+            projected_class_names: attribution.projected_class_names.clone(),
+            flat_class_names,
+            attributed_class_names,
+            lost_class_names,
+            unmatched_target_style_paths,
+            attempted_module_count,
+            attributed_empty_module_count,
+        };
+        if report.lost_class_names.is_empty() {
+            Ok(report)
+        } else {
+            Err(format!(
+                "module reachability partition lost flat class names: {}",
+                report.lost_class_names.join(", ")
+            ))
+        }
+    }
+
+    pub fn entries(&self) -> &[OmenaQueryModuleReachabilityAttributionV0] {
+        self.entries.as_slice()
+    }
+
+    pub fn entry_for_style_path(
+        &self,
+        style_path: &str,
+    ) -> Option<&OmenaQueryModuleReachabilityAttributionV0> {
+        let known_style_paths = self
+            .entries
+            .iter()
+            .map(|entry| entry.style_path().to_string())
+            .collect::<Vec<_>>();
+        let style_path =
+            resolve_omena_query_style_path_against_known(style_path, known_style_paths.as_slice())
+                .unwrap_or_else(|| normalize_omena_query_style_path(style_path));
+        self.entries
+            .binary_search_by(|entry| entry.style_path().cmp(style_path.as_str()))
+            .ok()
+            .map(|index| &self.entries[index])
+    }
+
+    pub fn projection_summary_evaluation_count(&self) -> usize {
+        self.projection_summary_evaluation_count
+    }
+
+    pub fn projected_class_names(&self) -> &[String] {
+        self.projected_class_names.as_slice()
+    }
+
+    pub fn flat_class_names(&self) -> &[String] {
+        self.flat_class_names.as_slice()
+    }
+
+    pub fn attributed_class_names(&self) -> &[String] {
+        self.attributed_class_names.as_slice()
+    }
+
+    pub fn lost_class_names(&self) -> &[String] {
+        self.lost_class_names.as_slice()
+    }
+
+    pub fn unmatched_target_style_paths(&self) -> &[String] {
+        self.unmatched_target_style_paths.as_slice()
+    }
+
+    pub fn attempted_module_count(&self) -> usize {
+        self.attempted_module_count
+    }
+
+    pub fn attributed_empty_module_count(&self) -> usize {
+        self.attributed_empty_module_count
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -1226,8 +1719,7 @@ pub struct OmenaQueryStaticConditionPruningEvidenceV0 {
     pub anchor_context: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -1240,9 +1732,7 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0,
     pub driver_summaries: Vec<OmenaQueryRuntimeStateDriverSummaryV0>,
     pub scenarios: Vec<OmenaQueryRuntimeStateScenarioV0>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub static_condition_pruning: Vec<OmenaQueryStaticConditionPruningEvidenceV0>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub inline_style_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
 }
 
@@ -1264,17 +1754,13 @@ pub struct OmenaQueryRuntimeStateDriverSummaryV0 {
     pub provenance: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryRuntimeStateScenarioV0 {
     pub scenario_kind: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub pseudo_state: Option<String>,
     pub condition_context: Vec<String>,
     pub declaration_ids: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_declaration_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_value: Option<String>,
     pub property_value_narrowing: AbstractPropertyValueNarrowingV0,
 }
@@ -1853,6 +2339,17 @@ pub struct OmenaQuerySourceSelectorReferenceCandidateV0 {
     pub range: ParserRangeV0,
     pub source: &'static str,
     pub target_style_uri: Option<String>,
+}
+
+impl OmenaQuerySourceSelectorReferenceCandidateV0 {
+    pub fn projection_surface(&self) -> OmenaQuerySourceSelectorReferenceSurfaceV0 {
+        match self.source {
+            "omenaTsgoTypeFactProjection" => {
+                OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaTsgoTypeFactProjection
+            }
+            _ => OmenaQuerySourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -20,6 +20,6 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-omena-parser = { path = "../omena-parser", version = "=0.3.0" }
-omena-resolver = { path = "../omena-resolver", version = "=0.3.0" }
+omena-parser = { path = "../omena-parser" }
+omena-resolver = { path = "../omena-resolver" }
 proptest.workspace = true

@@ -422,8 +422,11 @@ fn source_diagnostics_consume_precomputed_source_syntax_index() {
                     selector_name: Some("ghost".to_string()),
                     match_kind: OmenaQuerySourceSelectorReferenceMatchKindV0::Exact,
                     target_style_uri: Some(style_uri.to_string()),
+                    surface: Default::default(),
                 }],
                 type_fact_targets: Vec::new(),
+                type_fact_target_skipped: Vec::new(),
+                type_fact_target_skipped_count: 0,
                 type_fact_provider_unavailable: Vec::new(),
                 class_value_universes: Vec::new(),
                 domain_class_references: Vec::new(),
@@ -522,6 +525,8 @@ fn source_diagnostics_tag_tsgo_unavailable_type_fact_as_unknown_precision()
                 inline_style_declarations: Vec::new(),
                 selector_references: Vec::new(),
                 type_fact_targets: Vec::new(),
+                type_fact_target_skipped: Vec::new(),
+                type_fact_target_skipped_count: 0,
                 type_fact_provider_unavailable: vec![
                     OmenaQuerySourceTypeFactProviderUnavailableFactV0 {
                         byte_span: ParserByteSpanV0 {
@@ -1067,4 +1072,38 @@ export function App({{ variant }}) {{
         "btn- bound to a module with NO btn-* selectors must still flag noUnknownDynamicClass \
          (scoped to the bound module, not cross-matched against the union)"
     );
+}
+
+#[test]
+fn workspace_source_diagnostics_report_unmatched_finite_template_arms() {
+    let source_path = "/workspace/src/App.tsx";
+    let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function App({ active }: { active: boolean }) {
+  return <div className={cx(`theme-${active ? "a" : "legacy"}`)} />;
+}"#;
+    let style_sources = [OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.scss".to_string(),
+        style_source: ".theme-legacy {}\n".to_string(),
+    }];
+
+    let summary = summarize_omena_query_source_diagnostics_for_workspace_file(
+        source_path,
+        source,
+        &style_sources,
+        &[],
+    );
+    let unknown_dynamic_classes = summary
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "noUnknownDynamicClass")
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        unknown_dynamic_classes.len(),
+        1,
+        "the unmatched theme-a arm should produce exactly one dynamic-class diagnostic"
+    );
+    assert_eq!(unknown_dynamic_classes[0].range.start.line, 4);
 }

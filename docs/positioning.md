@@ -10,36 +10,47 @@ It is not positioned as a build-time replacement for established CSS tools.
 Its build surfaces focus on evidence-aware decisions, fail-closed planning, and
 shared semantics across CLI, SDK, editor, and CI consumers.
 
-## Role Comparison
+## How omena-css Compares
 
-Role source anchors:
+**Is omena-css a replacement for [Lightning CSS](https://lightningcss.dev/)?**
+No. Lightning CSS is a fast parser, transformer, bundler, and minifier.
+omena-css is a complementary build-pipeline tool that adds typed semantic
+evidence: keep your transformer, and let omena-css gate what a transform may
+safely change.
 
-- Lightning CSS: https://lightningcss.dev/
-- PostCSS: https://postcss.org/
-- Dart Sass: https://sass-lang.com/dart-sass/
-- Biome: https://biomejs.dev/
+**Does omena-css replace [PostCSS](https://postcss.org/)?**
+No. PostCSS is a JavaScript transformation and plugin ecosystem. omena-css is
+an adjacent ecosystem that can feed semantic facts to PostCSS consumers, but it
+is not a general PostCSS plugin host.
 
-| Tool          | Public role                                              | omena-css relationship                                                                                                        |
-| ------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Lightning CSS | Fast parser, transformer, bundler, and minifier          | Complementary build-pipeline tool. omena-css should compare against it only with same-corpus benchmark evidence.              |
-| PostCSS       | JavaScript CSS transformation and plugin ecosystem       | Adjacent ecosystem. omena-css can feed semantic facts to consumers, but it is not a general PostCSS plugin replacement claim. |
-| Dart Sass     | Primary Sass implementation and compiler reference path  | Compiler reference. omena-css analyzes Sass/SCSS facts but does not claim Sass compiler replacement.                          |
-| Biome CSS     | Broad formatter/linter/assist toolchain with CSS support | Broad toolchain neighbor. omena-css focuses on CSS Modules semantics, provenance, and cascade evidence.                       |
+**Does omena-css compile Sass?**
+No. [Dart Sass](https://sass-lang.com/dart-sass/) remains the compiler
+reference. omena-css analyzes Sass/SCSS facts — module graphs, compatibility,
+and provenance — and does not compile Sass.
 
-## Evidence-Backed Claims
+**How does omena-css relate to [Biome](https://biomejs.dev/)?**
+Biome CSS is a broad formatter/linter/assist toolchain and a neighbor rather
+than a competitor. omena-css focuses on CSS Modules semantics, provenance, and
+cascade evidence.
 
-- Parser, cascade, transform, benchmark, and standalone workspace surfaces have
-  versioned gates in the source monorepo.
-- External speed comparisons require same-corpus, same-machine, same-request
-  evidence before publication.
+**Is omena-css faster than the tools above?**
+omena-css publishes speed comparisons only with same-corpus, same-machine,
+same-request evidence. External speed comparisons require same-corpus benchmark
+runs before publication; the standard and current baselines live in
+[performance evidence](performance.md).
+
+## Scope And Non-Goals
+
+Intentional non-goals:
+
+- Compiling Sass or replacing the Dart Sass toolchain.
+- Hosting or re-implementing the PostCSS plugin ecosystem.
+- Competing as a drop-in build-time replacement for established CSS tools.
+- Publishing speed rankings that do not meet the evidence standard above.
+
+Current limitations, stated as facts rather than promises:
+
+- The public Cargo API has no 1.0 freeze; crates follow the 0.x line and may
+  re-key between minor trains.
 - Research-facing semantic substrates remain bounded by their product paths and
   executable gates; their presence alone does not establish a stronger claim.
-
-## Current Non-Claims
-
-- No direct speed ranking against Lightning CSS, PostCSS, Dart Sass, or Biome.
-- No Sass compiler replacement claim.
-- No PostCSS ecosystem replacement claim.
-- No theorem-complete cascade, sheaf/cosheaf, modal, Datalog, egglog, or
-  perceptual claim.
-- No public Cargo 1.0 API freeze claim.
