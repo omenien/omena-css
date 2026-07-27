@@ -6,6 +6,7 @@
 mod animations;
 mod at_rules;
 mod css_modules;
+mod emission_selectors;
 mod icss;
 mod sass;
 mod selectors;
@@ -32,6 +33,10 @@ pub(crate) use css_modules::{
     collect_css_module_value_import_edge_facts_from_cst,
     css_module_value_reference_token_can_be_name, css_module_value_source_name,
     css_module_value_statement_end, declaration_colon_index,
+};
+pub use emission_selectors::{
+    ParsedEmissionSelectorFactKindV0, ParsedEmissionSelectorFactV0, ParsedEmissionSelectorFactsV0,
+    collect_emission_selector_facts_from_cst,
 };
 pub use icss::{
     ParsedIcssExportEdgeFact, ParsedIcssFact, ParsedIcssFactKind, ParsedIcssImportEdgeFact,
@@ -102,45 +107,116 @@ pub struct ParsedStyleFacts {
     pub error_count: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ParsedStyleFactCollectionV0 {
+    pub facts: ParsedStyleFacts,
+    pub emission_selectors: ParsedEmissionSelectorFactsV0,
+}
+
 struct ProductFacts(ParsedStyleFacts);
 
 impl From<ParsedStyleFacts> for ProductFacts {
-    fn from(mut projected: ParsedStyleFacts) -> Self {
-        if !matches!(projected.dialect, StyleDialect::Scss | StyleDialect::Sass) {
-            clear_fact_category(
-                &mut projected.sass_symbol_count,
-                &mut projected.sass_symbols,
-            );
-            clear_fact_category(
-                &mut projected.sass_module_edge_count,
-                &mut projected.sass_module_edges,
-            );
-            clear_fact_category(
-                &mut projected.sass_placeholder_definition_count,
-                &mut projected.sass_placeholder_definitions,
-            );
-        }
+    fn from(facts: ParsedStyleFacts) -> Self {
+        let ParsedStyleFacts {
+            product,
+            dialect,
+            selector_count,
+            selectors,
+            variable_count,
+            variables,
+            sass_symbol_count,
+            sass_symbols,
+            sass_include_count: _,
+            sass_includes: _,
+            sass_module_edge_count,
+            sass_module_edges,
+            sass_placeholder_definition_count,
+            sass_placeholder_definitions,
+            extend_target_count: _,
+            extend_targets: _,
+            animation_count,
+            animations,
+            css_module_value_count,
+            css_module_values,
+            css_module_value_import_edge_count,
+            css_module_value_import_edges,
+            css_module_value_definition_edge_count,
+            css_module_value_definition_edges,
+            css_module_composes_count,
+            css_module_composes,
+            css_module_composes_edge_count,
+            css_module_composes_edges,
+            icss_count: _,
+            icss: _,
+            icss_import_edge_count: _,
+            icss_import_edges: _,
+            icss_export_edge_count: _,
+            icss_export_edges: _,
+            at_rule_count: _,
+            at_rules: _,
+            error_count,
+        } = facts;
+        let include_sass_declarations = matches!(dialect, StyleDialect::Scss | StyleDialect::Sass);
+        let (
+            sass_symbol_count,
+            sass_symbols,
+            sass_module_edge_count,
+            sass_module_edges,
+            sass_placeholder_definition_count,
+            sass_placeholder_definitions,
+        ) = if include_sass_declarations {
+            (
+                sass_symbol_count,
+                sass_symbols,
+                sass_module_edge_count,
+                sass_module_edges,
+                sass_placeholder_definition_count,
+                sass_placeholder_definitions,
+            )
+        } else {
+            (0, Vec::new(), 0, Vec::new(), 0, Vec::new())
+        };
 
-        clear_fact_category(
-            &mut projected.sass_include_count,
-            &mut projected.sass_includes,
-        );
-        clear_fact_category(
-            &mut projected.extend_target_count,
-            &mut projected.extend_targets,
-        );
-        clear_fact_category(&mut projected.icss_count, &mut projected.icss);
-        clear_fact_category(
-            &mut projected.icss_import_edge_count,
-            &mut projected.icss_import_edges,
-        );
-        clear_fact_category(
-            &mut projected.icss_export_edge_count,
-            &mut projected.icss_export_edges,
-        );
-        clear_fact_category(&mut projected.at_rule_count, &mut projected.at_rules);
-
-        Self(projected)
+        Self(ParsedStyleFacts {
+            product,
+            dialect,
+            selector_count,
+            selectors,
+            variable_count,
+            variables,
+            sass_symbol_count,
+            sass_symbols,
+            sass_include_count: 0,
+            sass_includes: Vec::new(),
+            sass_module_edge_count,
+            sass_module_edges,
+            sass_placeholder_definition_count,
+            sass_placeholder_definitions,
+            extend_target_count: 0,
+            extend_targets: Vec::new(),
+            animation_count,
+            animations,
+            css_module_value_count,
+            css_module_values,
+            css_module_value_import_edge_count,
+            css_module_value_import_edges,
+            css_module_value_definition_edge_count,
+            css_module_value_definition_edges,
+            css_module_composes_count,
+            css_module_composes,
+            css_module_composes_edge_count,
+            css_module_composes_edges,
+            icss_count: 0,
+            icss: Vec::new(),
+            icss_import_edge_count: 0,
+            icss_import_edges: Vec::new(),
+            icss_export_edge_count: 0,
+            icss_export_edges: Vec::new(),
+            at_rule_count: 0,
+            at_rules: Vec::new(),
+            error_count,
+        })
     }
 }
 
@@ -150,23 +226,33 @@ impl From<ProductFacts> for ParsedStyleFacts {
     }
 }
 
-fn clear_fact_category<T>(count: &mut usize, facts: &mut Vec<T>) {
-    *count = 0;
-    facts.clear();
-}
-
 pub fn collect_style_facts_with_extension(
     text: &str,
     extension: &impl DialectExtension,
 ) -> ParsedStyleFacts {
+    let parsed = parse_style_fact_source(text, extension);
+    facts_from_cst(text, &parsed)
+}
+
+pub fn collect_style_fact_collection_with_extension(
+    text: &str,
+    extension: &impl DialectExtension,
+) -> ParsedStyleFactCollectionV0 {
+    let parsed = parse_style_fact_source(text, extension);
+    ParsedStyleFactCollectionV0 {
+        facts: facts_from_cst(text, &parsed),
+        emission_selectors: collect_emission_selector_facts_from_cst(text, &parsed),
+    }
+}
+
+fn parse_style_fact_source(text: &str, extension: &impl DialectExtension) -> ParseResult {
     let (tokens, lex_errors) = tokenize(text, extension);
     let token_count = tokens.len();
     let mut parser = Parser::new(tokens.clone(), lex_errors, extension.dialect());
     crate::record_omena_parser_parse_materialization(token_count);
     let (green, interner) = parser.parse();
     let errors = parser.into_errors();
-    let parsed = ParseResult::new(green, interner, errors, token_count, extension.dialect());
-    facts_from_cst(text, &parsed)
+    ParseResult::new(green, interner, errors, token_count, extension.dialect())
 }
 
 pub fn facts_from_cst(text: &str, parsed: &ParseResult) -> ParsedStyleFacts {

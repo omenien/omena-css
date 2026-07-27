@@ -415,4 +415,45 @@ describe("AliasResolver", () => {
       ),
     ).toBe(path.resolve(WORKSPACE, "src/real/Button.module.scss"));
   });
+
+  it("exports the effective path mappings for request-boundary consumers", () => {
+    const resolver = new AliasResolver(
+      WORKSPACE,
+      { "@settings": "src/settings" },
+      {
+        basePath: path.resolve(WORKSPACE, "src"),
+        paths: {
+          "$components/*": ["components/*", "generated/*"],
+        },
+      },
+      undefined,
+      {
+        aliases: { "@bundler": "src/bundler" },
+        unrecognized: [],
+      },
+    );
+
+    expect(resolver.styleResolutionPathInputs()).toEqual({
+      bundlerPathMappings: [
+        {
+          pattern: "@settings",
+          targetPath: path.resolve(WORKSPACE, "src/settings"),
+        },
+        {
+          pattern: "@bundler",
+          targetPath: path.resolve(WORKSPACE, "src/bundler"),
+        },
+      ],
+      tsconfigPathMappings: [
+        {
+          basePath: WORKSPACE,
+          pattern: "$components/*",
+          targetPatterns: [
+            path.resolve(WORKSPACE, "src/components/*"),
+            path.resolve(WORKSPACE, "src/generated/*"),
+          ],
+        },
+      ],
+    });
+  });
 });

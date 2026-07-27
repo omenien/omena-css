@@ -430,12 +430,71 @@ impl ClosedWorldBundleV0 {
         &self.closure_hash
     }
 
+    pub fn module_qualified_ownership_digest(&self) -> String {
+        let mut digest = StableModuleOwnershipDigestV0::new();
+        let mut modules = self
+            .reachability
+            .module_qualified_symbols()
+            .iter()
+            .filter(|symbols| symbols.is_reachable())
+            .collect::<Vec<_>>();
+        modules.sort_by(|left, right| left.module_instance().cmp(right.module_instance()));
+
+        for symbols in modules {
+            digest.module(symbols.module_instance());
+            digest.symbol_names("class", symbols.class_names());
+            digest.symbol_names("keyframe", symbols.keyframe_names());
+            digest.symbol_names("value", symbols.value_names());
+            digest.symbol_names("custom-property", symbols.custom_property_names());
+        }
+
+        digest.finish_hex()
+    }
+
     pub fn interface_hashes(&self) -> &ClosedWorldInterfaceHashSetV0 {
         &self.interface_hashes
     }
 
     pub fn source_precision(&self) -> Option<ClosedWorldSourcePrecisionSummaryV0> {
         self.source_precision
+    }
+}
+
+struct StableModuleOwnershipDigestV0(u64);
+
+impl StableModuleOwnershipDigestV0 {
+    fn new() -> Self {
+        let mut digest = Self(0xcbf2_9ce4_8422_2325);
+        digest.piece("omena-parser.module-qualified-ownership");
+        digest
+    }
+
+    fn piece(&mut self, value: &str) {
+        for byte in value.as_bytes().iter().copied().chain([0]) {
+            self.0 ^= u64::from(byte);
+            self.0 = self.0.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+
+    fn module(&mut self, module_instance: &ModuleInstanceKeyV0) {
+        self.piece("module");
+        self.piece(module_instance.module().as_str());
+        self.piece(module_instance.configuration().as_str());
+    }
+
+    fn symbol_names(&mut self, kind: &str, names: &[String]) {
+        self.piece(kind);
+        let names = names
+            .iter()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>();
+        for name in names {
+            self.piece(name);
+        }
+    }
+
+    fn finish_hex(self) -> String {
+        format!("{:016x}", self.0)
     }
 }
 

@@ -16,5 +16,5 @@ role = "R1"
 workspace = true
 
 [dependencies]
-omena-parser = { path = "../omena-parser", version = "=0.2.1" }
-omena-syntax = { path = "../omena-syntax", version = "=0.2.1" }
+omena-parser = { path = "../omena-parser", version = "=0.3.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }

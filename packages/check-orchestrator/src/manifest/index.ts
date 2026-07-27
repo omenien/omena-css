@@ -14,6 +14,7 @@ import { classifyScript } from "./scopes";
 import { buildCheckSurfaceReport, findAliasChains, renderCheckSurfaceReport } from "./surface";
 import { findToolPinCoherenceDiagnostics } from "./tool-pins";
 import {
+  findCiRequiredAggregationDiagnostics,
   findCiTierReachabilityDiagnostics,
   findScheduledWorkflowEscalationDiagnostics,
   findWorkflowBypassDiagnostics,
@@ -97,6 +98,7 @@ export function loadCheckManifest(
   diagnostics.push(...findToolPinCoherenceDiagnostics(rootDir));
   diagnostics.push(...findWorkflowBypassDiagnostics(rootDir, gates));
   diagnostics.push(...findScheduledWorkflowEscalationDiagnostics(rootDir));
+  diagnostics.push(...findCiRequiredAggregationDiagnostics(rootDir));
   diagnostics.push(...findCiTierReachabilityDiagnostics(rootDir, gates));
 
   return {

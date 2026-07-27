@@ -21,12 +21,71 @@ mod single_file;
 mod source_usage;
 mod substrate;
 
+#[cfg(feature = "salsa-memo")]
 pub(in crate::style) use cascade_runtime::collect_omena_query_inline_style_runtime_overrides_by_style;
 #[cfg(feature = "hypergraph-ifds")]
 pub(in crate::style) use cross_file_scc::collect_omena_query_unified_cross_file_scc_report_shared;
+pub(in crate::style) use source_usage::OmenaQueryUnusedSelectorSharedV0;
+#[cfg(feature = "salsa-memo")]
 pub(in crate::style) use source_usage::collect_omena_query_unused_selector_shared;
+#[cfg(all(feature = "salsa-memo", any(test, feature = "test-support")))]
+pub use source_usage::{
+    read_unused_selector_shared_walk_count_for_test,
+    reset_unused_selector_shared_walk_count_for_test,
+};
 pub(in crate::style) use substrate::OmenaQueryWorkspaceSharedPassProductsV0;
 mod types;
+
+pub(in crate::style) trait OmenaQueryWorkspaceSharedDiagnosticsV0 {
+    fn unused_selector(&self) -> &Option<OmenaQueryUnusedSelectorSharedV0>;
+
+    fn inline_style_overrides_by_style(
+        &self,
+    ) -> Option<
+        &std::collections::BTreeMap<String, Vec<crate::OmenaQueryInlineStyleRuntimeOverrideV0>>,
+    >;
+
+    #[cfg(feature = "hypergraph-ifds")]
+    fn cross_file_scc_report(&self) -> Option<&crate::OmenaQueryUnifiedCrossFileSccReportV0>;
+}
+
+impl OmenaQueryWorkspaceSharedDiagnosticsV0 for OmenaQueryWorkspaceSharedPassProductsV0 {
+    fn unused_selector(&self) -> &Option<OmenaQueryUnusedSelectorSharedV0> {
+        &self.unused_selector
+    }
+
+    fn inline_style_overrides_by_style(
+        &self,
+    ) -> Option<
+        &std::collections::BTreeMap<String, Vec<crate::OmenaQueryInlineStyleRuntimeOverrideV0>>,
+    > {
+        self.inline_style_overrides_by_style.as_ref()
+    }
+
+    #[cfg(feature = "hypergraph-ifds")]
+    fn cross_file_scc_report(&self) -> Option<&crate::OmenaQueryUnifiedCrossFileSccReportV0> {
+        self.cross_file_scc_report.as_ref()
+    }
+}
+
+impl OmenaQueryWorkspaceSharedDiagnosticsV0 for Option<OmenaQueryUnusedSelectorSharedV0> {
+    fn unused_selector(&self) -> &Option<OmenaQueryUnusedSelectorSharedV0> {
+        self
+    }
+
+    fn inline_style_overrides_by_style(
+        &self,
+    ) -> Option<
+        &std::collections::BTreeMap<String, Vec<crate::OmenaQueryInlineStyleRuntimeOverrideV0>>,
+    > {
+        None
+    }
+
+    #[cfg(feature = "hypergraph-ifds")]
+    fn cross_file_scc_report(&self) -> Option<&crate::OmenaQueryUnifiedCrossFileSccReportV0> {
+        None
+    }
+}
 
 use cascade_runtime::{
     attach_omena_query_module_graph_property_value_narrowing_for_workspace,
@@ -331,6 +390,31 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
 }
 
 #[allow(clippy::too_many_arguments)]
+pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_complete_source_corpus(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_and_source_corpus_completeness(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        external_sifs,
+        resolution_inputs,
+        OmenaQueryDiagnosticSuppressionModeV0::Apply,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -342,10 +426,36 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
-    // RFC 0009 Pillar B stage-2 (#65): build the one shared target-independent substrate, then run
-    // the per-target diagnostics over it. The salsa layer memoizes the substrate via a
-    // workspace-keyed tracked query and calls `_with_substrate` directly; every other caller routes
-    // through here so the substrate build stays identical to the pre-decomposition path.
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_and_source_corpus_completeness(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        external_sifs,
+        resolution_inputs,
+        suppression_mode,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_and_source_corpus_completeness(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+    source_corpus_complete: bool,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    // Build one target-independent substrate, then run per-target diagnostics
+    // over it. The memoized path reuses the same workspace-keyed substrate
+    // contract, while direct callers preserve identical construction.
     let substrate = collect_omena_query_workspace_diagnostics_substrate(
         style_sources,
         package_manifests,
@@ -353,7 +463,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
     );
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
         target_style_path,
         style_sources,
         source_documents,
@@ -365,6 +475,8 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         suppression_mode,
         &substrate,
         None,
+        source_corpus_complete,
+        None::<&substrate::OmenaQueryWorkspaceSharedPassProductsV0>,
     )
 }
 
@@ -394,12 +506,13 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         suppression_mode,
         substrate,
         resolver_identity_index,
-        None,
+        false,
+        None::<&substrate::OmenaQueryWorkspaceSharedPassProductsV0>,
     )
 }
 
-/// The shared-pass arm (rfcs#111 C1 slice 2): when `shared_passes` is `Some`
-/// the target-independent pass cores — source-selector usage resolution and
+/// When `shared_passes` is `Some`, target-independent pass cores such as
+/// source-selector usage resolution and
 /// the cross-file SCC report — come precomputed from the wave prepare
 /// instead of being rebuilt per target. `None` keeps the per-call arm; both
 /// arms are byte-identical by construction and gated end-to-end by the
@@ -417,7 +530,8 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
     suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
     substrate: &OmenaQueryWorkspaceDiagnosticsSubstrateV0,
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
-    shared_passes: Option<&substrate::OmenaQueryWorkspaceSharedPassProductsV0>,
+    source_corpus_complete: bool,
+    shared_passes: Option<&impl OmenaQueryWorkspaceSharedDiagnosticsV0>,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
@@ -479,7 +593,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         ),
     );
     #[cfg(feature = "hypergraph-ifds")]
-    match shared_passes.and_then(|shared| shared.cross_file_scc_report.as_ref()) {
+    match shared_passes.and_then(|shared| shared.cross_file_scc_report()) {
         Some(report) => summary.diagnostics.extend(
             cross_file_scc::summarize_omena_query_unified_cross_file_scc_diagnostics_from_report(
                 target_style_path,
@@ -525,11 +639,12 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             &substrate.sass_resolution,
         ),
     );
-    match shared_passes {
+    let shared_unused_selector = shared_passes.map(|shared| shared.unused_selector());
+    match shared_unused_selector {
         Some(shared) => {
-            // `None` means no source documents — the same emptiness the
-            // per-call arm's early return produces.
-            if let Some(unused_selector) = shared.unused_selector.as_ref() {
+            // A precomputed `None` records the same no-source-document result
+            // as the direct collector without reopening the workspace walk.
+            if let Some(unused_selector) = shared.as_ref() {
                 summary.diagnostics.extend(
                     source_usage::summarize_omena_query_unused_selector_style_diagnostics_with_shared(
                         target_style_path,
@@ -551,6 +666,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
                 resolution_inputs.tsconfig_path_mappings.as_slice(),
                 resolution_inputs.disk_style_path_identities.as_slice(),
                 resolver_identity_index,
+                source_corpus_complete,
             ),
         ),
     }
@@ -623,8 +739,8 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         ),
     };
     if external_boundary_enabled {
-        // RFC 0004 #28 / #35: the file-scoped `@omena-strict: <level>` sigil dials the
-        // external-boundary lattice behaviour. Absent/malformed sigil => `Standard`, which
+        // The file-scoped `@omena-strict: <level>` sigil controls external-boundary
+        // lattice behaviour. An absent or malformed sigil selects `Standard`, which
         // keeps every branch below a no-op (byte-for-byte identical to the un-sigiled flow).
         let strictness = parse_omena_query_style_strictness_level(&target.style_source);
         let top_any_external_symbol_ranges =
@@ -673,7 +789,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
         );
         push_omena_query_ready_surface(&mut summary.ready_surfaces, "strictnessSigilGating");
     }
-    match shared_passes.and_then(|shared| shared.inline_style_overrides_by_style.as_ref()) {
+    match shared_passes.and_then(|shared| shared.inline_style_overrides_by_style()) {
         Some(overrides_by_style) => {
             cascade_runtime::attach_omena_query_runtime_state_inline_overrides_with_shared(
                 target_style_path,

@@ -1,5 +1,8 @@
 use omena_evidence_graph::{EvidenceNodeKeyV0, GuaranteeKindV0};
-use omena_parser::{ClosedWorldBundleV0, ParserPositionV0, ParserRangeV0};
+use omena_parser::{
+    ClosedWorldBundleV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, ParserPositionV0,
+    ParserRangeV0,
+};
 use omena_query_core::{FactPrecision, fact_precision_from_analysis_precision};
 use omena_query_transform_runner::{
     TransformDecision, TransformExecutionContextV0, TransformSemanticGuaranteeTierV0,
@@ -278,6 +281,77 @@ impl OmenaQueryExplainResponseV0 {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryModuleTreeShakeExplanationV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    module_instance: ModuleInstanceKeyV0,
+    symbol_kind: OmenaQueryExplainSymbolKindV0,
+    symbol_name: String,
+    availability: OmenaQueryExplainAvailabilityV0,
+    reachable: Option<bool>,
+    flat_reachable: bool,
+    emission_guard_retained: bool,
+    closure_hash: String,
+    ownership_digest: String,
+    guarantee: GuaranteeKindV0,
+    provenance_labels: Vec<&'static str>,
+}
+
+impl OmenaQueryModuleTreeShakeExplanationV0 {
+    pub fn module_instance(&self) -> &ModuleInstanceKeyV0 {
+        &self.module_instance
+    }
+
+    pub const fn symbol_kind(&self) -> OmenaQueryExplainSymbolKindV0 {
+        self.symbol_kind
+    }
+
+    pub fn symbol_name(&self) -> &str {
+        &self.symbol_name
+    }
+
+    pub const fn availability(&self) -> OmenaQueryExplainAvailabilityV0 {
+        self.availability
+    }
+
+    /// Reports module-qualified semantic liveness.
+    ///
+    /// A false result does not guarantee byte removal when an emitted-token
+    /// collision requires conservative retention.
+    pub const fn reachable(&self) -> Option<bool> {
+        self.reachable
+    }
+
+    pub const fn flat_reachable(&self) -> bool {
+        self.flat_reachable
+    }
+
+    /// Reports whether conservative emitted-token handling retained bytes even
+    /// though module-qualified liveness is false.
+    pub const fn emission_guard_retained(&self) -> bool {
+        self.emission_guard_retained
+    }
+
+    pub fn ownership_digest(&self) -> &str {
+        &self.ownership_digest
+    }
+
+    pub fn closure_hash(&self) -> &str {
+        &self.closure_hash
+    }
+
+    pub const fn guarantee(&self) -> GuaranteeKindV0 {
+        self.guarantee
+    }
+
+    pub fn provenance_labels(&self) -> &[&'static str] {
+        self.provenance_labels.as_slice()
+    }
+}
+
 pub enum OmenaQueryExplainInputV0<'a> {
     Diagnostic {
         style_path: &'a str,
@@ -389,6 +463,46 @@ pub fn explain_omena_query_tree_shake_for_style_source(
     }))
 }
 
+pub fn explain_omena_query_tree_shake_for_module(
+    bundle: &ClosedWorldBundleV0,
+    module_instance: &ModuleInstanceKeyV0,
+    symbol_kind: OmenaQueryExplainSymbolKindV0,
+    symbol_name: &str,
+) -> OmenaQueryModuleTreeShakeExplanationV0 {
+    let module_symbols = bundle.reachability().symbols_for_module(module_instance);
+    let reachable = module_symbols.map(|symbols| {
+        symbols.is_reachable() && module_symbol_is_reachable(symbols, symbol_kind, symbol_name)
+    });
+    let flat_reachable = flat_symbol_is_reachable(bundle, symbol_kind, symbol_name);
+    let emission_guard_retained = symbol_kind == OmenaQueryExplainSymbolKindV0::Class
+        && reachable == Some(false)
+        && flat_reachable;
+    let mut provenance_labels = vec!["moduleQualifiedOwnershipObserved"];
+    if emission_guard_retained {
+        provenance_labels.push("emissionTokenCollisionGuardApplied");
+    }
+
+    OmenaQueryModuleTreeShakeExplanationV0 {
+        schema_version: "0",
+        product: "omena-query.module-tree-shake-explain",
+        module_instance: module_instance.clone(),
+        symbol_kind,
+        symbol_name: symbol_name.to_string(),
+        availability: if module_symbols.is_some() {
+            OmenaQueryExplainAvailabilityV0::Available
+        } else {
+            OmenaQueryExplainAvailabilityV0::NotFound
+        },
+        reachable,
+        flat_reachable,
+        emission_guard_retained,
+        closure_hash: bundle.closure_hash().to_string(),
+        ownership_digest: bundle.module_qualified_ownership_digest(),
+        guarantee: GuaranteeKindV0::NotClaimedExactTraversal,
+        provenance_labels,
+    }
+}
+
 fn explain_diagnostic(
     style_path: &str,
     diagnostic: &OmenaQueryStyleDiagnosticV0,
@@ -482,28 +596,7 @@ fn explain_tree_shake(
     symbol_kind: OmenaQueryExplainSymbolKindV0,
     symbol_name: &str,
 ) -> OmenaQueryExplainResponseV0 {
-    let reachable = match symbol_kind {
-        OmenaQueryExplainSymbolKindV0::Class => bundle
-            .reachability()
-            .class_names()
-            .iter()
-            .any(|candidate| candidate == symbol_name),
-        OmenaQueryExplainSymbolKindV0::Keyframes => bundle
-            .reachability()
-            .keyframe_names()
-            .iter()
-            .any(|candidate| candidate == symbol_name),
-        OmenaQueryExplainSymbolKindV0::Value => bundle
-            .reachability()
-            .value_names()
-            .iter()
-            .any(|candidate| candidate == symbol_name),
-        OmenaQueryExplainSymbolKindV0::CustomProperty => bundle
-            .reachability()
-            .custom_property_names()
-            .iter()
-            .any(|candidate| candidate == symbol_name),
-    };
+    let reachable = flat_symbol_is_reachable(bundle, symbol_kind, symbol_name);
     let reference = OmenaQueryExplainFactReferenceV0::ClosedWorldReachability {
         closure_hash: bundle.closure_hash().to_string(),
         symbol_kind,
@@ -517,12 +610,49 @@ fn explain_tree_shake(
         },
         OmenaQueryExplainAvailabilityV0::Available,
         OmenaQueryExplainFactV0::new(
-            reference,
+            reference.clone(),
             OmenaQueryExplainFactValueV0::ReachabilityMembership { reachable },
         ),
-        Vec::new(),
+        vec![OmenaQueryExplainFactV0::new(
+            reference,
+            OmenaQueryExplainFactValueV0::ProvenanceLabel {
+                label: "moduleOwnershipUnobserved".to_string(),
+            },
+        )],
         Vec::new(),
     )
+}
+
+fn flat_symbol_is_reachable(
+    bundle: &ClosedWorldBundleV0,
+    symbol_kind: OmenaQueryExplainSymbolKindV0,
+    symbol_name: &str,
+) -> bool {
+    match symbol_kind {
+        OmenaQueryExplainSymbolKindV0::Class => bundle.reachability().class_names(),
+        OmenaQueryExplainSymbolKindV0::Keyframes => bundle.reachability().keyframe_names(),
+        OmenaQueryExplainSymbolKindV0::Value => bundle.reachability().value_names(),
+        OmenaQueryExplainSymbolKindV0::CustomProperty => {
+            bundle.reachability().custom_property_names()
+        }
+    }
+    .iter()
+    .any(|candidate| candidate == symbol_name)
+}
+
+fn module_symbol_is_reachable(
+    symbols: &ModuleQualifiedSymbolSetV0,
+    symbol_kind: OmenaQueryExplainSymbolKindV0,
+    symbol_name: &str,
+) -> bool {
+    match symbol_kind {
+        OmenaQueryExplainSymbolKindV0::Class => symbols.class_names(),
+        OmenaQueryExplainSymbolKindV0::Keyframes => symbols.keyframe_names(),
+        OmenaQueryExplainSymbolKindV0::Value => symbols.value_names(),
+        OmenaQueryExplainSymbolKindV0::CustomProperty => symbols.custom_property_names(),
+    }
+    .iter()
+    .any(|candidate| candidate == symbol_name)
 }
 
 pub fn explain_omena_query_tree_shake_unavailable(

@@ -16,10 +16,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::extension::{AtRuleBlockKind, AtRuleSpec, at_rule_spec, scss_at_rule_spec};
-use crate::facts::collect_style_facts_with_extension;
+use crate::facts::{
+    collect_style_fact_collection_with_extension, collect_style_facts_with_extension,
+};
 use crate::{
-    BuiltinDialectExtension, DialectExtension, LexResult, LexedToken, ParsedCst, ParsedStyleFacts,
-    Token, Tokenizer, UNARY_PREFIX_RIGHT_BINDING_POWER, at_rule_prelude_head_is_custom_ident,
+    BuiltinDialectExtension, DialectExtension, LexResult, LexedToken, ParsedCst,
+    ParsedStyleFactCollectionV0, ParsedStyleFacts, Token, Tokenizer,
+    UNARY_PREFIX_RIGHT_BINDING_POWER, at_rule_prelude_head_is_custom_ident,
     at_rule_prelude_head_is_custom_property_name, attribute_name_token_can_continue,
     attribute_name_token_can_start, attribute_value_token_can_start, bracketed_value_recovery,
     comma_separated_component_value_list_item_recovery, css_module_block_scope_marker_in_header,
@@ -466,6 +469,14 @@ pub fn parse_entry_point_with_extension_and_reuse_cache(
 pub fn collect_style_facts(text: &str, dialect: StyleDialect) -> ParsedStyleFacts {
     let extension = BuiltinDialectExtension::new(dialect);
     collect_style_facts_with_extension(text, &extension)
+}
+
+pub fn collect_style_fact_collection(
+    text: &str,
+    dialect: StyleDialect,
+) -> ParsedStyleFactCollectionV0 {
+    let extension = BuiltinDialectExtension::new(dialect);
+    collect_style_fact_collection_with_extension(text, &extension)
 }
 
 pub(crate) fn tokenize<'text>(

@@ -34,6 +34,7 @@ pub(crate) fn lsp_text_document_state(
         has_unresolved_style_import: false,
         source_selector_candidates: Vec::new(),
         source_type_fact_selector_references: Vec::new(),
+        source_type_fact_retired_prefix_references: Vec::new(),
     };
     refresh_document_reusable_indexes(&mut document, resolution_inputs);
     document
@@ -65,6 +66,7 @@ pub(crate) fn lsp_text_document_state_with_source_syntax_index(
         has_unresolved_style_import,
         source_selector_candidates: Vec::new(),
         source_type_fact_selector_references: Vec::new(),
+        source_type_fact_retired_prefix_references: Vec::new(),
     };
     document.text_hash = compute_omena_sif_leaf_hash_v1(document.text.as_bytes())
         .as_str()

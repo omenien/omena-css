@@ -28,6 +28,7 @@ use omena_query::{
     attach_omena_query_consumer_build_bundle_summary,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
     compose_omena_query_transform_source_map_v3_with_upstream_map,
+    derive_omena_query_module_reachability_from_engine_input,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_options_additional_passes_and_build_options,
     execute_omena_query_consumer_build_style_source_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_build_inputs,
@@ -36,11 +37,11 @@ use omena_query::{
     list_omena_query_transform_pass_summaries, load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     rewrite_omena_transform_bundle_asset_urls_in_source,
+    run_omena_query_bundle_with_module_reachability_and_options,
     run_omena_query_bundle_with_semantic_inputs_and_options,
     semantic_omena_query_minify_build_profile,
     summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan,
-    summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_transform_bundle_from_source,
 };
 use serde::Serialize;
@@ -231,6 +232,7 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         }
     }
     let mut context = read_context_json(context_json.as_deref())?;
+    let bundle_base_context = context.clone();
     if tree_shake {
         append_tree_shake_build_passes(&mut pass_ids);
     }
@@ -241,16 +243,18 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
         append_minify_build_passes(&mut pass_ids);
     }
     let used_engine_input = engine_input_json.is_some();
-    if let Some(engine_input_path) = engine_input_json.as_deref() {
+    let engine_module_reachability = if let Some(engine_input_path) = engine_input_json.as_deref() {
         let engine_input = read_engine_input_json(engine_input_path)?;
-        let engine_context = summarize_omena_query_transform_context_from_engine_input(
+        let module_reachability = derive_omena_query_module_reachability_from_engine_input(
             &engine_input,
             &style_path,
             closed_style_world || tree_shake,
-        )
-        .context;
-        context = merge_cli_transform_context(context, &engine_context);
-    }
+        );
+        context = merge_cli_transform_context(context, module_reachability.context());
+        Some(module_reachability)
+    } else {
+        None
+    };
     let original_workspace_sources =
         read_workspace_sources(&path, &source, &workspace_source_paths)?;
     let (workspace_sources, bundle_asset_url_rewrites) = if bundle {
@@ -286,20 +290,36 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
     let resolution_inputs = resolution_inputs_for_build_path(&path, package_manifests.as_slice());
     let bundle_result = if bundle {
-        Some(run_omena_query_bundle_with_semantic_inputs_and_options(
-            OmenaQueryBundlePlanInputV0 {
-                target_style_path: &style_path,
-                style_sources: &workspace_sources,
-                source_map_sources: &original_workspace_sources,
-                requested_pass_ids: &pass_ids,
-                context: &context,
-                resolution_inputs: &resolution_inputs,
-                asset_rewrites: bundle_asset_url_rewrites.clone(),
-                bundle_entry_style_paths: &bundle_entry_style_paths,
+        let plan_input = OmenaQueryBundlePlanInputV0 {
+            target_style_path: &style_path,
+            style_sources: &workspace_sources,
+            source_map_sources: &original_workspace_sources,
+            requested_pass_ids: &pass_ids,
+            context: if engine_module_reachability.is_some() {
+                &bundle_base_context
+            } else {
+                &context
             },
-            &[],
-            &build_options,
-        )?)
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: bundle_asset_url_rewrites.clone(),
+            bundle_entry_style_paths: &bundle_entry_style_paths,
+        };
+        let result = if let Some(module_reachability) = engine_module_reachability.as_ref() {
+            run_omena_query_bundle_with_module_reachability_and_options(
+                plan_input,
+                &[],
+                &build_options,
+                module_reachability,
+            )?
+            .into_bundle_result()
+        } else {
+            run_omena_query_bundle_with_semantic_inputs_and_options(
+                plan_input,
+                &[],
+                &build_options,
+            )?
+        };
+        Some(result)
     } else {
         None
     };
@@ -924,6 +944,8 @@ fn rewrite_bundle_code_split_imports_for_source(
     );
     let mut output = source.to_string();
     for edge in bundle.bundle_edges.iter().rev() {
+        // Sass module directives remain source-language constructs here. Rewriting
+        // them to emitted CSS chunk names would change @use/@forward semantics.
         if !matches!(
             edge.kind,
             TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport
@@ -974,6 +996,8 @@ fn bundle_code_split_manifest_imports_for_source(
     );
     let mut imports = Vec::new();
     for edge in bundle.bundle_edges {
+        // Manifest import rows describe imports that this emitter rewrites. Sass
+        // dependencies are outputs, but retain their source-language directives.
         if !matches!(
             edge.kind,
             TransformBundleEdgeKind::CssImport | TransformBundleEdgeKind::LessImport

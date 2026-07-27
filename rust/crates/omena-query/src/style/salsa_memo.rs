@@ -1,5 +1,4 @@
-//! RFC 0009 Pillar B (rfcs#65), stage 1: the salsa-backed memoized
-//! style-diagnostics query layer.
+//! Salsa-backed memoized style-diagnostics query layer.
 //!
 //! The workspace diagnostics entry point commits one selector graph per
 //! workspace revision. Per-file texts are salsa inputs, so an unchanged corpus
@@ -19,7 +18,7 @@ use super::cross_file_summary::{
     summarize_omena_query_workspace_cross_file_summary_from_style_summary,
 };
 use super::diagnostics::{
-    OmenaQueryExternalSifResolutionContext,
+    OmenaQueryExternalSifResolutionContext, OmenaQueryUnusedSelectorSharedV0,
     collect_omena_query_workspace_diagnostics_substrate_from_committed_graph,
     promote_sif_backed_external_edges,
     summarize_omena_query_sass_module_resolution_identity_diagnostics_for_workspace_from_resolution,
@@ -381,6 +380,8 @@ pub struct OmenaQueryStyleRevisionSelectorV0 {
     files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
     changed_module_interface_paths: BTreeSet<String>,
     committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
+    source_corpus_complete: bool,
+    unused_selector_shared: std::sync::OnceLock<Option<OmenaQueryUnusedSelectorSharedV0>>,
 }
 
 impl std::fmt::Debug for OmenaQueryStyleRevisionSelectorV0 {
@@ -435,13 +436,29 @@ impl OmenaQueryStyleRevisionSelectorV0 {
         suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
     ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
         let target = self.files_by_path.get(target_style_path).copied()?;
-        resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode(
+        let unused_selector_shared = self.unused_selector_shared.get_or_init(|| {
+            let resolution_inputs = self.workspace.resolution_inputs(&self.db);
+            crate::style::diagnostics::collect_omena_query_unused_selector_shared(
+                self.committed_graph.style_fact_entries.as_slice(),
+                self.workspace.source_documents(&self.db).as_slice(),
+                self.workspace.package_manifests(&self.db).as_slice(),
+                None,
+                resolution_inputs.bundler_path_mappings.as_slice(),
+                resolution_inputs.tsconfig_path_mappings.as_slice(),
+                resolution_inputs.disk_style_path_identities.as_slice(),
+                None,
+                self.source_corpus_complete,
+            )
+        });
+        resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector(
             &self.db,
             self.workspace,
             target,
             &self.committed_graph,
             external_mode,
             suppression_mode,
+            Some(unused_selector_shared),
+            self.source_corpus_complete,
         )
     }
 
@@ -591,6 +608,7 @@ struct OmenaQueryStyleWorkspaceTransactionCoreCommitV0 {
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    source_corpus_complete: bool,
     committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
 }
 
@@ -601,6 +619,7 @@ struct OmenaQueryStyleRevisionSelectorBuildInputV0<'a> {
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
     external_sifs: &'a [OmenaQueryExternalSifInputV0],
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    source_corpus_complete: bool,
     committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
     changed_module_interface_paths: BTreeSet<String>,
 }
@@ -626,6 +645,7 @@ pub struct OmenaQueryStyleWorkspaceTransactionV0 {
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    source_corpus_complete: bool,
 }
 
 impl OmenaQueryStyleWorkspaceTransactionV0 {
@@ -675,6 +695,11 @@ impl OmenaQueryStyleWorkspaceTransactionV0 {
         self
     }
 
+    fn mark_source_corpus_complete(&mut self) -> &mut Self {
+        self.source_corpus_complete = true;
+        self
+    }
+
     pub fn commit_revision(
         self,
         host: &mut OmenaQueryStyleMemoHostV0,
@@ -715,13 +740,13 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_identity_ind
         committed_graph,
         OmenaQueryExternalModuleModeV0::Auto,
         OmenaQueryDiagnosticSuppressionModeV0::Apply,
+        None,
         Some(resolver_identity_index),
     )
 }
 
-/// Target-INDEPENDENT per-wave state (rfcs#111, the first C1 slice): the
-/// corpus snapshot and the diagnostics substrate — all 137-entry fact/
-/// resolution clones — hoisted out of the per-target resolve. Opaque to
+/// Target-independent per-wave state: the corpus snapshot and diagnostics
+/// substrate are hoisted out of the per-target resolve. Opaque to
 /// callers; build once per wave, share behind an `Arc`, and resolve each
 /// target through the `_and_wave_substrate` variant below. Byte-identical
 /// to the per-target build by construction (same collector, same inputs).
@@ -753,8 +778,8 @@ pub fn prepare_committed_workspace_wave_substrate(
         &committed_graph.sass_module_resolution_without_path_mappings,
         &committed_graph.sass_module_resolution_with_external_sifs,
     );
-    // rfcs#111 C1 slice 2: the target-independent pass cores, computed once
-    // per wave. Arguments mirror the per-target dispatch exactly — the
+    // Compute target-independent pass cores once per wave. Arguments mirror
+    // the per-target dispatch exactly: the
     // committed arm passes classname_transform = None (as the per-target
     // wrapper does) and the same resolution inputs and identity index the
     // targets will resolve with.
@@ -771,6 +796,7 @@ pub fn prepare_committed_workspace_wave_substrate(
             resolution_inputs.tsconfig_path_mappings.as_slice(),
             resolution_inputs.disk_style_path_identities.as_slice(),
             resolver_identity_index,
+            false,
         ),
         inline_style_overrides_by_style: Some(
             crate::style::diagnostics::collect_omena_query_inline_style_runtime_overrides_by_style(
@@ -822,6 +848,7 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_identity_ind
         OmenaQueryDiagnosticSuppressionModeV0::Apply,
         &wave_substrate.substrate,
         Some(resolver_identity_index),
+        false,
         Some(&wave_substrate.shared_passes),
     )
 }
@@ -859,6 +886,7 @@ pub fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mod
         external_mode,
         suppression_mode,
         None,
+        None,
     )
 }
 
@@ -870,7 +898,60 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
     committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
     external_mode: OmenaQueryExternalModuleModeV0,
     suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+    classname_transform: Option<&str>,
     resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index(
+        db,
+        workspace,
+        target,
+        committed_graph,
+        external_mode,
+        suppression_mode,
+        classname_transform,
+        resolver_identity_index,
+        None,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: OmenaQueryStyleFileInputV0,
+    committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+    precomputed_unused_selector: Option<&Option<OmenaQueryUnusedSelectorSharedV0>>,
+    source_corpus_complete: bool,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index(
+        db,
+        workspace,
+        target,
+        committed_graph,
+        external_mode,
+        suppression_mode,
+        None,
+        None,
+        precomputed_unused_selector,
+        source_corpus_complete,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    target: OmenaQueryStyleFileInputV0,
+    committed_graph: &OmenaQueryCommittedStyleSemanticGraphV0,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    suppression_mode: OmenaQueryDiagnosticSuppressionModeV0,
+    classname_transform: Option<&str>,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+    precomputed_unused_selector: Option<&Option<OmenaQueryUnusedSelectorSharedV0>>,
+    source_corpus_complete: bool,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target_style_path = target.style_path(db);
     let corpus = workspace
@@ -893,23 +974,64 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
         &committed_graph.sass_module_resolution_without_path_mappings,
         &committed_graph.sass_module_resolution_with_external_sifs,
     );
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+    // The default committed path freezes source-selector attribution with the
+    // workspace revision. Non-default naming or identity semantics retain the
+    // direct collector because either axis changes the shared result.
+    let precomputed_unused_selector =
+        (classname_transform.is_none() && resolver_identity_index.is_none()).then(|| {
+            precomputed_unused_selector.unwrap_or_else(|| {
+                memo_workspace_unused_selector_shared(db, workspace, source_corpus_complete)
+            })
+        });
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
         target_style_path.as_str(),
         corpus.as_slice(),
         source_documents.as_slice(),
         package_manifests.as_slice(),
-        None,
+        classname_transform,
         external_mode,
         external_sifs.as_slice(),
         resolution_inputs,
         suppression_mode,
         &substrate,
         resolver_identity_index,
+        source_corpus_complete,
+        precomputed_unused_selector,
     )
 }
 
-/// RFC 0009 Pillar B (#65) SLICE-3: the target-INDEPENDENT diagnostics substrate, hoisted into its
-/// own workspace-keyed tracked query so N open targets share ONE substrate build per revision
+/// Cache source-selector attribution once for every workspace revision.
+///
+/// Resolution mappings and disk identities are read through the workspace
+/// input so Salsa invalidates this result with the same revision that owns the
+/// source documents. Unchanged file facts remain memoized across revisions.
+#[salsa::tracked(returns(ref))]
+fn memo_workspace_unused_selector_shared(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    source_corpus_complete: bool,
+) -> Option<OmenaQueryUnusedSelectorSharedV0> {
+    let style_fact_entries = workspace
+        .files(db)
+        .iter()
+        .map(|file| memo_style_fact_entry(db, *file))
+        .collect::<Vec<_>>();
+    let resolution_inputs = workspace.resolution_inputs(db);
+    crate::style::diagnostics::collect_omena_query_unused_selector_shared(
+        style_fact_entries.as_slice(),
+        workspace.source_documents(db).as_slice(),
+        workspace.package_manifests(db).as_slice(),
+        None,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        resolution_inputs.disk_style_path_identities.as_slice(),
+        None,
+        source_corpus_complete,
+    )
+}
+
+/// Target-independent diagnostics substrate hoisted into a workspace-keyed
+/// tracked query so N open targets share one substrate build per revision
 /// instead of rebuilding it per `(workspace, target)`. `returns(ref)` hands the per-target query a
 /// borrow, so the entries + resolution variants are not cloned per target. The arguments mirror the
 /// monolith wrapper's inline build exactly, so the substrate is byte-identical either way.
@@ -948,9 +1070,17 @@ pub fn memo_module_interface_projection(
     db: &dyn salsa::Database,
     file: OmenaQueryStyleFileInputV0,
 ) -> OmenaQueryModuleInterfaceProjectionV0 {
+    memo_module_interface_change_projection(db, file).module_interface
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_module_interface_change_projection(
+    db: &dyn salsa::Database,
+    file: OmenaQueryStyleFileInputV0,
+) -> OmenaQueryModuleInterfaceChangeProjectionV0 {
     #[cfg(any(test, feature = "test-support"))]
     module_interface_projection_probe::record(file.style_path(db));
-    module_interface_projection_for_query(&memo_style_fact_entry(db, file))
+    module_interface_change_projection_for_query(&memo_style_fact_entry(db, file))
 }
 
 #[salsa::tracked(returns(clone))]
@@ -1717,8 +1847,7 @@ fn style_sources_for_workspace(
 }
 
 /// Owner of the memo database plus the input mirror. The sync discipline is
-/// the same self-validating shape as the cascade-narrowing memo (rfcs#63
-/// E-ii): every call compares the in-hand inputs against what the database
+/// self-validating: every call compares the in-hand inputs against what the database
 /// holds and applies `set_*` only for actual differences — there is no event
 /// eviction list to keep in sync, so a stale memo cannot be served. File
 /// entities persist per path, so re-adding an unchanged file (or switching
@@ -1732,6 +1861,7 @@ pub struct OmenaQueryStyleMemoHostV0 {
     committed_revision: IncrementalRevisionV0,
     committed_graph: Option<OmenaQueryCommittedStyleSemanticGraphV0>,
     committed_module_interface_changed_paths: BTreeSet<String>,
+    source_corpus_complete: bool,
 }
 
 impl std::fmt::Debug for OmenaQueryStyleMemoHostV0 {
@@ -1771,6 +1901,7 @@ impl OmenaQueryStyleMemoHostV0 {
             committed_revision: IncrementalRevisionV0 { value: 0 },
             committed_graph: None,
             committed_module_interface_changed_paths: BTreeSet::new(),
+            source_corpus_complete: false,
         }
     }
 
@@ -1891,6 +2022,45 @@ impl OmenaQueryStyleMemoHostV0 {
         external_sifs: &[OmenaQueryExternalSifInputV0],
         resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     ) -> Option<OmenaQueryStyleRevisionSelectorV0> {
+        self.workspace_revision_selector_with_source_corpus_completeness(
+            style_sources,
+            source_documents,
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+            false,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn workspace_revision_selector_with_complete_source_corpus(
+        &mut self,
+        style_sources: &[OmenaQueryStyleSourceInputV0],
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+        external_sifs: &[OmenaQueryExternalSifInputV0],
+        resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    ) -> Option<OmenaQueryStyleRevisionSelectorV0> {
+        self.workspace_revision_selector_with_source_corpus_completeness(
+            style_sources,
+            source_documents,
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+            true,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn workspace_revision_selector_with_source_corpus_completeness(
+        &mut self,
+        style_sources: &[OmenaQueryStyleSourceInputV0],
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+        external_sifs: &[OmenaQueryExternalSifInputV0],
+        resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+        source_corpus_complete: bool,
+    ) -> Option<OmenaQueryStyleRevisionSelectorV0> {
         let mut seen_paths = std::collections::BTreeSet::new();
         if style_sources
             .iter()
@@ -1909,6 +2079,9 @@ impl OmenaQueryStyleMemoHostV0 {
                 external_sifs,
                 resolution_inputs,
             );
+        if source_corpus_complete {
+            transaction.mark_source_corpus_complete();
+        }
         let commit = transaction.commit_revision(self).ok()?;
         Some(commit.selector)
     }
@@ -1938,8 +2111,8 @@ impl OmenaQueryStyleMemoHostV0 {
         })
     }
 
-    /// RFC 0009 Pillar F (rfcs#68): run the SAME diff-only sync as
-    /// [`Self::workspace_style_diagnostics`] — loop-side, before any handle
+    /// Run the same diff-only sync as [`Self::workspace_style_diagnostics`]
+    /// on the loop thread, before any handle
     /// exists — and hand back a fixed-revision view bundle for a parallel
     /// fan-out. Returns `None` for a corpus with duplicate `style_path`
     /// entries, exactly where the memoized entry point bypasses to the
@@ -1989,6 +2162,7 @@ impl OmenaQueryStyleMemoHostV0 {
             package_manifests: commit.package_manifests.as_slice(),
             external_sifs: commit.external_sifs.as_slice(),
             resolution_inputs: &commit.resolution_inputs,
+            source_corpus_complete: commit.source_corpus_complete,
             committed_graph: commit.committed_graph,
             changed_module_interface_paths: commit.changed_module_interface_paths.clone(),
         });
@@ -2011,7 +2185,9 @@ impl OmenaQueryStyleMemoHostV0 {
     > {
         validate_workspace_transaction(&transaction)?;
         let changed_style_paths = self.changed_style_paths_for_transaction(&transaction);
+        let workspace_inputs_changed = self.workspace_inputs_changed_for_transaction(&transaction);
         if changed_style_paths.is_empty()
+            && !workspace_inputs_changed
             && let (Some(workspace), Some(committed_graph)) =
                 (self.workspace, self.committed_graph.clone())
         {
@@ -2037,6 +2213,7 @@ impl OmenaQueryStyleMemoHostV0 {
                 package_manifests: transaction.package_manifests,
                 external_sifs: transaction.external_sifs,
                 resolution_inputs: transaction.resolution_inputs,
+                source_corpus_complete: transaction.source_corpus_complete,
                 committed_graph,
             });
         }
@@ -2088,6 +2265,7 @@ impl OmenaQueryStyleMemoHostV0 {
         );
         self.committed_graph = Some(committed_graph.clone());
         self.committed_module_interface_changed_paths = changed_module_interface_paths.clone();
+        self.source_corpus_complete = transaction.source_corpus_complete;
         Ok(OmenaQueryStyleWorkspaceTransactionCoreCommitV0 {
             revision: self.committed_revision,
             workspace,
@@ -2099,6 +2277,7 @@ impl OmenaQueryStyleMemoHostV0 {
             package_manifests: transaction.package_manifests,
             external_sifs: transaction.external_sifs,
             resolution_inputs: transaction.resolution_inputs,
+            source_corpus_complete: transaction.source_corpus_complete,
             committed_graph,
         })
     }
@@ -2138,28 +2317,29 @@ impl OmenaQueryStyleMemoHostV0 {
             }
         }
 
-        let global_inputs_changed = workspace.source_documents(&self.db).as_slice()
-            != transaction.source_documents.as_slice()
+        changed
+    }
+
+    fn workspace_inputs_changed_for_transaction(
+        &self,
+        transaction: &OmenaQueryStyleWorkspaceTransactionV0,
+    ) -> bool {
+        let Some(workspace) = self.workspace else {
+            return true;
+        };
+        workspace.source_documents(&self.db).as_slice() != transaction.source_documents.as_slice()
             || workspace.package_manifests(&self.db).as_slice()
                 != transaction.package_manifests.as_slice()
             || workspace.external_sifs(&self.db).as_slice() != transaction.external_sifs.as_slice()
-            || workspace.resolution_inputs(&self.db) != &transaction.resolution_inputs;
-        if global_inputs_changed {
-            changed.extend(
-                transaction
-                    .style_sources
-                    .iter()
-                    .map(|source| source.style_path.clone()),
-            );
-        }
-        changed
+            || workspace.resolution_inputs(&self.db) != &transaction.resolution_inputs
+            || self.source_corpus_complete != transaction.source_corpus_complete
     }
 
     fn module_interface_projections_for_workspace_paths(
         &self,
         workspace: OmenaQueryStyleWorkspaceInputV0,
         style_paths: &BTreeSet<String>,
-    ) -> BTreeMap<String, OmenaQueryModuleInterfaceProjectionV0> {
+    ) -> BTreeMap<String, OmenaQueryModuleInterfaceChangeProjectionV0> {
         workspace
             .files(&self.db)
             .iter()
@@ -2168,7 +2348,7 @@ impl OmenaQueryStyleMemoHostV0 {
                 style_paths.contains(style_path).then(|| {
                     (
                         style_path.clone(),
-                        memo_module_interface_projection(&self.db, *file),
+                        memo_module_interface_change_projection(&self.db, *file),
                     )
                 })
             })
@@ -2343,6 +2523,7 @@ fn build_revision_selector(
         committed_revision: _,
         committed_graph: _,
         committed_module_interface_changed_paths: _,
+        source_corpus_complete: _,
     } = host;
     let files = input
         .style_sources
@@ -2361,6 +2542,8 @@ fn build_revision_selector(
         files_by_path,
         changed_module_interface_paths: input.changed_module_interface_paths,
         committed_graph: input.committed_graph,
+        source_corpus_complete: input.source_corpus_complete,
+        unused_selector_shared: std::sync::OnceLock::new(),
     }
 }
 
@@ -2889,6 +3072,34 @@ mod tests {
         corpus
     }
 
+    fn unused_selector_shared_probe_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
+        [
+            ("A.module.css", "usedA", "ghostA"),
+            ("B.module.css", "usedB", "ghostB"),
+            ("C.module.css", "usedC", "ghostC"),
+        ]
+        .into_iter()
+        .map(|(file_name, used, unused)| OmenaQueryStyleSourceInputV0 {
+            style_path: format!("/workspace/src/{file_name}"),
+            style_source: format!(".{used} {{ color: red; }}\n.{unused} {{ color: blue; }}\n"),
+        })
+        .collect()
+    }
+
+    fn unused_selector_shared_probe_documents() -> Vec<OmenaQuerySourceDocumentInputV0> {
+        vec![OmenaQuerySourceDocumentInputV0 {
+            source_path: "/workspace/src/App.tsx".to_string(),
+            source_source: r#"import a from "./A.module.css";
+import b from "./B.module.css";
+import c from "./C.module.css";
+export const classes = [a.usedA, b.usedB, c.usedC];
+"#
+            .to_string(),
+            source_syntax_index: None,
+            has_unresolved_style_import: false,
+        }]
+    }
+
     fn css_modules_resolution_probe_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
         vec![
             OmenaQueryStyleSourceInputV0 {
@@ -3249,6 +3460,41 @@ const cls = styles.root;"#
     }
 
     #[test]
+    fn workspace_transaction_reports_public_sass_member_changes() -> Result<(), &'static str> {
+        let style_path = "/workspace/src/_tokens.scss";
+        let mut corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: style_path.to_string(),
+            style_source: "$tone: red;\n".to_string(),
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        for source in ["$tone: red;\n", "$tone: blue;\n", "$accent: blue;\n"] {
+            corpus[0].style_source = source.to_string();
+            let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+            transaction
+                .register_style_sources(corpus.as_slice())
+                .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+            let commit = transaction
+                .commit_revision(&mut host)
+                .map_err(|_| "Sass module transaction must commit")?;
+
+            match source {
+                "$tone: blue;\n" => assert!(
+                    commit.changed_module_interface_paths.is_empty(),
+                    "changing a public variable value must preserve its member interface"
+                ),
+                _ => assert_eq!(
+                    commit.changed_module_interface_paths,
+                    set_of([style_path]),
+                    "adding or removing a public Sass variable must change the module interface"
+                ),
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn workspace_transaction_reuses_revision_and_graph_when_inputs_are_unchanged()
     -> Result<(), &'static str> {
         let corpus = parallel_probe_corpus();
@@ -3294,6 +3540,56 @@ const cls = styles.root;"#
         assert!(
             style_fact_entry_probe::read().is_empty(),
             "unchanged transactions must not re-run per-file fact collection",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_transaction_reuses_file_facts_when_resolution_inputs_change()
+    -> Result<(), &'static str> {
+        let corpus = parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let mut transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &resolution_inputs);
+        let initial_commit = transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "initial registered transaction must commit")?;
+
+        let changed_resolution_inputs = OmenaQueryStyleResolutionInputsV0 {
+            external_sif_cache_fingerprint: Some("updated-cache".to_string()),
+            ..OmenaQueryStyleResolutionInputsV0::default()
+        };
+        style_fact_entry_probe::reset();
+        reset_committed_style_semantic_graph_compute_count_for_test();
+        let mut changed_transaction = OmenaQueryStyleWorkspaceTransactionV0::new();
+        changed_transaction
+            .register_style_sources(corpus.as_slice())
+            .set_workspace_inputs(corpus.as_slice(), &[], &[], &[], &changed_resolution_inputs);
+        let changed_commit = changed_transaction
+            .commit_revision(&mut host)
+            .map_err(|_| "resolution input transaction must commit")?;
+
+        assert_eq!(
+            changed_commit.revision.value,
+            initial_commit.revision.value + 1,
+            "workspace-level resolution changes must advance the committed revision",
+        );
+        assert!(
+            changed_commit.changed_style_paths.is_empty(),
+            "workspace-level inputs must not masquerade as changed style source files",
+        );
+        assert_eq!(
+            read_committed_style_semantic_graph_compute_count_for_test(),
+            1,
+            "workspace-level resolution changes must rebuild the committed graph",
+        );
+        assert!(
+            style_fact_entry_probe::read().is_empty(),
+            "workspace-level resolution changes must reuse unchanged per-file facts",
         );
         Ok(())
     }
@@ -3891,6 +4187,287 @@ const cls = styles.root;"#
     }
 
     #[test]
+    fn complete_empty_source_corpus_reaches_the_workspace_memo() -> Result<(), &'static str> {
+        let corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.css".to_string(),
+            style_source: ".unused { color: red; }\n".to_string(),
+        }];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let expected =
+            crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_complete_source_corpus(
+                corpus[0].style_path.as_str(),
+                corpus.as_slice(),
+                &[],
+                &[],
+                None,
+                OmenaQueryExternalModuleModeV0::Auto,
+                &[],
+                &resolution_inputs,
+            );
+
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let selector = host
+            .workspace_revision_selector_with_complete_source_corpus(
+                corpus.as_slice(),
+                &[],
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("complete source corpus must commit a selector")?;
+        let target = selector
+            .files_by_path
+            .get(corpus[0].style_path.as_str())
+            .copied()
+            .ok_or("target style must exist")?;
+        let actual =
+            resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector(
+                &selector.db,
+                selector.workspace,
+                target,
+                &selector.committed_graph,
+                OmenaQueryExternalModuleModeV0::Auto,
+                OmenaQueryDiagnosticSuppressionModeV0::Apply,
+                None,
+                true,
+            );
+
+        assert_eq!(
+            serde_json::to_string(&actual).ok(),
+            serde_json::to_string(&expected).ok(),
+            "memoized diagnostics must preserve a complete empty source corpus"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn committed_unused_selector_summary_is_byte_identical_and_revision_scoped()
+    -> Result<(), &'static str> {
+        let corpus = unused_selector_shared_probe_corpus();
+        let source_documents = unused_selector_shared_probe_documents();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let references = corpus
+            .iter()
+            .map(|target| {
+                summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
+                    target.style_path.as_str(),
+                    corpus.as_slice(),
+                    source_documents.as_slice(),
+                    &[],
+                    None,
+                    OmenaQueryExternalModuleModeV0::Auto,
+                    &[],
+                    &resolution_inputs,
+                    OmenaQueryDiagnosticSuppressionModeV0::Apply,
+                )
+            })
+            .map(|summary| {
+                serde_json::to_string(&summary)
+                    .map_err(|_| "reference diagnostics must serialize")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let selector = host
+            .workspace_revision_selector(
+                corpus.as_slice(),
+                source_documents.as_slice(),
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("workspace selector must commit")?;
+        crate::style::diagnostics::reset_unused_selector_shared_walk_count_for_test();
+        let actual = corpus
+            .iter()
+            .map(|target| selector.workspace_style_diagnostics(target.style_path.as_str()))
+            .map(|summary| {
+                serde_json::to_string(&summary).map_err(|_| "memo diagnostics must serialize")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        assert_eq!(actual, references);
+        assert_eq!(
+            crate::style::diagnostics::read_unused_selector_shared_walk_count_for_test(),
+            1
+        );
+
+        for target in &corpus {
+            let _ = selector.workspace_style_diagnostics(target.style_path.as_str());
+        }
+        assert_eq!(
+            crate::style::diagnostics::read_unused_selector_shared_walk_count_for_test(),
+            1,
+            "repeated reads of one revision must retain the shared result"
+        );
+        drop(selector);
+
+        let mut edited_documents = source_documents;
+        edited_documents[0].source_source = r#"import a from "./A.module.css";
+import b from "./B.module.css";
+import c from "./C.module.css";
+export const classes = [a.ghostA, b.usedB, c.usedC];
+"#
+        .to_string();
+        let edited_selector = host
+            .workspace_revision_selector(
+                corpus.as_slice(),
+                edited_documents.as_slice(),
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("edited workspace selector must commit")?;
+        for target in &corpus {
+            let _ = edited_selector.workspace_style_diagnostics(target.style_path.as_str());
+        }
+        assert_eq!(
+            crate::style::diagnostics::read_unused_selector_shared_walk_count_for_test(),
+            2,
+            "a changed source revision must compute one new shared result"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn non_default_unused_selector_axes_retain_target_local_resolution() -> Result<(), &'static str>
+    {
+        let corpus = unused_selector_shared_probe_corpus();
+        let source_documents = unused_selector_shared_probe_documents();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let selector = host
+            .workspace_revision_selector(
+                corpus.as_slice(),
+                source_documents.as_slice(),
+                &[],
+                &[],
+                &resolution_inputs,
+            )
+            .ok_or("workspace selector must commit")?;
+        let targets = selector
+            .files
+            .iter()
+            .take(2)
+            .map(|(_, target)| *target)
+            .collect::<Vec<_>>();
+
+        let transform_reference = targets
+            .iter()
+            .map(|target| {
+                summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode(
+                    target.style_path(&selector.db).as_str(),
+                    corpus.as_slice(),
+                    source_documents.as_slice(),
+                    &[],
+                    Some("camelCase"),
+                    OmenaQueryExternalModuleModeV0::Auto,
+                    &[],
+                    &resolution_inputs,
+                    OmenaQueryDiagnosticSuppressionModeV0::Apply,
+                )
+            })
+            .map(|summary| {
+                serde_json::to_string(&summary)
+                    .map_err(|_| "transform reference diagnostics must serialize")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        crate::style::diagnostics::reset_unused_selector_shared_walk_count_for_test();
+        let transform_actual = targets
+            .iter()
+            .map(|target| {
+                resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index(
+                    &selector.db,
+                    selector.workspace,
+                    *target,
+                    &selector.committed_graph,
+                    OmenaQueryExternalModuleModeV0::Auto,
+                    OmenaQueryDiagnosticSuppressionModeV0::Apply,
+                    Some("camelCase"),
+                    None,
+                )
+            })
+            .map(|summary| {
+                serde_json::to_string(&summary)
+                    .map_err(|_| "transform committed diagnostics must serialize")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        assert_eq!(transform_actual, transform_reference);
+        assert_eq!(
+            crate::style::diagnostics::read_unused_selector_shared_walk_count_for_test(),
+            2,
+            "a classname transform changes selector attribution and must bypass the default memo"
+        );
+
+        let identity_index = OmenaResolverStyleModuleConfirmationIdentityIndexV0 {
+            available_by_identity: BTreeMap::new(),
+            disk_by_identity: BTreeMap::new(),
+        };
+        let substrate = collect_omena_query_workspace_diagnostics_substrate_from_committed_graph(
+            selector.committed_graph.style_fact_entries.clone(),
+            &selector.committed_graph.css_modules_resolution,
+            &selector.committed_graph.sass_module_resolution,
+            &selector
+                .committed_graph
+                .sass_module_resolution_without_manifests,
+            &selector
+                .committed_graph
+                .sass_module_resolution_without_path_mappings,
+            &selector
+                .committed_graph
+                .sass_module_resolution_with_external_sifs,
+        );
+        let identity_reference = targets
+            .iter()
+            .map(|target| {
+                summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
+                    target.style_path(&selector.db).as_str(),
+                    corpus.as_slice(),
+                    source_documents.as_slice(),
+                    &[],
+                    None,
+                    OmenaQueryExternalModuleModeV0::Auto,
+                    &[],
+                    &resolution_inputs,
+                    OmenaQueryDiagnosticSuppressionModeV0::Apply,
+                    &substrate,
+                    Some(&identity_index),
+                )
+            })
+            .map(|summary| {
+                serde_json::to_string(&summary)
+                    .map_err(|_| "identity reference diagnostics must serialize")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        crate::style::diagnostics::reset_unused_selector_shared_walk_count_for_test();
+        let identity_actual = targets
+            .iter()
+            .map(|target| {
+                resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_identity_index(
+                    &selector.db,
+                    selector.workspace,
+                    *target,
+                    &selector.committed_graph,
+                    OmenaQueryExternalModuleModeV0::Auto,
+                    OmenaQueryDiagnosticSuppressionModeV0::Apply,
+                    None,
+                    Some(&identity_index),
+                )
+            })
+            .map(|summary| {
+                serde_json::to_string(&summary)
+                    .map_err(|_| "identity committed diagnostics must serialize")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        assert_eq!(identity_actual, identity_reference);
+        assert_eq!(
+            crate::style::diagnostics::read_unused_selector_shared_walk_count_for_test(),
+            2,
+            "an explicit resolver identity index must retain its target-local resolution path"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn parallel_resolve_sync_records_committed_revision_watermark() -> Result<(), &'static str> {
         let corpus = parallel_probe_corpus();
         let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
@@ -4244,6 +4821,57 @@ const cls = styles.root;"#
             module_interface_projection_probe::read(),
             set_of(["/workspace/src/Card.module.scss"]),
             "the interface query should re-run only for the edited file",
+        );
+    }
+
+    #[test]
+    fn module_interface_projection_tracks_public_sass_members_by_namespace() {
+        let initial = summarize_omena_query_module_interface_change_projection(
+            "/workspace/src/_tokens.scss",
+            r#"
+$tone_value: red;
+$_private-token: hidden;
+@mixin paint_card($color) { color: $color; }
+@mixin _private-mixin { color: red; }
+@function scale_value($value) { @return $value * 2; }
+@function -private-function() { @return 0; }
+"#,
+        );
+        let body_only = summarize_omena_query_module_interface_change_projection(
+            "/workspace/src/_tokens.scss",
+            r#"
+$tone-value: blue;
+$_private-token: changed;
+@mixin paint-card($color) { background: $color; }
+@mixin _private-mixin { color: blue; }
+@function scale-value($value) { @return $value * 3; }
+@function -private-function() { @return 1; }
+"#,
+        );
+        let removed = summarize_omena_query_module_interface_change_projection(
+            "/workspace/src/_tokens.scss",
+            "$accent: blue;\n",
+        );
+
+        assert_eq!(
+            initial.sass_module_public_variable_names,
+            set_of(["tone-value"])
+        );
+        assert_eq!(
+            initial.sass_module_public_mixin_names,
+            set_of(["paint-card"])
+        );
+        assert_eq!(
+            initial.sass_module_public_function_names,
+            set_of(["scale-value"])
+        );
+        assert_eq!(
+            initial, body_only,
+            "body edits and Sass hyphen/underscore spelling must preserve the public interface"
+        );
+        assert_ne!(
+            initial, removed,
+            "removing public Sass members must change the module interface projection"
         );
     }
 

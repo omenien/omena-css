@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { WorkspaceCheckerFinding } from "../server/engine-core-ts/src/core/checker";
+import { AliasResolver } from "../server/engine-core-ts/src/core/cx/alias-resolver";
+import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
 import { findLangForPath } from "../server/engine-core-ts/src/core/scss/lang-registry";
+import {
+  WorkspaceSemanticWorkspaceReferenceIndex,
+  WorkspaceStyleDependencyGraph,
+} from "../server/engine-core-ts/src/core/semantic";
 import { runWorkspaceCheckCommand } from "../server/engine-host-node/src/checker-host";
+import { shutdownEngineShadowRunnerDaemon } from "../server/engine-host-node/src/selected-query-backend";
+import { computeScssUnusedDiagnostics } from "../server/lsp-server/src/providers/scss-diagnostics";
 
 const boundedWorkspaceRoot = mkdtempSync(
   path.join(os.tmpdir(), "cme-rust-selected-query-workspace-"),
@@ -25,11 +33,12 @@ const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts",
 void (async () => {
   try {
     await checkBoundedWorkspace();
+    await checkSourceCorpusCompletenessClaim();
+    await checkCurrentWorkspaceNoOverreport();
   } finally {
     rmSync(boundedWorkspaceRoot, { recursive: true, force: true });
+    shutdownEngineShadowRunnerDaemon();
   }
-
-  await checkCurrentWorkspaceNoOverreport();
 })();
 
 async function checkBoundedWorkspace(): Promise<void> {
@@ -45,6 +54,7 @@ async function checkBoundedWorkspace(): Promise<void> {
     ].join("\n"),
   );
   writeFixture("src/Button.module.scss", [".small {}", ".unused {}"].join("\n"));
+  writeFixture("src/Unindexed.tsx", "export const unrelated = true;\n");
 
   const result = await runWorkspaceCheckCommand({
     workspace: {
@@ -52,6 +62,7 @@ async function checkBoundedWorkspace(): Promise<void> {
       env: {
         ...process.env,
         OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "1",
         OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       },
     },
@@ -65,6 +76,86 @@ async function checkBoundedWorkspace(): Promise<void> {
   process.stdout.write(
     `rust-selected-query bounded workspace ok: findings=${result.checkerReport.summary.total} codes=${codes.join(",")}\n`,
   );
+}
+
+async function checkSourceCorpusCompletenessClaim(): Promise<void> {
+  const stylePath = path.join(boundedWorkspaceRoot, "src/Button.module.scss");
+  const appPath = path.join(boundedWorkspaceRoot, "src/App.tsx");
+  const unindexedPath = path.join(boundedWorkspaceRoot, "src/Unindexed.tsx");
+  const styleSource = readFixture(stylePath);
+  const styleDocument = parseStyleDocument(styleSource, stylePath);
+  const appDocument = {
+    sourcePath: appPath,
+    sourceSource: readFixture(appPath),
+  };
+  const unindexedDocument = {
+    sourcePath: unindexedPath,
+    sourceSource: readFixture(unindexedPath),
+  };
+  const expectedSourcePaths = [appPath, unindexedPath];
+
+  const boundedInput = await captureStyleDiagnosticsInput(stylePath, styleSource, styleDocument, {
+    sourceDocuments: [appDocument],
+    completeSourcePathEnumeration: expectedSourcePaths,
+    aliasResolver: new AliasResolver(boundedWorkspaceRoot, {}),
+    buildStyleDocument: (filePath, content) => parseStyleDocument(content, filePath),
+    readStyleFile: readFixtureOrNull,
+    styleDocumentForPath: (filePath) => {
+      const source = readFixtureOrNull(filePath);
+      return source === null ? null : parseStyleDocument(source, filePath);
+    },
+    workspaceRoot: boundedWorkspaceRoot,
+  });
+  assert.equal(
+    boundedInput.sourceCorpusComplete,
+    false,
+    "a bounded source subset must not claim a complete workspace corpus",
+  );
+
+  const completeInput = await captureStyleDiagnosticsInput(stylePath, styleSource, styleDocument, {
+    sourceDocuments: [appDocument, unindexedDocument],
+    completeSourcePathEnumeration: expectedSourcePaths,
+  });
+  assert.equal(
+    completeInput.sourceCorpusComplete,
+    true,
+    "an exact exhaustive source enumeration must earn the completeness claim",
+  );
+
+  process.stdout.write(
+    "rust-selected-query source corpus claim ok: bounded=false exhaustive=true\n",
+  );
+}
+
+async function captureStyleDiagnosticsInput(
+  stylePath: string,
+  styleSource: string,
+  styleDocument: ReturnType<typeof parseStyleDocument>,
+  runtimeDeps: NonNullable<Parameters<typeof computeScssUnusedDiagnostics>[5]>,
+): Promise<Record<string, unknown>> {
+  let forwardedInput: Record<string, unknown> | null = null;
+  await computeScssUnusedDiagnostics(
+    stylePath,
+    styleDocument,
+    new WorkspaceSemanticWorkspaceReferenceIndex(),
+    new WorkspaceStyleDependencyGraph(),
+    undefined,
+    {
+      env: { OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      styleSource,
+      ...runtimeDeps,
+      runRustSelectedQueryBackendJsonAsync: async <T>(_command: string, input: unknown) => {
+        forwardedInput = input as Record<string, unknown>;
+        return {
+          product: "omena-query.diagnostics-for-file",
+          fileKind: "style",
+          diagnostics: [],
+        } as T;
+      },
+    },
+  );
+  assert(forwardedInput, "style diagnostics must forward one selected-query input");
+  return forwardedInput;
 }
 
 async function checkCurrentWorkspaceNoOverreport(): Promise<void> {
@@ -88,6 +179,7 @@ async function checkCurrentWorkspaceNoOverreport(): Promise<void> {
       env: {
         ...process.env,
         OMENA_ENGINE_SHADOW_RUNNER: "prebuilt",
+        OMENA_ENGINE_SHADOW_RUNNER_DAEMON: "1",
         OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
       },
     },
@@ -170,6 +262,18 @@ function writeFixture(relativePath: string, content: string): void {
   const filePath = path.join(boundedWorkspaceRoot, relativePath);
   mkdirSync(path.dirname(filePath), { recursive: true });
   writeFileSync(filePath, content, "utf8");
+}
+
+function readFixture(filePath: string): string {
+  return readFileSync(filePath, "utf8");
+}
+
+function readFixtureOrNull(filePath: string): string | null {
+  try {
+    return readFixture(filePath);
+  } catch {
+    return null;
+  }
 }
 
 function findingKey(root: string, entry: WorkspaceCheckerFinding): string {

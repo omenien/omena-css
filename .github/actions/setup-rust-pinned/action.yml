@@ -37,6 +37,8 @@ runs:
     - id: assert
       shell: bash
       working-directory: rust
+      env:
+        EXPECTED_RUST_VERSION: ${{ inputs.expected-version }}
       run: |
         set -euo pipefail
 
@@ -49,7 +51,7 @@ runs:
         echo "cargo:  ${cargo_ver}"
         echo "rustc:  ${rustc_ver}"
 
-        expected="${{ inputs.expected-version }}"
+        expected="${EXPECTED_RUST_VERSION}"
         if ! printf '%s\n' "${cargo_ver}" | grep -Fq " ${expected} "; then
           echo "::error::resolved cargo (${cargo_ver}) does not match pinned ${expected} from rust-toolchain.toml" >&2
           exit 1

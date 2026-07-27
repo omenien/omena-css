@@ -3,7 +3,6 @@ use crate::style_diagnostics_snapshot::{
     LspStyleDiagnosticsRenderInputsV0, attach_workspace_snapshot_id_to_diagnostics,
     current_style_workspace_snapshot_id,
 };
-
 pub(crate) fn resolve_style_diagnostics(state: &LspShellState, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     resolve_style_diagnostics_for_uri(state, document_uri.as_str())
@@ -43,12 +42,9 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     let source_documents =
         source_documents_from_open_documents(state, document.workspace_folder_uri.as_deref());
     let external_sifs = state.resolution.external_sifs.as_slice();
-    // RFC-0007-J (#50): pass the workspace's tsconfig/bundler path mappings so the unused-selector
-    // usage collector resolves alias style imports (`@/styles/...`) the same way the reference/goto
-    // path does — otherwise an alias import dims every selector as `unusedSelector`.
+    // Resolve aliases identically across usage collection and navigation.
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
-    // RFC 0009 Pillar C (rfcs#66) stage 2 verifying-trace cache (disk_cache.rs).
     let disk_cache_slot = crate::disk_cache::disk_diagnostics_cache_slot_for_serial_resolve(
         state,
         document.workspace_folder_uri.as_deref(),
@@ -151,8 +147,7 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
             cached == diagnostics,
         );
     }
-    // RFC 0009 Pillar C (rfcs#66): write-behind after the compute, carrying
-    // the read-set declared over the committed summary's edges.
+    // Cache only the full result and its committed cross-file read set.
     crate::disk_cache::store_disk_diagnostics_shard_for_serial_resolve(
         state,
         disk_cache_slot,
@@ -244,6 +239,10 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
             uri: document_uri.to_string(),
             coalesce_key: String::new(),
             tier_plan,
+            diagnostics_publish_registry: state.diagnostics_publish_digest_registry.clone(),
+            reactive_shadow_flush_id: state
+                .diagnostics_publish_digest_registry
+                .current_reactive_shadow_flush_id(),
             workspace_snapshot_id: snapshot_id,
             render_inputs: DeferredDiagnosticsRenderInputsV0::StyleSnapshot(Box::new(
                 state.query_snapshot(),

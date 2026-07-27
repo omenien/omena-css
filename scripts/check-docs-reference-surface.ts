@@ -236,15 +236,14 @@ function verifyArchitectureCodemap(): number {
     .filter(({ surface }) => !excludedSurfaces.has(surface))
     .map(({ crate }) => crate)
     .toSorted();
-  assert.equal(productCrates.length, 41, "the architecture product-path family count changed");
+  assert.equal(productCrates.length, 42, "the architecture product-path family count changed");
   for (const crateName of productCrates) {
     assert.ok(architecture.includes(`\`${crateName}\``), `${architecturePath} omits ${crateName}`);
   }
 
   for (const requiredDoc of [
-    "docs/workspace-session-routing.md",
-    "docs/governance/crate-boundary-review.md",
-    "docs/engine-v2-contract-idl-decisions.md",
+    "docs/internals/workspace-session-routing.md",
+    "server/engine-core-ts/src/contracts/engine-v2-contract-idl-decisions.md",
   ]) {
     assert.equal(
       architecture.split(requiredDoc).length - 1,

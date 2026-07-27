@@ -26,14 +26,20 @@ runs:
   using: composite
   steps:
     - shell: bash
+      env:
+        REGISTRY_KIND: ${{ inputs.registry }}
+        PACKAGE_NAME: ${{ inputs.name }}
+        PACKAGE_VERSION: ${{ inputs.version }}
+        POLL_TIMEOUT_SECONDS: ${{ inputs.timeout-s }}
+        POLL_BACKOFF_SECONDS: ${{ inputs.backoff-s }}
       run: |
         set -euo pipefail
 
-        registry="${{ inputs.registry }}"
-        name="${{ inputs.name }}"
-        version="${{ inputs.version }}"
-        timeout_s="${{ inputs.timeout-s }}"
-        backoff="${{ inputs.backoff-s }}"
+        registry="${REGISTRY_KIND}"
+        name="${PACKAGE_NAME}"
+        version="${PACKAGE_VERSION}"
+        timeout_s="${POLL_TIMEOUT_SECONDS}"
+        backoff="${POLL_BACKOFF_SECONDS}"
 
         case "${registry}" in
           crates)
