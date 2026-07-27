@@ -354,6 +354,12 @@ pub fn run_omena_query_bundle_with_module_reachability_and_options(
     options: &OmenaQueryConsumerBuildOptionsV0,
     module_reachability: &OmenaQueryEngineInputModuleReachabilityV0,
 ) -> Result<OmenaQueryModuleAttributedBundleResultV0, String> {
+    if find_target_style_source(input.target_style_path, input.style_sources).is_none() {
+        return Err(format!(
+            "target style path {:?} was not found in workspace style sources",
+            input.target_style_path
+        ));
+    }
     let mut flat_context =
         merge_transform_context(input.context.clone(), module_reachability.context());
     flat_context

@@ -1222,12 +1222,8 @@ impl OmenaQueryEngineInputModuleReachabilityV0 {
     ) -> Vec<String> {
         let style_paths = style_paths
             .into_iter()
-            .map(|style_path| {
-                resolve_omena_query_style_path_against_known(
-                    style_path,
-                    self.known_style_paths.as_slice(),
-                )
-                .unwrap_or_else(|| normalize_omena_query_style_path(style_path))
+            .flat_map(|style_path| {
+                attribution_domain_style_paths(style_path, self.known_style_paths.as_slice())
             })
             .collect::<BTreeSet<_>>();
 
@@ -1289,6 +1285,50 @@ pub(crate) fn resolve_omena_query_style_path_against_known(
     })
 }
 
+fn attribution_domain_style_paths(style_path: &str, known_style_paths: &[String]) -> Vec<String> {
+    let normalized = normalize_omena_query_style_path(style_path);
+    for matches in [
+        matching_style_paths(known_style_paths, |known| {
+            normalize_omena_query_style_path(known) == normalized
+        }),
+        matching_style_paths(known_style_paths, |known| {
+            normalize_omena_query_style_path(known).eq_ignore_ascii_case(normalized.as_str())
+        }),
+        matching_style_paths(known_style_paths, |known| {
+            style_path_component_suffix_matches(
+                normalize_omena_query_style_path(known).as_str(),
+                normalized.as_str(),
+                false,
+            )
+        }),
+        matching_style_paths(known_style_paths, |known| {
+            style_path_component_suffix_matches(
+                normalize_omena_query_style_path(known).as_str(),
+                normalized.as_str(),
+                true,
+            )
+        }),
+    ] {
+        if !matches.is_empty() {
+            return matches;
+        }
+    }
+    vec![normalized]
+}
+
+fn matching_style_paths(
+    known_style_paths: &[String],
+    matches: impl Fn(&String) -> bool,
+) -> Vec<String> {
+    known_style_paths
+        .iter()
+        .filter(|known| matches(known))
+        .map(|known| normalize_omena_query_style_path(known))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 fn unique_style_path_match(
     known_style_paths: &[String],
     matches: impl Fn(&String) -> bool,
@@ -1338,7 +1378,11 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
     ) -> Result<Self, String> {
         let mut style_paths = style_paths
             .into_iter()
-            .map(str::to_string)
+            .flat_map(|style_path| {
+                attribution_domain_style_paths(style_path, attribution.known_style_paths.as_slice())
+            })
+            .collect::<BTreeSet<_>>()
+            .into_iter()
             .collect::<Vec<_>>();
         style_paths.sort();
         style_paths.dedup();
@@ -1364,11 +1408,12 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
                 .declared_class_names_by_style_path
                 .iter()
                 .filter(|(_, names)| names.contains(class_name))
-                .map(|(style_path, _)| style_path.as_str())
+                .map(|(style_path, _)| normalize_omena_query_style_path(style_path))
                 .collect::<BTreeSet<_>>();
             for entry in &mut entries {
                 if declared_owner_paths.is_empty()
-                    || declared_owner_paths.contains(entry.style_path.as_str())
+                    || declared_owner_paths
+                        .contains(&normalize_omena_query_style_path(entry.style_path.as_str()))
                 {
                     entry.class_names.push(class_name.clone());
                     entry.class_names.sort();
@@ -1387,7 +1432,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let lost_class_names = flat_class_names
+        let normalization_disagreement_class_names = flat_class_names
             .iter()
             .filter(|name| !attributed_class_names.contains(name))
             .cloned()
@@ -1408,7 +1453,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             projected_class_names: attribution.projected_class_names.clone(),
             flat_class_names,
             attributed_class_names,
-            lost_class_names,
+            lost_class_names: normalization_disagreement_class_names,
             unmatched_target_style_paths,
             attempted_module_count,
             attributed_empty_module_count,
@@ -1417,7 +1462,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             Ok(report)
         } else {
             Err(format!(
-                "module reachability partition lost flat class names: {}",
+                "module reachability attribution domain normalization disagreement for class names: {}",
                 report.lost_class_names.join(", ")
             ))
         }
@@ -1453,6 +1498,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
         self.projected_class_names.as_slice()
     }
 
+    /// Class names whose declared owners intersect the current build-source domain.
     pub fn flat_class_names(&self) -> &[String] {
         self.flat_class_names.as_slice()
     }
@@ -1461,6 +1507,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
         self.attributed_class_names.as_slice()
     }
 
+    /// Compatibility accessor for attribution-domain normalization disagreements.
     pub fn lost_class_names(&self) -> &[String] {
         self.lost_class_names.as_slice()
     }

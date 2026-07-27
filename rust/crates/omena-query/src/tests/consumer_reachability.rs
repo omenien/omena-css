@@ -802,7 +802,7 @@ fn workspace_reachability_does_not_hide_missing_dependency_blocker() -> Result<(
 }
 
 #[test]
-fn module_reachability_partition_rejects_unassigned_live_names() {
+fn synthetic_attribution_input_reports_normalization_disagreement() {
     let entry_path = "src/entry.module.css";
     let outside_path = "src/outside.module.css";
     let input = module_reachability_input(
@@ -818,13 +818,82 @@ fn module_reachability_partition_rejects_unassigned_live_names() {
     );
     let reachability =
         derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
+    assert!(
+        reachability
+            .flat_class_names_for_style_paths([entry_path], &["outside-live".to_string()])
+            .is_empty(),
+        "the product domain filter must not manufacture this synthetic input"
+    );
     assert_eq!(
         OmenaQueryModuleReachabilityAttributionReportV0::try_from_style_paths(
             &reachability,
             [entry_path],
             &["outside-live".to_string()],
         ),
-        Err("module reachability partition lost flat class names: outside-live".to_string())
+        Err(
+            "module reachability attribution domain normalization disagreement for class names: outside-live"
+                .to_string()
+        )
+    );
+}
+
+#[test]
+fn ambiguous_build_path_keeps_every_matching_owner_in_the_attribution_domain() {
+    let first_style_path = "/workspace/first/Button.module.css";
+    let second_style_path = "/workspace/second/Button.module.css";
+    let input = module_reachability_input(
+        &[
+            ("first-ref", first_style_path, "first-live"),
+            ("second-ref", second_style_path, "second-live"),
+        ],
+        &[
+            (first_style_path, ".first-live {}", &["first-live"]),
+            (second_style_path, ".second-live {}", &["second-live"]),
+        ],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, first_style_path, true);
+
+    assert_eq!(
+        reachability.flat_class_names_for_style_paths(
+            ["Button.module.css"],
+            &["first-live".to_string(), "second-live".to_string()],
+        ),
+        vec!["first-live".to_string(), "second-live".to_string()]
+    );
+}
+
+#[test]
+fn missing_target_source_precedes_attribution_domain_validation() {
+    let entry_path = "src/entry.module.css";
+    let input = module_reachability_input(
+        &[("entry-ref", entry_path, "entry-live")],
+        &[(entry_path, ".entry-live {}", &["entry-live"])],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, entry_path, true);
+    let result = run_omena_query_bundle_with_module_reachability_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: entry_path,
+            style_sources: &[],
+            source_map_sources: &[],
+            requested_pass_ids: &["tree-shake-class".to_string()],
+            context: &OmenaQueryTransformExecutionContextV0::default(),
+            resolution_inputs: &OmenaQueryStyleResolutionInputsV0::default(),
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0::default(),
+        &reachability,
+    );
+
+    assert_eq!(
+        result,
+        Err(
+            "target style path \"src/entry.module.css\" was not found in workspace style sources"
+                .to_string()
+        )
     );
 }
 
