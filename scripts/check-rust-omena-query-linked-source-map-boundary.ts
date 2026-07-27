@@ -14,6 +14,14 @@ const attributedBundleBody = extractFunctionBody(
   source,
   "run_omena_query_bundle_with_module_reachability_and_options",
 );
+const semanticScopeBody = extractFunctionBody(
+  source,
+  "run_omena_query_bundle_with_execution_scope_evidence_and_options",
+);
+const attributedScopeBody = extractFunctionBody(
+  source,
+  "run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options",
+);
 const bundleBody = extractFunctionBody(
   source,
   "run_omena_query_bundle_with_optional_module_reachability",
@@ -30,18 +38,40 @@ if (injectLinkedNeedle) {
   linkedSourceMapBody += "\nfind_import_origin_generated_range(";
 }
 
-for (const entrypointBody of [semanticBundleBody, attributedBundleBody]) {
-  assert.equal(
-    countCalls(entrypointBody, "run_omena_query_bundle_with_optional_module_reachability"),
-    1,
-  );
+assert.equal(
+  countCalls(
+    semanticBundleBody,
+    "run_omena_query_bundle_with_execution_scope_evidence_and_options",
+  ),
+  1,
+);
+assert.equal(
+  countCalls(
+    attributedBundleBody,
+    "run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options",
+  ),
+  1,
+);
+for (const entrypointBody of [
+  semanticBundleBody,
+  attributedBundleBody,
+  semanticScopeBody,
+  attributedScopeBody,
+]) {
   assert.doesNotMatch(entrypointBody, /summarize_omena_query_linked_bundle_source_map_v3\s*\(/u);
   assert.doesNotMatch(
     entrypointBody,
     /summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs\s*\(/u,
   );
 }
-assert.match(bundleBody, /if let Some\(materialization\)/u);
+for (const entrypointBody of [semanticScopeBody, attributedScopeBody]) {
+  assert.equal(
+    countCalls(entrypointBody, "run_omena_query_bundle_with_optional_module_reachability"),
+    1,
+  );
+}
+assert.match(bundleBody, /linked_materialization\.as_ref\(\)/u);
+assert.match(bundleBody, /linked_module_executions\.as_deref\(\)/u);
 assert.match(bundleBody, /summarize_omena_query_linked_bundle_source_map_v3\s*\(/u);
 assert.match(
   bundleBody,
@@ -52,6 +82,14 @@ assert.doesNotMatch(linkedSourceMapBody, /find_import_origin_generated_range\s*\
 assert.doesNotMatch(linkedSourceMapBody, /import_inline_source_map_segments\s*\(/u);
 assert.doesNotMatch(linkedSegmentBody, /find_import_origin_generated_range\s*\(/u);
 assert.doesNotMatch(linkedSegmentBody, /import_inline_source_map_segments\s*\(/u);
+assert.equal(
+  countCalls(linkedSegmentBody, "print_omena_query_transform_source_with_pretty_options"),
+  1,
+);
+assert.doesNotMatch(
+  linkedSegmentBody,
+  /print_transform_execution_artifact_with_dialect_and_source\s*\(/u,
+);
 assert.equal(countCalls(legacyInlineBody, "find_import_origin_generated_range"), 1);
 assert.equal(countCalls(legacyGraphBody, "find_import_origin_generated_range"), 1);
 assert.equal(countCalls(source, "find_import_origin_generated_range") - 1, 2);
