@@ -62,13 +62,14 @@ interface LinkedEmissionCoverageCensusV0 {
   readonly blindSpotModuleCount: number;
   readonly unknownStructuralSelectorCount: number;
   readonly unknownAtRuleCount: number;
+  readonly moduleTokenCollisionScope: "boundedFixtureRegressionTripwire";
   readonly moduleTokenCollisionCount: number;
   readonly moduleTokenCollisions: ReadonlyArray<{
     readonly fixtureId: string;
     readonly emittedToken: string;
     readonly modulePaths: readonly string[];
     readonly originalNames: readonly string[];
-    readonly observedEmissionPaths: readonly ["importInlineLegacy", "linkedOrder"];
+    readonly observedEmissionPaths: ReadonlyArray<"importInlineLegacy" | "linkedOrder">;
   }>;
   readonly shapes: ReadonlyArray<{
     readonly shapeClass: string;
@@ -313,6 +314,7 @@ assert.equal(
   "the bounded linked-emission corpus projected an unknown at-rule",
 );
 assert.equal(census.moduleTokenCollisionCount, census.moduleTokenCollisions.length);
+assert.equal(census.moduleTokenCollisionScope, "boundedFixtureRegressionTripwire");
 assert.ok(
   census.moduleTokenCollisionCount > 0,
   "the bounded corpus must retain a cross-module emitted-token collision witness",
@@ -322,7 +324,16 @@ for (const collision of census.moduleTokenCollisions) {
   assert.ok(collision.emittedToken.length > 0);
   assert.ok(collision.modulePaths.length > 1);
   assert.ok(collision.originalNames.length > 0);
-  assert.deepEqual(collision.observedEmissionPaths, ["importInlineLegacy", "linkedOrder"]);
+  assert.ok(collision.observedEmissionPaths.length > 0);
+  assert.equal(
+    new Set(collision.observedEmissionPaths).size,
+    collision.observedEmissionPaths.length,
+  );
+  assert.ok(
+    collision.observedEmissionPaths.every(
+      (path) => path === "importInlineLegacy" || path === "linkedOrder",
+    ),
+  );
 }
 assert.equal(census.placementWitnesses.length, 4);
 const moduleBoundaryShapeClasses = new Set(["empty-module", "comment-only-module"]);

@@ -191,6 +191,7 @@ pub struct LinkedEmissionCoverageCensusV0 {
     pub blind_spot_module_count: usize,
     pub unknown_structural_selector_count: usize,
     pub unknown_at_rule_count: usize,
+    pub module_token_collision_scope: &'static str,
     pub module_token_collision_count: usize,
     pub module_token_collisions: Vec<LinkedEmissionModuleTokenCollisionV0>,
     pub shapes: Vec<LinkedEmissionCoverageShapeV0>,
@@ -257,6 +258,7 @@ struct LinkedEmissionFixtureAnalysisV0 {
     linked_order: LinkedStylesheetWithEmissionItemsV0,
     legacy_css: String,
     linked_css: String,
+    reachability_class_name_rewrites: BTreeMap<String, String>,
 }
 
 #[derive(Debug)]
@@ -573,6 +575,7 @@ fn summarize_linked_emission_coverage_census_v0(
         blind_spot_module_count: blind_spots.len(),
         unknown_structural_selector_count,
         unknown_at_rule_count,
+        module_token_collision_scope: "boundedFixtureRegressionTripwire",
         module_token_collision_count: module_token_collisions.len(),
         module_token_collisions,
         shapes,
@@ -593,7 +596,8 @@ fn summarize_module_token_collisions_v0(
         .map(|module| (module.path.as_str(), module.source.as_str()))
         .collect::<Vec<_>>();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
-    let mut declarations_by_token = BTreeMap::<String, BTreeMap<String, BTreeSet<String>>>::new();
+    let mut declarations_by_module = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut rewrites_by_module = BTreeMap::<String, BTreeMap<String, String>>::new();
     for module in &fixture.modules {
         let context = summarize_omena_query_transform_context_from_sources_with_resolution_inputs(
             module.path.as_str(),
@@ -601,20 +605,90 @@ fn summarize_module_token_collisions_v0(
             &resolution_inputs,
         )
         .context;
+        let declarations = collect_style_fact_collection(module.source.as_str(), module.dialect)
+            .facts
+            .selectors
+            .into_iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name)
+            .collect::<BTreeSet<_>>();
+        declarations_by_module.insert(module.path.clone(), declarations);
+        let mut rewrites = BTreeMap::new();
         for rewrite in context.class_name_rewrites {
-            declarations_by_token
-                .entry(rewrite.rewritten_name)
-                .or_default()
-                .entry(module.path.clone())
-                .or_default()
-                .insert(rewrite.original_name);
+            let emitted_token = analysis
+                .reachability_class_name_rewrites
+                .get(rewrite.original_name.as_str())
+                .cloned()
+                .unwrap_or(rewrite.rewritten_name);
+            rewrites.insert(rewrite.original_name, emitted_token);
+        }
+        rewrites_by_module.insert(module.path.clone(), rewrites);
+    }
+
+    let mut collisions =
+        BTreeMap::<String, (BTreeMap<String, BTreeSet<String>>, BTreeSet<&'static str>)>::new();
+    for (emission_path, css) in [
+        (
+            analysis.case.legacy_emission_path,
+            analysis.legacy_css.as_str(),
+        ),
+        (
+            analysis.case.linked_emission_path,
+            analysis.linked_css.as_str(),
+        ),
+    ] {
+        let selector_counts = output_class_selector_counts_v0(css);
+        let mut declarations_by_token =
+            BTreeMap::<String, BTreeMap<String, BTreeSet<String>>>::new();
+        for module in &fixture.modules {
+            let Some(declarations) = declarations_by_module.get(module.path.as_str()) else {
+                continue;
+            };
+            let rewrites = rewrites_by_module
+                .get(module.path.as_str())
+                .cloned()
+                .unwrap_or_default();
+            for original_name in declarations {
+                let rewritten_name = rewrites
+                    .get(original_name.as_str())
+                    .map(String::as_str)
+                    .unwrap_or(original_name.as_str());
+                let emitted_token = if selector_counts.contains_key(rewritten_name) {
+                    rewritten_name
+                } else if selector_counts.contains_key(original_name.as_str()) {
+                    original_name.as_str()
+                } else {
+                    continue;
+                };
+                declarations_by_token
+                    .entry(emitted_token.to_string())
+                    .or_default()
+                    .entry(module.path.clone())
+                    .or_default()
+                    .insert(original_name.clone());
+            }
+        }
+        for (emitted_token, declarations) in declarations_by_token {
+            if declarations.len() <= 1
+                || selector_counts
+                    .get(emitted_token.as_str())
+                    .copied()
+                    .unwrap_or_default()
+                    <= 1
+            {
+                continue;
+            }
+            let collision = collisions.entry(emitted_token).or_default();
+            for (module_path, names) in declarations {
+                collision.0.entry(module_path).or_default().extend(names);
+            }
+            collision.1.insert(emission_path);
         }
     }
 
-    declarations_by_token
+    collisions
         .into_iter()
-        .filter(|(_, declarations)| declarations.len() > 1)
-        .map(|(emitted_token, declarations)| {
+        .map(|(emitted_token, (declarations, observed_emission_paths))| {
             let module_paths = declarations.keys().cloned().collect::<Vec<_>>();
             let original_names = declarations
                 .into_values()
@@ -627,10 +701,7 @@ fn summarize_module_token_collisions_v0(
                 emitted_token,
                 module_paths,
                 original_names,
-                observed_emission_paths: vec![
-                    analysis.case.legacy_emission_path,
-                    analysis.case.linked_emission_path,
-                ],
+                observed_emission_paths: observed_emission_paths.into_iter().collect(),
             }
         })
         .collect()
@@ -650,6 +721,22 @@ fn analyze_linked_emission_fixture_v0(
         .collect::<Vec<_>>();
     let mut pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
     let module_reachability = module_reachability_for_fixture_v0(fixture);
+    let reachability_class_name_rewrites = module_reachability
+        .as_ref()
+        .map(|reachability| {
+            reachability
+                .context()
+                .class_name_rewrites
+                .iter()
+                .map(|rewrite| {
+                    (
+                        rewrite.original_name.clone(),
+                        rewrite.rewritten_name.clone(),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     if module_reachability.is_some() {
         pass_ids.push("tree-shake-class".to_string());
     }
@@ -832,6 +919,7 @@ fn analyze_linked_emission_fixture_v0(
         linked_order,
         legacy_css,
         linked_css,
+        reachability_class_name_rewrites,
     })
 }
 
@@ -1419,6 +1507,19 @@ fn output_marker_order_v0(source: &str, marker_names: &BTreeSet<String>) -> Vec<
         .collect()
 }
 
+fn output_class_selector_counts_v0(source: &str) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    collect_style_fact_collection(source, StyleDialect::Css)
+        .facts
+        .selectors
+        .into_iter()
+        .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+        .for_each(|selector| {
+            *counts.entry(selector.name).or_default() += 1;
+        });
+    counts
+}
+
 fn remove_ascii_whitespace_v0(source: &str) -> String {
     source
         .chars()
@@ -1982,11 +2083,43 @@ mod tests {
             census.module_token_collision_count,
             census.module_token_collisions.len()
         );
+        assert_eq!(
+            census.module_token_collision_scope,
+            "boundedFixtureRegressionTripwire"
+        );
         assert!(census.module_token_collision_count > 0);
         assert!(census.module_token_collisions.iter().all(|collision| {
-            collision.module_paths.len() > 1
-                && collision.observed_emission_paths == ["importInlineLegacy", "linkedOrder"]
+            collision.module_paths.len() > 1 && !collision.observed_emission_paths.is_empty()
         }));
+        Ok(())
+    }
+
+    #[test]
+    fn token_collision_census_uses_runtime_rewrite_precedence() -> Result<(), String> {
+        let mut fixture = module_qualified_reachability_fixture_v0();
+        fixture.modules[0].source = "@import \"./dependency.module.css\"; \
+            .entry-marker { border: 0; } .shared { color: red; } .entry-dead { color: tan; }"
+            .to_string();
+        let analysis = analyze_linked_emission_fixture_v0(
+            &fixture,
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+        let collisions = summarize_module_token_collisions_v0(&fixture, &analysis);
+
+        assert_eq!(collisions.len(), 1);
+        let collision = &collisions[0];
+        assert_eq!(collision.module_paths.len(), 2);
+        for output in [&analysis.legacy_css, &analysis.linked_css] {
+            let emitted_count = output_class_selector_counts_v0(output)
+                .get(collision.emitted_token.as_str())
+                .copied()
+                .unwrap_or_default();
+            assert_eq!(
+                emitted_count, 2,
+                "emitted token {} was not observed twice in {output}",
+                collision.emitted_token
+            );
+        }
         Ok(())
     }
 

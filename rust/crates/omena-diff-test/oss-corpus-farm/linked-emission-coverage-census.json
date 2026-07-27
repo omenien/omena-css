@@ -12,11 +12,12 @@
   "blindSpotModuleCount": 5,
   "unknownStructuralSelectorCount": 0,
   "unknownAtRuleCount": 0,
+  "moduleTokenCollisionScope": "boundedFixtureRegressionTripwire",
   "moduleTokenCollisionCount": 1,
   "moduleTokenCollisions": [
     {
       "fixtureId": "module-qualified-reachability",
-      "emittedToken": "_shared_0",
+      "emittedToken": "shared",
       "modulePaths": [
         "linked-byte/module-qualified-reachability/app.module.css",
         "linked-byte/module-qualified-reachability/dependency.module.css"
