@@ -129,22 +129,29 @@ export interface OmenaBundleExecutionFieldScopeV0 {
   readonly derivation: string;
 }
 
+export interface OmenaModuleInstanceKeyV0 {
+  readonly module: string;
+  readonly configuration: string;
+}
+
 export interface OmenaBundleModuleExecutionByteFactsV0 {
-  readonly moduleInstance: {
-    readonly module: string;
-    readonly configuration: string;
-  };
+  readonly moduleInstance: OmenaModuleInstanceKeyV0;
   readonly inputByteLen: number;
   readonly outputByteLen: number;
   readonly generatedStart: number;
   readonly generatedEnd: number;
 }
 
+export interface OmenaBundleCompositeExecutionByteFactsV0 {
+  readonly moduleCount: number;
+  readonly summedModuleInputByteLen: number;
+  readonly summedModuleOutputByteLen: number;
+  readonly interModuleSeparatorByteLen: number;
+  readonly materializedOutputByteLen: number;
+}
+
 export interface OmenaLinkedSourceMapDispositionV0 {
-  readonly moduleInstance: {
-    readonly module: string;
-    readonly configuration: string;
-  };
+  readonly moduleInstance: OmenaModuleInstanceKeyV0;
   readonly granularity: "cstAnchors" | "wholeModuleFallback";
   readonly fallbackReason?: string;
   readonly segmentCount: number;
@@ -153,19 +160,10 @@ export interface OmenaLinkedSourceMapDispositionV0 {
 export interface OmenaBundleExecutionScopeEvidenceV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-query.bundle-execution-scope";
-  readonly entryModuleInstance: {
-    readonly module: string;
-    readonly configuration: string;
-  };
+  readonly entryModuleInstance: OmenaModuleInstanceKeyV0;
   readonly fieldScopes: readonly OmenaBundleExecutionFieldScopeV0[];
   readonly moduleExecutions: readonly OmenaBundleModuleExecutionByteFactsV0[];
-  readonly bundleComposite: {
-    readonly moduleCount: number;
-    readonly summedModuleInputByteLen: number;
-    readonly summedModuleOutputByteLen: number;
-    readonly interModuleSeparatorByteLen: number;
-    readonly materializedOutputByteLen: number;
-  };
+  readonly bundleComposite: OmenaBundleCompositeExecutionByteFactsV0;
   readonly sourceMapDispositions: readonly OmenaLinkedSourceMapDispositionV0[];
 }
 

@@ -3,7 +3,8 @@ use crate::{
     OmenaQueryBundleEmissionPathV0, OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldBlockerV0,
     OmenaQueryClosedWorldDecisionParityV0, OmenaQueryClosedWorldOutcomeV0,
     OmenaQueryConsumerBuildOptionsV0, OmenaQueryExecutionEvidenceScopeV0,
-    OmenaQueryExternalSifInputV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryExternalSifInputV0, OmenaQueryLinkedSourceMapGranularityV0,
+    OmenaQueryTransformExecutionContextV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
     run_omena_query_bundle, run_omena_query_bundle_with_execution_scope_evidence_and_options,
     run_omena_query_bundle_with_semantic_inputs,
@@ -664,7 +665,9 @@ fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), Str
         },
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/theme/tokens.css".to_string(),
-            style_source: ".token { color: blue; }".to_string(),
+            style_source:
+                ".token-a { color: blue; }\n.token-b { color: cyan; }\n.token-c { color: navy; }"
+                    .to_string(),
         },
     ];
     let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
@@ -735,6 +738,25 @@ fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), Str
         scoped.bundle_result.artifact.per_pass_provenance,
         scoped.bundle_result.artifact.execution.outcomes
     );
+    let entry_disposition = execution_scope
+        .source_map_dispositions
+        .iter()
+        .find(|disposition| disposition.module_instance.module().as_str() == "src/app.css")
+        .ok_or_else(|| "linked entry should report its source-map disposition".to_string())?;
+    assert_eq!(
+        entry_disposition.granularity,
+        OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback
+    );
+    let leaf_disposition = execution_scope
+        .source_map_dispositions
+        .iter()
+        .find(|disposition| disposition.module_instance.module().as_str() == "src/theme/tokens.css")
+        .ok_or_else(|| "linked leaf should report its source-map disposition".to_string())?;
+    assert_eq!(
+        leaf_disposition.granularity,
+        OmenaQueryLinkedSourceMapGranularityV0::CstAnchors
+    );
+    assert_eq!(leaf_disposition.segment_count, 3);
     assert!(execution_scope.field_scopes.iter().any(|field| {
         field.field_name == "outcomes" && field.scope == OmenaQueryExecutionEvidenceScopeV0::Entry
     }));

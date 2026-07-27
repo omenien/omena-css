@@ -38,6 +38,16 @@ if (injectLinkedNeedle) {
   linkedSourceMapBody += "\nfind_import_origin_generated_range(";
 }
 
+const sharedBundleEntrypointCount =
+  countCalls(
+    semanticBundleBody,
+    "run_omena_query_bundle_with_execution_scope_evidence_and_options",
+  ) +
+  countCalls(
+    attributedBundleBody,
+    "run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options",
+  );
+assert.equal(sharedBundleEntrypointCount, 2);
 assert.equal(
   countCalls(
     semanticBundleBody,
@@ -115,7 +125,7 @@ console.log(
       schemaVersion: "0",
       product: "omena-query.linked-source-map-boundary",
       linkedSourceMapAuthority: "materializedModuleRegions",
-      sharedBundleEntrypointCount: 2,
+      sharedBundleEntrypointCount,
       linkedNeedleCallCount: 0,
       legacyNeedleCallCount: 2,
       exactOffsetTestPassed: true,
