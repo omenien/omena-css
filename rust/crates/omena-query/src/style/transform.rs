@@ -30,7 +30,10 @@ use omena_query_transform_runner::{
 };
 use std::path::{Path, PathBuf};
 
-use super::parser_facade::parse_omena_query_omena_parser_style_source;
+use super::parser_facade::{
+    lex_omena_query_omena_parser_style_source, omena_parser_dialect_for_style_path,
+    parse_omena_query_omena_parser_style_source,
+};
 
 mod context;
 mod css_modules;
@@ -2085,18 +2088,26 @@ fn linked_bundle_source_map_segments(
                     None,
                 )
             } else {
+                let (segment, fallback_reason) = linked_whole_module_fallback_segment(
+                    source_path,
+                    source,
+                    module_execution.output_css.as_str(),
+                );
                 (
-                    vec![linked_whole_module_fallback_segment(
-                        source_path,
-                        source,
-                        module_execution.output_css.as_str(),
-                    )],
+                    vec![segment],
                     OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
-                    Some("module output differs from its source after transform execution"),
+                    Some(fallback_reason),
                 )
             };
         for segment in &module_segments {
-            validate_linked_source_map_original_segment(source_path, source, segment, granularity)?;
+            validate_linked_source_map_original_segment(
+                source_path,
+                source,
+                module_execution.output_css.as_str(),
+                segment,
+                granularity,
+                fallback_reason,
+            )?;
         }
         let segment_start = segments.len();
         for segment in &mut module_segments {
@@ -2134,33 +2145,108 @@ fn linked_whole_module_fallback_segment(
     source_path: &str,
     source: &str,
     generated_module_css: &str,
-) -> TransformSourceMapSegmentV0 {
-    let original_start = source
-        .char_indices()
-        .find_map(|(offset, character)| (!character.is_whitespace()).then_some(offset))
-        .unwrap_or(source.len());
-    TransformSourceMapSegmentV0 {
-        source_path: source_path.to_string(),
-        original_start,
-        original_end: source.len(),
-        generated_start: 0,
-        generated_end: generated_module_css.len(),
-        original_start_point: transform_source_map_point(source, original_start),
-        original_end_point: transform_source_map_point(source, source.len()),
-        generated_start_point: transform_source_map_point(generated_module_css, 0),
-        generated_end_point: transform_source_map_point(
-            generated_module_css,
-            generated_module_css.len(),
-        ),
-        pass_id: "linked-order-emission",
+) -> (TransformSourceMapSegmentV0, &'static str) {
+    const EXACT_TOKEN_REASON: &str =
+        "module output differs; fallback anchors an exact surviving token sequence";
+    const SOURCE_START_REASON: &str =
+        "module output differs; fallback uses source-start convention without token correspondence";
+
+    let exact_range =
+        linked_fallback_exact_source_token_range(source_path, source, generated_module_css);
+    let (original_start, original_end, reason) = exact_range.map_or_else(
+        || {
+            let original_start = source
+                .char_indices()
+                .find_map(|(offset, character)| (!character.is_whitespace()).then_some(offset))
+                .unwrap_or(source.len());
+            (original_start, source.len(), SOURCE_START_REASON)
+        },
+        |(start, end)| (start, end, EXACT_TOKEN_REASON),
+    );
+    (
+        TransformSourceMapSegmentV0 {
+            source_path: source_path.to_string(),
+            original_start,
+            original_end,
+            generated_start: 0,
+            generated_end: generated_module_css.len(),
+            original_start_point: transform_source_map_point(source, original_start),
+            original_end_point: transform_source_map_point(source, original_end),
+            generated_start_point: transform_source_map_point(generated_module_css, 0),
+            generated_end_point: transform_source_map_point(
+                generated_module_css,
+                generated_module_css.len(),
+            ),
+            pass_id: "linked-order-emission",
+        },
+        reason,
+    )
+}
+
+fn linked_fallback_exact_source_token_range(
+    source_path: &str,
+    source: &str,
+    generated_module_css: &str,
+) -> Option<(usize, usize)> {
+    let dialect = omena_parser_dialect_for_style_path(source_path);
+    let source_lexed = lex_omena_query_omena_parser_style_source(source, dialect);
+    let generated_lexed = lex_omena_query_omena_parser_style_source(generated_module_css, dialect);
+    if !source_lexed.errors().is_empty() || !generated_lexed.errors().is_empty() {
+        return None;
     }
+    let source_tokens = canonical_linked_fallback_tokens(source_lexed.tokens());
+    let generated_tokens = canonical_linked_fallback_tokens(generated_lexed.tokens());
+    if generated_tokens.is_empty() || source_tokens.len() < generated_tokens.len() {
+        return None;
+    }
+    source_tokens
+        .windows(generated_tokens.len())
+        .find(|window| {
+            window
+                .iter()
+                .zip(&generated_tokens)
+                .all(|(source_token, generated_token)| {
+                    source_token.kind == generated_token.kind
+                        && source_token.text == generated_token.text
+                })
+        })
+        .and_then(|window| {
+            let first = window.first()?;
+            let last = window.last()?;
+            Some((
+                u32::from(first.range.start()) as usize,
+                u32::from(last.range.end()) as usize,
+            ))
+        })
+}
+
+fn canonical_linked_fallback_tokens(
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<&omena_parser::LexedToken> {
+    let non_trivia = tokens
+        .iter()
+        .filter(|token| !token.kind.is_trivia())
+        .collect::<Vec<_>>();
+    non_trivia
+        .iter()
+        .enumerate()
+        .filter_map(|(index, token)| {
+            let optional_terminal_semicolon = token.kind == omena_syntax::SyntaxKind::Semicolon
+                && non_trivia
+                    .get(index + 1)
+                    .is_some_and(|next| next.kind == omena_syntax::SyntaxKind::RightBrace);
+            (!optional_terminal_semicolon).then_some(*token)
+        })
+        .collect()
 }
 
 fn validate_linked_source_map_original_segment(
     source_path: &str,
     source: &str,
+    generated_module_css: &str,
     segment: &TransformSourceMapSegmentV0,
     granularity: OmenaQueryLinkedSourceMapGranularityV0,
+    fallback_reason: Option<&str>,
 ) -> Result<(), String> {
     if segment.source_path != source_path
         || segment.original_start > segment.original_end
@@ -2186,14 +2272,52 @@ fn validate_linked_source_map_original_segment(
         ));
     }
     if granularity == OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback {
-        let expected_start = source
-            .char_indices()
-            .find_map(|(offset, character)| (!character.is_whitespace()).then_some(offset))
-            .unwrap_or(source.len());
-        if segment.original_start != expected_start || segment.original_end != source.len() {
-            return Err(format!(
-                "linked source-map fallback for {source_path:?} must cover the first content byte through the source end"
-            ));
+        let original_slice = &source[segment.original_start..segment.original_end];
+        let dialect = omena_parser_dialect_for_style_path(source_path);
+        let original_lexed = lex_omena_query_omena_parser_style_source(original_slice, dialect);
+        let generated_lexed =
+            lex_omena_query_omena_parser_style_source(generated_module_css, dialect);
+        let original_tokens = canonical_linked_fallback_tokens(original_lexed.tokens());
+        let generated_tokens = canonical_linked_fallback_tokens(generated_lexed.tokens());
+        let has_exact_token_correspondence = original_lexed.errors().is_empty()
+            && generated_lexed.errors().is_empty()
+            && original_tokens.len() == generated_tokens.len()
+            && original_tokens
+                .iter()
+                .zip(&generated_tokens)
+                .all(|(original, generated)| {
+                    original.kind == generated.kind && original.text == generated.text
+                });
+        match fallback_reason {
+            Some("module output differs; fallback anchors an exact surviving token sequence")
+                if !has_exact_token_correspondence =>
+            {
+                return Err(format!(
+                    "linked source-map fallback for {source_path:?} claims token correspondence without matching source tokens"
+                ));
+            }
+            Some(
+                "module output differs; fallback uses source-start convention without token correspondence",
+            ) => {
+                let expected_start = source
+                    .char_indices()
+                    .find_map(|(offset, character)| (!character.is_whitespace()).then_some(offset))
+                    .unwrap_or(source.len());
+                if has_exact_token_correspondence
+                    || segment.original_start != expected_start
+                    || segment.original_end != source.len()
+                {
+                    return Err(format!(
+                        "linked source-map fallback for {source_path:?} has a dishonest source-start convention"
+                    ));
+                }
+            }
+            Some("module output differs; fallback anchors an exact surviving token sequence") => {}
+            _ => {
+                return Err(format!(
+                    "linked source-map fallback for {source_path:?} has no recognized anchor disclosure"
+                ));
+            }
         }
     }
     Ok(())
@@ -4403,11 +4527,80 @@ mod linked_source_map_tests {
             }
         }
 
-        let projected_entry = project_linked_bundle_execution(
-            retained_entry.execution.clone(),
-            execution.materialization.output_css.as_str(),
+        let mut expected_projected_json = retained_json;
+        let expected_object = expected_projected_json
+            .as_object_mut()
+            .ok_or_else(|| "retained execution should serialize as an object".to_string())?;
+        expected_object.insert(
+            "outputByteLen".to_string(),
+            serde_json::json!(execution.materialization.output_css.len()),
         );
-        assert_eq!(projected_entry, execution.execution);
+        expected_object.insert(
+            "outputCss".to_string(),
+            serde_json::json!(execution.materialization.output_css),
+        );
+        assert_eq!(expected_projected_json, projected_json);
+        Ok(())
+    }
+
+    #[test]
+    fn bundle_execution_scope_wire_matches_typescript_fixture() -> Result<(), String> {
+        let module_instance = omena_parser::ModuleInstanceKeyV0::unconfigured(
+            omena_parser::ModuleIdV0::new("src/app.css"),
+        );
+        let evidence = OmenaQueryBundleExecutionScopeEvidenceV0 {
+            schema_version: "0",
+            product: "omena-query.bundle-execution-scope",
+            entry_module_instance: module_instance.clone(),
+            field_scopes: vec![
+                OmenaQueryExecutionFieldScopeV0 {
+                    field_name: "outcomes",
+                    scope: OmenaQueryExecutionEvidenceScopeV0::Entry,
+                    derivation: "retained entry outcomes",
+                },
+                OmenaQueryExecutionFieldScopeV0 {
+                    field_name: "outputCss",
+                    scope: OmenaQueryExecutionEvidenceScopeV0::Bundle,
+                    derivation: "materialized bundle css",
+                },
+            ],
+            module_executions: vec![OmenaQueryBundleModuleExecutionByteFactsV0 {
+                module_instance: module_instance.clone(),
+                input_byte_len: 23,
+                output_byte_len: 17,
+                generated_start: 2,
+                generated_end: 19,
+            }],
+            bundle_composite: OmenaQueryBundleCompositeExecutionByteFactsV0 {
+                module_count: 1,
+                summed_module_input_byte_len: 23,
+                summed_module_output_byte_len: 17,
+                inter_module_separator_byte_len: 2,
+                materialized_output_byte_len: 19,
+            },
+            source_map_dispositions: vec![
+                OmenaQueryLinkedSourceMapDispositionV0 {
+                    module_instance: module_instance.clone(),
+                    granularity: OmenaQueryLinkedSourceMapGranularityV0::CstAnchors,
+                    fallback_reason: None,
+                    segment_count: 3,
+                },
+                OmenaQueryLinkedSourceMapDispositionV0 {
+                    module_instance,
+                    granularity: OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
+                    fallback_reason: Some(
+                        "module output differs; fallback uses source-start convention without token correspondence",
+                    ),
+                    segment_count: 1,
+                },
+            ],
+        };
+        let actual = serde_json::to_value(evidence).map_err(|error| error.to_string())?;
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/bundle-execution-scope-wire.json"
+        ))
+        .map_err(|error| error.to_string())?;
+        assert_eq!(actual, expected);
         Ok(())
     }
 
@@ -4639,7 +4832,7 @@ mod linked_source_map_tests {
         );
         assert_eq!(
             dispositions[0].fallback_reason,
-            Some("module output differs from its source after transform execution")
+            Some("module output differs; fallback anchors an exact surviving token sequence")
         );
         assert_eq!(segments[0].original_start, 3);
         assert_eq!(segments[0].original_end, source.len());
@@ -4668,6 +4861,54 @@ mod linked_source_map_tests {
         assert_eq!(first_mapping.original_line, 1);
         assert_eq!(first_mapping.original_column, 2);
         Ok(())
+    }
+
+    #[test]
+    fn linked_bundle_source_map_fallback_anchors_surviving_tokens_after_removed_import()
+    -> Result<(), String> {
+        let source = "@import \"./tokens.css\";\n.app { color: red; }";
+        let generated = ".app{color:red}";
+        let (segment, reason) =
+            linked_whole_module_fallback_segment("src/app.css", source, generated);
+        assert_eq!(
+            reason,
+            "module output differs; fallback anchors an exact surviving token sequence"
+        );
+        assert_eq!(
+            &source[segment.original_start..segment.original_end],
+            ".app { color: red; }"
+        );
+        validate_linked_source_map_original_segment(
+            "src/app.css",
+            source,
+            generated,
+            &segment,
+            OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
+            Some(reason),
+        )
+    }
+
+    #[test]
+    fn linked_bundle_source_map_fallback_discloses_source_start_without_correspondence()
+    -> Result<(), String> {
+        let source = "\n  .app { color: red; }";
+        let generated = "._app_0{color:blue}";
+        let (segment, reason) =
+            linked_whole_module_fallback_segment("src/app.css", source, generated);
+        assert_eq!(
+            reason,
+            "module output differs; fallback uses source-start convention without token correspondence"
+        );
+        assert_eq!(segment.original_start, 3);
+        assert_eq!(segment.original_end, source.len());
+        validate_linked_source_map_original_segment(
+            "src/app.css",
+            source,
+            generated,
+            &segment,
+            OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
+            Some(reason),
+        )
     }
 }
 

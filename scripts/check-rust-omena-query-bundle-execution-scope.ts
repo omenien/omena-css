@@ -6,11 +6,11 @@ const modelPath = "rust/crates/omena-transform-passes/src/model.rs";
 const transformPath = "rust/crates/omena-query/src/style/transform.rs";
 const queryTypesPath = "rust/crates/omena-query/src/types.rs";
 const queryTestPath = "rust/crates/omena-query/src/tests/transform_facade.rs";
-const parserContractPath = "rust/crates/omena-parser/src/closed_world/contract.rs";
 const napiPath = "rust/crates/omena-napi/src/lib.rs";
 const wasmPath = "rust/crates/omena-wasm/src/lib.rs";
 const declarationPath = "packages/css-build-adapter/index.d.ts";
 const generatedDeclarationPath = "packages/css-build-adapter/bundler-host-contract.generated.d.ts";
+const wireFixturePath = "rust/crates/omena-query/tests/fixtures/bundle-execution-scope-wire.json";
 const adapterGatePath = "scripts/check-rust-omena-bundler-adapter-pass-authority.ts";
 const adapterTestPath = "test/unit/css-build-adapter/css-build-adapter.test.ts";
 const publicApiPath = "rust/crates/omena-query/tests/snapshots/public-api.txt";
@@ -19,7 +19,6 @@ const modelSource = readFileSync(modelPath, "utf8");
 const transformSource = readFileSync(transformPath, "utf8");
 const queryTypesSource = readFileSync(queryTypesPath, "utf8");
 let queryTestSource = readFileSync(queryTestPath, "utf8");
-const parserContractSource = readFileSync(parserContractPath, "utf8");
 let napiSource = readFileSync(napiPath, "utf8");
 let wasmSource = readFileSync(wasmPath, "utf8");
 let declarationSource = readFileSync(declarationPath, "utf8");
@@ -27,12 +26,16 @@ const generatedDeclarationSource = readFileSync(generatedDeclarationPath, "utf8"
 const adapterGateSource = readFileSync(adapterGatePath, "utf8");
 const adapterTestSource = readFileSync(adapterTestPath, "utf8");
 const publicApiSource = readFileSync(publicApiPath, "utf8");
+const wireFixture = JSON.parse(readFileSync(wireFixturePath, "utf8")) as Record<string, unknown>;
 
 const injectDropField = process.argv.includes("--inject-drop-field");
 const injectFlipScope = process.argv.includes("--inject-flip-scope");
 const injectDuplicateCstBuild = process.argv.includes("--inject-duplicate-cst-build");
 const injectDeclarationDrift = process.argv.includes("--inject-declaration-drift");
 const injectCommentOnlyAssertion = process.argv.includes("--inject-comment-only-assertion");
+const injectWireFieldRename = process.argv.includes("--inject-wire-field-rename");
+const injectWireEnumRename = process.argv.includes("--inject-wire-enum-rename");
+const injectWireOptionalNull = process.argv.includes("--inject-wire-optional-null");
 if (injectDeclarationDrift) {
   declarationSource = declarationSource.replace(
     "readonly segmentCount: number;",
@@ -55,6 +58,25 @@ if (injectCommentOnlyAssertion) {
     'field.field_name == "outcomes"',
     '// field.field_name == "outcomes"',
   );
+}
+const wireDispositions = asArray(wireFixture.sourceMapDispositions).map(asObject);
+if (injectWireFieldRename) {
+  const fallback = wireDispositions.at(-1);
+  assert.notEqual(fallback, undefined);
+  if (fallback) {
+    fallback.segmentTotal = fallback.segmentCount;
+    delete fallback.segmentCount;
+  }
+}
+if (injectWireEnumRename) {
+  const anchored = wireDispositions.at(0);
+  assert.notEqual(anchored, undefined);
+  if (anchored) anchored.granularity = "cst_anchors";
+}
+if (injectWireOptionalNull) {
+  const anchored = wireDispositions.at(0);
+  assert.notEqual(anchored, undefined);
+  if (anchored) anchored.fallbackReason = null;
 }
 
 const executionBody = extractTypeBody(modelSource, "pub struct TransformExecutionSummaryV0");
@@ -144,62 +166,99 @@ for (const [path, source, testName] of [
   assert.match(testBody, /artifact\.per_pass_provenance/u);
 }
 
-const serdeDeclarationContracts = [
-  {
-    rustSource: parserContractSource,
-    rustName: "ModuleInstanceKeyV0",
-    tsSource: generatedDeclarationSource,
-    tsName: "OmenaModuleInstanceKeyV0",
-  },
-  {
-    rustSource: queryTypesSource,
-    rustName: "OmenaQueryExecutionFieldScopeV0",
-    tsSource: declarationSource,
-    tsName: "OmenaBundleExecutionFieldScopeV0",
-  },
-  {
-    rustSource: queryTypesSource,
-    rustName: "OmenaQueryBundleModuleExecutionByteFactsV0",
-    tsSource: declarationSource,
-    tsName: "OmenaBundleModuleExecutionByteFactsV0",
-  },
-  {
-    rustSource: queryTypesSource,
-    rustName: "OmenaQueryBundleCompositeExecutionByteFactsV0",
-    tsSource: declarationSource,
-    tsName: "OmenaBundleCompositeExecutionByteFactsV0",
-  },
-  {
-    rustSource: queryTypesSource,
-    rustName: "OmenaQueryLinkedSourceMapDispositionV0",
-    tsSource: declarationSource,
-    tsName: "OmenaLinkedSourceMapDispositionV0",
-  },
-  {
-    rustSource: queryTypesSource,
-    rustName: "OmenaQueryBundleExecutionScopeEvidenceV0",
-    tsSource: declarationSource,
-    tsName: "OmenaBundleExecutionScopeEvidenceV0",
-  },
-] as const;
-for (const contract of serdeDeclarationContracts) {
-  assert.deepEqual(
-    extractRustStructFields(contract.rustSource, contract.rustName),
-    extractTypeScriptInterfaceFields(contract.tsSource, contract.tsName),
-    `${contract.tsName} must match the serialized Rust field set`,
-  );
-}
-assert.deepEqual(
-  extractRustEnumVariants(queryTypesSource, "OmenaQueryExecutionEvidenceScopeV0"),
-  extractTypeScriptStringUnion(declarationSource, "OmenaBundleExecutionFieldScopeV0", "scope"),
+const fieldScopes = asArray(wireFixture.fieldScopes).map(asObject);
+const moduleExecutions = asArray(wireFixture.moduleExecutions).map(asObject);
+const bundleComposite = asObject(wireFixture.bundleComposite);
+const entryModuleInstance = asObject(wireFixture.entryModuleInstance);
+const wireSamplesByInterface = new Map<string, readonly Record<string, unknown>[]>([
+  ["OmenaBundleExecutionScopeEvidenceV0", [wireFixture]],
+  ["OmenaBundleExecutionFieldScopeV0", fieldScopes],
+  ["OmenaBundleModuleExecutionByteFactsV0", moduleExecutions],
+  ["OmenaBundleCompositeExecutionByteFactsV0", [bundleComposite]],
+  ["OmenaLinkedSourceMapDispositionV0", wireDispositions],
+  [
+    "OmenaModuleInstanceKeyV0",
+    [
+      entryModuleInstance,
+      ...moduleExecutions.map((sample) => asObject(sample.moduleInstance)),
+      ...wireDispositions.map((sample) => asObject(sample.moduleInstance)),
+    ],
+  ],
+]);
+const localInterfaces = extractTypeScriptInterfaces(declarationSource);
+const generatedInterfaces = extractTypeScriptInterfaces(generatedDeclarationSource);
+const allInterfaces = new Map([...generatedInterfaces, ...localInterfaces]);
+const wireReachableInterfaces = reachableTypeScriptInterfaces(
+  allInterfaces,
+  "OmenaBundleExecutionScopeEvidenceV0",
 );
 assert.deepEqual(
-  extractRustEnumVariants(queryTypesSource, "OmenaQueryLinkedSourceMapGranularityV0"),
+  [...wireSamplesByInterface.keys()].toSorted(),
+  [...wireReachableInterfaces].toSorted(),
+  "every TypeScript interface reachable from executionScope must have serialized wire samples",
+);
+for (const interfaceName of wireReachableInterfaces) {
+  const body = allInterfaces.get(interfaceName);
+  assert.notEqual(body, undefined, `missing TypeScript interface ${interfaceName}`);
+  const fields = extractTypeScriptInterfaceFieldDefinitions(body ?? "");
+  const samples = wireSamplesByInterface.get(interfaceName);
+  assert.ok(samples && samples.length > 0, `${interfaceName} has no wire samples`);
+  for (const sample of samples ?? []) {
+    const sampleKeys = Object.keys(sample).toSorted();
+    const declaredKeys = new Set(fields.map((field) => field.name));
+    assert.deepEqual(
+      sampleKeys.filter((key) => declaredKeys.has(key)),
+      sampleKeys,
+      `${interfaceName} wire sample has undeclared keys`,
+    );
+    for (const field of fields) {
+      if (!(field.name in sample)) {
+        assert.ok(field.optional, `${interfaceName}.${field.name} is missing from serialized wire`);
+        continue;
+      }
+      assertTypeScriptValueShape(
+        sample[field.name],
+        field.typeExpression,
+        `${interfaceName}.${field.name}`,
+      );
+    }
+  }
+  const wireKeys = new Set((samples ?? []).flatMap((sample) => Object.keys(sample)));
+  assert.deepEqual(
+    [...wireKeys].toSorted(),
+    fields.map((field) => field.name).toSorted(),
+    `${interfaceName} declaration must match the union of serialized wire keys`,
+  );
+  for (const field of fields.filter((candidate) => candidate.optional)) {
+    assert.ok(
+      (samples ?? []).some((sample) => !(field.name in sample)),
+      `${interfaceName}.${field.name} optionality needs an omission witness`,
+    );
+  }
+}
+assert.deepEqual(
+  [...new Set(fieldScopes.map((sample) => sample.scope))].toSorted(),
+  extractTypeScriptStringUnion(declarationSource, "OmenaBundleExecutionFieldScopeV0", "scope"),
+  "execution scope wire values must match the TypeScript union",
+);
+assert.deepEqual(
+  [...new Set(wireDispositions.map((sample) => sample.granularity))].toSorted(),
   extractTypeScriptStringUnion(
     declarationSource,
     "OmenaLinkedSourceMapDispositionV0",
     "granularity",
   ),
+  "source-map granularity wire values must match the TypeScript union",
+);
+assert.equal(
+  fieldScopes.length,
+  extractRustEnumVariants(queryTypesSource, "OmenaQueryExecutionEvidenceScopeV0").length,
+  "wire fixture must exercise every Rust execution-scope variant",
+);
+assert.equal(
+  wireDispositions.length,
+  extractRustEnumVariants(queryTypesSource, "OmenaQueryLinkedSourceMapGranularityV0").length,
+  "wire fixture must exercise every Rust source-map granularity variant",
 );
 assert.deepEqual(extractRustStructFields(napiSource, "OmenaNapiBundleExecutionScopeResultV0"), [
   "bundle",
@@ -236,6 +295,7 @@ for (const surface of [
 }
 
 runCargoTest("omena-query", "linked_bundle_retains_each_module_execution_before_bundle_projection");
+runCargoTest("omena-query", "bundle_execution_scope_wire_matches_typescript_fixture");
 runCargoTest("omena-query", "linked_bundle_source_map_");
 runCargoTest("omena-query", "bundle_operation_facade_matches_consumer_build_source_map");
 runCargoTest("omena-napi", "bundles_workspace_sources_for_node_clients");
@@ -254,7 +314,8 @@ console.log(
       projectedBundleFieldCount: projectedFields.length,
       retainedExecutionProducerCount,
       perModuleCstBuildCount: cstBuildCount,
-      serdeDeclarationContractCount: serdeDeclarationContracts.length,
+      localTypeScriptInterfaceCount: localInterfaces.size,
+      wireReachableInterfaceCount: wireReachableInterfaces.size,
     },
     null,
     2,
@@ -278,13 +339,6 @@ function extractTypeBody(input: string, declaration: string): string {
   return extractBracedBody(input, declarationStart, declaration);
 }
 
-function extractRustStructFields(input: string, typeName: string): string[] {
-  const body = extractTypeBody(input, `struct ${typeName}`);
-  return [...body.matchAll(/^\s*(?:pub\s+)?([a-z][a-z0-9_]*):/gmu)]
-    .map((match) => snakeToCamel(match[1]))
-    .toSorted();
-}
-
 function extractRustEnumVariants(input: string, typeName: string): string[] {
   const body = extractTypeBody(input, `enum ${typeName}`);
   return [...body.matchAll(/^\s*([A-Z][A-Za-z0-9]*),?\s*$/gmu)]
@@ -292,10 +346,10 @@ function extractRustEnumVariants(input: string, typeName: string): string[] {
     .toSorted();
 }
 
-function extractTypeScriptInterfaceFields(input: string, typeName: string): string[] {
-  const body = extractTypeBody(input, `interface ${typeName}`);
-  return [...body.matchAll(/^\s*readonly\s+([a-z][A-Za-z0-9]*)\??:/gmu)]
-    .map((match) => match[1])
+function extractRustStructFields(input: string, typeName: string): string[] {
+  const body = extractTypeBody(input, `struct ${typeName}`);
+  return [...body.matchAll(/^\s*(?:pub\s+)?([a-z][a-z0-9_]*):/gmu)]
+    .map((match) => snakeToCamel(match[1]))
     .toSorted();
 }
 
@@ -308,6 +362,97 @@ function extractTypeScriptStringUnion(
   const field = new RegExp(`readonly\\s+${fieldName}\\??:\\s*([^;]+);`, "u").exec(body);
   assert.notEqual(field, null, `missing ${typeName}.${fieldName}`);
   return [...(field?.[1] ?? "").matchAll(/"([^"]+)"/gu)].map((match) => match[1]).toSorted();
+}
+
+function extractTypeScriptInterfaces(input: string): Map<string, string> {
+  const interfaces = new Map<string, string>();
+  for (const match of input.matchAll(/export interface ([A-Z][A-Za-z0-9]*)/gu)) {
+    const name = match[1];
+    interfaces.set(name, extractTypeBody(input, `interface ${name}`));
+  }
+  return interfaces;
+}
+
+function extractTypeScriptInterfaceFieldDefinitions(
+  body: string,
+): { readonly name: string; readonly optional: boolean; readonly typeExpression: string }[] {
+  return [...body.matchAll(/^\s*readonly\s+([a-z][A-Za-z0-9]*)(\?)?:\s*([^;]+);/gmu)].map(
+    (match) => ({
+      name: match[1],
+      optional: match[2] === "?",
+      typeExpression: match[3].trim(),
+    }),
+  );
+}
+
+function reachableTypeScriptInterfaces(
+  interfaces: ReadonlyMap<string, string>,
+  root: string,
+): Set<string> {
+  const reached = new Set<string>();
+  const pending = [root];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current || reached.has(current)) continue;
+    const body = interfaces.get(current);
+    assert.notEqual(body, undefined, `missing TypeScript interface ${current}`);
+    reached.add(current);
+    for (const reference of body?.match(/\bOmena[A-Z][A-Za-z0-9]*V0\b/gu) ?? []) {
+      if (interfaces.has(reference) && !reached.has(reference)) pending.push(reference);
+    }
+  }
+  return reached;
+}
+
+function assertTypeScriptValueShape(
+  value: unknown,
+  rawTypeExpression: string,
+  label: string,
+): void {
+  const typeExpression = rawTypeExpression.replace(/^readonly\s+/u, "").trim();
+  if (typeExpression.endsWith("[]")) {
+    assert.ok(Array.isArray(value), `${label} must serialize as an array`);
+    return;
+  }
+  const stringLiterals = [...typeExpression.matchAll(/"([^"]+)"/gu)].map((match) => match[1]);
+  if (stringLiterals.length > 0) {
+    assert.equal(typeof value, "string", `${label} must serialize as a string`);
+    assert.ok(stringLiterals.includes(value as string), `${label} has an undeclared wire value`);
+    return;
+  }
+  if (typeExpression === "string") {
+    assert.equal(typeof value, "string", `${label} must serialize as a string`);
+    return;
+  }
+  if (typeExpression === "number") {
+    assert.equal(typeof value, "number", `${label} must serialize as a number`);
+    return;
+  }
+  if (typeExpression === "boolean") {
+    assert.equal(typeof value, "boolean", `${label} must serialize as a boolean`);
+    return;
+  }
+  if (/^Omena[A-Z][A-Za-z0-9]*V0$/u.test(typeExpression)) {
+    assert.ok(
+      typeof value === "object" && value !== null && !Array.isArray(value),
+      `${label} must serialize as an object`,
+    );
+    return;
+  }
+  assert.fail(`${label} has unsupported TypeScript wire shape ${typeExpression}`);
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  assert.ok(
+    typeof value === "object" && value !== null && !Array.isArray(value),
+    "wire fixture value must be an object",
+  );
+  return value as Record<string, unknown>;
+}
+
+function asArray(value: unknown): unknown[] {
+  assert.ok(Array.isArray(value), "wire fixture value must be an array");
+  return value;
 }
 
 function extractFunctionBody(input: string, functionName: string): string {

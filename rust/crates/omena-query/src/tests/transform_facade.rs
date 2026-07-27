@@ -747,6 +747,10 @@ fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), Str
         entry_disposition.granularity,
         OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback
     );
+    assert_eq!(
+        entry_disposition.fallback_reason,
+        Some("module output differs; fallback anchors an exact surviving token sequence")
+    );
     let leaf_disposition = execution_scope
         .source_map_dispositions
         .iter()
