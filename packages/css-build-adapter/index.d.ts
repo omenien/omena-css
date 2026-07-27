@@ -3,6 +3,7 @@ import type {
   OmenaBundlerHostResolveModuleResponseV0,
   OmenaClosedWorldDecisionParityV0,
   OmenaClosedWorldOutcomeV0,
+  OmenaModuleInstanceKeyV0,
 } from "./bundler-host-contract.generated";
 
 export type * from "./bundler-host-contract.generated";
@@ -127,11 +128,6 @@ export interface OmenaBundleExecutionFieldScopeV0 {
   readonly fieldName: string;
   readonly scope: "entry" | "bundle";
   readonly derivation: string;
-}
-
-export interface OmenaModuleInstanceKeyV0 {
-  readonly module: string;
-  readonly configuration: string;
 }
 
 export interface OmenaBundleModuleExecutionByteFactsV0 {

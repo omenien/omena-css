@@ -10,6 +10,7 @@ const parserContractPath = "rust/crates/omena-parser/src/closed_world/contract.r
 const napiPath = "rust/crates/omena-napi/src/lib.rs";
 const wasmPath = "rust/crates/omena-wasm/src/lib.rs";
 const declarationPath = "packages/css-build-adapter/index.d.ts";
+const generatedDeclarationPath = "packages/css-build-adapter/bundler-host-contract.generated.d.ts";
 const adapterGatePath = "scripts/check-rust-omena-bundler-adapter-pass-authority.ts";
 const adapterTestPath = "test/unit/css-build-adapter/css-build-adapter.test.ts";
 const publicApiPath = "rust/crates/omena-query/tests/snapshots/public-api.txt";
@@ -22,6 +23,7 @@ const parserContractSource = readFileSync(parserContractPath, "utf8");
 let napiSource = readFileSync(napiPath, "utf8");
 let wasmSource = readFileSync(wasmPath, "utf8");
 let declarationSource = readFileSync(declarationPath, "utf8");
+const generatedDeclarationSource = readFileSync(generatedDeclarationPath, "utf8");
 const adapterGateSource = readFileSync(adapterGatePath, "utf8");
 const adapterTestSource = readFileSync(adapterTestPath, "utf8");
 const publicApiSource = readFileSync(publicApiPath, "utf8");
@@ -146,38 +148,44 @@ const serdeDeclarationContracts = [
   {
     rustSource: parserContractSource,
     rustName: "ModuleInstanceKeyV0",
+    tsSource: generatedDeclarationSource,
     tsName: "OmenaModuleInstanceKeyV0",
   },
   {
     rustSource: queryTypesSource,
     rustName: "OmenaQueryExecutionFieldScopeV0",
+    tsSource: declarationSource,
     tsName: "OmenaBundleExecutionFieldScopeV0",
   },
   {
     rustSource: queryTypesSource,
     rustName: "OmenaQueryBundleModuleExecutionByteFactsV0",
+    tsSource: declarationSource,
     tsName: "OmenaBundleModuleExecutionByteFactsV0",
   },
   {
     rustSource: queryTypesSource,
     rustName: "OmenaQueryBundleCompositeExecutionByteFactsV0",
+    tsSource: declarationSource,
     tsName: "OmenaBundleCompositeExecutionByteFactsV0",
   },
   {
     rustSource: queryTypesSource,
     rustName: "OmenaQueryLinkedSourceMapDispositionV0",
+    tsSource: declarationSource,
     tsName: "OmenaLinkedSourceMapDispositionV0",
   },
   {
     rustSource: queryTypesSource,
     rustName: "OmenaQueryBundleExecutionScopeEvidenceV0",
+    tsSource: declarationSource,
     tsName: "OmenaBundleExecutionScopeEvidenceV0",
   },
 ] as const;
 for (const contract of serdeDeclarationContracts) {
   assert.deepEqual(
     extractRustStructFields(contract.rustSource, contract.rustName),
-    extractTypeScriptInterfaceFields(declarationSource, contract.tsName),
+    extractTypeScriptInterfaceFields(contract.tsSource, contract.tsName),
     `${contract.tsName} must match the serialized Rust field set`,
   );
 }
