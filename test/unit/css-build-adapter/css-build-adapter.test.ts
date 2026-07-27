@@ -36,6 +36,7 @@ type AdapterExports = {
     readonly code: string;
     readonly summary?: {
       readonly perPassProvenance?: readonly unknown[];
+      readonly executionScope?: unknown;
       readonly sourceMapV3?: unknown;
     };
   }>;
@@ -169,6 +170,7 @@ describe("@omena/css-build-adapter", () => {
           codeSplitOutputs: [],
           assetRewrites: [],
           perPassProvenance: [{ passId: "planner-import-inline", status: "applied" }],
+          executionScope: null,
           execution: {
             outputCss: ".button{color:blue}",
             executedPassIds: args[2],
@@ -199,6 +201,7 @@ describe("@omena/css-build-adapter", () => {
       summary: {
         product: "omena-query.bundle-artifact",
         perPassProvenance: [{ passId: "planner-import-inline", status: "applied" }],
+        executionScope: null,
       },
     });
 
@@ -350,6 +353,9 @@ source-map = true
 
     expect(declaration).toContain("export interface OmenaBundleArtifactV0");
     expect(declaration).toContain("readonly perPassProvenance");
+    expect(declaration).toContain(
+      "readonly executionScope: OmenaBundleExecutionScopeEvidenceV0 | null",
+    );
     expect(declaration).toContain("readonly sourceMapV3: OmenaSourceMapV3V0");
     expect(declaration).toContain("readonly summary: OmenaBundleWithEvidenceV0");
     expect(declaration).not.toContain("readonly summary: Record<string, unknown>");

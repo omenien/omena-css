@@ -123,6 +123,52 @@ export interface OmenaBundleCodeSplitWorkspacePlanOutputV0 {
   readonly reachableFromEntries: readonly string[];
 }
 
+export interface OmenaBundleExecutionFieldScopeV0 {
+  readonly fieldName: string;
+  readonly scope: "entry" | "bundle";
+  readonly derivation: string;
+}
+
+export interface OmenaBundleModuleExecutionByteFactsV0 {
+  readonly moduleInstance: {
+    readonly module: string;
+    readonly configuration: string;
+  };
+  readonly inputByteLen: number;
+  readonly outputByteLen: number;
+  readonly generatedStart: number;
+  readonly generatedEnd: number;
+}
+
+export interface OmenaLinkedSourceMapDispositionV0 {
+  readonly moduleInstance: {
+    readonly module: string;
+    readonly configuration: string;
+  };
+  readonly granularity: "cstAnchors" | "wholeModuleFallback";
+  readonly fallbackReason?: string;
+  readonly segmentCount: number;
+}
+
+export interface OmenaBundleExecutionScopeEvidenceV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-query.bundle-execution-scope";
+  readonly entryModuleInstance: {
+    readonly module: string;
+    readonly configuration: string;
+  };
+  readonly fieldScopes: readonly OmenaBundleExecutionFieldScopeV0[];
+  readonly moduleExecutions: readonly OmenaBundleModuleExecutionByteFactsV0[];
+  readonly bundleComposite: {
+    readonly moduleCount: number;
+    readonly summedModuleInputByteLen: number;
+    readonly summedModuleOutputByteLen: number;
+    readonly interModuleSeparatorByteLen: number;
+    readonly materializedOutputByteLen: number;
+  };
+  readonly sourceMapDispositions: readonly OmenaLinkedSourceMapDispositionV0[];
+}
+
 export interface OmenaBundleArtifactV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-query.bundle-artifact";
@@ -141,6 +187,7 @@ export interface OmenaBundleWithEvidenceV0 extends OmenaBundleArtifactV0 {
   readonly closedWorldOutcome: OmenaClosedWorldOutcomeV0;
   readonly closedWorldDecisionParity: OmenaClosedWorldDecisionParityV0;
   readonly evidence: OmenaBundleEvidenceManifestV0;
+  readonly executionScope: OmenaBundleExecutionScopeEvidenceV0 | null;
 }
 
 export interface OmenaConsumerBuildSummaryV0 {

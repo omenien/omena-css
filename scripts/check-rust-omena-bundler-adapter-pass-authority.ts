@@ -236,6 +236,7 @@ function createRecordingEngine(
         codeSplitOutputs: [],
         assetRewrites: [],
         perPassProvenance: [],
+        executionScope: null,
         execution: { outputCss: ".button{color:blue}", executedPassIds: passIds },
         readySurfaces: ["bundleOperationFacade"],
         ...closedWorldEvidence(stylePath),

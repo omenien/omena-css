@@ -14,6 +14,8 @@ use napi_derive::napi;
 use omena_query::{
     OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
     OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0 as OmenaNapiBundleArtifactV0,
+    OmenaQueryBundleEmissionPathV0,
+    OmenaQueryBundleExecutionScopeEvidenceV0 as OmenaNapiBundleExecutionScopeEvidenceV0,
     OmenaQueryBundleWithEvidenceV0 as OmenaNapiBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
     OmenaQueryCompletionAtPositionV0 as OmenaNapiCompletionAtPositionV0,
@@ -57,7 +59,9 @@ use omena_query::{
     read_omena_query_cascade_at_position, read_omena_query_style_context_index,
     resolve_omena_bundler_host_module_v0, run_omena_query_bundle_for_style_sources_with_context,
     run_omena_query_bundle_with_evidence_for_style_sources_with_context,
-    semantic_omena_query_minify_build_profile, summarize_omena_query_consumer_check_style_source,
+    run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options,
+    semantic_omena_query_minify_build_profile, summarize_omena_query_bundle_evidence,
+    summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_binding_index_for_source_language,
@@ -72,6 +76,15 @@ use omena_query::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaNapiBundleExecutionScopeResultV0 {
+    #[serde(flatten)]
+    pub bundle: OmenaNapiBundleWithEvidenceV0,
+    pub execution_scope: Option<OmenaNapiBundleExecutionScopeEvidenceV0>,
+}
 
 #[napi(js_name = "bundlerHostCapabilitiesJson")]
 pub fn bundler_host_capabilities_json() -> napi::Result<String> {
@@ -233,13 +246,38 @@ pub fn bundle_style_sources_with_context_json(
     let sources = parse_style_sources_json(&sources_json)?;
     let context = parse_context_json(&context_json)?;
     let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
-    to_json_string(&bundle_style_sources_with_context_evidence(
+    to_json_string(&bundle_style_sources_with_context_execution_scope(
         &target_path,
         &sources,
         &pass_ids,
         &context,
         &package_manifests,
         &bundle_entry_style_paths,
+        false,
+    )?)
+}
+
+#[napi(js_name = "bundleStyleSourcesWithContextExecutionScopeJson")]
+pub fn bundle_style_sources_with_context_execution_scope_json(
+    target_path: String,
+    sources_json: String,
+    pass_ids: Vec<String>,
+    context_json: String,
+    package_manifests_json: String,
+    bundle_entry_style_paths: Vec<String>,
+    linked_emission: bool,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let context = parse_context_json(&context_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    to_json_string(&bundle_style_sources_with_context_execution_scope(
+        &target_path,
+        &sources,
+        &pass_ids,
+        &context,
+        &package_manifests,
+        &bundle_entry_style_paths,
+        linked_emission,
     )?)
 }
 
@@ -750,6 +788,43 @@ pub fn bundle_style_sources_with_context_evidence(
         bundle_entry_style_paths,
     )
     .map_err(napi::Error::from_reason)
+}
+
+pub fn bundle_style_sources_with_context_execution_scope(
+    target_path: &str,
+    sources: &[OmenaNapiStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaNapiTransformExecutionContextV0,
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+    linked_emission: bool,
+) -> napi::Result<OmenaNapiBundleExecutionScopeResultV0> {
+    let mut options = OmenaQueryConsumerBuildOptionsV0::default();
+    if linked_emission {
+        options.bundle_emission_path = OmenaQueryBundleEmissionPathV0::LinkedOrder;
+    }
+    let result =
+        run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options(
+            target_path,
+            sources,
+            pass_ids,
+            context,
+            package_manifests,
+            bundle_entry_style_paths,
+            &options,
+        )
+        .map_err(napi::Error::from_reason)?;
+    let evidence = summarize_omena_query_bundle_evidence(&result.bundle_result);
+    let bundle_result = result.bundle_result;
+    Ok(OmenaNapiBundleExecutionScopeResultV0 {
+        bundle: OmenaNapiBundleWithEvidenceV0 {
+            artifact: bundle_result.artifact,
+            closed_world_outcome: bundle_result.closed_world_outcome,
+            closed_world_decision_parity: bundle_result.closed_world_decision_parity,
+            evidence,
+        },
+        execution_scope: result.execution_scope,
+    })
 }
 
 pub fn build_style_sources_for_target_query_with_context_summary(
@@ -2169,6 +2244,43 @@ export function Card({ active }: { active: boolean }) {
                 .iter()
                 .any(|gate| gate.name == "closedWorldAdmission" && gate.passed)
         );
+        let scoped_result = bundle_style_sources_with_context_execution_scope(
+            "Button.module.css",
+            &sources,
+            &pass_ids,
+            &OmenaNapiTransformExecutionContextV0::default(),
+            &[],
+            &["Button.module.css".to_string()],
+            true,
+        );
+        assert!(scoped_result.is_ok());
+        let Ok(scoped_result) = scoped_result else {
+            return;
+        };
+        assert!(scoped_result.execution_scope.is_some());
+        let Some(execution_scope) = scoped_result.execution_scope else {
+            return;
+        };
+        let entry = execution_scope
+            .module_executions
+            .iter()
+            .find(|module| module.module_instance == execution_scope.entry_module_instance);
+        assert!(entry.is_some());
+        let Some(entry) = entry else {
+            return;
+        };
+        assert_eq!(
+            entry.input_byte_len,
+            scoped_result.bundle.artifact.execution.input_byte_len
+        );
+        assert_eq!(
+            scoped_result.bundle.artifact.per_pass_provenance,
+            scoped_result.bundle.artifact.execution.outcomes
+        );
+        assert!(execution_scope.field_scopes.iter().any(|field| {
+            field.field_name == "outcomes"
+                && field.scope == omena_query::OmenaQueryExecutionEvidenceScopeV0::Entry
+        }));
 
         let serialized_result = bundle_style_sources_with_context_json(
             "Button.module.css".to_string(),
@@ -2193,6 +2305,7 @@ export function Card({ active }: { active: boolean }) {
         };
         assert_eq!(parsed["product"], "omena-query.bundle-artifact");
         assert_eq!(parsed["closedWorldOutcome"]["status"], "closed");
+        assert!(parsed.get("executionScope").is_some());
         assert_eq!(parsed["closedWorldDecisionParity"]["equivalent"], true);
         assert_eq!(parsed["evidence"]["outcomeStatus"], "closed");
     }

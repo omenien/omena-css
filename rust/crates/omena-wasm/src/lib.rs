@@ -7,6 +7,8 @@ pub use sdk_workspace::OmenaWasmWorkspaceV0;
 use omena_query::{
     OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
     OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0 as OmenaWasmBundleArtifactV0,
+    OmenaQueryBundleEmissionPathV0,
+    OmenaQueryBundleExecutionScopeEvidenceV0 as OmenaWasmBundleExecutionScopeEvidenceV0,
     OmenaQueryBundleWithEvidenceV0 as OmenaWasmBundleWithEvidenceV0,
     OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,
     OmenaQueryCompletionAtPositionV0 as OmenaWasmCompletionAtPositionV0,
@@ -50,7 +52,9 @@ use omena_query::{
     read_omena_query_cascade_at_position, read_omena_query_style_context_index,
     resolve_omena_bundler_host_module_v0, run_omena_query_bundle_for_style_sources_with_context,
     run_omena_query_bundle_with_evidence_for_style_sources_with_context,
-    semantic_omena_query_minify_build_profile, summarize_omena_query_consumer_check_style_source,
+    run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options,
+    semantic_omena_query_minify_build_profile, summarize_omena_query_bundle_evidence,
+    summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_binding_index_for_source_language,
@@ -66,6 +70,15 @@ use omena_query::{
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use wasm_bindgen::prelude::*;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaWasmBundleExecutionScopeResultV0 {
+    #[serde(flatten)]
+    pub bundle: OmenaWasmBundleWithEvidenceV0,
+    pub execution_scope: Option<OmenaWasmBundleExecutionScopeEvidenceV0>,
+}
 
 #[wasm_bindgen(js_name = bundlerHostCapabilities)]
 pub fn bundler_host_capabilities() -> Result<JsValue, JsValue> {
@@ -229,13 +242,42 @@ pub fn bundle_style_sources_with_context(
     let package_manifests = parse_package_manifests_value(package_manifests)?;
     let bundle_entry_style_paths =
         parse_string_array_value(bundle_entry_style_paths, "bundleEntryStylePaths")?;
-    let artifact = bundle_style_sources_with_context_evidence(
+    let artifact = bundle_style_sources_with_context_execution_scope(
         target_path,
         &sources,
         &pass_ids,
         &context,
         &package_manifests,
         &bundle_entry_style_paths,
+        false,
+    )?;
+    to_js_value(&artifact)
+}
+
+#[wasm_bindgen(js_name = bundleStyleSourcesWithContextExecutionScope)]
+pub fn bundle_style_sources_with_context_execution_scope_js(
+    target_path: &str,
+    sources: JsValue,
+    pass_ids: JsValue,
+    context: JsValue,
+    package_manifests: JsValue,
+    bundle_entry_style_paths: JsValue,
+    linked_emission: bool,
+) -> Result<JsValue, JsValue> {
+    let sources = parse_style_sources_value(sources)?;
+    let pass_ids = parse_pass_ids_value(pass_ids)?;
+    let context = parse_context_value(context)?;
+    let package_manifests = parse_package_manifests_value(package_manifests)?;
+    let bundle_entry_style_paths =
+        parse_string_array_value(bundle_entry_style_paths, "bundleEntryStylePaths")?;
+    let artifact = bundle_style_sources_with_context_execution_scope(
+        target_path,
+        &sources,
+        &pass_ids,
+        &context,
+        &package_manifests,
+        &bundle_entry_style_paths,
+        linked_emission,
     )?;
     to_js_value(&artifact)
 }
@@ -752,6 +794,43 @@ pub fn bundle_style_sources_with_context_evidence(
         bundle_entry_style_paths,
     )
     .map_err(|error| JsValue::from_str(&error))
+}
+
+pub fn bundle_style_sources_with_context_execution_scope(
+    target_path: &str,
+    sources: &[OmenaWasmStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaWasmTransformExecutionContextV0,
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+    linked_emission: bool,
+) -> Result<OmenaWasmBundleExecutionScopeResultV0, JsValue> {
+    let mut options = OmenaQueryConsumerBuildOptionsV0::default();
+    if linked_emission {
+        options.bundle_emission_path = OmenaQueryBundleEmissionPathV0::LinkedOrder;
+    }
+    let result =
+        run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options(
+            target_path,
+            sources,
+            pass_ids,
+            context,
+            package_manifests,
+            bundle_entry_style_paths,
+            &options,
+        )
+        .map_err(|error| JsValue::from_str(&error))?;
+    let evidence = summarize_omena_query_bundle_evidence(&result.bundle_result);
+    let bundle_result = result.bundle_result;
+    Ok(OmenaWasmBundleExecutionScopeResultV0 {
+        bundle: OmenaWasmBundleWithEvidenceV0 {
+            artifact: bundle_result.artifact,
+            closed_world_outcome: bundle_result.closed_world_outcome,
+            closed_world_decision_parity: bundle_result.closed_world_decision_parity,
+            evidence,
+        },
+        execution_scope: result.execution_scope,
+    })
 }
 
 pub fn build_style_sources_for_target_query_with_context_summary(
@@ -1932,6 +2011,43 @@ export const app = <div className={styles.card} />;"#,
                 .iter()
                 .any(|gate| gate.name == "closedWorldAdmission" && gate.passed)
         );
+        let scoped_result = bundle_style_sources_with_context_execution_scope(
+            "Button.module.css",
+            &sources,
+            &pass_ids,
+            &OmenaWasmTransformExecutionContextV0::default(),
+            &[],
+            &["Button.module.css".to_string()],
+            true,
+        );
+        assert!(scoped_result.is_ok());
+        let Ok(scoped_result) = scoped_result else {
+            return;
+        };
+        assert!(scoped_result.execution_scope.is_some());
+        let Some(execution_scope) = scoped_result.execution_scope else {
+            return;
+        };
+        let entry = execution_scope
+            .module_executions
+            .iter()
+            .find(|module| module.module_instance == execution_scope.entry_module_instance);
+        assert!(entry.is_some());
+        let Some(entry) = entry else {
+            return;
+        };
+        assert_eq!(
+            entry.input_byte_len,
+            scoped_result.bundle.artifact.execution.input_byte_len
+        );
+        assert_eq!(
+            scoped_result.bundle.artifact.per_pass_provenance,
+            scoped_result.bundle.artifact.execution.outcomes
+        );
+        assert!(execution_scope.field_scopes.iter().any(|field| {
+            field.field_name == "outcomes"
+                && field.scope == omena_query::OmenaQueryExecutionEvidenceScopeV0::Entry
+        }));
     }
 
     #[test]
