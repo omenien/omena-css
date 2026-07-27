@@ -17,7 +17,7 @@
   "moduleTokenCollisions": [
     {
       "fixtureId": "module-qualified-reachability",
-      "emittedToken": "shared",
+      "emittedToken": "_shared_0",
       "modulePaths": [
         "linked-byte/module-qualified-reachability/app.module.css",
         "linked-byte/module-qualified-reachability/dependency.module.css"

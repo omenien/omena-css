@@ -9,7 +9,8 @@ use omena_bundler::{
 };
 use omena_parser::{
     ParsedEmissionSelectorFactsV0, ParsedSelectorFactKind, ParsedStyleFacts, StyleDialect,
-    collect_style_fact_collection, summarize_omena_parser_style_facts,
+    TypedCstNode, collect_style_fact_collection, facts_from_cst, parse,
+    summarize_omena_parser_style_facts,
 };
 use omena_query::{
     ClassExpressionInputV2, EngineInputV2, OmenaQueryBundleEmissionPathV0,
@@ -34,6 +35,8 @@ pub enum LinkedEmissionByteDifferentialPerturbationV0 {
     None,
     AddUnexpectedRule,
     CollapseToLegacyBytes,
+    DropReachableCrossModuleDeclaration,
+    DropComposedDeclaration,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -249,6 +252,7 @@ struct LinkedEmissionFixtureV0 {
     entry_path: String,
     shape_classes: Vec<&'static str>,
     modules: Vec<LinkedEmissionFixtureModuleV0>,
+    workspace_only_modules: Vec<LinkedEmissionFixtureModuleV0>,
     reachability_references: Vec<LinkedEmissionReachabilityReferenceV0>,
 }
 
@@ -258,7 +262,7 @@ struct LinkedEmissionFixtureAnalysisV0 {
     linked_order: LinkedStylesheetWithEmissionItemsV0,
     legacy_css: String,
     linked_css: String,
-    reachability_class_name_rewrites: BTreeMap<String, String>,
+    class_name_rewrites_by_module: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 #[derive(Debug)]
@@ -356,6 +360,16 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
                     perturbation
                 }
                 LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes => perturbation,
+                LinkedEmissionByteDifferentialPerturbationV0::DropReachableCrossModuleDeclaration
+                    if fixture.id == "module-qualified-reachability" =>
+                {
+                    perturbation
+                }
+                LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration
+                    if fixture.id == "module-qualified-composes-reachability" =>
+                {
+                    perturbation
+                }
                 _ => LinkedEmissionByteDifferentialPerturbationV0::None,
             };
             analyze_linked_emission_fixture_v0(fixture, case_perturbation)
@@ -556,6 +570,7 @@ fn summarize_linked_emission_coverage_census_v0(
             .cmp(&right.fixture_id)
             .then_with(|| left.emitted_token.cmp(&right.emitted_token))
     });
+    validate_module_token_collision_paths_v0(module_token_collisions.as_slice())?;
 
     Ok(LinkedEmissionCoverageCensusV0 {
         schema_version: "0",
@@ -590,21 +605,8 @@ fn summarize_module_token_collisions_v0(
     fixture: &LinkedEmissionFixtureV0,
     analysis: &LinkedEmissionFixtureAnalysisV0,
 ) -> Vec<LinkedEmissionModuleTokenCollisionV0> {
-    let styles = fixture
-        .modules
-        .iter()
-        .map(|module| (module.path.as_str(), module.source.as_str()))
-        .collect::<Vec<_>>();
-    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
     let mut declarations_by_module = BTreeMap::<String, BTreeSet<String>>::new();
-    let mut rewrites_by_module = BTreeMap::<String, BTreeMap<String, String>>::new();
     for module in &fixture.modules {
-        let context = summarize_omena_query_transform_context_from_sources_with_resolution_inputs(
-            module.path.as_str(),
-            styles.iter().copied(),
-            &resolution_inputs,
-        )
-        .context;
         let declarations = collect_style_fact_collection(module.source.as_str(), module.dialect)
             .facts
             .selectors
@@ -613,16 +615,6 @@ fn summarize_module_token_collisions_v0(
             .map(|selector| selector.name)
             .collect::<BTreeSet<_>>();
         declarations_by_module.insert(module.path.clone(), declarations);
-        let mut rewrites = BTreeMap::new();
-        for rewrite in context.class_name_rewrites {
-            let emitted_token = analysis
-                .reachability_class_name_rewrites
-                .get(rewrite.original_name.as_str())
-                .cloned()
-                .unwrap_or(rewrite.rewritten_name);
-            rewrites.insert(rewrite.original_name, emitted_token);
-        }
-        rewrites_by_module.insert(module.path.clone(), rewrites);
     }
 
     let mut collisions =
@@ -644,7 +636,8 @@ fn summarize_module_token_collisions_v0(
             let Some(declarations) = declarations_by_module.get(module.path.as_str()) else {
                 continue;
             };
-            let rewrites = rewrites_by_module
+            let rewrites = analysis
+                .class_name_rewrites_by_module
                 .get(module.path.as_str())
                 .cloned()
                 .unwrap_or_default();
@@ -707,6 +700,66 @@ fn summarize_module_token_collisions_v0(
         .collect()
 }
 
+fn validate_module_token_collision_paths_v0(
+    collisions: &[LinkedEmissionModuleTokenCollisionV0],
+) -> Result<(), String> {
+    let required_paths = ["importInlineLegacy", "linkedOrder"];
+    for collision in collisions {
+        // A path-specific selector loss is producer-reachable and leaves a one-element set.
+        if collision.observed_emission_paths.as_slice() != required_paths {
+            return Err(format!(
+                "emitted token collision {} in fixture {} was not observed on both emission paths: {:?}",
+                collision.emitted_token, collision.fixture_id, collision.observed_emission_paths
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn class_name_rewrites_by_module_v0(
+    fixture: &LinkedEmissionFixtureV0,
+) -> BTreeMap<String, BTreeMap<String, String>> {
+    let styles = fixture
+        .modules
+        .iter()
+        .map(|module| (module.path.as_str(), module.source.as_str()))
+        .collect::<Vec<_>>();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    fixture
+        .modules
+        .iter()
+        .map(|module| {
+            let context =
+                summarize_omena_query_transform_context_from_sources_with_resolution_inputs(
+                    module.path.as_str(),
+                    styles.iter().copied(),
+                    &resolution_inputs,
+                )
+                .context;
+            (
+                module.path.clone(),
+                context
+                    .class_name_rewrites
+                    .into_iter()
+                    .map(|rewrite| (rewrite.original_name, rewrite.rewritten_name))
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
+fn emitted_class_name_v0(
+    rewrites_by_module: &BTreeMap<String, BTreeMap<String, String>>,
+    module_path: &str,
+    original_name: &str,
+) -> String {
+    rewrites_by_module
+        .get(module_path)
+        .and_then(|rewrites| rewrites.get(original_name))
+        .cloned()
+        .unwrap_or_else(|| original_name.to_string())
+}
+
 fn analyze_linked_emission_fixture_v0(
     fixture: &LinkedEmissionFixtureV0,
     perturbation: LinkedEmissionByteDifferentialPerturbationV0,
@@ -721,23 +774,12 @@ fn analyze_linked_emission_fixture_v0(
         .collect::<Vec<_>>();
     let mut pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
     let module_reachability = module_reachability_for_fixture_v0(fixture);
-    let reachability_class_name_rewrites = module_reachability
+    let class_name_rewrites_by_module = module_reachability
         .as_ref()
-        .map(|reachability| {
-            reachability
-                .context()
-                .class_name_rewrites
-                .iter()
-                .map(|rewrite| {
-                    (
-                        rewrite.original_name.clone(),
-                        rewrite.rewritten_name.clone(),
-                    )
-                })
-                .collect()
-        })
+        .map(|_| class_name_rewrites_by_module_v0(fixture))
         .unwrap_or_default();
     if module_reachability.is_some() {
+        pass_ids.push("css-modules-class-hashing".to_string());
         pass_ids.push("tree-shake-class".to_string());
     }
     let context = OmenaQueryTransformExecutionContextV0::default();
@@ -781,12 +823,28 @@ fn analyze_linked_emission_fixture_v0(
         LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes => {
             linked_css.clone_from(&legacy_css);
         }
+        LinkedEmissionByteDifferentialPerturbationV0::DropReachableCrossModuleDeclaration => {
+            remove_linked_declaration_for_fault_v0(&mut linked_css, "padding: 8px;")?;
+        }
+        LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration => {
+            remove_linked_declaration_for_fault_v0(&mut linked_css, "padding: 2px;")?;
+        }
     }
+    validate_linked_declaration_retention_v0(
+        fixture,
+        &legacy_css,
+        &linked_css,
+        &class_name_rewrites_by_module,
+    )?;
 
     let marker_names = fixture
         .modules
         .iter()
-        .flat_map(|module| module.marker_names.iter().cloned())
+        .flat_map(|module| {
+            module.marker_names.iter().map(|marker| {
+                emitted_class_name_v0(&class_name_rewrites_by_module, module.path.as_str(), marker)
+            })
+        })
         .collect::<BTreeSet<_>>();
     let linker_modules = fixture
         .modules
@@ -835,7 +893,15 @@ fn analyze_linked_emission_fixture_v0(
             modules_by_path
                 .get(path.as_str())
                 .into_iter()
-                .flat_map(|module| module.marker_names.iter().cloned())
+                .flat_map(|module| {
+                    module.marker_names.iter().map(|marker| {
+                        emitted_class_name_v0(
+                            &class_name_rewrites_by_module,
+                            module.path.as_str(),
+                            marker,
+                        )
+                    })
+                })
         })
         .collect::<Vec<_>>();
     let authoritative_module_order =
@@ -919,7 +985,7 @@ fn analyze_linked_emission_fixture_v0(
         linked_order,
         legacy_css,
         linked_css,
-        reachability_class_name_rewrites,
+        class_name_rewrites_by_module,
     })
 }
 
@@ -929,6 +995,11 @@ fn module_reachability_for_fixture_v0(
     if fixture.reachability_references.is_empty() {
         return None;
     }
+    let workspace_modules = fixture
+        .modules
+        .iter()
+        .chain(&fixture.workspace_only_modules)
+        .collect::<Vec<_>>();
     let range = fixture_range_v0();
     let input = EngineInputV2 {
         version: "2".to_string(),
@@ -936,7 +1007,7 @@ fn module_reachability_for_fixture_v0(
             .reachability_references
             .iter()
             .map(|reference| {
-                let module = &fixture.modules[reference.module_index];
+                let module = workspace_modules[reference.module_index];
                 SourceAnalysisInputV2 {
                     document: SourceDocumentV2 {
                         class_expressions: vec![ClassExpressionInputV2 {
@@ -952,8 +1023,7 @@ fn module_reachability_for_fixture_v0(
                 }
             })
             .collect(),
-        styles: fixture
-            .modules
+        styles: workspace_modules
             .iter()
             .map(|module| {
                 let collection =
@@ -1520,6 +1590,139 @@ fn output_class_selector_counts_v0(source: &str) -> BTreeMap<String, usize> {
     counts
 }
 
+fn validate_linked_declaration_retention_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    legacy_css: &str,
+    linked_css: &str,
+    rewrites_by_module: &BTreeMap<String, BTreeMap<String, String>>,
+) -> Result<(), String> {
+    if !fixture
+        .shape_classes
+        .contains(&"module-qualified-reachability")
+    {
+        return Ok(());
+    }
+    let legacy_declarations = output_rule_declaration_multiset_v0(legacy_css, rewrites_by_module);
+    let linked_declarations = output_rule_declaration_multiset_v0(linked_css, rewrites_by_module);
+    let missing = legacy_declarations
+        .iter()
+        .filter_map(|(declaration, legacy_count)| {
+            let linked_count = linked_declarations
+                .get(declaration)
+                .copied()
+                .unwrap_or_default();
+            (*legacy_count > linked_count)
+                .then(|| format!("{declaration} x{}", legacy_count - linked_count))
+        })
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "linked emission removed declarations retained by default emission in fixture {}: {}",
+            fixture.id,
+            missing.join(", ")
+        ))
+    }
+}
+
+fn output_rule_declaration_multiset_v0(
+    source: &str,
+    rewrites_by_module: &BTreeMap<String, BTreeMap<String, String>>,
+) -> BTreeMap<String, usize> {
+    let parsed = parse(source, StyleDialect::Css);
+    let facts = facts_from_cst(source, &parsed);
+    let cst = parsed.cst();
+    let rules = cst.rules();
+    let original_names_by_emitted_name = rewrites_by_module
+        .values()
+        .flat_map(|rewrites| rewrites.iter())
+        .fold(
+            BTreeMap::<String, BTreeSet<String>>::new(),
+            |mut inverse, (original, emitted)| {
+                inverse
+                    .entry(emitted.clone())
+                    .or_default()
+                    .insert(original.clone());
+                inverse
+            },
+        );
+    let mut declarations = BTreeMap::new();
+    for declaration in cst.declarations() {
+        let declaration_range = declaration.text_range();
+        let Some(rule) = rules
+            .iter()
+            .filter(|rule| {
+                let rule_range = rule.text_range();
+                rule_range.start() <= declaration_range.start()
+                    && declaration_range.end() <= rule_range.end()
+            })
+            .min_by_key(|rule| u32::from(rule.text_range().len()))
+        else {
+            continue;
+        };
+        let rule_range = rule.text_range();
+        let rule_start = u32::from(rule_range.start()) as usize;
+        let rule_end = u32::from(rule_range.end()) as usize;
+        let declaration_start = u32::from(declaration_range.start()) as usize;
+        let declaration_end = u32::from(declaration_range.end()) as usize;
+        let Some(rule_source) = source.get(rule_start..rule_end) else {
+            continue;
+        };
+        let Some(block_open) = rule_source.find('{') else {
+            continue;
+        };
+        let Some(declaration_source) = source.get(declaration_start..declaration_end) else {
+            continue;
+        };
+        let mut selector_names = facts
+            .selectors
+            .iter()
+            .filter(|selector| {
+                selector.kind == ParsedSelectorFactKind::Class
+                    && rule_range.start() <= selector.range.start()
+                    && selector.range.end() <= rule_range.end()
+            })
+            .flat_map(|selector| {
+                original_names_by_emitted_name
+                    .get(selector.name.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| BTreeSet::from([selector.name.clone()]))
+            })
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        selector_names.sort();
+        let selector = if selector_names.is_empty() {
+            remove_ascii_whitespace_v0(&rule_source[..block_open])
+        } else {
+            selector_names.join(",")
+        };
+        let declaration = remove_ascii_whitespace_v0(declaration_source);
+        if selector.is_empty() || declaration.is_empty() {
+            continue;
+        }
+        *declarations
+            .entry(format!("{selector}{{{declaration}}}"))
+            .or_default() += 1;
+    }
+    declarations
+}
+
+fn remove_linked_declaration_for_fault_v0(
+    linked_css: &mut String,
+    declaration: &str,
+) -> Result<(), String> {
+    let changed = linked_css.replacen(declaration, "", 1);
+    if changed == *linked_css {
+        return Err(format!(
+            "linked-emission fault could not find declaration {declaration:?}"
+        ));
+    }
+    *linked_css = changed;
+    Ok(())
+}
+
 fn remove_ascii_whitespace_v0(source: &str) -> String {
     source
         .chars()
@@ -1601,6 +1804,7 @@ fn linked_emission_placement_witness_definitions_v0()
                         order_probe: "color: green".to_string(),
                     },
                 ],
+                workspace_only_modules: Vec::new(),
                 reachability_references: Vec::new(),
             },
             selectorless_module_paths: &[
@@ -1632,6 +1836,7 @@ fn linked_emission_placement_witness_definitions_v0()
                         order_probe: "color: green".to_string(),
                     },
                 ],
+                workspace_only_modules: Vec::new(),
                 reachability_references: Vec::new(),
             },
             selectorless_module_paths: &["linked-order-witness/mixed/reset.css"],
@@ -1658,6 +1863,7 @@ fn linked_emission_placement_witness_definitions_v0()
                         order_probe: "color: green".to_string(),
                     },
                 ],
+                workspace_only_modules: Vec::new(),
                 reachability_references: Vec::new(),
             },
             selectorless_module_paths: &[
@@ -1687,6 +1893,7 @@ fn linked_emission_placement_witness_definitions_v0()
                         order_probe: "@layer base, theme;".to_string(),
                     },
                 ],
+                workspace_only_modules: Vec::new(),
                 reachability_references: Vec::new(),
             },
             selectorless_module_paths: &["linked-order-witness/layers/layers.css"],
@@ -1777,6 +1984,7 @@ fn selectorless_module_fixture_v0(
                 order_probe: imported_order_probe.to_string(),
             },
         ],
+        workspace_only_modules: Vec::new(),
         reachability_references: Vec::new(),
     }
 }
@@ -1825,6 +2033,7 @@ fn dialect_fixture_v0(
                 order_probe: z_marker,
             },
         ],
+        workspace_only_modules: Vec::new(),
         reachability_references: Vec::new(),
     }
 }
@@ -1871,6 +2080,7 @@ fn shared_import_fixture_v0() -> LinkedEmissionFixtureV0 {
                 order_probe: "linked-shared-token".to_string(),
             },
         ],
+        workspace_only_modules: Vec::new(),
         reachability_references: Vec::new(),
     }
 }
@@ -1900,6 +2110,13 @@ fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
                 order_probe: "color: blue".to_string(),
             },
         ],
+        workspace_only_modules: vec![LinkedEmissionFixtureModuleV0 {
+            path: format!("{root}/workspace-only.module.css"),
+            source: ".workspace-only { color: purple; }".to_string(),
+            dialect: StyleDialect::Css,
+            marker_names: Vec::new(),
+            order_probe: String::new(),
+        }],
         reachability_references: vec![
             LinkedEmissionReachabilityReferenceV0 {
                 id: "entry-reference",
@@ -1915,6 +2132,11 @@ fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
                 id: "dependency-reference",
                 module_index: 1,
                 class_name: "dependency-own",
+            },
+            LinkedEmissionReachabilityReferenceV0 {
+                id: "workspace-only-reference",
+                module_index: 2,
+                class_name: "workspace-only",
             },
         ],
     }
@@ -1945,6 +2167,7 @@ fn module_qualified_composes_reachability_fixture_v0() -> LinkedEmissionFixtureV
                 order_probe: "padding: 2px".to_string(),
             },
         ],
+        workspace_only_modules: Vec::new(),
         reachability_references: vec![
             LinkedEmissionReachabilityReferenceV0 {
                 id: "entry-card-reference",
@@ -2002,6 +2225,7 @@ fn product_corpus_fixture_v0() -> Option<LinkedEmissionFixtureV0> {
         entry_path,
         shape_classes: vec!["large-product-corpus"],
         modules,
+        workspace_only_modules: Vec::new(),
         reachability_references: Vec::new(),
     })
 }
@@ -2052,7 +2276,37 @@ mod tests {
             &analysis.linked_css.replace("blue", "black")
         ));
         assert!(remove_ascii_whitespace_v0(&analysis.linked_css).contains("color:blue"));
+        assert!(!analysis.legacy_css.contains("workspace-only"));
+        assert!(!analysis.linked_css.contains("workspace-only"));
         Ok(())
+    }
+
+    #[test]
+    fn directional_no_loss_rejects_cross_module_declaration_removal() {
+        let result = summarize_linked_emission_byte_differential_envelope_v0(
+            LinkedEmissionByteDifferentialPerturbationV0::DropReachableCrossModuleDeclaration,
+        );
+
+        assert!(matches!(
+            result,
+            Err(error)
+                if error.contains("linked emission removed declarations retained by default emission")
+                    && error.contains("padding:8px")
+        ));
+    }
+
+    #[test]
+    fn directional_no_loss_rejects_composed_declaration_removal() {
+        let result = summarize_linked_emission_byte_differential_envelope_v0(
+            LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration,
+        );
+
+        assert!(matches!(
+            result,
+            Err(error)
+                if error.contains("linked emission removed declarations retained by default emission")
+                    && error.contains("padding:2px")
+        ));
     }
 
     #[test]
@@ -2089,17 +2343,15 @@ mod tests {
         );
         assert!(census.module_token_collision_count > 0);
         assert!(census.module_token_collisions.iter().all(|collision| {
-            collision.module_paths.len() > 1 && !collision.observed_emission_paths.is_empty()
+            collision.module_paths.len() > 1
+                && collision.observed_emission_paths == vec!["importInlineLegacy", "linkedOrder"]
         }));
         Ok(())
     }
 
     #[test]
-    fn token_collision_census_uses_runtime_rewrite_precedence() -> Result<(), String> {
-        let mut fixture = module_qualified_reachability_fixture_v0();
-        fixture.modules[0].source = "@import \"./dependency.module.css\"; \
-            .entry-marker { border: 0; } .shared { color: red; } .entry-dead { color: tan; }"
-            .to_string();
+    fn token_collision_census_consumes_emitted_class_rewrites() -> Result<(), String> {
+        let fixture = module_qualified_reachability_fixture_v0();
         let analysis = analyze_linked_emission_fixture_v0(
             &fixture,
             LinkedEmissionByteDifferentialPerturbationV0::None,
@@ -2109,6 +2361,16 @@ mod tests {
         assert_eq!(collisions.len(), 1);
         let collision = &collisions[0];
         assert_eq!(collision.module_paths.len(), 2);
+        assert_ne!(collision.emitted_token, "shared");
+        for module in &fixture.modules {
+            assert_eq!(
+                analysis
+                    .class_name_rewrites_by_module
+                    .get(module.path.as_str())
+                    .and_then(|rewrites| rewrites.get("shared")),
+                Some(&collision.emitted_token)
+            );
+        }
         for output in [&analysis.legacy_css, &analysis.linked_css] {
             let emitted_count = output_class_selector_counts_v0(output)
                 .get(collision.emitted_token.as_str())
@@ -2120,6 +2382,25 @@ mod tests {
                 collision.emitted_token
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn token_collision_path_gate_rejects_path_specific_selector_loss() -> Result<(), String> {
+        let fixture = module_qualified_reachability_fixture_v0();
+        let mut analysis = analyze_linked_emission_fixture_v0(
+            &fixture,
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+        analysis.linked_css.clear();
+        let collisions = summarize_module_token_collisions_v0(&fixture, &analysis);
+
+        assert_eq!(collisions.len(), 1);
+        assert_eq!(
+            collisions[0].observed_emission_paths,
+            vec!["importInlineLegacy"]
+        );
+        assert!(validate_module_token_collision_paths_v0(&collisions).is_err());
         Ok(())
     }
 

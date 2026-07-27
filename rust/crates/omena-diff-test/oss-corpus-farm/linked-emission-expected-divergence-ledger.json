@@ -39,14 +39,14 @@
       "fixtureId": "module-qualified-reachability",
       "classificationArm": "moduleAttributedReachabilityCorrection",
       "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "94a5537879affe5ecd7a025afef0e5feb1880b8f1ed2f650e86f033e31e9796c",
+      "witnessDigest": "cafd77b0a65d4683bb4af780efb7099f03c33f17e434a78b8af27f1ac3c546c2",
       "justification": "The linked path restores the dependency-owned selector selected by its own source reference, preserves declarations sharing a live emitted selector token, and removes unrelated dead selectors."
     },
     {
       "fixtureId": "module-qualified-composes-reachability",
       "classificationArm": "moduleAttributedReachabilityCorrection",
       "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "9b74181bcfc0ec9780bfff77511dbbb56f49eec2a95487b6f77877444b2acad0",
+      "witnessDigest": "73a56878218184a00006d219eaf4e21e74dbef3ff53eb03fc97ac149a716636e",
       "justification": "The linked path retains the dependency declaration reached through composes, keeps the dependency-owned live selector, and removes the unrelated dead selector."
     },
     {

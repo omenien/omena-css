@@ -8,6 +8,10 @@ fn main() {
         LinkedEmissionByteDifferentialPerturbationV0::AddUnexpectedRule
     } else if std::env::args().any(|arg| arg == "--force-equivalent") {
         LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes
+    } else if std::env::args().any(|arg| arg == "--inject-cross-module-declaration-loss") {
+        LinkedEmissionByteDifferentialPerturbationV0::DropReachableCrossModuleDeclaration
+    } else if std::env::args().any(|arg| arg == "--inject-composed-declaration-loss") {
+        LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration
     } else {
         LinkedEmissionByteDifferentialPerturbationV0::None
     };

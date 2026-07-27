@@ -251,7 +251,12 @@ assert.equal(
 const forwardedArguments = process.argv
   .slice(2)
   .filter((argument) =>
-    ["--inject-unexpected-divergence", "--force-equivalent"].includes(argument),
+    [
+      "--inject-unexpected-divergence",
+      "--force-equivalent",
+      "--inject-cross-module-declaration-loss",
+      "--inject-composed-declaration-loss",
+    ].includes(argument),
   );
 const run = spawnSync(
   "cargo",
@@ -324,15 +329,10 @@ for (const collision of census.moduleTokenCollisions) {
   assert.ok(collision.emittedToken.length > 0);
   assert.ok(collision.modulePaths.length > 1);
   assert.ok(collision.originalNames.length > 0);
-  assert.ok(collision.observedEmissionPaths.length > 0);
-  assert.equal(
-    new Set(collision.observedEmissionPaths).size,
-    collision.observedEmissionPaths.length,
-  );
-  assert.ok(
-    collision.observedEmissionPaths.every(
-      (path) => path === "importInlineLegacy" || path === "linkedOrder",
-    ),
+  assert.deepEqual(
+    collision.observedEmissionPaths,
+    ["importInlineLegacy", "linkedOrder"],
+    "a path-specific selector loss can produce one observed path, so both are required",
   );
 }
 assert.equal(census.placementWitnesses.length, 4);
@@ -506,13 +506,16 @@ for (const entry of report.cases) {
     if (entry.fixtureId === "module-qualified-reachability") {
       assert.equal(entry.semanticPreserved, false);
       assert.equal(entry.semanticMismatchCount, 1);
-      assert.deepEqual(entry.legacyMarkerOrder, ["entry-marker"]);
-      assert.deepEqual(entry.linkedMarkerOrder, ["dependency-own", "entry-marker"]);
-      assert.deepEqual(entry.authoritativeMarkerOrder, ["dependency-own", "entry-marker"]);
+      assert.deepEqual(entry.legacyMarkerOrder, ["_entry-marker_1"]);
+      assert.deepEqual(entry.linkedMarkerOrder, ["_dependency-own_1", "_entry-marker_1"]);
+      assert.deepEqual(entry.authoritativeMarkerOrder, [
+        "_dependency-own_1",
+        "_entry-marker_1",
+      ]);
     } else if (entry.fixtureId === "module-qualified-composes-reachability") {
-      assert.ok(entry.legacyMarkerOrder.includes("base"));
-      assert.ok(entry.linkedMarkerOrder.includes("base"));
-      assert.ok(entry.linkedMarkerOrder.includes("base-live"));
+      assert.ok(entry.legacyMarkerOrder.includes("_card_0"));
+      assert.ok(entry.linkedMarkerOrder.includes("_base_0"));
+      assert.ok(entry.linkedMarkerOrder.includes("_base-live_1"));
     } else {
       assert.equal(entry.semanticPreserved, true);
     }
@@ -553,13 +556,19 @@ for (const entry of expectedDivergenceLedger.entries) {
     if (entry.fixtureId === "module-qualified-reachability") {
       assert.equal(liveCase.semanticPreserved, false);
       assert.equal(liveCase.semanticMismatchCount, 1);
-      assert.deepEqual(liveCase.legacyMarkerOrder, ["entry-marker"]);
-      assert.deepEqual(liveCase.linkedMarkerOrder, ["dependency-own", "entry-marker"]);
-      assert.deepEqual(liveCase.authoritativeMarkerOrder, ["dependency-own", "entry-marker"]);
+      assert.deepEqual(liveCase.legacyMarkerOrder, ["_entry-marker_1"]);
+      assert.deepEqual(liveCase.linkedMarkerOrder, [
+        "_dependency-own_1",
+        "_entry-marker_1",
+      ]);
+      assert.deepEqual(liveCase.authoritativeMarkerOrder, [
+        "_dependency-own_1",
+        "_entry-marker_1",
+      ]);
     } else {
-      assert.ok(liveCase.legacyMarkerOrder.includes("base"));
-      assert.ok(liveCase.linkedMarkerOrder.includes("base"));
-      assert.ok(liveCase.linkedMarkerOrder.includes("base-live"));
+      assert.ok(liveCase.legacyMarkerOrder.includes("_card_0"));
+      assert.ok(liveCase.linkedMarkerOrder.includes("_base_0"));
+      assert.ok(liveCase.linkedMarkerOrder.includes("_base-live_1"));
     }
   } else {
     assert.equal(liveCase.semanticPreserved, true);
