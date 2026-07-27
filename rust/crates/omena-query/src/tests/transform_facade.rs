@@ -2,10 +2,11 @@ use super::*;
 use crate::{
     OmenaQueryBundleEmissionPathV0, OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldBlockerV0,
     OmenaQueryClosedWorldDecisionParityV0, OmenaQueryClosedWorldOutcomeV0,
-    OmenaQueryConsumerBuildOptionsV0, OmenaQueryExternalSifInputV0,
-    OmenaQueryTransformExecutionContextV0,
+    OmenaQueryConsumerBuildOptionsV0, OmenaQueryExecutionEvidenceScopeV0,
+    OmenaQueryExternalSifInputV0, OmenaQueryTransformExecutionContextV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs,
-    run_omena_query_bundle, run_omena_query_bundle_with_semantic_inputs,
+    run_omena_query_bundle, run_omena_query_bundle_with_execution_scope_evidence_and_options,
+    run_omena_query_bundle_with_semantic_inputs,
     run_omena_query_bundle_with_semantic_inputs_and_options,
     summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan, summarize_omena_query_bundle_evidence,
@@ -701,6 +702,42 @@ fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), Str
         .ok_or_else(|| "consumer summary should carry a source map".to_string())?;
     assert_eq!(artifact.source_map_v3, summary_source_map);
     assert_eq!(artifact.per_pass_provenance, artifact.execution.outcomes);
+    let scoped = run_omena_query_bundle_with_execution_scope_evidence_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: "src/app.css",
+            style_sources: &sources,
+            source_map_sources: &sources,
+            requested_pass_ids: &pass_ids,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        },
+    )?;
+    let execution_scope = scoped
+        .execution_scope
+        .ok_or_else(|| "linked bundle should expose execution scope".to_string())?;
+    let entry = execution_scope
+        .module_executions
+        .iter()
+        .find(|module| module.module_instance == execution_scope.entry_module_instance)
+        .ok_or_else(|| "linked bundle should retain entry byte facts".to_string())?;
+    assert_eq!(
+        entry.input_byte_len,
+        scoped.bundle_result.artifact.execution.input_byte_len
+    );
+    assert_eq!(
+        scoped.bundle_result.artifact.per_pass_provenance,
+        scoped.bundle_result.artifact.execution.outcomes
+    );
+    assert!(execution_scope.field_scopes.iter().any(|field| {
+        field.field_name == "outcomes" && field.scope == OmenaQueryExecutionEvidenceScopeV0::Entry
+    }));
     assert!(artifact.ready_surfaces.contains(&"bundleOperationFacade"));
     assert!(
         artifact

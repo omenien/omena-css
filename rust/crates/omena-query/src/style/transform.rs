@@ -345,7 +345,26 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
     external_sifs: &[OmenaQueryExternalSifInputV0],
     options: &OmenaQueryConsumerBuildOptionsV0,
 ) -> Result<OmenaQueryBundleResultV0, String> {
-    run_omena_query_bundle_with_optional_module_reachability(input, external_sifs, options, None)
+    run_omena_query_bundle_with_execution_scope_evidence_and_options(input, external_sifs, options)
+        .map(|result| result.bundle_result)
+}
+
+pub fn run_omena_query_bundle_with_execution_scope_evidence_and_options(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<OmenaQueryBundleExecutionScopeResultV0, String> {
+    let run = run_omena_query_bundle_with_optional_module_reachability(
+        input,
+        external_sifs,
+        options,
+        None,
+    )?;
+    Ok(OmenaQueryBundleExecutionScopeResultV0 {
+        bundle_result: run.bundle_result,
+        execution_scope: run.execution_scope,
+        reachability_attribution: None,
+    })
 }
 
 pub fn run_omena_query_bundle_with_module_reachability_and_options(
@@ -354,6 +373,28 @@ pub fn run_omena_query_bundle_with_module_reachability_and_options(
     options: &OmenaQueryConsumerBuildOptionsV0,
     module_reachability: &OmenaQueryEngineInputModuleReachabilityV0,
 ) -> Result<OmenaQueryModuleAttributedBundleResultV0, String> {
+    let result =
+        run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options(
+            input,
+            external_sifs,
+            options,
+            module_reachability,
+        )?;
+    let attribution = result.reachability_attribution.ok_or_else(|| {
+        "module reachability run did not retain its attribution report".to_string()
+    })?;
+    Ok(OmenaQueryModuleAttributedBundleResultV0::new(
+        result.bundle_result,
+        attribution,
+    ))
+}
+
+pub fn run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+    module_reachability: &OmenaQueryEngineInputModuleReachabilityV0,
+) -> Result<OmenaQueryBundleExecutionScopeResultV0, String> {
     if find_target_style_source(input.target_style_path, input.style_sources).is_none() {
         return Err(format!(
             "target style path {:?} was not found in workspace style sources",
@@ -381,16 +422,22 @@ pub fn run_omena_query_bundle_with_module_reachability_and_options(
         style_paths.iter().copied(),
         flat_class_names.as_slice(),
     )?;
-    let bundle_result = run_omena_query_bundle_with_optional_module_reachability(
+    let run = run_omena_query_bundle_with_optional_module_reachability(
         input,
         external_sifs,
         options,
         Some((module_reachability, &attribution_report)),
     )?;
-    Ok(OmenaQueryModuleAttributedBundleResultV0::new(
-        bundle_result,
-        attribution_report,
-    ))
+    Ok(OmenaQueryBundleExecutionScopeResultV0 {
+        bundle_result: run.bundle_result,
+        execution_scope: run.execution_scope,
+        reachability_attribution: Some(attribution_report),
+    })
+}
+
+struct OmenaQueryBundleExecutionRunV0 {
+    bundle_result: OmenaQueryBundleResultV0,
+    execution_scope: Option<OmenaQueryBundleExecutionScopeEvidenceV0>,
 }
 
 fn run_omena_query_bundle_with_optional_module_reachability(
@@ -401,7 +448,7 @@ fn run_omena_query_bundle_with_optional_module_reachability(
         &OmenaQueryEngineInputModuleReachabilityV0,
         &OmenaQueryModuleReachabilityAttributionReportV0,
     )>,
-) -> Result<OmenaQueryBundleResultV0, String> {
+) -> Result<OmenaQueryBundleExecutionRunV0, String> {
     let OmenaQueryBundlePlanInputV0 {
         target_style_path,
         style_sources,
@@ -498,7 +545,13 @@ fn run_omena_query_bundle_with_optional_module_reachability(
     };
     validate_omena_query_closed_world_decision_parity(&closed_world_decision_parity)?;
 
-    let (execution, linked_materialization, emission_path) = match options.bundle_emission_path {
+    let (
+        execution,
+        linked_materialization,
+        emission_path,
+        mut execution_scope,
+        linked_module_executions,
+    ) = match options.bundle_emission_path {
         OmenaQueryBundleEmissionPathV0::LinkedOrder => match linked_result.as_ref() {
             Ok(linked) => {
                 let linked_execution = execute_linked_bundle_modules(
@@ -510,10 +563,13 @@ fn run_omena_query_bundle_with_optional_module_reachability(
                     resolution_inputs,
                     options,
                 )?;
+                let execution_scope = summarize_linked_bundle_execution_scope(&linked_execution)?;
                 (
                     linked_execution.execution,
                     Some(linked_execution.materialization),
                     OmenaQueryBundleEmissionPathV0::LinkedOrder,
+                    Some(execution_scope),
+                    Some(linked_execution.module_executions),
                 )
             }
             Err(error) => return Err(format!("linked bundle emission failed: {error:?}")),
@@ -526,16 +582,26 @@ fn run_omena_query_bundle_with_optional_module_reachability(
                 summary.execution,
                 None,
                 OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+                None,
+                None,
             )
         }
     };
-    let source_map_v3 = if let Some(materialization) = linked_materialization.as_ref() {
-        summarize_omena_query_linked_bundle_source_map_v3(
+    let source_map_v3 = if let (Some(materialization), Some(module_executions)) = (
+        linked_materialization.as_ref(),
+        linked_module_executions.as_deref(),
+    ) {
+        let (source_map, dispositions) = summarize_omena_query_linked_bundle_source_map_v3(
             target_style_path,
             source_map_sources,
             &execution,
             materialization,
-        )?
+            module_executions,
+        )?;
+        if let Some(scope) = execution_scope.as_mut() {
+            scope.source_map_dispositions = dispositions;
+        }
+        source_map
     } else {
         summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs(
             target_style_path,
@@ -566,10 +632,13 @@ fn run_omena_query_bundle_with_optional_module_reachability(
             "transformPassOutcomeContract",
         ],
     };
-    Ok(OmenaQueryBundleResultV0 {
-        artifact,
-        closed_world_outcome,
-        closed_world_decision_parity,
+    Ok(OmenaQueryBundleExecutionRunV0 {
+        bundle_result: OmenaQueryBundleResultV0 {
+            artifact,
+            closed_world_outcome,
+            closed_world_decision_parity,
+        },
+        execution_scope,
     })
 }
 
@@ -625,6 +694,36 @@ pub fn run_omena_query_bundle_with_evidence_for_style_sources_with_context(
         closed_world_decision_parity: result.closed_world_decision_parity,
         evidence,
     })
+}
+
+pub fn run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundle_entry_style_paths: &[String],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<OmenaQueryBundleExecutionScopeResultV0, String> {
+    let resolution_inputs = resolution_inputs_for_transform_style_sources(
+        target_style_path,
+        style_sources,
+        package_manifests,
+    );
+    run_omena_query_bundle_with_execution_scope_evidence_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path,
+            style_sources,
+            source_map_sources: style_sources,
+            requested_pass_ids,
+            context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths,
+        },
+        &[],
+        options,
+    )
 }
 
 pub fn summarize_omena_query_bundle_evidence(
@@ -1890,22 +1989,33 @@ fn summarize_omena_query_linked_bundle_source_map_v3(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     execution: &TransformExecutionSummaryV0,
     materialization: &LinkedEmissionArtifactV0,
-) -> Result<OmenaQueryTransformSourceMapV3V0, String> {
-    let segments = linked_bundle_source_map_segments(
+    module_executions: &[LinkedModuleExecutionV0],
+) -> Result<
+    (
+        OmenaQueryTransformSourceMapV3V0,
+        Vec<OmenaQueryLinkedSourceMapDispositionV0>,
+    ),
+    String,
+> {
+    let (segments, dispositions) = linked_bundle_source_map_segments(
         style_sources,
         execution.output_css.as_str(),
         materialization,
+        module_executions,
     )?;
     let source_contents = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<Vec<_>>();
-    Ok(serialize_transform_source_map_v3_with_source_contents(
-        style_path,
-        execution.output_css.as_str(),
-        style_path,
-        source_contents.as_slice(),
-        segments.as_slice(),
+    Ok((
+        serialize_transform_source_map_v3_with_source_contents(
+            style_path,
+            execution.output_css.as_str(),
+            style_path,
+            source_contents.as_slice(),
+            segments.as_slice(),
+        ),
+        dispositions,
     ))
 }
 
@@ -1913,49 +2023,133 @@ fn linked_bundle_source_map_segments(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     generated_css: &str,
     materialization: &LinkedEmissionArtifactV0,
-) -> Result<Vec<TransformSourceMapSegmentV0>, String> {
+    module_executions: &[LinkedModuleExecutionV0],
+) -> Result<
+    (
+        Vec<TransformSourceMapSegmentV0>,
+        Vec<OmenaQueryLinkedSourceMapDispositionV0>,
+    ),
+    String,
+> {
     let source_by_path = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<BTreeMap<_, _>>();
-    materialization
-        .module_regions
+    let execution_by_instance = module_executions
         .iter()
-        .map(|region| {
-            let source_path = region.module_instance.module().as_str();
-            let source = source_by_path.get(source_path).copied().ok_or_else(|| {
-                format!("linked source-map module {source_path:?} has no source document")
+        .map(|module| (&module.module_instance, &module.execution))
+        .collect::<BTreeMap<_, _>>();
+    let mut segments = Vec::new();
+    let mut dispositions = Vec::new();
+    for region in &materialization.module_regions {
+        let source_path = region.module_instance.module().as_str();
+        let source = source_by_path.get(source_path).copied().ok_or_else(|| {
+            format!("linked source-map module {source_path:?} has no source document")
+        })?;
+        let module_execution = execution_by_instance
+            .get(&region.module_instance)
+            .copied()
+            .ok_or_else(|| {
+                format!(
+                    "linked source-map module {:?} has no retained execution",
+                    region.module_instance
+                )
             })?;
-            if region.generated_start > region.generated_end
-                || region.generated_end > generated_css.len()
+        if region.generated_start > region.generated_end
+            || region.generated_end > generated_css.len()
+        {
+            return Err(format!(
+                "linked source-map region for {source_path:?} is outside generated CSS: {}..{} of {}",
+                region.generated_start,
+                region.generated_end,
+                generated_css.len()
+            ));
+        }
+        let (mut module_segments, granularity, fallback_reason) =
+            if source == module_execution.output_css {
+                let artifact = print_omena_query_transform_source_with_pretty_options(
+                    source_path,
+                    source,
+                    transform_print_dialect_for_style_path(source_path),
+                    format!("linked-module-source-map:{source_path}"),
+                    &[],
+                    default_omena_query_transform_print_options(),
+                    OmenaQueryPrettyFormatOptionsV0 {
+                        line_width: 100,
+                        indent_width: 2,
+                    },
+                );
+                (
+                    artifact.source_map_segments,
+                    OmenaQueryLinkedSourceMapGranularityV0::CstAnchors,
+                    None,
+                )
+            } else {
+                (
+                    vec![TransformSourceMapSegmentV0 {
+                        source_path: source_path.to_string(),
+                        original_start: 0,
+                        original_end: source.len(),
+                        generated_start: 0,
+                        generated_end: region.generated_end - region.generated_start,
+                        original_start_point: transform_source_map_point(source, 0),
+                        original_end_point: transform_source_map_point(source, source.len()),
+                        generated_start_point: transform_source_map_point(
+                            module_execution.output_css.as_str(),
+                            0,
+                        ),
+                        generated_end_point: transform_source_map_point(
+                            module_execution.output_css.as_str(),
+                            module_execution.output_css.len(),
+                        ),
+                        pass_id: "linked-order-emission",
+                    }],
+                    OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
+                    Some("module output differs from its source after transform execution"),
+                )
+            };
+        let segment_start = segments.len();
+        for segment in &mut module_segments {
+            segment.generated_start += region.generated_start;
+            segment.generated_end += region.generated_start;
+            if segment.generated_start < region.generated_start
+                || segment.generated_end > region.generated_end
             {
                 return Err(format!(
-                    "linked source-map region for {source_path:?} is outside generated CSS: {}..{} of {}",
+                    "linked source-map segment for {source_path:?} is outside its materialized region: {}..{} not within {}..{}",
+                    segment.generated_start,
+                    segment.generated_end,
                     region.generated_start,
-                    region.generated_end,
-                    generated_css.len()
+                    region.generated_end
                 ));
             }
-            Ok(TransformSourceMapSegmentV0 {
-                source_path: source_path.to_string(),
-                original_start: 0,
-                original_end: source.len(),
-                generated_start: region.generated_start,
-                generated_end: region.generated_end,
-                original_start_point: transform_source_map_point(source, 0),
-                original_end_point: transform_source_map_point(source, source.len()),
-                generated_start_point: transform_source_map_point(
-                    generated_css,
-                    region.generated_start,
-                ),
-                generated_end_point: transform_source_map_point(
-                    generated_css,
-                    region.generated_end,
-                ),
-                pass_id: "linked-order-emission",
-            })
-        })
-        .collect()
+            segment.generated_start_point =
+                transform_source_map_point(generated_css, segment.generated_start);
+            segment.generated_end_point =
+                transform_source_map_point(generated_css, segment.generated_end);
+            segment.pass_id = "linked-order-emission";
+        }
+        segments.extend(module_segments);
+        dispositions.push(OmenaQueryLinkedSourceMapDispositionV0 {
+            module_instance: region.module_instance.clone(),
+            granularity,
+            fallback_reason,
+            segment_count: segments.len() - segment_start,
+        });
+    }
+    Ok((segments, dispositions))
+}
+
+fn transform_print_dialect_for_style_path(style_path: &str) -> OmenaQueryTransformStyleDialect {
+    if style_path.ends_with(".sass") {
+        OmenaQueryTransformStyleDialect::Sass
+    } else if style_path.ends_with(".scss") {
+        OmenaQueryTransformStyleDialect::Scss
+    } else if style_path.ends_with(".less") {
+        OmenaQueryTransformStyleDialect::Less
+    } else {
+        OmenaQueryTransformStyleDialect::Css
+    }
 }
 
 pub fn summarize_omena_query_bundle_code_split_source_map_v3(
@@ -3354,6 +3548,7 @@ fn execute_linked_bundle_modules(
     execution.output_css.clone_from(&materialized.output_css);
     Ok(LinkedBundleExecutionV0 {
         execution,
+        entry_module_instance: target_instance.clone(),
         module_executions,
         materialization: materialized,
     })
@@ -3432,8 +3627,206 @@ fn retained_class_names_for_live_linked_emission_tokens(
 
 struct LinkedBundleExecutionV0 {
     execution: TransformExecutionSummaryV0,
+    entry_module_instance: omena_parser::ModuleInstanceKeyV0,
     module_executions: Vec<LinkedModuleExecutionV0>,
     materialization: LinkedEmissionArtifactV0,
+}
+
+fn summarize_linked_bundle_execution_scope(
+    linked: &LinkedBundleExecutionV0,
+) -> Result<OmenaQueryBundleExecutionScopeEvidenceV0, String> {
+    let mut module_executions = Vec::with_capacity(linked.module_executions.len());
+    for module in &linked.module_executions {
+        let region = linked
+            .materialization
+            .module_regions
+            .iter()
+            .find(|region| region.module_instance == module.module_instance)
+            .ok_or_else(|| {
+                format!(
+                    "linked execution evidence has no materialized region for {:?}",
+                    module.module_instance
+                )
+            })?;
+        let generated_len = region.generated_end.saturating_sub(region.generated_start);
+        if generated_len != module.execution.output_byte_len {
+            return Err(format!(
+                "linked execution evidence byte mismatch for {:?}: execution={}, materialized={generated_len}",
+                module.module_instance, module.execution.output_byte_len
+            ));
+        }
+        module_executions.push(OmenaQueryBundleModuleExecutionByteFactsV0 {
+            module_instance: module.module_instance.clone(),
+            input_byte_len: module.execution.input_byte_len,
+            output_byte_len: module.execution.output_byte_len,
+            generated_start: region.generated_start,
+            generated_end: region.generated_end,
+        });
+    }
+
+    if module_executions.len() != linked.materialization.module_regions.len() {
+        return Err(format!(
+            "linked execution evidence cardinality mismatch: executions={}, regions={}",
+            module_executions.len(),
+            linked.materialization.module_regions.len()
+        ));
+    }
+    let summed_module_input_byte_len = module_executions
+        .iter()
+        .map(|module| module.input_byte_len)
+        .sum();
+    let summed_module_output_byte_len = module_executions
+        .iter()
+        .map(|module| module.output_byte_len)
+        .sum::<usize>();
+    let materialized_output_byte_len = linked.materialization.output_css.len();
+    let inter_module_separator_byte_len =
+        materialized_output_byte_len.saturating_sub(summed_module_output_byte_len);
+    if summed_module_output_byte_len + inter_module_separator_byte_len
+        != materialized_output_byte_len
+    {
+        return Err(
+            "linked execution evidence could not account for bundle output bytes".to_string(),
+        );
+    }
+
+    Ok(OmenaQueryBundleExecutionScopeEvidenceV0 {
+        schema_version: "0",
+        product: "omena-query.bundle-execution-scope",
+        entry_module_instance: linked.entry_module_instance.clone(),
+        field_scopes: bundle_execution_field_scopes(),
+        bundle_composite: OmenaQueryBundleCompositeExecutionByteFactsV0 {
+            module_count: module_executions.len(),
+            summed_module_input_byte_len,
+            summed_module_output_byte_len,
+            inter_module_separator_byte_len,
+            materialized_output_byte_len,
+        },
+        module_executions,
+        source_map_dispositions: Vec::new(),
+    })
+}
+
+fn bundle_execution_field_scopes() -> Vec<OmenaQueryExecutionFieldScopeV0> {
+    use OmenaQueryExecutionEvidenceScopeV0::{Bundle, Entry};
+
+    vec![
+        execution_field_scope("schemaVersion", Entry, "retained entry execution schema"),
+        execution_field_scope("product", Entry, "retained entry execution product"),
+        execution_field_scope("inputByteLen", Entry, "retained entry source byte length"),
+        execution_field_scope(
+            "outputByteLen",
+            Bundle,
+            "materialized linked bundle output byte length",
+        ),
+        execution_field_scope(
+            "requestedPassIds",
+            Entry,
+            "retained entry requested pass identifiers",
+        ),
+        execution_field_scope(
+            "orderedPassIds",
+            Entry,
+            "retained entry ordered pass identifiers",
+        ),
+        execution_field_scope(
+            "executedPassIds",
+            Entry,
+            "retained entry executed pass identifiers",
+        ),
+        execution_field_scope(
+            "plannedOnlyPassIds",
+            Entry,
+            "retained entry planned-only pass identifiers",
+        ),
+        execution_field_scope("mutationCount", Entry, "retained entry mutation count"),
+        execution_field_scope(
+            "provenancePreserved",
+            Entry,
+            "retained entry provenance status",
+        ),
+        execution_field_scope("outputCss", Bundle, "materialized linked bundle CSS"),
+        execution_field_scope(
+            "cssModuleEvaluation",
+            Entry,
+            "retained entry CSS module evaluation",
+        ),
+        execution_field_scope(
+            "cssImportInlines",
+            Entry,
+            "retained entry import-inline outcomes",
+        ),
+        execution_field_scope(
+            "cssModuleComposesExports",
+            Entry,
+            "retained entry composes exports",
+        ),
+        execution_field_scope(
+            "designTokenRoutes",
+            Entry,
+            "retained entry design-token routes",
+        ),
+        execution_field_scope(
+            "semanticRemovals",
+            Entry,
+            "retained entry semantic removals",
+        ),
+        execution_field_scope(
+            "moduleQualifiedShake",
+            Entry,
+            "retained entry module-qualified shake summary",
+        ),
+        execution_field_scope(
+            "cascadeProofObligations",
+            Entry,
+            "retained entry cascade proof obligations",
+        ),
+        execution_field_scope(
+            "winnerEqualityObligations",
+            Entry,
+            "retained entry winner-equality obligations",
+        ),
+        execution_field_scope(
+            "provenanceDerivationForest",
+            Entry,
+            "retained entry provenance derivation forest",
+        ),
+        execution_field_scope(
+            "structuralIrTransactionTelemetry",
+            Entry,
+            "retained entry structural transaction telemetry",
+        ),
+        execution_field_scope(
+            "semanticPreservationTelemetry",
+            Entry,
+            "retained entry semantic preservation telemetry",
+        ),
+        execution_field_scope(
+            "dischargeLedgerTelemetry",
+            Entry,
+            "retained entry discharge ledger telemetry",
+        ),
+        execution_field_scope(
+            "strictPolicy",
+            Entry,
+            "retained entry strict-policy summary",
+        ),
+        execution_field_scope("decisions", Entry, "retained entry transform decisions"),
+        execution_field_scope("outcomes", Entry, "retained entry pass outcomes"),
+        execution_field_scope("passPlan", Entry, "retained entry transform pass plan"),
+    ]
+}
+
+const fn execution_field_scope(
+    field_name: &'static str,
+    scope: OmenaQueryExecutionEvidenceScopeV0,
+    derivation: &'static str,
+) -> OmenaQueryExecutionFieldScopeV0 {
+    OmenaQueryExecutionFieldScopeV0 {
+        field_name,
+        scope,
+        derivation,
+    }
 }
 
 pub(crate) fn build_closed_world_bundle_for_single_style_source_context(
@@ -3704,6 +4097,79 @@ fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPassKind> {
 mod linked_source_map_tests {
     use super::*;
 
+    #[derive(Debug)]
+    struct DecodedSourceMapSegment {
+        generated_line: usize,
+        generated_column: usize,
+        source_index: usize,
+        original_line: usize,
+    }
+
+    fn decode_source_map_mappings(mappings: &str) -> Result<Vec<DecodedSourceMapSegment>, String> {
+        let mut decoded = Vec::new();
+        let mut previous_source_index = 0isize;
+        let mut previous_original_line = 0isize;
+        let mut previous_original_column = 0isize;
+        for (generated_line, line) in mappings.split(';').enumerate() {
+            let mut previous_generated_column = 0isize;
+            for segment in line.split(',').filter(|segment| !segment.is_empty()) {
+                let values = decode_source_map_vlq_values(segment)?;
+                if values.len() < 4 {
+                    return Err(format!(
+                        "source-map segment has too few fields: {segment:?}"
+                    ));
+                }
+                previous_generated_column += values[0];
+                previous_source_index += values[1];
+                previous_original_line += values[2];
+                previous_original_column += values[3];
+                if previous_generated_column < 0
+                    || previous_source_index < 0
+                    || previous_original_line < 0
+                    || previous_original_column < 0
+                {
+                    return Err(format!("source-map segment underflowed: {segment:?}"));
+                }
+                decoded.push(DecodedSourceMapSegment {
+                    generated_line,
+                    generated_column: previous_generated_column as usize,
+                    source_index: previous_source_index as usize,
+                    original_line: previous_original_line as usize,
+                });
+            }
+        }
+        Ok(decoded)
+    }
+
+    fn decode_source_map_vlq_values(segment: &str) -> Result<Vec<isize>, String> {
+        const BASE64: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut values = Vec::new();
+        let mut value = 0usize;
+        let mut shift = 0usize;
+        for character in segment.chars() {
+            let digit = BASE64
+                .find(character)
+                .ok_or_else(|| format!("invalid source-map digit {character:?}"))?;
+            value |= (digit & 31) << shift;
+            if digit & 32 == 0 {
+                let magnitude = (value >> 1) as isize;
+                values.push(if value & 1 == 0 {
+                    magnitude
+                } else {
+                    -magnitude
+                });
+                value = 0;
+                shift = 0;
+            } else {
+                shift += 5;
+            }
+        }
+        if shift != 0 {
+            return Err("unterminated source-map VLQ value".to_string());
+        }
+        Ok(values)
+    }
+
     #[test]
     fn linked_bundle_retains_each_module_execution_before_bundle_projection() -> Result<(), String>
     {
@@ -3777,6 +4243,74 @@ mod linked_source_map_tests {
             .iter()
             .find(|module| &module.module_instance == target_instance)
             .ok_or_else(|| "entry execution should be retained".to_string())?;
+        let scope_evidence = summarize_linked_bundle_execution_scope(&execution)?;
+        assert_eq!(scope_evidence.field_scopes.len(), 27);
+        assert_eq!(scope_evidence.module_executions.len(), 3);
+        assert_eq!(
+            scope_evidence.bundle_composite.module_count,
+            scope_evidence.module_executions.len()
+        );
+        assert_eq!(
+            scope_evidence
+                .module_executions
+                .iter()
+                .map(|module| module.input_byte_len)
+                .sum::<usize>(),
+            scope_evidence.bundle_composite.summed_module_input_byte_len
+        );
+        assert_eq!(
+            scope_evidence
+                .module_executions
+                .iter()
+                .map(|module| module.output_byte_len)
+                .sum::<usize>(),
+            scope_evidence
+                .bundle_composite
+                .summed_module_output_byte_len
+        );
+        assert_eq!(
+            scope_evidence
+                .bundle_composite
+                .summed_module_output_byte_len
+                + scope_evidence
+                    .bundle_composite
+                    .inter_module_separator_byte_len,
+            scope_evidence.bundle_composite.materialized_output_byte_len
+        );
+
+        let retained_json =
+            serde_json::to_value(&retained_entry.execution).map_err(|error| error.to_string())?;
+        let projected_json =
+            serde_json::to_value(&execution.execution).map_err(|error| error.to_string())?;
+        for field in &scope_evidence.field_scopes {
+            let projected_value = projected_json.get(field.field_name);
+            match field.scope {
+                OmenaQueryExecutionEvidenceScopeV0::Entry => {
+                    let retained_value = retained_json.get(field.field_name);
+                    assert_eq!(
+                        projected_value, retained_value,
+                        "entry-scoped field {}",
+                        field.field_name
+                    );
+                }
+                OmenaQueryExecutionEvidenceScopeV0::Bundle => match field.field_name {
+                    "outputByteLen" => assert_eq!(
+                        projected_value,
+                        Some(&serde_json::json!(
+                            execution.materialization.output_css.len()
+                        ))
+                    ),
+                    "outputCss" => assert_eq!(
+                        projected_value,
+                        Some(&serde_json::json!(execution.materialization.output_css))
+                    ),
+                    field_name => {
+                        return Err(format!("field {field_name} has no bundle-scope derivation"));
+                    }
+                },
+            }
+        }
+
         let mut projected_entry = retained_entry.execution.clone();
         projected_entry.output_byte_len = execution.materialization.output_css.len();
         projected_entry
@@ -3791,12 +4325,13 @@ mod linked_source_map_tests {
         let style_sources = vec![
             OmenaQueryStyleSourceInputV0 {
                 style_path: "src/app.css".to_string(),
-                style_source: "@import \"./tokens.css\"; .linked-map-app { color: red; }"
+                style_source: "@import \"./tokens.css\";\n.linked-map-app-a { color: red; }\n.linked-map-app-b { color: green; }"
                     .to_string(),
             },
             OmenaQueryStyleSourceInputV0 {
                 style_path: "src/tokens.css".to_string(),
-                style_source: ".linked-map-tokens { color: blue; }".to_string(),
+                style_source: ".linked-map-token-a { color: blue; }\n.linked-map-token-b { color: cyan; }\n.linked-map-token-c { color: navy; }"
+                    .to_string(),
             },
         ];
         let modules = style_sources
@@ -3815,42 +4350,204 @@ mod linked_source_map_tests {
             .module_instances
             .iter()
             .map(|module_instance| {
-                let output_css = match module_instance.module().as_str() {
-                    "src/app.css" => ".linked-map-app { color: red; }",
-                    "src/tokens.css" => ".linked-map-tokens { color: blue; }",
-                    path => return Err(format!("unexpected fixture module {path:?}")),
-                };
+                let source = style_sources
+                    .iter()
+                    .find(|source| source.style_path == module_instance.module().as_str())
+                    .ok_or_else(|| {
+                        format!(
+                            "source-map fixture has no source for {:?}",
+                            module_instance.module()
+                        )
+                    })?;
                 Ok(TransformBundleTransformedModuleV0::new(
                     module_instance.clone(),
-                    output_css,
+                    source.style_source.clone(),
                 ))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let module_executions = linked
+            .module_instances
+            .iter()
+            .map(|module_instance| {
+                let source = style_sources
+                    .iter()
+                    .find(|source| source.style_path == module_instance.module().as_str())
+                    .ok_or_else(|| {
+                        format!(
+                            "source-map fixture has no execution source for {:?}",
+                            module_instance.module()
+                        )
+                    })?;
+                let summary = execute_omena_query_consumer_build_style_source_with_context(
+                    source.style_path.as_str(),
+                    source.style_source.as_str(),
+                    &["print-css".to_string()],
+                    &TransformExecutionContextV0::default(),
+                );
+                Ok(LinkedModuleExecutionV0 {
+                    module_instance: module_instance.clone(),
+                    execution: summary.execution,
+                })
             })
             .collect::<Result<Vec<_>, String>>()?;
         let materialization =
             materialize_omena_transform_bundle_linked_stylesheet(&linked, &transformed)
                 .map_err(|error| format!("source-map fixture should materialize: {error:?}"))?;
-        let segments = linked_bundle_source_map_segments(
+        let (segments, dispositions) = linked_bundle_source_map_segments(
             &style_sources,
             &materialization.output_css,
             &materialization,
+            &module_executions,
         )?;
 
-        assert_eq!(segments.len(), transformed.len());
+        assert!(
+            segments.len() > transformed.len(),
+            "segments={}, modules={}, dispositions={dispositions:?}",
+            segments.len(),
+            transformed.len()
+        );
+        assert_eq!(dispositions.len(), transformed.len());
+        assert!(dispositions.iter().all(|disposition| {
+            disposition.granularity == OmenaQueryLinkedSourceMapGranularityV0::CstAnchors
+                && disposition.fallback_reason.is_none()
+        }));
         for segment in &segments {
-            let marker = match segment.source_path.as_str() {
-                "src/app.css" => ".linked-map-app",
-                "src/tokens.css" => ".linked-map-tokens",
-                path => return Err(format!("unexpected source-map path {path:?}")),
-            };
-            let generated_start = materialization
-                .output_css
-                .find(marker)
-                .ok_or_else(|| format!("generated marker {marker:?} should exist"))?;
-            assert_eq!(segment.generated_start, generated_start);
+            let region = materialization
+                .module_regions
+                .iter()
+                .find(|region| region.module_instance.module().as_str() == segment.source_path)
+                .ok_or_else(|| {
+                    format!(
+                        "source-map segment has no region for {:?}",
+                        segment.source_path
+                    )
+                })?;
+            assert!(segment.generated_start >= region.generated_start);
+            assert!(segment.generated_end <= region.generated_end);
             assert!(segment.generated_end > segment.generated_start);
-            assert_eq!(segment.generated_start_point.byte_offset, generated_start);
+            assert_eq!(
+                segment.generated_start_point.byte_offset,
+                segment.generated_start
+            );
             assert_eq!(segment.pass_id, "linked-order-emission");
         }
+        for region in &materialization.module_regions {
+            assert!(segments.iter().any(|segment| {
+                segment.source_path == region.module_instance.module().as_str()
+                    && segment.original_start > 0
+            }));
+        }
+        let token_lines = segments
+            .iter()
+            .filter(|segment| segment.source_path == "src/tokens.css")
+            .map(|segment| segment.original_start_point.line)
+            .collect::<BTreeSet<_>>();
+        assert!(token_lines.len() >= 3);
+        let third_rule = segments
+            .iter()
+            .filter(|segment| segment.source_path == "src/tokens.css")
+            .find(|segment| segment.original_start_point.line == 2)
+            .ok_or_else(|| "third token rule should map to its source line".to_string())?;
+        assert_eq!(third_rule.original_start_point.line, 2);
+
+        let entry_instance = linked
+            .entrypoints
+            .first()
+            .ok_or_else(|| "source-map fixture should have an entrypoint".to_string())?;
+        let mut bundle_execution = module_executions
+            .iter()
+            .find(|module| &module.module_instance == entry_instance)
+            .ok_or_else(|| "source-map fixture should retain its entry execution".to_string())?
+            .execution
+            .clone();
+        bundle_execution.output_byte_len = materialization.output_css.len();
+        bundle_execution
+            .output_css
+            .clone_from(&materialization.output_css);
+        let (source_map, _) = summarize_omena_query_linked_bundle_source_map_v3(
+            "src/app.css",
+            &style_sources,
+            &bundle_execution,
+            &materialization,
+            &module_executions,
+        )?;
+        assert_eq!(
+            &materialization.output_css[third_rule.generated_start..third_rule.generated_end],
+            "linked-map-token-c"
+        );
+        let generated_point = &third_rule.generated_start_point;
+        let decoded = decode_source_map_mappings(&source_map.mappings)?;
+        let decoded_third_rule = decoded
+            .iter()
+            .filter(|segment| {
+                segment.generated_line < generated_point.line
+                    || (segment.generated_line == generated_point.line
+                        && segment.generated_column <= generated_point.utf8_column)
+            })
+            .max_by_key(|segment| (segment.generated_line, segment.generated_column))
+            .ok_or_else(|| "third token rule should have a decoded mapping".to_string())?;
+        assert_eq!(
+            source_map.sources[decoded_third_rule.source_index],
+            "src/tokens.css"
+        );
+        assert_eq!(decoded_third_rule.original_line, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn linked_bundle_source_map_falls_back_when_module_output_changes() -> Result<(), String> {
+        let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.css".to_string(),
+            style_source: ".app { color: red; }".to_string(),
+        }];
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "src/app.css",
+            ".app { color: red; }",
+            omena_parser::StyleDialect::Css,
+        )];
+        let linked = link_omena_transform_bundle_modules(&["src/app.css"], &modules)
+            .map_err(|error| format!("fallback fixture should link: {error:?}"))?;
+        let module_instance = linked
+            .module_instances
+            .first()
+            .ok_or_else(|| "fallback fixture should contain one module".to_string())?
+            .clone();
+        let transformed = vec![TransformBundleTransformedModuleV0::new(
+            module_instance.clone(),
+            ".app{color:red}",
+        )];
+        let materialization =
+            materialize_omena_transform_bundle_linked_stylesheet(&linked, &transformed)
+                .map_err(|error| format!("fallback fixture should materialize: {error:?}"))?;
+        let mut execution = execute_omena_query_consumer_build_style_source_with_context(
+            "src/app.css",
+            ".app { color: red; }",
+            &[],
+            &TransformExecutionContextV0::default(),
+        )
+        .execution;
+        execution.output_css = ".app{color:red}".to_string();
+        execution.output_byte_len = execution.output_css.len();
+        let (segments, dispositions) = linked_bundle_source_map_segments(
+            &style_sources,
+            &materialization.output_css,
+            &materialization,
+            &[LinkedModuleExecutionV0 {
+                module_instance,
+                execution,
+            }],
+        )?;
+
+        assert_eq!(segments.len(), 1);
+        assert_eq!(dispositions.len(), 1);
+        assert_eq!(
+            dispositions[0].granularity,
+            OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback
+        );
+        assert_eq!(
+            dispositions[0].fallback_reason,
+            Some("module output differs from its source after transform execution")
+        );
         Ok(())
     }
 }

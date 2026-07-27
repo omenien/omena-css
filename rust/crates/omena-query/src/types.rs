@@ -795,6 +795,88 @@ pub struct OmenaQueryBundleResultV0 {
     pub closed_world_decision_parity: OmenaQueryClosedWorldDecisionParityV0,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum OmenaQueryExecutionEvidenceScopeV0 {
+    Entry,
+    Bundle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryExecutionFieldScopeV0 {
+    pub field_name: &'static str,
+    pub scope: OmenaQueryExecutionEvidenceScopeV0,
+    pub derivation: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryBundleModuleExecutionByteFactsV0 {
+    pub module_instance: omena_parser::ModuleInstanceKeyV0,
+    pub input_byte_len: usize,
+    pub output_byte_len: usize,
+    pub generated_start: usize,
+    pub generated_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryBundleCompositeExecutionByteFactsV0 {
+    pub module_count: usize,
+    pub summed_module_input_byte_len: usize,
+    pub summed_module_output_byte_len: usize,
+    pub inter_module_separator_byte_len: usize,
+    pub materialized_output_byte_len: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum OmenaQueryLinkedSourceMapGranularityV0 {
+    CstAnchors,
+    WholeModuleFallback,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryLinkedSourceMapDispositionV0 {
+    pub module_instance: omena_parser::ModuleInstanceKeyV0,
+    pub granularity: OmenaQueryLinkedSourceMapGranularityV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_reason: Option<&'static str>,
+    pub segment_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryBundleExecutionScopeEvidenceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub entry_module_instance: omena_parser::ModuleInstanceKeyV0,
+    pub field_scopes: Vec<OmenaQueryExecutionFieldScopeV0>,
+    pub module_executions: Vec<OmenaQueryBundleModuleExecutionByteFactsV0>,
+    pub bundle_composite: OmenaQueryBundleCompositeExecutionByteFactsV0,
+    pub source_map_dispositions: Vec<OmenaQueryLinkedSourceMapDispositionV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryBundleExecutionScopeResultV0 {
+    pub bundle_result: OmenaQueryBundleResultV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_scope: Option<OmenaQueryBundleExecutionScopeEvidenceV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reachability_attribution: Option<OmenaQueryModuleReachabilityAttributionReportV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

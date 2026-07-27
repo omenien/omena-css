@@ -403,6 +403,9 @@ pub omena_query::OmenaQueryDynamicClassValueInputV0::PrefixSuffix::suffix: alloc
 pub omena_query::OmenaQueryDynamicClassValueInputV0::Suffix
 pub omena_query::OmenaQueryDynamicClassValueInputV0::Suffix::suffix: alloc::string::String
 pub omena_query::OmenaQueryDynamicClassValueInputV0::Top
+#[non_exhaustive] pub enum omena_query::OmenaQueryExecutionEvidenceScopeV0
+pub omena_query::OmenaQueryExecutionEvidenceScopeV0::Bundle
+pub omena_query::OmenaQueryExecutionEvidenceScopeV0::Entry
 pub enum omena_query::OmenaQueryExplainAvailabilityV0
 pub omena_query::OmenaQueryExplainAvailabilityV0::Available
 pub omena_query::OmenaQueryExplainAvailabilityV0::NotFound
@@ -534,6 +537,9 @@ pub enum omena_query::OmenaQueryExternalModuleModeV0
 pub omena_query::OmenaQueryExternalModuleModeV0::Auto
 pub omena_query::OmenaQueryExternalModuleModeV0::Ignored
 pub omena_query::OmenaQueryExternalModuleModeV0::Sif
+#[non_exhaustive] pub enum omena_query::OmenaQueryLinkedSourceMapGranularityV0
+pub omena_query::OmenaQueryLinkedSourceMapGranularityV0::CstAnchors
+pub omena_query::OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback
 #[non_exhaustive] pub enum omena_query::OmenaQueryModuleReachabilityAttributionKindV0
 pub omena_query::OmenaQueryModuleReachabilityAttributionKindV0::NoApplicableProjection
 pub omena_query::OmenaQueryModuleReachabilityAttributionKindV0::TargetedAndUnattributedProjection
@@ -773,6 +779,12 @@ pub omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0::product: &'static str
 pub omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0::ready_surfaces: alloc::vec::Vec<&'static str>
 pub omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0::schema_version: &'static str
 pub omena_query::OmenaQueryBundleCodeSplitWorkspacePlanV0::shared_boundary_count: usize
+#[non_exhaustive] pub struct omena_query::OmenaQueryBundleCompositeExecutionByteFactsV0
+pub omena_query::OmenaQueryBundleCompositeExecutionByteFactsV0::inter_module_separator_byte_len: usize
+pub omena_query::OmenaQueryBundleCompositeExecutionByteFactsV0::materialized_output_byte_len: usize
+pub omena_query::OmenaQueryBundleCompositeExecutionByteFactsV0::module_count: usize
+pub omena_query::OmenaQueryBundleCompositeExecutionByteFactsV0::summed_module_input_byte_len: usize
+pub omena_query::OmenaQueryBundleCompositeExecutionByteFactsV0::summed_module_output_byte_len: usize
 pub struct omena_query::OmenaQueryBundleEvidenceGateV0
 pub omena_query::OmenaQueryBundleEvidenceGateV0::name: &'static str
 pub omena_query::OmenaQueryBundleEvidenceGateV0::passed: bool
@@ -786,6 +798,24 @@ pub omena_query::OmenaQueryBundleEvidenceManifestV0::reachability: core::option:
 pub omena_query::OmenaQueryBundleEvidenceManifestV0::schema_version: &'static str
 pub omena_query::OmenaQueryBundleEvidenceManifestV0::source_precision: core::option::Option<omena_parser::closed_world::contract::ClosedWorldSourcePrecisionSummaryV0>
 pub omena_query::OmenaQueryBundleEvidenceManifestV0::style_path: alloc::string::String
+#[non_exhaustive] pub struct omena_query::OmenaQueryBundleExecutionScopeEvidenceV0
+pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::bundle_composite: omena_query::OmenaQueryBundleCompositeExecutionByteFactsV0
+pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::entry_module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::field_scopes: alloc::vec::Vec<omena_query::OmenaQueryExecutionFieldScopeV0>
+pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::module_executions: alloc::vec::Vec<omena_query::OmenaQueryBundleModuleExecutionByteFactsV0>
+pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::product: &'static str
+pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::schema_version: &'static str
+pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::source_map_dispositions: alloc::vec::Vec<omena_query::OmenaQueryLinkedSourceMapDispositionV0>
+#[non_exhaustive] pub struct omena_query::OmenaQueryBundleExecutionScopeResultV0
+pub omena_query::OmenaQueryBundleExecutionScopeResultV0::bundle_result: omena_query::OmenaQueryBundleResultV0
+pub omena_query::OmenaQueryBundleExecutionScopeResultV0::execution_scope: core::option::Option<omena_query::OmenaQueryBundleExecutionScopeEvidenceV0>
+pub omena_query::OmenaQueryBundleExecutionScopeResultV0::reachability_attribution: core::option::Option<omena_query::OmenaQueryModuleReachabilityAttributionReportV0>
+#[non_exhaustive] pub struct omena_query::OmenaQueryBundleModuleExecutionByteFactsV0
+pub omena_query::OmenaQueryBundleModuleExecutionByteFactsV0::generated_end: usize
+pub omena_query::OmenaQueryBundleModuleExecutionByteFactsV0::generated_start: usize
+pub omena_query::OmenaQueryBundleModuleExecutionByteFactsV0::input_byte_len: usize
+pub omena_query::OmenaQueryBundleModuleExecutionByteFactsV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_query::OmenaQueryBundleModuleExecutionByteFactsV0::output_byte_len: usize
 pub struct omena_query::OmenaQueryBundlePlanInputV0<'a>
 pub omena_query::OmenaQueryBundlePlanInputV0::asset_rewrites: alloc::vec::Vec<omena_bundler::TransformBundleAssetUrlRewriteSummaryV0>
 pub omena_query::OmenaQueryBundlePlanInputV0::bundle_entry_style_paths: &'a [alloc::string::String]
@@ -1215,6 +1245,10 @@ pub omena_query::OmenaQueryEvaluationRuntimeSummaryV0::selected_query_adapter_ca
 pub omena_query::OmenaQueryEvaluationRuntimeSummaryV0::source_resolution_expression_count: usize
 pub omena_query::OmenaQueryEvaluationRuntimeSummaryV0::source_resolution_unresolved_expression_count: usize
 pub omena_query::OmenaQueryEvaluationRuntimeSummaryV0::style_document_summary_source: &'static str
+#[non_exhaustive] pub struct omena_query::OmenaQueryExecutionFieldScopeV0
+pub omena_query::OmenaQueryExecutionFieldScopeV0::derivation: &'static str
+pub omena_query::OmenaQueryExecutionFieldScopeV0::field_name: &'static str
+pub omena_query::OmenaQueryExecutionFieldScopeV0::scope: omena_query::OmenaQueryExecutionEvidenceScopeV0
 pub struct omena_query::OmenaQueryExplainFactV0
 impl omena_query::OmenaQueryExplainFactV0
 pub fn omena_query::OmenaQueryExplainFactV0::reference(&self) -> &omena_query::OmenaQueryExplainFactReferenceV0
@@ -1256,6 +1290,11 @@ pub omena_query::OmenaQueryInsightV0::scope: &'static str
 pub omena_query::OmenaQueryInsightV0::shorthand_combinable: core::option::Option<omena_query::OmenaQueryShorthandCombinableV0>
 pub omena_query::OmenaQueryInsightV0::source: &'static str
 pub omena_query::OmenaQueryInsightV0::title: alloc::string::String
+#[non_exhaustive] pub struct omena_query::OmenaQueryLinkedSourceMapDispositionV0
+pub omena_query::OmenaQueryLinkedSourceMapDispositionV0::fallback_reason: core::option::Option<&'static str>
+pub omena_query::OmenaQueryLinkedSourceMapDispositionV0::granularity: omena_query::OmenaQueryLinkedSourceMapGranularityV0
+pub omena_query::OmenaQueryLinkedSourceMapDispositionV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_query::OmenaQueryLinkedSourceMapDispositionV0::segment_count: usize
 pub struct omena_query::OmenaQueryM4AxisCReadinessSummaryV0
 pub omena_query::OmenaQueryM4AxisCReadinessSummaryV0::checked_surfaces: alloc::vec::Vec<&'static str>
 pub omena_query::OmenaQueryM4AxisCReadinessSummaryV0::issue_63_provenance_round_trip_ready: bool
@@ -2431,6 +2470,9 @@ pub fn omena_query::round_trip_omena_query_linear_provenance_labels(&omena_query
 pub fn omena_query::run_omena_query_bundle(omena_query::OmenaQueryBundlePlanInputV0<'_>) -> core::result::Result<omena_query::OmenaQueryBundleArtifactV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleArtifactV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_evidence_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleWithEvidenceV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_execution_scope_evidence_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleExecutionScopeResultV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleExecutionScopeResultV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0, &omena_query::OmenaQueryEngineInputModuleReachabilityV0) -> core::result::Result<omena_query::OmenaQueryBundleExecutionScopeResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_module_reachability_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0, &omena_query::OmenaQueryEngineInputModuleReachabilityV0) -> core::result::Result<omena_query::OmenaQueryModuleAttributedBundleResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_semantic_inputs(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0]) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_semantic_inputs_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
