@@ -1,8 +1,6 @@
 # Releasing
 
-This is the maintainer runbook for publishing the Rust crate train, npm
-packages, VS Code extension, and Open VSX extension. Run releases from a clean,
-reviewed commit; registry uploads are not a substitute for CI evidence.
+This runbook covers all publish channels. Release only clean, reviewed commits with CI evidence.
 
 ## Version Axes
 
@@ -14,19 +12,14 @@ The project has three independent version lines:
 | VS Code extension          | root `package.json`                 | `vscode-vX.Y.Z`  | Marketplace, Open VSX, VSIX, SBOM, attestation |
 | Private TypeScript tooling | package-local manifests             | none             | not published                                  |
 
-The machine-checked axis and reservation policy is documented in
-[`docs/governance/version-governance.md`](docs/governance/version-governance.md).
-The current coordinated release is crate/npm `0.3.0` and extension `5.3.0`.
-Registry state remains the authority for whether a version is already live;
-never infer publishability from this document alone.
+See the machine-checked [version policy](docs/governance/version-governance.md).
+Current versions are crate/npm `0.3.0` and extension `5.3.0`; verify live state at each registry.
 
 ## Release-note authority
 
-Every GitHub Release body is rendered from
-[`docs/releases/manifest.json`](docs/releases/manifest.json) and its registered
-notes file. This rule applies equally to a maintainer, an agent, a rerun, and a
-tag-triggered workflow. Generated commit lists and ad hoc workflow text may not
-replace the registered body.
+Every GitHub Release follows the [release-note contract](docs/releases/README.md)
+and is rendered from the manifest plus reviewed notes. Maintainers, agents,
+reruns, and tag workflows have no exception.
 
 Before creating either release tag:
 
@@ -36,19 +29,8 @@ pnpm omena-check run release/check/release-notes
 pnpm omena-check run rust/crate-documentation
 ```
 
-The extension, CLI, crate-train, and npm integrity paths run these checks again.
-GitHub-producing workflows render the body at the tagged commit, publish it,
-then read the Release back through the API and require byte-equivalent Markdown.
-This prevents two workflows sharing `release-vX.Y.Z` from replacing one
-another's notes.
-
-Earlier releases must not be reused as closure artifacts. The `5.0.0` and
-`5.1.x` tags remain historical records.
-
-Historical extension ledger: `3.2.0`, `3.2.1`, `3.3.0`, `3.4.0`, `3.5.0`,
-`3.6.0`, `3.7.0`, `3.8.0`, `3.9.0`, `3.10.0`, `3.11.0`, `3.12.0`, `3.13.0`,
-`3.14.0`, `3.15.0`, `4.0.0`, `4.1.0`, `5.0.0`, `5.1.0`, `5.1.1`. This ledger
-is historical evidence, not a list of reusable versions.
+Publish paths rerun the gates and verify the rendered Release through the API.
+Earlier tags are historical evidence, not reusable closure artifacts.
 
 ## Before Publishing
 

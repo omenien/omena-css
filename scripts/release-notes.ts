@@ -48,6 +48,9 @@ async function main(): Promise<void> {
     case "verify-github":
       verifyGitHubCommand(args);
       return;
+    case "export-github":
+      exportGitHubCommand(args);
+      return;
     case "backfill":
       backfillCommand(args);
       return;
@@ -143,6 +146,24 @@ function checkCommand(): void {
       extensionWorkflow.indexOf("./scripts/publish-extension.sh"),
     "extension notes must render before any marketplace publish",
   );
+  const cliWorkflow = workflows.find(
+    ([relativePath]) => relativePath === ".github/workflows/release-cli.yml",
+  )?.[1];
+  assert.ok(cliWorkflow);
+  const cliBuildJob = cliWorkflow.slice(
+    cliWorkflow.indexOf("  build:"),
+    cliWorkflow.indexOf("  release:"),
+  );
+  const cliReleaseJob = cliWorkflow.slice(cliWorkflow.indexOf("  release:"));
+  assert.ok(
+    cliBuildJob.includes("ref: ${{ inputs.tag || github.ref }}"),
+    "historical CLI binaries must be built from the requested immutable tag",
+  );
+  assert.ok(
+    cliReleaseJob.includes("github.event.repository.default_branch") &&
+      cliReleaseJob.includes("export-github"),
+    "historical CLI rebuilds must use current tooling and preserve the existing release body",
+  );
   const directPublisher = readFileSync(path.join(repoRoot, "scripts/publish-extension.sh"), "utf8");
   assert.ok(
     directPublisher.indexOf("release/check/release-notes") <
@@ -195,6 +216,21 @@ function verifyGitHubCommand(args: readonly string[]): void {
   const actual = normalizeMarkdown(release.body ?? "");
   assert.equal(actual, expected, `GitHub Release body for ${tag} differs from ${expectedPath}`);
   process.stdout.write(`GitHub Release body verified: ${tag}\n`);
+}
+
+function exportGitHubCommand(args: readonly string[]): void {
+  const tag = requiredOption(args, "--tag");
+  const output = path.resolve(repoRoot, requiredOption(args, "--output"));
+  const release = githubJson<GitHubRelease>([
+    "api",
+    `repos/${loadManifest().repository}/releases/tags/${tag}`,
+  ]);
+  const body = normalizeMarkdown(release.body ?? "");
+  assert.ok(body.length > 0, `GitHub Release ${tag} has no body to preserve`);
+  writeFileSync(output, `${body}\n`);
+  process.stdout.write(
+    `GitHub Release body exported: ${tag} -> ${path.relative(repoRoot, output)}\n`,
+  );
 }
 
 function backfillCommand(args: readonly string[]): void {

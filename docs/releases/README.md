@@ -55,3 +55,8 @@ node --import tsx ./scripts/release-notes.ts backfill --apply
 
 The command is idempotent. Run it with an authenticated `gh` session and review
 the dry-run summary before applying remote changes.
+
+A manual `Release CLI` rebuild checks out the requested immutable tag only for
+the binaries. Its release job uses the current tooling and preserves the
+already-curated GitHub Release body, so rebuilding a historical artifact cannot
+replace its notes or require old commits to contain the current manifest.
