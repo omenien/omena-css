@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -163,6 +163,10 @@ const serialized = `${JSON.stringify(census, null, 2)}\n`;
 
 if (writeMode) {
   fs.writeFileSync(censusPath, serialized);
+  execFileSync(path.join(repoRoot, "node_modules/.bin/oxfmt"), ["--write", censusPath], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
 } else {
   // FALSIFIER: id=module-qualified-gate-003 class=liveness via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(existing, `module-qualified product-path census is missing: ${censusPath}`);

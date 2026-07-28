@@ -57,10 +57,10 @@
   },
   "current": {
     "qualifiedExecutor": {
-      "totalOccurrences": 19,
+      "totalOccurrences": 20,
       "definitionOccurrences": 3,
       "reexportOccurrences": 6,
-      "testOccurrences": 6,
+      "testOccurrences": 7,
       "otherProductionOccurrences": 2,
       "productOccurrencesByCrate": {
         "omena-query": 2,
@@ -97,10 +97,10 @@
       }
     },
     "moduleQualifiedShake": {
-      "totalOccurrences": 6,
+      "totalOccurrences": 8,
       "definitionOccurrences": 0,
       "reexportOccurrences": 0,
-      "testOccurrences": 3,
+      "testOccurrences": 5,
       "otherProductionOccurrences": 3,
       "productOccurrencesByCrate": {
         "omena-query": 0,
