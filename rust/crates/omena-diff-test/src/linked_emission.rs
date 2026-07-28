@@ -1248,6 +1248,16 @@ fn analyze_linked_emission_fixture_v0(
     let legacy_emission_path = legacy.bundle_result.artifact.emission_path.as_wire_label();
     let linked_emission_path = linked.bundle_result.artifact.emission_path.as_wire_label();
     let linked_attribution = linked.reachability_attribution.clone();
+    if let Some(attribution) = linked_attribution.as_ref()
+        && !attribution.lost_class_names().is_empty()
+    {
+        // FALSIFIER: id=linked-emission-attribution-domain-consistency class=structuralEntailment via=STRUCTURAL producer=entailed owner=linked-emission-instrument entry=shared-admission-placement-domain reentry=split-module-attribution-domain
+        return Err(format!(
+            "fixture {} exposed names outside the shared attribution domain: {}",
+            fixture.id,
+            attribution.lost_class_names().join(", ")
+        ));
+    }
     let live_declared_names_by_module = linked_attribution
         .as_ref()
         .map(|attribution| live_declared_names_by_module_v0(fixture, attribution))

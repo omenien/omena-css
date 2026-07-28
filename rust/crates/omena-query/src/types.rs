@@ -1302,12 +1302,8 @@ impl OmenaQueryEngineInputModuleReachabilityV0 {
         style_paths: impl IntoIterator<Item = &'a str>,
         candidate_class_names: &[String],
     ) -> Vec<String> {
-        let style_paths = style_paths
-            .into_iter()
-            .flat_map(|style_path| {
-                attribution_domain_style_paths(style_path, self.known_style_paths.as_slice())
-            })
-            .collect::<BTreeSet<_>>();
+        let style_paths =
+            module_attribution_domain_style_paths(style_paths, self.known_style_paths.as_slice());
 
         candidate_class_names
             .iter()
@@ -1398,6 +1394,18 @@ fn attribution_domain_style_paths(style_path: &str, known_style_paths: &[String]
     vec![normalized]
 }
 
+// Admission and placement share this domain so every admitted name either
+// fans out as ownerless or has at least one matching entry to receive it.
+fn module_attribution_domain_style_paths<'a>(
+    style_paths: impl IntoIterator<Item = &'a str>,
+    known_style_paths: &[String],
+) -> BTreeSet<String> {
+    style_paths
+        .into_iter()
+        .flat_map(|style_path| attribution_domain_style_paths(style_path, known_style_paths))
+        .collect()
+}
+
 fn matching_style_paths(
     known_style_paths: &[String],
     matches: impl Fn(&String) -> bool,
@@ -1454,19 +1462,17 @@ pub struct OmenaQueryModuleReachabilityAttributionReportV0 {
 }
 
 impl OmenaQueryModuleReachabilityAttributionReportV0 {
-    pub(crate) fn try_from_style_paths<'a>(
+    pub(crate) fn from_style_paths<'a>(
         attribution: &OmenaQueryEngineInputModuleReachabilityV0,
         style_paths: impl IntoIterator<Item = &'a str>,
         flat_class_names: &[String],
-    ) -> Result<Self, String> {
-        let mut style_paths = style_paths
-            .into_iter()
-            .flat_map(|style_path| {
-                attribution_domain_style_paths(style_path, attribution.known_style_paths.as_slice())
-            })
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
+    ) -> Self {
+        let mut style_paths = module_attribution_domain_style_paths(
+            style_paths,
+            attribution.known_style_paths.as_slice(),
+        )
+        .into_iter()
+        .collect::<Vec<_>>();
         style_paths.sort();
         style_paths.dedup();
         let mut entries = style_paths
@@ -1515,11 +1521,6 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let normalization_disagreement_class_names = flat_class_names
-            .iter()
-            .filter(|name| !attributed_class_names.contains(name))
-            .cloned()
-            .collect::<Vec<_>>();
         let unmatched_target_style_paths = attribution
             .targeted_style_paths()
             .filter(|path| !style_path_set.contains(path))
@@ -1530,25 +1531,17 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             .iter()
             .filter(|entry| entry.was_attempted() && entry.class_names.is_empty())
             .count();
-        let report = Self {
+        Self {
             entries,
             projection_summary_evaluation_count: attribution.projection_summary_evaluation_count(),
             projected_class_names: attribution.projected_class_names.clone(),
             unattributed_class_names: attribution.unattributed_class_names.clone(),
             flat_class_names,
             attributed_class_names,
-            lost_class_names: normalization_disagreement_class_names,
+            lost_class_names: Vec::new(),
             unmatched_target_style_paths,
             attempted_module_count,
             attributed_empty_module_count,
-        };
-        if report.lost_class_names.is_empty() {
-            Ok(report)
-        } else {
-            Err(format!(
-                "module reachability attribution domain normalization disagreement for class names: {}",
-                report.lost_class_names.join(", ")
-            ))
         }
     }
 
@@ -1596,7 +1589,10 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
         self.attributed_class_names.as_slice()
     }
 
-    /// Compatibility accessor for attribution-domain normalization disagreements.
+    /// Always-empty compatibility view for the shared admission/placement domain.
+    ///
+    /// This does not establish whether linked output retained every live declaration;
+    /// emission-level checks own that separate guarantee.
     pub fn lost_class_names(&self) -> &[String] {
         self.lost_class_names.as_slice()
     }

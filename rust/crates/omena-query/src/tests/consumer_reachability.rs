@@ -802,7 +802,7 @@ fn workspace_reachability_does_not_hide_missing_dependency_blocker() -> Result<(
 }
 
 #[test]
-fn synthetic_attribution_input_reports_normalization_disagreement() {
+fn synthetic_attribution_input_is_excluded_by_the_product_domain() {
     let entry_path = "src/entry.module.css";
     let outside_path = "src/outside.module.css";
     let input = module_reachability_input(
@@ -824,17 +824,101 @@ fn synthetic_attribution_input_reports_normalization_disagreement() {
             .is_empty(),
         "the product domain filter must not manufacture this synthetic input"
     );
-    assert_eq!(
-        OmenaQueryModuleReachabilityAttributionReportV0::try_from_style_paths(
-            &reachability,
-            [entry_path],
-            &["outside-live".to_string()],
+}
+
+#[test]
+fn production_attribution_domains_assign_every_admitted_name() -> Result<(), String> {
+    let cases = [
+        (
+            "normalized duplicate paths",
+            module_reachability_input(
+                &[("entry-ref", "src/entry.module.css", "entry-live")],
+                &[
+                    ("src/entry.module.css", ".entry-live {}", &["entry-live"]),
+                    ("src/./entry.module.css", ".entry-live {}", &["entry-live"]),
+                ],
+            ),
+            "src/entry.module.css",
+            vec!["src/entry.module.css"],
         ),
-        Err(
-            "module reachability attribution domain normalization disagreement for class names: outside-live"
-                .to_string()
-        )
-    );
+        (
+            "ambiguous suffix",
+            module_reachability_input(
+                &[
+                    (
+                        "first-ref",
+                        "/workspace/first/Button.module.css",
+                        "first-live",
+                    ),
+                    (
+                        "second-ref",
+                        "/workspace/second/Button.module.css",
+                        "second-live",
+                    ),
+                ],
+                &[
+                    (
+                        "/workspace/first/Button.module.css",
+                        ".first-live {}",
+                        &["first-live"],
+                    ),
+                    (
+                        "/workspace/second/Button.module.css",
+                        ".second-live {}",
+                        &["second-live"],
+                    ),
+                ],
+            ),
+            "/workspace/first/Button.module.css",
+            vec!["Button.module.css"],
+        ),
+        (
+            "case-insensitive owner",
+            module_reachability_input(
+                &[("entry-ref", "src/entry.module.css", "entry-live")],
+                &[("SRC/Entry.module.css", ".entry-live {}", &["entry-live"])],
+            ),
+            "src/entry.module.css",
+            vec!["src/entry.module.css"],
+        ),
+        (
+            "reference without a declared owner",
+            module_reachability_input(
+                &[("missing-ref", "src/missing.module.css", "missing-live")],
+                &[("src/entry.module.css", ".entry-live {}", &["entry-live"])],
+            ),
+            "src/entry.module.css",
+            vec!["src/entry.module.css"],
+        ),
+    ];
+
+    for (label, input, target_style_path, build_style_paths) in cases {
+        let reachability = derive_omena_query_module_reachability_from_engine_input(
+            &input,
+            target_style_path,
+            true,
+        );
+        let flat_class_names = reachability.flat_class_names_for_style_paths(
+            build_style_paths.iter().copied(),
+            reachability.projected_class_names(),
+        );
+        let report = OmenaQueryModuleReachabilityAttributionReportV0::from_style_paths(
+            &reachability,
+            build_style_paths.iter().copied(),
+            flat_class_names.as_slice(),
+        );
+        assert!(
+            report.lost_class_names().is_empty(),
+            "{label} left admitted names without an attribution entry"
+        );
+        assert_eq!(
+            report.flat_class_names(),
+            report.attributed_class_names(),
+            "{label} changed the admitted-name set during placement"
+        );
+    }
+
+    Ok(())
 }
 
 #[test]
@@ -891,7 +975,7 @@ fn missing_target_source_precedes_attribution_domain_validation() {
     assert_eq!(
         result,
         Err(
-            "target style path \"src/entry.module.css\" was not found in workspace style sources"
+            "module-attributed bundle target style path \"src/entry.module.css\" was not found in workspace style sources"
                 .to_string()
         )
     );

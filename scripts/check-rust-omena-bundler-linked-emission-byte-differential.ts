@@ -228,6 +228,41 @@ const linkedEmissionSource = readFileSync(
   "rust/crates/omena-diff-test/src/linked_emission.rs",
   "utf8",
 );
+const queryTypesSource = readFileSync("rust/crates/omena-query/src/types.rs", "utf8");
+const attributionAdmissionStart = queryTypesSource.indexOf(
+  "pub(crate) fn flat_class_names_for_style_paths",
+);
+const attributionAdmissionEnd = queryTypesSource.indexOf("\n    }\n}", attributionAdmissionStart);
+const attributionPlacementStart = queryTypesSource.indexOf("pub(crate) fn from_style_paths");
+const attributionPlacementEnd = queryTypesSource.indexOf(
+  "\n    pub fn entries",
+  attributionPlacementStart,
+);
+const attributionDomainSymbol = "module_attribution_domain_style_paths";
+const attributionDomainCensus = {
+  definitionCount: countMatches(
+    queryTypesSource,
+    /\bfn\s+module_attribution_domain_style_paths\s*</gu,
+  ),
+  admissionCallCount: countMatches(
+    queryTypesSource.slice(attributionAdmissionStart, attributionAdmissionEnd),
+    /\bmodule_attribution_domain_style_paths\s*\(/gu,
+  ),
+  placementCallCount: countMatches(
+    queryTypesSource.slice(attributionPlacementStart, attributionPlacementEnd),
+    /\bmodule_attribution_domain_style_paths\s*\(/gu,
+  ),
+};
+// FALSIFIER: id=linked-emission-attribution-domain-single-authority class=structuralEntailment via=STRUCTURAL producer=entailed owner=linked-emission-instrument entry=one-definition-two-consumers reentry=duplicate-module-attribution-domain
+assert.deepEqual(
+  attributionDomainCensus,
+  {
+    definitionCount: 1,
+    admissionCallCount: 1,
+    placementCallCount: 1,
+  },
+  `${attributionDomainSymbol} must remain the single admission and placement domain authority`,
+);
 const gateSources = [
   {
     path: fileURLToPath(import.meta.url),

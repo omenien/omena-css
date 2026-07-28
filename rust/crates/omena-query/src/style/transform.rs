@@ -400,7 +400,7 @@ pub fn run_omena_query_bundle_with_module_reachability_and_execution_scope_evide
 ) -> Result<OmenaQueryBundleExecutionScopeResultV0, String> {
     if find_target_style_source(input.target_style_path, input.style_sources).is_none() {
         return Err(format!(
-            "target style path {:?} was not found in workspace style sources",
+            "module-attributed bundle target style path {:?} was not found in workspace style sources",
             input.target_style_path
         ));
     }
@@ -420,11 +420,11 @@ pub fn run_omena_query_bundle_with_module_reachability_and_execution_scope_evide
         style_paths.iter().copied(),
         flat_context.reachable_class_names.as_slice(),
     );
-    let attribution_report = OmenaQueryModuleReachabilityAttributionReportV0::try_from_style_paths(
+    let attribution_report = OmenaQueryModuleReachabilityAttributionReportV0::from_style_paths(
         module_reachability,
         style_paths.iter().copied(),
         flat_class_names.as_slice(),
-    )?;
+    );
     let run = run_omena_query_bundle_with_optional_module_reachability(
         input,
         external_sifs,
