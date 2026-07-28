@@ -89,6 +89,7 @@ pub(crate) fn load_source_document_index_sidecar(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn store_source_document_index_sidecar(
     workspace_folder_uri: Option<&str>,
     document_uri: &str,

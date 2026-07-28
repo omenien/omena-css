@@ -44,6 +44,7 @@ pub(crate) fn lsp_text_document_state(
     document
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn lsp_text_document_state_with_source_syntax_index(
     uri: String,
     workspace_folder_uri: Option<String>,
