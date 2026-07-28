@@ -3,8 +3,8 @@
   "product": "omena-bundler.linked-emission-byte-differential-baseline",
   "coverageScope": "boundedMultiModuleFixtures",
   "fullCorpusCoverage": false,
-  "minimumFixtureCount": 13,
-  "minimumInDomainFixtureCount": 3,
-  "expectedDivergenceCount": 11,
+  "minimumFixtureCount": 19,
+  "minimumInDomainFixtureCount": 9,
+  "expectedDivergenceCount": 17,
   "maximumUnexpectedDivergenceCount": 1
 }

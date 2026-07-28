@@ -57,6 +57,48 @@
       "justification": "The linked path retains the class reached through composes and the live class nested in an at-rule while removing both unrelated dead selectors."
     },
     {
+      "fixtureId": "two-hop-composes-liveness",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "28688f7115720561e176b68ac4620ea83c8d9acebfb140f9ba10505c0b3a6ec5",
+      "justification": "The authored liveness table keeps both hops of the composed class chain while unrelated declarations remain dead."
+    },
+    {
+      "fixtureId": "package-path-composes-liveness",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "0702cbb2561cea9c881bcbf7285f5d2afb69685789d7c86af42b3fc29689dbb4",
+      "justification": "The linked path retains the declaration reached through a package-shaped module path and removes its unrelated peer."
+    },
+    {
+      "fixtureId": "global-at-rule-liveness",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "89137b769892d5ee28932aad4c924d5348db28af7bb810993a7ce7947fe762cc",
+      "justification": "The linked path preserves directly referenced declarations nested under media, supports, and layer rules while retaining global escapes outside local liveness."
+    },
+    {
+      "fixtureId": "combinator-companion-liveness",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "92447b20a0f3a0d55750699f57ffea8e612048959d8ada30f98e16cc26c2fc22",
+      "justification": "A direct reference keeps every rule carrying the live class while companion names remain outside the per-name liveness set."
+    },
+    {
+      "fixtureId": "workspace-only-referrer-liveness",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "c3fdd505e2215ce1eb8e64d34a6f65034d0ac710d6d01b5e3d6d008e40ae383a",
+      "justification": "A workspace-only stylesheet reference keeps the composed build-module declaration without admitting its unrelated peer."
+    },
+    {
+      "fixtureId": "shaken-referrer-liveness",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "5c18f4dd7e5003503d314fae9175fd6686d8cb9588e1e06673b01a4b6c2550b6",
+      "justification": "The authored table records that declarations reachable only through an unreferenced referrer remain dead while the entry declaration stays live."
+    },
+    {
       "fixtureId": "element-only-reset-module",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],

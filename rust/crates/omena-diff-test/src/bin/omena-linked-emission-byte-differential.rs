@@ -20,6 +20,10 @@ fn main() {
         LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability
     } else if std::env::args().any(|arg| arg == "--inject-unattributed-reference") {
         LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference
+    } else if std::env::args().any(|arg| arg == "--inject-authored-liveness-flip") {
+        LinkedEmissionByteDifferentialPerturbationV0::FlipAuthoredLivenessExpectation
+    } else if std::env::args().any(|arg| arg == "--inject-missing-fixture") {
+        LinkedEmissionByteDifferentialPerturbationV0::DropFixture
     } else {
         LinkedEmissionByteDifferentialPerturbationV0::None
     };

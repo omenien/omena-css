@@ -3,12 +3,12 @@
   "product": "omena-diff-test.linked-emission-coverage-census",
   "coverageScope": "boundedMultiModuleFixtures",
   "fullCorpusCoverage": false,
-  "populationCount": 16,
-  "coveredShapeCount": 12,
+  "populationCount": 22,
+  "coveredShapeCount": 18,
   "notCoveredShapeCount": 4,
-  "fixtureCount": 13,
-  "moduleCount": 32,
-  "markerObservableModuleCount": 27,
+  "fixtureCount": 19,
+  "moduleCount": 46,
+  "markerObservableModuleCount": 41,
   "blindSpotModuleCount": 5,
   "unknownStructuralSelectorCount": 0,
   "unknownAtRuleCount": 0,
@@ -27,16 +27,93 @@
     }
   ],
   "reachabilityInputFixtureIds": [
+    "combinator-companion-liveness",
+    "global-at-rule-liveness",
     "module-qualified-at-rule-reachability",
     "module-qualified-composes-reachability",
-    "module-qualified-reachability"
+    "module-qualified-reachability",
+    "package-path-composes-liveness",
+    "shaken-referrer-liveness",
+    "two-hop-composes-liveness",
+    "workspace-only-referrer-liveness"
   ],
   "inDomainFixtureIds": [
+    "combinator-companion-liveness",
+    "global-at-rule-liveness",
     "module-qualified-at-rule-reachability",
     "module-qualified-composes-reachability",
-    "module-qualified-reachability"
+    "module-qualified-reachability",
+    "package-path-composes-liveness",
+    "shaken-referrer-liveness",
+    "two-hop-composes-liveness",
+    "workspace-only-referrer-liveness"
   ],
   "liveDeclarationFixtures": [
+    {
+      "fixtureId": "combinator-companion-liveness",
+      "reachabilityReferenceCount": 3,
+      "engineInputStyleSourceCount": 2,
+      "composesResolutionCount": 0,
+      "declarationPreservingPassIds": [
+        "import-inline",
+        "print-css",
+        "css-modules-class-hashing",
+        "tree-shake-class"
+      ],
+      "modules": [
+        {
+          "modulePath": "linked-byte/combinator-companion/entry.module.css",
+          "declaredClassNames": ["entry-marker"],
+          "liveDeclaredClassNames": ["entry-marker"],
+          "authoredLivenessExpectationCount": 1,
+          "authoredLiveClassNames": ["entry-marker"]
+        },
+        {
+          "modulePath": "linked-byte/combinator-companion/selectors.module.css",
+          "declaredClassNames": ["child", "descendant", "fixture-marker", "live", "orphan", "same"],
+          "liveDeclaredClassNames": ["fixture-marker", "live"],
+          "authoredLivenessExpectationCount": 6,
+          "authoredLiveClassNames": ["fixture-marker", "live"]
+        }
+      ]
+    },
+    {
+      "fixtureId": "global-at-rule-liveness",
+      "reachabilityReferenceCount": 4,
+      "engineInputStyleSourceCount": 2,
+      "composesResolutionCount": 0,
+      "declarationPreservingPassIds": [
+        "import-inline",
+        "print-css",
+        "css-modules-class-hashing",
+        "tree-shake-class"
+      ],
+      "modules": [
+        {
+          "modulePath": "linked-byte/global-at-rule/entry.module.css",
+          "declaredClassNames": ["entry"],
+          "liveDeclaredClassNames": ["entry"],
+          "authoredLivenessExpectationCount": 1,
+          "authoredLiveClassNames": ["entry"]
+        },
+        {
+          "modulePath": "linked-byte/global-at-rule/features.module.css",
+          "declaredClassNames": [
+            "global-root",
+            "layer-dead",
+            "layer-live",
+            "media-dead",
+            "media-live",
+            "nested-global",
+            "supports-dead",
+            "supports-live"
+          ],
+          "liveDeclaredClassNames": ["layer-live", "media-live", "supports-live"],
+          "authoredLivenessExpectationCount": 8,
+          "authoredLiveClassNames": ["media-live", "supports-live", "layer-live"]
+        }
+      ]
+    },
     {
       "fixtureId": "module-qualified-at-rule-reachability",
       "reachabilityReferenceCount": 2,
@@ -52,12 +129,16 @@
         {
           "modulePath": "linked-byte/module-qualified-at-rule/entry.module.css",
           "declaredClassNames": ["card"],
-          "liveDeclaredClassNames": ["card"]
+          "liveDeclaredClassNames": ["card"],
+          "authoredLivenessExpectationCount": 1,
+          "authoredLiveClassNames": ["card"]
         },
         {
           "modulePath": "linked-byte/module-qualified-at-rule/media.module.css",
           "declaredClassNames": ["base", "base-dead", "media-dead", "media-live"],
-          "liveDeclaredClassNames": ["base", "media-live"]
+          "liveDeclaredClassNames": ["base", "media-live"],
+          "authoredLivenessExpectationCount": 4,
+          "authoredLiveClassNames": ["base", "media-live"]
         }
       ]
     },
@@ -76,12 +157,16 @@
         {
           "modulePath": "linked-byte/module-qualified-composes/entry.module.css",
           "declaredClassNames": ["card"],
-          "liveDeclaredClassNames": ["card"]
+          "liveDeclaredClassNames": ["card"],
+          "authoredLivenessExpectationCount": 1,
+          "authoredLiveClassNames": ["card"]
         },
         {
           "modulePath": "linked-byte/module-qualified-composes/base.module.css",
           "declaredClassNames": ["base", "base-dead", "base-live"],
-          "liveDeclaredClassNames": ["base", "base-live"]
+          "liveDeclaredClassNames": ["base", "base-live"],
+          "authoredLivenessExpectationCount": 3,
+          "authoredLiveClassNames": ["base", "base-live"]
         }
       ]
     },
@@ -100,12 +185,142 @@
         {
           "modulePath": "linked-byte/module-qualified-reachability/app.module.css",
           "declaredClassNames": ["entry-dead", "entry-marker", "shared"],
-          "liveDeclaredClassNames": ["entry-marker", "shared"]
+          "liveDeclaredClassNames": ["entry-marker", "shared"],
+          "authoredLivenessExpectationCount": 3,
+          "authoredLiveClassNames": ["shared", "entry-marker"]
         },
         {
           "modulePath": "linked-byte/module-qualified-reachability/dependency.module.css",
           "declaredClassNames": ["dependency-dead", "dependency-own", "shared"],
-          "liveDeclaredClassNames": ["dependency-own"]
+          "liveDeclaredClassNames": ["dependency-own"],
+          "authoredLivenessExpectationCount": 3,
+          "authoredLiveClassNames": ["dependency-own"]
+        }
+      ]
+    },
+    {
+      "fixtureId": "package-path-composes-liveness",
+      "reachabilityReferenceCount": 1,
+      "engineInputStyleSourceCount": 2,
+      "composesResolutionCount": 1,
+      "declarationPreservingPassIds": [
+        "import-inline",
+        "print-css",
+        "css-modules-class-hashing",
+        "tree-shake-class"
+      ],
+      "modules": [
+        {
+          "modulePath": "linked-byte/package-composes/entry.module.css",
+          "declaredClassNames": ["card"],
+          "liveDeclaredClassNames": ["card"],
+          "authoredLivenessExpectationCount": 1,
+          "authoredLiveClassNames": ["card"]
+        },
+        {
+          "modulePath": "node_modules/@acme/theme/utility.module.css",
+          "declaredClassNames": ["utility", "utility-dead"],
+          "liveDeclaredClassNames": ["utility"],
+          "authoredLivenessExpectationCount": 2,
+          "authoredLiveClassNames": ["utility"]
+        }
+      ]
+    },
+    {
+      "fixtureId": "shaken-referrer-liveness",
+      "reachabilityReferenceCount": 1,
+      "engineInputStyleSourceCount": 3,
+      "composesResolutionCount": 0,
+      "declarationPreservingPassIds": [
+        "import-inline",
+        "print-css",
+        "css-modules-class-hashing",
+        "tree-shake-class"
+      ],
+      "modules": [
+        {
+          "modulePath": "linked-byte/shaken-referrer/entry.module.css",
+          "declaredClassNames": ["entry-live"],
+          "liveDeclaredClassNames": ["entry-live"],
+          "authoredLivenessExpectationCount": 1,
+          "authoredLiveClassNames": ["entry-live"]
+        },
+        {
+          "modulePath": "linked-byte/shaken-referrer/bridge.module.css",
+          "declaredClassNames": ["bridge"],
+          "liveDeclaredClassNames": [],
+          "authoredLivenessExpectationCount": 1,
+          "authoredLiveClassNames": []
+        },
+        {
+          "modulePath": "linked-byte/shaken-referrer/base.module.css",
+          "declaredClassNames": ["base"],
+          "liveDeclaredClassNames": [],
+          "authoredLivenessExpectationCount": 1,
+          "authoredLiveClassNames": []
+        }
+      ]
+    },
+    {
+      "fixtureId": "two-hop-composes-liveness",
+      "reachabilityReferenceCount": 1,
+      "engineInputStyleSourceCount": 3,
+      "composesResolutionCount": 1,
+      "declarationPreservingPassIds": [
+        "import-inline",
+        "print-css",
+        "css-modules-class-hashing",
+        "tree-shake-class"
+      ],
+      "modules": [
+        {
+          "modulePath": "linked-byte/two-hop-composes/entry.module.css",
+          "declaredClassNames": ["card", "card-dead"],
+          "liveDeclaredClassNames": ["card"],
+          "authoredLivenessExpectationCount": 2,
+          "authoredLiveClassNames": ["card"]
+        },
+        {
+          "modulePath": "linked-byte/two-hop-composes/mid.module.css",
+          "declaredClassNames": ["mid", "mid-dead"],
+          "liveDeclaredClassNames": ["mid"],
+          "authoredLivenessExpectationCount": 2,
+          "authoredLiveClassNames": ["mid"]
+        },
+        {
+          "modulePath": "linked-byte/two-hop-composes/base.module.css",
+          "declaredClassNames": ["base", "base-dead"],
+          "liveDeclaredClassNames": ["base"],
+          "authoredLivenessExpectationCount": 2,
+          "authoredLiveClassNames": ["base"]
+        }
+      ]
+    },
+    {
+      "fixtureId": "workspace-only-referrer-liveness",
+      "reachabilityReferenceCount": 2,
+      "engineInputStyleSourceCount": 3,
+      "composesResolutionCount": 1,
+      "declarationPreservingPassIds": [
+        "import-inline",
+        "print-css",
+        "css-modules-class-hashing",
+        "tree-shake-class"
+      ],
+      "modules": [
+        {
+          "modulePath": "linked-byte/workspace-only-referrer/entry.module.css",
+          "declaredClassNames": ["entry-marker"],
+          "liveDeclaredClassNames": ["entry-marker"],
+          "authoredLivenessExpectationCount": 1,
+          "authoredLiveClassNames": ["entry-marker"]
+        },
+        {
+          "modulePath": "linked-byte/workspace-only-referrer/base.module.css",
+          "declaredClassNames": ["base", "base-dead"],
+          "liveDeclaredClassNames": ["base"],
+          "authoredLivenessExpectationCount": 2,
+          "authoredLiveClassNames": ["base"]
         }
       ]
     }
@@ -113,7 +328,7 @@
   "shapes": [
     {
       "shapeClass": "at-rule-nested-liveness",
-      "fixtureIds": ["module-qualified-at-rule-reachability"]
+      "fixtureIds": ["global-at-rule-liveness", "module-qualified-at-rule-reachability"]
     },
     {
       "shapeClass": "bare-layer-statement",
@@ -122,6 +337,10 @@
     {
       "shapeClass": "code-split-entry-closure",
       "fixtureIds": []
+    },
+    {
+      "shapeClass": "combinator-companion-liveness",
+      "fixtureIds": ["combinator-companion-liveness"]
     },
     {
       "shapeClass": "comment-only-module",
@@ -148,6 +367,10 @@
       "fixtureIds": ["font-face-only-module"]
     },
     {
+      "shapeClass": "global-at-rule-liveness",
+      "fixtureIds": ["global-at-rule-liveness"]
+    },
+    {
       "shapeClass": "large-product-corpus",
       "fixtureIds": ["bundler-productization-corpus"]
     },
@@ -164,8 +387,16 @@
       "fixtureIds": []
     },
     {
+      "shapeClass": "package-path-composes-liveness",
+      "fixtureIds": ["package-path-composes-liveness"]
+    },
+    {
       "shapeClass": "scss-import-order",
       "fixtureIds": ["dialect-scss-import-order"]
+    },
+    {
+      "shapeClass": "shaken-referrer-liveness",
+      "fixtureIds": ["shaken-referrer-liveness"]
     },
     {
       "shapeClass": "shared-import-diamond",
@@ -174,6 +405,14 @@
     {
       "shapeClass": "tsconfig-path-alias-import",
       "fixtureIds": []
+    },
+    {
+      "shapeClass": "two-hop-composes-liveness",
+      "fixtureIds": ["two-hop-composes-liveness"]
+    },
+    {
+      "shapeClass": "workspace-only-referrer-liveness",
+      "fixtureIds": ["workspace-only-referrer-liveness"]
     }
   ],
   "notCovered": [
@@ -235,6 +474,42 @@
       "fixtureId": "module-qualified-at-rule-reachability",
       "moduleCount": 2,
       "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "two-hop-composes-liveness",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "package-path-composes-liveness",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "global-at-rule-liveness",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "combinator-companion-liveness",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "workspace-only-referrer-liveness",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "shaken-referrer-liveness",
+      "moduleCount": 3,
+      "markerObservableModuleCount": 3,
       "blindSpotModuleCount": 0
     },
     {

@@ -84,6 +84,8 @@ interface LinkedEmissionCoverageCensusV0 {
       readonly modulePath: string;
       readonly declaredClassNames: readonly string[];
       readonly liveDeclaredClassNames: readonly string[];
+      readonly authoredLivenessExpectationCount: number;
+      readonly authoredLiveClassNames: readonly string[];
     }>;
   }>;
   readonly shapes: ReadonlyArray<{
@@ -282,6 +284,8 @@ const forwardedArguments = process.argv
       "--inject-unclaimed-linked-token",
       "--inject-composes-liveness-loss",
       "--inject-unattributed-reference",
+      "--inject-authored-liveness-flip",
+      "--inject-missing-fixture",
     ].includes(argument),
   );
 const run = spawnSync(
@@ -314,12 +318,27 @@ const envelope = process.argv.includes("--inject-missing-justification")
     }
   : observedEnvelope;
 const report = envelope.report;
-const census = process.argv.includes("--inject-missing-order-census-row")
+const censusWithOrderInjection = process.argv.includes("--inject-missing-order-census-row")
   ? {
       ...envelope.census,
       blindSpots: envelope.census.blindSpots.slice(1),
     }
   : envelope.census;
+const censusWithDomainInjection = process.argv.includes("--inject-empty-reachability-domain")
+  ? {
+      ...censusWithOrderInjection,
+      reachabilityInputFixtureIds: [
+        ...censusWithOrderInjection.reachabilityInputFixtureIds,
+        "empty-reachability-input",
+      ],
+    }
+  : censusWithOrderInjection;
+const census = process.argv.includes("--inject-missing-shape-row")
+  ? {
+      ...censusWithDomainInjection,
+      shapes: censusWithDomainInjection.shapes.slice(1),
+    }
+  : censusWithDomainInjection;
 
 assert.equal(envelope.schemaVersion, "0");
 assert.equal(envelope.product, "omena-diff-test.linked-emission-byte-differential-envelope");
@@ -375,6 +394,19 @@ for (const fixture of census.liveDeclarationFixtures) {
     ["import-inline", "print-css", "css-modules-class-hashing", "tree-shake-class"],
     `${fixture.fixtureId} does not use the declaration-preserving pass set`,
   );
+  for (const module of fixture.modules) {
+    assert.equal(
+      module.authoredLivenessExpectationCount,
+      module.declaredClassNames.length,
+      `${fixture.fixtureId}:${module.modulePath} does not enumerate every declared class`,
+    );
+    // FALSIFIER: id=linked-emission-authored-live-set-equality class=liveness via=--inject-authored-liveness-flip producer=can-fail owner=linked-emission-instrument entry=authored-and-derived-live-sets-equal
+    assert.deepEqual(
+      module.authoredLiveClassNames.toSorted(),
+      module.liveDeclaredClassNames.toSorted(),
+      `${fixture.fixtureId}:${module.modulePath} authored and derived liveness differ`,
+    );
+  }
 }
 const composesDomainFixture = census.liveDeclarationFixtures.find(
   (fixture) => fixture.fixtureId === "module-qualified-composes-reachability",
@@ -630,6 +662,15 @@ for (const entry of report.cases) {
       assert.deepEqual(entry.linkedMarkerOrder, ["_base_0", "_media-live_2", "_card_0"]);
       // FALSIFIER: id=linked-emission-gate-at-rule-authority-markers class=placement via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=authoritative-at-rule-marker-order
       assert.deepEqual(entry.authoritativeMarkerOrder, ["_base_0", "_media-live_2", "_card_0"]);
+    } else if (
+      census.liveDeclarationFixtures.some((fixture) => fixture.fixtureId === entry.fixtureId)
+    ) {
+      assert.equal(entry.semanticPreserved, false);
+      // FALSIFIER: id=linked-emission-authored-case-delta class=liveness via=--inject-authored-liveness-flip producer=can-fail owner=linked-emission-instrument entry=authored-case-has-observable-delta
+      assert.ok(
+        entry.semanticMismatchCount > 0,
+        `${entry.fixtureId} has no observable authored-liveness correction`,
+      );
     } else {
       assert.equal(entry.semanticPreserved, true);
     }
@@ -667,11 +708,8 @@ for (const entry of expectedDivergenceLedger.entries) {
   if (entry.classificationArm === "moduleAttributedReachabilityCorrection") {
     // FALSIFIER: id=linked-emission-gate-034 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert.ok(
-      [
-        "module-qualified-reachability",
-        "module-qualified-composes-reachability",
-        "module-qualified-at-rule-reachability",
-      ].includes(entry.fixtureId),
+      census.liveDeclarationFixtures.some((fixture) => fixture.fixtureId === entry.fixtureId),
+      `${entry.fixtureId} is not backed by the authored liveness domain`,
     );
     if (entry.fixtureId === "module-qualified-reachability") {
       assert.equal(liveCase.semanticPreserved, false);
@@ -689,7 +727,7 @@ for (const entry of expectedDivergenceLedger.entries) {
       assert.ok(liveCase.linkedMarkerOrder.includes("_base_0"));
       // FALSIFIER: id=linked-emission-gate-040 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.ok(liveCase.linkedMarkerOrder.includes("_base-live_1"));
-    } else {
+    } else if (entry.fixtureId === "module-qualified-at-rule-reachability") {
       assert.equal(liveCase.semanticPreserved, false);
       assert.equal(liveCase.semanticMismatchCount, 6);
       // FALSIFIER: id=linked-emission-ledger-at-rule-legacy-markers class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=ledger-legacy-at-rule-marker-order
@@ -698,6 +736,13 @@ for (const entry of expectedDivergenceLedger.entries) {
       assert.deepEqual(liveCase.linkedMarkerOrder, ["_base_0", "_media-live_2", "_card_0"]);
       // FALSIFIER: id=linked-emission-ledger-at-rule-authority-markers class=placement via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=ledger-authoritative-at-rule-marker-order
       assert.deepEqual(liveCase.authoritativeMarkerOrder, ["_base_0", "_media-live_2", "_card_0"]);
+    } else {
+      assert.equal(liveCase.semanticPreserved, false);
+      // FALSIFIER: id=linked-emission-authored-delta-observed class=liveness via=--inject-authored-liveness-flip producer=can-fail owner=linked-emission-instrument entry=authored-liveness-fixture-has-observable-delta
+      assert.ok(
+        liveCase.semanticMismatchCount > 0,
+        `${entry.fixtureId} has no observable module-attributed correction`,
+      );
     }
   } else {
     assert.equal(liveCase.semanticPreserved, true);
