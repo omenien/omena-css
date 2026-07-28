@@ -39,35 +39,53 @@ assert.ok(bundleDeps.length > 0, `bundle "${shardedBundleId}" must have members`
 const expectedShards = bundleShardNames(shardedBundleId);
 assert.ok(expectedShards.length > 0, `bundle "${shardedBundleId}" must declare shards`);
 
+const preflightJobStart = lines.findIndex((line) => /^ {2}preflight:\s*$/.test(line));
+assert.ok(preflightJobStart >= 0, "ci.yml must define the preflight job");
+const preflightJobEnd = lines.findIndex(
+  (line, index) => index > preflightJobStart && /^ {2}[A-Za-z0-9_-]+:\s*$/.test(line),
+);
+const preflightBlock = lines
+  .slice(preflightJobStart, preflightJobEnd < 0 ? lines.length : preflightJobEnd)
+  .join("\n");
+assert.match(
+  preflightBlock,
+  /^\s+closure-fast-shards:\s*\$\{\{\s*steps\.closure-fast-shards\.outputs\.matrix\s*\}\}\s*$/m,
+  "preflight must expose the generated shard matrix as a job output",
+);
+assert.match(
+  preflightBlock,
+  /omena-check shards rust\/closure-fast --json/,
+  "preflight must derive closure-fast shards from the check manifest",
+);
+
 const matrixJobStart = lines.findIndex((line) => /^ {2}closure-fast-shards:\s*$/.test(line));
 assert.ok(matrixJobStart >= 0, "ci.yml must define the closure-fast-shards matrix job");
 const matrixJobEnd = lines.findIndex(
   (line, index) => index > matrixJobStart && /^ {2}[A-Za-z0-9_-]+:\s*$/.test(line),
 );
 const matrixBlock = lines.slice(matrixJobStart, matrixJobEnd < 0 ? lines.length : matrixJobEnd);
-const shardListStart = matrixBlock.findIndex((line) => /^ {8}shard:\s*$/.test(line));
-assert.ok(shardListStart >= 0, "closure-fast-shards must define matrix.shard");
-const invokedShards: string[] = [];
-for (const line of matrixBlock.slice(shardListStart + 1)) {
-  const shard = line.match(/^ {10}-\s*([A-Za-z0-9_-]+)\s*$/)?.[1];
-  if (shard) {
-    invokedShards.push(shard);
-    continue;
-  }
-  if (/^ {0,8}\S/.test(line)) break;
-}
-assert.deepEqual(
-  invokedShards.toSorted(),
-  expectedShards.toSorted(),
-  `ci.yml matrix must invoke every closure-fast shard exactly once (expected ${expectedShards.join(", ")}; found ${invokedShards.join(", ") || "none"})`,
+const matrixText = matrixBlock.join("\n");
+assert.match(
+  matrixText,
+  /^\s+needs:\s*preflight\s*$/m,
+  "closure-fast-shards must depend on the matrix-producing preflight job",
 );
-assert.equal(
-  matrixBlock.filter((line) =>
-    /omena-check run rust\/closure-fast --summary --shard=\$\{\{ matrix\.shard \}\}/.test(line),
-  ).length,
-  1,
-  "closure-fast-shards must execute the matrix shard exactly once",
+assert.match(
+  matrixText,
+  /^\s+shard:\s*\$\{\{\s*fromJSON\(needs\.preflight\.outputs\.closure-fast-shards\)\s*\}\}\s*$/m,
+  "closure-fast-shards must consume the generated matrix without a second shard list",
 );
+assert.match(
+  matrixText,
+  /^\s+CLOSURE_FAST_SHARD:\s*\$\{\{\s*matrix\.shard\s*\}\}\s*$/m,
+  "closure-fast-shards must bind the matrix value outside the shell command",
+);
+assert.match(
+  matrixText,
+  /omena-check run rust\/closure-fast --summary --shard="\$CLOSURE_FAST_SHARD"/,
+  "closure-fast-shards must execute the bound matrix shard exactly once",
+);
+const invokedShards = [...expectedShards];
 
 let shardUnionSize = 0;
 for (const shardName of expectedShards) {
