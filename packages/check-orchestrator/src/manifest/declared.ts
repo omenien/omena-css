@@ -695,16 +695,6 @@ export const DECLARED_CHECK_GATES = [
     ciReason: "Census regeneration changes committed governance data and requires review.",
   },
   {
-    id: "rust/omena-source-type-fact-shape-census:update",
-    kind: "command",
-    scope: "rust",
-    packageTarget: "rust/omena-source-type-fact-shape-census:update",
-    tags: ["rust", "tsgo", "type-fact", "update"],
-    ciTier: "manual",
-    ciGroup: "rust",
-    ciReason: "Census regeneration changes committed governance data and requires review.",
-  },
-  {
     id: "rust/omena-style-resolution-authority:update",
     kind: "command",
     scope: "rust",
