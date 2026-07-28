@@ -1,11 +1,13 @@
 use crate::{
     LspQueryReadView, LspStyleDocumentSummary, LspStyleHoverCandidate, LspTextDocumentState,
-    build_source_syntax_index, collect_source_imports, collect_style_hover_candidates,
+    build_source_syntax_index_with_type_fact_attempts, collect_source_imports,
+    collect_style_hover_candidates,
     protocol::{
         byte_offset_for_parser_position, file_uri_to_path, is_style_document_uri,
         parser_range_for_byte_span,
     },
     source_selector_candidates_from_index,
+    source_type_facts::initial_source_type_fact_tier_attempts,
     state::LspCascadeNarrowingSubstrateMemo,
     summarize_style_document,
 };
@@ -171,7 +173,9 @@ pub(crate) fn refresh_document_reusable_indexes(
         document.style_summary = None;
         document.style_candidates = Vec::new();
     }
-    let mut source_syntax_index = build_source_syntax_index(document, resolution_inputs);
+    let source_index_build =
+        build_source_syntax_index_with_type_fact_attempts(document, resolution_inputs);
+    let mut source_syntax_index = source_index_build.source_syntax_index;
     if !is_style_document_uri(document.uri.as_str())
         && let Some(workspace_root) = document
             .workspace_folder_uri
@@ -191,6 +195,10 @@ pub(crate) fn refresh_document_reusable_indexes(
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
     document.source_syntax_index = source_syntax_index;
+    document.source_type_fact_lexical_attempts = source_index_build.type_fact_attempts;
+    document.source_type_fact_tier_attempts = initial_source_type_fact_tier_attempts(
+        document.source_type_fact_lexical_attempts.as_slice(),
+    );
     document.source_type_fact_selector_references.clear();
     document.source_type_fact_retired_prefix_references.clear();
 }

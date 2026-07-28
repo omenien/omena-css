@@ -52,8 +52,8 @@
   },
   "dispositionCounts": {
     "target": 35,
-    "skipped": 2,
-    "unrecorded": 6
+    "skipped": 8,
+    "unrecorded": 0
   },
   "sites": [
     {
@@ -64,6 +64,7 @@
         "end": 919
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:size:915:919"
     },
@@ -75,6 +76,7 @@
         "end": 1083
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:size:1079:1083"
     },
@@ -86,6 +88,7 @@
         "end": 680
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.button:667:680"
     },
@@ -97,6 +100,7 @@
         "end": 742
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.buttonPrimary:722:742"
     },
@@ -108,6 +112,7 @@
         "end": 636
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:size:632:636"
     },
@@ -119,6 +124,7 @@
         "end": 789
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:variant:782:789"
     },
@@ -130,6 +136,7 @@
         "end": 1047
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.btn:1037:1047"
     },
@@ -141,6 +148,7 @@
         "end": 1063
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.primary:1049:1063"
     },
@@ -152,6 +160,7 @@
         "end": 1090
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.active:1077:1090"
     },
@@ -163,6 +172,7 @@
         "end": 1247
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.btn:1237:1247"
     },
@@ -174,6 +184,7 @@
         "end": 1265
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.secondary:1249:1265"
     },
@@ -185,6 +196,7 @@
         "end": 1292
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.active:1279:1292"
     },
@@ -196,6 +208,7 @@
         "end": 1432
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.btn:1422:1432"
     },
@@ -207,6 +220,7 @@
         "end": 1460
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.primary:1446:1460"
     },
@@ -218,6 +232,7 @@
         "end": 1483
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.lg:1474:1483"
     },
@@ -229,6 +244,7 @@
         "end": 1526
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.disabled:1511:1526"
     },
@@ -240,6 +256,7 @@
         "end": 2223
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.note:2212:2223"
     },
@@ -251,6 +268,7 @@
         "end": 673
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.badge:661:673"
     },
@@ -262,6 +280,7 @@
         "end": 1095
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.title:1083:1095"
     },
@@ -273,6 +292,7 @@
         "end": 1166
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.body:1155:1166"
     },
@@ -284,6 +304,7 @@
         "end": 1468
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.badge:1456:1468"
     },
@@ -295,6 +316,7 @@
         "end": 1576
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.badge:1564:1576"
     },
@@ -306,6 +328,7 @@
         "end": 2008
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:size:2004:2008"
     },
@@ -317,6 +340,7 @@
         "end": 2152
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:prefixClass:2141:2152"
     },
@@ -328,6 +352,7 @@
         "end": 2289
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:derivedStatusClass:2271:2289"
     },
@@ -339,6 +364,7 @@
         "end": 440
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.btn-primary:419:440"
     },
@@ -350,6 +376,7 @@
         "end": 546
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.accent-pill:525:546"
     },
@@ -361,6 +388,7 @@
         "end": 684
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.한글-라벨:661:684"
     },
@@ -372,6 +400,7 @@
         "end": 812
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.meta:801:812"
     },
@@ -383,6 +412,7 @@
         "end": 541
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.accent-badge:519:541"
     },
@@ -394,6 +424,7 @@
         "end": 115
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.card:104:115"
     },
@@ -405,6 +436,7 @@
         "end": 151
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.title:139:151"
     },
@@ -416,6 +448,7 @@
         "end": 217
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.utility:203:217"
     },
@@ -427,6 +460,7 @@
         "end": 119
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:styles.missing:105:119"
     },
@@ -438,7 +472,10 @@
         "end": 84
       },
       "shapeClass": "other",
-      "disposition": "unrecorded"
+      "lexicalDisposition": "unresolved",
+      "disposition": "skipped",
+      "expressionId": "omena-bridge-source-type-fact-skipped:75:84",
+      "reason": "unsupportedExpressionShape"
     },
     {
       "population": "shape-fixture",
@@ -448,7 +485,10 @@
         "end": 74
       },
       "shapeClass": "arithmetic",
-      "disposition": "unrecorded"
+      "lexicalDisposition": "unresolved",
+      "disposition": "skipped",
+      "expressionId": "omena-bridge-source-type-fact-skipped:65:74",
+      "reason": "unsupportedArithmeticExpression"
     },
     {
       "population": "shape-fixture",
@@ -458,7 +498,10 @@
         "end": 91
       },
       "shapeClass": "call",
-      "disposition": "unrecorded"
+      "lexicalDisposition": "unresolved",
+      "disposition": "skipped",
+      "expressionId": "omena-bridge-source-type-fact-skipped:77:91",
+      "reason": "unsupportedCallExpression"
     },
     {
       "population": "shape-fixture",
@@ -468,7 +511,10 @@
         "end": 120
       },
       "shapeClass": "computedNonLiteral",
-      "disposition": "unrecorded"
+      "lexicalDisposition": "unresolved",
+      "disposition": "skipped",
+      "expressionId": "omena-bridge-source-type-fact-skipped:109:120",
+      "reason": "unsupportedComputedMemberExpression"
     },
     {
       "population": "shape-fixture",
@@ -478,9 +524,10 @@
         "end": 94
       },
       "shapeClass": "lexicallyEnumerable",
+      "lexicalDisposition": "resolved",
       "disposition": "skipped",
       "expressionId": "omena-bridge-source-type-fact-skipped:76:94",
-      "reason": "unsupportedExpressionShape"
+      "reason": "lexicallyResolvedExpression"
     },
     {
       "population": "shape-fixture",
@@ -490,6 +537,7 @@
         "end": 91
       },
       "shapeClass": "identifierPath",
+      "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
       "expressionId": "omena-bridge-source-type-fact:theme.current:78:91"
     },
@@ -501,9 +549,10 @@
         "end": 120
       },
       "shapeClass": "logicalOperator",
+      "lexicalDisposition": "unresolved",
       "disposition": "skipped",
       "expressionId": "omena-bridge-source-type-fact-skipped:105:120",
-      "reason": "unsupportedExpressionShape"
+      "reason": "unsupportedLogicalExpression"
     },
     {
       "population": "shape-fixture",
@@ -513,7 +562,10 @@
         "end": 117
       },
       "shapeClass": "multiInterpolation",
-      "disposition": "unrecorded"
+      "lexicalDisposition": "unresolved",
+      "disposition": "skipped",
+      "expressionId": "omena-bridge-source-type-fact-skipped:93:117",
+      "reason": "unsupportedMultipleTemplateInterpolations"
     },
     {
       "population": "shape-fixture",
@@ -523,7 +575,10 @@
         "end": 89
       },
       "shapeClass": "nestedTemplate",
-      "disposition": "unrecorded"
+      "lexicalDisposition": "unresolved",
+      "disposition": "skipped",
+      "expressionId": "omena-bridge-source-type-fact-skipped:73:89",
+      "reason": "unsupportedNestedTemplateExpression"
     }
   ]
 }

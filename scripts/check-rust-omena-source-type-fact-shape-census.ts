@@ -77,11 +77,18 @@ interface RustFactCapture {
   readonly reason?: string;
 }
 
+interface RustAttemptCapture extends RustFactCapture {
+  readonly targetStyleUri?: string;
+  readonly shapeClass: ShapeClass;
+  readonly lexicalDisposition: "resolved" | "typeProviderCandidate" | "unresolved";
+}
+
 interface RustCaptureFixture {
   readonly id: string;
   readonly syntax: {
     readonly typeFactTargets: readonly RustFactCapture[];
     readonly typeFactTargetSkipped: readonly RustFactCapture[];
+    readonly typeFactAttempts: readonly RustAttemptCapture[];
   };
 }
 
@@ -95,6 +102,7 @@ interface CensusSite {
   readonly byteSpan: ByteSpan;
   readonly shapeClass: ShapeClass;
   readonly disposition: Disposition;
+  readonly lexicalDisposition: RustAttemptCapture["lexicalDisposition"];
   readonly expressionId?: string;
   readonly reason?: string;
 }
@@ -777,9 +785,24 @@ function joinAuthorities(
       const skipped = capture.syntax.typeFactTargetSkipped.filter((fact) =>
         spansEqual(fact.byteSpan, syntaxSite.byteSpan),
       );
+      const attempts = capture.syntax.typeFactAttempts.filter((fact) =>
+        spansEqual(fact.byteSpan, syntaxSite.byteSpan),
+      );
       assert.ok(
         targets.length <= 1 && skipped.length <= 1 && targets.length + skipped.length <= 1,
         `${input.id}:${syntaxSite.byteSpan.start}-${syntaxSite.byteSpan.end} has conflicting index dispositions`,
+      );
+      assert.equal(
+        attempts.length,
+        1,
+        `${input.id}:${syntaxSite.byteSpan.start}-${syntaxSite.byteSpan.end} must have exactly one type-fact attempt`,
+      );
+      const attempt = attempts[0];
+      assert.ok(attempt);
+      assert.equal(
+        attempt.shapeClass,
+        syntaxSite.shapeClass,
+        `${input.id}:${syntaxSite.byteSpan.start}-${syntaxSite.byteSpan.end} shape authorities disagree`,
       );
       const fact = targets[0] ?? skipped[0];
       sites.push({
@@ -787,6 +810,7 @@ function joinAuthorities(
         sourcePath: input.sourcePath,
         byteSpan: syntaxSite.byteSpan,
         shapeClass: syntaxSite.shapeClass,
+        lexicalDisposition: attempt.lexicalDisposition,
         disposition:
           targets.length === 1 ? "target" : skipped.length === 1 ? "skipped" : "unrecorded",
         ...(fact === undefined ? {} : { expressionId: fact.expressionId }),

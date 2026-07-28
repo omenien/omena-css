@@ -7,12 +7,13 @@ use omena_query::ReverseDependencyIndexV0;
 use omena_query::{
     AnalyzedGraphV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceSelectorOccurrenceIndexV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleCascadeNarrowingSubstrateV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
-    OmenaWorkspaceOccurrenceFamilyV0, OmenaWorkspaceOccurrenceIndexV0,
-    OmenaWorkspaceOccurrenceKindV0, OmenaWorkspaceOccurrenceRoleV0, ParserPositionV0,
-    ParserRangeV0,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
+    OmenaQuerySourceTypeFactLexicalAttemptV0 as SourceTypeFactLexicalAttempt,
+    OmenaQueryStyleCascadeNarrowingSubstrateV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSelectorDefinitionV0,
+    OmenaQueryStyleSourceInputV0, OmenaWorkspaceOccurrenceFamilyV0,
+    OmenaWorkspaceOccurrenceIndexV0, OmenaWorkspaceOccurrenceKindV0,
+    OmenaWorkspaceOccurrenceRoleV0, ParserPositionV0, ParserRangeV0,
 };
 #[cfg(feature = "parallel-style-diagnostics")]
 use omena_query::{
@@ -55,6 +56,10 @@ pub struct LspTextDocumentState {
     #[serde(skip)]
     pub(crate) source_syntax_index: SourceSyntaxIndex,
     #[serde(skip)]
+    pub(crate) source_type_fact_lexical_attempts: Vec<SourceTypeFactLexicalAttempt>,
+    #[serde(skip)]
+    pub(crate) source_type_fact_tier_attempts: Vec<LspSourceTypeFactTierAttemptV0>,
+    #[serde(skip)]
     pub(crate) has_unresolved_style_import: bool,
     #[serde(skip)]
     pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
@@ -62,6 +67,16 @@ pub struct LspTextDocumentState {
     pub(crate) source_type_fact_selector_references: Vec<SourceSelectorReferenceFact>,
     #[serde(skip)]
     pub(crate) source_type_fact_retired_prefix_references: Vec<SourceSelectorReferenceFact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+#[serde(rename_all = "camelCase")]
+pub struct LspSourceTypeFactTierAttemptV0 {
+    pub expression_id: String,
+    pub tier: &'static str,
+    pub outcome: &'static str,
+    pub reason: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

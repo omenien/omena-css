@@ -1,5 +1,7 @@
 use omena_query::{
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleResolutionInputsV0,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
+    OmenaQuerySourceTypeFactLexicalAttemptV0 as SourceTypeFactLexicalAttempt,
+    OmenaQueryStyleResolutionInputsV0,
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
 
@@ -31,6 +33,8 @@ pub(crate) fn lsp_text_document_state(
         optimizing_tier_feedback: None,
         style_candidates: Vec::new(),
         source_syntax_index: SourceSyntaxIndex::default(),
+        source_type_fact_lexical_attempts: Vec::new(),
+        source_type_fact_tier_attempts: Vec::new(),
         has_unresolved_style_import: false,
         source_selector_candidates: Vec::new(),
         source_type_fact_selector_references: Vec::new(),
@@ -47,6 +51,7 @@ pub(crate) fn lsp_text_document_state_with_source_syntax_index(
     version: i64,
     text: String,
     source_syntax_index: SourceSyntaxIndex,
+    source_type_fact_lexical_attempts: Vec<SourceTypeFactLexicalAttempt>,
     has_unresolved_style_import: bool,
 ) -> LspTextDocumentState {
     let origin = lsp_document_origin_for_uri(uri.as_str());
@@ -63,6 +68,8 @@ pub(crate) fn lsp_text_document_state_with_source_syntax_index(
         optimizing_tier_feedback: None,
         style_candidates: Vec::new(),
         source_syntax_index: SourceSyntaxIndex::default(),
+        source_type_fact_lexical_attempts,
+        source_type_fact_tier_attempts: Vec::new(),
         has_unresolved_style_import,
         source_selector_candidates: Vec::new(),
         source_type_fact_selector_references: Vec::new(),
@@ -74,6 +81,10 @@ pub(crate) fn lsp_text_document_state_with_source_syntax_index(
     document.source_selector_candidates =
         source_selector_candidates_from_index(&document, &source_syntax_index);
     document.source_syntax_index = source_syntax_index;
+    document.source_type_fact_tier_attempts =
+        crate::source_type_facts::initial_source_type_fact_tier_attempts(
+            document.source_type_fact_lexical_attempts.as_slice(),
+        );
     document
 }
 

@@ -1201,7 +1201,7 @@ export function View({ active }: { active: boolean }) {
     assert_eq!(skipped.len(), 1);
     assert_eq!(
         skipped[0].get("reason").and_then(serde_json::Value::as_str),
-        Some("unsupportedExpressionShape")
+        Some("lexicallyResolvedExpression")
     );
     assert_eq!(
         value
@@ -1209,6 +1209,132 @@ export function View({ active }: { active: boolean }) {
             .and_then(serde_json::Value::as_u64),
         Some(1)
     );
+    Ok(())
+}
+
+#[test]
+fn records_one_lexical_attempt_for_every_expression_shape() -> Result<(), String> {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../tests/fixtures/source-type-fact-expression-shapes.json"
+    ))
+    .map_err(|error| error.to_string())?;
+    let fixtures = fixture
+        .get("fixtures")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "expression-shape fixtures must be an array".to_string())?;
+
+    let expected = [
+        (
+            "identifier-path",
+            SourceTypeFactExpressionShapeV0::IdentifierPath,
+            SourceTypeFactLexicalDispositionV0::TypeProviderCandidate,
+            None,
+        ),
+        (
+            "finite-conditional",
+            SourceTypeFactExpressionShapeV0::LexicallyEnumerable,
+            SourceTypeFactLexicalDispositionV0::Resolved,
+            Some("lexicallyResolvedExpression"),
+        ),
+        (
+            "call-expression",
+            SourceTypeFactExpressionShapeV0::Call,
+            SourceTypeFactLexicalDispositionV0::Unresolved,
+            Some("unsupportedCallExpression"),
+        ),
+        (
+            "arithmetic-expression",
+            SourceTypeFactExpressionShapeV0::Arithmetic,
+            SourceTypeFactLexicalDispositionV0::Unresolved,
+            Some("unsupportedArithmeticExpression"),
+        ),
+        (
+            "logical-expression",
+            SourceTypeFactExpressionShapeV0::LogicalOperator,
+            SourceTypeFactLexicalDispositionV0::Unresolved,
+            Some("unsupportedLogicalExpression"),
+        ),
+        (
+            "computed-member",
+            SourceTypeFactExpressionShapeV0::ComputedNonLiteral,
+            SourceTypeFactLexicalDispositionV0::Unresolved,
+            Some("unsupportedComputedMemberExpression"),
+        ),
+        (
+            "nested-template",
+            SourceTypeFactExpressionShapeV0::NestedTemplate,
+            SourceTypeFactLexicalDispositionV0::Unresolved,
+            Some("unsupportedNestedTemplateExpression"),
+        ),
+        (
+            "multiple-interpolations",
+            SourceTypeFactExpressionShapeV0::MultiInterpolation,
+            SourceTypeFactLexicalDispositionV0::Unresolved,
+            Some("unsupportedMultipleTemplateInterpolations"),
+        ),
+        (
+            "aggregate-expression",
+            SourceTypeFactExpressionShapeV0::Other,
+            SourceTypeFactLexicalDispositionV0::Unresolved,
+            Some("unsupportedExpressionShape"),
+        ),
+    ];
+
+    for (id, shape, disposition, skipped_reason) in expected {
+        let source = fixtures
+            .iter()
+            .find(|fixture| fixture.get("id").and_then(serde_json::Value::as_str) == Some(id))
+            .and_then(|fixture| fixture.get("source"))
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("missing source fixture {id}"))?;
+        let result = summarize_omena_bridge_source_syntax_index_with_type_fact_attempts(
+            source,
+            Vec::new(),
+            Vec::new(),
+        );
+
+        assert_eq!(
+            result.type_fact_attempts.len(),
+            1,
+            "{id} must produce exactly one lexical attempt"
+        );
+        assert_eq!(result.type_fact_attempts[0].shape_class, shape, "{id}");
+        assert_eq!(
+            result.type_fact_attempts[0].lexical_disposition, disposition,
+            "{id}"
+        );
+        match skipped_reason {
+            Some(reason) => {
+                assert_eq!(
+                    result
+                        .source_syntax_index
+                        .type_fact_target_skipped
+                        .as_slice(),
+                    &[SourceTypeFactTargetSkippedFactV0 {
+                        byte_span: result.type_fact_attempts[0].byte_span,
+                        expression_id: result.type_fact_attempts[0].expression_id.clone(),
+                        target_style_uri: None,
+                        reason,
+                    }],
+                    "{id}"
+                );
+            }
+            None => {
+                assert_eq!(
+                    result.source_syntax_index.type_fact_targets.len(),
+                    1,
+                    "{id}"
+                );
+                assert!(
+                    result
+                        .source_syntax_index
+                        .type_fact_target_skipped
+                        .is_empty(),
+                    "{id}"
+                );
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1316,7 +1442,7 @@ export function View({ value, left, right }: Record<string, string>) {
             [index.type_fact_targets[0].byte_span.start..index.type_fact_targets[0].byte_span.end],
         "value"
     );
-    assert_eq!(index.type_fact_target_skipped_count, 0);
+    assert_eq!(index.type_fact_target_skipped_count, 1);
 }
 
 #[test]

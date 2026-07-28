@@ -3,14 +3,17 @@ use crate::source_type_fact_cache::{
     load_source_type_fact_sidecar, store_source_type_fact_sidecar,
 };
 use crate::{
-    LspShellState, LspTextDocumentState, ensure_style_document_loaded_from_disk,
-    parser_range_for_byte_span, source_selector_candidates_from_index,
+    LspShellState, LspSourceTypeFactTierAttemptV0, LspTextDocumentState,
+    ensure_style_document_loaded_from_disk, parser_range_for_byte_span,
+    source_selector_candidates_from_index,
 };
 use omena_query::{
     OmenaQueryEngineInputV2,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     OmenaQuerySourceSelectorReferenceSurfaceV0 as SourceSelectorReferenceSurface,
+    OmenaQuerySourceTypeFactLexicalAttemptV0 as SourceTypeFactLexicalAttempt,
+    OmenaQuerySourceTypeFactLexicalDispositionV0 as SourceTypeFactLexicalDisposition,
     OmenaQuerySourceTypeFactProviderUnavailableFactV0 as SourceTypeFactProviderUnavailableFact,
     OmenaQuerySourceTypeFactTargetV0 as SourceTypeFactTarget, ParserByteSpanV0,
     canonicalize_omena_query_source_selector_references,
@@ -33,6 +36,53 @@ const TSGO_PROVIDER_PROCESS_UNAVAILABLE: &str = "processUnavailable";
 const TSGO_PROVIDER_REQUEST_FAILED: &str = "requestFailed";
 const TSGO_PROVIDER_MISSING_RESULT: &str = "missingResult";
 const TSGO_PROVIDER_UNRESOLVABLE: &str = "unresolvable";
+const SOURCE_TYPE_FACT_TIER_LEXICAL: &str = "lexical";
+const SOURCE_TYPE_FACT_TIER_TSGO: &str = "tsgo";
+const SOURCE_TYPE_FACT_OUTCOME_RESOLVED: &str = "resolved";
+const SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED: &str = "notAttempted";
+const SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE: &str = "unavailable";
+const SOURCE_TYPE_FACT_OUTCOME_UNRESOLVED: &str = "unresolved";
+const SOURCE_TYPE_FACT_REASON_FINITE_EXACT_DOMAIN: &str = "finiteExactDomain";
+const SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED: &str = "providerNotRequested";
+const SOURCE_TYPE_FACT_REASON_NON_EXACT_DOMAIN: &str = "nonExactDomain";
+
+pub(crate) fn initial_source_type_fact_tier_attempts(
+    lexical_attempts: &[SourceTypeFactLexicalAttempt],
+) -> Vec<LspSourceTypeFactTierAttemptV0> {
+    lexical_attempts
+        .iter()
+        .map(|attempt| match attempt.lexical_disposition {
+            SourceTypeFactLexicalDisposition::Resolved => LspSourceTypeFactTierAttemptV0 {
+                expression_id: attempt.expression_id.clone(),
+                tier: SOURCE_TYPE_FACT_TIER_LEXICAL,
+                outcome: SOURCE_TYPE_FACT_OUTCOME_RESOLVED,
+                reason: Some(SOURCE_TYPE_FACT_REASON_FINITE_EXACT_DOMAIN),
+            },
+            SourceTypeFactLexicalDisposition::TypeProviderCandidate => {
+                LspSourceTypeFactTierAttemptV0 {
+                    expression_id: attempt.expression_id.clone(),
+                    tier: SOURCE_TYPE_FACT_TIER_TSGO,
+                    outcome: SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED,
+                    reason: Some(SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED),
+                }
+            }
+            SourceTypeFactLexicalDisposition::Unresolved => LspSourceTypeFactTierAttemptV0 {
+                expression_id: attempt.expression_id.clone(),
+                tier: SOURCE_TYPE_FACT_TIER_TSGO,
+                outcome: SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED,
+                reason: Some(attempt.shape_class.unsupported_reason()),
+            },
+            _ => LspSourceTypeFactTierAttemptV0 {
+                expression_id: attempt.expression_id.clone(),
+                tier: SOURCE_TYPE_FACT_TIER_TSGO,
+                outcome: SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED,
+                reason: Some(SOURCE_TYPE_FACT_TARGET_SKIPPED_UNKNOWN_SHAPE),
+            },
+        })
+        .collect()
+}
+
+const SOURCE_TYPE_FACT_TARGET_SKIPPED_UNKNOWN_SHAPE: &str = "unsupportedExpressionShape";
 
 pub(crate) fn refresh_source_type_fact_candidates_for_document(
     state: &mut LspShellState,
@@ -288,6 +338,11 @@ pub(crate) fn apply_source_type_fact_results_to_document(
         entries,
         projections.as_slice(),
     );
+    let tier_attempts = source_type_fact_tier_attempts_with_results(
+        document.source_type_fact_lexical_attempts.as_slice(),
+        entries,
+        &complete_projection_ids,
+    );
     let mut next_type_fact_references = Vec::new();
     for (target, selector_name) in projections {
         let reference_span = type_fact_template_spans(document.text.as_str(), &target)
@@ -325,6 +380,7 @@ pub(crate) fn apply_source_type_fact_results_to_document(
     document.source_syntax_index.selector_references = references;
     document.source_type_fact_selector_references = next_type_fact_references;
     document.source_type_fact_retired_prefix_references = next_retired_prefix_references;
+    document.source_type_fact_tier_attempts = tier_attempts;
     document
         .source_syntax_index
         .type_fact_provider_unavailable
@@ -347,6 +403,10 @@ fn replace_tsgo_provider_unavailable_for_document(
     let Some(document) = state.document_mut(uri) else {
         return;
     };
+    document.source_type_fact_tier_attempts = source_type_fact_tier_attempts_with_unavailable(
+        document.source_type_fact_lexical_attempts.as_slice(),
+        reason,
+    );
     let retired_prefix_references =
         std::mem::take(&mut document.source_type_fact_retired_prefix_references);
     restore_source_type_fact_prefix_references(
@@ -382,6 +442,63 @@ fn replace_tsgo_provider_unavailable_for_document(
     let source_syntax_index = document.source_syntax_index.clone();
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
+}
+
+fn source_type_fact_tier_attempts_with_unavailable(
+    lexical_attempts: &[SourceTypeFactLexicalAttempt],
+    reason: &'static str,
+) -> Vec<LspSourceTypeFactTierAttemptV0> {
+    let mut attempts = initial_source_type_fact_tier_attempts(lexical_attempts);
+    for (lexical, attempt) in lexical_attempts.iter().zip(attempts.iter_mut()) {
+        if matches!(
+            lexical.lexical_disposition,
+            SourceTypeFactLexicalDisposition::TypeProviderCandidate
+        ) {
+            attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE;
+            attempt.reason = Some(reason);
+        }
+    }
+    attempts
+}
+
+fn source_type_fact_tier_attempts_with_results(
+    lexical_attempts: &[SourceTypeFactLexicalAttempt],
+    entries: &[TsgoTypeFactResultEntryV0],
+    complete_projection_ids: &BTreeSet<String>,
+) -> Vec<LspSourceTypeFactTierAttemptV0> {
+    let entries_by_id = entries
+        .iter()
+        .map(|entry| (entry.expression_id.as_str(), entry))
+        .collect::<BTreeMap<_, _>>();
+    let mut attempts = initial_source_type_fact_tier_attempts(lexical_attempts);
+    for (lexical, attempt) in lexical_attempts.iter().zip(attempts.iter_mut()) {
+        if !matches!(
+            lexical.lexical_disposition,
+            SourceTypeFactLexicalDisposition::TypeProviderCandidate
+        ) {
+            continue;
+        }
+        if complete_projection_ids.contains(lexical.expression_id.as_str()) {
+            attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_RESOLVED;
+            attempt.reason = None;
+            continue;
+        }
+        match entries_by_id.get(lexical.expression_id.as_str()) {
+            None => {
+                attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE;
+                attempt.reason = Some(TSGO_PROVIDER_MISSING_RESULT);
+            }
+            Some(entry) if entry.resolved_type.kind != "union" => {
+                attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE;
+                attempt.reason = Some(TSGO_PROVIDER_UNRESOLVABLE);
+            }
+            Some(_) => {
+                attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNRESOLVED;
+                attempt.reason = Some(SOURCE_TYPE_FACT_REASON_NON_EXACT_DOMAIN);
+            }
+        }
+    }
+    attempts
 }
 
 fn remove_source_type_fact_selector_references(

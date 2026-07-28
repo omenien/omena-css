@@ -73,6 +73,8 @@ pub use source_syntax::{
     SourceSelectorReferenceMatchKindV0, SourceSelectorReferenceSurfaceV0,
     SourceStyleAccessUsesStyleImportFactV0, SourceStyleImportResolvesModuleFactV0,
     SourceStylePropertyAccessFactV0, SourceSymbolRefUsesDeclFactV0, SourceSyntaxIndexV0,
+    SourceSyntaxIndexWithTypeFactAttemptsV0, SourceTypeFactExpressionShapeV0,
+    SourceTypeFactLexicalAttemptV0, SourceTypeFactLexicalDispositionV0,
     SourceTypeFactProviderUnavailableFactV0, SourceTypeFactTargetSkippedFactV0,
     SourceTypeFactTargetV0, SourceUtilityUsesStyleImportFactV0,
     canonicalize_source_selector_references, collect_omena_bridge_vue_style_module_bindings,
@@ -80,6 +82,8 @@ pub use source_syntax::{
     summarize_omena_bridge_source_binding_index_for_source_language,
     summarize_omena_bridge_source_syntax_index,
     summarize_omena_bridge_source_syntax_index_for_source_language,
+    summarize_omena_bridge_source_syntax_index_for_source_language_with_type_fact_attempts,
+    summarize_omena_bridge_source_syntax_index_with_type_fact_attempts,
 };
 pub use style_intelligence::{
     BuiltInStyleIntelligenceProviderV0, StyleIntelligenceClassUniverseV0,

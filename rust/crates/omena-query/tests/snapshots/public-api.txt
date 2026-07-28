@@ -137,6 +137,10 @@ pub use omena_query::OmenaQuerySourceStyleImportResolvesModuleFactV0
 pub use omena_query::OmenaQuerySourceStylePropertyAccessFactV0
 pub use omena_query::OmenaQuerySourceSymbolRefUsesDeclFactV0
 pub use omena_query::OmenaQuerySourceSyntaxIndexV0
+pub use omena_query::OmenaQuerySourceSyntaxIndexWithTypeFactAttemptsV0
+pub use omena_query::OmenaQuerySourceTypeFactExpressionShapeV0
+pub use omena_query::OmenaQuerySourceTypeFactLexicalAttemptV0
+pub use omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0
 pub use omena_query::OmenaQuerySourceTypeFactProviderUnavailableFactV0
 pub use omena_query::OmenaQuerySourceTypeFactTargetSkippedFactV0
 pub use omena_query::OmenaQuerySourceTypeFactTargetV0
@@ -2566,6 +2570,8 @@ pub fn omena_query::summarize_omena_query_source_selector_reference_cross_file_s
 pub fn omena_query::summarize_omena_query_source_selector_reference_cross_file_summary_with_resolution_inputs(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQuerySourceDocumentInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_cross_file_summary::OmenaQueryCrossFileSummaryV0
 pub fn omena_query::summarize_omena_query_source_syntax_index(&str, alloc::vec::Vec<omena_bridge::source_syntax::SourceImportedStyleBindingV0>, alloc::vec::Vec<alloc::string::String>) -> omena_bridge::source_syntax::SourceSyntaxIndexV0
 pub fn omena_query::summarize_omena_query_source_syntax_index_for_source_language(&str, &str, core::option::Option<&str>, alloc::vec::Vec<omena_bridge::source_syntax::SourceImportedStyleBindingV0>, alloc::vec::Vec<alloc::string::String>) -> omena_bridge::source_syntax::SourceSyntaxIndexV0
+pub fn omena_query::summarize_omena_query_source_syntax_index_for_source_language_with_type_fact_attempts(&str, &str, core::option::Option<&str>, alloc::vec::Vec<omena_bridge::source_syntax::SourceImportedStyleBindingV0>, alloc::vec::Vec<alloc::string::String>) -> omena_bridge::source_syntax::SourceSyntaxIndexWithTypeFactAttemptsV0
+pub fn omena_query::summarize_omena_query_source_syntax_index_with_type_fact_attempts(&str, alloc::vec::Vec<omena_bridge::source_syntax::SourceImportedStyleBindingV0>, alloc::vec::Vec<alloc::string::String>) -> omena_bridge::source_syntax::SourceSyntaxIndexWithTypeFactAttemptsV0
 pub fn omena_query::summarize_omena_query_source_type_fact_control_flow_graph_for_source_language(&str, &str, core::option::Option<&str>, &str, usize) -> core::option::Option<omena_query::OmenaQuerySourceTypeFactControlFlowGraphV0>
 pub fn omena_query::summarize_omena_query_static_lif_exports_from_engine_input(&engine_input_producers::EngineInputV2, &str) -> core::option::Option<omena_query::OmenaQueryStaticLifExportsSummaryV0>
 pub fn omena_query::summarize_omena_query_static_lif_exports_from_source(&str, omena_syntax::StyleDialect) -> omena_query::OmenaQueryStaticLifExportsSummaryV0

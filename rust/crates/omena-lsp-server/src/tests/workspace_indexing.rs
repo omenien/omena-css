@@ -1060,6 +1060,17 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
         start: selector_start,
         end: selector_start + "styles".len(),
     };
+    let skipped_reasons = [
+        "identifierPathAwaitingTypeProvider",
+        "lexicallyResolvedExpression",
+        "unsupportedCallExpression",
+        "unsupportedArithmeticExpression",
+        "unsupportedLogicalExpression",
+        "unsupportedComputedMemberExpression",
+        "unsupportedNestedTemplateExpression",
+        "unsupportedMultipleTemplateInterpolations",
+        "unsupportedExpressionShape",
+    ];
     let cached_index = SourceSyntaxIndex {
         schema_version: "0",
         product: "omena-bridge.source-syntax-index",
@@ -1091,13 +1102,19 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             surface: SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection,
         }],
         type_fact_targets: Vec::new(),
-        type_fact_target_skipped: vec![omena_query::OmenaQuerySourceTypeFactTargetSkippedFactV0 {
-            byte_span: selector_span,
-            expression_id: "fixture-type-fact-target".to_string(),
-            target_style_uri: Some(style_uri.clone()),
-            reason: "unsupportedExpressionShape",
-        }],
-        type_fact_target_skipped_count: 1,
+        type_fact_target_skipped: skipped_reasons
+            .iter()
+            .enumerate()
+            .map(
+                |(index, reason)| omena_query::OmenaQuerySourceTypeFactTargetSkippedFactV0 {
+                    byte_span: selector_span,
+                    expression_id: format!("fixture-type-fact-target-{index}"),
+                    target_style_uri: Some(style_uri.clone()),
+                    reason,
+                },
+            )
+            .collect(),
+        type_fact_target_skipped_count: skipped_reasons.len(),
         type_fact_provider_unavailable: Vec::new(),
         class_value_universes: vec![omena_query::OmenaQuerySourceClassValueUniverseEntryV0 {
             plugin_id: "cva-recipe-domain",
@@ -1158,6 +1175,56 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
             },
         }],
     };
+    let source_type_fact_attempts = [
+        (
+            omena_query::OmenaQuerySourceTypeFactExpressionShapeV0::IdentifierPath,
+            omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0::TypeProviderCandidate,
+        ),
+        (
+            omena_query::OmenaQuerySourceTypeFactExpressionShapeV0::LexicallyEnumerable,
+            omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0::Resolved,
+        ),
+        (
+            omena_query::OmenaQuerySourceTypeFactExpressionShapeV0::Call,
+            omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0::Unresolved,
+        ),
+        (
+            omena_query::OmenaQuerySourceTypeFactExpressionShapeV0::Arithmetic,
+            omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0::Unresolved,
+        ),
+        (
+            omena_query::OmenaQuerySourceTypeFactExpressionShapeV0::LogicalOperator,
+            omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0::Unresolved,
+        ),
+        (
+            omena_query::OmenaQuerySourceTypeFactExpressionShapeV0::ComputedNonLiteral,
+            omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0::Unresolved,
+        ),
+        (
+            omena_query::OmenaQuerySourceTypeFactExpressionShapeV0::NestedTemplate,
+            omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0::Unresolved,
+        ),
+        (
+            omena_query::OmenaQuerySourceTypeFactExpressionShapeV0::MultiInterpolation,
+            omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0::Unresolved,
+        ),
+        (
+            omena_query::OmenaQuerySourceTypeFactExpressionShapeV0::Other,
+            omena_query::OmenaQuerySourceTypeFactLexicalDispositionV0::Unresolved,
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, (shape_class, lexical_disposition))| {
+        omena_query::OmenaQuerySourceTypeFactLexicalAttemptV0::new(
+            selector_span,
+            format!("fixture-type-fact-target-{index}"),
+            Some(style_uri.clone()),
+            shape_class,
+            lexical_disposition,
+        )
+    })
+    .collect::<Vec<_>>();
     let text_hash = crate::source_document_cache::source_document_text_hash(source_text);
     crate::source_document_cache::store_source_document_index_sidecar(
         Some(workspace_uri.as_str()),
@@ -1166,6 +1233,7 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
         text_hash.as_str(),
         &resolution_inputs,
         &cached_index,
+        source_type_fact_attempts.as_slice(),
         false,
     );
     let sidecar_path =
@@ -1249,8 +1317,12 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
         indexed_source
             .source_syntax_index
             .type_fact_target_skipped_count,
-        1,
+        skipped_reasons.len(),
         "source syntax sidecar must preserve skipped type-fact observability"
+    );
+    assert_eq!(
+        indexed_source.source_type_fact_lexical_attempts, source_type_fact_attempts,
+        "source syntax sidecar must preserve every expression shape and lexical disposition"
     );
     assert_eq!(
         indexed_source
@@ -3142,6 +3214,7 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
         text_hash.as_str(),
         &resolution_inputs,
         &cached_index,
+        &[],
         false,
     );
 
@@ -3278,6 +3351,7 @@ fn persisted_source_syntax_sidecar_feeds_unused_selector_diagnostics_without_rep
         text_hash.as_str(),
         &resolution_inputs,
         &cached_index,
+        &[],
         false,
     );
 

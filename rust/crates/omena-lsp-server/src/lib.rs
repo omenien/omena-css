@@ -200,7 +200,8 @@ pub(crate) use source_selector_provider::{
     style_selector_definitions_from_open_documents, style_selector_definitions_from_uri,
 };
 pub(crate) use source_syntax_index::{
-    build_source_syntax_index, collect_source_imports, source_selector_candidates_from_index,
+    build_source_syntax_index_with_type_fact_attempts, collect_source_imports,
+    source_selector_candidates_from_index,
 };
 #[cfg(test)]
 pub(crate) use source_type_facts::apply_source_type_fact_results_to_document;
@@ -1081,6 +1082,47 @@ fn source_type_fact_tier_trace(
     let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
     let contains_offset = |span: ParserByteSpanV0| span.start <= offset && offset < span.end;
     let skipped_count = document.source_syntax_index.type_fact_target_skipped_count;
+
+    if let Some(lexical_attempt) = document
+        .source_type_fact_lexical_attempts
+        .iter()
+        .find(|attempt| contains_offset(attempt.byte_span))
+        && let Some(tier_attempt) = document
+            .source_type_fact_tier_attempts
+            .iter()
+            .find(|attempt| attempt.expression_id == lexical_attempt.expression_id)
+    {
+        if tier_attempt.tier == "tsgo" && tier_attempt.outcome == "resolved" {
+            return Some(json!({
+                "attempted": true,
+                "outcome": "resolved",
+                "skippedTargetCount": skipped_count,
+            }));
+        }
+        if tier_attempt.tier == "tsgo" && tier_attempt.outcome == "unavailable" {
+            return Some(json!({
+                "attempted": true,
+                "outcome": "unavailable",
+                "reason": tier_attempt.reason,
+                "skippedTargetCount": skipped_count,
+            }));
+        }
+        return Some(json!({
+            "attempted": tier_attempt.tier == "tsgo"
+                && tier_attempt.outcome != "notAttempted",
+            "outcome": if tier_attempt.tier == "lexical"
+                && tier_attempt.outcome == "resolved"
+            {
+                "lexicallyResolved"
+            } else {
+                tier_attempt.outcome
+            },
+            "reason": tier_attempt.reason,
+            "shapeClass": lexical_attempt.shape_class.as_str(),
+            "lexicalDisposition": lexical_attempt.lexical_disposition.as_str(),
+            "skippedTargetCount": skipped_count,
+        }));
+    }
 
     if let Some(fact) = document
         .source_syntax_index

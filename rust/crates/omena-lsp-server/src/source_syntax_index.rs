@@ -6,11 +6,13 @@ use omena_query::{
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleResolutionInputsV0,
-    StyleLanguage, collect_omena_query_vue_style_module_bindings,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
+    OmenaQuerySourceSyntaxIndexWithTypeFactAttemptsV0 as SourceSyntaxIndexWithTypeFactAttempts,
+    OmenaQueryStyleResolutionInputsV0, StyleLanguage,
+    collect_omena_query_vue_style_module_bindings,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     summarize_omena_query_source_import_declarations_for_source_language,
-    summarize_omena_query_source_syntax_index_for_source_language,
+    summarize_omena_query_source_syntax_index_for_source_language_with_type_fact_attempts,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,16 +36,16 @@ pub(crate) fn source_selector_candidates_from_index(
     candidates
 }
 
-pub(crate) fn build_source_syntax_index(
+pub(crate) fn build_source_syntax_index_with_type_fact_attempts(
     document: &LspTextDocumentState,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
-) -> SourceSyntaxIndex {
+) -> SourceSyntaxIndexWithTypeFactAttempts {
     if is_style_document_uri(document.uri.as_str()) {
-        return SourceSyntaxIndex::default();
+        return SourceSyntaxIndexWithTypeFactAttempts::default();
     }
 
     let imports = collect_source_imports(document, resolution_inputs);
-    summarize_omena_query_source_syntax_index_for_source_language(
+    summarize_omena_query_source_syntax_index_for_source_language_with_type_fact_attempts(
         document.uri.as_str(),
         document.text.as_str(),
         Some(document.language_id.as_str()),

@@ -4,7 +4,7 @@ use omena_query::{
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
     ParserByteSpanV0, summarize_omena_query_source_binding_index_for_source_language,
     summarize_omena_query_source_control_flow_graph_for_source_language,
-    summarize_omena_query_source_syntax_index_for_source_language,
+    summarize_omena_query_source_syntax_index_for_source_language_with_type_fact_attempts,
     summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
 };
 use serde::{Deserialize, Serialize};
@@ -62,6 +62,7 @@ struct RustSyntaxCaptureV0 {
     selector_references: Vec<RustSelectorReferenceCaptureV0>,
     type_fact_targets: Vec<RustTypeFactTargetCaptureV0>,
     type_fact_target_skipped: Vec<RustTypeFactTargetSkippedCaptureV0>,
+    type_fact_attempts: Vec<RustTypeFactAttemptCaptureV0>,
 }
 
 #[derive(Debug, Serialize)]
@@ -248,6 +249,16 @@ struct RustTypeFactTargetSkippedCaptureV0 {
     reason: &'static str,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustTypeFactAttemptCaptureV0 {
+    byte_span: ParserByteSpanV0,
+    expression_id: String,
+    target_style_uri: Option<String>,
+    shape_class: &'static str,
+    lexical_disposition: &'static str,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let request: RustCaptureRequestV0 = serde_json::from_reader(io::stdin())?;
     let response = RustCaptureResponseV0 {
@@ -272,13 +283,16 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
             style_uri: binding.style_uri.clone(),
         })
         .collect::<Vec<_>>();
-    let index = summarize_omena_query_source_syntax_index_for_source_language(
-        fixture.source_path.as_str(),
-        fixture.source.as_str(),
-        fixture.source_language.as_deref(),
-        imported_style_bindings.clone(),
-        fixture.classnames_bind_bindings.clone(),
-    );
+    let index_summary =
+        summarize_omena_query_source_syntax_index_for_source_language_with_type_fact_attempts(
+            fixture.source_path.as_str(),
+            fixture.source.as_str(),
+            fixture.source_language.as_deref(),
+            imported_style_bindings.clone(),
+            fixture.classnames_bind_bindings.clone(),
+        );
+    let type_fact_attempts = index_summary.type_fact_attempts;
+    let index = index_summary.source_syntax_index;
     let binding_index = summarize_omena_query_source_binding_index_for_source_language(
         fixture.source_path.as_str(),
         fixture.source.as_str(),
@@ -371,6 +385,16 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                     byte_span: skipped.byte_span,
                     expression_id: skipped.expression_id,
                     reason: skipped.reason,
+                })
+                .collect(),
+            type_fact_attempts: type_fact_attempts
+                .into_iter()
+                .map(|attempt| RustTypeFactAttemptCaptureV0 {
+                    byte_span: attempt.byte_span,
+                    expression_id: attempt.expression_id,
+                    target_style_uri: attempt.target_style_uri,
+                    shape_class: attempt.shape_class.as_str(),
+                    lexical_disposition: attempt.lexical_disposition.as_str(),
                 })
                 .collect(),
         },

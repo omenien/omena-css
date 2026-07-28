@@ -70,6 +70,10 @@ pub use omena_bridge::{
     SourceStylePropertyAccessFactV0 as OmenaQuerySourceStylePropertyAccessFactV0,
     SourceSymbolRefUsesDeclFactV0 as OmenaQuerySourceSymbolRefUsesDeclFactV0,
     SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,
+    SourceSyntaxIndexWithTypeFactAttemptsV0 as OmenaQuerySourceSyntaxIndexWithTypeFactAttemptsV0,
+    SourceTypeFactExpressionShapeV0 as OmenaQuerySourceTypeFactExpressionShapeV0,
+    SourceTypeFactLexicalAttemptV0 as OmenaQuerySourceTypeFactLexicalAttemptV0,
+    SourceTypeFactLexicalDispositionV0 as OmenaQuerySourceTypeFactLexicalDispositionV0,
     SourceTypeFactProviderUnavailableFactV0 as OmenaQuerySourceTypeFactProviderUnavailableFactV0,
     SourceTypeFactTargetSkippedFactV0 as OmenaQuerySourceTypeFactTargetSkippedFactV0,
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
@@ -442,6 +446,8 @@ pub use source::{
     summarize_omena_query_source_import_declarations_for_source_language,
     summarize_omena_query_source_syntax_index,
     summarize_omena_query_source_syntax_index_for_source_language,
+    summarize_omena_query_source_syntax_index_for_source_language_with_type_fact_attempts,
+    summarize_omena_query_source_syntax_index_with_type_fact_attempts,
     summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
 };
 #[cfg(feature = "lawvere-trace")]

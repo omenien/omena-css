@@ -351,6 +351,18 @@ pub fn summarize_omena_query_source_syntax_index(
     )
 }
 
+pub fn summarize_omena_query_source_syntax_index_with_type_fact_attempts(
+    source: &str,
+    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> OmenaQuerySourceSyntaxIndexWithTypeFactAttemptsV0 {
+    omena_bridge::summarize_omena_bridge_source_syntax_index_with_type_fact_attempts(
+        source,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
 pub fn summarize_omena_query_source_syntax_index_for_source_language(
     source_path: &str,
     source: &str,
@@ -359,6 +371,22 @@ pub fn summarize_omena_query_source_syntax_index_for_source_language(
     classnames_bind_bindings: Vec<String>,
 ) -> OmenaQuerySourceSyntaxIndexV0 {
     omena_bridge::summarize_omena_bridge_source_syntax_index_for_source_language(
+        source_path,
+        source,
+        source_language,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
+pub fn summarize_omena_query_source_syntax_index_for_source_language_with_type_fact_attempts(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> OmenaQuerySourceSyntaxIndexWithTypeFactAttemptsV0 {
+    omena_bridge::summarize_omena_bridge_source_syntax_index_for_source_language_with_type_fact_attempts(
         source_path,
         source,
         source_language,

@@ -6,9 +6,10 @@ use omena_query::{
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceInlineStyleDeclarationFactV0,
     OmenaQuerySourceSelectorReferenceFactV0, OmenaQuerySourceSelectorReferenceMatchKindV0,
     OmenaQuerySourceSelectorReferenceSurfaceV0, OmenaQuerySourceStylePropertyAccessFactV0,
-    OmenaQuerySourceSyntaxIndexV0, OmenaQuerySourceTypeFactProviderUnavailableFactV0,
-    OmenaQuerySourceTypeFactTargetSkippedFactV0, OmenaQuerySourceTypeFactTargetV0,
-    OmenaQueryStyleResolutionInputsV0, ParserByteSpanV0,
+    OmenaQuerySourceSyntaxIndexV0, OmenaQuerySourceTypeFactExpressionShapeV0,
+    OmenaQuerySourceTypeFactLexicalAttemptV0, OmenaQuerySourceTypeFactLexicalDispositionV0,
+    OmenaQuerySourceTypeFactProviderUnavailableFactV0, OmenaQuerySourceTypeFactTargetSkippedFactV0,
+    OmenaQuerySourceTypeFactTargetV0, OmenaQueryStyleResolutionInputsV0, ParserByteSpanV0,
 };
 use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
 use serde::Serialize;
@@ -37,6 +38,7 @@ struct SourceDocumentIndexKeyInputV0<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LspSourceDocumentIndexSidecarLoadV0 {
     pub(crate) source_syntax_index: OmenaQuerySourceSyntaxIndexV0,
+    pub(crate) source_type_fact_attempts: Vec<OmenaQuerySourceTypeFactLexicalAttemptV0>,
     pub(crate) has_unresolved_style_import: bool,
 }
 
@@ -78,6 +80,9 @@ pub(crate) fn load_source_document_index_sidecar(
         source_syntax_index: source_syntax_index_from_value(
             payload.pointer("/sourceSyntaxIndex")?,
         )?,
+        source_type_fact_attempts: source_type_fact_attempts_from_value(
+            payload.pointer("/sourceTypeFactAttempts")?,
+        )?,
         has_unresolved_style_import: payload
             .pointer("/hasUnresolvedStyleImport")
             .and_then(Value::as_bool)?,
@@ -91,6 +96,7 @@ pub(crate) fn store_source_document_index_sidecar(
     text_hash: &str,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     source_syntax_index: &OmenaQuerySourceSyntaxIndexV0,
+    source_type_fact_attempts: &[OmenaQuerySourceTypeFactLexicalAttemptV0],
     has_unresolved_style_import: bool,
 ) {
     let Some(key) = source_document_index_key(
@@ -116,6 +122,7 @@ pub(crate) fn store_source_document_index_sidecar(
     crate::disk_cache::ensure_omena_cache_root_markers(dir);
     let payload = json!({
         "sourceSyntaxIndex": source_syntax_index,
+        "sourceTypeFactAttempts": source_type_fact_attempts,
         "hasUnresolvedStyleImport": has_unresolved_style_import,
     });
     let Some(payload_digest) = source_document_index_payload_digest(&payload) else {
@@ -431,6 +438,58 @@ fn type_fact_target_skipped_from_value(
         .collect()
 }
 
+fn source_type_fact_attempts_from_value(
+    value: &Value,
+) -> Option<Vec<OmenaQuerySourceTypeFactLexicalAttemptV0>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|fact| {
+            Some(OmenaQuerySourceTypeFactLexicalAttemptV0::new(
+                byte_span_from_value(fact.get("byteSpan")?)?,
+                fact.get("expressionId")?.as_str()?.to_string(),
+                fact.get("targetStyleUri")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                source_type_fact_shape_from_value(fact.get("shapeClass")?)?,
+                source_type_fact_lexical_disposition_from_value(fact.get("lexicalDisposition")?)?,
+            ))
+        })
+        .collect()
+}
+
+fn source_type_fact_shape_from_value(
+    value: &Value,
+) -> Option<OmenaQuerySourceTypeFactExpressionShapeV0> {
+    match value.as_str()? {
+        "identifierPath" => Some(OmenaQuerySourceTypeFactExpressionShapeV0::IdentifierPath),
+        "lexicallyEnumerable" => {
+            Some(OmenaQuerySourceTypeFactExpressionShapeV0::LexicallyEnumerable)
+        }
+        "call" => Some(OmenaQuerySourceTypeFactExpressionShapeV0::Call),
+        "arithmetic" => Some(OmenaQuerySourceTypeFactExpressionShapeV0::Arithmetic),
+        "logicalOperator" => Some(OmenaQuerySourceTypeFactExpressionShapeV0::LogicalOperator),
+        "computedNonLiteral" => Some(OmenaQuerySourceTypeFactExpressionShapeV0::ComputedNonLiteral),
+        "nestedTemplate" => Some(OmenaQuerySourceTypeFactExpressionShapeV0::NestedTemplate),
+        "multiInterpolation" => Some(OmenaQuerySourceTypeFactExpressionShapeV0::MultiInterpolation),
+        "other" => Some(OmenaQuerySourceTypeFactExpressionShapeV0::Other),
+        _ => None,
+    }
+}
+
+fn source_type_fact_lexical_disposition_from_value(
+    value: &Value,
+) -> Option<OmenaQuerySourceTypeFactLexicalDispositionV0> {
+    match value.as_str()? {
+        "resolved" => Some(OmenaQuerySourceTypeFactLexicalDispositionV0::Resolved),
+        "typeProviderCandidate" => {
+            Some(OmenaQuerySourceTypeFactLexicalDispositionV0::TypeProviderCandidate)
+        }
+        "unresolved" => Some(OmenaQuerySourceTypeFactLexicalDispositionV0::Unresolved),
+        _ => None,
+    }
+}
+
 fn provider_id_from_value(value: &Value) -> Option<&'static str> {
     match value.as_str()? {
         "tsgo" => Some("tsgo"),
@@ -452,6 +511,16 @@ fn type_fact_provider_unavailable_reason_from_value(value: &Value) -> Option<&'s
 
 fn type_fact_target_skipped_reason_from_value(value: &Value) -> Option<&'static str> {
     match value.as_str()? {
+        "identifierPathAwaitingTypeProvider" => Some("identifierPathAwaitingTypeProvider"),
+        "lexicallyResolvedExpression" => Some("lexicallyResolvedExpression"),
+        "unsupportedCallExpression" => Some("unsupportedCallExpression"),
+        "unsupportedArithmeticExpression" => Some("unsupportedArithmeticExpression"),
+        "unsupportedLogicalExpression" => Some("unsupportedLogicalExpression"),
+        "unsupportedComputedMemberExpression" => Some("unsupportedComputedMemberExpression"),
+        "unsupportedNestedTemplateExpression" => Some("unsupportedNestedTemplateExpression"),
+        "unsupportedMultipleTemplateInterpolations" => {
+            Some("unsupportedMultipleTemplateInterpolations")
+        }
         "unsupportedExpressionShape" => Some("unsupportedExpressionShape"),
         _ => None,
     }

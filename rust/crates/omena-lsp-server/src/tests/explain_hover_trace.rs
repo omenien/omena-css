@@ -144,7 +144,7 @@ fn explain_hover_trace_reports_source_selector_resolution() -> TestResult {
 }
 
 #[test]
-fn explain_hover_trace_reports_type_fact_targets_that_were_never_attempted() -> TestResult {
+fn explain_hover_trace_distinguishes_lexical_resolution_from_unresolved_shapes() -> TestResult {
     let source_uri = "file:///workspace-a/src/App.tsx";
     let source_text = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";
@@ -186,10 +186,64 @@ export const view = (active: boolean) =>
             .and_then(|value| value.pointer("/result/typeFactTier")),
         Some(&json!({
             "attempted": false,
-            "outcome": "neverAttempted",
-            "reason": "unsupportedExpressionShape",
+            "outcome": "lexicallyResolved",
+            "reason": "finiteExactDomain",
+            "shapeClass": "lexicallyEnumerable",
+            "lexicalDisposition": "resolved",
             "skippedTargetCount": 1,
         })),
+    );
+
+    let unresolved_source_uri = "file:///workspace-a/src/Unresolved.tsx";
+    let unresolved_source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+declare function resolveTheme(): string;
+export const view = () => <div className={cx(`theme-${resolveTheme()}`)} />;
+"#;
+    open_source_document(&mut state, unresolved_source_uri, unresolved_source_text);
+    let unresolved_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": EXPLAIN_HOVER_TRACE_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": unresolved_source_uri,
+                },
+                "position": parser_position_for_byte_offset(
+                    unresolved_source_text,
+                    unresolved_source_text
+                        .rfind("resolveTheme()")
+                        .ok_or_else(|| std::io::Error::other(
+                            "source fixture contains unresolved call"
+                        ))?,
+                ),
+            },
+        }),
+    );
+    assert_eq!(
+        unresolved_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/typeFactTier")),
+        Some(&json!({
+            "attempted": false,
+            "outcome": "notAttempted",
+            "reason": "unsupportedCallExpression",
+            "shapeClass": "call",
+            "lexicalDisposition": "unresolved",
+            "skippedTargetCount": 1,
+        })),
+    );
+    assert_ne!(
+        response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/typeFactTier")),
+        unresolved_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/typeFactTier")),
+        "lexically resolved and unresolved expressions need different tier traces",
     );
     Ok(())
 }

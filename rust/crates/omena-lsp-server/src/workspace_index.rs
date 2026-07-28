@@ -426,6 +426,7 @@ fn collect_workspace_index_documents_from_candidates(
                 0,
                 text,
                 sidecar.source_syntax_index,
+                sidecar.source_type_fact_attempts,
                 sidecar.has_unresolved_style_import,
             )
         } else {
@@ -445,6 +446,7 @@ fn collect_workspace_index_documents_from_candidates(
                     document.text_hash.as_str(),
                     &resolution_inputs,
                     &document.source_syntax_index,
+                    document.source_type_fact_lexical_attempts.as_slice(),
                     document.has_unresolved_style_import,
                 );
             }
