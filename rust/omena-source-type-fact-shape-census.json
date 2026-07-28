@@ -1,0 +1,529 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.source-type-fact.shape-disposition-census",
+  "generatedBy": "scripts/check-rust-omena-source-type-fact-shape-census.ts",
+  "authorities": {
+    "syntacticPopulation": "typescript-ast",
+    "recordedDisposition": "omena-source-frontend-rust-capture",
+    "joinKey": "source-path-and-byte-span"
+  },
+  "corpus": {
+    "manifestPath": "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
+    "manifestSha256": "7229dd4585579ea6ea8ad25226c4a720ad47406f409b4590ea31407059fbf8e9",
+    "lintReportPath": "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-report.json",
+    "lintReportSha256": "932f7585774037526ff84343470e2245817f771c2e86249e9f449437120bebf5",
+    "lintPolicyDigest": "f09d97143f20cd65e0a41143ffe7c912022ca2902d3ed08ca708700b08c5923f",
+    "localWorkspacePaths": [
+      "examples",
+      "scripts/fixtures/real-workspace-lint-corpus",
+      "scripts/fixtures/unused-selector-fanout"
+    ],
+    "sourceFileCount": 131,
+    "sourceSiteCount": 34,
+    "nonEnumerableSiteCount": 0,
+    "interpretation": "scale-starved"
+  },
+  "shapeFixtures": {
+    "path": "rust/crates/omena-bridge/tests/fixtures/source-type-fact-expression-shapes.json",
+    "sha256": "5eaa4ed9ace4ac49d68ee971e3b46c51c82ee12582065cb30c5c84fc3de78d6b",
+    "siteCount": 9
+  },
+  "shapeCounts": {
+    "identifierPath": 35,
+    "lexicallyEnumerable": 1,
+    "call": 1,
+    "arithmetic": 1,
+    "logicalOperator": 1,
+    "computedNonLiteral": 1,
+    "nestedTemplate": 1,
+    "multiInterpolation": 1,
+    "other": 1
+  },
+  "fixtureShapeCounts": {
+    "identifierPath": 1,
+    "lexicallyEnumerable": 1,
+    "call": 1,
+    "arithmetic": 1,
+    "logicalOperator": 1,
+    "computedNonLiteral": 1,
+    "nestedTemplate": 1,
+    "multiInterpolation": 1,
+    "other": 1
+  },
+  "dispositionCounts": {
+    "target": 35,
+    "skipped": 2,
+    "unrecorded": 6
+  },
+  "sites": [
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/01-basic/BasicScenario.tsx",
+      "byteSpan": {
+        "start": 915,
+        "end": 919
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:size:915:919"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/01-basic/BasicScenario.tsx",
+      "byteSpan": {
+        "start": 1079,
+        "end": 1083
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:size:1079:1083"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/02-multi-binding/StyleAccessDemo.tsx",
+      "byteSpan": {
+        "start": 667,
+        "end": 680
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.button:667:680"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/02-multi-binding/StyleAccessDemo.tsx",
+      "byteSpan": {
+        "start": 722,
+        "end": 742
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.buttonPrimary:722:742"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/03-multiline/MultilineScenario.tsx",
+      "byteSpan": {
+        "start": 632,
+        "end": 636
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:size:632:636"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/04-dynamic/DynamicScenario.tsx",
+      "byteSpan": {
+        "start": 782,
+        "end": 789
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:variant:782:789"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1037,
+        "end": 1047
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.btn:1037:1047"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1049,
+        "end": 1063
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.primary:1049:1063"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1077,
+        "end": 1090
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.active:1077:1090"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1237,
+        "end": 1247
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.btn:1237:1247"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1249,
+        "end": 1265
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.secondary:1249:1265"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1279,
+        "end": 1292
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.active:1279:1292"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1422,
+        "end": 1432
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.btn:1422:1432"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1446,
+        "end": 1460
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.primary:1446:1460"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1474,
+        "end": 1483
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.lg:1474:1483"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 1511,
+        "end": 1526
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.disabled:1511:1526"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+      "byteSpan": {
+        "start": 2212,
+        "end": 2223
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.note:2212:2223"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/13-shadowing/ShadowingScenario.tsx",
+      "byteSpan": {
+        "start": 661,
+        "end": 673
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.badge:661:673"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/13-shadowing/ShadowingScenario.tsx",
+      "byteSpan": {
+        "start": 1083,
+        "end": 1095
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.title:1083:1095"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/13-shadowing/ShadowingScenario.tsx",
+      "byteSpan": {
+        "start": 1155,
+        "end": 1166
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.body:1155:1166"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/13-shadowing/ShadowingScenario.tsx",
+      "byteSpan": {
+        "start": 1456,
+        "end": 1468
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.badge:1456:1468"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/13-shadowing/ShadowingScenario.tsx",
+      "byteSpan": {
+        "start": 1564,
+        "end": 1576
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.badge:1564:1576"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/14-non-finite-dynamic/NonFiniteDynamicScenario.tsx",
+      "byteSpan": {
+        "start": 2004,
+        "end": 2008
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:size:2004:2008"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/14-non-finite-dynamic/NonFiniteDynamicScenario.tsx",
+      "byteSpan": {
+        "start": 2141,
+        "end": 2152
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:prefixClass:2141:2152"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/14-non-finite-dynamic/NonFiniteDynamicScenario.tsx",
+      "byteSpan": {
+        "start": 2271,
+        "end": 2289
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:derivedStatusClass:2271:2289"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/17-bracket-access/BracketAccessScenario.tsx",
+      "byteSpan": {
+        "start": 419,
+        "end": 440
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.btn-primary:419:440"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/17-bracket-access/BracketAccessScenario.tsx",
+      "byteSpan": {
+        "start": 525,
+        "end": 546
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.accent-pill:525:546"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/17-bracket-access/BracketAccessScenario.tsx",
+      "byteSpan": {
+        "start": 661,
+        "end": 684
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.한글-라벨:661:684"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/17-bracket-access/BracketAccessScenario.tsx",
+      "byteSpan": {
+        "start": 801,
+        "end": 812
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.meta:801:812"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "examples/src/scenarios/18-less-module/LessModuleScenario.tsx",
+      "byteSpan": {
+        "start": 519,
+        "end": 541
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.accent-badge:519:541"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "scripts/fixtures/real-workspace-lint-corpus/src/App.tsx",
+      "byteSpan": {
+        "start": 104,
+        "end": 115
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.card:104:115"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "scripts/fixtures/real-workspace-lint-corpus/src/App.tsx",
+      "byteSpan": {
+        "start": 139,
+        "end": 151
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.title:139:151"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "scripts/fixtures/real-workspace-lint-corpus/src/App.tsx",
+      "byteSpan": {
+        "start": 203,
+        "end": 217
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.utility:203:217"
+    },
+    {
+      "population": "committed-corpus",
+      "sourcePath": "scripts/fixtures/real-workspace-lint-corpus/src/BrokenImport.tsx",
+      "byteSpan": {
+        "start": 105,
+        "end": 119
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:styles.missing:105:119"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/aggregate-expression.tsx",
+      "byteSpan": {
+        "start": 75,
+        "end": 84
+      },
+      "shapeClass": "other",
+      "disposition": "unrecorded"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/arithmetic-expression.tsx",
+      "byteSpan": {
+        "start": 65,
+        "end": 74
+      },
+      "shapeClass": "arithmetic",
+      "disposition": "unrecorded"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/call-expression.tsx",
+      "byteSpan": {
+        "start": 77,
+        "end": 91
+      },
+      "shapeClass": "call",
+      "disposition": "unrecorded"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/computed-member.tsx",
+      "byteSpan": {
+        "start": 109,
+        "end": 120
+      },
+      "shapeClass": "computedNonLiteral",
+      "disposition": "unrecorded"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/finite-conditional.tsx",
+      "byteSpan": {
+        "start": 76,
+        "end": 94
+      },
+      "shapeClass": "lexicallyEnumerable",
+      "disposition": "skipped",
+      "expressionId": "omena-bridge-source-type-fact-skipped:76:94",
+      "reason": "unsupportedExpressionShape"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/identifier-path.tsx",
+      "byteSpan": {
+        "start": 78,
+        "end": 91
+      },
+      "shapeClass": "identifierPath",
+      "disposition": "target",
+      "expressionId": "omena-bridge-source-type-fact:theme.current:78:91"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/logical-expression.tsx",
+      "byteSpan": {
+        "start": 105,
+        "end": 120
+      },
+      "shapeClass": "logicalOperator",
+      "disposition": "skipped",
+      "expressionId": "omena-bridge-source-type-fact-skipped:105:120",
+      "reason": "unsupportedExpressionShape"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/multiple-interpolations.tsx",
+      "byteSpan": {
+        "start": 93,
+        "end": 117
+      },
+      "shapeClass": "multiInterpolation",
+      "disposition": "unrecorded"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/nested-template.tsx",
+      "byteSpan": {
+        "start": 73,
+        "end": 89
+      },
+      "shapeClass": "nestedTemplate",
+      "disposition": "unrecorded"
+    }
+  ]
+}

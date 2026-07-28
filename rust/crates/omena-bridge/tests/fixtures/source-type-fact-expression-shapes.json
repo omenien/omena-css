@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-bridge.source-type-fact-expression-shapes",
+  "fixtures": [
+    {
+      "id": "identifier-path",
+      "shapeClass": "identifierPath",
+      "source": "declare const theme: { current: string };\nexport const view = <div className={theme.current} />;\n"
+    },
+    {
+      "id": "finite-conditional",
+      "shapeClass": "lexicallyEnumerable",
+      "source": "declare const active: boolean;\nexport const view = <div className={`theme-${active ? \"a\" : \"b\"}`} />;\n"
+    },
+    {
+      "id": "call-expression",
+      "shapeClass": "call",
+      "source": "declare function resolveTheme(): string;\nexport const view = <div className={resolveTheme()} />;\n"
+    },
+    {
+      "id": "arithmetic-expression",
+      "shapeClass": "arithmetic",
+      "source": "declare const index: number;\nexport const view = <div className={index + 1} />;\n"
+    },
+    {
+      "id": "logical-expression",
+      "shapeClass": "logicalOperator",
+      "source": "declare const active: boolean;\ndeclare const theme: string;\nexport const view = <div className={`theme-${active && theme}`} />;\n"
+    },
+    {
+      "id": "computed-member",
+      "shapeClass": "computedNonLiteral",
+      "source": "declare const themes: Record<string, string>;\ndeclare const key: string;\nexport const view = <div className={themes[key]} />;\n"
+    },
+    {
+      "id": "nested-template",
+      "shapeClass": "nestedTemplate",
+      "source": "declare const tone: string;\nexport const view = <div className={`theme-${`nested-${tone}`}`} />;\n"
+    },
+    {
+      "id": "multiple-interpolations",
+      "shapeClass": "multiInterpolation",
+      "source": "declare const left: string;\ndeclare const right: string;\nexport const view = <div className={`theme-${left}-${right}`} />;\n"
+    },
+    {
+      "id": "aggregate-expression",
+      "shapeClass": "other",
+      "source": "declare const theme: string;\nexport const view = <div className={`theme-${({ theme })}`} />;\n"
+    }
+  ]
+}

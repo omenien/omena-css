@@ -60,6 +60,8 @@ struct RustSyntaxCaptureV0 {
     imported_style_bindings: Vec<RustImportedStyleBindingInputV0>,
     style_property_accesses: Vec<RustStylePropertyAccessCaptureV0>,
     selector_references: Vec<RustSelectorReferenceCaptureV0>,
+    type_fact_targets: Vec<RustTypeFactTargetCaptureV0>,
+    type_fact_target_skipped: Vec<RustTypeFactTargetSkippedCaptureV0>,
 }
 
 #[derive(Debug, Serialize)]
@@ -231,6 +233,21 @@ struct RustSelectorReferenceCaptureV0 {
     target_style_uri: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustTypeFactTargetCaptureV0 {
+    byte_span: ParserByteSpanV0,
+    expression_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RustTypeFactTargetSkippedCaptureV0 {
+    byte_span: ParserByteSpanV0,
+    expression_id: String,
+    reason: &'static str,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let request: RustCaptureRequestV0 = serde_json::from_reader(io::stdin())?;
     let response = RustCaptureResponseV0 {
@@ -337,6 +354,23 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                     byte_span: reference.byte_span,
                     match_kind: match_kind_label(reference.match_kind),
                     target_style_uri: reference.target_style_uri,
+                })
+                .collect(),
+            type_fact_targets: index
+                .type_fact_targets
+                .into_iter()
+                .map(|target| RustTypeFactTargetCaptureV0 {
+                    byte_span: target.byte_span,
+                    expression_id: target.expression_id,
+                })
+                .collect(),
+            type_fact_target_skipped: index
+                .type_fact_target_skipped
+                .into_iter()
+                .map(|skipped| RustTypeFactTargetSkippedCaptureV0 {
+                    byte_span: skipped.byte_span,
+                    expression_id: skipped.expression_id,
+                    reason: skipped.reason,
                 })
                 .collect(),
         },
