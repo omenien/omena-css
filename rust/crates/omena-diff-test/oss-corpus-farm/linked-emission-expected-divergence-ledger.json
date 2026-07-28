@@ -36,6 +36,13 @@
       "justification": "The linked path emits the shared dependency once, groups modules, and preserves dependency-first order while the legacy path repeats the shared import."
     },
     {
+      "fixtureId": "entry-ordinal-skew",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "5f454c4450336390f2622804a807b6c83616292e1f3c33ba5f73baed29a49d79",
+      "justification": "The legacy path applies the entry rewrite table across imported declarations while linked emission retains module-local rewrite ordinals and import-graph order."
+    },
+    {
       "fixtureId": "module-qualified-reachability",
       "classificationArm": "moduleAttributedReachabilityCorrection",
       "derivedReasons": ["globalModuleOrder"],

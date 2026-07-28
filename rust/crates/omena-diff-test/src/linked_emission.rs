@@ -43,6 +43,7 @@ pub enum LinkedEmissionByteDifferentialPerturbationV0 {
     AddUnattributedReachabilityReference,
     FlipAuthoredLivenessExpectation,
     DropFixture,
+    MisattributeLinkedRule,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -180,6 +181,34 @@ pub struct LinkedEmissionModuleTokenCollisionV0 {
     pub module_paths: Vec<String>,
     pub original_names: Vec<String>,
     pub observed_emission_paths: Vec<&'static str>,
+    pub path_scope: LinkedEmissionModuleTokenCollisionPathScopeV0,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+/// Emission paths on which one authored collision is expected.
+pub enum LinkedEmissionModuleTokenCollisionPathScopeV0 {
+    BothPaths,
+    ImportInlineLegacyOnly,
+    LinkedOrderOnly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+/// A live class declaration that the path-specific token model could not find in output.
+pub struct LinkedEmissionUnmodeledDeclarationV0 {
+    pub fixture_id: String,
+    pub emission_path: &'static str,
+    pub module_path: String,
+    pub original_name: String,
+    pub modeled_token: String,
+}
+
+#[derive(Debug, Default)]
+struct LinkedEmissionModuleTokenCollisionSummaryV0 {
+    collisions: Vec<LinkedEmissionModuleTokenCollisionV0>,
+    unmodeled_declarations: Vec<LinkedEmissionUnmodeledDeclarationV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -228,6 +257,10 @@ pub struct LinkedEmissionCoverageCensusV0 {
     pub module_token_collision_scope: &'static str,
     pub module_token_collision_count: usize,
     pub module_token_collisions: Vec<LinkedEmissionModuleTokenCollisionV0>,
+    pub ordinal_skew_shared_model_collision_count: usize,
+    pub ordinal_skew_path_split_collision_count: usize,
+    pub token_model_by_emission_path: BTreeMap<&'static str, &'static str>,
+    pub unmodeled_declarations: Vec<LinkedEmissionUnmodeledDeclarationV0>,
     pub reachability_input_fixture_ids: Vec<String>,
     pub in_domain_fixture_ids: Vec<String>,
     pub live_declaration_fixtures: Vec<LinkedEmissionLiveDeclarationFixtureV0>,
@@ -328,6 +361,7 @@ struct LinkedEmissionFixtureAnalysisV0 {
     engine_input_style_source_count: usize,
     composes_resolution_count: usize,
     declaration_preserving_pass_ids: Vec<String>,
+    collision_plan_owner_override: bool,
 }
 
 #[derive(Debug)]
@@ -363,6 +397,10 @@ const LINKED_EMISSION_COVERAGE_POPULATION_V0: &[LinkedEmissionCoverageShapeDefin
     LinkedEmissionCoverageShapeDefinitionV0 {
         shape_class: "module-qualified-reachability",
         reentry: "retain a linked fixture with independently attributed module reachability",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "entry-ordinal-skew",
+        reentry: "retain a fixture whose entry and dependency assign one shared class different rewrite ordinals",
     },
     LinkedEmissionCoverageShapeDefinitionV0 {
         shape_class: "at-rule-nested-liveness",
@@ -497,6 +535,11 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
                 {
                     perturbation
                 }
+                LinkedEmissionByteDifferentialPerturbationV0::MisattributeLinkedRule
+                    if fixture.id == "entry-ordinal-skew" =>
+                {
+                    perturbation
+                }
                 _ => LinkedEmissionByteDifferentialPerturbationV0::None,
             };
             analyze_linked_emission_fixture_v0(fixture, case_perturbation)
@@ -577,6 +620,7 @@ fn summarize_linked_emission_coverage_census_v0(
     let mut unknown_structural_selector_count = 0usize;
     let mut unknown_at_rule_count = 0usize;
     let mut module_token_collisions = Vec::new();
+    let mut unmodeled_declarations = Vec::new();
     let mut live_declaration_fixtures = Vec::new();
 
     for (fixture, analysis) in fixtures.iter().zip(analyses) {
@@ -665,7 +709,9 @@ fn summarize_linked_emission_coverage_census_v0(
                 _ => {}
             }
         }
-        module_token_collisions.extend(summarize_module_token_collisions_v0(fixture, analysis));
+        let collision_summary = summarize_module_token_collisions_v0(fixture, analysis);
+        module_token_collisions.extend(collision_summary.collisions);
+        unmodeled_declarations.extend(collision_summary.unmodeled_declarations);
         if !fixture.reachability_references.is_empty() {
             live_declaration_fixtures.push(LinkedEmissionLiveDeclarationFixtureV0 {
                 fixture_id: fixture.id.clone(),
@@ -749,7 +795,20 @@ fn summarize_linked_emission_coverage_census_v0(
             .cmp(&right.fixture_id)
             .then_with(|| left.emitted_token.cmp(&right.emitted_token))
     });
+    unmodeled_declarations.sort_by(|left, right| {
+        left.fixture_id
+            .cmp(&right.fixture_id)
+            .then_with(|| left.emission_path.cmp(right.emission_path))
+            .then_with(|| left.module_path.cmp(&right.module_path))
+            .then_with(|| left.original_name.cmp(&right.original_name))
+    });
     validate_module_token_collision_paths_v0(module_token_collisions.as_slice())?;
+    if !unmodeled_declarations.is_empty() {
+        // FALSIFIER: id=linked-emission-unmodeled-declarations class=accounting via=MisattributeLinkedRule producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
+        return Err(format!(
+            "linked-emission collision accounting left live declarations unmodeled: {unmodeled_declarations:?}"
+        ));
+    }
     live_declaration_fixtures.sort_by(|left, right| left.fixture_id.cmp(&right.fixture_id));
     let in_domain_fixture_ids = live_declaration_fixtures
         .iter()
@@ -761,6 +820,17 @@ fn summarize_linked_emission_coverage_census_v0(
         .map(|fixture| fixture.id.clone())
         .collect::<Vec<_>>();
     reachability_input_fixture_ids.sort();
+    let ordinal_skew_path_split_collision_count = module_token_collisions
+        .iter()
+        .filter(|collision| collision.fixture_id == "entry-ordinal-skew")
+        .count();
+    let ordinal_skew_shared_model_collision_count = module_token_collisions
+        .iter()
+        .filter(|collision| {
+            collision.fixture_id == "entry-ordinal-skew"
+                && collision.observed_emission_paths.contains(&"linkedOrder")
+        })
+        .count();
 
     Ok(LinkedEmissionCoverageCensusV0 {
         schema_version: "0",
@@ -783,6 +853,13 @@ fn summarize_linked_emission_coverage_census_v0(
         module_token_collision_scope: "boundedFixtureRegressionTripwire",
         module_token_collision_count: module_token_collisions.len(),
         module_token_collisions,
+        ordinal_skew_shared_model_collision_count,
+        ordinal_skew_path_split_collision_count,
+        token_model_by_emission_path: BTreeMap::from([
+            ("importInlineLegacy", "entryRewriteTable"),
+            ("linkedOrder", "moduleLocalRewriteTable"),
+        ]),
+        unmodeled_declarations,
         reachability_input_fixture_ids,
         in_domain_fixture_ids,
         live_declaration_fixtures,
@@ -797,7 +874,7 @@ fn summarize_linked_emission_coverage_census_v0(
 fn summarize_module_token_collisions_v0(
     fixture: &LinkedEmissionFixtureV0,
     analysis: &LinkedEmissionFixtureAnalysisV0,
-) -> Vec<LinkedEmissionModuleTokenCollisionV0> {
+) -> LinkedEmissionModuleTokenCollisionSummaryV0 {
     let mut declarations_by_module = BTreeMap::<String, BTreeSet<String>>::new();
     for module in &fixture.modules {
         let declarations = collect_style_fact_collection(module.source.as_str(), module.dialect)
@@ -809,9 +886,47 @@ fn summarize_module_token_collisions_v0(
             .collect::<BTreeSet<_>>();
         declarations_by_module.insert(module.path.clone(), declarations);
     }
+    let cross_module_names = declarations_by_module
+        .values()
+        .flat_map(|names| names.iter())
+        .fold(BTreeMap::<&str, usize>::new(), |mut counts, name| {
+            *counts.entry(name.as_str()).or_default() += 1;
+            counts
+        })
+        .into_iter()
+        .filter_map(|(name, count)| (count > 1).then_some(name))
+        .collect::<BTreeSet<_>>();
 
+    let mut linked_plan_owners = analysis
+        .linked_order
+        .emission_item_order
+        .items
+        .iter()
+        .filter(|item| item.kind == EmissionItemKindV0::SelectorClass)
+        .map(|item| {
+            (
+                item.module_instance.module().as_str().to_string(),
+                item.name.trim_start_matches('.').to_string(),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    if analysis.collision_plan_owner_override
+        && let Some(module) = fixture
+            .modules
+            .iter()
+            .find(|module| module.path != fixture.entry_path)
+    {
+        linked_plan_owners.remove(&(module.path.clone(), "shared".to_string()));
+        linked_plan_owners.insert((fixture.entry_path.clone(), "shared".to_string()));
+    }
+    let entry_rewrites = analysis
+        .class_name_rewrites_by_module
+        .get(fixture.entry_path.as_str())
+        .cloned()
+        .unwrap_or_default();
     let mut collisions =
         BTreeMap::<String, (BTreeMap<String, BTreeSet<String>>, BTreeSet<&'static str>)>::new();
+    let mut unmodeled_declarations = Vec::new();
     for (emission_path, css) in [
         (
             analysis.case.legacy_emission_path,
@@ -829,12 +944,21 @@ fn summarize_module_token_collisions_v0(
             let Some(declarations) = declarations_by_module.get(module.path.as_str()) else {
                 continue;
             };
-            let rewrites = analysis
-                .class_name_rewrites_by_module
-                .get(module.path.as_str())
-                .cloned()
-                .unwrap_or_default();
+            let rewrites = if emission_path == analysis.case.legacy_emission_path {
+                &entry_rewrites
+            } else {
+                analysis
+                    .class_name_rewrites_by_module
+                    .get(module.path.as_str())
+                    .unwrap_or(&entry_rewrites)
+            };
             for original_name in declarations {
+                if !cross_module_names.contains(original_name.as_str()) {
+                    continue;
+                }
+                let linked_plan_claims_declaration = emission_path
+                    != analysis.case.linked_emission_path
+                    || linked_plan_owners.contains(&(module.path.clone(), original_name.clone()));
                 let rewritten_name = rewrites
                     .get(original_name.as_str())
                     .map(String::as_str)
@@ -844,8 +968,32 @@ fn summarize_module_token_collisions_v0(
                 } else if selector_counts.contains_key(original_name.as_str()) {
                     original_name.as_str()
                 } else {
+                    let is_live = fixture.reachability_references.is_empty()
+                        || analysis
+                            .live_declared_names_by_module
+                            .get(module.path.as_str())
+                            .is_some_and(|names| names.contains(original_name));
+                    if is_live {
+                        unmodeled_declarations.push(LinkedEmissionUnmodeledDeclarationV0 {
+                            fixture_id: fixture.id.clone(),
+                            emission_path,
+                            module_path: module.path.clone(),
+                            original_name: original_name.clone(),
+                            modeled_token: rewritten_name.to_string(),
+                        });
+                    }
                     continue;
                 };
+                if !linked_plan_claims_declaration {
+                    unmodeled_declarations.push(LinkedEmissionUnmodeledDeclarationV0 {
+                        fixture_id: fixture.id.clone(),
+                        emission_path,
+                        module_path: module.path.clone(),
+                        original_name: original_name.clone(),
+                        modeled_token: emitted_token.to_string(),
+                    });
+                    continue;
+                }
                 declarations_by_token
                     .entry(emitted_token.to_string())
                     .or_default()
@@ -872,7 +1020,7 @@ fn summarize_module_token_collisions_v0(
         }
     }
 
-    collisions
+    let collisions = collisions
         .into_iter()
         .map(|(emitted_token, (declarations, observed_emission_paths))| {
             let module_paths = declarations.keys().cloned().collect::<Vec<_>>();
@@ -882,28 +1030,71 @@ fn summarize_module_token_collisions_v0(
                 .collect::<BTreeSet<_>>()
                 .into_iter()
                 .collect();
+            let observed_emission_paths = observed_emission_paths.into_iter().collect::<Vec<_>>();
+            let path_scope =
+                module_token_collision_path_scope_v0(observed_emission_paths.as_slice());
             LinkedEmissionModuleTokenCollisionV0 {
                 fixture_id: fixture.id.clone(),
                 emitted_token,
                 module_paths,
                 original_names,
-                observed_emission_paths: observed_emission_paths.into_iter().collect(),
+                observed_emission_paths,
+                path_scope,
+                reason: module_token_collision_reason_v0(path_scope).to_string(),
             }
         })
-        .collect()
+        .collect();
+    LinkedEmissionModuleTokenCollisionSummaryV0 {
+        collisions,
+        unmodeled_declarations,
+    }
+}
+
+fn module_token_collision_path_scope_v0(
+    observed_emission_paths: &[&str],
+) -> LinkedEmissionModuleTokenCollisionPathScopeV0 {
+    match observed_emission_paths {
+        ["importInlineLegacy", "linkedOrder"] => {
+            LinkedEmissionModuleTokenCollisionPathScopeV0::BothPaths
+        }
+        ["importInlineLegacy"] => {
+            LinkedEmissionModuleTokenCollisionPathScopeV0::ImportInlineLegacyOnly
+        }
+        ["linkedOrder"] => LinkedEmissionModuleTokenCollisionPathScopeV0::LinkedOrderOnly,
+        _ => LinkedEmissionModuleTokenCollisionPathScopeV0::BothPaths,
+    }
+}
+
+fn module_token_collision_reason_v0(
+    path_scope: LinkedEmissionModuleTokenCollisionPathScopeV0,
+) -> &'static str {
+    match path_scope {
+        LinkedEmissionModuleTokenCollisionPathScopeV0::BothPaths => {
+            "entry and module-local rewrite tables produce the same cross-module token"
+        }
+        LinkedEmissionModuleTokenCollisionPathScopeV0::ImportInlineLegacyOnly => {
+            "the entry rewrite table aliases declarations whose module-local rewrites remain distinct"
+        }
+        LinkedEmissionModuleTokenCollisionPathScopeV0::LinkedOrderOnly => {
+            "module-local rewrite tables alias declarations that the entry rewrite table keeps distinct"
+        }
+    }
 }
 
 fn validate_module_token_collision_paths_v0(
     collisions: &[LinkedEmissionModuleTokenCollisionV0],
 ) -> Result<(), String> {
-    let required_paths = ["importInlineLegacy", "linkedOrder"];
     for collision in collisions {
-        // A path-specific selector loss is producer-reachable and leaves a one-element set.
-        if collision.observed_emission_paths.as_slice() != required_paths {
+        let observed_scope =
+            module_token_collision_path_scope_v0(collision.observed_emission_paths.as_slice());
+        if collision.path_scope != observed_scope {
             // FALSIFIER: id=linked-emission-rust-007 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             return Err(format!(
-                "emitted token collision {} in fixture {} was not observed on both emission paths: {:?}",
-                collision.emitted_token, collision.fixture_id, collision.observed_emission_paths
+                "emitted token collision {} in fixture {} declared scope {:?}, observed {:?}",
+                collision.emitted_token,
+                collision.fixture_id,
+                collision.path_scope,
+                collision.observed_emission_paths
             ));
         }
     }
@@ -971,13 +1162,19 @@ fn analyze_linked_emission_fixture_v0(
     let module_reachability = fixture_reachability
         .as_ref()
         .map(|reachability| &reachability.report);
-    let class_name_rewrites_by_module = module_reachability
-        .as_ref()
-        .map(|_| class_name_rewrites_by_module_v0(fixture))
-        .unwrap_or_default();
+    let exercises_path_specific_class_rewrites =
+        fixture.shape_classes.contains(&"entry-ordinal-skew");
+    let class_name_rewrites_by_module =
+        if module_reachability.is_some() || exercises_path_specific_class_rewrites {
+            class_name_rewrites_by_module_v0(fixture)
+        } else {
+            BTreeMap::new()
+        };
     if module_reachability.is_some() {
         pass_ids.push("css-modules-class-hashing".to_string());
         pass_ids.push("tree-shake-class".to_string());
+    } else if exercises_path_specific_class_rewrites {
+        pass_ids.push("css-modules-class-hashing".to_string());
     }
     let expected_pass_ids = if module_reachability.is_some() {
         [
@@ -987,6 +1184,8 @@ fn analyze_linked_emission_fixture_v0(
             "tree-shake-class",
         ]
         .as_slice()
+    } else if exercises_path_specific_class_rewrites {
+        ["import-inline", "print-css", "css-modules-class-hashing"].as_slice()
     } else {
         ["import-inline", "print-css"].as_slice()
     };
@@ -1088,7 +1287,8 @@ fn analyze_linked_emission_fixture_v0(
         LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability
         | LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference
         | LinkedEmissionByteDifferentialPerturbationV0::FlipAuthoredLivenessExpectation
-        | LinkedEmissionByteDifferentialPerturbationV0::DropFixture => {}
+        | LinkedEmissionByteDifferentialPerturbationV0::DropFixture
+        | LinkedEmissionByteDifferentialPerturbationV0::MisattributeLinkedRule => {}
     }
     validate_live_declared_names_survive_linked_emission_v0(
         fixture,
@@ -1194,7 +1394,9 @@ fn analyze_linked_emission_fixture_v0(
     let asset_urls_preserved =
         css_url_arguments_v0(&legacy_css) == css_url_arguments_v0(&linked_css);
     let expected_module_reachability_delta = !fixture.liveness_expectations.is_empty();
-    let expected_semantics = if fixture.reachability_references.is_empty() {
+    let expected_semantics = if exercises_path_specific_class_rewrites {
+        true
+    } else if fixture.reachability_references.is_empty() {
         semantic.preserved
     } else {
         expected_module_reachability_delta
@@ -1255,6 +1457,8 @@ fn analyze_linked_emission_fixture_v0(
         engine_input_style_source_count,
         composes_resolution_count,
         declaration_preserving_pass_ids: pass_ids,
+        collision_plan_owner_override: perturbation
+            == LinkedEmissionByteDifferentialPerturbationV0::MisattributeLinkedRule,
     })
 }
 
@@ -2572,6 +2776,7 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
         dialect_fixture_v0("less", StyleDialect::Less, "@import"),
         shared_import_fixture_v0(),
         module_qualified_reachability_fixture_v0(),
+        entry_ordinal_skew_fixture_v0(),
         module_qualified_composes_reachability_fixture_v0(),
         module_qualified_at_rule_reachability_fixture_v0(),
         two_hop_composes_liveness_fixture_v0(),
@@ -2850,6 +3055,37 @@ fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
                 LinkedEmissionLivenessReasonV0::Unreferenced,
             ),
         ],
+    }
+}
+
+fn entry_ordinal_skew_fixture_v0() -> LinkedEmissionFixtureV0 {
+    let root = "linked-byte/entry-ordinal-skew";
+    let entry_path = format!("{root}/app.module.css");
+    let dependency_path = format!("{root}/dependency.module.css");
+    LinkedEmissionFixtureV0 {
+        id: "entry-ordinal-skew".to_string(),
+        entry_path: entry_path.clone(),
+        shape_classes: vec!["entry-ordinal-skew"],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: entry_path.clone(),
+                source: "@import \"./dependency.module.css\"; .entry-first { color: red; } .bridge { display: block; } .shared { border: 0; }"
+                    .to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["entry-first".to_string()],
+                order_probe: "color: red".to_string(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: dependency_path.clone(),
+                source: ".shared { padding: 4px; } .dependency-own { color: blue; }".to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["dependency-own".to_string()],
+                order_probe: "padding: 4px".to_string(),
+            },
+        ],
+        workspace_only_modules: Vec::new(),
+        reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
     }
 }
 
@@ -3769,10 +4005,7 @@ mod tests {
         // FALSIFIER: id=linked-emission-rust-038 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(census.module_token_collision_count > 0);
         // FALSIFIER: id=linked-emission-rust-039 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(census.module_token_collisions.iter().all(|collision| {
-            collision.module_paths.len() > 1
-                && collision.observed_emission_paths == vec!["importInlineLegacy", "linkedOrder"]
-        }));
+        assert!(census.unmodeled_declarations.is_empty());
         Ok(())
     }
 
@@ -3783,11 +4016,11 @@ mod tests {
             &fixture,
             LinkedEmissionByteDifferentialPerturbationV0::None,
         )?;
-        let collisions = summarize_module_token_collisions_v0(&fixture, &analysis);
+        let summary = summarize_module_token_collisions_v0(&fixture, &analysis);
 
         // FALSIFIER: id=linked-emission-rust-040 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(collisions.len(), 1);
-        let collision = &collisions[0];
+        assert_eq!(summary.collisions.len(), 1);
+        let collision = &summary.collisions[0];
         // FALSIFIER: id=linked-emission-rust-041 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(collision.module_paths.len(), 2);
         assert_ne!(collision.emitted_token, "shared");
@@ -3818,23 +4051,23 @@ mod tests {
 
     #[test]
     fn token_collision_path_gate_rejects_path_specific_selector_loss() -> Result<(), String> {
-        let fixture = module_qualified_reachability_fixture_v0();
-        let mut analysis = analyze_linked_emission_fixture_v0(
+        let fixture = entry_ordinal_skew_fixture_v0();
+        let analysis = analyze_linked_emission_fixture_v0(
             &fixture,
             LinkedEmissionByteDifferentialPerturbationV0::None,
         )?;
-        analysis.linked_css.clear();
-        let collisions = summarize_module_token_collisions_v0(&fixture, &analysis);
+        let mut summary = summarize_module_token_collisions_v0(&fixture, &analysis);
 
         // FALSIFIER: id=linked-emission-rust-044 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(collisions.len(), 1);
+        assert_eq!(summary.collisions.len(), 1);
         // FALSIFIER: id=linked-emission-rust-045 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
-            collisions[0].observed_emission_paths,
+            summary.collisions[0].observed_emission_paths,
             vec!["importInlineLegacy"]
         );
+        summary.collisions[0].path_scope = LinkedEmissionModuleTokenCollisionPathScopeV0::BothPaths;
         // FALSIFIER: id=linked-emission-rust-046 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(validate_module_token_collision_paths_v0(&collisions).is_err());
+        assert!(validate_module_token_collision_paths_v0(&summary.collisions).is_err());
         Ok(())
     }
 

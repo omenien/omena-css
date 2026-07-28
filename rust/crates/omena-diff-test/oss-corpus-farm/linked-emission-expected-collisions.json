@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.linked-emission-expected-collisions",
+  "entries": [
+    {
+      "fixtureId": "entry-ordinal-skew",
+      "emittedToken": "_shared_2",
+      "modulePaths": [
+        "linked-byte/entry-ordinal-skew/app.module.css",
+        "linked-byte/entry-ordinal-skew/dependency.module.css"
+      ],
+      "originalNames": ["shared"],
+      "pathScope": "importInlineLegacyOnly",
+      "reason": "the entry rewrite table aliases declarations whose module-local rewrites remain distinct"
+    },
+    {
+      "fixtureId": "module-qualified-reachability",
+      "emittedToken": "_shared_0",
+      "modulePaths": [
+        "linked-byte/module-qualified-reachability/app.module.css",
+        "linked-byte/module-qualified-reachability/dependency.module.css"
+      ],
+      "originalNames": ["shared"],
+      "pathScope": "bothPaths",
+      "reason": "entry and module-local rewrite tables produce the same cross-module token"
+    }
+  ]
+}

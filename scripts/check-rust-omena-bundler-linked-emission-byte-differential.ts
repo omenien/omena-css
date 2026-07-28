@@ -71,6 +71,21 @@ interface LinkedEmissionCoverageCensusV0 {
     readonly modulePaths: readonly string[];
     readonly originalNames: readonly string[];
     readonly observedEmissionPaths: ReadonlyArray<"importInlineLegacy" | "linkedOrder">;
+    readonly pathScope: "bothPaths" | "importInlineLegacyOnly" | "linkedOrderOnly";
+    readonly reason: string;
+  }>;
+  readonly ordinalSkewSharedModelCollisionCount: number;
+  readonly ordinalSkewPathSplitCollisionCount: number;
+  readonly tokenModelByEmissionPath: Readonly<{
+    readonly importInlineLegacy: "entryRewriteTable";
+    readonly linkedOrder: "moduleLocalRewriteTable";
+  }>;
+  readonly unmodeledDeclarations: ReadonlyArray<{
+    readonly fixtureId: string;
+    readonly emissionPath: "importInlineLegacy" | "linkedOrder";
+    readonly modulePath: string;
+    readonly originalName: string;
+    readonly modeledToken: string;
   }>;
   readonly reachabilityInputFixtureIds: readonly string[];
   readonly inDomainFixtureIds: readonly string[];
@@ -162,6 +177,12 @@ interface LinkedEmissionExpectedDivergenceLedgerV0 {
   }>;
 }
 
+interface LinkedEmissionExpectedCollisionLedgerV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-diff-test.linked-emission-expected-collisions";
+  readonly entries: LinkedEmissionCoverageCensusV0["moduleTokenCollisions"];
+}
+
 const censusPath =
   "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-coverage-census.json";
 const expectedDivergenceLedger = JSON.parse(
@@ -170,6 +191,12 @@ const expectedDivergenceLedger = JSON.parse(
     "utf8",
   ),
 ) as LinkedEmissionExpectedDivergenceLedgerV0;
+const expectedCollisionLedger = JSON.parse(
+  readFileSync(
+    "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-expected-collisions.json",
+    "utf8",
+  ),
+) as LinkedEmissionExpectedCollisionLedgerV0;
 const divergenceLedger = JSON.parse(
   readFileSync(
     "rust/crates/omena-diff-test/oss-corpus-farm/linked-emission-open-divergence-ledger.json",
@@ -286,6 +313,7 @@ const forwardedArguments = process.argv
       "--inject-unattributed-reference",
       "--inject-authored-liveness-flip",
       "--inject-missing-fixture",
+      "--inject-linked-rule-misattribution",
     ].includes(argument),
   );
 const run = spawnSync(
@@ -339,6 +367,15 @@ const census = process.argv.includes("--inject-missing-shape-row")
       shapes: censusWithDomainInjection.shapes.slice(1),
     }
   : censusWithDomainInjection;
+const authoredCollisions = process.argv.includes("--inject-collision-expectation-flip")
+  ? expectedCollisionLedger.entries.map((entry, index) =>
+      index === 0 ? { ...entry, emittedToken: `${entry.emittedToken}-flipped` } : entry,
+    )
+  : process.argv.includes("--inject-collision-scope-flip")
+    ? expectedCollisionLedger.entries.map((entry, index) =>
+        index === 0 ? { ...entry, pathScope: "bothPaths" as const } : entry,
+      )
+    : expectedCollisionLedger.entries;
 
 assert.equal(envelope.schemaVersion, "0");
 assert.equal(envelope.product, "omena-diff-test.linked-emission-byte-differential-envelope");
@@ -365,6 +402,15 @@ assert.equal(
 );
 assert.equal(census.moduleTokenCollisionCount, census.moduleTokenCollisions.length);
 assert.equal(census.moduleTokenCollisionScope, "boundedFixtureRegressionTripwire");
+assert.equal(census.ordinalSkewSharedModelCollisionCount, 0);
+assert.equal(census.ordinalSkewPathSplitCollisionCount, 1);
+// FALSIFIER: id=linked-emission-token-model-contract class=accounting via=--inject-collision-expectation-flip producer=can-fail owner=linked-emission-instrument entry=path-specific-models-recorded
+assert.deepEqual(census.tokenModelByEmissionPath, {
+  importInlineLegacy: "entryRewriteTable",
+  linkedOrder: "moduleLocalRewriteTable",
+});
+// FALSIFIER: id=linked-emission-unmodeled-contract class=accounting via=--inject-linked-rule-misattribution producer=can-fail owner=linked-emission-instrument entry=no-unmodeled-declarations
+assert.deepEqual(census.unmodeledDeclarations, []);
 // FALSIFIER: id=linked-emission-domain-fixture-set class=shaking via=--inject-live-declaration-loss producer=can-fail owner=linked-emission-instrument entry=three-reachability-fixtures
 assert.deepEqual(
   census.inDomainFixtureIds,
@@ -440,22 +486,19 @@ assert.ok(
   census.moduleTokenCollisionCount > 0,
   "the bounded corpus must retain a cross-module emitted-token collision witness",
 );
-for (const collision of census.moduleTokenCollisions) {
-  // FALSIFIER: id=linked-emission-gate-007 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-  assert.ok(collision.fixtureId.length > 0);
-  // FALSIFIER: id=linked-emission-gate-008 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-  assert.ok(collision.emittedToken.length > 0);
-  // FALSIFIER: id=linked-emission-gate-009 class=structuralEntailment via=STRUCTURAL producer=entailed owner=module-token-collision-producer reentry=producer-admits-single-module-collision entry=single-module-rows-filtered
-  assert.ok(collision.modulePaths.length > 1);
-  // FALSIFIER: id=linked-emission-gate-010 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-  assert.ok(collision.originalNames.length > 0);
-  // FALSIFIER: id=linked-emission-gate-011 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-  assert.deepEqual(
-    collision.observedEmissionPaths,
-    ["importInlineLegacy", "linkedOrder"],
-    "a path-specific selector loss can produce one observed path, so both are required",
-  );
-}
+assert.equal(expectedCollisionLedger.schemaVersion, "0");
+assert.equal(
+  expectedCollisionLedger.product,
+  "omena-diff-test.linked-emission-expected-collisions",
+);
+// FALSIFIER: id=linked-emission-collision-authored-equality class=accounting via=--inject-collision-expectation-flip producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
+assert.deepEqual(
+  census.moduleTokenCollisions.map(
+    ({ observedEmissionPaths: _observedEmissionPaths, ...collision }) => collision,
+  ),
+  authoredCollisions,
+  "live emitted-token collisions must equal the hand-authored collision contract",
+);
 assert.equal(census.placementWitnesses.length, 4);
 const moduleBoundaryShapeClasses = new Set(["empty-module", "comment-only-module"]);
 const moduleBoundaryBlindSpots = census.blindSpots.filter((blindSpot) =>
@@ -662,6 +705,11 @@ for (const entry of report.cases) {
       assert.deepEqual(entry.linkedMarkerOrder, ["_base_0", "_media-live_2", "_card_0"]);
       // FALSIFIER: id=linked-emission-gate-at-rule-authority-markers class=placement via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=authoritative-at-rule-marker-order
       assert.deepEqual(entry.authoritativeMarkerOrder, ["_base_0", "_media-live_2", "_card_0"]);
+    } else if (entry.fixtureId === "entry-ordinal-skew") {
+      // The two paths intentionally apply different documented rewrite scopes.
+      assert.equal(entry.semanticPreserved, false);
+      // FALSIFIER: id=linked-emission-skew-semantic-delta class=accounting via=--inject-collision-expectation-flip producer=can-fail owner=linked-emission-instrument entry=path-model-difference-nonempty
+      assert.ok(entry.semanticMismatchCount > 0);
     } else if (
       census.liveDeclarationFixtures.some((fixture) => fixture.fixtureId === entry.fixtureId)
     ) {
@@ -744,6 +792,10 @@ for (const entry of expectedDivergenceLedger.entries) {
         `${entry.fixtureId} has no observable module-attributed correction`,
       );
     }
+  } else if (entry.fixtureId === "entry-ordinal-skew") {
+    assert.equal(liveCase.semanticPreserved, false);
+    // FALSIFIER: id=linked-emission-ledger-skew-semantic-delta class=accounting via=--inject-collision-expectation-flip producer=can-fail owner=linked-emission-instrument entry=ledger-path-model-difference-nonempty
+    assert.ok(liveCase.semanticMismatchCount > 0);
   } else {
     assert.equal(liveCase.semanticPreserved, true);
   }
