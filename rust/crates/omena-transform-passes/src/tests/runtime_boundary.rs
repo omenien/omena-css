@@ -30,6 +30,67 @@ use omena_transform_cst::{
     lower_transform_ir_from_source, print_transform_ir_css,
 };
 
+fn execution_summary_wire_key_sample(
+    sample_name: &str,
+    execution: &crate::TransformExecutionSummaryV0,
+) -> Result<serde_json::Value, String> {
+    let serialized = serde_json::to_value(execution)
+        .map_err(|error| format!("execution summary should serialize: {error}"))?;
+    wire_key_sample("OmenaTransformExecutionSummaryV0", sample_name, serialized)
+}
+
+fn wire_key_sample(
+    interface_name: &str,
+    sample_name: &str,
+    serialized: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let object = serialized
+        .as_object()
+        .ok_or_else(|| format!("{interface_name} should serialize as an object"))?;
+    let mut keys = object.keys().cloned().collect::<Vec<_>>();
+    keys.sort();
+    let wire_types = keys
+        .iter()
+        .map(|key| {
+            let value = object
+                .get(key)
+                .ok_or_else(|| format!("serialized execution is missing key {key}"))?;
+            let wire_type = match value {
+                serde_json::Value::Null => "null",
+                serde_json::Value::Bool(_) => "boolean",
+                serde_json::Value::Number(_) => "number",
+                serde_json::Value::String(_) => "string",
+                serde_json::Value::Array(_) => "array",
+                serde_json::Value::Object(_) => "object",
+            };
+            Ok((
+                key.clone(),
+                serde_json::Value::String(wire_type.to_string()),
+            ))
+        })
+        .collect::<Result<serde_json::Map<_, _>, String>>()?;
+    Ok(serde_json::json!({
+        "interfaceName": interface_name,
+        "schemaVersion": "0",
+        "product": "omena-transform-passes.wire-key-sample",
+        "sampleName": sample_name,
+        "keys": keys,
+        "wireTypes": wire_types,
+    }))
+}
+
+fn assert_execution_summary_wire_key_fixture(
+    fixture: &str,
+    actual: serde_json::Value,
+) -> Result<(), String> {
+    let expected =
+        serde_json::from_str::<serde_json::Value>(fixture).map_err(|error| error.to_string())?;
+    // A serializer key rename or conditional-field omission changes `actual`;
+    // both states are emitted by the production execution paths exercised here.
+    assert_eq!(actual, expected);
+    Ok(())
+}
+
 fn expected_structural_transform_pass_ids() -> Vec<&'static str> {
     let mut pass_ids = default_transform_pass_descriptors()
         .into_iter()
@@ -934,6 +995,57 @@ fn module_qualified_tree_shake_distinguishes_same_name_owners() -> Result<(), St
             .map(|summary| summary.removed_count),
         Some(0)
     );
+
+    let unconditional_execution = execute_transform_passes_on_source(
+        ".stable { color: green; }",
+        &[TransformPassKind::PrintCss],
+    );
+    assert!(unconditional_execution.module_qualified_shake.is_none());
+    assert!(
+        unconditional_execution
+            .winner_equality_obligations
+            .is_empty()
+    );
+    assert_execution_summary_wire_key_fixture(
+        include_str!("../../tests/fixtures/execution-summary-wire/unconditional.json"),
+        execution_summary_wire_key_sample("unconditional", &unconditional_execution)?,
+    )?;
+    let unconditional_outcome = unconditional_execution
+        .outcomes
+        .first()
+        .ok_or_else(|| "unconditional execution should contain one outcome".to_string())?;
+    assert_execution_summary_wire_key_fixture(
+        include_str!("../../tests/fixtures/execution-summary-wire/outcome.json"),
+        wire_key_sample(
+            "OmenaTransformPassExecutionOutcomeV0",
+            "print-css",
+            serde_json::to_value(unconditional_outcome)
+                .map_err(|error| format!("execution outcome should serialize: {error}"))?,
+        )?,
+    )?;
+
+    let conditional_execution =
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            ".shared { color: red; } .shared { color: red; }",
+            StyleDialect::Css,
+            &[
+                TransformPassKind::RuleDeduplication,
+                TransformPassKind::PrintCss,
+            ],
+            &TransformExecutionContextV0::default(),
+            &both_reachable_bundle,
+            &detached,
+        )
+        .map_err(|error| format!("conditional wire execution should be accepted: {error:?}"))?;
+    assert!(conditional_execution.module_qualified_shake.is_some());
+    assert!(
+        !conditional_execution.winner_equality_obligations.is_empty(),
+        "the populated wire sample must exercise winner-equality serialization"
+    );
+    assert_execution_summary_wire_key_fixture(
+        include_str!("../../tests/fixtures/execution-summary-wire/conditional.json"),
+        execution_summary_wire_key_sample("conditional", &conditional_execution)?,
+    )?;
 
     Ok(())
 }

@@ -4498,11 +4498,22 @@ mod linked_source_map_tests {
             serde_json::to_value(&retained_entry.execution).map_err(|error| error.to_string())?;
         let projected_json =
             serde_json::to_value(&execution.execution).map_err(|error| error.to_string())?;
+        let conditionally_serialized_fields =
+            BTreeSet::from(["moduleQualifiedShake", "winnerEqualityObligations"]);
         for field in &scope_evidence.field_scopes {
             let projected_value = projected_json.get(field.field_name);
             match field.scope {
                 OmenaQueryExecutionEvidenceScopeV0::Entry => {
                     let retained_value = retained_json.get(field.field_name);
+                    if !conditionally_serialized_fields.contains(field.field_name) {
+                        // A required entry key can be made absent by a serde rename,
+                        // and this production serializer emits every such key here.
+                        assert!(
+                            projected_value.is_some() && retained_value.is_some(),
+                            "required entry-scoped field {} must be present on both executions",
+                            field.field_name
+                        );
+                    }
                     assert_eq!(
                         projected_value, retained_value,
                         "entry-scoped field {}",

@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const sourcePath = "rust/crates/omena-query/src/style/transform.rs";
 const source = readFileSync(sourcePath, "utf8");
 const injectLinkedNeedle = process.argv.includes("--inject-linked-needle");
+const injectSharedEntrypoint = process.argv.includes("--inject-shared-entrypoint");
 
 const semanticBundleBody = extractFunctionBody(
   source,
@@ -40,14 +41,17 @@ if (injectLinkedNeedle) {
 
 const sharedBundleEntrypointCount =
   countCalls(
-    semanticBundleBody,
-    "run_omena_query_bundle_with_execution_scope_evidence_and_options",
-  ) +
-  countCalls(
-    attributedBundleBody,
-    "run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options",
-  );
-assert.equal(sharedBundleEntrypointCount, 2);
+    stripRustComments(source),
+    "run_omena_query_bundle_with_optional_module_reachability",
+  ) -
+  1 +
+  (injectSharedEntrypoint ? 1 : 0);
+const expectedSharedEntrypointCount = [semanticScopeBody, attributedScopeBody].filter(
+  (body) => countCalls(body, "run_omena_query_bundle_with_optional_module_reachability") === 1,
+).length;
+// A new caller of the shared bundle implementation changes the source-wide
+// count without changing this expected public-entrypoint population.
+assert.equal(sharedBundleEntrypointCount, expectedSharedEntrypointCount);
 assert.equal(
   countCalls(
     semanticBundleBody,
@@ -102,7 +106,17 @@ assert.doesNotMatch(
 );
 assert.equal(countCalls(legacyInlineBody, "find_import_origin_generated_range"), 1);
 assert.equal(countCalls(legacyGraphBody, "find_import_origin_generated_range"), 1);
-assert.equal(countCalls(source, "find_import_origin_generated_range") - 1, 2);
+const linkedNeedleCallCount =
+  countCalls(linkedSourceMapBody, "find_import_origin_generated_range") +
+  countCalls(linkedSegmentBody, "find_import_origin_generated_range");
+const legacyNeedleCallCount =
+  countCalls(legacyInlineBody, "find_import_origin_generated_range") +
+  countCalls(legacyGraphBody, "find_import_origin_generated_range");
+assert.equal(linkedNeedleCallCount, 0);
+assert.equal(
+  countCalls(stripRustComments(source), "find_import_origin_generated_range") - 1,
+  linkedNeedleCallCount + legacyNeedleCallCount,
+);
 
 const test = spawnSync(
   "cargo",
@@ -117,7 +131,12 @@ const test = spawnSync(
   ],
   { encoding: "utf8" },
 );
-assert.equal(test.status, 0, [test.stdout, test.stderr].filter(Boolean).join("\n"));
+const testOutput = [test.stdout, test.stderr].filter(Boolean).join("\n");
+assert.equal(test.status, 0, testOutput);
+const exactOffsetTestCount = [...testOutput.matchAll(/running ([0-9]+) tests?/gu)]
+  .map((match) => Number.parseInt(match[1], 10))
+  .reduce((total, count) => total + count, 0);
+assert.ok(exactOffsetTestCount > 0, "linked source-map offset filter matched no tests");
 
 console.log(
   JSON.stringify(
@@ -126,9 +145,9 @@ console.log(
       product: "omena-query.linked-source-map-boundary",
       linkedSourceMapAuthority: "materializedModuleRegions",
       sharedBundleEntrypointCount,
-      linkedNeedleCallCount: 0,
-      legacyNeedleCallCount: 2,
-      exactOffsetTestPassed: true,
+      linkedNeedleCallCount,
+      legacyNeedleCallCount,
+      exactOffsetTestCount,
     },
     null,
     2,
@@ -153,4 +172,8 @@ function extractFunctionBody(input: string, functionName: string): string {
 
 function countCalls(input: string, functionName: string): number {
   return [...input.matchAll(new RegExp(`\\b${functionName}\\s*\\(`, "gu"))].length;
+}
+
+function stripRustComments(value: string): string {
+  return value.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/\/\/.*$/gmu, "");
 }

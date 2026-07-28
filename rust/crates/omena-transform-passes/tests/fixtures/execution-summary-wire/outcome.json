@@ -1,0 +1,24 @@
+{
+  "interfaceName": "OmenaTransformPassExecutionOutcomeV0",
+  "keys": [
+    "detail",
+    "inputByteLen",
+    "mutationCount",
+    "outputByteLen",
+    "passId",
+    "provenancePreserved",
+    "status"
+  ],
+  "product": "omena-transform-passes.wire-key-sample",
+  "sampleName": "print-css",
+  "schemaVersion": "0",
+  "wireTypes": {
+    "detail": "string",
+    "inputByteLen": "number",
+    "mutationCount": "number",
+    "outputByteLen": "number",
+    "passId": "string",
+    "provenancePreserved": "boolean",
+    "status": "string"
+  }
+}

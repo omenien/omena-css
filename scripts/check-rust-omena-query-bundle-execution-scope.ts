@@ -1,8 +1,8 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
-const modelPath = "rust/crates/omena-transform-passes/src/model.rs";
 const transformPath = "rust/crates/omena-query/src/style/transform.rs";
 const queryTypesPath = "rust/crates/omena-query/src/types.rs";
 const queryTestPath = "rust/crates/omena-query/src/tests/transform_facade.rs";
@@ -11,11 +11,57 @@ const wasmPath = "rust/crates/omena-wasm/src/lib.rs";
 const declarationPath = "packages/css-build-adapter/index.d.ts";
 const generatedDeclarationPath = "packages/css-build-adapter/bundler-host-contract.generated.d.ts";
 const wireFixturePath = "rust/crates/omena-query/tests/fixtures/bundle-execution-scope-wire.json";
+const executionWireFixtureDirectory =
+  "rust/crates/omena-transform-passes/tests/fixtures/execution-summary-wire";
 const adapterGatePath = "scripts/check-rust-omena-bundler-adapter-pass-authority.ts";
 const adapterTestPath = "test/unit/css-build-adapter/css-build-adapter.test.ts";
 const publicApiPath = "rust/crates/omena-query/tests/snapshots/public-api.txt";
+const TRANSFORM_EXECUTION_SUMMARY_UNDECLARED_WIRE_KEYS = [
+  "cascadeProofObligations",
+  "cssImportInlines",
+  "cssModuleComposesExports",
+  "cssModuleEvaluation",
+  "decisions",
+  "designTokenRoutes",
+  "dischargeLedgerTelemetry",
+  "inputByteLen",
+  "moduleQualifiedShake",
+  "mutationCount",
+  "outputByteLen",
+  "passPlan",
+  "provenanceDerivationForest",
+  "provenancePreserved",
+  "semanticPreservationTelemetry",
+  "semanticRemovals",
+  "strictPolicy",
+  "structuralIrTransactionTelemetry",
+  "winnerEqualityObligations",
+].toSorted();
+const UNBOUND_LOCAL_TYPESCRIPT_INTERFACES = [
+  "OmenaBuildAdapterBundleOptions",
+  "OmenaBuildAdapterOptions",
+  "OmenaBuildOutput",
+  "OmenaBuildState",
+  "OmenaBundleArtifactV0",
+  "OmenaBundleBuildOutput",
+  "OmenaBundleCodeSplitWorkspacePlanOutputV0",
+  "OmenaBundleWithEvidenceV0",
+  "OmenaConsumerBuildSummaryV0",
+  "OmenaPackageManifestInput",
+  "OmenaSourceMapV3V0",
+  "OmenaStyleSourceInput",
+  "OmenaTargetTransformOptionsV0",
+  "OmenaTransformBundleSourceSummaryV0",
+  "OmenaTransformExecutionContextV0",
+].toSorted();
 
-const modelSource = readFileSync(modelPath, "utf8");
+type WireKeySample = {
+  readonly interfaceName: string;
+  readonly sampleName: string;
+  keys: string[];
+  readonly wireTypes: Record<string, string>;
+};
+
 const transformSource = readFileSync(transformPath, "utf8");
 const queryTypesSource = readFileSync(queryTypesPath, "utf8");
 let queryTestSource = readFileSync(queryTestPath, "utf8");
@@ -27,6 +73,15 @@ const adapterGateSource = readFileSync(adapterGatePath, "utf8");
 const adapterTestSource = readFileSync(adapterTestPath, "utf8");
 const publicApiSource = readFileSync(publicApiPath, "utf8");
 const wireFixture = JSON.parse(readFileSync(wireFixturePath, "utf8")) as Record<string, unknown>;
+const executionWireKeySamples = readdirSync(executionWireFixtureDirectory)
+  .filter((fileName) => fileName.endsWith(".json"))
+  .toSorted()
+  .map((fileName) =>
+    asWireKeySample(
+      JSON.parse(readFileSync(join(executionWireFixtureDirectory, fileName), "utf8")),
+      fileName,
+    ),
+  );
 
 const injectDropField = process.argv.includes("--inject-drop-field");
 const injectFlipScope = process.argv.includes("--inject-flip-scope");
@@ -36,6 +91,13 @@ const injectCommentOnlyAssertion = process.argv.includes("--inject-comment-only-
 const injectWireFieldRename = process.argv.includes("--inject-wire-field-rename");
 const injectWireEnumRename = process.argv.includes("--inject-wire-enum-rename");
 const injectWireOptionalNull = process.argv.includes("--inject-wire-optional-null");
+const injectExecutionWireFieldRename = process.argv.includes(
+  "--inject-execution-wire-field-rename",
+);
+const injectExecutionWireFieldAdd = process.argv.includes("--inject-execution-wire-field-add");
+const injectExecutionRequiredOmission = process.argv.includes(
+  "--inject-execution-required-omission",
+);
 if (injectDeclarationDrift) {
   declarationSource = declarationSource.replace(
     "readonly segmentCount: number;",
@@ -78,13 +140,33 @@ if (injectWireOptionalNull) {
   assert.notEqual(anchored, undefined);
   if (anchored) anchored.fallbackReason = null;
 }
-
-const executionBody = extractTypeBody(modelSource, "pub struct TransformExecutionSummaryV0");
-const executionFields = [...executionBody.matchAll(/^\s*pub\s+([a-z][a-z0-9_]*):/gmu)].map(
-  (match) => snakeToCamel(match[1]),
+const executionSummarySamples = executionWireKeySamples.filter(
+  (sample) => sample.interfaceName === "OmenaTransformExecutionSummaryV0",
 );
-assert.equal(executionFields.length, 27, "unexpected transform execution field count");
-if (injectDropField) executionFields.pop();
+assert.ok(executionSummarySamples.length > 1, "execution summary needs conditional wire samples");
+if (injectExecutionWireFieldRename) {
+  for (const sample of executionSummarySamples) {
+    const fieldIndex = sample.keys.indexOf("mutationCount");
+    assert.notEqual(fieldIndex, -1);
+    sample.keys[fieldIndex] = "mutationTotal";
+    sample.wireTypes.mutationTotal = sample.wireTypes.mutationCount;
+    delete sample.wireTypes.mutationCount;
+  }
+}
+if (injectExecutionWireFieldAdd) {
+  for (const sample of executionSummarySamples) {
+    sample.keys.push("unclassifiedExecutionField");
+    sample.wireTypes.unclassifiedExecutionField = "boolean";
+  }
+}
+if (injectExecutionRequiredOmission) {
+  const sample = executionSummarySamples.at(0);
+  assert.notEqual(sample, undefined);
+  if (sample) {
+    sample.keys = sample.keys.filter((key) => key !== "requestedPassIds");
+    delete sample.wireTypes.requestedPassIds;
+  }
+}
 
 const scopeBody = extractFunctionBody(transformSource, "bundle_execution_field_scopes");
 const scopeRows = [
@@ -96,7 +178,6 @@ const scopeRows = [
   scope: match[2],
   derivation: match[3],
 }));
-assert.equal(scopeRows.length, 27, "unexpected execution-scope row count");
 assert.equal(new Set(scopeRows.map((row) => row.fieldName)).size, scopeRows.length);
 assert.ok(scopeRows.every((row) => row.derivation.trim().length > 0));
 if (injectFlipScope) {
@@ -105,10 +186,19 @@ if (injectFlipScope) {
   if (outputCss) outputCss.scope = "Entry";
 }
 
+const executionWireKeys = new Set(executionSummarySamples.flatMap((sample) => sample.keys));
+if (injectDropField) executionWireKeys.delete([...executionWireKeys].toSorted().at(-1) ?? "");
+// A serialized field addition makes the computed domain larger; production
+// fixtures can emit that state after any additive summary-field change.
+assert.equal(
+  scopeRows.length,
+  executionWireKeys.size,
+  "execution-scope rows must cover the serialized execution domain",
+);
 assert.deepEqual(
   scopeRows.map((row) => row.fieldName).toSorted(),
-  executionFields.toSorted(),
-  "execution-scope table must classify every published field exactly once",
+  [...executionWireKeys].toSorted(),
+  "execution-scope table must classify every serialized execution field exactly once",
 );
 const bundleFields = scopeRows.filter((row) => row.scope === "Bundle").map((row) => row.fieldName);
 const projectionBody = extractFunctionBody(transformSource, "project_linked_bundle_execution");
@@ -170,7 +260,7 @@ const fieldScopes = asArray(wireFixture.fieldScopes).map(asObject);
 const moduleExecutions = asArray(wireFixture.moduleExecutions).map(asObject);
 const bundleComposite = asObject(wireFixture.bundleComposite);
 const entryModuleInstance = asObject(wireFixture.entryModuleInstance);
-const wireSamplesByInterface = new Map<string, readonly Record<string, unknown>[]>([
+const bundleWireSamplesByInterface = new Map<string, readonly Record<string, unknown>[]>([
   ["OmenaBundleExecutionScopeEvidenceV0", [wireFixture]],
   ["OmenaBundleExecutionFieldScopeV0", fieldScopes],
   ["OmenaBundleModuleExecutionByteFactsV0", moduleExecutions],
@@ -188,12 +278,17 @@ const wireSamplesByInterface = new Map<string, readonly Record<string, unknown>[
 const localInterfaces = extractTypeScriptInterfaces(declarationSource);
 const generatedInterfaces = extractTypeScriptInterfaces(generatedDeclarationSource);
 const allInterfaces = new Map([...generatedInterfaces, ...localInterfaces]);
-const wireReachableInterfaces = reachableTypeScriptInterfaces(
-  allInterfaces,
-  "OmenaBundleExecutionScopeEvidenceV0",
+const wireReachableInterfaces = new Set(
+  [
+    ...reachableTypeScriptInterfaces(allInterfaces, "OmenaBundleExecutionScopeEvidenceV0"),
+    ...reachableTypeScriptInterfaces(allInterfaces, "OmenaTransformExecutionSummaryV0"),
+  ].toSorted(),
 );
+const keySamplesByInterface = groupWireKeySamplesByInterface(executionWireKeySamples);
 assert.deepEqual(
-  [...wireSamplesByInterface.keys()].toSorted(),
+  [
+    ...new Set([...bundleWireSamplesByInterface.keys(), ...keySamplesByInterface.keys()]),
+  ].toSorted(),
   [...wireReachableInterfaces].toSorted(),
   "every TypeScript interface reachable from executionScope must have serialized wire samples",
 );
@@ -201,9 +296,59 @@ for (const interfaceName of wireReachableInterfaces) {
   const body = allInterfaces.get(interfaceName);
   assert.notEqual(body, undefined, `missing TypeScript interface ${interfaceName}`);
   const fields = extractTypeScriptInterfaceFieldDefinitions(body ?? "");
-  const samples = wireSamplesByInterface.get(interfaceName);
-  assert.ok(samples && samples.length > 0, `${interfaceName} has no wire samples`);
-  for (const sample of samples ?? []) {
+  const valueSamples = bundleWireSamplesByInterface.get(interfaceName);
+  const keySamples = keySamplesByInterface.get(interfaceName);
+  assert.ok(
+    (valueSamples?.length ?? 0) + (keySamples?.length ?? 0) > 0,
+    `${interfaceName} has no wire samples`,
+  );
+  if (keySamples) {
+    const declaredKeys = new Set(fields.map((field) => field.name));
+    const wireKeys = new Set(keySamples.flatMap((sample) => sample.keys));
+    for (const sample of keySamples) {
+      assert.deepEqual(
+        Object.keys(sample.wireTypes).toSorted(),
+        sample.keys.toSorted(),
+        `${interfaceName}.${sample.sampleName} wire types must cover its serialized keys`,
+      );
+      for (const field of fields) {
+        if (!sample.keys.includes(field.name)) {
+          assert.ok(
+            field.optional,
+            `${interfaceName}.${field.name} is missing from serialized wire`,
+          );
+          continue;
+        }
+        assertTypeScriptWireType(
+          sample.wireTypes[field.name],
+          field.typeExpression,
+          `${interfaceName}.${field.name}`,
+        );
+      }
+    }
+    const undeclaredWireKeys = [...wireKeys].filter((key) => !declaredKeys.has(key)).toSorted();
+    const expectedResidual =
+      interfaceName === "OmenaTransformExecutionSummaryV0"
+        ? TRANSFORM_EXECUTION_SUMMARY_UNDECLARED_WIRE_KEYS
+        : [];
+    // A newly serialized but undeclared key makes this false; serde output can
+    // produce it independently of the TypeScript declaration.
+    assert.deepEqual(
+      undeclaredWireKeys,
+      expectedResidual,
+      `${interfaceName} undeclared wire-key residual changed`,
+    );
+    for (const field of fields.filter((candidate) => candidate.optional)) {
+      // Removing the omission witness makes this false; serde can emit both
+      // states only when a production sample actually exercises the field.
+      assert.ok(
+        keySamples.some((sample) => !sample.keys.includes(field.name)),
+        `${interfaceName}.${field.name} optionality needs an omission witness`,
+      );
+    }
+    continue;
+  }
+  for (const sample of valueSamples ?? []) {
     const sampleKeys = Object.keys(sample).toSorted();
     const declaredKeys = new Set(fields.map((field) => field.name));
     assert.deepEqual(
@@ -223,19 +368,29 @@ for (const interfaceName of wireReachableInterfaces) {
       );
     }
   }
-  const wireKeys = new Set((samples ?? []).flatMap((sample) => Object.keys(sample)));
+  const valueWireKeys = new Set((valueSamples ?? []).flatMap((sample) => Object.keys(sample)));
   assert.deepEqual(
-    [...wireKeys].toSorted(),
+    [...valueWireKeys].toSorted(),
     fields.map((field) => field.name).toSorted(),
     `${interfaceName} declaration must match the union of serialized wire keys`,
   );
   for (const field of fields.filter((candidate) => candidate.optional)) {
     assert.ok(
-      (samples ?? []).some((sample) => !(field.name in sample)),
+      (valueSamples ?? []).some((sample) => !(field.name in sample)),
       `${interfaceName}.${field.name} optionality needs an omission witness`,
     );
   }
 }
+const unboundLocalInterfaces = [...localInterfaces.keys()]
+  .filter((interfaceName) => !wireReachableInterfaces.has(interfaceName))
+  .toSorted();
+// Adding a local declaration or a reference from either wire root changes this
+// residual, and both changes are valid declaration-author inputs.
+assert.deepEqual(
+  unboundLocalInterfaces,
+  UNBOUND_LOCAL_TYPESCRIPT_INTERFACES,
+  "the named local TypeScript interface residual changed",
+);
 assert.deepEqual(
   [...new Set(fieldScopes.map((sample) => sample.scope))].toSorted(),
   extractTypeScriptStringUnion(declarationSource, "OmenaBundleExecutionFieldScopeV0", "scope"),
@@ -283,8 +438,8 @@ assert.match(
   declarationSource,
   /readonly executionScope: OmenaBundleExecutionScopeEvidenceV0 \| null/u,
 );
-assert.match(adapterGateSource, /executionScope: null/u);
-assert.match(adapterTestSource, /executionScope/u);
+assert.match(stripRustComments(adapterGateSource), /executionScope: null/u);
+assert.match(stripRustComments(adapterTestSource), /executionScope/u);
 
 for (const surface of [
   "OmenaQueryBundleExecutionScopeEvidenceV0",
@@ -307,7 +462,7 @@ console.log(
     {
       schemaVersion: "0",
       product: "omena-query.bundle-execution-scope-gate",
-      executionFieldCount: executionFields.length,
+      executionWireFieldCount: executionWireKeys.size,
       scopeRowCount: scopeRows.length,
       entryFieldCount: scopeRows.filter((row) => row.scope === "Entry").length,
       bundleFieldCount: bundleFields.length,
@@ -316,6 +471,9 @@ console.log(
       perModuleCstBuildCount: cstBuildCount,
       localTypeScriptInterfaceCount: localInterfaces.size,
       wireReachableInterfaceCount: wireReachableInterfaces.size,
+      unboundLocalTypeScriptInterfaceCount: unboundLocalInterfaces.length,
+      executionSummaryUndeclaredWireKeyCount:
+        TRANSFORM_EXECUTION_SUMMARY_UNDECLARED_WIRE_KEYS.length,
     },
     null,
     2,
@@ -440,6 +598,75 @@ function assertTypeScriptValueShape(
     return;
   }
   assert.fail(`${label} has unsupported TypeScript wire shape ${typeExpression}`);
+}
+
+function assertTypeScriptWireType(
+  wireType: string | undefined,
+  rawTypeExpression: string,
+  label: string,
+): void {
+  const typeExpression = rawTypeExpression.replace(/^readonly\s+/u, "").trim();
+  let expectedWireType: string;
+  if (typeExpression.endsWith("[]")) {
+    expectedWireType = "array";
+  } else if ([...typeExpression.matchAll(/"([^"]+)"/gu)].length > 0) {
+    expectedWireType = "string";
+  } else if (typeExpression === "string") {
+    expectedWireType = "string";
+  } else if (typeExpression === "number") {
+    expectedWireType = "number";
+  } else if (typeExpression === "boolean") {
+    expectedWireType = "boolean";
+  } else if (/^Omena[A-Z][A-Za-z0-9]*V0$/u.test(typeExpression)) {
+    expectedWireType = "object";
+  } else {
+    assert.fail(`${label} has unsupported TypeScript wire shape ${typeExpression}`);
+  }
+  assert.equal(wireType, expectedWireType, `${label} has the wrong serialized wire type`);
+}
+
+function asWireKeySample(value: unknown, fileName: string): WireKeySample {
+  const sample = asObject(value);
+  assert.equal(sample.schemaVersion, "0", `${fileName} has the wrong schema version`);
+  assert.equal(
+    sample.product,
+    "omena-transform-passes.wire-key-sample",
+    `${fileName} has the wrong product`,
+  );
+  assert.equal(typeof sample.interfaceName, "string", `${fileName} lacks interfaceName`);
+  assert.equal(typeof sample.sampleName, "string", `${fileName} lacks sampleName`);
+  const keys = asArray(sample.keys);
+  assert.ok(
+    keys.every((key) => typeof key === "string"),
+    `${fileName} has a non-string key`,
+  );
+  const wireTypes = asObject(sample.wireTypes);
+  assert.ok(
+    Object.values(wireTypes).every(
+      (wireType) =>
+        typeof wireType === "string" &&
+        ["array", "boolean", "null", "number", "object", "string"].includes(wireType),
+    ),
+    `${fileName} has an unknown wire type`,
+  );
+  return {
+    interfaceName: sample.interfaceName as string,
+    sampleName: sample.sampleName as string,
+    keys: (keys as string[]).toSorted(),
+    wireTypes: wireTypes as Record<string, string>,
+  };
+}
+
+function groupWireKeySamplesByInterface(
+  samples: readonly WireKeySample[],
+): Map<string, WireKeySample[]> {
+  const grouped = new Map<string, WireKeySample[]>();
+  for (const sample of samples) {
+    const interfaceSamples = grouped.get(sample.interfaceName) ?? [];
+    interfaceSamples.push(sample);
+    grouped.set(sample.interfaceName, interfaceSamples);
+  }
+  return grouped;
 }
 
 function asObject(value: unknown): Record<string, unknown> {
