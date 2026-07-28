@@ -50,6 +50,13 @@
       "justification": "The linked path retains the dependency declaration reached through composes, keeps the dependency-owned live selector, and removes the unrelated dead selector."
     },
     {
+      "fixtureId": "module-qualified-at-rule-reachability",
+      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "06ae4a456a571148048e86d1f83d507e37bb5568a0eea0db1cac755d959b6f04",
+      "justification": "The linked path retains the class reached through composes and the live class nested in an at-rule while removing both unrelated dead selectors."
+    },
+    {
       "fixtureId": "element-only-reset-module",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],

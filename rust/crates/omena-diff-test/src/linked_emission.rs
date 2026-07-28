@@ -15,14 +15,14 @@ use omena_parser::{
 use omena_query::{
     ClassExpressionInputV2, EngineInputV2, OmenaQueryBundleEmissionPathV0,
     OmenaQueryBundlePlanInputV0, OmenaQueryConsumerBuildOptionsV0,
-    OmenaQueryEngineInputModuleReachabilityV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2,
-    SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
-    StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
-    compare_omena_query_transform_css_semantics_v0,
+    OmenaQueryEngineInputModuleReachabilityV0, OmenaQueryModuleReachabilityAttributionReportV0,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2, SourceAnalysisInputV2,
+    SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
+    TypeFactEntryV2, compare_omena_query_transform_css_semantics_v0,
     derive_omena_query_module_reachability_from_engine_input,
-    run_omena_query_bundle_with_module_reachability_and_options,
-    run_omena_query_bundle_with_semantic_inputs_and_options,
+    run_omena_query_bundle_with_execution_scope_evidence_and_options,
+    run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options,
     summarize_omena_query_transform_context_from_sources_with_resolution_inputs,
 };
 use serde::Serialize;
@@ -37,6 +37,10 @@ pub enum LinkedEmissionByteDifferentialPerturbationV0 {
     CollapseToLegacyBytes,
     DropReachableCrossModuleDeclaration,
     DropComposedDeclaration,
+    DropLiveDeclaration,
+    AddUnclaimedLinkedToken,
+    DropComposesReachability,
+    AddUnattributedReachabilityReference,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -179,6 +183,29 @@ pub struct LinkedEmissionModuleTokenCollisionV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
+/// One build module observed by the linked-emission liveness instrument.
+pub struct LinkedEmissionLiveDeclarationModuleV0 {
+    pub module_path: String,
+    pub declared_class_names: Vec<String>,
+    pub live_declared_class_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+/// Per-fixture domain and source preconditions for linked declaration retention.
+pub struct LinkedEmissionLiveDeclarationFixtureV0 {
+    pub fixture_id: String,
+    pub reachability_reference_count: usize,
+    pub engine_input_style_source_count: usize,
+    pub composes_resolution_count: usize,
+    pub declaration_preserving_pass_ids: Vec<String>,
+    pub modules: Vec<LinkedEmissionLiveDeclarationModuleV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 /// Machine-derived coverage over the independently enumerated bundle-shape population.
 pub struct LinkedEmissionCoverageCensusV0 {
     pub schema_version: &'static str,
@@ -197,6 +224,9 @@ pub struct LinkedEmissionCoverageCensusV0 {
     pub module_token_collision_scope: &'static str,
     pub module_token_collision_count: usize,
     pub module_token_collisions: Vec<LinkedEmissionModuleTokenCollisionV0>,
+    pub reachability_input_fixture_ids: Vec<String>,
+    pub in_domain_fixture_ids: Vec<String>,
+    pub live_declaration_fixtures: Vec<LinkedEmissionLiveDeclarationFixtureV0>,
     pub shapes: Vec<LinkedEmissionCoverageShapeV0>,
     pub not_covered: Vec<LinkedEmissionNotCoveredShapeV0>,
     pub fixture_observability: Vec<LinkedEmissionFixtureObservabilityV0>,
@@ -237,6 +267,32 @@ struct LinkedEmissionReachabilityReferenceV0 {
     class_name: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinkedEmissionLivenessVerdictV0 {
+    Live,
+    Dead,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LinkedEmissionLivenessReasonV0 {
+    DirectReference,
+    ComposesFrom(String),
+    GlobalEscape,
+    Unreferenced,
+    ReferrerShakenAway,
+    CombinatorCompanion,
+    AtRuleNested,
+    WorkspaceOnlyReferrer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LinkedEmissionLivenessExpectationV0 {
+    module_path: String,
+    class_name: &'static str,
+    verdict: LinkedEmissionLivenessVerdictV0,
+    reason: LinkedEmissionLivenessReasonV0,
+}
+
 struct LinkedEmissionDifferenceObservationV0<'a> {
     legacy_css: &'a str,
     linked_css: &'a str,
@@ -254,6 +310,7 @@ struct LinkedEmissionFixtureV0 {
     modules: Vec<LinkedEmissionFixtureModuleV0>,
     workspace_only_modules: Vec<LinkedEmissionFixtureModuleV0>,
     reachability_references: Vec<LinkedEmissionReachabilityReferenceV0>,
+    liveness_expectations: Vec<LinkedEmissionLivenessExpectationV0>,
 }
 
 #[derive(Debug)]
@@ -263,6 +320,16 @@ struct LinkedEmissionFixtureAnalysisV0 {
     legacy_css: String,
     linked_css: String,
     class_name_rewrites_by_module: BTreeMap<String, BTreeMap<String, String>>,
+    live_declared_names_by_module: BTreeMap<String, BTreeSet<String>>,
+    engine_input_style_source_count: usize,
+    composes_resolution_count: usize,
+    declaration_preserving_pass_ids: Vec<String>,
+}
+
+#[derive(Debug)]
+struct LinkedEmissionFixtureReachabilityV0 {
+    report: OmenaQueryEngineInputModuleReachabilityV0,
+    engine_input_style_source_count: usize,
 }
 
 #[derive(Debug)]
@@ -292,6 +359,10 @@ const LINKED_EMISSION_COVERAGE_POPULATION_V0: &[LinkedEmissionCoverageShapeDefin
     LinkedEmissionCoverageShapeDefinitionV0 {
         shape_class: "module-qualified-reachability",
         reentry: "retain a linked fixture with independently attributed module reachability",
+    },
+    LinkedEmissionCoverageShapeDefinitionV0 {
+        shape_class: "at-rule-nested-liveness",
+        reentry: "retain a shaken module with one live and one dead class nested in an at-rule",
     },
     LinkedEmissionCoverageShapeDefinitionV0 {
         shape_class: "large-product-corpus",
@@ -367,6 +438,26 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
                 }
                 LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration
                     if fixture.id == "module-qualified-composes-reachability" =>
+                {
+                    perturbation
+                }
+                LinkedEmissionByteDifferentialPerturbationV0::DropLiveDeclaration
+                    if !fixture.reachability_references.is_empty() =>
+                {
+                    perturbation
+                }
+                LinkedEmissionByteDifferentialPerturbationV0::AddUnclaimedLinkedToken
+                    if !fixture.reachability_references.is_empty() =>
+                {
+                    perturbation
+                }
+                LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability
+                    if fixture.id == "module-qualified-composes-reachability" =>
+                {
+                    perturbation
+                }
+                LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference
+                    if fixture.id == "module-qualified-reachability" =>
                 {
                     perturbation
                 }
@@ -450,6 +541,7 @@ fn summarize_linked_emission_coverage_census_v0(
     let mut unknown_structural_selector_count = 0usize;
     let mut unknown_at_rule_count = 0usize;
     let mut module_token_collisions = Vec::new();
+    let mut live_declaration_fixtures = Vec::new();
 
     for (fixture, analysis) in fixtures.iter().zip(analyses) {
         if fixture.id != analysis.case.fixture_id {
@@ -538,6 +630,43 @@ fn summarize_linked_emission_coverage_census_v0(
             }
         }
         module_token_collisions.extend(summarize_module_token_collisions_v0(fixture, analysis));
+        if !fixture.reachability_references.is_empty() {
+            live_declaration_fixtures.push(LinkedEmissionLiveDeclarationFixtureV0 {
+                fixture_id: fixture.id.clone(),
+                reachability_reference_count: fixture.reachability_references.len(),
+                engine_input_style_source_count: analysis.engine_input_style_source_count,
+                composes_resolution_count: analysis.composes_resolution_count,
+                declaration_preserving_pass_ids: analysis.declaration_preserving_pass_ids.clone(),
+                modules: fixture
+                    .modules
+                    .iter()
+                    .map(|module| {
+                        let declared_class_names =
+                            collect_style_fact_collection(module.source.as_str(), module.dialect)
+                                .facts
+                                .selectors
+                                .into_iter()
+                                .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+                                .map(|selector| selector.name)
+                                .collect::<BTreeSet<_>>()
+                                .into_iter()
+                                .collect();
+                        let live_declared_class_names = analysis
+                            .live_declared_names_by_module
+                            .get(module.path.as_str())
+                            .cloned()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .collect();
+                        LinkedEmissionLiveDeclarationModuleV0 {
+                            module_path: module.path.clone(),
+                            declared_class_names,
+                            live_declared_class_names,
+                        }
+                    })
+                    .collect(),
+            });
+        }
         fixture_observability.push(LinkedEmissionFixtureObservabilityV0 {
             fixture_id: fixture.id.clone(),
             module_count: fixture.modules.len(),
@@ -577,6 +706,17 @@ fn summarize_linked_emission_coverage_census_v0(
             .then_with(|| left.emitted_token.cmp(&right.emitted_token))
     });
     validate_module_token_collision_paths_v0(module_token_collisions.as_slice())?;
+    live_declaration_fixtures.sort_by(|left, right| left.fixture_id.cmp(&right.fixture_id));
+    let in_domain_fixture_ids = live_declaration_fixtures
+        .iter()
+        .map(|fixture| fixture.fixture_id.clone())
+        .collect::<Vec<_>>();
+    let mut reachability_input_fixture_ids = fixtures
+        .iter()
+        .filter(|fixture| !fixture.reachability_references.is_empty())
+        .map(|fixture| fixture.id.clone())
+        .collect::<Vec<_>>();
+    reachability_input_fixture_ids.sort();
 
     Ok(LinkedEmissionCoverageCensusV0 {
         schema_version: "0",
@@ -599,6 +739,9 @@ fn summarize_linked_emission_coverage_census_v0(
         module_token_collision_scope: "boundedFixtureRegressionTripwire",
         module_token_collision_count: module_token_collisions.len(),
         module_token_collisions,
+        reachability_input_fixture_ids,
+        in_domain_fixture_ids,
+        live_declaration_fixtures,
         shapes,
         not_covered,
         fixture_observability,
@@ -780,7 +923,10 @@ fn analyze_linked_emission_fixture_v0(
         })
         .collect::<Vec<_>>();
     let mut pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
-    let module_reachability = module_reachability_for_fixture_v0(fixture);
+    let fixture_reachability = module_reachability_for_fixture_v0(fixture, perturbation);
+    let module_reachability = fixture_reachability
+        .as_ref()
+        .map(|reachability| &reachability.report);
     let class_name_rewrites_by_module = module_reachability
         .as_ref()
         .map(|_| class_name_rewrites_by_module_v0(fixture))
@@ -788,6 +934,43 @@ fn analyze_linked_emission_fixture_v0(
     if module_reachability.is_some() {
         pass_ids.push("css-modules-class-hashing".to_string());
         pass_ids.push("tree-shake-class".to_string());
+    }
+    let expected_pass_ids = if module_reachability.is_some() {
+        [
+            "import-inline",
+            "print-css",
+            "css-modules-class-hashing",
+            "tree-shake-class",
+        ]
+        .as_slice()
+    } else {
+        ["import-inline", "print-css"].as_slice()
+    };
+    if pass_ids
+        .iter()
+        .map(String::as_str)
+        .ne(expected_pass_ids.iter().copied())
+    {
+        // FALSIFIER: id=linked-emission-pass-set-precondition class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=declaration-preserving-pass-set
+        return Err(format!(
+            "linked-emission declaration-retention pass precondition failed for fixture {}: {pass_ids:?}",
+            fixture.id
+        ));
+    }
+    let engine_input_style_source_count = fixture_reachability
+        .as_ref()
+        .map(|reachability| reachability.engine_input_style_source_count)
+        .unwrap_or_default();
+    if module_reachability.is_some()
+        && (style_sources.is_empty() || engine_input_style_source_count == 0)
+    {
+        // FALSIFIER: id=linked-emission-source-text-precondition class=shaking via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=nonempty-engine-source-domain
+        return Err(format!(
+            "linked-emission source-text precondition failed for fixture {}: build sources {}, engine sources {}",
+            fixture.id,
+            style_sources.len(),
+            engine_input_style_source_count
+        ));
     }
     let context = OmenaQueryTransformExecutionContextV0::default();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
@@ -807,21 +990,32 @@ fn analyze_linked_emission_fixture_v0(
             ..OmenaQueryConsumerBuildOptionsV0::default()
         };
         if let Some(module_reachability) = module_reachability.as_ref() {
-            run_omena_query_bundle_with_module_reachability_and_options(
+            run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options(
                 input,
                 &[],
                 &options,
                 module_reachability,
             )
-            .map(|result| result.into_bundle_result())
         } else {
-            run_omena_query_bundle_with_semantic_inputs_and_options(input, &[], &options)
+            run_omena_query_bundle_with_execution_scope_evidence_and_options(input, &[], &options)
         }
     };
     let legacy = run(OmenaQueryBundleEmissionPathV0::ImportInlineLegacy)?;
     let linked = run(OmenaQueryBundleEmissionPathV0::LinkedOrder)?;
-    let legacy_css = legacy.artifact.output_css;
-    let mut linked_css = linked.artifact.output_css;
+    let legacy_emission_path = legacy.bundle_result.artifact.emission_path.as_wire_label();
+    let linked_emission_path = linked.bundle_result.artifact.emission_path.as_wire_label();
+    let linked_attribution = linked.reachability_attribution.clone();
+    let live_declared_names_by_module = linked_attribution
+        .as_ref()
+        .map(|attribution| live_declared_names_by_module_v0(fixture, attribution))
+        .transpose()?
+        .unwrap_or_default();
+    let composes_resolution_count = module_reachability
+        .as_ref()
+        .map(|reachability| reachability.summary().css_module_composes_resolution_count)
+        .unwrap_or_default();
+    let legacy_css = legacy.bundle_result.artifact.output_css;
+    let mut linked_css = linked.bundle_result.artifact.output_css;
     match perturbation {
         LinkedEmissionByteDifferentialPerturbationV0::None => {}
         LinkedEmissionByteDifferentialPerturbationV0::AddUnexpectedRule => {
@@ -836,12 +1030,29 @@ fn analyze_linked_emission_fixture_v0(
         LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration => {
             remove_linked_declaration_for_fault_v0(&mut linked_css, "padding: 2px;")?;
         }
+        LinkedEmissionByteDifferentialPerturbationV0::DropLiveDeclaration => {
+            remove_first_live_linked_declaration_for_fault_v0(
+                fixture,
+                &mut linked_css,
+                linked_attribution.as_ref(),
+                &class_name_rewrites_by_module,
+            )?;
+        }
+        LinkedEmissionByteDifferentialPerturbationV0::AddUnclaimedLinkedToken => {
+            linked_css.push_str("\n._unclaimed_linked_token { color: inherit; }");
+        }
+        LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability
+        | LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference => {}
     }
-    validate_linked_declaration_retention_v0(
+    validate_live_declared_names_survive_linked_emission_v0(
         fixture,
-        &legacy_css,
         &linked_css,
+        linked_attribution.as_ref(),
         &class_name_rewrites_by_module,
+    )?;
+    validate_authored_liveness_expectations_v0(
+        fixture,
+        &live_declared_names_by_module,
     )?;
 
     let marker_names = fixture
@@ -969,8 +1180,8 @@ fn analyze_linked_emission_fixture_v0(
     let case = LinkedEmissionByteDifferentialCaseV0 {
         fixture_id: fixture.id.clone(),
         module_count: fixture.modules.len(),
-        legacy_emission_path: legacy.artifact.emission_path.as_wire_label(),
-        linked_emission_path: linked.artifact.emission_path.as_wire_label(),
+        legacy_emission_path,
+        linked_emission_path,
         legacy_sha256: sha256_hex_v0(&legacy_css),
         linked_sha256: sha256_hex_v0(&linked_css),
         legacy_byte_len: legacy_css.len(),
@@ -994,12 +1205,17 @@ fn analyze_linked_emission_fixture_v0(
         legacy_css,
         linked_css,
         class_name_rewrites_by_module,
+        live_declared_names_by_module,
+        engine_input_style_source_count,
+        composes_resolution_count,
+        declaration_preserving_pass_ids: pass_ids,
     })
 }
 
 fn module_reachability_for_fixture_v0(
     fixture: &LinkedEmissionFixtureV0,
-) -> Option<OmenaQueryEngineInputModuleReachabilityV0> {
+    perturbation: LinkedEmissionByteDifferentialPerturbationV0,
+) -> Option<LinkedEmissionFixtureReachabilityV0> {
     if fixture.reachability_references.is_empty() {
         return None;
     }
@@ -1009,7 +1225,7 @@ fn module_reachability_for_fixture_v0(
         .chain(&fixture.workspace_only_modules)
         .collect::<Vec<_>>();
     let range = fixture_range_v0();
-    let input = EngineInputV2 {
+    let mut input = EngineInputV2 {
         version: "2".to_string(),
         sources: fixture
             .reachability_references
@@ -1082,11 +1298,59 @@ fn module_reachability_for_fixture_v0(
             })
             .collect(),
     };
-    Some(derive_omena_query_module_reachability_from_engine_input(
-        &input,
-        fixture.entry_path.as_str(),
-        true,
-    ))
+    if perturbation == LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability
+        && fixture.id == "module-qualified-composes-reachability"
+    {
+        input.styles[0].source = None;
+    }
+    if perturbation
+        == LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference
+    {
+        input.sources.push(SourceAnalysisInputV2 {
+            document: SourceDocumentV2 {
+                class_expressions: vec![ClassExpressionInputV2 {
+                    id: "unattributed-dependency-dead-reference".to_string(),
+                    kind: "styleAccess".to_string(),
+                    scss_module_path: "linked-byte/no-target.module.css".to_string(),
+                    range: range.clone(),
+                    class_name: Some("dependency-dead".to_string()),
+                    root_binding_decl_id: None,
+                    access_path: Some(vec!["dependency-dead".to_string()]),
+                }],
+            },
+        });
+        input.type_facts.push(TypeFactEntryV2 {
+            file_path: "linked-byte/references.tsx".to_string(),
+            expression_id: "unattributed-dependency-dead-reference".to_string(),
+            facts: StringTypeFactsV2 {
+                kind: "exact".to_string(),
+                constraint_kind: None,
+                values: Some(vec!["dependency-dead".to_string()]),
+                prefix: None,
+                suffix: None,
+                min_len: None,
+                max_len: None,
+                char_must: None,
+                char_may: None,
+                may_include_other_chars: None,
+                provenance: None,
+            },
+            control_flow_graph: None,
+        });
+    }
+    let engine_input_style_source_count = input
+        .styles
+        .iter()
+        .filter(|style| style.source.is_some())
+        .count();
+    Some(LinkedEmissionFixtureReachabilityV0 {
+        report: derive_omena_query_module_reachability_from_engine_input(
+            &input,
+            fixture.entry_path.as_str(),
+            true,
+        ),
+        engine_input_style_source_count,
+    })
 }
 
 fn module_qualified_reachability_delta_is_expected_v0(
@@ -1094,14 +1358,24 @@ fn module_qualified_reachability_delta_is_expected_v0(
     legacy_css: &str,
     linked_css: &str,
 ) -> bool {
-    if !fixture
-        .shape_classes
-        .contains(&"module-qualified-reachability")
-    {
+    if !fixture.shape_classes.iter().any(|shape| {
+        matches!(
+            *shape,
+            "module-qualified-reachability" | "at-rule-nested-liveness"
+        )
+    }) {
         return false;
     }
     let legacy_css = remove_ascii_whitespace_v0(legacy_css);
     let linked_css = remove_ascii_whitespace_v0(linked_css);
+    if fixture.id == "module-qualified-at-rule-reachability" {
+        return legacy_css.contains("border:0")
+            && legacy_css.contains("padding:4px")
+            && linked_css.contains("border:0")
+            && linked_css.contains("padding:4px")
+            && !linked_css.contains("color:gray")
+            && !linked_css.contains("padding:8px");
+    }
     if fixture.id == "module-qualified-composes-reachability" {
         return legacy_css.contains("padding:2px")
             && legacy_css.contains("color:red")
@@ -1604,63 +1878,235 @@ fn output_class_selector_counts_v0(source: &str) -> BTreeMap<String, usize> {
     counts
 }
 
-fn validate_linked_declaration_retention_v0(
+fn validate_live_declared_names_survive_linked_emission_v0(
     fixture: &LinkedEmissionFixtureV0,
-    legacy_css: &str,
     linked_css: &str,
+    attribution: Option<&OmenaQueryModuleReachabilityAttributionReportV0>,
     rewrites_by_module: &BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<(), String> {
-    if !fixture
-        .shape_classes
-        .contains(&"module-qualified-reachability")
-    {
+    if fixture.reachability_references.is_empty() {
         return Ok(());
     }
-    let legacy_declarations = output_rule_declaration_multiset_v0(legacy_css, rewrites_by_module);
-    let linked_declarations = output_rule_declaration_multiset_v0(linked_css, rewrites_by_module);
-    let missing = legacy_declarations
-        .iter()
-        .filter_map(|(declaration, legacy_count)| {
-            let linked_count = linked_declarations
-                .get(declaration)
-                .copied()
-                .unwrap_or_default();
-            (*legacy_count > linked_count)
-                .then(|| format!("{declaration} x{}", legacy_count - linked_count))
-        })
-        .collect::<Vec<_>>();
-    if missing.is_empty() {
-        Ok(())
-    } else {
-        Err(format!(
-            "linked emission removed declarations retained by default emission in fixture {}: {}",
-            fixture.id,
-            missing.join(", ")
-        ))
+    let Some(attribution) = attribution else {
+        // FALSIFIER: id=linked-emission-attribution-required class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=attribution-present-for-in-domain-fixture
+        return Err(format!(
+            "linked emission omitted reachability attribution for in-domain fixture {}",
+            fixture.id
+        ));
+    };
+    let live_declared = live_declared_names_by_module_v0(fixture, attribution)?;
+    let mut owners_by_token = BTreeMap::<String, BTreeSet<(String, String)>>::new();
+    for (module_path, names) in &live_declared {
+        for name in names {
+            owners_by_token
+                .entry(emitted_class_name_v0(rewrites_by_module, module_path, name))
+                .or_default()
+                .insert((module_path.clone(), name.clone()));
+        }
     }
+    let unattributed = attribution
+        .unattributed_class_names()
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    for module in &fixture.modules {
+        let declared = collect_style_fact_collection(module.source.as_str(), module.dialect)
+            .facts
+            .selectors
+            .into_iter()
+            .filter(|selector| {
+                selector.kind == ParsedSelectorFactKind::Class
+                    && unattributed.contains(selector.name.as_str())
+            })
+            .map(|selector| selector.name);
+        for name in declared {
+            owners_by_token
+                .entry(emitted_class_name_v0(
+                    rewrites_by_module,
+                    module.path.as_str(),
+                    name.as_str(),
+                ))
+                .or_default()
+                .insert((module.path.clone(), name));
+        }
+    }
+    let ambiguous_tokens = owners_by_token
+        .iter()
+        .filter(|(_, owners)| owners.len() != 1)
+        .map(|(token, owners)| format!("{token}={owners:?}"))
+        .collect::<Vec<_>>();
+    let output_tokens = collect_style_fact_collection(linked_css, StyleDialect::Css)
+        .facts
+        .selectors
+        .into_iter()
+        .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+        .map(|selector| selector.name)
+        .collect::<BTreeSet<_>>();
+    let unclaimed_output_tokens = output_tokens
+        .iter()
+        .filter(|token| !owners_by_token.contains_key(token.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let missing_live_tokens = owners_by_token
+        .keys()
+        .filter(|token| !output_tokens.contains(token.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    if !ambiguous_tokens.is_empty()
+        || !unclaimed_output_tokens.is_empty()
+        || !missing_live_tokens.is_empty()
+    {
+        // FALSIFIER: id=linked-emission-token-universe-closure class=shaking via=AddUnclaimedLinkedToken producer=can-fail owner=linked-emission-instrument entry=one-owner-per-output-token
+        return Err(format!(
+            "linked-emission live token universe is not closed in fixture {}: ambiguous [{}], unclaimed [{}], missing [{}]",
+            fixture.id,
+            ambiguous_tokens.join(", "),
+            unclaimed_output_tokens.join(", "),
+            missing_live_tokens.join(", ")
+        ));
+    }
+
+    for module in &fixture.modules {
+        let Some(live_names) = live_declared.get(module.path.as_str()) else {
+            continue;
+        };
+        for name in live_names {
+            let token = emitted_class_name_v0(rewrites_by_module, module.path.as_str(), name);
+            let source_declarations =
+                rule_declaration_counts_for_class_v0(module.source.as_str(), name.as_str());
+            let emitted_declarations =
+                rule_declaration_counts_for_class_v0(linked_css, token.as_str());
+            for (declaration, expected_count) in source_declarations {
+                let actual_count = emitted_declarations
+                    .get(declaration.as_str())
+                    .copied()
+                    .unwrap_or_default();
+                if actual_count < expected_count {
+                    // FALSIFIER: id=linked-emission-live-declaration-retention class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=all-live-declarations-emitted
+                    return Err(format!(
+                        "linked emission lost live declaration in fixture {}, module {}, name {}, token {}: {} x{} (observed {})",
+                        fixture.id,
+                        module.path,
+                        name,
+                        token,
+                        declaration,
+                        expected_count,
+                        actual_count
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
-fn output_rule_declaration_multiset_v0(
-    source: &str,
-    rewrites_by_module: &BTreeMap<String, BTreeMap<String, String>>,
-) -> BTreeMap<String, usize> {
+fn live_declared_names_by_module_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    attribution: &OmenaQueryModuleReachabilityAttributionReportV0,
+) -> Result<BTreeMap<String, BTreeSet<String>>, String> {
+    let unattributed = attribution
+        .unattributed_class_names()
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let mut live_declared = BTreeMap::new();
+    for module in &fixture.modules {
+        let declared = collect_style_fact_collection(module.source.as_str(), module.dialect)
+            .facts
+            .selectors
+            .into_iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name)
+            .collect::<BTreeSet<_>>();
+        let Some(entry) = attribution.entry_for_style_path(module.path.as_str()) else {
+            // FALSIFIER: id=linked-emission-build-module-attribution class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=all-build-modules-attributed
+            return Err(format!(
+                "linked-emission attribution omitted build module {} in fixture {}",
+                module.path, fixture.id
+            ));
+        };
+        let names = entry
+            .class_names()
+            .iter()
+            .filter(|name| {
+                !unattributed.contains(name.as_str()) && declared.contains(name.as_str())
+            })
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        live_declared.insert(module.path.clone(), names);
+    }
+    Ok(live_declared)
+}
+
+fn validate_authored_liveness_expectations_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    live_declared_names_by_module: &BTreeMap<String, BTreeSet<String>>,
+) -> Result<(), String> {
+    let modules = fixture
+        .modules
+        .iter()
+        .map(|module| (module.path.as_str(), module))
+        .collect::<BTreeMap<_, _>>();
+    let mut authored_keys = BTreeSet::new();
+    for expectation in &fixture.liveness_expectations {
+        let key = (
+            expectation.module_path.as_str(),
+            expectation.class_name,
+        );
+        if !authored_keys.insert(key) {
+            // FALSIFIER: id=linked-emission-authored-expectation-uniqueness class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=one-expectation-per-module-name
+            return Err(format!(
+                "duplicate authored liveness expectation in fixture {}, module {}, name {}",
+                fixture.id, expectation.module_path, expectation.class_name
+            ));
+        }
+        let Some(module) = modules.get(expectation.module_path.as_str()) else {
+            // FALSIFIER: id=linked-emission-authored-build-domain class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=expectations-name-build-modules
+            return Err(format!(
+                "authored liveness expectation names a non-build module in fixture {}: {}",
+                fixture.id, expectation.module_path
+            ));
+        };
+        let declared = collect_style_fact_collection(module.source.as_str(), module.dialect)
+            .facts
+            .selectors
+            .into_iter()
+            .any(|selector| {
+                selector.kind == ParsedSelectorFactKind::Class
+                    && selector.name == expectation.class_name
+            });
+        if !declared {
+            // FALSIFIER: id=linked-emission-authored-declaration-domain class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=expectations-name-declared-classes
+            return Err(format!(
+                "authored liveness expectation names an undeclared class in fixture {}, module {}, name {}",
+                fixture.id, expectation.module_path, expectation.class_name
+            ));
+        }
+        let actual_live = live_declared_names_by_module
+            .get(expectation.module_path.as_str())
+            .is_some_and(|names| names.contains(expectation.class_name));
+        let expected_live = expectation.verdict == LinkedEmissionLivenessVerdictV0::Live;
+        if actual_live != expected_live {
+            // FALSIFIER: id=linked-emission-authored-liveness-equality class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=authored-and-derived-liveness-agree
+            return Err(format!(
+                "authored liveness expectation disagrees in fixture {}, module {}, name {}: expected {:?} because {:?}, actual {}",
+                fixture.id,
+                expectation.module_path,
+                expectation.class_name,
+                expectation.verdict,
+                expectation.reason,
+                if actual_live { "Live" } else { "Dead" }
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn rule_declaration_counts_for_class_v0(source: &str, class_name: &str) -> BTreeMap<String, usize> {
     let parsed = parse(source, StyleDialect::Css);
     let facts = facts_from_cst(source, &parsed);
     let cst = parsed.cst();
     let rules = cst.rules();
-    let original_names_by_emitted_name = rewrites_by_module
-        .values()
-        .flat_map(|rewrites| rewrites.iter())
-        .fold(
-            BTreeMap::<String, BTreeSet<String>>::new(),
-            |mut inverse, (original, emitted)| {
-                inverse
-                    .entry(emitted.clone())
-                    .or_default()
-                    .insert(original.clone());
-                inverse
-            },
-        );
     let mut declarations = BTreeMap::new();
     for declaration in cst.declarations() {
         let declaration_range = declaration.text_range();
@@ -1676,51 +2122,75 @@ fn output_rule_declaration_multiset_v0(
             continue;
         };
         let rule_range = rule.text_range();
-        let rule_start = u32::from(rule_range.start()) as usize;
-        let rule_end = u32::from(rule_range.end()) as usize;
         let declaration_start = u32::from(declaration_range.start()) as usize;
         let declaration_end = u32::from(declaration_range.end()) as usize;
-        let Some(rule_source) = source.get(rule_start..rule_end) else {
-            continue;
-        };
-        let Some(block_open) = rule_source.find('{') else {
-            continue;
-        };
         let Some(declaration_source) = source.get(declaration_start..declaration_end) else {
             continue;
         };
-        let mut selector_names = facts
-            .selectors
-            .iter()
-            .filter(|selector| {
-                selector.kind == ParsedSelectorFactKind::Class
-                    && rule_range.start() <= selector.range.start()
-                    && selector.range.end() <= rule_range.end()
-            })
-            .flat_map(|selector| {
-                original_names_by_emitted_name
-                    .get(selector.name.as_str())
-                    .cloned()
-                    .unwrap_or_else(|| BTreeSet::from([selector.name.clone()]))
-            })
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        selector_names.sort();
-        let selector = if selector_names.is_empty() {
-            remove_ascii_whitespace_v0(&rule_source[..block_open])
-        } else {
-            selector_names.join(",")
-        };
-        let declaration = remove_ascii_whitespace_v0(declaration_source);
-        if selector.is_empty() || declaration.is_empty() {
+        let carries_class = facts.selectors.iter().any(|selector| {
+            selector.kind == ParsedSelectorFactKind::Class
+                && selector.name == class_name
+                && rule_range.start() <= selector.range.start()
+                && selector.range.end() <= rule_range.end()
+        });
+        if !carries_class {
             continue;
         }
-        *declarations
-            .entry(format!("{selector}{{{declaration}}}"))
-            .or_default() += 1;
+        let declaration = remove_ascii_whitespace_v0(declaration_source);
+        if declaration.is_empty() {
+            continue;
+        }
+        *declarations.entry(declaration).or_default() += 1;
     }
     declarations
+}
+
+fn remove_first_live_linked_declaration_for_fault_v0(
+    fixture: &LinkedEmissionFixtureV0,
+    linked_css: &mut String,
+    attribution: Option<&OmenaQueryModuleReachabilityAttributionReportV0>,
+    rewrites_by_module: &BTreeMap<String, BTreeMap<String, String>>,
+) -> Result<(), String> {
+    let Some(attribution) = attribution else {
+        // FALSIFIER: id=linked-emission-loss-fault-attribution class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=fault-target-has-attribution
+        return Err(format!(
+            "live-declaration fault lacks attribution for fixture {}",
+            fixture.id
+        ));
+    };
+    let live_declared = live_declared_names_by_module_v0(fixture, attribution)?;
+    for module in &fixture.modules {
+        let Some(names) = live_declared.get(module.path.as_str()) else {
+            continue;
+        };
+        for name in names {
+            let token = emitted_class_name_v0(rewrites_by_module, module.path.as_str(), name);
+            let declarations =
+                rule_declaration_counts_for_class_v0(module.source.as_str(), name.as_str());
+            for declaration in declarations.keys() {
+                let spaced = declaration
+                    .split_once(':')
+                    .map(|(property, value)| format!("{property}: {value}"))
+                    .unwrap_or_else(|| declaration.clone());
+                for candidate in [spaced.as_str(), declaration.as_str()] {
+                    let changed = linked_css.replacen(candidate, "", 1);
+                    if changed != *linked_css {
+                        *linked_css = changed;
+                        return Ok(());
+                    }
+                }
+            }
+            // FALSIFIER: id=linked-emission-loss-fault-output class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=fault-target-declaration-present
+            return Err(format!(
+                "live-declaration fault could not find output for fixture {}, module {}, name {}, token {}",
+                fixture.id, module.path, name, token
+            ));
+        }
+    }
+    Err(format!(
+        "live-declaration fault found no live declared name in fixture {}",
+        fixture.id
+    ))
 }
 
 fn remove_linked_declaration_for_fault_v0(
@@ -1821,6 +2291,7 @@ fn linked_emission_placement_witness_definitions_v0()
                 ],
                 workspace_only_modules: Vec::new(),
                 reachability_references: Vec::new(),
+                liveness_expectations: Vec::new(),
             },
             selectorless_module_paths: &[
                 "linked-order-witness/element/app.css",
@@ -1853,6 +2324,7 @@ fn linked_emission_placement_witness_definitions_v0()
                 ],
                 workspace_only_modules: Vec::new(),
                 reachability_references: Vec::new(),
+                liveness_expectations: Vec::new(),
             },
             selectorless_module_paths: &["linked-order-witness/mixed/reset.css"],
             import_graph_winner: "red",
@@ -1880,6 +2352,7 @@ fn linked_emission_placement_witness_definitions_v0()
                 ],
                 workspace_only_modules: Vec::new(),
                 reachability_references: Vec::new(),
+                liveness_expectations: Vec::new(),
             },
             selectorless_module_paths: &[
                 "linked-order-witness/names/zzz-app.css",
@@ -1910,6 +2383,7 @@ fn linked_emission_placement_witness_definitions_v0()
                 ],
                 workspace_only_modules: Vec::new(),
                 reachability_references: Vec::new(),
+                liveness_expectations: Vec::new(),
             },
             selectorless_module_paths: &["linked-order-witness/layers/layers.css"],
             import_graph_winner: "blue",
@@ -1925,6 +2399,7 @@ fn linked_emission_fixtures_v0() -> Vec<LinkedEmissionFixtureV0> {
         shared_import_fixture_v0(),
         module_qualified_reachability_fixture_v0(),
         module_qualified_composes_reachability_fixture_v0(),
+        module_qualified_at_rule_reachability_fixture_v0(),
         selectorless_module_fixture_v0(
             "element-only-reset-module",
             "element-only-reset",
@@ -2001,6 +2476,7 @@ fn selectorless_module_fixture_v0(
         ],
         workspace_only_modules: Vec::new(),
         reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
     }
 }
 
@@ -2050,6 +2526,7 @@ fn dialect_fixture_v0(
         ],
         workspace_only_modules: Vec::new(),
         reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
     }
 }
 
@@ -2097,6 +2574,7 @@ fn shared_import_fixture_v0() -> LinkedEmissionFixtureV0 {
         ],
         workspace_only_modules: Vec::new(),
         reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
     }
 }
 
@@ -2154,6 +2632,7 @@ fn module_qualified_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
                 class_name: "workspace-only",
             },
         ],
+        liveness_expectations: Vec::new(),
     }
 }
 
@@ -2166,7 +2645,7 @@ fn module_qualified_composes_reachability_fixture_v0() -> LinkedEmissionFixtureV
         shape_classes: vec!["module-qualified-reachability"],
         modules: vec![
             LinkedEmissionFixtureModuleV0 {
-                path: entry_path,
+                path: entry_path.clone(),
                 source: "@import \"./base.module.css\"; .card { composes: base from \"./base.module.css\"; color: red; }"
                     .to_string(),
                 dialect: StyleDialect::Css,
@@ -2195,6 +2674,76 @@ fn module_qualified_composes_reachability_fixture_v0() -> LinkedEmissionFixtureV
                 class_name: "base-live",
             },
         ],
+        liveness_expectations: vec![
+            LinkedEmissionLivenessExpectationV0 {
+                module_path: entry_path,
+                class_name: "card",
+                verdict: LinkedEmissionLivenessVerdictV0::Live,
+                reason: LinkedEmissionLivenessReasonV0::DirectReference,
+            },
+            LinkedEmissionLivenessExpectationV0 {
+                module_path: format!("{root}/base.module.css"),
+                class_name: "base",
+                verdict: LinkedEmissionLivenessVerdictV0::Live,
+                reason: LinkedEmissionLivenessReasonV0::ComposesFrom(
+                    "linked-byte/module-qualified-composes/entry.module.css".to_string(),
+                ),
+            },
+            LinkedEmissionLivenessExpectationV0 {
+                module_path: format!("{root}/base.module.css"),
+                class_name: "base-live",
+                verdict: LinkedEmissionLivenessVerdictV0::Live,
+                reason: LinkedEmissionLivenessReasonV0::DirectReference,
+            },
+            LinkedEmissionLivenessExpectationV0 {
+                module_path: format!("{root}/base.module.css"),
+                class_name: "base-dead",
+                verdict: LinkedEmissionLivenessVerdictV0::Dead,
+                reason: LinkedEmissionLivenessReasonV0::Unreferenced,
+            },
+        ],
+    }
+}
+
+fn module_qualified_at_rule_reachability_fixture_v0() -> LinkedEmissionFixtureV0 {
+    let root = "linked-byte/module-qualified-at-rule";
+    let entry_path = format!("{root}/entry.module.css");
+    LinkedEmissionFixtureV0 {
+        id: "module-qualified-at-rule-reachability".to_string(),
+        entry_path: entry_path.clone(),
+        shape_classes: vec!["at-rule-nested-liveness"],
+        modules: vec![
+            LinkedEmissionFixtureModuleV0 {
+                path: entry_path,
+                source: "@import \"./media.module.css\"; .card { composes: base from \"./media.module.css\"; color: red; }"
+                    .to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["card".to_string()],
+                order_probe: "color: red".to_string(),
+            },
+            LinkedEmissionFixtureModuleV0 {
+                path: format!("{root}/media.module.css"),
+                source: ".base { border: 0; } .base-dead { color: gray; } @media (min-width: 40rem) { .media-live { padding: 4px; } .media-dead { padding: 8px; } }"
+                    .to_string(),
+                dialect: StyleDialect::Css,
+                marker_names: vec!["base".to_string(), "media-live".to_string()],
+                order_probe: "padding: 4px".to_string(),
+            },
+        ],
+        workspace_only_modules: Vec::new(),
+        reachability_references: vec![
+            LinkedEmissionReachabilityReferenceV0 {
+                id: "card-reference",
+                module_index: 0,
+                class_name: "card",
+            },
+            LinkedEmissionReachabilityReferenceV0 {
+                id: "media-live-reference",
+                module_index: 1,
+                class_name: "media-live",
+            },
+        ],
+        liveness_expectations: Vec::new(),
     }
 }
 
@@ -2242,6 +2791,7 @@ fn product_corpus_fixture_v0() -> Option<LinkedEmissionFixtureV0> {
         modules,
         workspace_only_modules: Vec::new(),
         reachability_references: Vec::new(),
+        liveness_expectations: Vec::new(),
     })
 }
 
@@ -2307,33 +2857,146 @@ mod tests {
     }
 
     #[test]
-    fn directional_no_loss_rejects_cross_module_declaration_removal() {
-        let result = summarize_linked_emission_byte_differential_envelope_v0(
+    fn non_live_cross_module_declaration_is_outside_the_shaking_arm() -> Result<(), String> {
+        let fixture = module_qualified_reachability_fixture_v0();
+        let analysis = analyze_linked_emission_fixture_v0(
+            &fixture,
             LinkedEmissionByteDifferentialPerturbationV0::DropReachableCrossModuleDeclaration,
-        );
+        )?;
 
-        // FALSIFIER: id=linked-emission-rust-026 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(matches!(
-            result,
-            Err(error)
-                if error.contains("linked emission removed declarations retained by default emission")
-                    && error.contains("padding:8px")
-        ));
+        // FALSIFIER: id=linked-emission-rust-026 class=liveness via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=shaking-arm-silent-for-nonlive-declaration
+        assert!(!remove_ascii_whitespace_v0(&analysis.linked_css).contains("padding:8px"));
+        Ok(())
     }
 
     #[test]
-    fn directional_no_loss_rejects_composed_declaration_removal() {
+    fn live_declaration_arm_rejects_composed_declaration_removal() {
         let result = summarize_linked_emission_byte_differential_envelope_v0(
             LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration,
         );
 
-        // FALSIFIER: id=linked-emission-rust-027 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
+        // FALSIFIER: id=linked-emission-rust-027 class=shaking via=DropComposedDeclaration producer=can-fail owner=linked-emission-instrument entry=live-composed-declaration-preserved
         assert!(matches!(
             result,
             Err(error)
-                if error.contains("linked emission removed declarations retained by default emission")
+                if error.contains("linked emission lost live declaration")
                     && error.contains("padding:2px")
         ));
+    }
+
+    #[test]
+    fn live_declaration_loss_is_rejected_for_every_in_domain_fixture() {
+        let fixtures = linked_emission_fixtures_v0()
+            .into_iter()
+            .filter(|fixture| !fixture.reachability_references.is_empty())
+            .collect::<Vec<_>>();
+        // FALSIFIER: id=linked-emission-in-domain-nonempty class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=three-in-domain-fixtures
+        assert!(!fixtures.is_empty());
+        for fixture in fixtures {
+            let result = analyze_linked_emission_fixture_v0(
+                &fixture,
+                LinkedEmissionByteDifferentialPerturbationV0::DropLiveDeclaration,
+            );
+            // FALSIFIER: id=linked-emission-live-loss-per-fixture class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=every-in-domain-fixture-rejects-loss
+            assert!(matches!(
+                result,
+                Err(error)
+                    if error.contains("linked emission lost live declaration")
+                        && error.contains(fixture.id.as_str())
+                        && error.contains("module ")
+                        && error.contains("name ")
+            ));
+        }
+    }
+
+    #[test]
+    fn unclaimed_linked_token_is_rejected_by_token_universe() {
+        let result = summarize_linked_emission_byte_differential_envelope_v0(
+            LinkedEmissionByteDifferentialPerturbationV0::AddUnclaimedLinkedToken,
+        );
+        // FALSIFIER: id=linked-emission-unclaimed-token-closure class=shaking via=AddUnclaimedLinkedToken producer=can-fail owner=linked-emission-instrument entry=closed-live-token-universe
+        assert!(matches!(
+            result,
+            Err(error)
+                if error.contains("linked-emission live token universe is not closed")
+                    && error.contains("unclaimed [_unclaimed_linked_token]")
+        ));
+    }
+
+    #[test]
+    fn authored_composes_expectation_detects_upstream_liveness_loss() {
+        let result = summarize_linked_emission_byte_differential_envelope_v0(
+            LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability,
+        );
+
+        // FALSIFIER: id=linked-emission-composes-authored-expectation class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=base-live-through-composes
+        assert!(matches!(
+            result,
+            Err(error)
+                if error.contains("authored liveness expectation disagrees")
+                    && error.contains("base.module.css")
+                    && error.contains("name base")
+                    && error.contains("expected Live")
+                    && error.contains("actual Dead")
+        ));
+    }
+
+    #[test]
+    fn unattributed_reference_is_excluded_from_module_liveness() -> Result<(), String> {
+        let envelope = summarize_linked_emission_byte_differential_envelope_v0(
+            LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference,
+        )?;
+        let fixture = envelope
+            .census
+            .live_declaration_fixtures
+            .iter()
+            .find(|fixture| fixture.fixture_id == "module-qualified-reachability")
+            .ok_or_else(|| "module-qualified reachability fixture is absent".to_string())?;
+        let dependency = fixture
+            .modules
+            .iter()
+            .find(|module| module.module_path.ends_with("/dependency.module.css"))
+            .ok_or_else(|| "dependency module is absent".to_string())?;
+
+        // FALSIFIER: id=linked-emission-unattributed-fan-in class=shaking via=AddUnattributedReachabilityReference producer=can-fail owner=linked-emission-instrument entry=unattributed-dependency-dead-subtracted
+        assert!(!dependency
+            .live_declared_class_names
+            .iter()
+            .any(|name| name == "dependency-dead"));
+        Ok(())
+    }
+
+    #[test]
+    fn at_rule_nested_liveness_uses_linked_tokens_without_legacy_oracle() -> Result<(), String> {
+        let fixture = module_qualified_at_rule_reachability_fixture_v0();
+        let analysis = analyze_linked_emission_fixture_v0(
+            &fixture,
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+        let linked = remove_ascii_whitespace_v0(&analysis.linked_css);
+
+        // FALSIFIER: id=linked-emission-at-rule-live-token class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=media-live-linked-token-preserved
+        assert!(linked.contains("._media-live_2{padding:4px;}"));
+        // FALSIFIER: id=linked-emission-at-rule-dead-token class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=media-dead-removed
+        assert!(!linked.contains("media-dead"));
+        // FALSIFIER: id=linked-emission-at-rule-legacy-oracle class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=default-path-retains-dead-declaration
+        assert!(
+            analysis.legacy_css.contains("base-dead") || analysis.legacy_css.contains("media-dead")
+        );
+        let live_names = analysis
+            .live_declared_names_by_module
+            .get("linked-byte/module-qualified-at-rule/media.module.css")
+            .cloned()
+            .unwrap_or_default();
+        // FALSIFIER: id=linked-emission-at-rule-base-live class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=base-live-through-composes
+        assert!(live_names.contains("base"));
+        // FALSIFIER: id=linked-emission-at-rule-media-live class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=media-live-direct-reference
+        assert!(live_names.contains("media-live"));
+        // FALSIFIER: id=linked-emission-at-rule-base-dead class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=base-dead-not-live
+        assert!(!live_names.contains("base-dead"));
+        // FALSIFIER: id=linked-emission-at-rule-media-dead class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=media-dead-not-live
+        assert!(!live_names.contains("media-dead"));
+        Ok(())
     }
 
     #[test]
@@ -2670,13 +3333,17 @@ mod tests {
     }
 
     #[test]
-    fn collapsed_arms_are_detectably_vacuous() -> Result<(), String> {
-        let report = summarize_linked_emission_byte_differential_v0(
+    fn collapsed_linked_output_is_rejected_by_token_universe() {
+        let result = summarize_linked_emission_byte_differential_v0(
             LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes,
-        )?;
+        );
 
         // FALSIFIER: id=linked-emission-rust-060 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(report.total_divergence_count, 0);
-        Ok(())
+        assert!(matches!(
+            result,
+            Err(error)
+                if error.contains("linked-emission live token universe is not closed")
+                    && error.contains("unclaimed")
+        ));
     }
 }

@@ -12,6 +12,14 @@ fn main() {
         LinkedEmissionByteDifferentialPerturbationV0::DropReachableCrossModuleDeclaration
     } else if std::env::args().any(|arg| arg == "--inject-composed-declaration-loss") {
         LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration
+    } else if std::env::args().any(|arg| arg == "--inject-live-declaration-loss") {
+        LinkedEmissionByteDifferentialPerturbationV0::DropLiveDeclaration
+    } else if std::env::args().any(|arg| arg == "--inject-unclaimed-linked-token") {
+        LinkedEmissionByteDifferentialPerturbationV0::AddUnclaimedLinkedToken
+    } else if std::env::args().any(|arg| arg == "--inject-composes-liveness-loss") {
+        LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability
+    } else if std::env::args().any(|arg| arg == "--inject-unattributed-reference") {
+        LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference
     } else {
         LinkedEmissionByteDifferentialPerturbationV0::None
     };

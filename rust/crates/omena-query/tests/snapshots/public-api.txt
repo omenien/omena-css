@@ -1348,6 +1348,7 @@ pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::flat_class_
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::lost_class_names(&self) -> &[alloc::string::String]
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::projected_class_names(&self) -> &[alloc::string::String]
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::projection_summary_evaluation_count(&self) -> usize
+pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::unattributed_class_names(&self) -> &[alloc::string::String]
 pub fn omena_query::OmenaQueryModuleReachabilityAttributionReportV0::unmatched_target_style_paths(&self) -> &[alloc::string::String]
 #[non_exhaustive] pub struct omena_query::OmenaQueryModuleReachabilityAttributionV0
 impl omena_query::OmenaQueryModuleReachabilityAttributionV0

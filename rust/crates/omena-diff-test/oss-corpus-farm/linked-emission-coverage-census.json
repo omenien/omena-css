@@ -3,12 +3,12 @@
   "product": "omena-diff-test.linked-emission-coverage-census",
   "coverageScope": "boundedMultiModuleFixtures",
   "fullCorpusCoverage": false,
-  "populationCount": 15,
-  "coveredShapeCount": 11,
+  "populationCount": 16,
+  "coveredShapeCount": 12,
   "notCoveredShapeCount": 4,
-  "fixtureCount": 12,
-  "moduleCount": 30,
-  "markerObservableModuleCount": 25,
+  "fixtureCount": 13,
+  "moduleCount": 32,
+  "markerObservableModuleCount": 27,
   "blindSpotModuleCount": 5,
   "unknownStructuralSelectorCount": 0,
   "unknownAtRuleCount": 0,
@@ -26,7 +26,95 @@
       "observedEmissionPaths": ["importInlineLegacy", "linkedOrder"]
     }
   ],
+  "reachabilityInputFixtureIds": [
+    "module-qualified-at-rule-reachability",
+    "module-qualified-composes-reachability",
+    "module-qualified-reachability"
+  ],
+  "inDomainFixtureIds": [
+    "module-qualified-at-rule-reachability",
+    "module-qualified-composes-reachability",
+    "module-qualified-reachability"
+  ],
+  "liveDeclarationFixtures": [
+    {
+      "fixtureId": "module-qualified-at-rule-reachability",
+      "reachabilityReferenceCount": 2,
+      "engineInputStyleSourceCount": 2,
+      "composesResolutionCount": 1,
+      "declarationPreservingPassIds": [
+        "import-inline",
+        "print-css",
+        "css-modules-class-hashing",
+        "tree-shake-class"
+      ],
+      "modules": [
+        {
+          "modulePath": "linked-byte/module-qualified-at-rule/entry.module.css",
+          "declaredClassNames": ["card"],
+          "liveDeclaredClassNames": ["card"]
+        },
+        {
+          "modulePath": "linked-byte/module-qualified-at-rule/media.module.css",
+          "declaredClassNames": ["base", "base-dead", "media-dead", "media-live"],
+          "liveDeclaredClassNames": ["base", "media-live"]
+        }
+      ]
+    },
+    {
+      "fixtureId": "module-qualified-composes-reachability",
+      "reachabilityReferenceCount": 2,
+      "engineInputStyleSourceCount": 2,
+      "composesResolutionCount": 1,
+      "declarationPreservingPassIds": [
+        "import-inline",
+        "print-css",
+        "css-modules-class-hashing",
+        "tree-shake-class"
+      ],
+      "modules": [
+        {
+          "modulePath": "linked-byte/module-qualified-composes/entry.module.css",
+          "declaredClassNames": ["card"],
+          "liveDeclaredClassNames": ["card"]
+        },
+        {
+          "modulePath": "linked-byte/module-qualified-composes/base.module.css",
+          "declaredClassNames": ["base", "base-dead", "base-live"],
+          "liveDeclaredClassNames": ["base", "base-live"]
+        }
+      ]
+    },
+    {
+      "fixtureId": "module-qualified-reachability",
+      "reachabilityReferenceCount": 4,
+      "engineInputStyleSourceCount": 3,
+      "composesResolutionCount": 0,
+      "declarationPreservingPassIds": [
+        "import-inline",
+        "print-css",
+        "css-modules-class-hashing",
+        "tree-shake-class"
+      ],
+      "modules": [
+        {
+          "modulePath": "linked-byte/module-qualified-reachability/app.module.css",
+          "declaredClassNames": ["entry-dead", "entry-marker", "shared"],
+          "liveDeclaredClassNames": ["entry-marker", "shared"]
+        },
+        {
+          "modulePath": "linked-byte/module-qualified-reachability/dependency.module.css",
+          "declaredClassNames": ["dependency-dead", "dependency-own", "shared"],
+          "liveDeclaredClassNames": ["dependency-own"]
+        }
+      ]
+    }
+  ],
   "shapes": [
+    {
+      "shapeClass": "at-rule-nested-liveness",
+      "fixtureIds": ["module-qualified-at-rule-reachability"]
+    },
     {
       "shapeClass": "bare-layer-statement",
       "fixtureIds": ["bare-layer-statement-module"]
@@ -139,6 +227,12 @@
     },
     {
       "fixtureId": "module-qualified-composes-reachability",
+      "moduleCount": 2,
+      "markerObservableModuleCount": 2,
+      "blindSpotModuleCount": 0
+    },
+    {
+      "fixtureId": "module-qualified-at-rule-reachability",
       "moduleCount": 2,
       "markerObservableModuleCount": 2,
       "blindSpotModuleCount": 0

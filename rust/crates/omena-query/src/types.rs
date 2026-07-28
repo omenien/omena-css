@@ -1444,6 +1444,7 @@ pub struct OmenaQueryModuleReachabilityAttributionReportV0 {
     entries: Vec<OmenaQueryModuleReachabilityAttributionV0>,
     projection_summary_evaluation_count: usize,
     projected_class_names: Vec<String>,
+    unattributed_class_names: Vec<String>,
     flat_class_names: Vec<String>,
     attributed_class_names: Vec<String>,
     lost_class_names: Vec<String>,
@@ -1533,6 +1534,7 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             entries,
             projection_summary_evaluation_count: attribution.projection_summary_evaluation_count(),
             projected_class_names: attribution.projected_class_names.clone(),
+            unattributed_class_names: attribution.unattributed_class_names.clone(),
             flat_class_names,
             attributed_class_names,
             lost_class_names: normalization_disagreement_class_names,
@@ -1578,6 +1580,11 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
 
     pub fn projected_class_names(&self) -> &[String] {
         self.projected_class_names.as_slice()
+    }
+
+    /// Names from source projections that could not be assigned to one style module.
+    pub fn unattributed_class_names(&self) -> &[String] {
+        self.unattributed_class_names.as_slice()
     }
 
     /// Class names whose declared owners intersect the current build-source domain.
