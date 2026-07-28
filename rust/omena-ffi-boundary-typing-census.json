@@ -7,6 +7,11 @@
     "rust/crates/omena-wasm/src/lib.rs",
     "rust/crates/omena-wasm/src/sdk_workspace.rs"
   ],
+  "ratchet": {
+    "direction": "decrease-only",
+    "maximumJsonStringCount": 49,
+    "maximumJsValueAnyCount": 43
+  },
   "summary": {
     "totalCallableCount": 95,
     "jsonStringCount": 49,

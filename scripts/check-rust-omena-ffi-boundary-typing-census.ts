@@ -22,6 +22,11 @@ interface BoundaryCensus {
   readonly schemaVersion: "0";
   readonly product: "omena-ffi.boundary-typing-census";
   readonly sources: readonly string[];
+  readonly ratchet: {
+    readonly direction: "decrease-only";
+    readonly maximumJsonStringCount: number;
+    readonly maximumJsValueAnyCount: number;
+  };
   readonly summary: {
     readonly totalCallableCount: number;
     readonly jsonStringCount: number;
@@ -42,7 +47,8 @@ const sources = [
   "rust/crates/omena-wasm/src/sdk_workspace.rs",
 ] as const;
 
-const census = buildCensus();
+const existing = readExistingCensus();
+const census = buildCensus(existing);
 const expected = formatCensusJson(census);
 
 if (writeMode) {
@@ -67,7 +73,7 @@ process.stdout.write(
   `FFI boundary typing census OK: ${census.summary.totalCallableCount} callables, ${census.summary.untypedBoundaryCount} untyped\n`,
 );
 
-function buildCensus(): BoundaryCensus {
+function buildCensus(existing: BoundaryCensus | undefined): BoundaryCensus {
   const napiRows = [
     ...scanNapiSource("rust/crates/omena-napi/src/lib.rs"),
     ...scanNapiSource("rust/crates/omena-napi/src/sdk_workspace.rs"),
@@ -88,12 +94,35 @@ function buildCensus(): BoundaryCensus {
     rows.some((row) => row.crate === "omena-wasm"),
     "wasm FFI surface is empty",
   );
-  assert.ok(jsonStringCount > 0, "napi JSON-string boundary count is zero");
-  assert.ok(jsValueAnyCount > 0, "wasm JsValue-any boundary count is zero");
+  const previousMaximumJsonStringCount =
+    existing?.ratchet?.maximumJsonStringCount ?? existing?.summary.jsonStringCount;
+  const previousMaximumJsValueAnyCount =
+    existing?.ratchet?.maximumJsValueAnyCount ?? existing?.summary.jsValueAnyCount;
+  if (previousMaximumJsonStringCount !== undefined) {
+    assert.ok(
+      jsonStringCount <= previousMaximumJsonStringCount,
+      `napi JSON-string boundary count increased: maximum=${previousMaximumJsonStringCount} current=${jsonStringCount}`,
+    );
+  }
+  if (previousMaximumJsValueAnyCount !== undefined) {
+    assert.ok(
+      jsValueAnyCount <= previousMaximumJsValueAnyCount,
+      `wasm JsValue-any boundary count increased: maximum=${previousMaximumJsValueAnyCount} current=${jsValueAnyCount}`,
+    );
+  }
   return {
     schemaVersion: "0",
     product: "omena-ffi.boundary-typing-census",
     sources,
+    ratchet: {
+      direction: "decrease-only",
+      maximumJsonStringCount: writeMode
+        ? jsonStringCount
+        : (previousMaximumJsonStringCount ?? jsonStringCount),
+      maximumJsValueAnyCount: writeMode
+        ? jsValueAnyCount
+        : (previousMaximumJsValueAnyCount ?? jsValueAnyCount),
+    },
     summary: {
       totalCallableCount: rows.length,
       jsonStringCount,
@@ -107,6 +136,31 @@ function buildCensus(): BoundaryCensus {
 
 function formatCensusJson(census: BoundaryCensus): string {
   return `${JSON.stringify(census, null, 2)}\n`;
+}
+
+function readExistingCensus(): BoundaryCensus | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(censusPath, "utf8")) as BoundaryCensus;
+    assert.equal(parsed.schemaVersion, "0", "FFI boundary census schemaVersion");
+    assert.equal(parsed.product, "omena-ffi.boundary-typing-census", "FFI boundary census product");
+    if (parsed.ratchet !== undefined) {
+      assert.equal(parsed.ratchet.direction, "decrease-only", "FFI boundary ratchet direction");
+      assert.equal(
+        parsed.ratchet.maximumJsonStringCount,
+        parsed.summary.jsonStringCount,
+        "committed JSON-string floor must equal its measured count",
+      );
+      assert.equal(
+        parsed.ratchet.maximumJsValueAnyCount,
+        parsed.summary.jsValueAnyCount,
+        "committed JsValue-any floor must equal its measured count",
+      );
+    }
+    return parsed;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 }
 
 function scanNapiSource(sourcePath: string): CensusRow[] {
