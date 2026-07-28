@@ -1,20 +1,4 @@
 {
-  "safe": [
-    "alpha",
-    "_private",
-    "--custom",
-    "-item",
-    "item-2",
-    "item_name"
-  ],
-  "unsafe": [
-    "",
-    "-",
-    "-1item",
-    "9item",
-    "item value",
-    "item:value",
-    ".item",
-    "item/part"
-  ]
+  "safe": ["alpha", "_private", "--custom", "-item", "item-2", "item_name"],
+  "unsafe": ["", "-", "-1item", "9item", "item value", "item:value", ".item", "item/part"]
 }

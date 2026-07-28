@@ -2,12 +2,7 @@
   "schemaVersion": "0",
   "product": "omena-css-build-adapter-interface-members",
   "source": "packages/css-build-adapter/index.d.ts",
-  "changeClasses": [
-    "additive-optional",
-    "additive-required",
-    "removal",
-    "narrowing"
-  ],
+  "changeClasses": ["additive-optional", "additive-required", "removal", "narrowing"],
   "executionSummaryWireResidual": [
     "cascadeProofObligations",
     "cssImportInlines",

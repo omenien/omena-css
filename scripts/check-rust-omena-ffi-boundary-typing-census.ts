@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -104,18 +105,22 @@ const expected = formatCensusJson(census);
 
 if (writeMode) {
   writeFileSync(censusPath, expected);
+  execFileSync(path.join(repoRoot, "node_modules/.bin/oxfmt"), ["--write", censusPath], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
 } else {
-  let actual = "";
+  let actual: BoundaryCensus;
   try {
-    actual = readFileSync(censusPath, "utf8");
+    actual = JSON.parse(readFileSync(censusPath, "utf8")) as BoundaryCensus;
   } catch {
     throw new Error(
       `missing FFI boundary typing census at ${path.relative(repoRoot, censusPath)}; run this check with --write to create the scan-derived baseline`,
     );
   }
-  assert.equal(
+  assert.deepEqual(
     actual,
-    expected,
+    census,
     "FFI boundary typing census is stale; regenerate the scan-derived baseline",
   );
 }

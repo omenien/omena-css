@@ -22,12 +22,7 @@
     "unclassifiedByRuleCount": 0
   },
   "classificationCoverage": {
-    "ruleIds": [
-      "napi-json-string",
-      "wasm-jsvalue",
-      "typed-self",
-      "typed-versioned-struct"
-    ],
+    "ruleIds": ["napi-json-string", "wasm-jsvalue", "typed-self", "typed-versioned-struct"],
     "pinnedRows": [
       {
         "crate": "omena-napi",
