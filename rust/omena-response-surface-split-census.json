@@ -60,7 +60,7 @@
     "omena-lawvere": 13,
     "omena-parser": 157,
     "omena-product-hints": 44,
-    "omena-query": 296,
+    "omena-query": 297,
     "omena-query-checker-orchestrator": 10,
     "omena-query-core": 9,
     "omena-query-transform-runner": 14,
@@ -5845,7 +5845,7 @@
       "crate": "omena-query",
       "typeName": "ClosedWorldStylesheetRequestV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3299
+      "line": 3344
     },
     {
       "crate": "omena-query",
@@ -5857,13 +5857,13 @@
       "crate": "omena-query",
       "typeName": "CssModulesComposesNode",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 3071
+      "line": 3073
     },
     {
       "crate": "omena-query",
       "typeName": "CssModulesImportReachabilityForQuery",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 2858
+      "line": 2860
     },
     {
       "crate": "omena-query",
@@ -5875,7 +5875,7 @@
       "crate": "omena-query",
       "typeName": "DecodedSourceMapSegment",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 4315
+      "line": 4360
     },
     {
       "crate": "omena-query",
@@ -5905,25 +5905,25 @@
       "crate": "omena-query",
       "typeName": "HoverCascadeBranchMatch",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 529
+      "line": 531
     },
     {
       "crate": "omena-query",
       "typeName": "HoverCascadeBranchScope",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 522
+      "line": 524
     },
     {
       "crate": "omena-query",
       "typeName": "ImportGraphSourceMapSegmentContext",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 2466
+      "line": 2511
     },
     {
       "crate": "omena-query",
       "typeName": "ImportReachability",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 3201
+      "line": 3203
     },
     {
       "crate": "omena-query",
@@ -5935,19 +5935,25 @@
       "crate": "omena-query",
       "typeName": "LinkedBundleExecutionV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3820
+      "line": 3865
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "LinkedFallbackSourceTokenRangeV0",
+      "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+      "line": 2151
     },
     {
       "crate": "omena-query",
       "typeName": "LinkedModuleExecutionInputV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3754
+      "line": 3799
     },
     {
       "crate": "omena-query",
       "typeName": "LinkedModuleExecutionV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3749
+      "line": 3794
     },
     {
       "crate": "omena-query",
@@ -5959,7 +5965,7 @@
       "crate": "omena-query",
       "typeName": "ModuleInterfaceSassModuleGraphConfigurationResolver",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 2294
+      "line": 2296
     },
     {
       "crate": "omena-query",
@@ -6163,7 +6169,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryCascadeSiteOutcomeV0",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 96
+      "line": 98
     },
     {
       "crate": "omena-query",
@@ -6313,7 +6319,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryCssModulesClosurePartsV0",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 2792
+      "line": 2794
     },
     {
       "crate": "omena-query",
@@ -6673,13 +6679,13 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryModuleInterfaceChangeProjectionV0",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 1346
+      "line": 1348
     },
     {
       "crate": "omena-query",
       "typeName": "OmenaQueryModuleInterfaceProjectionV0",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 1326
+      "line": 1328
     },
     {
       "crate": "omena-query",
@@ -6823,7 +6829,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQuerySassModuleRuleConfigurationSurfaceV0",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 1354
+      "line": 1356
     },
     {
       "crate": "omena-query",
@@ -7039,7 +7045,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryStyleCascadeNarrowingSubstrateV0",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 543
+      "line": 545
     },
     {
       "crate": "omena-query",
@@ -7087,7 +7093,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryStyleFactEntry",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 1314
+      "line": 1316
     },
     {
       "crate": "omena-query",
@@ -7201,7 +7207,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryStyleSemanticGraphCommittedParts",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 1248
+      "line": 1250
     },
     {
       "crate": "omena-query",
@@ -7381,7 +7387,7 @@
       "crate": "omena-query",
       "typeName": "PreparedTransformBundleLinkerProjectionV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3364
+      "line": 3409
     },
     {
       "crate": "omena-query",
@@ -7399,7 +7405,7 @@
       "crate": "omena-query",
       "typeName": "QuerySassModuleGraphConfigurationResolver",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 2358
+      "line": 2360
     },
     {
       "crate": "omena-query",
@@ -7477,7 +7483,7 @@
       "crate": "omena-query",
       "typeName": "SelectorPropertyBranchKey",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 534
+      "line": 536
     },
     {
       "crate": "omena-query",
@@ -7549,7 +7555,7 @@
       "crate": "omena-query",
       "typeName": "StyleCascadeNarrowingSubstrateEntry",
       "sourcePath": "rust/crates/omena-query/src/style.rs",
-      "line": 549
+      "line": 551
     },
     {
       "crate": "omena-query",
@@ -7573,7 +7579,7 @@
       "crate": "omena-query",
       "typeName": "TransformBundleDependencyResolutionTemplateV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3370
+      "line": 3415
     },
     {
       "crate": "omena-query",

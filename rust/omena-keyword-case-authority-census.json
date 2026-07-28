@@ -681,7 +681,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1106,
+      "line": 1108,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -2033,7 +2033,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:1a914288b831713d8c762735d42479dfc37056719ccfcf9bf67f10a546ca4866",
+  "siteDigest": "sha256:36a1ab4e0f8d609ee570d332a594960d12265a3d1a0930074a4c8a03bd797276",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
