@@ -417,6 +417,7 @@ fn summarize_linked_emission_coverage_census_v0(
     analyses: &[LinkedEmissionFixtureAnalysisV0],
 ) -> Result<LinkedEmissionCoverageCensusV0, String> {
     if fixtures.len() != analyses.len() {
+        // FALSIFIER: id=linked-emission-rust-001 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         return Err(format!(
             "linked-emission fixture/analysis count mismatch: {} fixtures, {} analyses",
             fixtures.len(),
@@ -429,6 +430,7 @@ fn summarize_linked_emission_coverage_census_v0(
             .insert(definition.shape_class, definition.reentry)
             .is_some()
         {
+            // FALSIFIER: id=linked-emission-rust-002 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             return Err(format!(
                 "duplicate linked-emission shape population row {}",
                 definition.shape_class
@@ -451,18 +453,21 @@ fn summarize_linked_emission_coverage_census_v0(
 
     for (fixture, analysis) in fixtures.iter().zip(analyses) {
         if fixture.id != analysis.case.fixture_id {
+            // FALSIFIER: id=linked-emission-rust-003 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             return Err(format!(
                 "linked-emission fixture/analysis id mismatch: {} != {}",
                 fixture.id, analysis.case.fixture_id
             ));
         }
         if !fixture_ids.insert(fixture.id.as_str()) {
+            // FALSIFIER: id=linked-emission-rust-004 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             return Err(format!(
                 "duplicate linked-emission fixture id {}",
                 fixture.id
             ));
         }
         if fixture.shape_classes.is_empty() {
+            // FALSIFIER: id=linked-emission-rust-005 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             return Err(format!(
                 "linked-emission fixture {} has no enumerated shape class",
                 fixture.id
@@ -470,6 +475,7 @@ fn summarize_linked_emission_coverage_census_v0(
         }
         for shape_class in &fixture.shape_classes {
             let Some(shape_fixtures) = fixtures_by_shape.get_mut(shape_class) else {
+                // FALSIFIER: id=linked-emission-rust-006 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
                 return Err(format!(
                     "linked-emission fixture {} names unknown shape class {}",
                     fixture.id, shape_class
@@ -707,6 +713,7 @@ fn validate_module_token_collision_paths_v0(
     for collision in collisions {
         // A path-specific selector loss is producer-reachable and leaves a one-element set.
         if collision.observed_emission_paths.as_slice() != required_paths {
+            // FALSIFIER: id=linked-emission-rust-007 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             return Err(format!(
                 "emitted token collision {} in fixture {} was not observed on both emission paths: {:?}",
                 collision.emitted_token, collision.fixture_id, collision.observed_emission_paths
@@ -877,6 +884,7 @@ fn analyze_linked_emission_fixture_v0(
         .map_err(|error| format!("fixture {} could not be linked: {error:?}", fixture.id))?;
     let emission_plan_module_order = emission_item_module_order_v0(&linked_order);
     if emission_plan_module_order != import_graph_module_order {
+        // FALSIFIER: id=linked-emission-rust-008 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         return Err(format!(
             "fixture {} emission plan diverged from its independently traversed import graph: {:?} != {:?}",
             fixture.id, emission_plan_module_order, import_graph_module_order
@@ -1203,6 +1211,7 @@ fn summarize_linked_emission_placement_witness_v0(
         .map(|path| (*path).to_string())
         .collect::<Vec<_>>();
     if selectorless_module_paths.is_empty() {
+        // FALSIFIER: id=linked-emission-rust-009 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         return Err(format!(
             "{} has no independently designated selector-less module",
             definition.fixture.id
@@ -1215,6 +1224,7 @@ fn summarize_linked_emission_placement_witness_v0(
             .iter()
             .any(|module| module.path == *path)
         {
+            // FALSIFIER: id=linked-emission-rust-010 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             return Err(format!(
                 "{} designates an absent selector-less module: {path}",
                 definition.fixture.id
@@ -1432,6 +1442,7 @@ fn independent_import_graph_module_order_v0(
             .difference(&visited)
             .cloned()
             .collect::<Vec<_>>();
+        // FALSIFIER: id=linked-emission-rust-011 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         return Err(format!(
             "fixture {} contains modules outside the entry import graph: {missing:?}",
             fixture.id
@@ -1451,6 +1462,7 @@ fn visit_import_graph_module_v0(
         return Ok(());
     }
     if !visiting.insert(source_path.to_string()) {
+        // FALSIFIER: id=linked-emission-rust-012 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         return Err(format!(
             "linked-emission fixture import graph contains a cycle at {source_path}"
         ));
@@ -1495,6 +1507,7 @@ fn normalize_fixture_path_v0(path: &str) -> Result<String, String> {
             "" | "." => {}
             ".." => {
                 if components.pop().is_none() {
+                    // FALSIFIER: id=linked-emission-rust-013 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
                     return Err(format!("fixture path escapes its root: {path}"));
                 }
             }
@@ -1537,6 +1550,7 @@ fn output_module_order_v0(
                 .map(|(index, _)| index)
                 .collect::<Vec<_>>();
             if positions.len() != 1 {
+                // FALSIFIER: id=linked-emission-rust-014 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
                 return Err(format!(
                     "linked-emission fixture {} expected one order probe {:?} for {}, observed {}",
                     fixture.id,
@@ -1715,6 +1729,7 @@ fn remove_linked_declaration_for_fault_v0(
 ) -> Result<(), String> {
     let changed = linked_css.replacen(declaration, "", 1);
     if changed == *linked_css {
+        // FALSIFIER: id=linked-emission-rust-015 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         return Err(format!(
             "linked-emission fault could not find declaration {declaration:?}"
         ));
@@ -2240,8 +2255,11 @@ mod tests {
             LinkedEmissionByteDifferentialPerturbationV0::None,
         )?;
 
+        // FALSIFIER: id=linked-emission-rust-016 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(report.fixture_count >= 3);
+        // FALSIFIER: id=linked-emission-rust-017 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(report.total_divergence_count > 0);
+        // FALSIFIER: id=linked-emission-rust-018 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(report.cases.iter().all(|case| {
             case.legacy_emission_path == "importInlineLegacy"
                 && case.linked_emission_path == "linkedOrder"
@@ -2260,23 +2278,30 @@ mod tests {
             LinkedEmissionByteDifferentialPerturbationV0::None,
         )?;
 
+        // FALSIFIER: id=linked-emission-rust-019 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             analysis.case.difference_class,
             LinkedEmissionByteDifferenceClassV0::Expected
         );
+        // FALSIFIER: id=linked-emission-rust-020 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(analysis.case.semantic_mismatch_count, 1);
+        // FALSIFIER: id=linked-emission-rust-021 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(module_qualified_reachability_delta_is_expected_v0(
             &fixture,
             &analysis.legacy_css,
             &analysis.linked_css
         ));
+        // FALSIFIER: id=linked-emission-rust-022 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(!module_qualified_reachability_delta_is_expected_v0(
             &fixture,
             &analysis.legacy_css,
             &analysis.linked_css.replace("blue", "black")
         ));
+        // FALSIFIER: id=linked-emission-rust-023 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(remove_ascii_whitespace_v0(&analysis.linked_css).contains("color:blue"));
+        // FALSIFIER: id=linked-emission-rust-024 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(!analysis.legacy_css.contains("workspace-only"));
+        // FALSIFIER: id=linked-emission-rust-025 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(!analysis.linked_css.contains("workspace-only"));
         Ok(())
     }
@@ -2287,6 +2312,7 @@ mod tests {
             LinkedEmissionByteDifferentialPerturbationV0::DropReachableCrossModuleDeclaration,
         );
 
+        // FALSIFIER: id=linked-emission-rust-026 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(matches!(
             result,
             Err(error)
@@ -2301,6 +2327,7 @@ mod tests {
             LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration,
         );
 
+        // FALSIFIER: id=linked-emission-rust-027 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(matches!(
             result,
             Err(error)
@@ -2316,32 +2343,44 @@ mod tests {
         )?;
         let census = envelope.census;
 
+        // FALSIFIER: id=linked-emission-rust-028 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(census.fixture_count, envelope.report.fixture_count);
+        // FALSIFIER: id=linked-emission-rust-029 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             census.covered_shape_count + census.not_covered_shape_count,
             census.population_count
         );
+        // FALSIFIER: id=linked-emission-rust-030 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(census.population_count > census.fixture_count);
+        // FALSIFIER: id=linked-emission-rust-031 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(!census.not_covered.is_empty());
+        // FALSIFIER: id=linked-emission-rust-032 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(!census.full_corpus_coverage);
+        // FALSIFIER: id=linked-emission-rust-033 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(census.coverage_scope, "boundedMultiModuleFixtures");
+        // FALSIFIER: id=linked-emission-rust-034 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             census.marker_observable_module_count + census.blind_spot_module_count,
             census.module_count
         );
+        // FALSIFIER: id=linked-emission-rust-035 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             census.fixture_observability.len(),
             envelope.report.fixture_count
         );
+        // FALSIFIER: id=linked-emission-rust-036 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             census.module_token_collision_count,
             census.module_token_collisions.len()
         );
+        // FALSIFIER: id=linked-emission-rust-037 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             census.module_token_collision_scope,
             "boundedFixtureRegressionTripwire"
         );
+        // FALSIFIER: id=linked-emission-rust-038 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(census.module_token_collision_count > 0);
+        // FALSIFIER: id=linked-emission-rust-039 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(census.module_token_collisions.iter().all(|collision| {
             collision.module_paths.len() > 1
                 && collision.observed_emission_paths == vec!["importInlineLegacy", "linkedOrder"]
@@ -2358,11 +2397,14 @@ mod tests {
         )?;
         let collisions = summarize_module_token_collisions_v0(&fixture, &analysis);
 
+        // FALSIFIER: id=linked-emission-rust-040 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(collisions.len(), 1);
         let collision = &collisions[0];
+        // FALSIFIER: id=linked-emission-rust-041 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(collision.module_paths.len(), 2);
         assert_ne!(collision.emitted_token, "shared");
         for module in &fixture.modules {
+            // FALSIFIER: id=linked-emission-rust-042 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             assert_eq!(
                 analysis
                     .class_name_rewrites_by_module
@@ -2376,6 +2418,7 @@ mod tests {
                 .get(collision.emitted_token.as_str())
                 .copied()
                 .unwrap_or_default();
+            // FALSIFIER: id=linked-emission-rust-043 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             assert_eq!(
                 emitted_count, 2,
                 "emitted token {} was not observed twice in {output}",
@@ -2395,11 +2438,14 @@ mod tests {
         analysis.linked_css.clear();
         let collisions = summarize_module_token_collisions_v0(&fixture, &analysis);
 
+        // FALSIFIER: id=linked-emission-rust-044 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(collisions.len(), 1);
+        // FALSIFIER: id=linked-emission-rust-045 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             collisions[0].observed_emission_paths,
             vec!["importInlineLegacy"]
         );
+        // FALSIFIER: id=linked-emission-rust-046 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(validate_module_token_collision_paths_v0(&collisions).is_err());
         Ok(())
     }
@@ -2430,11 +2476,14 @@ mod tests {
             .map(|blind_spot| blind_spot.fixture_id.as_str())
             .collect::<BTreeSet<_>>();
 
+        // FALSIFIER: id=linked-emission-rust-047 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             unexpected_fixture_ids,
             BTreeSet::from(["font-face-only-module"])
         );
+        // FALSIFIER: id=linked-emission-rust-048 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(blind_spot_fixture_ids, expected_fixture_ids);
+        // FALSIFIER: id=linked-emission-rust-049 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(envelope.census.blind_spots.iter().all(|blind_spot| {
             blind_spot.emission_plan_entry_count > 0
                 && blind_spot.marker_orders_agree
@@ -2442,6 +2491,7 @@ mod tests {
                 && !blind_spot.semantic_difference_observed
                 && (!blind_spot.output_bytes_differ || blind_spot.difference_reason_observed)
         }));
+        // FALSIFIER: id=linked-emission-rust-050 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             envelope
                 .census
@@ -2465,6 +2515,7 @@ mod tests {
                 ("font-face-only-module", ["atRules"].as_slice()),
             ])
         );
+        // FALSIFIER: id=linked-emission-rust-051 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(envelope.census.not_covered.iter().all(|entry| {
             !matches!(
                 entry.shape_class.as_str(),
@@ -2493,13 +2544,16 @@ mod tests {
             css_url_arguments_v0(&analysis.legacy_css),
             css_url_arguments_v0(&analysis.linked_css)
         );
+        // FALSIFIER: id=linked-emission-rust-052 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(analysis.case.semantic_preserved);
+        // FALSIFIER: id=linked-emission-rust-053 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(
             analysis
                 .case
                 .reasons
                 .contains(&LinkedEmissionByteDifferenceReasonV0::ImportGraphModulePlacement)
         );
+        // FALSIFIER: id=linked-emission-rust-054 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             analysis.case.difference_class,
             LinkedEmissionByteDifferenceClassV0::Unexpected
@@ -2539,6 +2593,7 @@ mod tests {
         };
         let reasons =
             derive_difference_reasons_v0(&fixture, &analysis.linked_order, &difference_observation);
+        // FALSIFIER: id=linked-emission-rust-055 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(
             !reasons.contains(&LinkedEmissionByteDifferenceReasonV0::ImportGraphModulePlacement)
         );
@@ -2557,7 +2612,9 @@ mod tests {
             .map(|witness| (witness.witness_id.as_str(), witness))
             .collect::<BTreeMap<_, _>>();
 
+        // FALSIFIER: id=linked-emission-rust-056 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(witnesses.len(), 4);
+        // FALSIFIER: id=linked-emission-rust-057 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(witnesses.values().all(|witness| {
             !witness.selectorless_module_paths.is_empty()
                 && witness.emission_plan_entry_count > 0
@@ -2565,6 +2622,7 @@ mod tests {
                 && witness.marker_orders_agree
                 && witness.linked_marker_order_matches_authority
         }));
+        // FALSIFIER: id=linked-emission-rust-058 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             witnesses
                 .iter()
@@ -2606,6 +2664,7 @@ mod tests {
             LinkedEmissionByteDifferentialPerturbationV0::AddUnexpectedRule,
         )?;
 
+        // FALSIFIER: id=linked-emission-rust-059 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(report.unexpected_divergence_count > 0);
         Ok(())
     }
@@ -2616,6 +2675,7 @@ mod tests {
             LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes,
         )?;
 
+        // FALSIFIER: id=linked-emission-rust-060 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(report.total_divergence_count, 0);
         Ok(())
     }

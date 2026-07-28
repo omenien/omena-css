@@ -105,6 +105,7 @@ const current: ProductPathPopulation = {
   ),
 };
 
+// FALSIFIER: id=module-qualified-gate-001 class=liveness via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(
   current.qualifiedExecutor.definitionOccurrences >= 1,
   "the module-qualified executor family must retain a production definition",
@@ -139,6 +140,7 @@ if (existing) {
       "module_qualified_shake",
     ),
   };
+  // FALSIFIER: id=module-qualified-gate-002 class=liveness via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.deepEqual(
     existing.entryPin.population,
     independentlyDerivedEntryPopulation,
@@ -162,7 +164,9 @@ const serialized = `${JSON.stringify(census, null, 2)}\n`;
 if (writeMode) {
   fs.writeFileSync(censusPath, serialized);
 } else {
+  // FALSIFIER: id=module-qualified-gate-003 class=liveness via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(existing, `module-qualified product-path census is missing: ${censusPath}`);
+  // FALSIFIER: id=module-qualified-gate-004 class=liveness via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.deepEqual(existing, census, "module-qualified product-path census is stale");
 }
 

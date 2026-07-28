@@ -164,8 +164,11 @@ const baseline = JSON.parse(
 ) as LinkedEmissionByteDifferentialBaselineV0;
 assert.equal(baseline.schemaVersion, "0");
 assert.equal(baseline.product, "omena-bundler.linked-emission-byte-differential-baseline");
+// FALSIFIER: id=linked-emission-gate-001 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(baseline.minimumFixtureCount >= 3);
+// FALSIFIER: id=linked-emission-gate-002 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(baseline.expectedDivergenceCount > 0);
+// FALSIFIER: id=linked-emission-gate-003 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(baseline.maximumUnexpectedDivergenceCount >= 0);
 assert.equal(expectedDivergenceLedger.schemaVersion, "0");
 assert.equal(
@@ -222,6 +225,7 @@ const hoistCensus = {
   ),
 };
 for (const producerName of [hoistCensus.caseProducer, hoistCensus.linkedStylesheetProducer]) {
+  // FALSIFIER: id=linked-emission-gate-004 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(
     linkedEmissionSource.includes(producerName),
     `linked-emission hoist producer is absent: ${producerName}`,
@@ -237,6 +241,7 @@ assert.equal(
   1,
   "linked-emission fixtures must share one linker invocation",
 );
+// FALSIFIER: id=linked-emission-gate-005 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.deepEqual(
   Object.values(hoistCensus.cargoSpawnCounts),
   [1, 1],
@@ -320,15 +325,21 @@ assert.equal(
 );
 assert.equal(census.moduleTokenCollisionCount, census.moduleTokenCollisions.length);
 assert.equal(census.moduleTokenCollisionScope, "boundedFixtureRegressionTripwire");
+// FALSIFIER: id=linked-emission-gate-006 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(
   census.moduleTokenCollisionCount > 0,
   "the bounded corpus must retain a cross-module emitted-token collision witness",
 );
 for (const collision of census.moduleTokenCollisions) {
+  // FALSIFIER: id=linked-emission-gate-007 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(collision.fixtureId.length > 0);
+  // FALSIFIER: id=linked-emission-gate-008 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(collision.emittedToken.length > 0);
+  // FALSIFIER: id=linked-emission-gate-009 class=structuralEntailment via=STRUCTURAL producer=entailed owner=module-token-collision-producer reentry=producer-admits-single-module-collision entry=single-module-rows-filtered
   assert.ok(collision.modulePaths.length > 1);
+  // FALSIFIER: id=linked-emission-gate-010 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(collision.originalNames.length > 0);
+  // FALSIFIER: id=linked-emission-gate-011 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.deepEqual(
     collision.observedEmissionPaths,
     ["importInlineLegacy", "linkedOrder"],
@@ -340,10 +351,12 @@ const moduleBoundaryShapeClasses = new Set(["empty-module", "comment-only-module
 const moduleBoundaryBlindSpots = census.blindSpots.filter((blindSpot) =>
   blindSpot.shapeClasses.some((shapeClass) => moduleBoundaryShapeClasses.has(shapeClass)),
 );
+// FALSIFIER: id=linked-emission-gate-012 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.deepEqual(moduleBoundaryBlindSpots.map((blindSpot) => blindSpot.fixtureId).toSorted(), [
   "comment-only-module-boundary",
   "empty-module-boundary",
 ]);
+// FALSIFIER: id=linked-emission-gate-013 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(
   moduleBoundaryBlindSpots.every(
     (blindSpot) =>
@@ -354,6 +367,7 @@ assert.ok(
       !blindSpot.semanticDifferenceObserved,
   ),
 );
+// FALSIFIER: id=linked-emission-gate-014 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(
   census.blindSpots
     .filter(
@@ -370,6 +384,7 @@ assert.ok(
         blindSpot.differenceReasonObserved,
     ),
 );
+// FALSIFIER: id=linked-emission-gate-015 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(
   census.placementWitnesses.every(
     (witness) =>
@@ -381,6 +396,7 @@ assert.ok(
       witness.linkedWinner === witness.importGraphWinner,
   ),
 );
+// FALSIFIER: id=linked-emission-gate-016 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.deepEqual(
   Object.fromEntries(
     census.placementWitnesses.map((witness) => [
@@ -426,6 +442,7 @@ assert.deepEqual(
   },
 );
 if (process.argv.includes("--require-import-graph-winners")) {
+  // FALSIFIER: id=linked-emission-gate-017 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(
     census.placementWitnesses.every(
       (witness) => witness.linkedWinner === witness.importGraphWinner,
@@ -435,7 +452,9 @@ if (process.argv.includes("--require-import-graph-winners")) {
 }
 const shapeClasses = census.shapes.map((entry) => entry.shapeClass);
 assert.equal(new Set(shapeClasses).size, shapeClasses.length);
+// FALSIFIER: id=linked-emission-gate-018 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(census.shapes.every((entry) => entry.shapeClass.length > 0));
+// FALSIFIER: id=linked-emission-gate-019 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(
   census.notCovered.every((entry) => entry.shapeClass.length > 0 && entry.reentry.length > 0),
 );
@@ -478,6 +497,7 @@ assert.equal(
   report.expectedDivergenceCount + report.unexpectedDivergenceCount,
   report.totalDivergenceCount,
 );
+// FALSIFIER: id=linked-emission-gate-020 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.ok(
   report.unexpectedDivergenceCount <= baseline.maximumUnexpectedDivergenceCount,
   `unexpected linked-emission divergences grew from the committed ceiling ${baseline.maximumUnexpectedDivergenceCount} to ${report.unexpectedDivergenceCount}`,
@@ -490,14 +510,18 @@ assert.equal(
 
 const fixtureIds = new Set<string>();
 for (const entry of report.cases) {
+  // FALSIFIER: id=linked-emission-gate-021 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(!fixtureIds.has(entry.fixtureId), `duplicate fixture id ${entry.fixtureId}`);
   fixtureIds.add(entry.fixtureId);
+  // FALSIFIER: id=linked-emission-gate-022 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(entry.moduleCount >= 2, `${entry.fixtureId} is not a multi-module fixture`);
   assert.equal(entry.legacyEmissionPath, "importInlineLegacy");
   assert.equal(entry.linkedEmissionPath, "linkedOrder");
   assert.equal(entry.linkedModulesEmittedOnce, true);
+  // FALSIFIER: id=linked-emission-gate-023 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.deepEqual(entry.linkedMarkerOrder, entry.authoritativeMarkerOrder);
   assert.equal(entry.linkedOutputModuleOrderMatchesAuthority, true);
+  // FALSIFIER: id=linked-emission-gate-024 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.deepEqual(entry.linkedOutputModuleOrder, entry.authoritativeModuleOrder);
   if (entry.differenceClass === "equivalent") {
     assert.equal(entry.byteEqual, true);
@@ -506,16 +530,23 @@ for (const entry of report.cases) {
     if (entry.fixtureId === "module-qualified-reachability") {
       assert.equal(entry.semanticPreserved, false);
       assert.equal(entry.semanticMismatchCount, 1);
+      // FALSIFIER: id=linked-emission-gate-025 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.deepEqual(entry.legacyMarkerOrder, ["_entry-marker_1"]);
+      // FALSIFIER: id=linked-emission-gate-026 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.deepEqual(entry.linkedMarkerOrder, ["_dependency-own_1", "_entry-marker_1"]);
+      // FALSIFIER: id=linked-emission-gate-027 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.deepEqual(entry.authoritativeMarkerOrder, ["_dependency-own_1", "_entry-marker_1"]);
     } else if (entry.fixtureId === "module-qualified-composes-reachability") {
+      // FALSIFIER: id=linked-emission-gate-028 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.ok(entry.legacyMarkerOrder.includes("_card_0"));
+      // FALSIFIER: id=linked-emission-gate-029 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.ok(entry.linkedMarkerOrder.includes("_base_0"));
+      // FALSIFIER: id=linked-emission-gate-030 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.ok(entry.linkedMarkerOrder.includes("_base-live_1"));
     } else {
       assert.equal(entry.semanticPreserved, true);
     }
+    // FALSIFIER: id=linked-emission-gate-031 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert.ok(entry.reasons.length > 0, `${entry.fixtureId} has no derived divergence reason`);
   } else {
     assert.equal(entry.byteEqual, false);
@@ -530,6 +561,7 @@ const expectedFixtureIds = report.cases
   .map((entry) => entry.fixtureId)
   .toSorted();
 assert.equal(new Set(expectedLedgerFixtureIds).size, expectedLedgerFixtureIds.length);
+// FALSIFIER: id=linked-emission-gate-032 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.deepEqual(
   expectedLedgerFixtureIds,
   expectedFixtureIds,
@@ -541,10 +573,12 @@ assert.equal(report.expectedDivergenceCount, expectedDivergenceLedger.entries.le
 const casesByFixtureId = new Map(report.cases.map((entry) => [entry.fixtureId, entry]));
 for (const entry of expectedDivergenceLedger.entries) {
   const liveCase = casesByFixtureId.get(entry.fixtureId);
+  // FALSIFIER: id=linked-emission-gate-033 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(liveCase, `expected-divergence fixture ${entry.fixtureId} is absent from the corpus`);
   assert.equal(liveCase.differenceClass, "expected");
   assert.equal(liveCase.byteEqual, false);
   if (entry.classificationArm === "moduleAttributedReachabilityCorrection") {
+    // FALSIFIER: id=linked-emission-gate-034 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert.ok(
       ["module-qualified-reachability", "module-qualified-composes-reachability"].includes(
         entry.fixtureId,
@@ -553,17 +587,24 @@ for (const entry of expectedDivergenceLedger.entries) {
     if (entry.fixtureId === "module-qualified-reachability") {
       assert.equal(liveCase.semanticPreserved, false);
       assert.equal(liveCase.semanticMismatchCount, 1);
+      // FALSIFIER: id=linked-emission-gate-035 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.deepEqual(liveCase.legacyMarkerOrder, ["_entry-marker_1"]);
+      // FALSIFIER: id=linked-emission-gate-036 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.deepEqual(liveCase.linkedMarkerOrder, ["_dependency-own_1", "_entry-marker_1"]);
+      // FALSIFIER: id=linked-emission-gate-037 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.deepEqual(liveCase.authoritativeMarkerOrder, ["_dependency-own_1", "_entry-marker_1"]);
     } else {
+      // FALSIFIER: id=linked-emission-gate-038 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.ok(liveCase.legacyMarkerOrder.includes("_card_0"));
+      // FALSIFIER: id=linked-emission-gate-039 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.ok(liveCase.linkedMarkerOrder.includes("_base_0"));
+      // FALSIFIER: id=linked-emission-gate-040 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.ok(liveCase.linkedMarkerOrder.includes("_base-live_1"));
     }
   } else {
     assert.equal(liveCase.semanticPreserved, true);
   }
+  // FALSIFIER: id=linked-emission-gate-041 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.deepEqual(
     entry.derivedReasons,
     liveCase.reasons,
@@ -574,6 +615,7 @@ for (const entry of expectedDivergenceLedger.entries) {
     divergenceWitnessDigest(entry.fixtureId, liveCase.legacySha256, liveCase.linkedSha256),
     `expected-divergence witness digest drifted for ${entry.fixtureId}`,
   );
+  // FALSIFIER: id=linked-emission-gate-042 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(
     entry.justification.trim().length > 0,
     `${entry.fixtureId} has no expected-difference justification`,
@@ -586,6 +628,7 @@ const unexpectedFixtureIds = report.cases
   .map((entry) => entry.fixtureId)
   .toSorted();
 assert.equal(new Set(ledgerFixtureIds).size, ledgerFixtureIds.length);
+// FALSIFIER: id=linked-emission-gate-043 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
 assert.deepEqual(
   ledgerFixtureIds,
   unexpectedFixtureIds,
@@ -596,14 +639,18 @@ assert.equal(report.unexpectedDivergenceCount, divergenceLedger.entries.length);
 
 for (const entry of divergenceLedger.entries) {
   const liveCase = casesByFixtureId.get(entry.fixtureId);
+  // FALSIFIER: id=linked-emission-gate-044 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(liveCase, `open-divergence fixture ${entry.fixtureId} is absent from the live corpus`);
   assert.equal(
     entry.witnessDigest,
     divergenceWitnessDigest(entry.fixtureId, liveCase.legacySha256, liveCase.linkedSha256),
     `open-divergence witness digest drifted for ${entry.fixtureId}`,
   );
+  // FALSIFIER: id=linked-emission-gate-045 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(entry.owningGoal.trim().length > 0, `${entry.fixtureId} has no owning goal`);
+  // FALSIFIER: id=linked-emission-gate-046 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(entry.note.trim().length > 0, `${entry.fixtureId} has no closure note`);
+  // FALSIFIER: id=linked-emission-gate-047 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
   assert.ok(
     census.blindSpots.some(
       (blindSpot) =>

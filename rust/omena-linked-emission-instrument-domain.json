@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.linked-emission-instrument-domain",
+  "files": [
+    "rust/crates/omena-diff-test/src/linked_emission.rs",
+    "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+    "rust/crates/omena-cli/tests/linked_emission_order.rs",
+    "scripts/check-rust-omena-module-qualified-product-path.ts",
+    "scripts/check-rust-omena-query-module-reachability-hoist.ts"
+  ],
+  "widenWhen": "A new assertion participates in linked-emission correctness, liveness attribution, placement, collision accounting, or its product-path reachability."
+}

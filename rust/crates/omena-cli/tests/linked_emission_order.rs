@@ -244,6 +244,7 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
         .output()
         .map_err(|error| format!("failed to run omena build: {error}"))?;
     if !output.status.success() {
+        // FALSIFIER: id=linked-emission-cli-001 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         return Err(format!(
             "omena build failed\nstdout={}\nstderr={}",
             String::from_utf8_lossy(&output.stdout),
@@ -256,12 +257,14 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
     let executed_pass_ids = response["payload"]["execution"]["executedPassIds"]
         .as_array()
         .ok_or_else(|| "build JSON omitted executedPassIds".to_string())?;
+    // FALSIFIER: id=linked-emission-cli-002 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         executed_pass_ids
             .iter()
             .any(|pass_id| pass_id == "tree-shake-class"),
         "the product witness must deliver non-empty semantic reachability to tree shaking"
     );
+    // FALSIFIER: id=linked-emission-cli-003 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         response["payload"]["readySurfaces"]
             .as_array()
@@ -270,10 +273,12 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
                 .any(|surface| surface == "expressionDomainSelectorProjection")),
         "the product witness must consume EngineInputV2 selector projections"
     );
+    // FALSIFIER: id=linked-emission-cli-004 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert_eq!(
         response["payload"]["execution"]["strictPolicy"]["profileId"], "strict-verification",
         "the linked module route must preserve the requested verification policy"
     );
+    // FALSIFIER: id=linked-emission-cli-005 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         response["payload"]["execution"]["moduleQualifiedShake"]["removedCount"]
             .as_u64()
@@ -283,18 +288,21 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
 
     let css = fs::read_to_string(&output_path)
         .map_err(|error| format!("failed to read {}: {error}", output_path.display()))?;
+    // FALSIFIER: id=linked-emission-cli-006 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         css.contains("color: red"),
         "the entry-owned shared selector must remain: {css:?}"
     );
     let dependency_shared_declaration_retained = css.contains("padding: 8px");
     let dependency_owned_selector_retained = css.contains("color: blue");
+    // FALSIFIER: id=linked-emission-cli-007 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         dependency_shared_declaration_retained && dependency_owned_selector_retained,
         "emitted-token preservation mismatch: \
          dependency_shared_declaration_retained={dependency_shared_declaration_retained}, \
          dependency_owned_selector_retained={dependency_owned_selector_retained}, css={css:?}"
     );
+    // FALSIFIER: id=linked-emission-cli-008 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         !css.contains("color: gray"),
         "an unreferenced dependency selector must be removed: {css:?}"
@@ -428,6 +436,7 @@ fn workspace_reachability_outside_build_sources_does_not_block_cli_bundle() -> R
             .output()
             .map_err(|error| format!("failed to run {label} omena build: {error}"))?;
         if !output.status.success() {
+            // FALSIFIER: id=linked-emission-cli-009 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             return Err(format!(
                 "{label} omena build failed\nstdout={}\nstderr={}",
                 String::from_utf8_lossy(&output.stdout),
@@ -437,14 +446,17 @@ fn workspace_reachability_outside_build_sources_does_not_block_cli_bundle() -> R
 
         let css = fs::read_to_string(&output_path)
             .map_err(|error| format!("failed to read {}: {error}", output_path.display()))?;
+        // FALSIFIER: id=linked-emission-cli-010 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(
             css.contains("color: red"),
             "{label} build must retain the referenced entry selector: {css:?}"
         );
+        // FALSIFIER: id=linked-emission-cli-011 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(
             !css.contains("color: gray"),
             "{label} build must remove the unreferenced entry selector: {css:?}"
         );
+        // FALSIFIER: id=linked-emission-cli-012 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(
             !css.contains("color: blue"),
             "{label} build must not emit a workspace style outside its source domain: {css:?}"
@@ -577,6 +589,7 @@ fn linked_emission_preserves_composes_target_from_dependency() -> Result<(), Str
             .output()
             .map_err(|error| format!("failed to run omena build: {error}"))?;
         if !output.status.success() {
+            // FALSIFIER: id=linked-emission-cli-013 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
             return Err(format!(
                 "omena build failed for {label}\nstdout={}\nstderr={}",
                 String::from_utf8_lossy(&output.stdout),
@@ -589,18 +602,22 @@ fn linked_emission_preserves_composes_target_from_dependency() -> Result<(), Str
 
     let default_css = run("default", false)?;
     let linked_css = run("linked", true)?;
+    // FALSIFIER: id=linked-emission-cli-014 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         default_css.contains("padding: 2px"),
         "the default path must retain the composed dependency declaration: {default_css:?}"
     );
+    // FALSIFIER: id=linked-emission-cli-015 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         linked_css.contains("padding: 2px"),
         "linked emission must retain the composed dependency declaration preserved by the default path: {linked_css:?}"
     );
+    // FALSIFIER: id=linked-emission-cli-016 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         linked_css.contains("color: blue"),
         "the directly referenced dependency selector must remain: {linked_css:?}"
     );
+    // FALSIFIER: id=linked-emission-cli-017 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
         !linked_css.contains("color: gray"),
         "an unreferenced dependency selector must be removed: {linked_css:?}"
@@ -640,6 +657,7 @@ fn run_linked_build(
         .output()
         .map_err(|error| format!("failed to run omena build: {error}"))?;
     if !output.status.success() {
+        // FALSIFIER: id=linked-emission-cli-018 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         return Err(format!(
             "omena build failed for {label}\nstdout={}\nstderr={}",
             String::from_utf8_lossy(&output.stdout),
@@ -658,6 +676,7 @@ fn assert_before(output: &str, first: &str, second: &str, contract: &str) -> Res
         .find(second)
         .ok_or_else(|| format!("{contract}: missing {second:?} in {output:?}"))?;
     if first_index >= second_index {
+        // FALSIFIER: id=linked-emission-cli-019 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         return Err(format!(
             "{contract}: expected {first:?} before {second:?}, got {output:?}"
         ));
