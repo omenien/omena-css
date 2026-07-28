@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 type DefectClass = "shaking" | "liveness" | "placement" | "accounting" | "structuralEntailment";
@@ -344,9 +345,13 @@ const serialized = `${JSON.stringify(instrumentMap, null, 2)}\n`;
 
 if (process.argv.includes("--write")) {
   writeFileSync(mapPath, serialized);
+  execFileSync("pnpm", ["exec", "oxfmt", relative(repositoryRoot, mapPath)], {
+    cwd: repositoryRoot,
+    stdio: "inherit",
+  });
 } else {
-  const committed = readFileSync(mapPath, "utf8");
-  assert.equal(committed, serialized, "linked-emission instrument map is stale");
+  const committed = JSON.parse(readFileSync(mapPath, "utf8")) as InstrumentMapV0;
+  assert.deepEqual(committed, instrumentMap, "linked-emission instrument map is stale");
 }
 
 console.log(
