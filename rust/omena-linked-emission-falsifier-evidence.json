@@ -254,6 +254,21 @@
         "module-qualified-gate-003",
         "module-qualified-gate-004"
       ]
+    },
+    {
+      "perturbation": "--inject-ambiguous-match-count",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-fallback.ts --inject-ambiguous-match-count",
+      "firedSiteIds": ["linked-source-map-ambiguous-window"]
+    },
+    {
+      "perturbation": "--inject-fallback-reason-drift",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-fallback.ts --inject-fallback-reason-drift",
+      "firedSiteIds": ["linked-source-map-reason-authority"]
+    },
+    {
+      "perturbation": "--inject-fallback-segment-drift",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-fallback.ts --inject-fallback-segment-drift",
+      "firedSiteIds": ["linked-source-map-ambiguous-segment"]
     }
   ],
   "structuralEntailments": [

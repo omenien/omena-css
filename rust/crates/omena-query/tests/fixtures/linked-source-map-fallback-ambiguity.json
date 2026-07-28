@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-query.linked-source-map-fallback-ambiguity",
+  "sourcePath": "src/app.css",
+  "source": ".app { color: red; }\n.app { color: red; }",
+  "generated": ".app{color:red}",
+  "sourceTokens": [
+    "Dot:.",
+    "Ident:app",
+    "LeftBrace:{",
+    "Ident:color",
+    "Colon::",
+    "Ident:red",
+    "RightBrace:}",
+    "Dot:.",
+    "Ident:app",
+    "LeftBrace:{",
+    "Ident:color",
+    "Colon::",
+    "Ident:red",
+    "RightBrace:}"
+  ],
+  "generatedTokens": [
+    "Dot:.",
+    "Ident:app",
+    "LeftBrace:{",
+    "Ident:color",
+    "Colon::",
+    "Ident:red",
+    "RightBrace:}"
+  ],
+  "matchingWindowStarts": [0, 7],
+  "expectedSegment": {
+    "originalStart": 0,
+    "originalEnd": 41,
+    "generatedStart": 0,
+    "generatedEnd": 15
+  }
+}

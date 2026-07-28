@@ -182,6 +182,7 @@ function knownFalsifierSource(): string {
     "rust/crates/omena-diff-test/src/linked_emission.rs",
     "rust/crates/omena-diff-test/src/bin/omena-linked-emission-byte-differential.rs",
     "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+    "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
   ]
     .map((file) => readFileSync(resolve(repositoryRoot, file), "utf8"))
     .join("\n");

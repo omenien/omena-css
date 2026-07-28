@@ -283,7 +283,7 @@
     "check:rust-omena-query-transform-execute": "node --import tsx ./scripts/check-rust-omena-query-transform-execute.ts",
     "check:rust-omena-query-native-css-routing": "node --import tsx ./scripts/check-rust-omena-native-css-routing.ts",
     "check:rust-omena-query-transform-differential": "node --import tsx ./scripts/check-rust-omena-query-transform-differential.ts",
-    "check:rust-omena-query-linked-source-map-boundary": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-boundary.ts",
+    "check:rust-omena-query-linked-source-map-boundary": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-boundary.ts && node --import tsx ./scripts/check-rust-omena-query-linked-source-map-fallback.ts",
     "check:rust-omena-query-bundle-execution-scope": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts",
     "check:rust-omena-query-module-qualified-product-path": "node --import tsx ./scripts/check-rust-omena-module-qualified-product-path.ts",
     "check:rust-omena-query-module-reachability-hoist": "node --import tsx ./scripts/check-rust-omena-query-module-reachability-hoist.ts",

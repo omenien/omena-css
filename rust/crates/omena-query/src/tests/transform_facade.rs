@@ -1,4 +1,5 @@
 use super::*;
+use crate::style::LINKED_FALLBACK_EXACT_TOKEN_REASON;
 use crate::{
     OmenaQueryBundleEmissionPathV0, OmenaQueryBundlePlanInputV0, OmenaQueryClosedWorldBlockerV0,
     OmenaQueryClosedWorldDecisionParityV0, OmenaQueryClosedWorldOutcomeV0,
@@ -749,7 +750,7 @@ fn bundle_operation_facade_matches_consumer_build_source_map() -> Result<(), Str
     );
     assert_eq!(
         entry_disposition.fallback_reason,
-        Some("module output differs; fallback anchors an exact surviving token sequence")
+        Some(LINKED_FALLBACK_EXACT_TOKEN_REASON)
     );
     let leaf_disposition = execution_scope
         .source_map_dispositions

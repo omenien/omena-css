@@ -87,6 +87,8 @@ pub use salsa_memo::*;
 pub use sass::*;
 pub use source_refs::*;
 pub use substrate::*;
+#[cfg(test)]
+pub(crate) use transform::LINKED_FALLBACK_EXACT_TOKEN_REASON;
 pub use transform::*;
 
 mod cascade_checker;

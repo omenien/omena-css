@@ -5,11 +5,12 @@
     "rust/crates/omena-diff-test/src/linked_emission.rs",
     "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
     "rust/crates/omena-cli/tests/linked_emission_order.rs",
+    "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
     "scripts/check-rust-omena-module-qualified-product-path.ts",
     "scripts/check-rust-omena-query-module-reachability-hoist.ts"
   ],
   "domainWideningCondition": "A new assertion participates in linked-emission correctness, liveness attribution, placement, collision accounting, or its product-path reachability.",
-  "assertionSiteCount": 177,
+  "assertionSiteCount": 180,
   "structuralEntailmentCount": 2,
   "limitations": [
     "This map verifies disclosure coverage and identifier resolution; firing is enforced by the registered falsifier-disclosure closure gate.",
@@ -2093,6 +2094,42 @@
       "producerReachability": "can-fail",
       "entryState": "committed-corpus-green",
       "owner": "linked-emission-instrument"
+    },
+    {
+      "id": "linked-source-map-ambiguous-window",
+      "file": "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
+      "symbol": "<module>",
+      "lineHint": 30,
+      "syntax": "assert.deepEqual",
+      "defectClass": "accounting",
+      "falsifier": "--inject-ambiguous-match-count",
+      "producerReachability": "can-fail",
+      "entryState": "two-canonical-token-windows",
+      "owner": "linked-source-map-fallback"
+    },
+    {
+      "id": "linked-source-map-reason-authority",
+      "file": "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
+      "symbol": "<module>",
+      "lineHint": 42,
+      "syntax": "assert.deepEqual",
+      "defectClass": "accounting",
+      "falsifier": "--inject-fallback-reason-drift",
+      "producerReachability": "can-fail",
+      "entryState": "single-source-reason-vocabulary",
+      "owner": "linked-source-map-fallback"
+    },
+    {
+      "id": "linked-source-map-ambiguous-segment",
+      "file": "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
+      "symbol": "<module>",
+      "lineHint": 53,
+      "syntax": "assert.deepEqual",
+      "defectClass": "placement",
+      "falsifier": "--inject-fallback-segment-drift",
+      "producerReachability": "can-fail",
+      "entryState": "source-start-to-source-end",
+      "owner": "linked-source-map-fallback"
     },
     {
       "id": "module-qualified-gate-001",
