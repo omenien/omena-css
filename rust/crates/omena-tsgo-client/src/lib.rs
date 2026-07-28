@@ -20,6 +20,21 @@ pub const TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0: &str = "unknown";
 pub const TSGO_UNKNOWN_PRECISION_PROVENANCE_V0: &str =
     "tsgo-provider.unavailable->unknown-precision";
 
+const HEADER_OFFSET_STRING_TABLE_OFFSETS: usize = 24;
+const HEADER_OFFSET_STRING_TABLE: usize = 28;
+const HEADER_OFFSET_EXTENDED_DATA: usize = 32;
+const HEADER_OFFSET_NODES: usize = 40;
+const HEADER_SIZE: usize = 44;
+const NODE_LEN: usize = 28;
+const NODE_OFFSET_KIND: usize = 0;
+const NODE_OFFSET_POS: usize = 4;
+const NODE_OFFSET_END: usize = 8;
+const NODE_OFFSET_DATA: usize = 20;
+const KIND_NODE_LIST: u32 = 4_294_967_295;
+const NODE_EXTENDED_DATA_MASK: u32 = 16_777_215;
+const SOURCE_FILE_EXTENDED_DATA_OFFSET_TEXT: usize = 0;
+const SOURCE_FILE_EXTENDED_DATA_OFFSET_PATH: usize = 8;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaTsgoClientBoundarySummaryV0 {
@@ -1630,19 +1645,6 @@ fn exact_span_node_location(
     response: &serde_json::Value,
     target: &TsgoSpanTypeFactTargetV0,
 ) -> Option<String> {
-    const HEADER_OFFSET_STRING_TABLE_OFFSETS: usize = 24;
-    const HEADER_OFFSET_STRING_TABLE: usize = 28;
-    const HEADER_OFFSET_EXTENDED_DATA: usize = 32;
-    const HEADER_OFFSET_NODES: usize = 40;
-    const HEADER_SIZE: usize = 44;
-    const NODE_LEN: usize = 28;
-    const NODE_OFFSET_KIND: usize = 0;
-    const NODE_OFFSET_POS: usize = 4;
-    const NODE_OFFSET_END: usize = 8;
-    const NODE_OFFSET_DATA: usize = 20;
-    const KIND_NODE_LIST: u32 = u32::MAX;
-    const NODE_EXTENDED_DATA_MASK: u32 = 0x00ff_ffff;
-
     let encoded = response.get("data").and_then(serde_json::Value::as_str)?;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(encoded)
@@ -1663,8 +1665,14 @@ fn exact_span_node_location(
     let source_file_data = read_u32_le(bytes.as_slice(), source_file_record + NODE_OFFSET_DATA)?;
     let source_file_extended =
         offset_extended_data.checked_add((source_file_data & NODE_EXTENDED_DATA_MASK) as usize)?;
-    let text_index = read_u32_le(bytes.as_slice(), source_file_extended)? as usize;
-    let path_index = read_u32_le(bytes.as_slice(), source_file_extended + 8)? as usize;
+    let text_index = read_u32_le(
+        bytes.as_slice(),
+        source_file_extended + SOURCE_FILE_EXTENDED_DATA_OFFSET_TEXT,
+    )? as usize;
+    let path_index = read_u32_le(
+        bytes.as_slice(),
+        source_file_extended + SOURCE_FILE_EXTENDED_DATA_OFFSET_PATH,
+    )? as usize;
     let source_text = read_binary_ast_string(
         bytes.as_slice(),
         offset_string_table_offsets,
@@ -1899,8 +1907,11 @@ impl ManagedTsgoWorkspaceProcessV0 {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProviderUnresolvedDisciplineV0, TSGO_TYPE_FLAGS_ANY, TSGO_TYPE_FLAGS_UNDEFINED,
-        TSGO_TYPE_FLAGS_UNION, TSGO_TYPE_ORACLE_PROVIDER_ID_V0, TSGO_TYPE_ORACLE_PROVIDER_KIND_V0,
+        HEADER_OFFSET_EXTENDED_DATA, HEADER_OFFSET_NODES, HEADER_OFFSET_STRING_TABLE,
+        HEADER_OFFSET_STRING_TABLE_OFFSETS, HEADER_SIZE, NODE_LEN, NODE_OFFSET_DATA,
+        NODE_OFFSET_END, NODE_OFFSET_KIND, NODE_OFFSET_POS, ProviderUnresolvedDisciplineV0,
+        TSGO_TYPE_FLAGS_ANY, TSGO_TYPE_FLAGS_UNDEFINED, TSGO_TYPE_FLAGS_UNION,
+        TSGO_TYPE_ORACLE_PROVIDER_ID_V0, TSGO_TYPE_ORACLE_PROVIDER_KIND_V0,
         TSGO_UNKNOWN_PRECISION_PROVENANCE_V0, TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0,
         TsgoJsonRpcIoErrorV0, TsgoJsonRpcOutboundRequestV0, TsgoJsonRpcProviderErrorV0,
         TsgoJsonRpcProviderTransportV0, TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0,
@@ -2340,6 +2351,14 @@ mod tests {
         );
         assert_eq!(exact_span_node_location(&response, &wrong_span), None);
 
+        let wrong_end = TsgoSpanTypeFactTargetV0::new(
+            "/repo/src/App.tsx".to_string(),
+            "expr-1".to_string(),
+            14,
+            21,
+        );
+        assert_eq!(exact_span_node_location(&response, &wrong_end), None);
+
         let duplicate = binary_source_file_response(
             "const value = pick();",
             "/repo/src/App.tsx",
@@ -2732,8 +2751,6 @@ mod tests {
         path: &str,
         nodes: &[(u32, i32, i32)],
     ) -> serde_json::Value {
-        const HEADER_SIZE: usize = 44;
-        const NODE_LEN: usize = 28;
         const NODE_DATA_TYPE_EXTENDED: u32 = 0x8000_0000;
         let strings = [source.as_bytes(), path.as_bytes()];
         let string_offsets = [
@@ -2747,11 +2764,23 @@ mod tests {
         let offset_nodes = offset_extended_data + 12;
         let node_count = nodes.len() + 2;
         let mut bytes = vec![0_u8; offset_nodes + node_count * NODE_LEN];
-        write_u32_le(&mut bytes, 24, offset_string_table_offsets as u32);
-        write_u32_le(&mut bytes, 28, offset_string_table as u32);
-        write_u32_le(&mut bytes, 32, offset_extended_data as u32);
+        write_u32_le(
+            &mut bytes,
+            HEADER_OFFSET_STRING_TABLE_OFFSETS,
+            offset_string_table_offsets as u32,
+        );
+        write_u32_le(
+            &mut bytes,
+            HEADER_OFFSET_STRING_TABLE,
+            offset_string_table as u32,
+        );
+        write_u32_le(
+            &mut bytes,
+            HEADER_OFFSET_EXTENDED_DATA,
+            offset_extended_data as u32,
+        );
         write_u32_le(&mut bytes, 36, offset_extended_data as u32);
-        write_u32_le(&mut bytes, 40, offset_nodes as u32);
+        write_u32_le(&mut bytes, HEADER_OFFSET_NODES, offset_nodes as u32);
         for (index, offset) in string_offsets.iter().enumerate() {
             write_u32_le(&mut bytes, offset_string_table_offsets + index * 4, *offset);
         }
@@ -2764,13 +2793,17 @@ mod tests {
         write_u32_le(&mut bytes, offset_extended_data + 4, 1);
         write_u32_le(&mut bytes, offset_extended_data + 8, 1);
         let source_file = offset_nodes + NODE_LEN;
-        write_u32_le(&mut bytes, source_file, 308);
-        write_u32_le(&mut bytes, source_file + 20, NODE_DATA_TYPE_EXTENDED);
+        write_u32_le(&mut bytes, source_file + NODE_OFFSET_KIND, 308);
+        write_u32_le(
+            &mut bytes,
+            source_file + NODE_OFFSET_DATA,
+            NODE_DATA_TYPE_EXTENDED,
+        );
         for (index, (kind, pos, end)) in nodes.iter().enumerate() {
             let record = offset_nodes + (index + 2) * NODE_LEN;
-            write_u32_le(&mut bytes, record, *kind);
-            write_u32_le(&mut bytes, record + 4, *pos as u32);
-            write_u32_le(&mut bytes, record + 8, *end as u32);
+            write_u32_le(&mut bytes, record + NODE_OFFSET_KIND, *kind);
+            write_u32_le(&mut bytes, record + NODE_OFFSET_POS, *pos as u32);
+            write_u32_le(&mut bytes, record + NODE_OFFSET_END, *end as u32);
         }
         json!({
             "data": base64::engine::general_purpose::STANDARD.encode(bytes),
