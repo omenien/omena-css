@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1",
+  "repository": "omenien/omena-css",
+  "releases": [
+    {
+      "tag": "vscode-v5.3.0",
+      "name": "Omena CSS Modules 5.3.0",
+      "axis": "extension",
+      "version": "5.3.0",
+      "notesFile": "docs/releases/5.3.0.md"
+    },
+    {
+      "tag": "release-v0.3.0",
+      "name": "Omena Rust crate train and CLI 0.3.0",
+      "axis": "rust",
+      "version": "0.3.0",
+      "notesFile": "docs/releases/5.3.0.md"
+    }
+  ]
+}

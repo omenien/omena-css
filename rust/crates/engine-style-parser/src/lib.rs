@@ -1,3 +1,5 @@
+//! Lightweight CSS, SCSS, and Less parsing boundary used by engine integrations.
+
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 

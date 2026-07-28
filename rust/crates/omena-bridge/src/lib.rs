@@ -1,3 +1,5 @@
+//! Bridge between source-language inputs and Omena's style semantic graph products.
+
 use engine_input_producers::EngineInputV2;
 use omena_semantic::{
     CssModulesSemanticSummaryV0, DesignTokenSemanticSummaryV0, LosslessCstContractV0,

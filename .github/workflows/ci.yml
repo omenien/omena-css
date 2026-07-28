@@ -65,6 +65,8 @@ jobs:
       - run: pnpm omena-check run docs/version-strings
       - run: pnpm omena-check run docs/version-governance
       - run: pnpm omena-check run docs/publication-material
+      - run: pnpm omena-check run release/check/release-notes
+      - run: pnpm omena-check run rust/crate-documentation
 
   verify-native-linux:
     # omena-ci-tier: verify

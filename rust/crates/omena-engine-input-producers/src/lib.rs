@@ -1,3 +1,5 @@
+//! Typed producers for source, resolution, and semantic engine-input facts.
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Deserializer, Serialize, de};

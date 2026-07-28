@@ -16,11 +16,31 @@ The project has three independent version lines:
 
 The machine-checked axis and reservation policy is documented in
 [`docs/governance/version-governance.md`](docs/governance/version-governance.md).
-The registry crate baseline is `0.2.0` and the published npm binding baseline is
-`0.2.1`; the source workspace may carry the next unpublished crate-train
-version. `5.2.0` is the published extension baseline, with tag
-`vscode-v5.2.0`. The coordinated source candidate is crate/npm `0.3.0` and
-extension `5.3.0` until channel publication is accepted.
+The current coordinated release is crate/npm `0.3.0` and extension `5.3.0`.
+Registry state remains the authority for whether a version is already live;
+never infer publishability from this document alone.
+
+## Release-note authority
+
+Every GitHub Release body is rendered from
+[`docs/releases/manifest.json`](docs/releases/manifest.json) and its registered
+notes file. This rule applies equally to a maintainer, an agent, a rerun, and a
+tag-triggered workflow. Generated commit lists and ad hoc workflow text may not
+replace the registered body.
+
+Before creating either release tag:
+
+```bash
+pnpm release:notes -- --tag vscode-vX.Y.Z --output /tmp/release-notes.md
+pnpm omena-check run release/check/release-notes
+pnpm omena-check run rust/crate-documentation
+```
+
+The extension, CLI, crate-train, and npm integrity paths run these checks again.
+GitHub-producing workflows render the body at the tagged commit, publish it,
+then read the Release back through the API and require byte-equivalent Markdown.
+This prevents two workflows sharing `release-vX.Y.Z` from replacing one
+another's notes.
 
 Earlier releases must not be reused as closure artifacts. The `5.0.0` and
 `5.1.x` tags remain historical records.
@@ -34,7 +54,8 @@ is historical evidence, not a list of reusable versions.
 
 1. Confirm the release commit is on `master` for stable or `next` for preview,
    and that the worktree and submodules are clean.
-2. Put user-visible changes under the matching version in `CHANGELOG.md` and
+2. Put user-visible changes under the matching version in `CHANGELOG.md`, add
+   the reviewed release document and both intended tag registrations, and
    review any changeset-generated version commit.
 3. Confirm `package.json`, `rust/Cargo.toml`, exact inter-crate pins, lockfiles,
    generated package manifests, and intended tags agree with the selected

@@ -1,3 +1,5 @@
+//! Command routing and product-surface implementation for the `omena` CLI.
+
 use clap::Parser;
 use std::process::ExitCode;
 

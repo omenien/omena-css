@@ -1,3 +1,5 @@
+//! Canonical style specifier resolution, module identity, and graph indexing boundary.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 

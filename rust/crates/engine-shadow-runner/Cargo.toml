@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish = false
+description = "JSON-lines shadow runner for Omena engine parity and evidence gates"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
 
 [package.metadata.omena]
 role = "I"

@@ -1,3 +1,5 @@
+//! Process and protocol client for the TypeScript native-preview type-fact provider.
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,

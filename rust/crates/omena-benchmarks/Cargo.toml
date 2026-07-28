@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 description = "Benchmark harnesses for Omena CSS Modules Rust crates"
 repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
 
 [package.metadata.omena]
 role = "I"

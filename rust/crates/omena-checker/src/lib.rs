@@ -1,3 +1,5 @@
+//! Semantic and compatibility rule evaluation for Omena diagnostics.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_abstract_value::{

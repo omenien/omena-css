@@ -6,6 +6,8 @@ runs:
     - name: Run release contract gates
       shell: bash
       run: |
+        pnpm omena-check run release/check/release-notes
+        pnpm omena-check run rust/crate-documentation
         pnpm omena-check run release/check/release-m5-class-value-universe-matrix
         pnpm omena-check run release/check/release-m5-api-freeze-audit
         pnpm omena-check run core/check

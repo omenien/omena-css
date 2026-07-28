@@ -1,3 +1,5 @@
+//! Typed evidence graph and guarantee-family contracts shared by Omena products.
+
 use serde::{Deserialize, Serialize};
 #[cfg(any(test, feature = "test-support"))]
 use std::cell::Cell;

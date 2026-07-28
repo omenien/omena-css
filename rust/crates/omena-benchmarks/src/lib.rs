@@ -1,3 +1,5 @@
+//! Shared corpora and measurement helpers for Omena performance regression gates.
+
 pub const Z5_PERFORMANCE_BASELINE: &str = "z5-performance-baseline";
 
 mod corpus;

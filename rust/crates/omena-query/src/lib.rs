@@ -1,3 +1,5 @@
+//! Query facade over Omena parsing, resolution, semantic, and transform authorities.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 mod explain;

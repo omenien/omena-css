@@ -1,3 +1,5 @@
+//! Research-only Datalog projection for checking reachability results against the product graph.
+
 use std::collections::BTreeSet;
 
 use ascent::ascent;
