@@ -5097,17 +5097,16 @@ mod linked_source_map_tests {
             generated_end_point: transform_source_map_point(generated, generated.len()),
             pass_id: "linked-order-emission",
         };
-        let error = match validate_linked_source_map_original_segment(
+        let result = validate_linked_source_map_original_segment(
             "src/app.css",
             source,
             generated,
             &segment,
             OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
             Some(LINKED_FALLBACK_EXACT_TOKEN_REASON),
-        ) {
-            Ok(()) => panic!("an ambiguous token window cannot support an exact anchor claim"),
-            Err(error) => error,
-        };
+        );
+        assert!(result.is_err());
+        let error = result.err().unwrap_or_default();
         assert!(error.contains("without one unique matching token window"));
     }
 }
