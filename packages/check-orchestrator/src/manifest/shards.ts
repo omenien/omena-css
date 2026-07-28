@@ -17,6 +17,7 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
       "rust/omena-diff-test-core",
       "rust/omena-diff-test-extended",
       "rust/omena-bundler/linked-emission-byte-differential",
+      "rust/omena-bundler/linked-emission-falsifier-disclosure",
     ],
     "diff-wpt": ["rust/omena-diff-test-wpt"],
     "diff-sass": ["rust/omena-diff-test-sass-spec"],

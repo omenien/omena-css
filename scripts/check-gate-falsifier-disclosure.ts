@@ -37,10 +37,43 @@ interface InstrumentMapV0 {
   readonly sites: readonly InstrumentSiteV0[];
 }
 
+interface FalsifierFiringRecordV0 {
+  readonly perturbation: string;
+  readonly observedRedCommand: string;
+  readonly firedSiteIds: readonly string[];
+}
+
+interface StructuralEntailmentRecordV0 {
+  readonly siteId: string;
+  readonly owner: string;
+  readonly reentry: string;
+}
+
+interface DeadTestAuditRecordV0 {
+  readonly test: string;
+  readonly namedFix: string;
+  readonly entryColor: "red" | "green";
+  readonly currentColor: "red" | "green";
+  readonly disposition: "repaired" | "owned";
+  readonly evidence: string;
+  readonly owner: string;
+  readonly reentry: string;
+}
+
+interface FalsifierEvidenceV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena.linked-emission-falsifier-evidence";
+  readonly limitations: readonly string[];
+  readonly firedSitesByPerturbation: readonly FalsifierFiringRecordV0[];
+  readonly structuralEntailments: readonly StructuralEntailmentRecordV0[];
+  readonly deadTestAudit: readonly DeadTestAuditRecordV0[];
+}
+
 const scriptPath = fileURLToPath(import.meta.url);
 const repositoryRoot = resolve(dirname(scriptPath), "..");
 const domainPath = resolve(repositoryRoot, "rust/omena-linked-emission-instrument-domain.json");
 const mapPath = resolve(repositoryRoot, "rust/omena-linked-emission-instrument-map.json");
+const evidencePath = resolve(repositoryRoot, "rust/omena-linked-emission-falsifier-evidence.json");
 const assertionPattern = /assert!|assert_eq!|assert\.ok|assert\.deepEqual|return Err\(/;
 const notePattern = /^\s*\/\/ FALSIFIER: (.+)$/;
 const allowedClasses = new Set<DefectClass>([
@@ -189,6 +222,111 @@ function buildMap(domain: InstrumentDomainV0): InstrumentMapV0 {
   };
 }
 
+function validateFiringEvidence(
+  instrumentMap: InstrumentMapV0,
+  evidence: FalsifierEvidenceV0,
+): void {
+  assert.equal(evidence.schemaVersion, "0");
+  assert.equal(evidence.product, "omena.linked-emission-falsifier-evidence");
+  assert.ok(
+    evidence.limitations.some((limitation) => limitation.includes("classification")),
+    "falsifier evidence must disclose that it cannot validate classification semantics",
+  );
+
+  const sitesById = new Map(instrumentMap.sites.map((site) => [site.id, site]));
+  const firedSiteOwner = new Map<string, string>();
+  const firingRecords = new Map<string, FalsifierFiringRecordV0>();
+  for (const record of evidence.firedSitesByPerturbation) {
+    assert.ok(record.perturbation, "firing record has no perturbation");
+    assert.ok(record.observedRedCommand, `${record.perturbation} has no observed RED command`);
+    assert.ok(record.firedSiteIds.length > 0, `${record.perturbation} fired no assertion sites`);
+    assert.ok(
+      !firingRecords.has(record.perturbation),
+      `duplicate firing record: ${record.perturbation}`,
+    );
+    firingRecords.set(record.perturbation, record);
+    for (const siteId of record.firedSiteIds) {
+      const site = sitesById.get(siteId);
+      assert.ok(site, `firing record names an unknown assertion site: ${siteId}`);
+      assert.ok(
+        !firedSiteOwner.has(siteId),
+        `assertion site appears in multiple firing records: ${siteId}`,
+      );
+      firedSiteOwner.set(siteId, record.perturbation);
+    }
+  }
+
+  const structuralRecords = new Map<string, StructuralEntailmentRecordV0>();
+  for (const record of evidence.structuralEntailments) {
+    assert.ok(
+      !structuralRecords.has(record.siteId),
+      `duplicate STRUCTURAL entitlement record: ${record.siteId}`,
+    );
+    assert.ok(record.owner, `STRUCTURAL entitlement has no owner: ${record.siteId}`);
+    assert.ok(record.reentry, `STRUCTURAL entitlement has no re-entry: ${record.siteId}`);
+    structuralRecords.set(record.siteId, record);
+  }
+
+  for (const site of instrumentMap.sites) {
+    if (site.falsifier === "STRUCTURAL") {
+      const structural = structuralRecords.get(site.id);
+      assert.ok(structural, `STRUCTURAL site has no owned census row: ${site.id}`);
+      assert.equal(structural.owner, site.owner, `STRUCTURAL owner drift: ${site.id}`);
+      assert.equal(structural.reentry, site.reentry, `STRUCTURAL re-entry drift: ${site.id}`);
+      continue;
+    }
+    const record = firingRecords.get(site.falsifier);
+    assert.ok(record, `FALSIFIER target has no firing record: ${site.id} -> ${site.falsifier}`);
+    assert.ok(
+      record.firedSiteIds.includes(site.id),
+      `FALSIFIER did not fire the disclosed assertion site: ${site.id} -> ${site.falsifier}`,
+    );
+  }
+
+  for (const [siteId, perturbation] of firedSiteOwner) {
+    const site = sitesById.get(siteId);
+    assert.ok(site);
+    assert.equal(
+      site.falsifier,
+      perturbation,
+      `firing record assigns ${siteId} to ${perturbation}, but its disclosure names ${site.falsifier}`,
+    );
+  }
+
+  assert.deepEqual(
+    [...structuralRecords.keys()].sort(),
+    instrumentMap.sites
+      .filter((site) => site.falsifier === "STRUCTURAL")
+      .map((site) => site.id)
+      .sort(),
+    "STRUCTURAL entitlement census is stale",
+  );
+
+  const expectedAuditTests = [
+    "directional_no_loss_rejects_composed_declaration_removal",
+    "directional_no_loss_rejects_cross_module_declaration_removal",
+    "missing_target_source_precedes_attribution_domain_validation",
+    "module_reachability_partition_rejects_unassigned_live_names",
+    "observedEmissionPaths",
+  ];
+  assert.deepEqual(
+    evidence.deadTestAudit.map((record) => record.test).sort(),
+    expectedAuditTests,
+    "dead-test audit does not cover the declared regression lineage",
+  );
+  for (const record of evidence.deadTestAudit) {
+    assert.ok(record.namedFix, `dead-test audit row has no named fix: ${record.test}`);
+    assert.ok(record.evidence, `dead-test audit row has no evidence: ${record.test}`);
+    assert.ok(record.owner, `dead-test audit row has no owner: ${record.test}`);
+    assert.ok(record.reentry, `dead-test audit row has no re-entry: ${record.test}`);
+    assert.equal(
+      record.currentColor === "green",
+      record.disposition === "owned",
+      `a still-green dead-test row must remain explicitly owned: ${record.test}`,
+    );
+  }
+}
+
 const domain = JSON.parse(readFileSync(domainPath, "utf8")) as InstrumentDomainV0;
 assert.equal(domain.schemaVersion, "0");
 assert.equal(domain.product, "omena.linked-emission-instrument-domain");
@@ -199,6 +337,8 @@ assert.equal(
   "instrument domain files must be unique",
 );
 const instrumentMap = buildMap(domain);
+const falsifierEvidence = JSON.parse(readFileSync(evidencePath, "utf8")) as FalsifierEvidenceV0;
+validateFiringEvidence(instrumentMap, falsifierEvidence);
 const serialized = `${JSON.stringify(instrumentMap, null, 2)}\n`;
 
 if (process.argv.includes("--write")) {
@@ -213,5 +353,7 @@ console.log(
     assertionSiteCount: instrumentMap.assertionSiteCount,
     structuralEntailmentCount: instrumentMap.structuralEntailmentCount,
     domainFileCount: instrumentMap.domainFiles.length,
+    firingRecordCount: falsifierEvidence.firedSitesByPerturbation.length,
+    deadTestAuditCount: falsifierEvidence.deadTestAudit.length,
   }),
 );

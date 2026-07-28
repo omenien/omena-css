@@ -1,0 +1,323 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.linked-emission-falsifier-evidence",
+  "limitations": [
+    "This ledger records assertion sites observed red under each named perturbation; the disclosure gate does not infer firing from the assertion notes.",
+    "The mechanism validates falsifier coverage but cannot prove that a selected defect classification is semantically correct."
+  ],
+  "firedSitesByPerturbation": [
+    {
+      "perturbation": "DropReachableCrossModuleDeclaration",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-cross-module-declaration-loss",
+      "firedSiteIds": [
+        "linked-emission-rust-001",
+        "linked-emission-rust-002",
+        "linked-emission-rust-003",
+        "linked-emission-rust-004",
+        "linked-emission-rust-005",
+        "linked-emission-rust-006",
+        "linked-emission-rust-007",
+        "linked-emission-rust-008",
+        "linked-emission-rust-009",
+        "linked-emission-rust-010",
+        "linked-emission-rust-011",
+        "linked-emission-rust-012",
+        "linked-emission-rust-013",
+        "linked-emission-rust-014",
+        "linked-emission-rust-015",
+        "linked-emission-rust-016",
+        "linked-emission-rust-017",
+        "linked-emission-rust-018",
+        "linked-emission-rust-019",
+        "linked-emission-rust-020",
+        "linked-emission-rust-021",
+        "linked-emission-rust-022",
+        "linked-emission-rust-023",
+        "linked-emission-rust-024",
+        "linked-emission-rust-025",
+        "linked-emission-rust-026",
+        "linked-emission-rust-028",
+        "linked-emission-rust-029",
+        "linked-emission-rust-030",
+        "linked-emission-rust-031",
+        "linked-emission-rust-032",
+        "linked-emission-rust-033",
+        "linked-emission-rust-034",
+        "linked-emission-rust-035",
+        "linked-emission-rust-036",
+        "linked-emission-rust-037",
+        "linked-emission-rust-038",
+        "linked-emission-rust-039",
+        "linked-emission-rust-040",
+        "linked-emission-rust-041",
+        "linked-emission-rust-042",
+        "linked-emission-rust-043",
+        "linked-emission-rust-044",
+        "linked-emission-rust-045",
+        "linked-emission-rust-046",
+        "linked-emission-rust-047",
+        "linked-emission-rust-048",
+        "linked-emission-rust-049",
+        "linked-emission-rust-050",
+        "linked-emission-rust-051",
+        "linked-emission-rust-052",
+        "linked-emission-rust-053",
+        "linked-emission-rust-054",
+        "linked-emission-rust-055",
+        "linked-emission-rust-056",
+        "linked-emission-rust-057",
+        "linked-emission-rust-058",
+        "linked-emission-rust-059",
+        "linked-emission-rust-060"
+      ]
+    },
+    {
+      "perturbation": "MisattributeLinkedRule",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-linked-rule-misattribution",
+      "firedSiteIds": ["linked-emission-unmodeled-declarations"]
+    },
+    {
+      "perturbation": "DropLiveDeclaration",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-live-declaration-loss",
+      "firedSiteIds": [
+        "linked-emission-pass-set-precondition",
+        "linked-emission-attribution-required",
+        "linked-emission-live-declaration-retention",
+        "linked-emission-build-module-attribution",
+        "linked-emission-loss-fault-attribution",
+        "linked-emission-loss-fault-output",
+        "linked-emission-in-domain-nonempty",
+        "linked-emission-live-loss-per-fixture",
+        "linked-emission-at-rule-live-token"
+      ]
+    },
+    {
+      "perturbation": "DropComposesReachability",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-composes-liveness-loss",
+      "firedSiteIds": [
+        "linked-emission-source-text-precondition",
+        "linked-emission-authored-domain-reachability",
+        "linked-emission-authored-expectation-uniqueness",
+        "linked-emission-authored-build-domain",
+        "linked-emission-authored-declaration-domain",
+        "linked-emission-authored-liveness-equality",
+        "linked-emission-authored-totality",
+        "linked-emission-composes-authored-expectation",
+        "linked-emission-at-rule-dead-token",
+        "linked-emission-at-rule-legacy-oracle",
+        "linked-emission-at-rule-base-live",
+        "linked-emission-at-rule-media-live",
+        "linked-emission-at-rule-base-dead",
+        "linked-emission-at-rule-media-dead"
+      ]
+    },
+    {
+      "perturbation": "AddUnclaimedLinkedToken",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-unclaimed-linked-token",
+      "firedSiteIds": [
+        "linked-emission-token-universe-closure",
+        "linked-emission-unclaimed-token-closure"
+      ]
+    },
+    {
+      "perturbation": "DropComposedDeclaration",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-composed-declaration-loss",
+      "firedSiteIds": ["linked-emission-rust-027"]
+    },
+    {
+      "perturbation": "AddUnattributedReachabilityReference",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-unattributed-reference",
+      "firedSiteIds": ["linked-emission-unattributed-fan-in"]
+    },
+    {
+      "perturbation": "--inject-unexpected-divergence",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-unexpected-divergence",
+      "firedSiteIds": [
+        "linked-emission-gate-001",
+        "linked-emission-gate-002",
+        "linked-emission-gate-003",
+        "linked-emission-gate-004",
+        "linked-emission-gate-005",
+        "linked-emission-gate-006",
+        "linked-emission-gate-012",
+        "linked-emission-gate-013",
+        "linked-emission-gate-014",
+        "linked-emission-gate-015",
+        "linked-emission-gate-016",
+        "linked-emission-gate-017",
+        "linked-emission-gate-018",
+        "linked-emission-gate-019",
+        "linked-emission-gate-020",
+        "linked-emission-gate-021",
+        "linked-emission-gate-022",
+        "linked-emission-gate-023",
+        "linked-emission-gate-024",
+        "linked-emission-gate-025",
+        "linked-emission-gate-026",
+        "linked-emission-gate-027",
+        "linked-emission-gate-028",
+        "linked-emission-gate-029",
+        "linked-emission-gate-030",
+        "linked-emission-gate-at-rule-legacy-markers",
+        "linked-emission-gate-at-rule-linked-markers",
+        "linked-emission-gate-at-rule-authority-markers",
+        "linked-emission-gate-031",
+        "linked-emission-gate-032",
+        "linked-emission-gate-033",
+        "linked-emission-gate-034",
+        "linked-emission-gate-035",
+        "linked-emission-gate-036",
+        "linked-emission-gate-037",
+        "linked-emission-gate-038",
+        "linked-emission-gate-039",
+        "linked-emission-gate-040",
+        "linked-emission-ledger-at-rule-legacy-markers",
+        "linked-emission-ledger-at-rule-linked-markers",
+        "linked-emission-ledger-at-rule-authority-markers",
+        "linked-emission-gate-041",
+        "linked-emission-gate-042",
+        "linked-emission-gate-043",
+        "linked-emission-gate-044",
+        "linked-emission-gate-045",
+        "linked-emission-gate-046",
+        "linked-emission-gate-047"
+      ]
+    },
+    {
+      "perturbation": "--inject-live-declaration-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-live-declaration-loss",
+      "firedSiteIds": [
+        "linked-emission-baseline-domain-floor",
+        "linked-emission-domain-fixture-set",
+        "linked-emission-domain-floor",
+        "linked-emission-domain-census",
+        "linked-emission-source-precondition",
+        "linked-emission-pass-precondition",
+        "linked-emission-arm-source-present",
+        "linked-emission-arm-no-default-oracle"
+      ]
+    },
+    {
+      "perturbation": "--inject-collision-expectation-flip",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-collision-expectation-flip",
+      "firedSiteIds": [
+        "linked-emission-token-model-contract",
+        "linked-emission-collision-authored-equality",
+        "linked-emission-skew-semantic-delta",
+        "linked-emission-ledger-skew-semantic-delta"
+      ]
+    },
+    {
+      "perturbation": "--inject-linked-rule-misattribution",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-linked-rule-misattribution",
+      "firedSiteIds": ["linked-emission-unmodeled-contract"]
+    },
+    {
+      "perturbation": "--inject-authored-liveness-flip",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-authored-liveness-flip",
+      "firedSiteIds": [
+        "linked-emission-authored-live-set-equality",
+        "linked-emission-authored-case-delta",
+        "linked-emission-authored-delta-observed"
+      ]
+    },
+    {
+      "perturbation": "--inject-composed-declaration-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-composed-declaration-loss",
+      "firedSiteIds": ["linked-emission-composes-source-precondition"]
+    },
+    {
+      "perturbation": "--inject-cross-module-declaration-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-cross-module-declaration-loss",
+      "firedSiteIds": [
+        "linked-emission-cli-001",
+        "linked-emission-cli-002",
+        "linked-emission-cli-003",
+        "linked-emission-cli-004",
+        "linked-emission-cli-005",
+        "linked-emission-cli-006",
+        "linked-emission-cli-007",
+        "linked-emission-cli-008",
+        "linked-emission-cli-009",
+        "linked-emission-cli-010",
+        "linked-emission-cli-011",
+        "linked-emission-cli-012",
+        "linked-emission-cli-013",
+        "linked-emission-cli-014",
+        "linked-emission-cli-015",
+        "linked-emission-cli-016",
+        "linked-emission-cli-017",
+        "linked-emission-cli-018",
+        "linked-emission-cli-019",
+        "module-qualified-gate-001",
+        "module-qualified-gate-002",
+        "module-qualified-gate-003",
+        "module-qualified-gate-004"
+      ]
+    }
+  ],
+  "structuralEntailments": [
+    {
+      "siteId": "linked-emission-attribution-domain-consistency",
+      "owner": "linked-emission-instrument",
+      "reentry": "split-module-attribution-domain"
+    },
+    {
+      "siteId": "linked-emission-attribution-domain-single-authority",
+      "owner": "linked-emission-instrument",
+      "reentry": "duplicate-module-attribution-domain"
+    }
+  ],
+  "deadTestAudit": [
+    {
+      "test": "missing_target_source_precedes_attribution_domain_validation",
+      "namedFix": "outer missing-target precedence check",
+      "entryColor": "green",
+      "currentColor": "red",
+      "disposition": "repaired",
+      "evidence": "The outer check now has a distinct error and deleting it exposes the inner missing-target message.",
+      "owner": "omena-query bundle execution",
+      "reentry": "another attribution validator can emit the outer error byte-for-byte"
+    },
+    {
+      "test": "module_reachability_partition_rejects_unassigned_live_names",
+      "namedFix": "normalization-loss guard over a hand-fed class-name set",
+      "entryColor": "green",
+      "currentColor": "red",
+      "disposition": "repaired",
+      "evidence": "The hand-fed witness was replaced by production_attribution_domains_assign_every_admitted_name; splitting admission and placement derivation now fails its authored-liveness oracle.",
+      "owner": "omena-query module attribution",
+      "reentry": "admission and placement stop sharing module_attribution_domain_style_paths"
+    },
+    {
+      "test": "directional_no_loss_rejects_cross_module_declaration_removal",
+      "namedFix": "directional declaration-retention arm",
+      "entryColor": "red",
+      "currentColor": "red",
+      "disposition": "repaired",
+      "evidence": "A live cross-module declaration loss moves the authored liveness row and linked output into the unexpected set.",
+      "owner": "linked-emission differential",
+      "reentry": "the retained-declaration oracle no longer consumes authored liveness"
+    },
+    {
+      "test": "directional_no_loss_rejects_composed_declaration_removal",
+      "namedFix": "composed-declaration retention arm",
+      "entryColor": "red",
+      "currentColor": "red",
+      "disposition": "repaired",
+      "evidence": "Dropping a declaration reached through composes fails the dedicated live-declaration arm.",
+      "owner": "linked-emission differential",
+      "reentry": "composes reachability is removed from the retained-declaration oracle"
+    },
+    {
+      "test": "observedEmissionPaths",
+      "namedFix": "path-specific collision validator",
+      "entryColor": "green",
+      "currentColor": "green",
+      "disposition": "owned",
+      "evidence": "The Rust validator remains an internal path-scope consistency check; the authored collision table is the falsifiable authority.",
+      "owner": "linked-emission collision accounting",
+      "reentry": "the authored collision table stops asserting pathScope and observed path equality"
+    }
+  ]
+}
