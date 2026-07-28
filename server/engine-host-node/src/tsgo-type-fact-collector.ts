@@ -25,6 +25,21 @@ import { resolveTsgoBinaryPathForEnv } from "./tsgo-probe-type-resolver";
 const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
 const DEFAULT_CONTROL_FLOW_GRAPH_PROVIDER = createDefaultRustTypeFactControlFlowGraphProvider();
 
+export const TSGO_EXACT_DOMAIN_MEMBER_LIMIT = 256;
+export const TSGO_SPAN_TYPE_FACT_REASON = {
+  exactFiniteDomain: "exactFiniteDomain",
+  projectMiss: "projectMiss",
+  sourceFileMiss: "sourceFileMiss",
+  nodeSpanMismatch: "nodeSpanMismatch",
+  nonExactDomain: "nonExactDomain",
+  missingUnionIdentity: "missingUnionIdentity",
+  invalidUnionMembers: "invalidUnionMembers",
+  nonExactUnionMember: "nonExactUnionMember",
+  unionMemberLimitExceeded: "unionMemberLimitExceeded",
+} as const;
+export type TsgoSpanTypeFactReason =
+  (typeof TSGO_SPAN_TYPE_FACT_REASON)[keyof typeof TSGO_SPAN_TYPE_FACT_REASON];
+
 export interface TsgoTypeFactTarget {
   readonly filePath: string;
   readonly expressionId: string;
@@ -42,7 +57,7 @@ export interface TsgoSpanTypeFactResultEntry {
   readonly filePath: string;
   readonly expressionId: string;
   readonly outcome: "resolved" | "refused";
-  readonly reason: "exactFiniteDomain" | "nodeSpanMismatch" | "nonExactDomain";
+  readonly reason: TsgoSpanTypeFactReason;
   readonly spanExact: boolean;
   readonly nonNullishMemberCount: number;
   readonly resolvedMemberCount: number;
@@ -283,13 +298,13 @@ export async function resolveTsgoSpanTypeFact(
     ? findUniqueNodeAtExactSpan(sourceFile, target.startPosition, target.endPosition)
     : undefined;
   if (!node) {
-    return refusedTsgoSpanTypeFact(target, "nodeSpanMismatch", false);
+    return refusedTsgoSpanTypeFact(target, TSGO_SPAN_TYPE_FACT_REASON.nodeSpanMismatch, false);
   }
   const exactDomain = await extractExactStringDomain(await project.checker.getTypeAtLocation(node));
   if (!exactDomain.resolvedType) {
     return refusedTsgoSpanTypeFact(
       target,
-      "nonExactDomain",
+      exactDomain.refusalReason ?? TSGO_SPAN_TYPE_FACT_REASON.nonExactDomain,
       true,
       exactDomain.nonNullishMemberCount,
       exactDomain.resolvedMemberCount,
@@ -299,7 +314,7 @@ export async function resolveTsgoSpanTypeFact(
     filePath: target.filePath,
     expressionId: target.expressionId,
     outcome: "resolved",
-    reason: "exactFiniteDomain",
+    reason: TSGO_SPAN_TYPE_FACT_REASON.exactFiniteDomain,
     spanExact: true,
     nonNullishMemberCount: exactDomain.nonNullishMemberCount,
     resolvedMemberCount: exactDomain.resolvedMemberCount,
@@ -355,7 +370,7 @@ function skipSourceTrivia(source: string, start: number, end: number): number {
 
 function refusedTsgoSpanTypeFact(
   target: TsgoSpanTypeFactTarget,
-  reason: "nodeSpanMismatch" | "nonExactDomain",
+  reason: TsgoSpanTypeFactReason,
   spanExact: boolean,
   nonNullishMemberCount = 0,
   resolvedMemberCount = 0,
@@ -374,6 +389,7 @@ function refusedTsgoSpanTypeFact(
 
 async function extractExactStringDomain(type: Type | undefined): Promise<{
   readonly resolvedType?: ResolvedType;
+  readonly refusalReason?: TsgoSpanTypeFactReason;
   readonly nonNullishMemberCount: number;
   readonly resolvedMemberCount: number;
 }> {
@@ -390,14 +406,21 @@ async function extractExactStringDomain(type: Type | undefined): Promise<{
   if ((type.flags & TypeFlags.Union) === 0) {
     return { nonNullishMemberCount: 1, resolvedMemberCount: 0 };
   }
-  const members = (await (type as UnionType).getTypes()).filter(
-    (member) => !isPureNullishType(member),
-  );
+  const rawMembers = await (type as UnionType).getTypes();
+  if (rawMembers.length > TSGO_EXACT_DOMAIN_MEMBER_LIMIT) {
+    return {
+      refusalReason: TSGO_SPAN_TYPE_FACT_REASON.unionMemberLimitExceeded,
+      nonNullishMemberCount: rawMembers.length,
+      resolvedMemberCount: 0,
+    };
+  }
+  const members = rawMembers.filter((member) => !isPureNullishType(member));
   const values = members.flatMap((member) =>
     isStringLiteralType(member) ? [(member as LiteralType).value as string] : [],
   );
   if (values.length === 0 || values.length !== members.length) {
     return {
+      refusalReason: TSGO_SPAN_TYPE_FACT_REASON.nonExactUnionMember,
       nonNullishMemberCount: members.length,
       resolvedMemberCount: values.length,
     };

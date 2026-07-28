@@ -2,7 +2,12 @@ import { strict as assert } from "node:assert";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-type BoundaryClass = "json-string" | "jsvalue-any" | "typed";
+type BoundaryClass = "json-string" | "jsvalue-any" | "typed" | "unclassified";
+type BoundaryClassifierRule =
+  | "napi-json-string"
+  | "wasm-jsvalue"
+  | "typed-self"
+  | "typed-versioned-struct";
 type ExportKind = "function" | "method" | "constructor";
 type CrateName = "omena-napi" | "omena-wasm";
 
@@ -26,6 +31,7 @@ interface BoundaryCensus {
     readonly direction: "decrease-only";
     readonly maximumJsonStringCount: number;
     readonly maximumJsValueAnyCount: number;
+    readonly maximumUnclassifiedByRuleCount: number;
   };
   readonly summary: {
     readonly totalCallableCount: number;
@@ -33,8 +39,21 @@ interface BoundaryCensus {
     readonly jsValueAnyCount: number;
     readonly typedCount: number;
     readonly untypedBoundaryCount: number;
+    readonly unclassifiedByRuleCount: number;
+  };
+  readonly classificationCoverage: {
+    readonly ruleIds: readonly BoundaryClassifierRule[];
+    readonly pinnedRows: readonly BoundaryClassPin[];
+    readonly limitation: string;
   };
   readonly rows: readonly CensusRow[];
+}
+
+interface BoundaryClassPin {
+  readonly crate: CrateName;
+  readonly jsName: string;
+  readonly signatureIncludes: string;
+  readonly expectedClass: Exclude<BoundaryClass, "unclassified">;
 }
 
 const repoRoot = process.cwd();
@@ -46,6 +65,38 @@ const sources = [
   "rust/crates/omena-wasm/src/lib.rs",
   "rust/crates/omena-wasm/src/sdk_workspace.rs",
 ] as const;
+const classifierRuleIds: readonly BoundaryClassifierRule[] = [
+  "napi-json-string",
+  "wasm-jsvalue",
+  "typed-self",
+  "typed-versioned-struct",
+];
+const pinnedRows: readonly BoundaryClassPin[] = [
+  {
+    crate: "omena-napi",
+    jsName: "buildStyleSourceJson",
+    signatureIncludes: "napi::Result<String>",
+    expectedClass: "json-string",
+  },
+  {
+    crate: "omena-wasm",
+    jsName: "buildStyleSource",
+    signatureIncludes: "Result<JsValue, JsValue>",
+    expectedClass: "jsvalue-any",
+  },
+  {
+    crate: "omena-napi",
+    jsName: "buildStyleSourceWithContext",
+    signatureIncludes: "EngineNapiConsumerBuildSummaryV0Json",
+    expectedClass: "typed",
+  },
+  {
+    crate: "omena-wasm",
+    jsName: "constructor",
+    signatureIncludes: "pub fn new() -> Self",
+    expectedClass: "typed",
+  },
+];
 
 const existing = readExistingCensus();
 const census = buildCensus(existing);
@@ -86,6 +137,7 @@ function buildCensus(existing: BoundaryCensus | undefined): BoundaryCensus {
   const jsonStringCount = rows.filter((row) => row.boundaryClass === "json-string").length;
   const jsValueAnyCount = rows.filter((row) => row.boundaryClass === "jsvalue-any").length;
   const typedCount = rows.filter((row) => row.boundaryClass === "typed").length;
+  const unclassifiedByRuleCount = rows.filter((row) => row.boundaryClass === "unclassified").length;
   assert.ok(
     rows.some((row) => row.crate === "omena-napi"),
     "napi FFI surface is empty",
@@ -94,10 +146,32 @@ function buildCensus(existing: BoundaryCensus | undefined): BoundaryCensus {
     rows.some((row) => row.crate === "omena-wasm"),
     "wasm FFI surface is empty",
   );
+  for (const pin of pinnedRows) {
+    const matches = rows.filter(
+      (row) =>
+        row.crate === pin.crate &&
+        row.jsName === pin.jsName &&
+        row.signature.includes(pin.signatureIncludes),
+    );
+    assert.equal(
+      matches.length,
+      1,
+      `FFI boundary class pin must identify one row: ${pin.crate}:${pin.jsName}:${pin.signatureIncludes}`,
+    );
+    assert.equal(
+      matches[0]?.boundaryClass,
+      pin.expectedClass,
+      `FFI boundary class pin changed: ${pin.crate}:${pin.jsName}`,
+    );
+  }
   const previousMaximumJsonStringCount =
     existing?.ratchet?.maximumJsonStringCount ?? existing?.summary.jsonStringCount;
   const previousMaximumJsValueAnyCount =
     existing?.ratchet?.maximumJsValueAnyCount ?? existing?.summary.jsValueAnyCount;
+  const previousMaximumUnclassifiedByRuleCount =
+    existing?.ratchet?.maximumUnclassifiedByRuleCount ??
+    existing?.summary.unclassifiedByRuleCount ??
+    0;
   if (previousMaximumJsonStringCount !== undefined) {
     assert.ok(
       jsonStringCount <= previousMaximumJsonStringCount,
@@ -110,6 +184,10 @@ function buildCensus(existing: BoundaryCensus | undefined): BoundaryCensus {
       `wasm JsValue-any boundary count increased: maximum=${previousMaximumJsValueAnyCount} current=${jsValueAnyCount}`,
     );
   }
+  assert.ok(
+    unclassifiedByRuleCount <= previousMaximumUnclassifiedByRuleCount,
+    `FFI boundaries not covered by a classifier rule increased: maximum=${previousMaximumUnclassifiedByRuleCount} current=${unclassifiedByRuleCount}`,
+  );
   return {
     schemaVersion: "0",
     product: "omena-ffi.boundary-typing-census",
@@ -122,6 +200,9 @@ function buildCensus(existing: BoundaryCensus | undefined): BoundaryCensus {
       maximumJsValueAnyCount: writeMode
         ? jsValueAnyCount
         : (previousMaximumJsValueAnyCount ?? jsValueAnyCount),
+      maximumUnclassifiedByRuleCount: writeMode
+        ? unclassifiedByRuleCount
+        : previousMaximumUnclassifiedByRuleCount,
     },
     summary: {
       totalCallableCount: rows.length,
@@ -129,6 +210,13 @@ function buildCensus(existing: BoundaryCensus | undefined): BoundaryCensus {
       jsValueAnyCount,
       typedCount,
       untypedBoundaryCount: jsonStringCount + jsValueAnyCount,
+      unclassifiedByRuleCount,
+    },
+    classificationCoverage: {
+      ruleIds: classifierRuleIds,
+      pinnedRows,
+      limitation:
+        "Pinned rows detect classifier-wide drift but cannot detect a rule error confined to an unpinned signature.",
     },
     rows,
   };
@@ -154,6 +242,11 @@ function readExistingCensus(): BoundaryCensus | undefined {
         parsed.ratchet.maximumJsValueAnyCount,
         parsed.summary.jsValueAnyCount,
         "committed JsValue-any floor must equal its measured count",
+      );
+      assert.equal(
+        parsed.ratchet.maximumUnclassifiedByRuleCount,
+        parsed.summary.unclassifiedByRuleCount,
+        "committed unclassified-by-rule floor must equal its measured count",
       );
     }
     return parsed;
@@ -274,17 +367,46 @@ function row(input: {
 }
 
 function classifyBoundary(crateName: CrateName, signature: string): BoundaryClass {
+  const rule = classifierRuleForBoundary(crateName, signature);
+  switch (rule) {
+    case "wasm-jsvalue":
+      return "jsvalue-any";
+    case "napi-json-string":
+      return "json-string";
+    case "typed-self":
+    case "typed-versioned-struct":
+      return "typed";
+    default:
+      return "unclassified";
+  }
+}
+
+function classifierRuleForBoundary(
+  crateName: CrateName,
+  signature: string,
+): BoundaryClassifierRule | undefined {
   if (crateName === "omena-wasm" && /\bJsValue\b/.test(signature)) {
-    return "jsvalue-any";
+    return "wasm-jsvalue";
   }
   if (
     crateName === "omena-napi" &&
     (/\b[a-zA-Z0-9_]*_?json\s*:\s*String\b/i.test(signature) ||
       /->\s*napi::Result\s*<\s*String\s*>/.test(signature))
   ) {
-    return "json-string";
+    return "napi-json-string";
   }
-  return "typed";
+  if (/->\s*Self\b/.test(signature)) {
+    return "typed-self";
+  }
+  if (
+    crateName === "omena-napi" &&
+    /->\s*napi::Result\s*<\s*(?:[A-Za-z_][A-Za-z0-9_]*::)*[A-Z][A-Za-z0-9_]*V\d+(?:Json)?\s*>/.test(
+      signature,
+    )
+  ) {
+    return "typed-versioned-struct";
+  }
+  return undefined;
 }
 
 function readSourceLines(sourcePath: string): string[] {

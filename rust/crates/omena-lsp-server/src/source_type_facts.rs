@@ -49,6 +49,14 @@ const SOURCE_TYPE_FACT_OUTCOME_REFUSED: &str = "refused";
 const SOURCE_TYPE_FACT_REASON_FINITE_EXACT_DOMAIN: &str = "finiteExactDomain";
 pub(crate) const SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED: &str = "providerNotRequested";
 const SOURCE_TYPE_FACT_REASON_NON_EXACT_DOMAIN: &str = "nonExactDomain";
+const SOURCE_TYPE_FACT_REASON_OUTCOME_NOT_RESOLVED: &str = "outcomeNotResolved";
+const SOURCE_TYPE_FACT_REASON_SPAN_NOT_EXACT: &str = "spanNotExact";
+const SOURCE_TYPE_FACT_REASON_EMPTY_EXACT_DOMAIN: &str = "emptyExactDomain";
+const SOURCE_TYPE_FACT_REASON_MEMBER_COUNT_MISMATCH: &str = "memberCountMismatch";
+const SOURCE_TYPE_FACT_REASON_NON_UNION_RESOLVED_TYPE: &str = "nonUnionResolvedType";
+const SOURCE_TYPE_FACT_REASON_EMPTY_RESOLVED_VALUES: &str = "emptyResolvedValues";
+const SOURCE_TYPE_FACT_REASON_INVALID_CSS_IDENTIFIER_CHARACTER: &str =
+    "invalidCssIdentifierCharacter";
 const SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER: &str = "unsafeCssIdentifier";
 
 // Parser-built documents pair every lexical site with an initial tier attempt.
@@ -545,7 +553,7 @@ fn apply_source_type_fact_results_to_document_with_span(
     projection_entries.extend(
         span_entries
             .iter()
-            .filter(|entry| span_type_fact_entry_is_admissible(entry))
+            .filter(|entry| span_type_fact_entry_admissibility(entry).is_ok())
             .map(|entry| TsgoTypeFactResultEntryV0 {
                 file_path: entry.file_path.clone(),
                 expression_id: entry.expression_id.clone(),
@@ -634,23 +642,44 @@ fn apply_source_type_fact_results_to_document_with_span(
         source_selector_candidates_from_index(document, &source_syntax_index);
 }
 
-fn span_type_fact_entry_is_admissible(entry: &TsgoSpanTypeFactResultEntryV0) -> bool {
-    entry.outcome == SOURCE_TYPE_FACT_OUTCOME_RESOLVED
-        && entry.span_exact
-        && entry.non_nullish_member_count > 0
-        && entry.non_nullish_member_count == entry.resolved_member_count
-        && entry.resolved_type.kind == "union"
-        && !entry.resolved_type.values.is_empty()
-        && entry
-            .resolved_type
-            .values
-            .iter()
-            .all(|value| value.chars().all(is_css_identifier_continue))
-        && entry
-            .resolved_type
-            .values
-            .iter()
-            .all(|value| is_safe_css_identifier(value))
+fn span_type_fact_entry_admissibility(
+    entry: &TsgoSpanTypeFactResultEntryV0,
+) -> Result<(), &'static str> {
+    if entry.outcome != SOURCE_TYPE_FACT_OUTCOME_RESOLVED {
+        return Err(SOURCE_TYPE_FACT_REASON_OUTCOME_NOT_RESOLVED);
+    }
+    if !entry.span_exact {
+        return Err(SOURCE_TYPE_FACT_REASON_SPAN_NOT_EXACT);
+    }
+    if entry.non_nullish_member_count == 0 {
+        return Err(SOURCE_TYPE_FACT_REASON_EMPTY_EXACT_DOMAIN);
+    }
+    if entry.non_nullish_member_count != entry.resolved_member_count {
+        return Err(SOURCE_TYPE_FACT_REASON_MEMBER_COUNT_MISMATCH);
+    }
+    if entry.resolved_type.kind != "union" {
+        return Err(SOURCE_TYPE_FACT_REASON_NON_UNION_RESOLVED_TYPE);
+    }
+    if entry.resolved_type.values.is_empty() {
+        return Err(SOURCE_TYPE_FACT_REASON_EMPTY_RESOLVED_VALUES);
+    }
+    if !entry
+        .resolved_type
+        .values
+        .iter()
+        .all(|value| value.chars().all(is_css_identifier_continue))
+    {
+        return Err(SOURCE_TYPE_FACT_REASON_INVALID_CSS_IDENTIFIER_CHARACTER);
+    }
+    if !entry
+        .resolved_type
+        .values
+        .iter()
+        .all(|value| is_safe_css_identifier(value))
+    {
+        return Err(SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER);
+    }
+    Ok(())
 }
 
 fn replace_tsgo_provider_unavailable_for_document(
@@ -795,13 +824,14 @@ fn source_type_fact_tier_attempts_with_span_results(
                 attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_REFUSED;
                 attempt.reason = Some(entry.reason);
             }
-            Some(entry) if !span_type_fact_entry_is_admissible(entry) => {
-                attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_REFUSED;
-                attempt.reason = Some(SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER);
-            }
-            Some(_) => {
-                attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNRESOLVED;
-                attempt.reason = Some(SOURCE_TYPE_FACT_REASON_NON_EXACT_DOMAIN);
+            Some(entry) => {
+                if let Err(reason) = span_type_fact_entry_admissibility(entry) {
+                    attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_REFUSED;
+                    attempt.reason = Some(reason);
+                } else {
+                    attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNRESOLVED;
+                    attempt.reason = Some(SOURCE_TYPE_FACT_REASON_NON_EXACT_DOMAIN);
+                }
             }
         }
     }
@@ -1294,6 +1324,92 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     #[test]
+    fn css_identifier_safety_matches_shared_cases() -> TestResult {
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../omena-css-identifier-safety-cases.json"
+        ))?;
+        let safe = cases["safe"]
+            .as_array()
+            .ok_or_else(|| std::io::Error::other("safe identifier cases must be an array"))?;
+        let unsafe_cases = cases["unsafe"]
+            .as_array()
+            .ok_or_else(|| std::io::Error::other("unsafe identifier cases must be an array"))?;
+        assert!(!safe.is_empty(), "safe identifier cases must not be empty");
+        assert!(
+            !unsafe_cases.is_empty(),
+            "unsafe identifier cases must not be empty"
+        );
+        for value in safe {
+            let value = value
+                .as_str()
+                .ok_or_else(|| std::io::Error::other("safe identifier case must be a string"))?;
+            assert!(is_safe_css_identifier(value), "expected safe: {value:?}");
+        }
+        for value in unsafe_cases {
+            let value = value
+                .as_str()
+                .ok_or_else(|| std::io::Error::other("unsafe identifier case must be a string"))?;
+            assert!(!is_safe_css_identifier(value), "expected unsafe: {value:?}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn exact_span_admissibility_reports_each_failed_contract() {
+        let base = TsgoSpanTypeFactResultEntryV0::resolved(
+            "/workspace/App.ts".to_string(),
+            "expression-1".to_string(),
+            "exactFiniteDomain",
+            1,
+            TsgoResolvedTypeV0 {
+                kind: "union",
+                values: vec!["primary".to_string()],
+            },
+        );
+        assert_eq!(span_type_fact_entry_admissibility(&base), Ok(()));
+
+        let mut outcome = base.clone();
+        outcome.outcome = "unresolved";
+        let mut span = base.clone();
+        span.span_exact = false;
+        let mut empty_domain = base.clone();
+        empty_domain.non_nullish_member_count = 0;
+        empty_domain.resolved_member_count = 0;
+        let mut count_mismatch = base.clone();
+        count_mismatch.resolved_member_count = 0;
+        let mut non_union = base.clone();
+        non_union.resolved_type.kind = "unresolvable";
+        let mut empty_values = base.clone();
+        empty_values.resolved_type.values.clear();
+        let mut invalid_character = base.clone();
+        invalid_character.resolved_type.values = vec!["not valid".to_string()];
+        let mut unsafe_start = base;
+        unsafe_start.resolved_type.values = vec!["9valid".to_string()];
+
+        for (entry, expected_reason) in [
+            (outcome, SOURCE_TYPE_FACT_REASON_OUTCOME_NOT_RESOLVED),
+            (span, SOURCE_TYPE_FACT_REASON_SPAN_NOT_EXACT),
+            (empty_domain, SOURCE_TYPE_FACT_REASON_EMPTY_EXACT_DOMAIN),
+            (
+                count_mismatch,
+                SOURCE_TYPE_FACT_REASON_MEMBER_COUNT_MISMATCH,
+            ),
+            (non_union, SOURCE_TYPE_FACT_REASON_NON_UNION_RESOLVED_TYPE),
+            (empty_values, SOURCE_TYPE_FACT_REASON_EMPTY_RESOLVED_VALUES),
+            (
+                invalid_character,
+                SOURCE_TYPE_FACT_REASON_INVALID_CSS_IDENTIFIER_CHARACTER,
+            ),
+            (unsafe_start, SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER),
+        ] {
+            assert_eq!(
+                span_type_fact_entry_admissibility(&entry),
+                Err(expected_reason)
+            );
+        }
+    }
+
+    #[test]
     fn exact_span_type_facts_project_only_complete_css_identifier_domains() -> TestResult {
         let workspace_root = std::env::temp_dir().join(format!(
             "omena-lsp-exact-span-type-facts-{}",
@@ -1512,7 +1628,7 @@ export const App = () => <div className={cx(`theme-${pickTone()}-active`)} />;"#
             1,
             TsgoResolvedTypeV0 {
                 kind: "union",
-                values: vec!["not valid".to_string()],
+                values: vec!["9valid".to_string()],
             },
         );
         apply_source_type_fact_results_to_document_with_span(

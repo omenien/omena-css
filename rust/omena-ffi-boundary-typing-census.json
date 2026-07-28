@@ -10,14 +10,51 @@
   "ratchet": {
     "direction": "decrease-only",
     "maximumJsonStringCount": 49,
-    "maximumJsValueAnyCount": 43
+    "maximumJsValueAnyCount": 43,
+    "maximumUnclassifiedByRuleCount": 0
   },
   "summary": {
     "totalCallableCount": 95,
     "jsonStringCount": 49,
     "jsValueAnyCount": 43,
     "typedCount": 3,
-    "untypedBoundaryCount": 92
+    "untypedBoundaryCount": 92,
+    "unclassifiedByRuleCount": 0
+  },
+  "classificationCoverage": {
+    "ruleIds": [
+      "napi-json-string",
+      "wasm-jsvalue",
+      "typed-self",
+      "typed-versioned-struct"
+    ],
+    "pinnedRows": [
+      {
+        "crate": "omena-napi",
+        "jsName": "buildStyleSourceJson",
+        "signatureIncludes": "napi::Result<String>",
+        "expectedClass": "json-string"
+      },
+      {
+        "crate": "omena-wasm",
+        "jsName": "buildStyleSource",
+        "signatureIncludes": "Result<JsValue, JsValue>",
+        "expectedClass": "jsvalue-any"
+      },
+      {
+        "crate": "omena-napi",
+        "jsName": "buildStyleSourceWithContext",
+        "signatureIncludes": "EngineNapiConsumerBuildSummaryV0Json",
+        "expectedClass": "typed"
+      },
+      {
+        "crate": "omena-wasm",
+        "jsName": "constructor",
+        "signatureIncludes": "pub fn new() -> Self",
+        "expectedClass": "typed"
+      }
+    ],
+    "limitation": "Pinned rows detect classifier-wide drift but cannot detect a rule error confined to an unpinned signature."
   },
   "rows": [
     {

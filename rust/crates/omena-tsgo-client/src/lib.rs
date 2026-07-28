@@ -14,6 +14,28 @@ pub const TSGO_TYPE_FLAGS_UNDEFINED: u64 = 4;
 pub const TSGO_TYPE_FLAGS_NULL: u64 = 8;
 pub const TSGO_TYPE_FLAGS_NULLISH: u64 =
     TSGO_TYPE_FLAGS_ANY | TSGO_TYPE_FLAGS_UNDEFINED | TSGO_TYPE_FLAGS_NULL;
+pub const TSGO_EXACT_DOMAIN_MEMBER_LIMIT_V0: usize = 256;
+pub const TSGO_SPAN_TYPE_FACT_REASON_EXACT_FINITE_DOMAIN_V0: &str = "exactFiniteDomain";
+pub const TSGO_SPAN_TYPE_FACT_REASON_PROJECT_MISS_V0: &str = "projectMiss";
+pub const TSGO_SPAN_TYPE_FACT_REASON_SOURCE_FILE_MISS_V0: &str = "sourceFileMiss";
+pub const TSGO_SPAN_TYPE_FACT_REASON_NODE_SPAN_MISMATCH_V0: &str = "nodeSpanMismatch";
+pub const TSGO_SPAN_TYPE_FACT_REASON_NON_EXACT_DOMAIN_V0: &str = "nonExactDomain";
+pub const TSGO_SPAN_TYPE_FACT_REASON_MISSING_UNION_IDENTITY_V0: &str = "missingUnionIdentity";
+pub const TSGO_SPAN_TYPE_FACT_REASON_INVALID_UNION_MEMBERS_V0: &str = "invalidUnionMembers";
+pub const TSGO_SPAN_TYPE_FACT_REASON_NON_EXACT_UNION_MEMBER_V0: &str = "nonExactUnionMember";
+pub const TSGO_SPAN_TYPE_FACT_REASON_UNION_MEMBER_LIMIT_EXCEEDED_V0: &str =
+    "unionMemberLimitExceeded";
+pub const TSGO_SPAN_TYPE_FACT_REASON_VOCABULARY_V0: [&str; 9] = [
+    TSGO_SPAN_TYPE_FACT_REASON_EXACT_FINITE_DOMAIN_V0,
+    TSGO_SPAN_TYPE_FACT_REASON_PROJECT_MISS_V0,
+    TSGO_SPAN_TYPE_FACT_REASON_SOURCE_FILE_MISS_V0,
+    TSGO_SPAN_TYPE_FACT_REASON_NODE_SPAN_MISMATCH_V0,
+    TSGO_SPAN_TYPE_FACT_REASON_NON_EXACT_DOMAIN_V0,
+    TSGO_SPAN_TYPE_FACT_REASON_MISSING_UNION_IDENTITY_V0,
+    TSGO_SPAN_TYPE_FACT_REASON_INVALID_UNION_MEMBERS_V0,
+    TSGO_SPAN_TYPE_FACT_REASON_NON_EXACT_UNION_MEMBER_V0,
+    TSGO_SPAN_TYPE_FACT_REASON_UNION_MEMBER_LIMIT_EXCEEDED_V0,
+];
 pub const TSGO_TYPE_ORACLE_PROVIDER_ID_V0: &str = "tsgo";
 pub const TSGO_TYPE_ORACLE_PROVIDER_KIND_V0: &str = "type-oracle";
 pub const TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0: &str = "unknown";
@@ -1377,12 +1399,18 @@ where
             .map(|target| {
                 ensure_tsgo_request_not_cancelled(cancellation, "beforeExactSpanTypeFact")?;
                 let Some(Some(project)) = project_by_file.get(target.file_path.as_str()) else {
-                    return Ok(refused_span_type_fact(target, "projectMiss", false, 0, 0));
+                    return Ok(refused_span_type_fact(
+                        target,
+                        TSGO_SPAN_TYPE_FACT_REASON_PROJECT_MISS_V0,
+                        false,
+                        0,
+                        0,
+                    ));
                 };
                 let Some(source_response) = source_by_file.get(target.file_path.as_str()) else {
                     return Ok(refused_span_type_fact(
                         target,
-                        "sourceFileMiss",
+                        TSGO_SPAN_TYPE_FACT_REASON_SOURCE_FILE_MISS_V0,
                         false,
                         0,
                         0,
@@ -1391,7 +1419,7 @@ where
                 let Some(location) = exact_span_node_location(source_response, target) else {
                     return Ok(refused_span_type_fact(
                         target,
-                        "nodeSpanMismatch",
+                        TSGO_SPAN_TYPE_FACT_REASON_NODE_SPAN_MISMATCH_V0,
                         false,
                         0,
                         0,
@@ -1430,12 +1458,18 @@ where
             .and_then(serde_json::Value::as_u64)
             .unwrap_or_default();
         if flags & TSGO_TYPE_FLAGS_UNION == 0 {
-            return Ok(refused_span_type_fact(target, "nonExactDomain", true, 1, 0));
+            return Ok(refused_span_type_fact(
+                target,
+                TSGO_SPAN_TYPE_FACT_REASON_NON_EXACT_DOMAIN_V0,
+                true,
+                1,
+                0,
+            ));
         }
         let Some(type_id) = type_response.get("id").and_then(serde_json::Value::as_str) else {
             return Ok(refused_span_type_fact(
                 target,
-                "missingUnionIdentity",
+                TSGO_SPAN_TYPE_FACT_REASON_MISSING_UNION_IDENTITY_V0,
                 true,
                 0,
                 0,
@@ -1446,12 +1480,21 @@ where
         let Some(members) = members_response.as_array() else {
             return Ok(refused_span_type_fact(
                 target,
-                "invalidUnionMembers",
+                TSGO_SPAN_TYPE_FACT_REASON_INVALID_UNION_MEMBERS_V0,
                 true,
                 0,
                 0,
             ));
         };
+        if members.len() > TSGO_EXACT_DOMAIN_MEMBER_LIMIT_V0 {
+            return Ok(refused_span_type_fact(
+                target,
+                TSGO_SPAN_TYPE_FACT_REASON_UNION_MEMBER_LIMIT_EXCEEDED_V0,
+                true,
+                members.len(),
+                0,
+            ));
+        }
 
         let non_nullish_members = members
             .iter()
@@ -1464,7 +1507,7 @@ where
         if values.is_empty() || values.len() != non_nullish_members.len() {
             return Ok(refused_span_type_fact(
                 target,
-                "nonExactUnionMember",
+                TSGO_SPAN_TYPE_FACT_REASON_NON_EXACT_UNION_MEMBER_V0,
                 true,
                 non_nullish_members.len(),
                 values.len(),
@@ -1618,7 +1661,7 @@ fn resolved_span_type_fact(
     TsgoSpanTypeFactResultEntryV0::resolved(
         target.file_path.clone(),
         target.expression_id.clone(),
-        "exactFiniteDomain",
+        TSGO_SPAN_TYPE_FACT_REASON_EXACT_FINITE_DOMAIN_V0,
         non_nullish_member_count,
         union_tsgo_type(values),
     )
@@ -1910,17 +1953,18 @@ mod tests {
         HEADER_OFFSET_EXTENDED_DATA, HEADER_OFFSET_NODES, HEADER_OFFSET_STRING_TABLE,
         HEADER_OFFSET_STRING_TABLE_OFFSETS, HEADER_SIZE, NODE_LEN, NODE_OFFSET_DATA,
         NODE_OFFSET_END, NODE_OFFSET_KIND, NODE_OFFSET_POS, ProviderUnresolvedDisciplineV0,
-        TSGO_TYPE_FLAGS_ANY, TSGO_TYPE_FLAGS_UNDEFINED, TSGO_TYPE_FLAGS_UNION,
-        TSGO_TYPE_ORACLE_PROVIDER_ID_V0, TSGO_TYPE_ORACLE_PROVIDER_KIND_V0,
-        TSGO_UNKNOWN_PRECISION_PROVENANCE_V0, TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0,
-        TsgoJsonRpcIoErrorV0, TsgoJsonRpcOutboundRequestV0, TsgoJsonRpcProviderErrorV0,
-        TsgoJsonRpcProviderTransportV0, TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0,
-        TsgoProviderRetryPolicyV0, TsgoSpanTypeFactRequestV0, TsgoSpanTypeFactTargetV0,
-        TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0, TsgoTypeFactTargetV0,
-        TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0, build_tsgo_api_args,
-        build_tsgo_process_command, drain_tsgo_json_rpc_frames, encode_tsgo_json_rpc_message,
-        encode_tsgo_json_rpc_request, exact_span_node_location, plan_tsgo_type_fact_collection,
-        read_tsgo_json_rpc_message, reduce_tsgo_type_response,
+        TSGO_EXACT_DOMAIN_MEMBER_LIMIT_V0,
+        TSGO_SPAN_TYPE_FACT_REASON_UNION_MEMBER_LIMIT_EXCEEDED_V0, TSGO_TYPE_FLAGS_ANY,
+        TSGO_TYPE_FLAGS_UNDEFINED, TSGO_TYPE_FLAGS_UNION, TSGO_TYPE_ORACLE_PROVIDER_ID_V0,
+        TSGO_TYPE_ORACLE_PROVIDER_KIND_V0, TSGO_UNKNOWN_PRECISION_PROVENANCE_V0,
+        TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0, TsgoJsonRpcIoErrorV0, TsgoJsonRpcOutboundRequestV0,
+        TsgoJsonRpcProviderErrorV0, TsgoJsonRpcProviderTransportV0, TsgoJsonRpcTypeFactProviderV0,
+        TsgoProcessCommandV0, TsgoProviderRetryPolicyV0, TsgoSpanTypeFactRequestV0,
+        TsgoSpanTypeFactTargetV0, TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0,
+        TsgoTypeFactTargetV0, TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0,
+        build_tsgo_api_args, build_tsgo_process_command, drain_tsgo_json_rpc_frames,
+        encode_tsgo_json_rpc_message, encode_tsgo_json_rpc_request, exact_span_node_location,
+        plan_tsgo_type_fact_collection, read_tsgo_json_rpc_message, reduce_tsgo_type_response,
         summarize_omena_tsgo_client_boundary, summarize_tsgo_json_rpc_transport,
         write_tsgo_json_rpc_request,
     };
@@ -2409,6 +2453,40 @@ mod tests {
         assert_eq!(result.non_nullish_member_count, 2);
         assert_eq!(result.resolved_member_count, 1);
         assert_eq!(result.resolved_type.kind, "unresolvable");
+        Ok(())
+    }
+
+    #[test]
+    fn exact_span_type_resolution_caps_union_fanout() -> Result<(), Box<dyn std::error::Error>> {
+        let target = TsgoSpanTypeFactTargetV0::new(
+            "/repo/src/App.tsx".to_string(),
+            "expr-1".to_string(),
+            14,
+            20,
+        );
+        let members = (0..=TSGO_EXACT_DOMAIN_MEMBER_LIMIT_V0)
+            .map(|index| json!({ "value": format!("tone-{index}") }))
+            .collect::<Vec<_>>();
+        let transport = FakeTsgoTransport::new(vec![serde_json::Value::Array(members)]);
+        let mut provider = TsgoJsonRpcTypeFactProviderV0::new(transport);
+
+        let result = provider.resolve_exact_span_type_response(
+            "/repo",
+            "snapshot-1",
+            &target,
+            &json!({ "id": "union-1", "flags": TSGO_TYPE_FLAGS_UNION }),
+        )?;
+
+        assert_eq!(result.outcome, "refused");
+        assert_eq!(
+            result.reason,
+            TSGO_SPAN_TYPE_FACT_REASON_UNION_MEMBER_LIMIT_EXCEEDED_V0
+        );
+        assert_eq!(
+            result.non_nullish_member_count,
+            TSGO_EXACT_DOMAIN_MEMBER_LIMIT_V0 + 1
+        );
+        assert_eq!(result.resolved_member_count, 0);
         Ok(())
     }
 

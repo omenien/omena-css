@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn css_identifier_safety_matches_shared_cases() -> Result<(), Box<dyn std::error::Error>> {
+    let cases: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../omena-css-identifier-safety-cases.json"
+    ))?;
+    let safe = cases["safe"]
+        .as_array()
+        .ok_or_else(|| std::io::Error::other("safe identifier cases must be an array"))?;
+    let unsafe_cases = cases["unsafe"]
+        .as_array()
+        .ok_or_else(|| std::io::Error::other("unsafe identifier cases must be an array"))?;
+    assert!(!safe.is_empty(), "safe identifier cases must not be empty");
+    assert!(
+        !unsafe_cases.is_empty(),
+        "unsafe identifier cases must not be empty"
+    );
+    for value in safe {
+        let value = value
+            .as_str()
+            .ok_or_else(|| std::io::Error::other("safe identifier case must be a string"))?;
+        assert!(is_safe_css_identifier(value), "expected safe: {value:?}");
+    }
+    for value in unsafe_cases {
+        let value = value
+            .as_str()
+            .ok_or_else(|| std::io::Error::other("unsafe identifier case must be a string"))?;
+        assert!(!is_safe_css_identifier(value), "expected unsafe: {value:?}");
+    }
+    Ok(())
+}
+
+#[test]
 fn builds_target_aware_source_syntax_index_for_css_modules_binding_inputs() {
     let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";
