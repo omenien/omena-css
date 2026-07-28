@@ -313,7 +313,9 @@ jobs:
       #    binaries on this page; the manifest table + SBOM are emitted by gh-release.
       - name: Render canonical release notes
         if: ${{ env.DRY_RUN != 'true' && startsWith(github.ref, 'refs/tags/release-v') }}
-        run: pnpm omena-check run release/release/notes -- --tag "${{ github.ref_name }}" --output release-notes.md
+        run: pnpm omena-check run release/release/notes -- --tag "${RELEASE_TAG}" --output release-notes.md
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
 
       - name: Cut crate-train GitHub release
         if: ${{ env.DRY_RUN != 'true' && startsWith(github.ref, 'refs/tags/release-v') }}
@@ -327,6 +329,7 @@ jobs:
 
       - name: Verify persisted GitHub Release notes
         if: ${{ env.DRY_RUN != 'true' && startsWith(github.ref, 'refs/tags/release-v') }}
-        run: pnpm omena-check run release/release/notes -- verify-github --tag "${{ github.ref_name }}" --file release-notes.md
+        run: pnpm omena-check run release/release/notes -- verify-github --tag "${RELEASE_TAG}" --file release-notes.md
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
