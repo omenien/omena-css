@@ -213,6 +213,7 @@
     "check:rust-transform-winner-equality-audit": "cargo test --manifest-path rust/Cargo.toml -p omena-diff-test winner_equality_audit -- --nocapture",
     "check:rust-omena-plugin-consumption-law": "node --import tsx ./scripts/check-rust-omena-plugin-consumption-law.ts",
     "check:rust-omena-plugin-abi-stability": "node --import tsx ./scripts/check-rust-omena-plugin-abi-stability.ts",
+    "check:rust-omena-tsgo-type-flags-abi": "node --import tsx ./scripts/check-rust-omena-tsgo-type-flags-abi.ts",
     "check:rust-transform-rollback": "node --import tsx ./scripts/check-rust-transform-rollback.ts",
     "check:rust-transform-source-map-integrity": "node --import tsx ./scripts/check-rust-transform-source-map-integrity.ts",
     "check:rust-feature-resolved-product-reachability": "node --import tsx ./scripts/check-rust-feature-resolved-product-reachability.ts",
