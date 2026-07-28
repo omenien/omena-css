@@ -587,6 +587,7 @@ export const DECLARED_CHECK_GATES = [
     tags: ["closure-fast"],
     ciTier: "closure-fast",
     ciGroup: "closure-fast",
+    timeoutMinutes: 20,
     deprecatedAliases: [
       "rust/m1-runtime-query-api-hardening",
       "check:rust-m1-runtime-query-api-hardening",
@@ -600,6 +601,7 @@ export const DECLARED_CHECK_GATES = [
     tags: ["closure-fast"],
     ciTier: "closure-fast",
     ciGroup: "closure-fast",
+    timeoutMinutes: 20,
     deprecatedAliases: [
       "rust/m2-product-facing-capability",
       "check:rust-m2-product-facing-capability",
@@ -613,6 +615,7 @@ export const DECLARED_CHECK_GATES = [
     tags: ["closure-fast"],
     ciTier: "closure-fast",
     ciGroup: "closure-fast",
+    timeoutMinutes: 20,
     deprecatedAliases: [
       "rust/m3-theoretical-moat-generalization",
       "check:rust-m3-theoretical-moat-generalization",
@@ -1269,6 +1272,7 @@ function declaredClosurePackageGate(
     tags: ["closure-fast"],
     ciTier: "closure-fast",
     ciGroup: "closure-fast",
+    timeoutMinutes: 20,
   };
 }
 
@@ -1398,6 +1402,7 @@ function buildDeclaredGate(
     scope: declaration.scope,
     kind: declaration.kind,
     origin: "declared",
+    executor: declaration.command ? "direct" : "dependencies",
     referencedTargets: targetSpecs.map((targetSpec) => targetSpec.target),
     referencedTargetSpecs: targetSpecs,
     referencedScripts: [],
@@ -1419,6 +1424,17 @@ function validateDeclaredShape(
 ): void {
   const hasCommand = (declaration.command?.length ?? 0) > 0;
   const depCount = declaration.deps?.length ?? 0;
+
+  if (
+    declaration.timeoutMinutes !== undefined &&
+    (!Number.isFinite(declaration.timeoutMinutes) || declaration.timeoutMinutes <= 0)
+  ) {
+    diagnostics.push({
+      severity: "error",
+      code: "declared-gate-invalid-timeout",
+      message: `Declared gate "${declaration.id}" timeoutMinutes must be greater than zero.`,
+    });
+  }
 
   if (declaration.packageTarget && declaration.replacesPackageTarget) {
     diagnostics.push({

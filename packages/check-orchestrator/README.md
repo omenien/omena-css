@@ -15,6 +15,7 @@ pnpm omena-check bundle rust/release/bundle
 pnpm omena-check bundle tsgo/release/bundle
 pnpm omena-check bundle release/release/verify
 pnpm omena-check plan release/release/verify
+pnpm omena-check shards rust/closure-fast --json
 pnpm omena-check doctor
 pnpm omena-check surface
 pnpm omena-check inventory --check
@@ -29,6 +30,38 @@ gate IDs instead of chaining legacy `check:*` script names directly. The
 orchestrator layer provides stable gate IDs, grouping, bundle introspection,
 argument forwarding, execution plans, and doctor checks so workflows do not need
 to duplicate every script name.
+
+## Execution model
+
+The manifest assigns one executor to every gate:
+
+- `dependencies` expands scripts made entirely of canonical
+  `omena-check run|bundle` calls into the real gate graph. Shared descendants are
+  executed once per successful run.
+- `direct` runs shell-free Node, Cargo, Git, and Rustup commands without another
+  `pnpm run` process. `&&`-only command sequences retain ordering and stop at the
+  first failure. Package-derived direct commands retain their npm lifecycle
+  environment.
+- `package-script` is the compatibility fallback for commands that use shell
+  features, inline environment assignments, or mixed executors.
+
+Declared `timeoutMinutes` values are enforced across the complete gate, including
+dependency and direct-command sequences. A timeout terminates the process group,
+not only the immediate wrapper process.
+
+`--summary` retains at most 1 MiB of output per gate by default and spills the
+complete stream to `.omena-ci/check-output/` when that limit is exceeded. Override
+the retained budget with `OMENA_CHECK_SUMMARY_MAX_OUTPUT_BYTES`. Summary schema
+version 2 records output bytes, truncation, spill paths, timeout state, and timing.
+CI uploads both the JSON summaries and overflow logs, including hidden paths.
+
+Closure-fast shards keep expensive query API and query core work on separate
+GitHub runners. CI obtains its matrix from `omena-check shards`, so shard names
+have one manifest authority rather than a duplicated YAML list. The recorded
+per-gate durations are the input for future duration-based rebalancing; cache
+hits are intentionally not enabled until gates declare complete file,
+environment, and toolchain inputs.
+
 `doctor` also rejects GitHub workflow calls that bypass `omena-check` for
 manifest-covered package scripts, non-canonical or unknown `omena-check` targets,
 and `bundle` calls pointed at non-bundle gates. It warns on alias chains so

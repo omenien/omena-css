@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildAffectedCheckPlan } from "../affected";
@@ -13,9 +13,10 @@ import {
   runDoctor,
 } from "../manifest/index";
 import type { CheckGate, CheckTargetRef } from "../manifest/index";
-import { resolveShardMembers } from "../manifest/shards";
+import { bundleShardNames, resolveShardMembers } from "../manifest/shards";
 import { CI_PROBE_PROFILES, resolveCiProbeProfile } from "../probes";
 import { pnpmRunCommand } from "./commands";
+import { runCapturedCommand, runLiveCommand, type CapturedCommandResult } from "./execution";
 
 interface ParsedArgs {
   readonly command: string;
@@ -61,7 +62,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   };
 }
 
-function runProbeCommand(parsed: ParsedArgs): void {
+async function runProbeCommand(parsed: ParsedArgs): Promise<void> {
   if (!parsed.target) {
     const profiles = CI_PROBE_PROFILES.map(({ id, target, description, platforms }) => ({
       id,
@@ -96,7 +97,7 @@ function runProbeCommand(parsed: ParsedArgs): void {
     console.log(renderGateCommands(gate, []).map(formatCommandDisplay).join("\n"));
     return;
   }
-  process.exit(executeGate(gate, [], new Set<string>(), new Set<string>()));
+  process.exit(await executeGate(gate, [], new Set<string>(), new Set<string>()));
 }
 
 function printAffectedChecks(parsed: ParsedArgs): void {
@@ -168,6 +169,8 @@ function printList(json: boolean): void {
             scope,
             kind,
             origin,
+            executor,
+            timeoutMinutes,
             referencedScripts,
             referencedTargets,
             referencedTargetSpecs,
@@ -182,6 +185,8 @@ function printList(json: boolean): void {
             scope,
             kind,
             origin,
+            executor,
+            timeoutMinutes,
             referencedScripts,
             referencedTargets,
             referencedTargetSpecs,
@@ -240,7 +245,7 @@ async function runTarget(parsed: ParsedArgs, bundleOnly: boolean): Promise<void>
     return;
   }
 
-  process.exit(executeGate(gate, parsed.extraArgs, new Set<string>(), new Set<string>()));
+  process.exit(await executeGate(gate, parsed.extraArgs, new Set<string>(), new Set<string>()));
 }
 
 interface CheckResult {
@@ -248,6 +253,10 @@ interface CheckResult {
   readonly title: string;
   readonly durationMs: number;
   readonly output: string;
+  readonly outputBytes: number;
+  readonly outputTruncated: boolean;
+  readonly outputPaths: readonly string[];
+  readonly timedOut: boolean;
 }
 
 const useColor = Boolean(process.stdout.isTTY || process.env.FORCE_COLOR) && !process.env.NO_COLOR;
@@ -304,6 +313,10 @@ async function runWithSummary(
   }
 
   const results: CheckResult[] = [];
+  const maxGateOutputBytes = resolvePositiveIntegerEnv(
+    "OMENA_CHECK_SUMMARY_MAX_OUTPUT_BYTES",
+    1_048_576,
+  );
   // Reuse only dependencies from fully successful members so a failed gate is never
   // hidden by the summary runner's cross-member deduplication.
   const completed = new Set<string>();
@@ -315,13 +328,47 @@ async function runWithSummary(
     const start = performance.now();
     let status: "pass" | "fail" = "pass";
     let output = "";
-    for (const command of commands) {
+    let outputBytes = 0;
+    let outputTruncated = false;
+    let timedOut = false;
+    const outputPaths: string[] = [];
+    const memberDeadlineMs = gateDeadlineMs(null, member.timeoutMinutes);
+    const perCommandOutputBytes = Math.max(
+      1,
+      Math.floor(maxGateOutputBytes / Math.max(1, commands.length)),
+    );
+    for (const [commandIndex, command] of commands.entries()) {
+      const runnableCommand = commandWithDeadline(command, memberDeadlineMs);
+      if (!runnableCommand) {
+        output += `\nGate timeout expired before command ${commandIndex + 1} started.\n`;
+        status = "fail";
+        timedOut = true;
+        break;
+      }
       // Summary mode preserves gate order and per-gate command short-circuiting.
       // oxlint-disable-next-line eslint/no-await-in-loop
-      const run = await runCommandWithCapturedOutput(command, childEnv, member.id, isCI);
+      const run = await runCommandWithCapturedOutput(
+        runnableCommand,
+        childEnv,
+        member.id,
+        isCI,
+        perCommandOutputBytes,
+        summaryOutputPath(gate.id, shard, member.id, commandIndex),
+      );
       output += run.output;
+      outputBytes += run.outputBytes;
+      outputTruncated ||= run.outputTruncated;
+      timedOut ||= run.timedOut;
+      if (run.outputPath) {
+        outputPaths.push(path.relative(manifest.rootDir, run.outputPath));
+      }
       if (run.error) {
-        output += `\nFailed to start "${command.display[0]}": ${run.error.message}\n`;
+        output += `\nFailed to start "${runnableCommand.display[0]}": ${run.error.message}\n`;
+        status = "fail";
+        break;
+      }
+      if (run.timedOut) {
+        output += `\nTimed out after ${formatDuration(runnableCommand.timeoutMs ?? 0)}.\n`;
         status = "fail";
         break;
       }
@@ -340,6 +387,10 @@ async function runWithSummary(
       title: member.id,
       durationMs: Math.round(performance.now() - start),
       output,
+      outputBytes,
+      outputTruncated,
+      outputPaths,
+      timedOut,
     };
     results.push(result);
     emitGateOutput(result, isGitHub);
@@ -365,12 +416,6 @@ async function runWithSummary(
   process.exit(failed.length > 0 ? 1 : 0);
 }
 
-interface CapturedCommandResult {
-  readonly code: number | null;
-  readonly error: Error | null;
-  readonly output: string;
-}
-
 type RenderedCommand = ReturnType<typeof renderGateCommands>[number];
 
 function runCommandWithCapturedOutput(
@@ -378,54 +423,33 @@ function runCommandWithCapturedOutput(
   env: NodeJS.ProcessEnv,
   targetId: string,
   emitHeartbeat: boolean,
+  maxOutputBytes: number,
+  spillPath: string,
 ): Promise<CapturedCommandResult> {
-  return new Promise((resolve) => {
-    const startedAt = performance.now();
-    let output = "";
-    let settled = false;
-    const child = spawn(command.executable, command.args, {
-      cwd: manifest.rootDir,
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
-      env,
-    });
+  const startedAt = performance.now();
+  const heartbeatMs = resolvePositiveIntegerEnv("OMENA_CHECK_SUMMARY_HEARTBEAT_MS", 120_000, true);
+  const heartbeat =
+    emitHeartbeat && heartbeatMs > 0
+      ? setInterval(() => {
+          console.log(
+            dim(
+              `summary gate still running: ${targetId} ${formatDuration(
+                performance.now() - startedAt,
+              )}`,
+            ),
+          );
+        }, heartbeatMs)
+      : null;
+  heartbeat?.unref();
 
-    const heartbeat =
-      emitHeartbeat && Number(process.env.OMENA_CHECK_SUMMARY_HEARTBEAT_MS ?? 120000) > 0
-        ? setInterval(
-            () => {
-              console.log(
-                dim(
-                  `summary gate still running: ${targetId} ${formatDuration(
-                    performance.now() - startedAt,
-                  )}`,
-                ),
-              );
-            },
-            Number(process.env.OMENA_CHECK_SUMMARY_HEARTBEAT_MS ?? 120000),
-          )
-        : null;
-    heartbeat?.unref();
-
-    const finish = (result: CapturedCommandResult): void => {
-      if (settled) return;
-      settled = true;
-      if (heartbeat) {
-        clearInterval(heartbeat);
-      }
-      resolve(result);
-    };
-
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      output += String(chunk);
-    });
-    child.stderr?.on("data", (chunk) => {
-      output += String(chunk);
-    });
-    child.once("error", (error) => finish({ code: null, error, output }));
-    child.once("close", (code) => finish({ code, error: null, output }));
+  return runCapturedCommand(command, {
+    cwd: manifest.rootDir,
+    env: { ...env, ...command.envOverrides },
+    ...(command.timeoutMs !== undefined ? { timeoutMs: command.timeoutMs } : {}),
+    maxOutputBytes,
+    spillPath,
+  }).finally(() => {
+    if (heartbeat) clearInterval(heartbeat);
   });
 }
 
@@ -438,6 +462,11 @@ function emitGateOutput(result: CheckResult, isGitHub: boolean): void {
     if (result.output.trim().length > 0) {
       process.stdout.write(result.output.endsWith("\n") ? result.output : `${result.output}\n`);
     }
+    if (result.outputTruncated) {
+      console.log(
+        `Output retained as a bounded tail (${result.outputBytes} bytes total); full log: ${result.outputPaths.join(", ") || "not persisted"}`,
+      );
+    }
     console.log("::endgroup::");
     if (result.status === "fail") {
       console.log(red(`✖ ${result.title} failed`));
@@ -448,6 +477,13 @@ function emitGateOutput(result: CheckResult, isGitHub: boolean): void {
   if (result.status === "fail" && result.output.trim().length > 0) {
     const tail = result.output.trimEnd().split("\n").slice(-40).join("\n");
     process.stdout.write(`${tail}\n`);
+  }
+  if (result.outputTruncated) {
+    console.log(
+      dim(
+        `  output truncated (${result.outputBytes} bytes); ${result.outputPaths.join(", ") || "full log not persisted"}`,
+      ),
+    );
   }
 }
 
@@ -490,7 +526,7 @@ function writeSummaryArtifact(
   }
   mkdirSync(path.dirname(artifactPath), { recursive: true });
   const payload = {
-    schemaVersion: "1",
+    schemaVersion: "2",
     bundle: bundleId,
     shard,
     generatedAt: new Date().toISOString(),
@@ -500,7 +536,17 @@ function writeSummaryArtifact(
     cumulativeGateDurationMs: results.reduce((sum, result) => sum + result.durationMs, 0),
     passedCount: results.filter((result) => result.status === "pass").length,
     failedCount: results.filter((result) => result.status === "fail").length,
-    results: results.map(({ status, title, durationMs }) => ({ status, title, durationMs })),
+    results: results.map(
+      ({ status, title, durationMs, outputBytes, outputTruncated, outputPaths, timedOut }) => ({
+        status,
+        title,
+        durationMs,
+        outputBytes,
+        outputTruncated,
+        outputPaths,
+        timedOut,
+      }),
+    ),
   };
   writeFileSync(artifactPath, `${JSON.stringify(payload, null, 2)}\n`);
 }
@@ -553,6 +599,24 @@ function printPlan(parsed: ParsedArgs): void {
   console.log(renderCheckPlan(plan));
 }
 
+function printShards(parsed: ParsedArgs): void {
+  if (!parsed.target) {
+    fail('Missing bundle target. Run "pnpm omena-check shards <bundle-id>".');
+  }
+  const gate = resolveTarget(parsed.target);
+  const shardNames = bundleShardNames(gate.id);
+  if (shardNames.length === 0) {
+    fail(`Bundle "${gate.id}" has no shard table.`);
+  }
+  if (parsed.json) {
+    console.log(JSON.stringify(shardNames));
+    return;
+  }
+  for (const shardName of shardNames) {
+    console.log(shardName);
+  }
+}
+
 function resolveTarget(target: string) {
   const gate = resolveGateTarget(manifest, target);
   if (!gate) {
@@ -565,14 +629,18 @@ interface RunnableCommand {
   readonly executable: string;
   readonly args: readonly string[];
   readonly display: readonly string[];
+  readonly timeoutMs?: number;
+  readonly envOverrides?: NodeJS.ProcessEnv;
 }
 
-function executeGate(
+async function executeGate(
   gate: CheckGate,
   extraArgs: readonly string[],
   stack: Set<string>,
   completed: Set<string>,
-): number {
+  parentDeadlineMs: number | null = null,
+): Promise<number> {
+  const deadlineMs = gateDeadlineMs(parentDeadlineMs, gate.timeoutMinutes);
   const executionKey = gateExecutionKey(gate, extraArgs);
   if (completed.has(executionKey)) {
     return 0;
@@ -581,30 +649,40 @@ function executeGate(
     fail(`Declared gate dependency cycle reached "${gate.id}".`);
   }
 
-  const commands = gate.commandParts
-    ? [directCommand(gate.commandParts, extraArgs)]
-    : gate.origin === "declared"
-      ? []
-      : [pnpmRunCommand(gate.scriptName, extraArgs)];
+  const commands =
+    gate.executor === "direct"
+      ? directCommandsForGate(gate, extraArgs)
+      : gate.executor === "package-script"
+        ? [withGateTimeout(pnpmRunCommand(gate.scriptName, extraArgs), gate.timeoutMinutes)]
+        : [];
 
   if (commands.length > 0) {
-    const command = commands[0];
-    if (!command) {
-      fail(`Gate "${gate.id}" produced no runnable command.`);
+    for (const baseCommand of commands) {
+      const command = commandWithDeadline(baseCommand, deadlineMs);
+      if (!command) {
+        console.error(`Gate "${gate.id}" exceeded its timeout before the command started.`);
+        return 124;
+      }
+      // Direct sequences preserve shell `&&` semantics without spawning a shell.
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const result = await runLiveCommand(command, {
+        cwd: manifest.rootDir,
+        env: { ...process.env, ...command.envOverrides },
+        ...(command.timeoutMs !== undefined ? { timeoutMs: command.timeoutMs } : {}),
+      });
+      if (result.error) {
+        console.error(`Failed to start "${command.display[0]}": ${result.error.message}`);
+      }
+      if (result.timedOut) {
+        console.error(
+          `Gate "${gate.id}" timed out after ${formatDuration(command.timeoutMs ?? 0)}.`,
+        );
+      }
+      const status = result.code ?? 1;
+      if (status !== 0) return status;
     }
-    const result = spawnSync(command.executable, command.args, {
-      cwd: manifest.rootDir,
-      stdio: "inherit",
-      shell: false,
-    });
-    if (result.error) {
-      console.error(`Failed to start "${command.display[0]}": ${result.error.message}`);
-    }
-    const status = result.status ?? 1;
-    if (status === 0) {
-      completed.add(executionKey);
-    }
-    return status;
+    completed.add(executionKey);
+    return 0;
   }
 
   if (!gate.referencedTargets || gate.referencedTargets.length === 0) {
@@ -619,11 +697,14 @@ function executeGate(
 
   stack.add(gate.id);
   for (const targetSpec of getReferencedTargetSpecs(gate)) {
-    const status = executeGate(
+    // Dependency order is part of the gate contract and failures short-circuit the remaining deps.
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const status = await executeGate(
       resolveTarget(targetSpec.target),
       getDepExtraArgs(gate, targetSpec.args ?? [], extraArgs),
       stack,
       completed,
+      deadlineMs,
     );
     if (status !== 0) {
       stack.delete(gate.id);
@@ -649,14 +730,14 @@ function renderGateCommands(
     fail(`Declared gate dependency cycle reached "${gate.id}".`);
   }
 
-  if (gate.commandParts) {
+  if (gate.executor === "direct") {
     completed.add(executionKey);
-    return [directCommand(gate.commandParts, extraArgs)];
+    return directCommandsForGate(gate, extraArgs);
   }
 
-  if (gate.origin !== "declared") {
+  if (gate.executor === "package-script") {
     completed.add(executionKey);
-    return [pnpmRunCommand(gate.scriptName, extraArgs)];
+    return [withGateTimeout(pnpmRunCommand(gate.scriptName, extraArgs), gate.timeoutMinutes)];
   }
 
   if (gate.kind !== "alias" && extraArgs.length > 0) {
@@ -704,6 +785,8 @@ function getDepExtraArgs(
 function directCommand(
   commandParts: readonly string[],
   extraArgs: readonly string[],
+  timeoutMinutes?: number,
+  envOverrides?: NodeJS.ProcessEnv,
 ): RunnableCommand {
   const [executable, ...args] = commandParts;
   if (!executable) {
@@ -713,7 +796,92 @@ function directCommand(
     executable,
     args: [...args, ...extraArgs],
     display: [executable, ...args, ...extraArgs],
+    ...timeoutFields(timeoutMinutes),
+    ...(envOverrides ? { envOverrides } : {}),
   };
+}
+
+function directCommandsForGate(
+  gate: CheckGate,
+  extraArgs: readonly string[],
+): readonly RunnableCommand[] {
+  const commandSequence = gate.commandSequence ?? (gate.commandParts ? [gate.commandParts] : []);
+  const envOverrides =
+    gate.origin === "package" || gate.origin === "package+declared"
+      ? {
+          npm_lifecycle_event: gate.scriptName,
+          npm_lifecycle_script: gate.command,
+        }
+      : undefined;
+  return commandSequence.map((commandParts, index) =>
+    directCommand(
+      commandParts,
+      index === commandSequence.length - 1 ? extraArgs : [],
+      gate.timeoutMinutes,
+      envOverrides,
+    ),
+  );
+}
+
+function withGateTimeout(command: RunnableCommand, timeoutMinutes?: number): RunnableCommand {
+  return {
+    ...command,
+    ...timeoutFields(timeoutMinutes),
+  };
+}
+
+function timeoutFields(timeoutMinutes?: number): Pick<RunnableCommand, "timeoutMs"> {
+  return timeoutMinutes === undefined
+    ? {}
+    : { timeoutMs: Math.max(1, Math.round(timeoutMinutes * 60_000)) };
+}
+
+function gateDeadlineMs(parentDeadlineMs: number | null, timeoutMinutes?: number): number | null {
+  const ownDeadlineMs =
+    timeoutMinutes === undefined ? null : Date.now() + Math.max(1, timeoutMinutes * 60_000);
+  if (parentDeadlineMs === null) return ownDeadlineMs;
+  if (ownDeadlineMs === null) return parentDeadlineMs;
+  return Math.min(parentDeadlineMs, ownDeadlineMs);
+}
+
+function commandWithDeadline(
+  command: RunnableCommand,
+  deadlineMs: number | null,
+): RunnableCommand | null {
+  if (deadlineMs === null) return command;
+  const remainingMs = Math.floor(deadlineMs - Date.now());
+  if (remainingMs <= 0) return null;
+  return {
+    ...command,
+    timeoutMs:
+      command.timeoutMs === undefined ? remainingMs : Math.min(command.timeoutMs, remainingMs),
+  };
+}
+
+function summaryOutputPath(
+  bundleId: string,
+  shard: string | null,
+  memberId: string,
+  commandIndex: number,
+): string {
+  return path.join(
+    manifest.rootDir,
+    ".omena-ci",
+    "check-output",
+    `${sanitizeArtifactSegment(bundleId)}${shard ? `-${sanitizeArtifactSegment(shard)}` : ""}`,
+    `${sanitizeArtifactSegment(memberId)}-${commandIndex + 1}.log`,
+  );
+}
+
+function resolvePositiveIntegerEnv(name: string, fallback: number, allowZero = false): number {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  const minimum = allowZero ? 0 : 1;
+  if (!Number.isSafeInteger(value) || value < minimum) {
+    fail(`${name} must be an integer greater than or equal to ${minimum}, got "${raw}".`);
+  }
+  return value;
 }
 
 function formatCommandDisplay(command: RunnableCommand): string {
@@ -779,6 +947,7 @@ function printHelp(): void {
   pnpm omena-check run <id-or-script> [--dry] [-- extra args]
   pnpm omena-check bundle <id-or-script> [--dry] [-- extra args]
   pnpm omena-check plan <id-or-script> [--json]
+  pnpm omena-check shards <bundle-id> [--json]
   pnpm omena-check doctor [--json]
   pnpm omena-check surface [--json]
   pnpm omena-check inventory [--check|--write]
@@ -806,6 +975,9 @@ async function dispatch(): Promise<void> {
     case "plan":
       printPlan(parsedArgs);
       break;
+    case "shards":
+      printShards(parsedArgs);
+      break;
     case "doctor":
       runDoctorCommand(parsedArgs.json);
       break;
@@ -816,7 +988,7 @@ async function dispatch(): Promise<void> {
       runInventoryCommand(parsedArgs);
       break;
     case "probe":
-      runProbeCommand(parsedArgs);
+      await runProbeCommand(parsedArgs);
       break;
     case "affected":
       printAffectedChecks(parsedArgs);

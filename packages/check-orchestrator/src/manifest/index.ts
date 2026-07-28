@@ -24,6 +24,7 @@ import type {
   CheckDiagnostic,
   CheckGate,
   CheckManifest,
+  CheckTargetRef,
   DeclaredCheckGateV0,
   RootPackageJson,
 } from "./types";
@@ -39,6 +40,7 @@ export type {
   CheckBundleSurface,
   CheckCiTier,
   CheckDiagnostic,
+  CheckExecutorKind,
   CheckGate,
   CheckGateOrigin,
   CheckManifest,
@@ -61,6 +63,8 @@ export {
 const PACKAGE_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const CHECK_ORCHESTRATOR_TARGET_REF =
   /\bpnpm\s+(?:run\s+)?omena-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
+const DIRECT_PACKAGE_EXECUTABLES = new Set(["cargo", "git", "node", "rustup"]);
+const DIRECT_PACKAGE_TOKEN = /^[A-Za-z0-9_./:@%+,=-]+$/;
 
 export function loadCheckManifest(
   rootDir = findRepoRoot(),
@@ -165,6 +169,10 @@ function buildGate(
   }
 
   const referencedScripts = extractReferencedScripts(command, scripts);
+  const orchestratorDeps = extractPureOrchestratorDeps(command);
+  const directCommandSequence = orchestratorDeps ? null : extractDirectPackageCommands(command);
+  const directCommandParts =
+    directCommandSequence?.length === 1 ? (directCommandSequence[0] ?? null) : null;
 
   const deprecatedBy = getDeprecatedPackageScriptReplacement(scriptName);
 
@@ -175,9 +183,60 @@ function buildGate(
     scope: scope?.id ?? "tooling",
     kind: detectGateKind(scriptName, command, referencedScripts),
     origin: "package",
+    executor: orchestratorDeps
+      ? "dependencies"
+      : directCommandSequence
+        ? "direct"
+        : "package-script",
+    ...(orchestratorDeps
+      ? {
+          referencedTargets: orchestratorDeps.map((targetSpec) => targetSpec.target),
+          referencedTargetSpecs: orchestratorDeps,
+        }
+      : {}),
+    ...(directCommandParts
+      ? { commandParts: directCommandParts }
+      : directCommandSequence
+        ? { commandSequence: directCommandSequence }
+        : {}),
     referencedScripts,
     ...(deprecatedBy ? { deprecatedBy } : {}),
   };
+}
+
+function extractDirectPackageCommands(command: string): readonly (readonly string[])[] | null {
+  const commandSequence = command.split("&&").map((segment) => segment.trim().split(/\s+/));
+  if (commandSequence.length === 0) return null;
+  for (const commandParts of commandSequence) {
+    const executable = commandParts[0];
+    if (
+      !executable ||
+      !DIRECT_PACKAGE_EXECUTABLES.has(executable) ||
+      !commandParts.every((part) => DIRECT_PACKAGE_TOKEN.test(part))
+    ) {
+      return null;
+    }
+  }
+  return commandSequence;
+}
+
+function extractPureOrchestratorDeps(command: string): readonly CheckTargetRef[] | null {
+  const segments = command
+    .split("&&")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (segments.length === 0) return null;
+
+  const targetSpecs: CheckTargetRef[] = [];
+  for (const segment of segments) {
+    const match = /^pnpm\s+(?:run\s+)?omena-check\s+(?:run|bundle)\s+([A-Za-z0-9:_@/.-]+)\s*$/.exec(
+      segment,
+    );
+    const target = match?.[1];
+    if (!target) return null;
+    targetSpecs.push({ target });
+  }
+  return targetSpecs;
 }
 
 function detectGateKind(

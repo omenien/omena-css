@@ -13,6 +13,7 @@ export {
   type CheckBundleSurface,
   type CheckCiTier,
   type CheckDiagnostic,
+  type CheckExecutorKind,
   type CheckGate,
   type CheckGateOrigin,
   type CheckManifest,

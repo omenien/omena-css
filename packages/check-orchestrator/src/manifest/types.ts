@@ -14,6 +14,7 @@ export type CheckScopeId =
 
 export type CheckGateKind = "command" | "gate" | "bundle" | "alias";
 export type CheckGateOrigin = "package" | "declared" | "package+declared";
+export type CheckExecutorKind = "dependencies" | "package-script" | "direct";
 export type CheckCiTier =
   | "verify"
   | "closure-fast"
@@ -63,7 +64,9 @@ export interface CheckGate {
   readonly scope: CheckScopeId;
   readonly kind: CheckGateKind;
   readonly origin: CheckGateOrigin;
+  readonly executor: CheckExecutorKind;
   readonly commandParts?: readonly string[];
+  readonly commandSequence?: readonly (readonly string[])[];
   readonly referencedTargets?: readonly string[];
   readonly referencedTargetSpecs?: readonly CheckTargetRef[];
   readonly referencedScripts: readonly string[];

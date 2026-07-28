@@ -250,6 +250,55 @@ describe("check orchestrator manifest", () => {
     });
   });
 
+  it("expands pure orchestrator wrapper scripts into executable dependencies", () => {
+    expect(resolveGateTarget(manifest, "core/check")).toMatchObject({
+      executor: "dependencies",
+      referencedTargets: [
+        "tooling/tool-pin-coherence",
+        "core/lint",
+        "core/format/check",
+        "core/typecheck",
+      ],
+    });
+    expect(resolveGateTarget(manifest, "rust/omena-query/transform-contract")).toMatchObject({
+      executor: "dependencies",
+      referencedTargets: expect.arrayContaining([
+        "rust/omena-query/transform-plan",
+        "rust/omena-query/transform-execute",
+      ]),
+    });
+    expect(resolveGateTarget(manifest, "rust/omena-query/core-contract")).toMatchObject({
+      executor: "package-script",
+    });
+  });
+
+  it("bypasses pnpm for shell-free package commands", () => {
+    expect(resolveGateTarget(manifest, "rust/omena-query/transform-plan")).toMatchObject({
+      executor: "direct",
+      commandParts: [
+        "node",
+        "--import",
+        "tsx",
+        "./scripts/check-rust-omena-query-transform-plan.ts",
+      ],
+    });
+    expect(resolveGateTarget(manifest, "rust/omena-reactive/contract")).toMatchObject({
+      executor: "direct",
+      commandParts: expect.arrayContaining(["cargo", "test"]),
+    });
+    expect(resolveGateTarget(manifest, "rust/workspace")).toMatchObject({
+      executor: "direct",
+      commandSequence: [
+        expect.arrayContaining(["cargo", "fmt"]),
+        expect.arrayContaining(["cargo", "check"]),
+        expect.arrayContaining(["cargo", "clippy"]),
+      ],
+    });
+    const mixedGate = resolveGateTarget(manifest, "rust/omena-query/core-contract");
+    expect(mixedGate).toMatchObject({ executor: "package-script" });
+    expect(mixedGate?.commandParts).toBeUndefined();
+  });
+
   it("renders the declared closure-fast bundle plan over workflow gate deps", () => {
     const closureFast = resolveGateTarget(manifest, "rust/closure-fast");
     expect(closureFast).toMatchObject({
@@ -666,6 +715,13 @@ describe("check orchestrator manifest", () => {
           command: ["node", "--version"],
           ciTier: "fast" as DeclaredCheckGateV0["ciTier"],
         },
+        {
+          id: "rust/invalid-timeout",
+          kind: "command",
+          scope: "rust",
+          command: ["node", "--version"],
+          timeoutMinutes: 0,
+        },
       ],
       diagnostics,
     );
@@ -676,6 +732,7 @@ describe("check orchestrator manifest", () => {
         expect.objectContaining({ code: "declared-gate-unknown-dep" }),
         expect.objectContaining({ code: "declared-gate-cycle" }),
         expect.objectContaining({ code: "declared-gate-unknown-ci-tier" }),
+        expect.objectContaining({ code: "declared-gate-invalid-timeout" }),
       ]),
     );
   });
@@ -1583,6 +1640,7 @@ function testPackageGate({
     scope: "rust",
     kind: "gate",
     origin: "package",
+    executor: "package-script",
     referencedScripts: [],
   };
 }

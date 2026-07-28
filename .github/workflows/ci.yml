@@ -24,6 +24,8 @@ jobs:
     # omena-ci-required: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      closure-fast-shards: ${{ steps.closure-fast-shards.outputs.matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,6 +33,8 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm omena-check doctor
       - run: pnpm omena-check run tooling/orchestrator-inventory
+      - id: closure-fast-shards
+        run: echo "matrix=$(pnpm --silent omena-check shards rust/closure-fast --json)" >> "$GITHUB_OUTPUT"
 
   verify-core:
     # omena-ci-tier: verify
@@ -482,15 +486,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard:
-          - rest
-          - query-core
-          - query-transform
-          - query-language
-          - diff-core
-          - diff-wpt
-          - diff-sass
-          - semantic-analysis
+        shard: ${{ fromJSON(needs.preflight.outputs.closure-fast-shards) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -515,7 +511,10 @@ jobs:
         if: always()
         with:
           name: closure-fast-summary-${{ matrix.shard }}
-          path: .omena-ci/check-summary-*.json
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: warn
 
