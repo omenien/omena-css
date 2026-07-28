@@ -38,6 +38,11 @@
       "source": "declare const tone: string;\nexport const view = <div className={`theme-${`nested-${tone}`}`} />;\n"
     },
     {
+      "id": "nested-template-const-assertion",
+      "shapeClass": "nestedTemplate",
+      "source": "declare const nestedVariant: string;\nexport const view = <div className={`${`nested-${nestedVariant}` as const}`} />;\n"
+    },
+    {
       "id": "multiple-interpolations",
       "shapeClass": "multiInterpolation",
       "source": "declare const left: string;\ndeclare const right: string;\nexport const view = <div className={`theme-${left}-${right}`} />;\n"

@@ -1,4 +1,11 @@
 use super::*;
+use crate::source_type_facts::{
+    SOURCE_TYPE_FACT_OUTCOME_NEVER_ATTEMPTED, SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED,
+    SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED,
+};
+use omena_query::{
+    OmenaQuerySourceTypeFactLexicalDispositionV0, OmenaQueryStyleResolutionInputsV0,
+};
 
 #[test]
 fn explain_hover_trace_reports_style_selector_definition() {
@@ -286,6 +293,95 @@ export const view = (variant: string) =>
             "outcome": "unavailable",
             "reason": "projectMiss",
             "skippedTargetCount": 0,
+        })),
+    );
+    Ok(())
+}
+
+#[test]
+fn explain_hover_trace_reports_provider_tier_before_it_is_requested() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export const view = (variant: string) =>
+  <div className={cx(`theme-${variant}`)} />;
+"#;
+    let document = lsp_text_document_state(
+        source_uri.to_string(),
+        Some("file:///workspace-a".to_string()),
+        "typescriptreact".to_string(),
+        1,
+        source_text.to_string(),
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    );
+    let attempt = document
+        .source_type_fact_lexical_attempts
+        .iter()
+        .find(|attempt| {
+            attempt.lexical_disposition
+                == OmenaQuerySourceTypeFactLexicalDispositionV0::TypeProviderCandidate
+        })
+        .ok_or_else(|| std::io::Error::other("fixture should request the provider tier"))?;
+    let trace = source_type_fact_tier_trace(
+        &document,
+        parser_position_for_byte_offset(source_text, attempt.byte_span.start),
+    );
+    assert_eq!(
+        trace,
+        Some(json!({
+            "attempted": false,
+            "outcome": SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED,
+            "reason": SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED,
+            "shapeClass": "identifierPath",
+            "lexicalDisposition": "typeProviderCandidate",
+            "skippedTargetCount": 0,
+        })),
+    );
+    Ok(())
+}
+
+#[test]
+fn explain_hover_trace_preserves_sidecar_skipped_state_without_attempt_records() -> TestResult {
+    let source_uri = "file:///workspace-a/src/App.tsx";
+    let source_text = r#"declare function resolveTheme(): string;
+export const view = <div className={resolveTheme()} />;
+"#;
+    let parsed = lsp_text_document_state(
+        source_uri.to_string(),
+        Some("file:///workspace-a".to_string()),
+        "typescriptreact".to_string(),
+        1,
+        source_text.to_string(),
+        &OmenaQueryStyleResolutionInputsV0::default(),
+    );
+    let skipped = parsed
+        .source_syntax_index
+        .type_fact_target_skipped
+        .first()
+        .ok_or_else(|| std::io::Error::other("fixture should contain a skipped fact"))?
+        .clone();
+    let restored = lsp_text_document_state_with_source_syntax_index(
+        source_uri.to_string(),
+        Some("file:///workspace-a".to_string()),
+        "typescriptreact".to_string(),
+        1,
+        source_text.to_string(),
+        parsed.source_syntax_index,
+        Vec::new(),
+        false,
+    );
+    let trace = source_type_fact_tier_trace(
+        &restored,
+        parser_position_for_byte_offset(source_text, skipped.byte_span.start),
+    );
+    assert_eq!(
+        trace,
+        Some(json!({
+            "attempted": false,
+            "outcome": SOURCE_TYPE_FACT_OUTCOME_NEVER_ATTEMPTED,
+            "reason": skipped.reason,
+            "skippedTargetCount": 1,
         })),
     );
     Ok(())

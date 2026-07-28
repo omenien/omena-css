@@ -5,7 +5,8 @@
   "authorities": {
     "syntacticPopulation": "typescript-ast",
     "recordedDisposition": "omena-source-frontend-rust-capture",
-    "joinKey": "source-path-and-byte-span"
+    "joinKey": "source-path-and-byte-span",
+    "attemptJoin": "exact-span-or-same-start-covering-span"
   },
   "corpus": {
     "manifestPath": "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
@@ -25,8 +26,8 @@
   },
   "shapeFixtures": {
     "path": "rust/crates/omena-bridge/tests/fixtures/source-type-fact-expression-shapes.json",
-    "sha256": "5eaa4ed9ace4ac49d68ee971e3b46c51c82ee12582065cb30c5c84fc3de78d6b",
-    "siteCount": 9
+    "sha256": "aeb9442cd6067a4b7892e5e58460d4b8d9ab59dc69492a38ef146c17266c1270",
+    "siteCount": 10
   },
   "shapeCounts": {
     "identifierPath": 35,
@@ -35,7 +36,7 @@
     "arithmetic": 1,
     "logicalOperator": 1,
     "computedNonLiteral": 1,
-    "nestedTemplate": 1,
+    "nestedTemplate": 2,
     "multiInterpolation": 1,
     "other": 1
   },
@@ -46,15 +47,22 @@
     "arithmetic": 1,
     "logicalOperator": 1,
     "computedNonLiteral": 1,
-    "nestedTemplate": 1,
+    "nestedTemplate": 2,
     "multiInterpolation": 1,
     "other": 1
   },
   "dispositionCounts": {
     "target": 35,
-    "skipped": 8,
+    "skipped": 9,
     "unrecorded": 0
   },
+  "structuralEntailments": [
+    {
+      "disposition": "unrecorded",
+      "owner": "omena-bridge-source-type-fact-collection",
+      "reentry": "className-site-bypasses-target-and-skipped-recording"
+    }
+  ],
   "sites": [
     {
       "population": "committed-corpus",
@@ -566,6 +574,20 @@
       "disposition": "skipped",
       "expressionId": "omena-bridge-source-type-fact-skipped:93:117",
       "reason": "unsupportedMultipleTemplateInterpolations"
+    },
+    {
+      "population": "shape-fixture",
+      "sourcePath": "source-type-fact-shapes/nested-template-const-assertion.tsx",
+      "byteSpan": {
+        "start": 76,
+        "end": 101
+      },
+      "shapeClass": "nestedTemplate",
+      "lexicalDisposition": "unresolved",
+      "disposition": "skipped",
+      "expressionId": "omena-bridge-source-type-fact-skipped:76:101",
+      "reason": "unsupportedNestedTemplateExpression",
+      "attemptSpanRelation": "coversSite"
     },
     {
       "population": "shape-fixture",

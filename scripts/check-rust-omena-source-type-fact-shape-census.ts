@@ -105,6 +105,7 @@ interface CensusSite {
   readonly lexicalDisposition: RustAttemptCapture["lexicalDisposition"];
   readonly expressionId?: string;
   readonly reason?: string;
+  readonly attemptSpanRelation?: "coversSite";
 }
 
 interface ShapeDispositionCensus {
@@ -115,6 +116,7 @@ interface ShapeDispositionCensus {
     readonly syntacticPopulation: "typescript-ast";
     readonly recordedDisposition: "omena-source-frontend-rust-capture";
     readonly joinKey: "source-path-and-byte-span";
+    readonly attemptJoin: "exact-span-or-same-start-covering-span";
   };
   readonly corpus: {
     readonly manifestPath: string;
@@ -136,6 +138,11 @@ interface ShapeDispositionCensus {
   readonly shapeCounts: Readonly<Record<ShapeClass, number>>;
   readonly fixtureShapeCounts: Readonly<Record<ShapeClass, number>>;
   readonly dispositionCounts: Readonly<Record<Disposition, number>>;
+  readonly structuralEntailments: readonly {
+    readonly disposition: "unrecorded";
+    readonly owner: string;
+    readonly reentry: string;
+  }[];
   readonly sites: readonly CensusSite[];
 }
 
@@ -289,6 +296,7 @@ const census: ShapeDispositionCensus = {
     syntacticPopulation: "typescript-ast",
     recordedDisposition: "omena-source-frontend-rust-capture",
     joinKey: "source-path-and-byte-span",
+    attemptJoin: "exact-span-or-same-start-covering-span",
   },
   corpus: {
     manifestPath: manifestRelativePath,
@@ -310,16 +318,21 @@ const census: ShapeDispositionCensus = {
   shapeCounts,
   fixtureShapeCounts,
   dispositionCounts,
+  structuralEntailments: [
+    {
+      disposition: "unrecorded",
+      owner: "omena-bridge-source-type-fact-collection",
+      reentry: "className-site-bypasses-target-and-skipped-recording",
+    },
+  ],
   sites: censusSites,
 };
 
-if (requireRecorded) {
-  assert.equal(
-    census.dispositionCounts.unrecorded,
-    0,
-    "every className expression site must have a recorded index disposition",
-  );
-}
+assert.equal(
+  census.dispositionCounts.unrecorded,
+  0,
+  "every className expression site must have a recorded index disposition",
+);
 
 const serialized = `${JSON.stringify(census, null, 2)}\n`;
 const censusPath = path.join(repoRoot, censusRelativePath);
@@ -341,6 +354,7 @@ console.log(
       corpus: census.corpus,
       shapeCounts: census.shapeCounts,
       dispositionCounts: census.dispositionCounts,
+      strictRecordingRequested: requireRecorded,
     },
     null,
     2,
@@ -789,9 +803,17 @@ function joinAuthorities(
       const skipped = capture.syntax.typeFactTargetSkipped.filter((fact) =>
         spansEqual(fact.byteSpan, syntaxSite.byteSpan),
       );
-      const attempts = capture.syntax.typeFactAttempts.filter((fact) =>
+      const exactAttempts = capture.syntax.typeFactAttempts.filter((fact) =>
         spansEqual(fact.byteSpan, syntaxSite.byteSpan),
       );
+      const attempts =
+        exactAttempts.length > 0
+          ? exactAttempts
+          : capture.syntax.typeFactAttempts.filter(
+              (fact) =>
+                fact.byteSpan.start === syntaxSite.byteSpan.start &&
+                fact.byteSpan.end >= syntaxSite.byteSpan.end,
+            );
       assert.ok(
         targets.length <= 1 && skipped.length <= 1 && targets.length + skipped.length <= 1,
         `${input.id}:${syntaxSite.byteSpan.start}-${syntaxSite.byteSpan.end} has conflicting index dispositions`,
@@ -819,6 +841,7 @@ function joinAuthorities(
           targets.length === 1 ? "target" : skipped.length === 1 ? "skipped" : "unrecorded",
         ...(fact === undefined ? {} : { expressionId: fact.expressionId }),
         ...(fact?.reason === undefined ? {} : { reason: fact.reason }),
+        ...(exactAttempts.length > 0 ? {} : { attemptSpanRelation: "coversSite" }),
       });
     }
   }

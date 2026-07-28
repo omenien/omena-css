@@ -41,15 +41,19 @@ const TSGO_PROVIDER_UNRESOLVABLE: &str = "unresolvable";
 const SOURCE_TYPE_FACT_TIER_LEXICAL: &str = "lexical";
 const SOURCE_TYPE_FACT_TIER_TSGO: &str = "tsgo";
 const SOURCE_TYPE_FACT_OUTCOME_RESOLVED: &str = "resolved";
-const SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED: &str = "notAttempted";
+pub(crate) const SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED: &str = "notAttempted";
+pub(crate) const SOURCE_TYPE_FACT_OUTCOME_NEVER_ATTEMPTED: &str = "neverAttempted";
 const SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE: &str = "unavailable";
 const SOURCE_TYPE_FACT_OUTCOME_UNRESOLVED: &str = "unresolved";
 const SOURCE_TYPE_FACT_OUTCOME_REFUSED: &str = "refused";
 const SOURCE_TYPE_FACT_REASON_FINITE_EXACT_DOMAIN: &str = "finiteExactDomain";
-const SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED: &str = "providerNotRequested";
+pub(crate) const SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED: &str = "providerNotRequested";
 const SOURCE_TYPE_FACT_REASON_NON_EXACT_DOMAIN: &str = "nonExactDomain";
 const SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER: &str = "unsafeCssIdentifier";
 
+// Parser-built documents pair every lexical site with an initial tier attempt.
+// Sidecar reconstruction deliberately accepts a skipped fact without its
+// attempt record, so hover traces retain a distinct never-attempted state.
 pub(crate) fn initial_source_type_fact_tier_attempts(
     lexical_attempts: &[SourceTypeFactLexicalAttempt],
 ) -> Vec<LspSourceTypeFactTierAttemptV0> {

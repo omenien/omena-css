@@ -1109,7 +1109,8 @@ fn source_type_fact_tier_trace(
         }
         return Some(json!({
             "attempted": tier_attempt.tier == "tsgo"
-                && tier_attempt.outcome != "notAttempted",
+                && tier_attempt.outcome
+                    != source_type_facts::SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED,
             "outcome": if tier_attempt.tier == "lexical"
                 && tier_attempt.outcome == "resolved"
             {
@@ -1132,7 +1133,7 @@ fn source_type_fact_tier_trace(
     {
         return Some(json!({
             "attempted": false,
-            "outcome": "neverAttempted",
+            "outcome": source_type_facts::SOURCE_TYPE_FACT_OUTCOME_NEVER_ATTEMPTED,
             "reason": fact.reason,
             "skippedTargetCount": skipped_count,
         }));

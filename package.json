@@ -214,7 +214,7 @@
     "check:rust-omena-plugin-consumption-law": "node --import tsx ./scripts/check-rust-omena-plugin-consumption-law.ts",
     "check:rust-omena-plugin-abi-stability": "node --import tsx ./scripts/check-rust-omena-plugin-abi-stability.ts",
     "check:rust-omena-tsgo-type-flags-abi": "node --import tsx ./scripts/check-rust-omena-tsgo-type-flags-abi.ts",
-    "check:rust-omena-source-type-fact-shape-census": "node --import tsx ./scripts/check-rust-omena-source-type-fact-shape-census.ts",
+    "check:rust-omena-source-type-fact-shape-census": "node --import tsx ./scripts/check-rust-omena-source-type-fact-shape-census.ts --assert-all-recorded",
     "check:rust-transform-rollback": "node --import tsx ./scripts/check-rust-transform-rollback.ts",
     "check:rust-transform-source-map-integrity": "node --import tsx ./scripts/check-rust-transform-source-map-integrity.ts",
     "check:rust-feature-resolved-product-reachability": "node --import tsx ./scripts/check-rust-feature-resolved-product-reachability.ts",
