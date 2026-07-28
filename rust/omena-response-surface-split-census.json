@@ -925,7 +925,7 @@
       "crate": "omena-bridge",
       "typeName": "CodeIdentifier",
       "sourcePath": "rust/crates/omena-bridge/src/source_syntax.rs",
-      "line": 5976
+      "line": 6021
     },
     {
       "crate": "omena-bridge",

@@ -1339,6 +1339,39 @@ fn records_one_lexical_attempt_for_every_expression_shape() -> Result<(), String
 }
 
 #[test]
+fn records_const_asserted_nested_template_as_the_exact_attempt_span() {
+    let source = r#"declare const nestedVariant:
+  | "small-soft"
+  | "small-strong"
+  | "large-soft"
+  | "large-strong";
+export const view = <div className={`${`nested-${nestedVariant}` as const}`} />;
+"#;
+    let result = summarize_omena_bridge_source_syntax_index_with_type_fact_attempts(
+        source,
+        Vec::new(),
+        Vec::new(),
+    );
+
+    assert_eq!(result.type_fact_attempts.len(), 1);
+    let attempt = &result.type_fact_attempts[0];
+    assert_eq!(
+        attempt.shape_class,
+        SourceTypeFactExpressionShapeV0::NestedTemplate
+    );
+    assert_eq!(
+        &source[attempt.byte_span.start..attempt.byte_span.end],
+        "`nested-${nestedVariant}` as const"
+    );
+    assert_eq!(result.source_syntax_index.type_fact_target_skipped.len(), 1);
+    let skipped = &result.source_syntax_index.type_fact_target_skipped[0];
+    assert_eq!(
+        &source[skipped.byte_span.start..skipped.byte_span.end],
+        "`nested-${nestedVariant}`"
+    );
+}
+
+#[test]
 fn narrows_finite_conditional_template_interpolations_without_a_type_provider() {
     let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";

@@ -12,6 +12,7 @@ use omena_query::{
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     OmenaQuerySourceSelectorReferenceSurfaceV0 as SourceSelectorReferenceSurface,
+    OmenaQuerySourceTypeFactExpressionShapeV0 as SourceTypeFactExpressionShape,
     OmenaQuerySourceTypeFactLexicalAttemptV0 as SourceTypeFactLexicalAttempt,
     OmenaQuerySourceTypeFactLexicalDispositionV0 as SourceTypeFactLexicalDisposition,
     OmenaQuerySourceTypeFactProviderUnavailableFactV0 as SourceTypeFactProviderUnavailableFact,
@@ -21,7 +22,8 @@ use omena_query::{
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
 use omena_tsgo_client::{
-    TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0, TsgoTypeFactRequestV0,
+    TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0, TsgoSpanTypeFactRequestV0,
+    TsgoSpanTypeFactResultEntryV0, TsgoSpanTypeFactTargetV0, TsgoTypeFactRequestV0,
     TsgoTypeFactResultEntryV0, TsgoTypeFactTargetV0, build_tsgo_process_command,
 };
 use serde_json::json;
@@ -42,9 +44,11 @@ const SOURCE_TYPE_FACT_OUTCOME_RESOLVED: &str = "resolved";
 const SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED: &str = "notAttempted";
 const SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE: &str = "unavailable";
 const SOURCE_TYPE_FACT_OUTCOME_UNRESOLVED: &str = "unresolved";
+const SOURCE_TYPE_FACT_OUTCOME_REFUSED: &str = "refused";
 const SOURCE_TYPE_FACT_REASON_FINITE_EXACT_DOMAIN: &str = "finiteExactDomain";
 const SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED: &str = "providerNotRequested";
 const SOURCE_TYPE_FACT_REASON_NON_EXACT_DOMAIN: &str = "nonExactDomain";
+const SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER: &str = "unsafeCssIdentifier";
 
 pub(crate) fn initial_source_type_fact_tier_attempts(
     lexical_attempts: &[SourceTypeFactLexicalAttempt],
@@ -95,53 +99,43 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
         return;
     }
     let type_fact_targets = document.source_syntax_index.type_fact_targets.clone();
-    if type_fact_targets.is_empty() {
+    let span_type_fact_targets = span_source_type_fact_targets(&document);
+    if type_fact_targets.is_empty() && span_type_fact_targets.is_empty() {
         return;
     }
-    let Some(request) =
-        tsgo_type_fact_request_for_document(&document, type_fact_targets.as_slice())
-    else {
+    let Some((request, span_request)) = tsgo_type_fact_requests_for_document(
+        &document,
+        type_fact_targets.as_slice(),
+        span_type_fact_targets.as_slice(),
+    ) else {
+        let mut all_targets = type_fact_targets.clone();
+        all_targets.extend(span_type_fact_targets);
         replace_tsgo_provider_unavailable_for_document(
             state,
             uri,
-            type_fact_targets.as_slice(),
+            all_targets.as_slice(),
             TSGO_PROVIDER_PROJECT_MISS,
         );
         return;
     };
     let cache_key =
         source_type_fact_cache_key(state, &document, &request, type_fact_targets.as_slice());
-    if let Some(entries) = cache_key
-        .as_ref()
-        .and_then(|key| state.source_type_fact_cache.get(key))
-        .cloned()
+    let cached_entries = cached_source_type_fact_entries(state, &document, cache_key.as_deref());
+    if span_request.targets.is_empty()
+        && let Some(entries) = cached_entries.as_ref()
     {
-        apply_source_type_fact_results_to_document(state, uri, entries.as_slice());
-        return;
-    }
-    if let Some((cache_key, entries)) = cache_key.as_ref().and_then(|key| {
-        load_source_type_fact_sidecar(
-            state,
-            document.workspace_folder_uri.as_deref(),
-            document.uri.as_str(),
-            key,
-        )
-        .map(|entries| (key.clone(), entries))
-    }) {
-        state
-            .source_type_fact_cache
-            .insert(cache_key, entries.clone());
-        trim_source_type_fact_cache(&mut state.source_type_fact_cache);
         apply_source_type_fact_results_to_document(state, uri, entries.as_slice());
         return;
     }
 
     let Some(tsgo_command) = tsgo_process_command_for_workspace(request.workspace_root.as_str())
     else {
-        replace_tsgo_provider_unavailable_for_document(
+        apply_tsgo_provider_unavailable_with_cached_legacy(
             state,
             uri,
             type_fact_targets.as_slice(),
+            span_type_fact_targets.as_slice(),
+            cached_entries.as_deref(),
             TSGO_PROVIDER_NO_TRANSPORT,
         );
         return;
@@ -155,10 +149,12 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
         .ensure_workspace_process(config)
         .is_err()
     {
-        replace_tsgo_provider_unavailable_for_document(
+        apply_tsgo_provider_unavailable_with_cached_legacy(
             state,
             uri,
             type_fact_targets.as_slice(),
+            span_type_fact_targets.as_slice(),
+            cached_entries.as_deref(),
             TSGO_PROVIDER_PROCESS_UNAVAILABLE,
         );
         return;
@@ -166,13 +162,24 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
 
     let pool = std::mem::take(&mut state.tsgo_workspace_process_pool);
     let mut provider = TsgoJsonRpcTypeFactProviderV0::new(pool);
-    let entries = provider.collect_type_facts(&request).ok();
+    let result = if span_request.targets.is_empty() {
+        provider
+            .collect_type_facts(&request)
+            .map(|entries| (entries, Vec::new()))
+    } else {
+        provider
+            .collect_type_facts_with_span_targets(&request, &span_request)
+            .map(|result| (result.type_fact_entries, result.span_type_fact_entries))
+    }
+    .ok();
     state.tsgo_workspace_process_pool = provider.into_transport();
-    let Some(entries) = entries else {
-        replace_tsgo_provider_unavailable_for_document(
+    let Some((entries, span_entries)) = result else {
+        apply_tsgo_provider_unavailable_with_cached_legacy(
             state,
             uri,
             type_fact_targets.as_slice(),
+            span_type_fact_targets.as_slice(),
+            cached_entries.as_deref(),
             TSGO_PROVIDER_REQUEST_FAILED,
         );
         return;
@@ -190,7 +197,93 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
             .insert(cache_key, entries.clone());
         trim_source_type_fact_cache(&mut state.source_type_fact_cache);
     }
-    apply_source_type_fact_results_to_document(state, uri, entries.as_slice());
+    apply_source_type_fact_results_to_document_with_span(
+        state,
+        uri,
+        entries.as_slice(),
+        span_entries.as_slice(),
+        span_type_fact_targets.as_slice(),
+    );
+}
+
+fn cached_source_type_fact_entries(
+    state: &mut LspShellState,
+    document: &LspTextDocumentState,
+    cache_key: Option<&str>,
+) -> Option<Vec<TsgoTypeFactResultEntryV0>> {
+    let cache_key = cache_key?;
+    if let Some(entries) = state.source_type_fact_cache.get(cache_key).cloned() {
+        return Some(entries);
+    }
+    let entries = load_source_type_fact_sidecar(
+        state,
+        document.workspace_folder_uri.as_deref(),
+        document.uri.as_str(),
+        cache_key,
+    )?;
+    state
+        .source_type_fact_cache
+        .insert(cache_key.to_string(), entries.clone());
+    trim_source_type_fact_cache(&mut state.source_type_fact_cache);
+    Some(entries)
+}
+
+fn apply_tsgo_provider_unavailable_with_cached_legacy(
+    state: &mut LspShellState,
+    uri: &str,
+    legacy_targets: &[SourceTypeFactTarget],
+    span_targets: &[SourceTypeFactTarget],
+    cached_entries: Option<&[TsgoTypeFactResultEntryV0]>,
+    reason: &'static str,
+) {
+    let Some(cached_entries) = cached_entries.filter(|_| !span_targets.is_empty()) else {
+        let mut all_targets = legacy_targets.to_vec();
+        all_targets.extend_from_slice(span_targets);
+        replace_tsgo_provider_unavailable_for_document(state, uri, all_targets.as_slice(), reason);
+        return;
+    };
+
+    apply_source_type_fact_results_to_document_with_span(
+        state,
+        uri,
+        cached_entries,
+        &[],
+        span_targets,
+    );
+    let span_expression_ids = span_targets
+        .iter()
+        .map(|target| target.expression_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let Some(document) = state.document_mut(uri) else {
+        return;
+    };
+    for attempt in &mut document.source_type_fact_tier_attempts {
+        if span_expression_ids.contains(attempt.expression_id.as_str()) {
+            attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE;
+            attempt.reason = Some(reason);
+        }
+    }
+    document
+        .source_syntax_index
+        .type_fact_provider_unavailable
+        .retain(|fact| {
+            fact.provider_id != TSGO_PROVIDER_ID
+                || !span_expression_ids.contains(fact.expression_id.as_str())
+        });
+    document
+        .source_syntax_index
+        .type_fact_provider_unavailable
+        .extend(
+            span_targets
+                .iter()
+                .map(|target| SourceTypeFactProviderUnavailableFact {
+                    byte_span: target.byte_span,
+                    expression_id: target.expression_id.clone(),
+                    target_style_uri: target.target_style_uri.clone(),
+                    provider_id: TSGO_PROVIDER_ID,
+                    reason,
+                }),
+        );
 }
 
 fn source_type_fact_cache_key(
@@ -274,10 +367,96 @@ fn trim_source_type_fact_cache(cache: &mut BTreeMap<String, Vec<TsgoTypeFactResu
     }
 }
 
-fn tsgo_type_fact_request_for_document(
+fn span_source_type_fact_targets(document: &LspTextDocumentState) -> Vec<SourceTypeFactTarget> {
+    document
+        .source_type_fact_lexical_attempts
+        .iter()
+        .filter(|attempt| {
+            attempt.lexical_disposition == SourceTypeFactLexicalDisposition::Unresolved
+                && span_type_fact_shape_is_supported(attempt.shape_class)
+        })
+        .filter_map(|attempt| {
+            let (prefix, suffix) =
+                span_type_fact_template_affixes(document.text.as_str(), attempt.byte_span)?;
+            Some(SourceTypeFactTarget {
+                byte_span: attempt.byte_span,
+                expression_id: attempt.expression_id.clone(),
+                target_style_uri: attempt.target_style_uri.clone(),
+                prefix,
+                suffix,
+            })
+        })
+        .collect()
+}
+
+fn span_type_fact_shape_is_supported(shape: SourceTypeFactExpressionShape) -> bool {
+    matches!(
+        shape,
+        SourceTypeFactExpressionShape::Call
+            | SourceTypeFactExpressionShape::Arithmetic
+            | SourceTypeFactExpressionShape::LogicalOperator
+            | SourceTypeFactExpressionShape::ComputedNonLiteral
+            | SourceTypeFactExpressionShape::NestedTemplate
+    )
+}
+
+fn span_type_fact_template_affixes(
+    source: &str,
+    expression_span: ParserByteSpanV0,
+) -> Option<(String, String)> {
+    let before_expression = source.get(..expression_span.start)?;
+    let Some(interpolation_start) = before_expression.rfind("${") else {
+        return Some((String::new(), String::new()));
+    };
+    let before_in_interpolation = source.get(interpolation_start + 2..expression_span.start)?;
+    if !before_in_interpolation.chars().all(char::is_whitespace) {
+        // A completed earlier template is unrelated to this expression. An
+        // active wrapper is ambiguous, so retain the lexical prefix instead.
+        return if before_in_interpolation.contains(['}', '`']) {
+            Some((String::new(), String::new()))
+        } else {
+            None
+        };
+    }
+
+    let after_expression = source.get(expression_span.end..)?;
+    let relative_interpolation_end = after_expression.find('}')?;
+    let interpolation_end = expression_span.end + relative_interpolation_end;
+    if !source
+        .get(expression_span.end..interpolation_end)?
+        .chars()
+        .all(char::is_whitespace)
+    {
+        return None;
+    }
+
+    let prefix_start = source
+        .get(..interpolation_start)?
+        .char_indices()
+        .rev()
+        .take_while(|(_, character)| is_css_identifier_continue(*character))
+        .last()
+        .map(|(index, _)| index)
+        .unwrap_or(interpolation_start);
+    let suffix_start = interpolation_end + 1;
+    let suffix_end = source
+        .get(suffix_start..)?
+        .char_indices()
+        .take_while(|(_, character)| is_css_identifier_continue(*character))
+        .last()
+        .map(|(index, character)| suffix_start + index + character.len_utf8())
+        .unwrap_or(suffix_start);
+    Some((
+        source.get(prefix_start..interpolation_start)?.to_string(),
+        source.get(suffix_start..suffix_end)?.to_string(),
+    ))
+}
+
+fn tsgo_type_fact_requests_for_document(
     document: &LspTextDocumentState,
     type_fact_targets: &[SourceTypeFactTarget],
-) -> Option<TsgoTypeFactRequestV0> {
+    span_type_fact_targets: &[SourceTypeFactTarget],
+) -> Option<(TsgoTypeFactRequestV0, TsgoSpanTypeFactRequestV0)> {
     let file_path = file_uri_to_path(document.uri.as_str())?;
     let workspace_root = document
         .workspace_folder_uri
@@ -298,14 +477,43 @@ fn tsgo_type_fact_request_for_document(
             })
         })
         .collect::<Vec<_>>();
-    if targets.is_empty() {
+    let span_targets = span_type_fact_targets
+        .iter()
+        .filter_map(|target| {
+            let start_position =
+                utf16_position_for_byte_offset(document.text.as_str(), target.byte_span.start)?;
+            let end_position =
+                utf16_position_for_byte_offset(document.text.as_str(), target.byte_span.end)?;
+            Some(TsgoSpanTypeFactTargetV0::new(
+                file_path.clone(),
+                target.expression_id.clone(),
+                start_position,
+                end_position,
+            ))
+        })
+        .collect::<Vec<_>>();
+    let workspace_root = workspace_root.to_string_lossy().to_string();
+    let config_path = config_path.to_string_lossy().to_string();
+    Some((
+        TsgoTypeFactRequestV0 {
+            workspace_root: workspace_root.clone(),
+            config_path: config_path.clone(),
+            targets,
+        },
+        TsgoSpanTypeFactRequestV0::new(workspace_root, config_path, span_targets),
+    ))
+}
+
+#[cfg(test)]
+fn tsgo_type_fact_request_for_document(
+    document: &LspTextDocumentState,
+    type_fact_targets: &[SourceTypeFactTarget],
+) -> Option<TsgoTypeFactRequestV0> {
+    let (request, _) = tsgo_type_fact_requests_for_document(document, type_fact_targets, &[])?;
+    if request.targets.is_empty() {
         return None;
     }
-    Some(TsgoTypeFactRequestV0 {
-        workspace_root: workspace_root.to_string_lossy().to_string(),
-        config_path: config_path.to_string_lossy().to_string(),
-        targets,
-    })
+    Some(request)
 }
 
 pub(crate) fn apply_source_type_fact_results_to_document(
@@ -313,10 +521,33 @@ pub(crate) fn apply_source_type_fact_results_to_document(
     uri: &str,
     entries: &[TsgoTypeFactResultEntryV0],
 ) {
+    apply_source_type_fact_results_to_document_with_span(state, uri, entries, &[], &[]);
+}
+
+fn apply_source_type_fact_results_to_document_with_span(
+    state: &mut LspShellState,
+    uri: &str,
+    entries: &[TsgoTypeFactResultEntryV0],
+    span_entries: &[TsgoSpanTypeFactResultEntryV0],
+    span_targets: &[SourceTypeFactTarget],
+) {
     let Some(document) = state.document(uri).cloned() else {
         return;
     };
-    let targets = document.source_syntax_index.type_fact_targets.clone();
+    let legacy_targets = document.source_syntax_index.type_fact_targets.clone();
+    let mut targets = legacy_targets.clone();
+    targets.extend_from_slice(span_targets);
+    let mut projection_entries = entries.to_vec();
+    projection_entries.extend(
+        span_entries
+            .iter()
+            .filter(|entry| span_type_fact_entry_is_admissible(entry))
+            .map(|entry| TsgoTypeFactResultEntryV0 {
+                file_path: entry.file_path.clone(),
+                expression_id: entry.expression_id.clone(),
+                resolved_type: entry.resolved_type.clone(),
+            }),
+    );
     let mut references = document.source_syntax_index.selector_references.clone();
     restore_source_type_fact_prefix_references(
         &mut references,
@@ -329,18 +560,23 @@ pub(crate) fn apply_source_type_fact_results_to_document(
         document.source_type_fact_selector_references.as_slice(),
     );
     let unavailable_facts =
-        tsgo_provider_unavailable_facts_for_type_targets(targets.as_slice(), entries);
+        tsgo_provider_unavailable_facts_for_type_targets(legacy_targets.as_slice(), entries);
     ensure_referenced_style_documents_loaded_for_type_facts(state, targets.as_slice());
-    let projections =
-        project_source_type_fact_targets_with_query(state, &document, targets.as_slice(), entries);
+    let projections = project_source_type_fact_targets_with_query(
+        state,
+        &document,
+        targets.as_slice(),
+        projection_entries.as_slice(),
+    );
     let complete_projection_ids = complete_tsgo_projection_expression_ids(
         targets.as_slice(),
-        entries,
+        projection_entries.as_slice(),
         projections.as_slice(),
     );
-    let tier_attempts = source_type_fact_tier_attempts_with_results(
+    let tier_attempts = source_type_fact_tier_attempts_with_span_results(
         document.source_type_fact_lexical_attempts.as_slice(),
         entries,
+        span_entries,
         &complete_projection_ids,
     );
     let mut next_type_fact_references = Vec::new();
@@ -392,6 +628,25 @@ pub(crate) fn apply_source_type_fact_results_to_document(
     let source_syntax_index = document.source_syntax_index.clone();
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
+}
+
+fn span_type_fact_entry_is_admissible(entry: &TsgoSpanTypeFactResultEntryV0) -> bool {
+    entry.outcome == SOURCE_TYPE_FACT_OUTCOME_RESOLVED
+        && entry.span_exact
+        && entry.non_nullish_member_count > 0
+        && entry.non_nullish_member_count == entry.resolved_member_count
+        && entry.resolved_type.kind == "union"
+        && !entry.resolved_type.values.is_empty()
+        && entry
+            .resolved_type
+            .values
+            .iter()
+            .all(|value| value.chars().all(is_css_identifier_continue))
+        && entry
+            .resolved_type
+            .values
+            .iter()
+            .all(|value| is_safe_css_identifier(value))
 }
 
 fn replace_tsgo_provider_unavailable_for_document(
@@ -450,10 +705,10 @@ fn source_type_fact_tier_attempts_with_unavailable(
 ) -> Vec<LspSourceTypeFactTierAttemptV0> {
     let mut attempts = initial_source_type_fact_tier_attempts(lexical_attempts);
     for (lexical, attempt) in lexical_attempts.iter().zip(attempts.iter_mut()) {
-        if matches!(
-            lexical.lexical_disposition,
-            SourceTypeFactLexicalDisposition::TypeProviderCandidate
-        ) {
+        if lexical.lexical_disposition == SourceTypeFactLexicalDisposition::TypeProviderCandidate
+            || (lexical.lexical_disposition == SourceTypeFactLexicalDisposition::Unresolved
+                && span_type_fact_shape_is_supported(lexical.shape_class))
+        {
             attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE;
             attempt.reason = Some(reason);
         }
@@ -491,6 +746,54 @@ fn source_type_fact_tier_attempts_with_results(
             Some(entry) if entry.resolved_type.kind != "union" => {
                 attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE;
                 attempt.reason = Some(TSGO_PROVIDER_UNRESOLVABLE);
+            }
+            Some(_) => {
+                attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNRESOLVED;
+                attempt.reason = Some(SOURCE_TYPE_FACT_REASON_NON_EXACT_DOMAIN);
+            }
+        }
+    }
+    attempts
+}
+
+fn source_type_fact_tier_attempts_with_span_results(
+    lexical_attempts: &[SourceTypeFactLexicalAttempt],
+    entries: &[TsgoTypeFactResultEntryV0],
+    span_entries: &[TsgoSpanTypeFactResultEntryV0],
+    complete_projection_ids: &BTreeSet<String>,
+) -> Vec<LspSourceTypeFactTierAttemptV0> {
+    let mut attempts = source_type_fact_tier_attempts_with_results(
+        lexical_attempts,
+        entries,
+        complete_projection_ids,
+    );
+    let span_entries_by_id = span_entries
+        .iter()
+        .map(|entry| (entry.expression_id.as_str(), entry))
+        .collect::<BTreeMap<_, _>>();
+    for (lexical, attempt) in lexical_attempts.iter().zip(attempts.iter_mut()) {
+        if lexical.lexical_disposition != SourceTypeFactLexicalDisposition::Unresolved
+            || !span_type_fact_shape_is_supported(lexical.shape_class)
+        {
+            continue;
+        }
+        if complete_projection_ids.contains(lexical.expression_id.as_str()) {
+            attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_RESOLVED;
+            attempt.reason = None;
+            continue;
+        }
+        match span_entries_by_id.get(lexical.expression_id.as_str()) {
+            None => {
+                attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE;
+                attempt.reason = Some(TSGO_PROVIDER_MISSING_RESULT);
+            }
+            Some(entry) if entry.outcome == SOURCE_TYPE_FACT_OUTCOME_REFUSED => {
+                attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_REFUSED;
+                attempt.reason = Some(entry.reason);
+            }
+            Some(entry) if !span_type_fact_entry_is_admissible(entry) => {
+                attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_REFUSED;
+                attempt.reason = Some(SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER);
             }
             Some(_) => {
                 attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_UNRESOLVED;
@@ -553,9 +856,6 @@ fn type_fact_template_spans(
     source: &str,
     target: &SourceTypeFactTarget,
 ) -> Option<TypeFactTemplateSpans> {
-    if target.prefix.is_empty() {
-        return None;
-    }
     let before_expression = source.get(..target.byte_span.start)?;
     let interpolation_start = before_expression.rfind("${")?;
     if !source
@@ -990,6 +1290,268 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     #[test]
+    fn exact_span_type_facts_project_only_complete_css_identifier_domains() -> TestResult {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-exact-span-type-facts-{}",
+            std::process::id()
+        ));
+        let src_dir = workspace_root.join("src");
+        let source_path = src_dir.join("App.tsx");
+        let style_path = src_dir.join("App.module.scss");
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        std::fs::create_dir_all(&src_dir)?;
+        std::fs::write(workspace_root.join("tsconfig.json"), "{}")?;
+        let source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+declare function pickTone(): "primary" | "secondary";
+export const App = () => <div className={cx(`theme-${pickTone()}-active`)} />;"#;
+        let style_text =
+            ".theme-primary-active { color: red; }\n.theme-secondary-active { color: blue; }";
+        std::fs::write(&source_path, source_text)?;
+        std::fs::write(&style_path, style_text)?;
+        let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        let source_uri = path_to_file_uri(source_path.as_path());
+        let style_uri = path_to_file_uri(style_path.as_path());
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [{
+                        "uri": workspace_uri,
+                        "name": "exact-span-type-facts",
+                    }],
+                },
+            }),
+        );
+        for (uri, language_id, text) in [
+            (style_uri.as_str(), "scss", style_text),
+            (source_uri.as_str(), "typescriptreact", source_text),
+        ] {
+            handle_lsp_message(
+                &mut state,
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "textDocument/didOpen",
+                    "params": {
+                        "textDocument": {
+                            "uri": uri,
+                            "languageId": language_id,
+                            "version": 1,
+                            "text": text,
+                        },
+                    },
+                }),
+            );
+        }
+
+        let (target, file_path, baseline_references) = {
+            let document = state
+                .document(source_uri.as_str())
+                .ok_or_else(|| std::io::Error::other("source document should be open"))?;
+            let target = span_source_type_fact_targets(document)
+                .into_iter()
+                .find(|target| {
+                    source_text.get(target.byte_span.start..target.byte_span.end)
+                        == Some("pickTone()")
+                })
+                .ok_or_else(|| std::io::Error::other("call expression should be harvested"))?;
+            assert_eq!(target.prefix, "theme-");
+            assert_eq!(target.suffix, "-active");
+            let unavailable_attempts = source_type_fact_tier_attempts_with_unavailable(
+                document.source_type_fact_lexical_attempts.as_slice(),
+                TSGO_PROVIDER_PROCESS_UNAVAILABLE,
+            );
+            assert!(unavailable_attempts.iter().any(|attempt| {
+                attempt.expression_id == target.expression_id
+                    && attempt.outcome == SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE
+                    && attempt.reason == Some(TSGO_PROVIDER_PROCESS_UNAVAILABLE)
+            }));
+            let (_, span_request) =
+                tsgo_type_fact_requests_for_document(document, &[], std::slice::from_ref(&target))
+                    .ok_or_else(|| std::io::Error::other("span request should build"))?;
+            let request_target = span_request
+                .targets
+                .first()
+                .ok_or_else(|| std::io::Error::other("span request should contain one target"))?;
+            assert_eq!(
+                request_target.start_position,
+                utf16_position_for_byte_offset(source_text, target.byte_span.start)
+                    .ok_or_else(|| std::io::Error::other("start position should convert"))?
+            );
+            assert_eq!(
+                request_target.end_position,
+                utf16_position_for_byte_offset(source_text, target.byte_span.end)
+                    .ok_or_else(|| std::io::Error::other("end position should convert"))?
+            );
+            (
+                target,
+                request_target.file_path.clone(),
+                document
+                    .source_syntax_index
+                    .selector_references
+                    .iter()
+                    .filter(|reference| {
+                        reference.surface
+                            != SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )
+        };
+
+        let resolved = TsgoSpanTypeFactResultEntryV0::resolved(
+            file_path.clone(),
+            target.expression_id.clone(),
+            "exactFiniteDomain",
+            2,
+            TsgoResolvedTypeV0 {
+                kind: "union",
+                values: vec!["primary".to_string(), "secondary".to_string()],
+            },
+        );
+        apply_source_type_fact_results_to_document_with_span(
+            &mut state,
+            source_uri.as_str(),
+            &[],
+            std::slice::from_ref(&resolved),
+            std::slice::from_ref(&target),
+        );
+        let document = state
+            .document(source_uri.as_str())
+            .ok_or_else(|| std::io::Error::other("source document should remain open"))?;
+        let projected = document
+            .source_syntax_index
+            .selector_references
+            .iter()
+            .filter(|reference| {
+                reference.surface == SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection
+            })
+            .filter_map(|reference| reference.selector_name.clone())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            projected,
+            BTreeSet::from([
+                "theme-primary-active".to_string(),
+                "theme-secondary-active".to_string()
+            ])
+        );
+        assert!(
+            !document
+                .source_syntax_index
+                .selector_references
+                .iter()
+                .any(|reference| {
+                    reference.match_kind == SourceSelectorReferenceMatchKind::Prefix
+                        && reference.selector_name.as_deref() == Some("theme-")
+                })
+        );
+        assert!(
+            document
+                .source_type_fact_tier_attempts
+                .iter()
+                .any(|attempt| {
+                    attempt.expression_id == target.expression_id
+                        && attempt.outcome == SOURCE_TYPE_FACT_OUTCOME_RESOLVED
+                })
+        );
+
+        let refused = TsgoSpanTypeFactResultEntryV0::refused(
+            file_path.clone(),
+            target.expression_id.clone(),
+            "nodeSpanMismatch",
+            false,
+            0,
+            0,
+        );
+        apply_source_type_fact_results_to_document_with_span(
+            &mut state,
+            source_uri.as_str(),
+            &[],
+            std::slice::from_ref(&refused),
+            std::slice::from_ref(&target),
+        );
+        let document = state
+            .document(source_uri.as_str())
+            .ok_or_else(|| std::io::Error::other("source document should remain open"))?;
+        assert_eq!(
+            document
+                .source_syntax_index
+                .selector_references
+                .iter()
+                .filter(|reference| {
+                    reference.surface != SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection
+                })
+                .cloned()
+                .collect::<Vec<_>>(),
+            baseline_references
+        );
+        assert!(
+            document
+                .source_type_fact_tier_attempts
+                .iter()
+                .any(|attempt| {
+                    attempt.expression_id == target.expression_id
+                        && attempt.outcome == SOURCE_TYPE_FACT_OUTCOME_REFUSED
+                        && attempt.reason == Some("nodeSpanMismatch")
+                })
+        );
+
+        let unsafe_value = TsgoSpanTypeFactResultEntryV0::resolved(
+            file_path,
+            target.expression_id.clone(),
+            "exactFiniteDomain",
+            1,
+            TsgoResolvedTypeV0 {
+                kind: "union",
+                values: vec!["not valid".to_string()],
+            },
+        );
+        apply_source_type_fact_results_to_document_with_span(
+            &mut state,
+            source_uri.as_str(),
+            &[],
+            std::slice::from_ref(&unsafe_value),
+            std::slice::from_ref(&target),
+        );
+        let document = state
+            .document(source_uri.as_str())
+            .ok_or_else(|| std::io::Error::other("source document should remain open"))?;
+        assert!(
+            document
+                .source_type_fact_tier_attempts
+                .iter()
+                .any(|attempt| {
+                    attempt.expression_id == target.expression_id
+                        && attempt.outcome == SOURCE_TYPE_FACT_OUTCOME_REFUSED
+                        && attempt.reason == Some(SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER)
+                })
+        );
+
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        Ok(())
+    }
+
+    #[test]
+    fn span_type_fact_template_affixes_refuse_ambiguous_wrappers() -> Result<(), String> {
+        let source = "const value = `theme-${(pickTone())}-active`;";
+        let start = source
+            .find("pickTone()")
+            .ok_or_else(|| "fixture should contain call".to_string())?;
+        let end = start + "pickTone()".len();
+
+        assert_eq!(
+            span_type_fact_template_affixes(source, ParserByteSpanV0 { start, end }),
+            None
+        );
+        Ok(())
+    }
+
+    #[test]
     fn persisted_source_type_facts_project_without_tsgo_transport() -> TestResult {
         let workspace_root = std::env::temp_dir().join(format!(
             "omena-lsp-source-type-fact-cache-{}",
@@ -1003,14 +1565,15 @@ mod tests {
         std::fs::write(workspace_root.join("tsconfig.json"), "{}")?;
         std::fs::write(
             &style_path,
-            ".small { color: red; }\n.medium { color: blue; }",
+            ".small { color: red; }\n.medium { color: blue; }\n.tone-light { opacity: 0.5; }\n.tone-dark { opacity: 1; }",
         )?;
         let source_text = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";
 const cx = bind.bind(styles);
 interface BadgeProps { size: "small" | "medium"; }
+declare function pickTone(): "light" | "dark";
 export function Badge({ size }: BadgeProps) {
-  return <span className={cx(size)} />;
+  return <span className={cx(size, `tone-${pickTone()}`)} />;
 }"#;
         std::fs::write(&source_path, source_text)?;
 
@@ -1044,7 +1607,7 @@ export function Badge({ size }: BadgeProps) {
                         "uri": style_uri,
                         "languageId": "scss",
                         "version": 1,
-                        "text": ".small { color: red; }\n.medium { color: blue; }",
+                        "text": ".small { color: red; }\n.medium { color: blue; }\n.tone-light { opacity: 0.5; }\n.tone-dark { opacity: 1; }",
                     },
                 },
             }),
@@ -1127,9 +1690,10 @@ export function Badge({ size }: BadgeProps) {
 
         refresh_source_type_fact_candidates_for_document(&mut state, source_uri.as_str());
 
-        let selector_names = state
+        let document = state
             .document(source_uri.as_str())
-            .ok_or_else(|| std::io::Error::other("source document should remain open"))?
+            .ok_or_else(|| std::io::Error::other("source document should remain open"))?;
+        let selector_names = document
             .source_syntax_index
             .selector_references
             .iter()
@@ -1138,6 +1702,36 @@ export function Badge({ size }: BadgeProps) {
         assert!(
             selector_names.contains(&"small") && selector_names.contains(&"medium"),
             "persisted type facts should project class references without starting tsgo: {selector_names:?}"
+        );
+        assert!(
+            document
+                .source_syntax_index
+                .selector_references
+                .iter()
+                .any(|reference| {
+                    reference.match_kind == SourceSelectorReferenceMatchKind::Prefix
+                        && reference.selector_name.as_deref() == Some("tone-")
+                }),
+            "an unavailable span query must preserve its lexical prefix reference"
+        );
+        assert!(
+            document
+                .source_type_fact_tier_attempts
+                .iter()
+                .any(|attempt| {
+                    attempt.outcome == SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE
+                        && attempt.reason == Some(TSGO_PROVIDER_NO_TRANSPORT)
+                })
+        );
+        assert_eq!(
+            document
+                .source_syntax_index
+                .type_fact_provider_unavailable
+                .iter()
+                .filter(|fact| fact.provider_id == TSGO_PROVIDER_ID)
+                .count(),
+            1,
+            "cached legacy facts should remain resolved while the span target reports unavailable"
         );
         assert!(
             state

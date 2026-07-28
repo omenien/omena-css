@@ -5,6 +5,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 
 pub const TSGO_TYPE_FLAGS_UNION: u64 = 134_217_728;
@@ -139,12 +140,124 @@ pub struct TsgoTypeFactTargetV0 {
     pub position: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[non_exhaustive]
+#[serde(rename_all = "camelCase")]
+pub struct TsgoSpanTypeFactRequestV0 {
+    pub workspace_root: String,
+    pub config_path: String,
+    pub targets: Vec<TsgoSpanTypeFactTargetV0>,
+}
+
+impl TsgoSpanTypeFactRequestV0 {
+    pub fn new(
+        workspace_root: String,
+        config_path: String,
+        targets: Vec<TsgoSpanTypeFactTargetV0>,
+    ) -> Self {
+        Self {
+            workspace_root,
+            config_path,
+            targets,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[non_exhaustive]
+#[serde(rename_all = "camelCase")]
+pub struct TsgoSpanTypeFactTargetV0 {
+    pub file_path: String,
+    pub expression_id: String,
+    pub start_position: u32,
+    pub end_position: u32,
+}
+
+impl TsgoSpanTypeFactTargetV0 {
+    pub fn new(
+        file_path: String,
+        expression_id: String,
+        start_position: u32,
+        end_position: u32,
+    ) -> Self {
+        Self {
+            file_path,
+            expression_id,
+            start_position,
+            end_position,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TsgoTypeFactResultEntryV0 {
     pub file_path: String,
     pub expression_id: String,
     pub resolved_type: TsgoResolvedTypeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+#[serde(rename_all = "camelCase")]
+pub struct TsgoSpanTypeFactResultEntryV0 {
+    pub file_path: String,
+    pub expression_id: String,
+    pub outcome: &'static str,
+    pub reason: &'static str,
+    pub span_exact: bool,
+    pub non_nullish_member_count: usize,
+    pub resolved_member_count: usize,
+    pub resolved_type: TsgoResolvedTypeV0,
+}
+
+impl TsgoSpanTypeFactResultEntryV0 {
+    pub fn resolved(
+        file_path: String,
+        expression_id: String,
+        reason: &'static str,
+        member_count: usize,
+        resolved_type: TsgoResolvedTypeV0,
+    ) -> Self {
+        Self {
+            file_path,
+            expression_id,
+            outcome: "resolved",
+            reason,
+            span_exact: true,
+            non_nullish_member_count: member_count,
+            resolved_member_count: member_count,
+            resolved_type,
+        }
+    }
+
+    pub fn refused(
+        file_path: String,
+        expression_id: String,
+        reason: &'static str,
+        span_exact: bool,
+        non_nullish_member_count: usize,
+        resolved_member_count: usize,
+    ) -> Self {
+        Self {
+            file_path,
+            expression_id,
+            outcome: "refused",
+            reason,
+            span_exact,
+            non_nullish_member_count,
+            resolved_member_count,
+            resolved_type: unresolvable_tsgo_type(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+#[serde(rename_all = "camelCase")]
+pub struct TsgoTypeFactCollectionResultV0 {
+    pub type_fact_entries: Vec<TsgoTypeFactResultEntryV0>,
+    pub span_type_fact_entries: Vec<TsgoSpanTypeFactResultEntryV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -479,6 +592,38 @@ impl TsgoTypeFactRpcClientV0 {
         )
     }
 
+    pub fn get_source_file(
+        &mut self,
+        snapshot: &str,
+        project: &str,
+        file_path: &str,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.request(
+            "getSourceFile",
+            Some(serde_json::json!({
+                "snapshot": snapshot,
+                "project": project,
+                "file": file_path,
+            })),
+        )
+    }
+
+    pub fn get_type_at_exact_span(
+        &mut self,
+        snapshot: &str,
+        project: &str,
+        location: &str,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.request(
+            "getTypeAtLocation",
+            Some(serde_json::json!({
+                "snapshot": snapshot,
+                "project": project,
+                "location": location,
+            })),
+        )
+    }
+
     pub fn get_types_of_type(
         &mut self,
         snapshot: &str,
@@ -550,6 +695,18 @@ pub fn tsgo_api_methods() -> Vec<TsgoApiMethodV0> {
             phase: "typeFacts",
             purpose: "read source expression type at target offset",
             request_group: "perTarget",
+        },
+        TsgoApiMethodV0 {
+            method: "getSourceFile",
+            phase: "typeFacts",
+            purpose: "read the native syntax tree for exact-span node identity",
+            request_group: "perUniqueFile",
+        },
+        TsgoApiMethodV0 {
+            method: "getTypeAtLocation",
+            phase: "typeFacts",
+            purpose: "read the type of one exact syntax-node identity",
+            request_group: "perSpanTarget",
         },
         TsgoApiMethodV0 {
             method: "getTypesOfType",
@@ -942,6 +1099,43 @@ where
         self.collect_type_facts_with_policy(request, TsgoProviderRetryPolicyV0::default())
     }
 
+    pub fn collect_type_facts_with_span_targets(
+        &mut self,
+        request: &TsgoTypeFactRequestV0,
+        span_request: &TsgoSpanTypeFactRequestV0,
+    ) -> Result<TsgoTypeFactCollectionResultV0, TsgoJsonRpcProviderErrorV0> {
+        if request.workspace_root != span_request.workspace_root
+            || request.config_path != span_request.config_path
+        {
+            return Err(TsgoJsonRpcProviderErrorV0::RpcError {
+                method: "typeFactBatchContext".to_string(),
+                message: "position and span requests must share a workspace and config".to_string(),
+            });
+        }
+        let retry_policy = TsgoProviderRetryPolicyV0::default();
+        let max_attempts = retry_policy.max_batch_attempts.max(1);
+        let mut attempt = 1;
+        loop {
+            match self.collect_type_facts_with_span_targets_once(
+                request,
+                span_request,
+                &TsgoNeverCancelledTokenV0,
+            ) {
+                Ok(result) => return Ok(result),
+                Err(error) if attempt < max_attempts && error.is_recoverable() => {
+                    if !self
+                        .transport
+                        .recover_workspace(request.workspace_root.as_str())?
+                    {
+                        return Err(error);
+                    }
+                    attempt += 1;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
     pub fn collect_type_facts_with_policy(
         &mut self,
         request: &TsgoTypeFactRequestV0,
@@ -1013,6 +1207,47 @@ where
         }
     }
 
+    fn collect_type_facts_with_span_targets_once(
+        &mut self,
+        request: &TsgoTypeFactRequestV0,
+        span_request: &TsgoSpanTypeFactRequestV0,
+        cancellation: &dyn TsgoCancellationTokenV0,
+    ) -> Result<TsgoTypeFactCollectionResultV0, TsgoJsonRpcProviderErrorV0> {
+        ensure_tsgo_request_not_cancelled(cancellation, "beforeBatch")?;
+        let initialize_request = self.rpc_client.initialize()?;
+        self.send_result(request.workspace_root.as_str(), &initialize_request)?;
+        let snapshot_request = self
+            .rpc_client
+            .update_snapshot(request.config_path.as_str())?;
+        let snapshot_result =
+            self.send_result(request.workspace_root.as_str(), &snapshot_request)?;
+        let snapshot = snapshot_result
+            .get("snapshot")
+            .and_then(serde_json::Value::as_str)
+            .ok_or(TsgoJsonRpcProviderErrorV0::MissingSnapshot)?
+            .to_string();
+
+        let type_fact_entries =
+            self.collect_type_facts_for_snapshot(request, snapshot.as_str(), cancellation);
+        let span_type_fact_entries = self.collect_span_type_facts_for_snapshot(
+            span_request,
+            snapshot.as_str(),
+            cancellation,
+        );
+        let release_result =
+            self.release_snapshot(request.workspace_root.as_str(), snapshot.as_str());
+
+        match (type_fact_entries, span_type_fact_entries, release_result) {
+            (Ok(type_fact_entries), Ok(span_type_fact_entries), Ok(())) => {
+                Ok(TsgoTypeFactCollectionResultV0 {
+                    type_fact_entries,
+                    span_type_fact_entries,
+                })
+            }
+            (Err(error), _, _) | (_, Err(error), _) | (_, _, Err(error)) => Err(error),
+        }
+    }
+
     fn collect_type_facts_for_snapshot(
         &mut self,
         request: &TsgoTypeFactRequestV0,
@@ -1079,6 +1314,153 @@ where
             );
         }
         Ok(projects)
+    }
+
+    fn collect_span_type_facts_for_snapshot(
+        &mut self,
+        request: &TsgoSpanTypeFactRequestV0,
+        snapshot: &str,
+        cancellation: &dyn TsgoCancellationTokenV0,
+    ) -> Result<Vec<TsgoSpanTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
+        ensure_tsgo_request_not_cancelled(cancellation, "beforeSpanProjectResolution")?;
+        let unique_files = request
+            .targets
+            .iter()
+            .map(|target| target.file_path.as_str())
+            .collect::<BTreeSet<_>>();
+        let mut project_by_file = BTreeMap::new();
+        for file_path in unique_files {
+            let project_request = self
+                .rpc_client
+                .get_default_project_for_file(snapshot, file_path)?;
+            let project_response =
+                self.send_result(request.workspace_root.as_str(), &project_request)?;
+            project_by_file.insert(
+                file_path.to_string(),
+                project_response
+                    .get("id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string),
+            );
+        }
+        let mut source_by_file = BTreeMap::new();
+        for (file_path, project) in &project_by_file {
+            let Some(project) = project else {
+                continue;
+            };
+            let source_request =
+                self.rpc_client
+                    .get_source_file(snapshot, project.as_str(), file_path.as_str())?;
+            let source_response =
+                self.send_result(request.workspace_root.as_str(), &source_request)?;
+            source_by_file.insert(file_path.clone(), source_response);
+        }
+
+        request
+            .targets
+            .iter()
+            .map(|target| {
+                ensure_tsgo_request_not_cancelled(cancellation, "beforeExactSpanTypeFact")?;
+                let Some(Some(project)) = project_by_file.get(target.file_path.as_str()) else {
+                    return Ok(refused_span_type_fact(target, "projectMiss", false, 0, 0));
+                };
+                let Some(source_response) = source_by_file.get(target.file_path.as_str()) else {
+                    return Ok(refused_span_type_fact(
+                        target,
+                        "sourceFileMiss",
+                        false,
+                        0,
+                        0,
+                    ));
+                };
+                let Some(location) = exact_span_node_location(source_response, target) else {
+                    return Ok(refused_span_type_fact(
+                        target,
+                        "nodeSpanMismatch",
+                        false,
+                        0,
+                        0,
+                    ));
+                };
+                let type_request = self.rpc_client.get_type_at_exact_span(
+                    snapshot,
+                    project.as_str(),
+                    location.as_str(),
+                )?;
+                let type_response =
+                    self.send_result(request.workspace_root.as_str(), &type_request)?;
+                self.resolve_exact_span_type_response(
+                    request.workspace_root.as_str(),
+                    snapshot,
+                    target,
+                    &type_response,
+                )
+            })
+            .collect()
+    }
+
+    fn resolve_exact_span_type_response(
+        &mut self,
+        workspace_root: &str,
+        snapshot: &str,
+        target: &TsgoSpanTypeFactTargetV0,
+        type_response: &serde_json::Value,
+    ) -> Result<TsgoSpanTypeFactResultEntryV0, TsgoJsonRpcProviderErrorV0> {
+        if let Some(value) = string_literal_type_response_value(type_response) {
+            return Ok(resolved_span_type_fact(target, vec![value], 1, 1));
+        }
+
+        let flags = type_response
+            .get("flags")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or_default();
+        if flags & TSGO_TYPE_FLAGS_UNION == 0 {
+            return Ok(refused_span_type_fact(target, "nonExactDomain", true, 1, 0));
+        }
+        let Some(type_id) = type_response.get("id").and_then(serde_json::Value::as_str) else {
+            return Ok(refused_span_type_fact(
+                target,
+                "missingUnionIdentity",
+                true,
+                0,
+                0,
+            ));
+        };
+        let members_request = self.rpc_client.get_types_of_type(snapshot, type_id)?;
+        let members_response = self.send_result(workspace_root, &members_request)?;
+        let Some(members) = members_response.as_array() else {
+            return Ok(refused_span_type_fact(
+                target,
+                "invalidUnionMembers",
+                true,
+                0,
+                0,
+            ));
+        };
+
+        let non_nullish_members = members
+            .iter()
+            .filter(|member| !is_exact_domain_nullish_tsgo_type_response(member))
+            .collect::<Vec<_>>();
+        let values = non_nullish_members
+            .iter()
+            .filter_map(|member| string_literal_type_response_value(member))
+            .collect::<Vec<_>>();
+        if values.is_empty() || values.len() != non_nullish_members.len() {
+            return Ok(refused_span_type_fact(
+                target,
+                "nonExactUnionMember",
+                true,
+                non_nullish_members.len(),
+                values.len(),
+            ));
+        }
+        Ok(resolved_span_type_fact(
+            target,
+            values,
+            non_nullish_members.len(),
+            non_nullish_members.len(),
+        ))
     }
 
     fn resolve_type_response(
@@ -1204,12 +1586,211 @@ fn literal_type_response_value(type_response: &serde_json::Value) -> Option<Stri
     None
 }
 
+fn string_literal_type_response_value(type_response: &serde_json::Value) -> Option<String> {
+    type_response
+        .get("value")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+}
+
+fn resolved_span_type_fact(
+    target: &TsgoSpanTypeFactTargetV0,
+    values: Vec<String>,
+    non_nullish_member_count: usize,
+    resolved_member_count: usize,
+) -> TsgoSpanTypeFactResultEntryV0 {
+    debug_assert_eq!(non_nullish_member_count, resolved_member_count);
+    TsgoSpanTypeFactResultEntryV0::resolved(
+        target.file_path.clone(),
+        target.expression_id.clone(),
+        "exactFiniteDomain",
+        non_nullish_member_count,
+        union_tsgo_type(values),
+    )
+}
+
+fn refused_span_type_fact(
+    target: &TsgoSpanTypeFactTargetV0,
+    reason: &'static str,
+    span_exact: bool,
+    non_nullish_member_count: usize,
+    resolved_member_count: usize,
+) -> TsgoSpanTypeFactResultEntryV0 {
+    TsgoSpanTypeFactResultEntryV0::refused(
+        target.file_path.clone(),
+        target.expression_id.clone(),
+        reason,
+        span_exact,
+        non_nullish_member_count,
+        resolved_member_count,
+    )
+}
+
+fn exact_span_node_location(
+    response: &serde_json::Value,
+    target: &TsgoSpanTypeFactTargetV0,
+) -> Option<String> {
+    const HEADER_OFFSET_STRING_TABLE_OFFSETS: usize = 24;
+    const HEADER_OFFSET_STRING_TABLE: usize = 28;
+    const HEADER_OFFSET_EXTENDED_DATA: usize = 32;
+    const HEADER_OFFSET_NODES: usize = 40;
+    const HEADER_SIZE: usize = 44;
+    const NODE_LEN: usize = 28;
+    const NODE_OFFSET_KIND: usize = 0;
+    const NODE_OFFSET_POS: usize = 4;
+    const NODE_OFFSET_END: usize = 8;
+    const NODE_OFFSET_DATA: usize = 20;
+    const KIND_NODE_LIST: u32 = u32::MAX;
+    const NODE_EXTENDED_DATA_MASK: u32 = 0x00ff_ffff;
+
+    let encoded = response.get("data").and_then(serde_json::Value::as_str)?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .ok()?;
+    if bytes.len() < HEADER_SIZE {
+        return None;
+    }
+    let offset_nodes = read_u32_le(bytes.as_slice(), HEADER_OFFSET_NODES)? as usize;
+    let offset_extended_data = read_u32_le(bytes.as_slice(), HEADER_OFFSET_EXTENDED_DATA)? as usize;
+    let offset_string_table = read_u32_le(bytes.as_slice(), HEADER_OFFSET_STRING_TABLE)? as usize;
+    let offset_string_table_offsets =
+        read_u32_le(bytes.as_slice(), HEADER_OFFSET_STRING_TABLE_OFFSETS)? as usize;
+    if offset_nodes >= bytes.len() || !(bytes.len() - offset_nodes).is_multiple_of(NODE_LEN) {
+        return None;
+    }
+
+    let source_file_record = offset_nodes.checked_add(NODE_LEN)?;
+    let source_file_data = read_u32_le(bytes.as_slice(), source_file_record + NODE_OFFSET_DATA)?;
+    let source_file_extended =
+        offset_extended_data.checked_add((source_file_data & NODE_EXTENDED_DATA_MASK) as usize)?;
+    let text_index = read_u32_le(bytes.as_slice(), source_file_extended)? as usize;
+    let path_index = read_u32_le(bytes.as_slice(), source_file_extended + 8)? as usize;
+    let source_text = read_binary_ast_string(
+        bytes.as_slice(),
+        offset_string_table_offsets,
+        offset_string_table,
+        text_index,
+    )?;
+    let source_path = read_binary_ast_string(
+        bytes.as_slice(),
+        offset_string_table_offsets,
+        offset_string_table,
+        path_index,
+    )?;
+
+    let mut exact_node = None;
+    for index in 2..((bytes.len() - offset_nodes) / NODE_LEN) {
+        let record = offset_nodes.checked_add(index.checked_mul(NODE_LEN)?)?;
+        let kind = read_u32_le(bytes.as_slice(), record + NODE_OFFSET_KIND)?;
+        if kind == KIND_NODE_LIST {
+            continue;
+        }
+        let pos = read_i32_le(bytes.as_slice(), record + NODE_OFFSET_POS)?;
+        let end = read_i32_le(bytes.as_slice(), record + NODE_OFFSET_END)?;
+        if pos < 0
+            || end < 0
+            || skip_binary_ast_trivia(source_text, pos as u32, end as u32)? != target.start_position
+            || end as u32 != target.end_position
+        {
+            continue;
+        }
+        if exact_node.is_some() {
+            return None;
+        }
+        exact_node = Some((kind, pos, end));
+    }
+    let (kind, pos, end) = exact_node?;
+    // Binary AST spans use UTF-16 offsets, while the raw location API expects byte offsets.
+    let wire_pos = utf16_offset_to_byte_index(source_text, pos as u32)?;
+    let wire_end = utf16_offset_to_byte_index(source_text, end as u32)?;
+    Some(format!("{wire_pos}.{wire_end}.{kind}.{source_path}"))
+}
+
+fn read_binary_ast_string(
+    bytes: &[u8],
+    offset_string_table_offsets: usize,
+    offset_string_table: usize,
+    index: usize,
+) -> Option<&str> {
+    let offset_slot = offset_string_table_offsets.checked_add(index.checked_mul(4)?)?;
+    let start = read_u32_le(bytes, offset_slot)? as usize;
+    let end = read_u32_le(bytes, offset_slot + 4)? as usize;
+    let value = bytes
+        .get(offset_string_table.checked_add(start)?..offset_string_table.checked_add(end)?)?;
+    std::str::from_utf8(value).ok()
+}
+
+fn skip_binary_ast_trivia(source: &str, start: u32, end: u32) -> Option<u32> {
+    let mut cursor = utf16_offset_to_byte_index(source, start)?;
+    let end = utf16_offset_to_byte_index(source, end)?;
+    while cursor < end {
+        let remainder = source.get(cursor..end)?;
+        let character = remainder.chars().next()?;
+        if character.is_whitespace() {
+            cursor += character.len_utf8();
+            continue;
+        }
+        if remainder.starts_with("//") {
+            cursor = remainder
+                .find('\n')
+                .map(|offset| cursor + offset + 1)
+                .unwrap_or(end);
+            continue;
+        }
+        if remainder.starts_with("/*") {
+            cursor = remainder
+                .find("*/")
+                .map(|offset| cursor + offset + 2)
+                .unwrap_or(end);
+            continue;
+        }
+        break;
+    }
+    u32::try_from(source.get(..cursor)?.encode_utf16().count()).ok()
+}
+
+fn utf16_offset_to_byte_index(source: &str, offset: u32) -> Option<usize> {
+    let target = usize::try_from(offset).ok()?;
+    let mut units = 0;
+    for (index, character) in source.char_indices() {
+        if units == target {
+            return Some(index);
+        }
+        units += character.len_utf16();
+        if units > target {
+            return None;
+        }
+    }
+    (units == target).then_some(source.len())
+}
+
+fn read_u32_le(bytes: &[u8], offset: usize) -> Option<u32> {
+    Some(u32::from_le_bytes(
+        bytes.get(offset..offset + 4)?.try_into().ok()?,
+    ))
+}
+
+fn read_i32_le(bytes: &[u8], offset: usize) -> Option<i32> {
+    Some(i32::from_le_bytes(
+        bytes.get(offset..offset + 4)?.try_into().ok()?,
+    ))
+}
+
 fn is_pure_nullish_tsgo_type_response(type_response: &serde_json::Value) -> bool {
     let flags = type_response
         .get("flags")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or_default();
     flags != 0 && flags & TSGO_TYPE_FLAGS_NULLISH != 0 && flags & !TSGO_TYPE_FLAGS_NULLISH == 0
+}
+
+fn is_exact_domain_nullish_tsgo_type_response(type_response: &serde_json::Value) -> bool {
+    let flags = type_response
+        .get("flags")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_default();
+    let nullish = TSGO_TYPE_FLAGS_UNDEFINED | TSGO_TYPE_FLAGS_NULL;
+    flags != 0 && flags & nullish != 0 && flags & !nullish == 0
 }
 
 fn content_length_from_header(header: &str) -> Result<usize, TsgoJsonRpcFrameErrorV0> {
@@ -1318,19 +1899,21 @@ impl ManagedTsgoWorkspaceProcessV0 {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProviderUnresolvedDisciplineV0, TSGO_TYPE_FLAGS_UNDEFINED, TSGO_TYPE_FLAGS_UNION,
-        TSGO_TYPE_ORACLE_PROVIDER_ID_V0, TSGO_TYPE_ORACLE_PROVIDER_KIND_V0,
+        ProviderUnresolvedDisciplineV0, TSGO_TYPE_FLAGS_ANY, TSGO_TYPE_FLAGS_UNDEFINED,
+        TSGO_TYPE_FLAGS_UNION, TSGO_TYPE_ORACLE_PROVIDER_ID_V0, TSGO_TYPE_ORACLE_PROVIDER_KIND_V0,
         TSGO_UNKNOWN_PRECISION_PROVENANCE_V0, TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0,
         TsgoJsonRpcIoErrorV0, TsgoJsonRpcOutboundRequestV0, TsgoJsonRpcProviderErrorV0,
         TsgoJsonRpcProviderTransportV0, TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0,
-        TsgoProviderRetryPolicyV0, TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0,
-        TsgoTypeFactTargetV0, TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0,
-        build_tsgo_api_args, build_tsgo_process_command, drain_tsgo_json_rpc_frames,
-        encode_tsgo_json_rpc_message, encode_tsgo_json_rpc_request, plan_tsgo_type_fact_collection,
+        TsgoProviderRetryPolicyV0, TsgoSpanTypeFactRequestV0, TsgoSpanTypeFactTargetV0,
+        TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0, TsgoTypeFactTargetV0,
+        TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0, build_tsgo_api_args,
+        build_tsgo_process_command, drain_tsgo_json_rpc_frames, encode_tsgo_json_rpc_message,
+        encode_tsgo_json_rpc_request, exact_span_node_location, plan_tsgo_type_fact_collection,
         read_tsgo_json_rpc_message, reduce_tsgo_type_response,
         summarize_omena_tsgo_client_boundary, summarize_tsgo_json_rpc_transport,
         write_tsgo_json_rpc_request,
     };
+    use base64::Engine as _;
     use serde_json::json;
     use std::{cell::Cell, collections::VecDeque, io};
 
@@ -1731,6 +2314,155 @@ mod tests {
     }
 
     #[test]
+    fn exact_span_location_requires_one_matching_syntax_node() {
+        let target = TsgoSpanTypeFactTargetV0::new(
+            "/repo/src/App.tsx".to_string(),
+            "expr-1".to_string(),
+            14,
+            20,
+        );
+        let response = binary_source_file_response(
+            "const value = pick();",
+            "/repo/src/App.tsx",
+            &[(213, 13, 20)],
+        );
+
+        assert_eq!(
+            exact_span_node_location(&response, &target).as_deref(),
+            Some("13.20.213./repo/src/App.tsx")
+        );
+
+        let wrong_span = TsgoSpanTypeFactTargetV0::new(
+            "/repo/src/App.tsx".to_string(),
+            "expr-1".to_string(),
+            15,
+            20,
+        );
+        assert_eq!(exact_span_node_location(&response, &wrong_span), None);
+
+        let duplicate = binary_source_file_response(
+            "const value = pick();",
+            "/repo/src/App.tsx",
+            &[(213, 13, 20), (214, 14, 20)],
+        );
+        assert_eq!(exact_span_node_location(&duplicate, &target), None);
+
+        let unicode_source = "// 기준\nconst value = pick();";
+        let unicode_target = TsgoSpanTypeFactTargetV0::new(
+            "/repo/src/App.tsx".to_string(),
+            "expr-1".to_string(),
+            20,
+            26,
+        );
+        let unicode_response =
+            binary_source_file_response(unicode_source, "/repo/src/App.tsx", &[(213, 19, 26)]);
+        assert_eq!(
+            exact_span_node_location(&unicode_response, &unicode_target).as_deref(),
+            Some("23.30.213./repo/src/App.tsx")
+        );
+    }
+
+    #[test]
+    fn exact_span_type_resolution_rejects_partial_string_unions()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let target = TsgoSpanTypeFactTargetV0::new(
+            "/repo/src/App.tsx".to_string(),
+            "expr-1".to_string(),
+            14,
+            20,
+        );
+        let transport = FakeTsgoTransport::new(vec![json!([
+            { "value": "primary" },
+            { "id": "number", "flags": TSGO_TYPE_FLAGS_ANY }
+        ])]);
+        let mut provider = TsgoJsonRpcTypeFactProviderV0::new(transport);
+
+        let result = provider.resolve_exact_span_type_response(
+            "/repo",
+            "snapshot-1",
+            &target,
+            &json!({ "id": "union-1", "flags": TSGO_TYPE_FLAGS_UNION }),
+        )?;
+
+        assert_eq!(result.outcome, "refused");
+        assert_eq!(result.reason, "nonExactUnionMember");
+        assert!(result.span_exact);
+        assert_eq!(result.non_nullish_member_count, 2);
+        assert_eq!(result.resolved_member_count, 1);
+        assert_eq!(result.resolved_type.kind, "unresolvable");
+        Ok(())
+    }
+
+    #[test]
+    fn json_rpc_provider_resolves_exact_span_in_one_snapshot()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let target = TsgoSpanTypeFactTargetV0::new(
+            "/repo/src/App.tsx".to_string(),
+            "expr-1".to_string(),
+            14,
+            20,
+        );
+        let second_target = TsgoSpanTypeFactTargetV0::new(
+            "/repo/src/App.tsx".to_string(),
+            "expr-2".to_string(),
+            37,
+            44,
+        );
+        let request = TsgoTypeFactRequestV0 {
+            workspace_root: "/repo".to_string(),
+            config_path: "/repo/tsconfig.json".to_string(),
+            targets: Vec::new(),
+        };
+        let span_request = TsgoSpanTypeFactRequestV0::new(
+            "/repo".to_string(),
+            "/repo/tsconfig.json".to_string(),
+            vec![target, second_target],
+        );
+        let transport = FakeTsgoTransport::new(vec![
+            json!(null),
+            json!({ "snapshot": "snapshot-1" }),
+            json!({ "id": "project-1" }),
+            binary_source_file_response(
+                "const first = pick();\nconst second = other();",
+                "/repo/src/App.tsx",
+                &[(213, 13, 20), (213, 36, 44)],
+            ),
+            json!({ "value": "primary" }),
+            json!({ "value": "secondary" }),
+            json!(null),
+        ]);
+        let mut provider = TsgoJsonRpcTypeFactProviderV0::new(transport);
+
+        let result = provider.collect_type_facts_with_span_targets(&request, &span_request)?;
+        let transport = provider.into_transport();
+
+        assert_eq!(
+            transport.methods,
+            vec![
+                "initialize",
+                "updateSnapshot",
+                "getDefaultProjectForFile",
+                "getSourceFile",
+                "getTypeAtLocation",
+                "getTypeAtLocation",
+                "release",
+            ]
+        );
+        assert!(result.type_fact_entries.is_empty());
+        assert_eq!(result.span_type_fact_entries.len(), 2);
+        assert_eq!(result.span_type_fact_entries[0].outcome, "resolved");
+        assert_eq!(
+            result.span_type_fact_entries[0].resolved_type.values,
+            vec!["primary"]
+        );
+        assert_eq!(
+            result.span_type_fact_entries[1].resolved_type.values,
+            vec!["secondary"]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn json_rpc_type_fact_provider_soft_skips_nullish_union_members()
     -> Result<(), Box<dyn std::error::Error>> {
         let request = TsgoTypeFactRequestV0 {
@@ -1993,6 +2725,60 @@ mod tests {
         assert_eq!(plan.request_sequence[2].request_count, 2);
         assert_eq!(plan.request_sequence[3].method, "getTypeAtPosition");
         assert_eq!(plan.request_sequence[3].request_count, 3);
+    }
+
+    fn binary_source_file_response(
+        source: &str,
+        path: &str,
+        nodes: &[(u32, i32, i32)],
+    ) -> serde_json::Value {
+        const HEADER_SIZE: usize = 44;
+        const NODE_LEN: usize = 28;
+        const NODE_DATA_TYPE_EXTENDED: u32 = 0x8000_0000;
+        let strings = [source.as_bytes(), path.as_bytes()];
+        let string_offsets = [
+            0_u32,
+            source.len() as u32,
+            (source.len() + path.len()) as u32,
+        ];
+        let offset_string_table_offsets = HEADER_SIZE;
+        let offset_string_table = offset_string_table_offsets + string_offsets.len() * 4;
+        let offset_extended_data = offset_string_table + source.len() + path.len();
+        let offset_nodes = offset_extended_data + 12;
+        let node_count = nodes.len() + 2;
+        let mut bytes = vec![0_u8; offset_nodes + node_count * NODE_LEN];
+        write_u32_le(&mut bytes, 24, offset_string_table_offsets as u32);
+        write_u32_le(&mut bytes, 28, offset_string_table as u32);
+        write_u32_le(&mut bytes, 32, offset_extended_data as u32);
+        write_u32_le(&mut bytes, 36, offset_extended_data as u32);
+        write_u32_le(&mut bytes, 40, offset_nodes as u32);
+        for (index, offset) in string_offsets.iter().enumerate() {
+            write_u32_le(&mut bytes, offset_string_table_offsets + index * 4, *offset);
+        }
+        let mut string_cursor = offset_string_table;
+        for string in strings {
+            bytes[string_cursor..string_cursor + string.len()].copy_from_slice(string);
+            string_cursor += string.len();
+        }
+        write_u32_le(&mut bytes, offset_extended_data, 0);
+        write_u32_le(&mut bytes, offset_extended_data + 4, 1);
+        write_u32_le(&mut bytes, offset_extended_data + 8, 1);
+        let source_file = offset_nodes + NODE_LEN;
+        write_u32_le(&mut bytes, source_file, 308);
+        write_u32_le(&mut bytes, source_file + 20, NODE_DATA_TYPE_EXTENDED);
+        for (index, (kind, pos, end)) in nodes.iter().enumerate() {
+            let record = offset_nodes + (index + 2) * NODE_LEN;
+            write_u32_le(&mut bytes, record, *kind);
+            write_u32_le(&mut bytes, record + 4, *pos as u32);
+            write_u32_le(&mut bytes, record + 8, *end as u32);
+        }
+        json!({
+            "data": base64::engine::general_purpose::STANDARD.encode(bytes),
+        })
+    }
+
+    fn write_u32_le(bytes: &mut [u8], offset: usize, value: u32) {
+        bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
     }
 
     fn test_process_config(label: &str, seconds: u64) -> TsgoWorkspaceProcessConfigV0 {

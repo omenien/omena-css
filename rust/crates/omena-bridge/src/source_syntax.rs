@@ -5001,6 +5001,7 @@ fn push_source_class_value_reference(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn collect_template_type_fact_targets(
     source: &str,
     expression_start: usize,
@@ -5015,12 +5016,16 @@ fn collect_template_type_fact_targets(
     let Some((prefix, expression_span, suffix, selector_span)) =
         single_template_interpolation_projection(source, literal_start, literal_end)
     else {
-        let byte_span =
+        let skipped_span =
             source_type_fact_template_attempt_span(source, expression_start, expression_end);
-        push_source_type_fact_skipped_and_attempt(
-            byte_span,
+        let attempt_span =
+            source_type_fact_nested_const_assertion_span(source, skipped_span, expression_end)
+                .unwrap_or(skipped_span);
+        push_source_type_fact_skipped_and_attempt_with_span(
+            skipped_span,
+            attempt_span,
             target_style_uri,
-            source_type_fact_expression_shape(source, byte_span.start, byte_span.end, false),
+            source_type_fact_expression_shape(source, skipped_span.start, skipped_span.end, false),
             SourceTypeFactLexicalDispositionV0::Unresolved,
             type_facts,
         );
@@ -5115,13 +5120,13 @@ fn source_type_fact_template_attempt_span(
     };
     let open = full_start + relative_open;
     let nested_start = skip_js_trivia_until(source, open + 2, full_end);
-    if source.as_bytes().get(nested_start) == Some(&b'`') {
-        if let Some(nested_end) = first_unescaped_template_end(source, nested_start + 1, full_end) {
-            return ParserByteSpanV0 {
-                start: nested_start,
-                end: nested_end,
-            };
-        }
+    if source.as_bytes().get(nested_start) == Some(&b'`')
+        && let Some(nested_end) = first_unescaped_template_end(source, nested_start + 1, full_end)
+    {
+        return ParserByteSpanV0 {
+            start: nested_start,
+            end: nested_end,
+        };
     }
     let Some(close) = matching_js_block_end(source, open + 1, b'{', b'}') else {
         return ParserByteSpanV0 {
@@ -5155,6 +5160,27 @@ fn first_unescaped_template_end(source: &str, start: usize, end: usize) -> Optio
     None
 }
 
+fn source_type_fact_nested_const_assertion_span(
+    source: &str,
+    template_span: ParserByteSpanV0,
+    full_end: usize,
+) -> Option<ParserByteSpanV0> {
+    if source.as_bytes().get(template_span.start) != Some(&b'`') {
+        return None;
+    }
+    let assertion_start = skip_js_trivia_until(source, template_span.end, full_end);
+    let (assertion_keyword, assertion_keyword_end) = read_js_identifier(source, assertion_start)?;
+    if assertion_keyword != "as" {
+        return None;
+    }
+    let const_start = skip_js_trivia_until(source, assertion_keyword_end, full_end);
+    let (const_keyword, const_end) = read_js_identifier(source, const_start)?;
+    (const_keyword == "const").then_some(ParserByteSpanV0 {
+        start: template_span.start,
+        end: const_end,
+    })
+}
+
 fn source_type_fact_skipped_expression_id(byte_span: ParserByteSpanV0) -> String {
     format!(
         "omena-bridge-source-type-fact-skipped:{}:{}",
@@ -5169,10 +5195,29 @@ fn push_source_type_fact_skipped_and_attempt(
     lexical_disposition: SourceTypeFactLexicalDispositionV0,
     type_facts: &mut SourceTypeFactCollection<'_>,
 ) {
-    let expression_id = source_type_fact_skipped_expression_id(byte_span);
-    let skipped = SourceTypeFactTargetSkippedFactV0 {
+    push_source_type_fact_skipped_and_attempt_with_span(
         byte_span,
-        expression_id: expression_id.clone(),
+        byte_span,
+        target_style_uri,
+        shape_class,
+        lexical_disposition,
+        type_facts,
+    );
+}
+
+fn push_source_type_fact_skipped_and_attempt_with_span(
+    skipped_span: ParserByteSpanV0,
+    attempt_span: ParserByteSpanV0,
+    target_style_uri: Option<&str>,
+    shape_class: SourceTypeFactExpressionShapeV0,
+    lexical_disposition: SourceTypeFactLexicalDispositionV0,
+    type_facts: &mut SourceTypeFactCollection<'_>,
+) {
+    let skipped_expression_id = source_type_fact_skipped_expression_id(skipped_span);
+    let attempt_expression_id = source_type_fact_skipped_expression_id(attempt_span);
+    let skipped = SourceTypeFactTargetSkippedFactV0 {
+        byte_span: skipped_span,
+        expression_id: skipped_expression_id,
         target_style_uri: target_style_uri.map(ToString::to_string),
         reason: shape_class.unsupported_reason(),
     };
@@ -5180,8 +5225,8 @@ fn push_source_type_fact_skipped_and_attempt(
         type_facts.skipped.push(skipped);
     }
     push_source_type_fact_lexical_attempt(
-        byte_span,
-        expression_id,
+        attempt_span,
+        attempt_expression_id,
         target_style_uri,
         shape_class,
         lexical_disposition,

@@ -228,11 +228,9 @@ export const view = () => <div className={cx(`theme-${resolveTheme()}`)} />;
             .as_ref()
             .and_then(|value| value.pointer("/result/typeFactTier")),
         Some(&json!({
-            "attempted": false,
-            "outcome": "notAttempted",
-            "reason": "unsupportedCallExpression",
-            "shapeClass": "call",
-            "lexicalDisposition": "unresolved",
+            "attempted": true,
+            "outcome": "unavailable",
+            "reason": "projectMiss",
             "skippedTargetCount": 1,
         })),
     );

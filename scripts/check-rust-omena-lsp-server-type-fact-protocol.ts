@@ -33,14 +33,41 @@ import styles from "./App.module.scss";
 const cx = bind.bind(styles);
 // 기준 size와 font-size가 다르게 선언된 경우에도 tsgo positions must stay aligned.
 interface Props { size: "medium" | "small"; fontSize?: 10 | 12; weight?: "bold" | "medium"; }
+declare function pickTone(): "call-primary" | "call-secondary";
+const themeByKey = { alpha: "computed-alpha", beta: "computed-beta" } as const;
+declare const themeKey: "alpha" | "beta";
+declare const nestedVariant:
+  | "small-soft"
+  | "small-strong"
+  | "large-soft"
+  | "large-strong";
+declare const enabled: boolean;
+declare function logicalTone(): "logical-only";
 export function Badge({ size, fontSize }: Props) {
-  return <span className={cx(size, \`font-size-\${fontSize}\`)} />;
+  return <span className={cx(
+    size,
+    \`font-size-\${fontSize}\`,
+    pickTone(),
+    themeByKey[themeKey],
+    \`\${\`nested-\${nestedVariant}\` as const}\`,
+    "arithmetic-" + size,
+    \`\${enabled && logicalTone()}\`
+  )} />;
 }
 `;
 const styleText = `.medium { color: red; }
 .small { color: blue; }
 .font-size-10 { font-size: 10px; }
 .font-size-12 { font-size: 12px; }
+.call-primary { color: green; }
+.call-secondary { color: teal; }
+.computed-alpha { color: orange; }
+.computed-beta { color: purple; }
+.nested-small-soft { opacity: 0.25; }
+.nested-small-strong { opacity: 0.5; }
+.nested-large-soft { opacity: 0.75; }
+.nested-large-strong { opacity: 1; }
+.logical-only { display: block; }
 `;
 const lateSourceText = `import bind from "classnames/bind";
 import styles from "./Late.module.scss";
@@ -107,8 +134,33 @@ function writeFixtureProject(): void {
 async function runTypeFactProtocolSmoke(): Promise<void> {
   const sourceUri = fileUri(path.join(srcDir, "App.tsx"));
   const styleUri = fileUri(path.join(srcDir, "App.module.scss"));
-  const sizePosition = positionForOffset(sourceText, sourceText.indexOf("cx(size") + "cx(".length);
+  const sizePosition = positionForOffset(
+    sourceText,
+    sourceText.indexOf("\n    size,") + "\n    ".length,
+  );
   const fontSizePosition = positionForOffset(sourceText, sourceText.lastIndexOf("fontSize"));
+  const exactSpanCases = [
+    {
+      label: "call",
+      position: positionForOffset(sourceText, sourceText.lastIndexOf("pickTone()")),
+      selectors: ["call-primary", "call-secondary"],
+    },
+    {
+      label: "computed-access",
+      position: positionForOffset(sourceText, sourceText.indexOf("themeByKey[themeKey]")),
+      selectors: ["computed-alpha", "computed-beta"],
+    },
+    {
+      label: "nested-template",
+      position: positionForOffset(sourceText, sourceText.indexOf("`nested-${nestedVariant}`") + 1),
+      selectors: [
+        "nested-large-soft",
+        "nested-large-strong",
+        "nested-small-soft",
+        "nested-small-strong",
+      ],
+    },
+  ] as const;
   const client = new JsonRpcClient(serverPath, serverCwd);
 
   try {
@@ -161,6 +213,73 @@ async function runTypeFactProtocolSmoke(): Promise<void> {
     const referenceUris = readArray(references).map((location) => readString(location, ["uri"]));
     const prepareRenamePlaceholder = readString(prepareRename, ["placeholder"]);
     const renameStyleEdits = readWorkspaceEdits(rename, styleUri);
+    for (const exactSpanCase of exactSpanCases) {
+      const exactHover = await client.request("textDocument/hover", {
+        textDocument: { uri: sourceUri },
+        position: exactSpanCase.position,
+      });
+      const exactDefinitions = await client.request("textDocument/definition", {
+        textDocument: { uri: sourceUri },
+        position: exactSpanCase.position,
+      });
+      const exactTrace = await client.request("omena/explainHoverTrace", {
+        textDocument: { uri: sourceUri },
+        position: exactSpanCase.position,
+      });
+      assert(
+        readString(exactTrace, ["typeFactTier", "outcome"]) === "resolved",
+        `${exactSpanCase.label} exact-span tier was not resolved: ${JSON.stringify(exactTrace)}`,
+      );
+      assertSelectorSet(
+        readString(exactHover, ["contents", "value"]),
+        exactSpanCase.selectors,
+        exactSpanCase.label,
+      );
+      assert(
+        readArray(exactDefinitions).filter((location) =>
+          fileUriEquivalent(readString(location, ["uri"]), styleUri),
+        ).length === exactSpanCase.selectors.length,
+        `${exactSpanCase.label} did not resolve its complete exact-span selector set: ${JSON.stringify(
+          exactDefinitions,
+        )}`,
+      );
+    }
+    const refusedCases = [
+      {
+        expression: '"arithmetic-" + size',
+        reason: "nonExactDomain",
+      },
+      {
+        expression: "enabled && logicalTone()",
+        reason: "nonExactUnionMember",
+      },
+    ] as const;
+    for (const refusedCase of refusedCases) {
+      const position = positionForOffset(sourceText, sourceText.indexOf(refusedCase.expression));
+      const refusedHover = await client.request("textDocument/hover", {
+        textDocument: { uri: sourceUri },
+        position,
+      });
+      const refusedTrace = await client.request("omena/explainHoverTrace", {
+        textDocument: { uri: sourceUri },
+        position,
+      });
+      const refusedText =
+        refusedHover === null ? "" : readString(refusedHover, ["contents", "value"]);
+      assert(
+        !refusedText.includes("`.logical-only`") &&
+          !refusedText.includes("`.arithmetic-medium`") &&
+          !refusedText.includes("`.arithmetic-small`"),
+        `non-exact ${refusedCase.expression} unexpectedly projected selector facts: ${refusedText}`,
+      );
+      assert(
+        readString(refusedTrace, ["typeFactTier", "outcome"]) === "refused" &&
+          readString(refusedTrace, ["typeFactTier", "reason"]) === refusedCase.reason,
+        `${refusedCase.expression} did not preserve its exact-span refusal: ${JSON.stringify(
+          refusedTrace,
+        )}`,
+      );
+    }
 
     assert(
       hoverText.includes("`.medium`") && hoverText.includes("`.small`"),
@@ -199,6 +318,8 @@ async function runTypeFactProtocolSmoke(): Promise<void> {
         "diskFallback=unopened-style",
         "unicodePosition=utf16",
         "union=nullish-soft-skip",
+        "exactSpanShapes=call,computed-access,nested-template",
+        "strictRefusals=arithmetic,logical",
         "projection=omena-query",
       ].join(" "),
     );
@@ -380,6 +501,21 @@ function readWorkspaceEdits(value: unknown, targetUri: string): readonly unknown
     }
   }
   throw new Error(`Expected workspace edits for ${targetUri}, got ${JSON.stringify(value)}`);
+}
+
+function assertSelectorSet(markdown: string, expected: readonly string[], label: string): void {
+  const expectedSet = new Set(expected);
+  const observed = [...markdown.matchAll(/`\.([^`]+)`/gu)]
+    .map((match) => match[1])
+    .filter((selector): selector is string => selector !== undefined && expectedSet.has(selector))
+    .toSorted();
+  const expectedSorted = [...expected].toSorted();
+  assert(
+    JSON.stringify(observed) === JSON.stringify(expectedSorted),
+    `${label} hover selector set mismatch: expected=${JSON.stringify(
+      expectedSorted,
+    )} observed=${JSON.stringify(observed)} hover=${markdown}`,
+  );
 }
 
 function readRecord(value: unknown, pathParts: readonly string[]): Record<string, unknown> {

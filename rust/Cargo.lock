@@ -3027,6 +3027,7 @@ dependencies = [
 name = "omena-tsgo-client"
 version = "0.3.0"
 dependencies = [
+ "base64",
  "serde",
  "serde_json",
 ]

@@ -5,9 +5,11 @@ import {
   TypeFlags,
   type APIOptions,
   type LiteralType,
+  type Project,
   type Type,
   type UnionType,
 } from "@typescript/native-preview/unstable/async";
+import type { Node, SourceFile } from "@typescript/native-preview/unstable/ast";
 import ts from "../../engine-core-ts/src/ts-facade";
 import type { ResolvedType } from "@omena/shared";
 import {
@@ -27,6 +29,24 @@ export interface TsgoTypeFactTarget {
   readonly filePath: string;
   readonly expressionId: string;
   readonly position: number;
+}
+
+export interface TsgoSpanTypeFactTarget {
+  readonly filePath: string;
+  readonly expressionId: string;
+  readonly startPosition: number;
+  readonly endPosition: number;
+}
+
+export interface TsgoSpanTypeFactResultEntry {
+  readonly filePath: string;
+  readonly expressionId: string;
+  readonly outcome: "resolved" | "refused";
+  readonly reason: "exactFiniteDomain" | "nodeSpanMismatch" | "nonExactDomain";
+  readonly spanExact: boolean;
+  readonly nonNullishMemberCount: number;
+  readonly resolvedMemberCount: number;
+  readonly resolvedType: ResolvedType;
 }
 
 export interface TsgoTypeFactWorkerInput {
@@ -252,6 +272,148 @@ async function defaultRunTsgoTypeFactWorker(
       await closeTsgoTypeFactApi(api);
     }
   }
+}
+
+export async function resolveTsgoSpanTypeFact(
+  project: Project,
+  target: TsgoSpanTypeFactTarget,
+): Promise<TsgoSpanTypeFactResultEntry> {
+  const sourceFile = await project.program.getSourceFile(target.filePath);
+  const node = sourceFile
+    ? findUniqueNodeAtExactSpan(sourceFile, target.startPosition, target.endPosition)
+    : undefined;
+  if (!node) {
+    return refusedTsgoSpanTypeFact(target, "nodeSpanMismatch", false);
+  }
+  const exactDomain = await extractExactStringDomain(await project.checker.getTypeAtLocation(node));
+  if (!exactDomain.resolvedType) {
+    return refusedTsgoSpanTypeFact(
+      target,
+      "nonExactDomain",
+      true,
+      exactDomain.nonNullishMemberCount,
+      exactDomain.resolvedMemberCount,
+    );
+  }
+  return {
+    filePath: target.filePath,
+    expressionId: target.expressionId,
+    outcome: "resolved",
+    reason: "exactFiniteDomain",
+    spanExact: true,
+    nonNullishMemberCount: exactDomain.nonNullishMemberCount,
+    resolvedMemberCount: exactDomain.resolvedMemberCount,
+    resolvedType: exactDomain.resolvedType,
+  };
+}
+
+function findUniqueNodeAtExactSpan(
+  sourceFile: SourceFile,
+  startPosition: number,
+  endPosition: number,
+): Node | undefined {
+  const exactNodes: Node[] = [];
+  const visit = (node: Node): void => {
+    const normalizedStart = skipSourceTrivia(sourceFile.text, node.pos, node.end);
+    if (normalizedStart === startPosition && node.end === endPosition) {
+      exactNodes.push(node);
+    }
+    node.forEachChild((child) => {
+      visit(child);
+      return undefined;
+    });
+  };
+  sourceFile.forEachChild((node) => {
+    visit(node);
+    return undefined;
+  });
+  return exactNodes.length === 1 ? exactNodes[0] : undefined;
+}
+
+function skipSourceTrivia(source: string, start: number, end: number): number {
+  let cursor = Math.max(0, start);
+  while (cursor < end) {
+    const character = source[cursor];
+    if (/\s/u.test(character ?? "")) {
+      cursor += 1;
+      continue;
+    }
+    if (source.startsWith("//", cursor)) {
+      const newline = source.indexOf("\n", cursor + 2);
+      cursor = newline < 0 || newline >= end ? end : newline + 1;
+      continue;
+    }
+    if (source.startsWith("/*", cursor)) {
+      const close = source.indexOf("*/", cursor + 2);
+      cursor = close < 0 || close + 2 > end ? end : close + 2;
+      continue;
+    }
+    break;
+  }
+  return cursor;
+}
+
+function refusedTsgoSpanTypeFact(
+  target: TsgoSpanTypeFactTarget,
+  reason: "nodeSpanMismatch" | "nonExactDomain",
+  spanExact: boolean,
+  nonNullishMemberCount = 0,
+  resolvedMemberCount = 0,
+): TsgoSpanTypeFactResultEntry {
+  return {
+    filePath: target.filePath,
+    expressionId: target.expressionId,
+    outcome: "refused",
+    reason,
+    spanExact,
+    nonNullishMemberCount,
+    resolvedMemberCount,
+    resolvedType: UNRESOLVABLE,
+  };
+}
+
+async function extractExactStringDomain(type: Type | undefined): Promise<{
+  readonly resolvedType?: ResolvedType;
+  readonly nonNullishMemberCount: number;
+  readonly resolvedMemberCount: number;
+}> {
+  if (!type) {
+    return { nonNullishMemberCount: 0, resolvedMemberCount: 0 };
+  }
+  if (isStringLiteralType(type)) {
+    return {
+      resolvedType: { kind: "union", values: [(type as LiteralType).value as string] },
+      nonNullishMemberCount: 1,
+      resolvedMemberCount: 1,
+    };
+  }
+  if ((type.flags & TypeFlags.Union) === 0) {
+    return { nonNullishMemberCount: 1, resolvedMemberCount: 0 };
+  }
+  const members = (await (type as UnionType).getTypes()).filter(
+    (member) => !isPureNullishType(member),
+  );
+  const values = members.flatMap((member) =>
+    isStringLiteralType(member) ? [(member as LiteralType).value as string] : [],
+  );
+  if (values.length === 0 || values.length !== members.length) {
+    return {
+      nonNullishMemberCount: members.length,
+      resolvedMemberCount: values.length,
+    };
+  }
+  return {
+    resolvedType: { kind: "union", values: [...new Set(values)] },
+    nonNullishMemberCount: members.length,
+    resolvedMemberCount: members.length,
+  };
+}
+
+function isPureNullishType(type: Type): boolean {
+  const nullishFlags = TypeFlags.Null | TypeFlags.Undefined;
+  return (
+    type.flags !== 0 && (type.flags & nullishFlags) !== 0 && (type.flags & ~nullishFlags) === 0
+  );
 }
 
 export function buildTsgoTypeFactApiOptions(
