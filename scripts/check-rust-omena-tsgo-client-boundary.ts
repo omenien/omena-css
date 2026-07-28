@@ -70,6 +70,8 @@ assert.deepEqual(methodNames, [
   "updateSnapshot",
   "getDefaultProjectForFile",
   "getTypeAtPosition",
+  "getSourceFile",
+  "getTypeAtLocation",
   "getTypesOfType",
   "release",
 ]);

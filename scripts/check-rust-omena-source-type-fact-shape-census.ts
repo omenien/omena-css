@@ -5,7 +5,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import ts from "typescript";
+import ts from "../server/engine-core-ts/src/ts-facade";
 
 type ShapeClass =
   | "identifierPath"
@@ -474,7 +474,7 @@ function collectSitesFromClassExpression(
   sites: SyntaxSite[],
 ): void {
   const unwrapped = unwrapExpression(expression);
-  if (ts.isStringLiteralLike(unwrapped) && !ts.isTemplateExpression(unwrapped)) {
+  if (ts.isStringLiteral(unwrapped) || ts.isNoSubstitutionTemplateLiteral(unwrapped)) {
     return;
   }
   if (ts.isCallExpression(unwrapped) && isClassUtilityCall(unwrapped, boundUtilityNames)) {
@@ -495,7 +495,7 @@ function collectSitesFromClassExpression(
   }
   if (ts.isObjectLiteralExpression(unwrapped)) {
     for (const property of unwrapped.properties) {
-      if (ts.isSpreadAssignment(property)) {
+      if (property.kind === ts.SyntaxKind.SpreadAssignment) {
         collectSitesFromClassExpression(
           property.expression,
           source,
@@ -678,7 +678,11 @@ function isIdentifierPath(expression: ts.Expression): boolean {
 }
 
 function isStaticElementKey(expression: ts.Expression | undefined): boolean {
-  return expression !== undefined && ts.isStringLiteralLike(unwrapExpression(expression));
+  if (expression === undefined) {
+    return false;
+  }
+  const unwrapped = unwrapExpression(expression);
+  return ts.isStringLiteral(unwrapped) || ts.isNoSubstitutionTemplateLiteral(unwrapped);
 }
 
 function unwrapExpression(expression: ts.Expression): ts.Expression {
