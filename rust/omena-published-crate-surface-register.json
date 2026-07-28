@@ -1,0 +1,269 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-published-crate-surface-register",
+  "domainAuthority": "rust.publish-train-closure.canonicalPublishOrder",
+  "dispositions": ["snapshotGated", "trainSemverOnly", "noRustConsumerSurface"],
+  "rows": [
+    {
+      "crate": "omena-evidence-graph",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-meta-macros",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-reactive",
+      "disposition": "snapshotGated",
+      "registryBaselineAtRegistration": "firstPublish",
+      "snapshot": "rust/crates/omena-reactive/tests/snapshots/public-api.txt"
+    },
+    {
+      "crate": "omena-refinement-trait",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-spec-audit",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-syntax",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-cascade",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-categorical",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-ensemble",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-incremental",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-interner",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-parser",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-cst-typed",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-product-hints",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-rg-flow",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-smt",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-cascade-proof",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-testkit",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-transform-cst",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-lawvere",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-tsgo-client",
+      "disposition": "snapshotGated",
+      "registryBaselineAtRegistration": "present",
+      "snapshot": "rust/crates/omena-tsgo-client/tests/snapshots/public-api.txt"
+    },
+    {
+      "crate": "omena-value-lattice",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-abstract-value",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-cross-file-summary",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-engine-input-producers",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-reachability-datalog-lab",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-refinement",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-resolver",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-checker",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-query-checker-orchestrator",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-query-core",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-scss-eval",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-semantic",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-sif",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-bridge",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-streaming-ifds",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-transform-passes",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-bundler",
+      "disposition": "snapshotGated",
+      "registryBaselineAtRegistration": "present",
+      "snapshot": "rust/crates/omena-bundler/tests/snapshots/public-api.txt"
+    },
+    {
+      "crate": "omena-transform-bundle",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-transform-egg",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-transform-print",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-transform-target",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-query-transform-runner",
+      "disposition": "snapshotGated",
+      "registryBaselineAtRegistration": "present",
+      "snapshot": "rust/crates/omena-query-transform-runner/tests/snapshots/public-api.txt"
+    },
+    {
+      "crate": "omena-query",
+      "disposition": "snapshotGated",
+      "registryBaselineAtRegistration": "present",
+      "snapshot": "rust/crates/omena-query/tests/snapshots/public-api.txt"
+    },
+    {
+      "crate": "omena-lsp-server",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-variational",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-wasm",
+      "disposition": "snapshotGated",
+      "registryBaselineAtRegistration": "present",
+      "snapshot": "rust/crates/omena-wasm/tests/snapshots/public-api.txt"
+    },
+    {
+      "crate": "omena-zk-circuit",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-zk-audit",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-cli",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    },
+    {
+      "crate": "omena-umbrella",
+      "disposition": "trainSemverOnly",
+      "registryBaselineAtRegistration": "present"
+    }
+  ]
+}

@@ -1,0 +1,832 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-css-build-adapter-interface-members",
+  "source": "packages/css-build-adapter/index.d.ts",
+  "changeClasses": [
+    "additive-optional",
+    "additive-required",
+    "removal",
+    "narrowing"
+  ],
+  "executionSummaryWireResidual": [
+    "cascadeProofObligations",
+    "cssImportInlines",
+    "cssModuleComposesExports",
+    "cssModuleEvaluation",
+    "decisions",
+    "designTokenRoutes",
+    "dischargeLedgerTelemetry",
+    "inputByteLen",
+    "moduleQualifiedShake",
+    "mutationCount",
+    "outputByteLen",
+    "passPlan",
+    "provenanceDerivationForest",
+    "provenancePreserved",
+    "semanticPreservationTelemetry",
+    "semanticRemovals",
+    "strictPolicy",
+    "structuralIrTransactionTelemetry",
+    "winnerEqualityObligations"
+  ],
+  "members": [
+    {
+      "interfaceName": "OmenaBuildAdapterBundleOptions",
+      "member": "bundle",
+      "optional": false,
+      "typeExpression": "true"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterBundleOptions",
+      "member": "targetQuery",
+      "optional": true,
+      "typeExpression": "undefined"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "bundle",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "closedStyleWorld",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "configFile",
+      "optional": true,
+      "typeExpression": "false|string"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "context",
+      "optional": true,
+      "typeExpression": "OmenaTransformExecutionContextV0"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "cwd",
+      "optional": true,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "devRuntime",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "engine",
+      "optional": true,
+      "typeExpression": "unknown"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "include",
+      "optional": true,
+      "typeExpression": "RegExp|string|readonly(RegExp|string)[]|((id:string)=>boolean)"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "minify",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "moduleInterface",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "packageManifests",
+      "optional": true,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "passes",
+      "optional": true,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "sourceMap",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "sources",
+      "optional": true,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "targetOptions",
+      "optional": true,
+      "typeExpression": "OmenaTargetTransformOptionsV0"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "targetQuery",
+      "optional": true,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "treeShake",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaBuildAdapterOptions",
+      "member": "wasmFallback",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaBuildOutput",
+      "member": "classMap",
+      "optional": true,
+      "typeExpression": "Readonly<Record<string,string>>"
+    },
+    {
+      "interfaceName": "OmenaBuildOutput",
+      "member": "code",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBuildOutput",
+      "member": "map",
+      "optional": false,
+      "typeExpression": "OmenaSourceMapV3V0|null"
+    },
+    {
+      "interfaceName": "OmenaBuildOutput",
+      "member": "moduleInterface",
+      "optional": true,
+      "typeExpression": "OmenaBundlerHostResolveModuleResponseV0"
+    },
+    {
+      "interfaceName": "OmenaBuildOutput",
+      "member": "namedExports",
+      "optional": true,
+      "typeExpression": "Readonly<Record<string,string>>"
+    },
+    {
+      "interfaceName": "OmenaBuildOutput",
+      "member": "summary",
+      "optional": false,
+      "typeExpression": "OmenaConsumerBuildSummaryV0"
+    },
+    {
+      "interfaceName": "OmenaBuildOutput",
+      "member": "typescriptDeclaration",
+      "optional": true,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBuildState",
+      "member": "cache",
+      "optional": false,
+      "typeExpression": "Map<string,unknown>"
+    },
+    {
+      "interfaceName": "OmenaBuildState",
+      "member": "command",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBuildState",
+      "member": "configPromise",
+      "optional": false,
+      "typeExpression": "Promise<Partial<OmenaBuildAdapterOptions>>|null"
+    },
+    {
+      "interfaceName": "OmenaBuildState",
+      "member": "enginePromise",
+      "optional": false,
+      "typeExpression": "Promise<unknown>|null"
+    },
+    {
+      "interfaceName": "OmenaBuildState",
+      "member": "generations",
+      "optional": false,
+      "typeExpression": "Map<string,number>"
+    },
+    {
+      "interfaceName": "OmenaBuildState",
+      "member": "root",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "assetRewrites",
+      "optional": false,
+      "typeExpression": "readonly unknown[]"
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "bundle",
+      "optional": false,
+      "typeExpression": "OmenaTransformBundleSourceSummaryV0"
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "codeSplitOutputs",
+      "optional": false,
+      "typeExpression": "readonly OmenaBundleCodeSplitWorkspacePlanOutputV0[]"
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "execution",
+      "optional": false,
+      "typeExpression": "OmenaTransformExecutionSummaryV0"
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "outputCss",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "perPassProvenance",
+      "optional": false,
+      "typeExpression": "readonly OmenaTransformPassExecutionOutcomeV0[]"
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "product",
+      "optional": false,
+      "typeExpression": "\"omena-query.bundle-artifact\""
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "readySurfaces",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "schemaVersion",
+      "optional": false,
+      "typeExpression": "\"0\""
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "sourceMapV3",
+      "optional": false,
+      "typeExpression": "OmenaSourceMapV3V0"
+    },
+    {
+      "interfaceName": "OmenaBundleArtifactV0",
+      "member": "stylePath",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBundleBuildOutput",
+      "member": "map",
+      "optional": false,
+      "typeExpression": "OmenaSourceMapV3V0|null"
+    },
+    {
+      "interfaceName": "OmenaBundleBuildOutput",
+      "member": "summary",
+      "optional": false,
+      "typeExpression": "OmenaBundleWithEvidenceV0"
+    },
+    {
+      "interfaceName": "OmenaBundleCodeSplitWorkspacePlanOutputV0",
+      "member": "isEntry",
+      "optional": false,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaBundleCodeSplitWorkspacePlanOutputV0",
+      "member": "reachableFromEntries",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaBundleCodeSplitWorkspacePlanOutputV0",
+      "member": "sourcePath",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBundleCodeSplitWorkspacePlanOutputV0",
+      "member": "splitBoundary",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBundleCompositeExecutionByteFactsV0",
+      "member": "interModuleSeparatorByteLen",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleCompositeExecutionByteFactsV0",
+      "member": "materializedOutputByteLen",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleCompositeExecutionByteFactsV0",
+      "member": "moduleCount",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleCompositeExecutionByteFactsV0",
+      "member": "summedModuleInputByteLen",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleCompositeExecutionByteFactsV0",
+      "member": "summedModuleOutputByteLen",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionFieldScopeV0",
+      "member": "derivation",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionFieldScopeV0",
+      "member": "fieldName",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionFieldScopeV0",
+      "member": "scope",
+      "optional": false,
+      "typeExpression": "\"entry\"|\"bundle\""
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionScopeEvidenceV0",
+      "member": "bundleComposite",
+      "optional": false,
+      "typeExpression": "OmenaBundleCompositeExecutionByteFactsV0"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionScopeEvidenceV0",
+      "member": "entryModuleInstance",
+      "optional": false,
+      "typeExpression": "OmenaModuleInstanceKeyV0"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionScopeEvidenceV0",
+      "member": "fieldScopes",
+      "optional": false,
+      "typeExpression": "readonly OmenaBundleExecutionFieldScopeV0[]"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionScopeEvidenceV0",
+      "member": "moduleExecutions",
+      "optional": false,
+      "typeExpression": "readonly OmenaBundleModuleExecutionByteFactsV0[]"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionScopeEvidenceV0",
+      "member": "product",
+      "optional": false,
+      "typeExpression": "\"omena-query.bundle-execution-scope\""
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionScopeEvidenceV0",
+      "member": "schemaVersion",
+      "optional": false,
+      "typeExpression": "\"0\""
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionScopeEvidenceV0",
+      "member": "sourceMapDispositions",
+      "optional": false,
+      "typeExpression": "readonly OmenaLinkedSourceMapDispositionV0[]"
+    },
+    {
+      "interfaceName": "OmenaBundleModuleExecutionByteFactsV0",
+      "member": "generatedEnd",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleModuleExecutionByteFactsV0",
+      "member": "generatedStart",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleModuleExecutionByteFactsV0",
+      "member": "inputByteLen",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleModuleExecutionByteFactsV0",
+      "member": "moduleInstance",
+      "optional": false,
+      "typeExpression": "OmenaModuleInstanceKeyV0"
+    },
+    {
+      "interfaceName": "OmenaBundleModuleExecutionByteFactsV0",
+      "member": "outputByteLen",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleWithEvidenceV0",
+      "member": "closedWorldDecisionParity",
+      "optional": false,
+      "typeExpression": "OmenaClosedWorldDecisionParityV0"
+    },
+    {
+      "interfaceName": "OmenaBundleWithEvidenceV0",
+      "member": "closedWorldOutcome",
+      "optional": false,
+      "typeExpression": "OmenaClosedWorldOutcomeV0"
+    },
+    {
+      "interfaceName": "OmenaBundleWithEvidenceV0",
+      "member": "evidence",
+      "optional": false,
+      "typeExpression": "OmenaBundleEvidenceManifestV0"
+    },
+    {
+      "interfaceName": "OmenaBundleWithEvidenceV0",
+      "member": "executionScope",
+      "optional": false,
+      "typeExpression": "OmenaBundleExecutionScopeEvidenceV0|null"
+    },
+    {
+      "interfaceName": "OmenaConsumerBuildSummaryV0",
+      "member": "execution",
+      "optional": false,
+      "typeExpression": "OmenaTransformExecutionSummaryV0"
+    },
+    {
+      "interfaceName": "OmenaConsumerBuildSummaryV0",
+      "member": "product",
+      "optional": true,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaConsumerBuildSummaryV0",
+      "member": "readySurfaces",
+      "optional": true,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaConsumerBuildSummaryV0",
+      "member": "schemaVersion",
+      "optional": true,
+      "typeExpression": "\"0\""
+    },
+    {
+      "interfaceName": "OmenaConsumerBuildSummaryV0",
+      "member": "sourceMapV3",
+      "optional": true,
+      "typeExpression": "OmenaSourceMapV3V0"
+    },
+    {
+      "interfaceName": "OmenaLinkedSourceMapDispositionV0",
+      "member": "fallbackReason",
+      "optional": true,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaLinkedSourceMapDispositionV0",
+      "member": "granularity",
+      "optional": false,
+      "typeExpression": "\"cstAnchors\"|\"wholeModuleFallback\""
+    },
+    {
+      "interfaceName": "OmenaLinkedSourceMapDispositionV0",
+      "member": "moduleInstance",
+      "optional": false,
+      "typeExpression": "OmenaModuleInstanceKeyV0"
+    },
+    {
+      "interfaceName": "OmenaLinkedSourceMapDispositionV0",
+      "member": "segmentCount",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaPackageManifestInput",
+      "member": "packageJsonPath",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaPackageManifestInput",
+      "member": "packageJsonSource",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "file",
+      "optional": true,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "mappings",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "names",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "sources",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "sourcesContent",
+      "optional": true,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "version",
+      "optional": false,
+      "typeExpression": "3"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "x_omenaPassIds",
+      "optional": true,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "x_omenaProduct",
+      "optional": true,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "x_omenaSchemaVersion",
+      "optional": true,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaSourceMapV3V0",
+      "member": "x_omenaSegmentCount",
+      "optional": true,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaStyleSourceInput",
+      "member": "stylePath",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaStyleSourceInput",
+      "member": "styleSource",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaTargetTransformOptionsV0",
+      "member": "allowLayerFlatten",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTargetTransformOptionsV0",
+      "member": "allowLogicalToPhysical",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTargetTransformOptionsV0",
+      "member": "allowScopeFlatten",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTargetTransformOptionsV0",
+      "member": "dropDarkModeMediaQueries",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTargetTransformOptionsV0",
+      "member": "enableContainerStaticEval",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTargetTransformOptionsV0",
+      "member": "enableMediaStaticEval",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTargetTransformOptionsV0",
+      "member": "enableSupportsStaticEval",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "classHashingRequired",
+      "optional": false,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "codeSplittingRequired",
+      "optional": false,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "cssModulesResolutionRequired",
+      "optional": false,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "dialect",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "importInlineRequired",
+      "optional": false,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "moduleEvaluationRequired",
+      "optional": false,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "plannedPassIds",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "product",
+      "optional": false,
+      "typeExpression": "\"omena-transform-bundle.source\""
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "requiredPassIds",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "schemaVersion",
+      "optional": false,
+      "typeExpression": "\"0\""
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "sourcePath",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaTransformBundleSourceSummaryV0",
+      "member": "valueResolutionRequired",
+      "optional": false,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionContextV0",
+      "member": "[field: string]",
+      "optional": false,
+      "typeExpression": "unknown"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionContextV0",
+      "member": "closedStyleWorld",
+      "optional": true,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionSummaryV0",
+      "member": "executedPassIds",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionSummaryV0",
+      "member": "orderedPassIds",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionSummaryV0",
+      "member": "outcomes",
+      "optional": false,
+      "typeExpression": "readonly OmenaTransformPassExecutionOutcomeV0[]"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionSummaryV0",
+      "member": "outputCss",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionSummaryV0",
+      "member": "plannedOnlyPassIds",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionSummaryV0",
+      "member": "product",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionSummaryV0",
+      "member": "requestedPassIds",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaTransformExecutionSummaryV0",
+      "member": "schemaVersion",
+      "optional": false,
+      "typeExpression": "\"0\""
+    },
+    {
+      "interfaceName": "OmenaTransformPassExecutionOutcomeV0",
+      "member": "detail",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaTransformPassExecutionOutcomeV0",
+      "member": "inputByteLen",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaTransformPassExecutionOutcomeV0",
+      "member": "mutationCount",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaTransformPassExecutionOutcomeV0",
+      "member": "outputByteLen",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaTransformPassExecutionOutcomeV0",
+      "member": "passId",
+      "optional": false,
+      "typeExpression": "string"
+    },
+    {
+      "interfaceName": "OmenaTransformPassExecutionOutcomeV0",
+      "member": "provenancePreserved",
+      "optional": false,
+      "typeExpression": "boolean"
+    },
+    {
+      "interfaceName": "OmenaTransformPassExecutionOutcomeV0",
+      "member": "status",
+      "optional": false,
+      "typeExpression": "\"applied\"|\"noChange\"|\"plannedOnly\""
+    }
+  ]
+}

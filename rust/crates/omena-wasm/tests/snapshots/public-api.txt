@@ -1,0 +1,88 @@
+pub mod omena_wasm
+#[non_exhaustive] pub struct omena_wasm::OmenaWasmBundleExecutionScopeResultV0
+pub omena_wasm::OmenaWasmBundleExecutionScopeResultV0::bundle: omena_query::types::OmenaQueryBundleWithEvidenceV0
+pub omena_wasm::OmenaWasmBundleExecutionScopeResultV0::execution_scope: core::option::Option<omena_query::types::OmenaQueryBundleExecutionScopeEvidenceV0>
+pub struct omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
+impl omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
+pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::analyze(&mut self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::new() -> Self
+impl omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
+pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::analyze_summary(&mut self, &engine_input_producers::EngineInputV2) -> omena_query_core::OmenaQueryExpressionDomainIncrementalFlowAnalysisV0
+impl core::default::Default for omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
+pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::default() -> Self
+pub struct omena_wasm::OmenaWasmWorkspaceV0
+impl omena_wasm::OmenaWasmWorkspaceV0
+pub fn omena_wasm::OmenaWasmWorkspaceV0::build(&self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::OmenaWasmWorkspaceV0::diagnostics(&self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::OmenaWasmWorkspaceV0::explain(&self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::OmenaWasmWorkspaceV0::new(alloc::string::String, wasm_bindgen::JsValue) -> core::result::Result<Self, wasm_bindgen::JsValue>
+pub fn omena_wasm::OmenaWasmWorkspaceV0::query(&self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::OmenaWasmWorkspaceV0::replace_style_resolution_inputs(&mut self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::OmenaWasmWorkspaceV0::replace_style_sources(&mut self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::OmenaWasmWorkspaceV0::snapshot(&self) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_source(&str, &str, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_source_for_target_query(&str, &str, &str) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_source_for_target_query_summary(&str, &str, &str) -> omena_query::types::OmenaQueryConsumerBuildSummaryV0
+pub fn omena_wasm::build_style_source_for_target_query_with_context(&str, &str, &str, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_source_for_target_query_with_context_summary(&str, &str, &str, omena_transform_target::TargetTransformOptionsV0, &omena_transform_passes::model::TransformExecutionContextV0) -> omena_query::types::OmenaQueryConsumerBuildSummaryV0
+pub fn omena_wasm::build_style_source_for_target_query_with_options(&str, &str, &str, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_source_for_target_query_with_options_summary(&str, &str, &str, omena_transform_target::TargetTransformOptionsV0) -> omena_query::types::OmenaQueryConsumerBuildSummaryV0
+pub fn omena_wasm::build_style_source_summary(&str, &str, &[alloc::string::String]) -> omena_query::types::OmenaQueryConsumerBuildSummaryV0
+pub fn omena_wasm::build_style_source_with_context(&str, &str, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_source_with_context_summary(&str, &str, &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0) -> omena_query::types::OmenaQueryConsumerBuildSummaryV0
+pub fn omena_wasm::build_style_source_with_engine_input_context(&str, &str, wasm_bindgen::JsValue, wasm_bindgen::JsValue, bool) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_source_with_engine_input_context_summary(&str, &str, &[alloc::string::String], &engine_input_producers::EngineInputV2, bool) -> omena_query::types::OmenaQueryConsumerBuildSummaryV0
+pub fn omena_wasm::build_style_source_with_verification_profile(&str, &str, wasm_bindgen::JsValue, bool) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_source_with_verification_summary(&str, &str, &[alloc::string::String], bool) -> omena_query::types::OmenaQueryConsumerBuildSummaryV0
+pub fn omena_wasm::build_style_sources_for_target_query_with_context(&str, wasm_bindgen::JsValue, &str, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_sources_for_target_query_with_context_summary(&str, &[omena_query::types::OmenaQueryStyleSourceInputV0], &str, omena_transform_target::TargetTransformOptionsV0, &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::types::OmenaQueryStylePackageManifestV0]) -> core::result::Result<omena_query::types::OmenaQueryConsumerBuildSummaryV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_sources_minified_with_context(&str, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_sources_with_context(&str, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::build_style_sources_with_context_summary(&str, &[omena_query::types::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::types::OmenaQueryStylePackageManifestV0]) -> core::result::Result<omena_query::types::OmenaQueryConsumerBuildSummaryV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::bundle_style_sources_with_context(&str, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::bundle_style_sources_with_context_evidence(&str, &[omena_query::types::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::types::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::types::OmenaQueryBundleWithEvidenceV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::bundle_style_sources_with_context_execution_scope(&str, &[omena_query::types::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::types::OmenaQueryStylePackageManifestV0], &[alloc::string::String], bool) -> core::result::Result<omena_wasm::OmenaWasmBundleExecutionScopeResultV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::bundle_style_sources_with_context_execution_scope_js(&str, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, bool) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::bundle_style_sources_with_context_summary(&str, &[omena_query::types::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::types::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::types::OmenaQueryBundleArtifactV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::bundler_host_capabilities() -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::check_style_source(&str, &str) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::check_style_source_summary(&str, &str) -> omena_query::types::OmenaQueryConsumerCheckSummaryV0
+pub fn omena_wasm::expression_domain_incremental_flow(wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::expression_domain_incremental_flow_analysis_summary(&engine_input_producers::EngineInputV2, &mut omena_query_core::OmenaQueryExpressionDomainFlowRuntimeV0) -> omena_query_core::OmenaQueryExpressionDomainIncrementalFlowAnalysisV0
+pub fn omena_wasm::expression_domain_selector_projection(wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::expression_domain_selector_projection_summary(&engine_input_producers::EngineInputV2) -> omena_query_core::OmenaQueryExpressionDomainSelectorProjectionV0
+pub fn omena_wasm::list_transform_pass_summaries() -> alloc::vec::Vec<omena_query::types::OmenaQueryTransformPassSummaryV0>
+pub fn omena_wasm::list_transform_passes() -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::parse_stylesheet(&str, &str) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::parse_stylesheet_summary(&str, &str) -> omena_parser::parse_tree_contract_idl_generated::ParseTreeNodeV0
+pub fn omena_wasm::read_cascade_at_position(&str, &str, u32, u32, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_cascade_at_position_summary(&str, &str, usize, usize, &engine_input_producers::EngineInputV2) -> core::option::Option<omena_query::types::OmenaQueryCascadeAtPositionV0>
+pub fn omena_wasm::read_source_binding_index(&str, &str, core::option::Option<alloc::string::String>, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_source_binding_index_summary(&str, &str, core::option::Option<&str>, alloc::vec::Vec<omena_bridge::source_syntax::SourceImportedStyleBindingV0>, alloc::vec::Vec<alloc::string::String>) -> omena_bridge::source_syntax::SourceBindingIndexV0
+pub fn omena_wasm::read_source_diagnostics(&str, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_source_diagnostics_summary(&str, &[omena_query::types::OmenaQuerySourceMissingSelectorDiagnosticCandidateV0]) -> omena_query::types::OmenaQuerySourceDiagnosticsForFileV0
+pub fn omena_wasm::read_source_syntax_index(&str, &str, core::option::Option<alloc::string::String>, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_source_syntax_index_summary(&str, &str, core::option::Option<&str>, alloc::vec::Vec<omena_bridge::source_syntax::SourceImportedStyleBindingV0>, alloc::vec::Vec<alloc::string::String>) -> omena_bridge::source_syntax::SourceSyntaxIndexV0
+pub fn omena_wasm::read_source_type_fact_control_flow_graph(&str, &str, core::option::Option<alloc::string::String>, &str, u32) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_source_type_fact_control_flow_graph_summary(&str, &str, core::option::Option<&str>, &str, usize) -> core::option::Option<omena_query::OmenaQuerySourceTypeFactControlFlowGraphV0>
+pub fn omena_wasm::read_style_completion_at_position(&str, &str, u32, u32) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_style_completion_at_position_summary(&str, &str, usize, usize) -> core::result::Result<omena_query::types::OmenaQueryCompletionAtPositionV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_style_context_index(&str, &str, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_style_context_index_summary(&str, &str, &engine_input_producers::EngineInputV2) -> core::option::Option<omena_query::types::OmenaQueryStyleContextIndexV0>
+pub fn omena_wasm::read_style_diagnostics(&str, &str) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_style_diagnostics_summary(&str, &str) -> core::result::Result<omena_query::types::OmenaQueryStyleDiagnosticsForFileV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_style_hover_candidates(&str, &str) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_style_hover_candidates_summary(&str, &str) -> core::result::Result<omena_query::types::OmenaQueryStyleHoverCandidatesV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_workspace_source_diagnostics(&str, &str, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_workspace_source_diagnostics_summary(&str, &str, &[omena_query::types::OmenaQueryStyleSourceInputV0], &[omena_query::types::OmenaQueryStylePackageManifestV0]) -> omena_query::types::OmenaQuerySourceDiagnosticsForFileV0
+pub fn omena_wasm::read_workspace_source_diagnostics_summary_with_resolution_inputs(&str, &str, &[omena_query::types::OmenaQueryStyleSourceInputV0], &[omena_query::types::OmenaQueryStylePackageManifestV0], &omena_query::source::OmenaQueryStyleResolutionInputsV0) -> omena_query::types::OmenaQuerySourceDiagnosticsForFileV0
+pub fn omena_wasm::read_workspace_source_diagnostics_with_resolution_inputs(&str, &str, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_workspace_style_diagnostics(&str, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, core::option::Option<alloc::string::String>) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_workspace_style_diagnostics_summary(&str, &[omena_query::types::OmenaQueryStyleSourceInputV0], &[omena_query::types::OmenaQuerySourceDocumentInputV0], &[omena_query::types::OmenaQueryStylePackageManifestV0], &[omena_query::types::OmenaQueryExternalSifInputV0], core::option::Option<&str>) -> core::result::Result<omena_query::types::OmenaQueryStyleDiagnosticsForFileV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_workspace_style_diagnostics_summary_with_resolution_inputs(&str, &[omena_query::types::OmenaQueryStyleSourceInputV0], &[omena_query::types::OmenaQuerySourceDocumentInputV0], &[omena_query::types::OmenaQueryStylePackageManifestV0], &omena_query::source::OmenaQueryStyleResolutionInputsV0, &[omena_query::types::OmenaQueryExternalSifInputV0], core::option::Option<&str>) -> core::result::Result<omena_query::types::OmenaQueryStyleDiagnosticsForFileV0, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_workspace_style_diagnostics_with_resolution_inputs(&str, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, wasm_bindgen::JsValue, core::option::Option<alloc::string::String>) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::resolve_css_module_for_bundler_host(wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::summarize_transform_bundle_from_source(&str, &str) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::summarize_transform_bundle_from_source_summary(&str, &str) -> omena_bundler::TransformBundleSourceSummaryV0
+pub fn omena_wasm::transform_context_from_engine_input(wasm_bindgen::JsValue, &str, bool) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::transform_context_from_engine_input_summary(&engine_input_producers::EngineInputV2, &str, bool) -> omena_query::types::OmenaQueryTransformContextFromEngineInputSummaryV0

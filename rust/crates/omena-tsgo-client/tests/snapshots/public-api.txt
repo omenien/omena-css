@@ -1,0 +1,273 @@
+pub mod omena_tsgo_client
+pub enum omena_tsgo_client::ProviderUnresolvedDisciplineV0
+pub omena_tsgo_client::ProviderUnresolvedDisciplineV0::UnknownNotGuess
+pub enum omena_tsgo_client::TsgoJsonRpcFrameErrorV0
+pub omena_tsgo_client::TsgoJsonRpcFrameErrorV0::InvalidBodyUtf8
+pub omena_tsgo_client::TsgoJsonRpcFrameErrorV0::InvalidContentLength(alloc::string::String)
+pub omena_tsgo_client::TsgoJsonRpcFrameErrorV0::InvalidHeaderUtf8
+pub omena_tsgo_client::TsgoJsonRpcFrameErrorV0::InvalidJson(alloc::string::String)
+pub omena_tsgo_client::TsgoJsonRpcFrameErrorV0::MissingContentLength
+impl core::convert::From<omena_tsgo_client::TsgoJsonRpcFrameErrorV0> for omena_tsgo_client::TsgoJsonRpcIoErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcIoErrorV0::from(omena_tsgo_client::TsgoJsonRpcFrameErrorV0) -> Self
+impl core::error::Error for omena_tsgo_client::TsgoJsonRpcFrameErrorV0
+impl core::fmt::Display for omena_tsgo_client::TsgoJsonRpcFrameErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcFrameErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub enum omena_tsgo_client::TsgoJsonRpcIoErrorV0
+pub omena_tsgo_client::TsgoJsonRpcIoErrorV0::Frame(omena_tsgo_client::TsgoJsonRpcFrameErrorV0)
+pub omena_tsgo_client::TsgoJsonRpcIoErrorV0::Io(std::io::error::Error)
+pub omena_tsgo_client::TsgoJsonRpcIoErrorV0::MissingChildStdin
+pub omena_tsgo_client::TsgoJsonRpcIoErrorV0::MissingChildStdout
+impl core::convert::From<omena_tsgo_client::TsgoJsonRpcFrameErrorV0> for omena_tsgo_client::TsgoJsonRpcIoErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcIoErrorV0::from(omena_tsgo_client::TsgoJsonRpcFrameErrorV0) -> Self
+impl core::convert::From<omena_tsgo_client::TsgoJsonRpcIoErrorV0> for omena_tsgo_client::TsgoJsonRpcProviderErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcProviderErrorV0::from(omena_tsgo_client::TsgoJsonRpcIoErrorV0) -> Self
+impl core::convert::From<std::io::error::Error> for omena_tsgo_client::TsgoJsonRpcIoErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcIoErrorV0::from(std::io::error::Error) -> Self
+impl core::error::Error for omena_tsgo_client::TsgoJsonRpcIoErrorV0
+impl core::fmt::Display for omena_tsgo_client::TsgoJsonRpcIoErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcIoErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub enum omena_tsgo_client::TsgoJsonRpcProviderErrorV0
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::Cancelled
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::Cancelled::phase: &'static str
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::Encode(serde_json::error::Error)
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::Io(omena_tsgo_client::TsgoJsonRpcIoErrorV0)
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::MissingResponse
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::MissingResponse::method: alloc::string::String
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::MissingSnapshot
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::RpcError
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::RpcError::message: alloc::string::String
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::RpcError::method: alloc::string::String
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::UnexpectedResponseId
+pub omena_tsgo_client::TsgoJsonRpcProviderErrorV0::UnexpectedResponseId::method: alloc::string::String
+impl omena_tsgo_client::TsgoJsonRpcProviderErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcProviderErrorV0::is_recoverable(&self) -> bool
+impl core::convert::From<omena_tsgo_client::TsgoJsonRpcIoErrorV0> for omena_tsgo_client::TsgoJsonRpcProviderErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcProviderErrorV0::from(omena_tsgo_client::TsgoJsonRpcIoErrorV0) -> Self
+impl core::convert::From<serde_json::error::Error> for omena_tsgo_client::TsgoJsonRpcProviderErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcProviderErrorV0::from(serde_json::error::Error) -> Self
+impl core::error::Error for omena_tsgo_client::TsgoJsonRpcProviderErrorV0
+impl core::fmt::Display for omena_tsgo_client::TsgoJsonRpcProviderErrorV0
+pub fn omena_tsgo_client::TsgoJsonRpcProviderErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub struct omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::api_methods: alloc::vec::Vec<omena_tsgo_client::TsgoApiMethodV0>
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::client_name: &'static str
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::cme_coupled_surfaces: alloc::vec::Vec<&'static str>
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::lifecycle: omena_tsgo_client::TsgoClientLifecycleV0
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::next_decoupling_targets: alloc::vec::Vec<&'static str>
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::product: &'static str
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::provider_capabilities: omena_tsgo_client::ProviderCapabilitiesV0
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::ready_surfaces: alloc::vec::Vec<&'static str>
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::recovery_policy: omena_tsgo_client::TsgoRecoveryPolicyV0
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::request_path_policy: alloc::vec::Vec<&'static str>
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::runtime_model: &'static str
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::schema_version: &'static str
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::type_fact_contract: omena_tsgo_client::TypeFactContractV0
+pub omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0::workspace_process_policy: omena_tsgo_client::WorkspaceProcessPolicyV0
+pub struct omena_tsgo_client::ProviderCapabilitiesV0
+pub omena_tsgo_client::ProviderCapabilitiesV0::capability_surface: &'static str
+pub omena_tsgo_client::ProviderCapabilitiesV0::downgrade_provenance: &'static str
+pub omena_tsgo_client::ProviderCapabilitiesV0::fallback_discipline: omena_tsgo_client::ProviderUnresolvedDisciplineV0
+pub omena_tsgo_client::ProviderCapabilitiesV0::input_contract: &'static str
+pub omena_tsgo_client::ProviderCapabilitiesV0::output_contract: &'static str
+pub omena_tsgo_client::ProviderCapabilitiesV0::provider_id: &'static str
+pub omena_tsgo_client::ProviderCapabilitiesV0::provider_kind: &'static str
+pub omena_tsgo_client::ProviderCapabilitiesV0::unknown_precision_value_domain: &'static str
+pub struct omena_tsgo_client::TsgoApiMethodV0
+pub omena_tsgo_client::TsgoApiMethodV0::method: &'static str
+pub omena_tsgo_client::TsgoApiMethodV0::phase: &'static str
+pub omena_tsgo_client::TsgoApiMethodV0::purpose: &'static str
+pub omena_tsgo_client::TsgoApiMethodV0::request_group: &'static str
+pub struct omena_tsgo_client::TsgoClientLifecycleV0
+pub omena_tsgo_client::TsgoClientLifecycleV0::cancellation_boundary: &'static str
+pub omena_tsgo_client::TsgoClientLifecycleV0::open_project_method: &'static str
+pub omena_tsgo_client::TsgoClientLifecycleV0::snapshot_release_method: &'static str
+pub omena_tsgo_client::TsgoClientLifecycleV0::stale_result_policy: &'static str
+pub struct omena_tsgo_client::TsgoClientRequestStepV0
+pub omena_tsgo_client::TsgoClientRequestStepV0::blocking_policy: &'static str
+pub omena_tsgo_client::TsgoClientRequestStepV0::method: &'static str
+pub omena_tsgo_client::TsgoClientRequestStepV0::order: usize
+pub omena_tsgo_client::TsgoClientRequestStepV0::request_count: usize
+pub struct omena_tsgo_client::TsgoJsonRpcOutboundRequestV0
+pub omena_tsgo_client::TsgoJsonRpcOutboundRequestV0::frame: alloc::vec::Vec<u8>
+pub omena_tsgo_client::TsgoJsonRpcOutboundRequestV0::id: u64
+pub omena_tsgo_client::TsgoJsonRpcOutboundRequestV0::method: alloc::string::String
+pub struct omena_tsgo_client::TsgoJsonRpcTransportSummaryV0
+pub omena_tsgo_client::TsgoJsonRpcTransportSummaryV0::error_policy: &'static str
+pub omena_tsgo_client::TsgoJsonRpcTransportSummaryV0::framing: &'static str
+pub omena_tsgo_client::TsgoJsonRpcTransportSummaryV0::product: &'static str
+pub omena_tsgo_client::TsgoJsonRpcTransportSummaryV0::request_version: &'static str
+pub omena_tsgo_client::TsgoJsonRpcTransportSummaryV0::schema_version: &'static str
+pub omena_tsgo_client::TsgoJsonRpcTransportSummaryV0::supports_partial_reads: bool
+pub struct omena_tsgo_client::TsgoJsonRpcTypeFactProviderV0<TTransport>
+impl<TTransport> omena_tsgo_client::TsgoJsonRpcTypeFactProviderV0<TTransport> where TTransport: omena_tsgo_client::TsgoJsonRpcProviderTransportV0
+pub fn omena_tsgo_client::TsgoJsonRpcTypeFactProviderV0<TTransport>::collect_type_facts(&mut self, &omena_tsgo_client::TsgoTypeFactRequestV0) -> core::result::Result<alloc::vec::Vec<omena_tsgo_client::TsgoTypeFactResultEntryV0>, omena_tsgo_client::TsgoJsonRpcProviderErrorV0>
+pub fn omena_tsgo_client::TsgoJsonRpcTypeFactProviderV0<TTransport>::collect_type_facts_with_policy(&mut self, &omena_tsgo_client::TsgoTypeFactRequestV0, omena_tsgo_client::TsgoProviderRetryPolicyV0) -> core::result::Result<alloc::vec::Vec<omena_tsgo_client::TsgoTypeFactResultEntryV0>, omena_tsgo_client::TsgoJsonRpcProviderErrorV0>
+pub fn omena_tsgo_client::TsgoJsonRpcTypeFactProviderV0<TTransport>::collect_type_facts_with_policy_and_cancellation(&mut self, &omena_tsgo_client::TsgoTypeFactRequestV0, omena_tsgo_client::TsgoProviderRetryPolicyV0, &dyn omena_tsgo_client::TsgoCancellationTokenV0) -> core::result::Result<alloc::vec::Vec<omena_tsgo_client::TsgoTypeFactResultEntryV0>, omena_tsgo_client::TsgoJsonRpcProviderErrorV0>
+pub fn omena_tsgo_client::TsgoJsonRpcTypeFactProviderV0<TTransport>::collect_type_facts_with_span_targets(&mut self, &omena_tsgo_client::TsgoTypeFactRequestV0, &omena_tsgo_client::TsgoSpanTypeFactRequestV0) -> core::result::Result<omena_tsgo_client::TsgoTypeFactCollectionResultV0, omena_tsgo_client::TsgoJsonRpcProviderErrorV0>
+pub fn omena_tsgo_client::TsgoJsonRpcTypeFactProviderV0<TTransport>::into_transport(self) -> TTransport
+pub fn omena_tsgo_client::TsgoJsonRpcTypeFactProviderV0<TTransport>::new(TTransport) -> Self
+pub struct omena_tsgo_client::TsgoNeverCancelledTokenV0
+impl omena_tsgo_client::TsgoCancellationTokenV0 for omena_tsgo_client::TsgoNeverCancelledTokenV0
+pub fn omena_tsgo_client::TsgoNeverCancelledTokenV0::is_cancelled(&self) -> bool
+pub struct omena_tsgo_client::TsgoProcessCommandV0
+pub omena_tsgo_client::TsgoProcessCommandV0::args: alloc::vec::Vec<alloc::string::String>
+pub omena_tsgo_client::TsgoProcessCommandV0::command: alloc::string::String
+pub omena_tsgo_client::TsgoProcessCommandV0::cwd: alloc::string::String
+pub struct omena_tsgo_client::TsgoProviderRetryPolicyV0
+pub omena_tsgo_client::TsgoProviderRetryPolicyV0::max_batch_attempts: usize
+impl core::default::Default for omena_tsgo_client::TsgoProviderRetryPolicyV0
+pub fn omena_tsgo_client::TsgoProviderRetryPolicyV0::default() -> Self
+pub struct omena_tsgo_client::TsgoRecoveryPolicyV0
+pub omena_tsgo_client::TsgoRecoveryPolicyV0::max_batch_attempts: usize
+pub omena_tsgo_client::TsgoRecoveryPolicyV0::recoverable_errors: alloc::vec::Vec<&'static str>
+pub omena_tsgo_client::TsgoRecoveryPolicyV0::recovery_action: &'static str
+pub omena_tsgo_client::TsgoRecoveryPolicyV0::retry_scope: &'static str
+pub omena_tsgo_client::TsgoRecoveryPolicyV0::snapshot_policy: &'static str
+pub struct omena_tsgo_client::TsgoResolvedTypeV0
+pub omena_tsgo_client::TsgoResolvedTypeV0::kind: &'static str
+pub omena_tsgo_client::TsgoResolvedTypeV0::values: alloc::vec::Vec<alloc::string::String>
+#[non_exhaustive] pub struct omena_tsgo_client::TsgoSpanTypeFactRequestV0
+pub omena_tsgo_client::TsgoSpanTypeFactRequestV0::config_path: alloc::string::String
+pub omena_tsgo_client::TsgoSpanTypeFactRequestV0::targets: alloc::vec::Vec<omena_tsgo_client::TsgoSpanTypeFactTargetV0>
+pub omena_tsgo_client::TsgoSpanTypeFactRequestV0::workspace_root: alloc::string::String
+impl omena_tsgo_client::TsgoSpanTypeFactRequestV0
+pub fn omena_tsgo_client::TsgoSpanTypeFactRequestV0::new(alloc::string::String, alloc::string::String, alloc::vec::Vec<omena_tsgo_client::TsgoSpanTypeFactTargetV0>) -> Self
+#[non_exhaustive] pub struct omena_tsgo_client::TsgoSpanTypeFactResultEntryV0
+pub omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::expression_id: alloc::string::String
+pub omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::file_path: alloc::string::String
+pub omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::non_nullish_member_count: usize
+pub omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::outcome: &'static str
+pub omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::reason: &'static str
+pub omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::resolved_member_count: usize
+pub omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::resolved_type: omena_tsgo_client::TsgoResolvedTypeV0
+pub omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::span_exact: bool
+impl omena_tsgo_client::TsgoSpanTypeFactResultEntryV0
+pub fn omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::refused(alloc::string::String, alloc::string::String, &'static str, bool, usize, usize) -> Self
+pub fn omena_tsgo_client::TsgoSpanTypeFactResultEntryV0::resolved(alloc::string::String, alloc::string::String, &'static str, usize, omena_tsgo_client::TsgoResolvedTypeV0) -> Self
+#[non_exhaustive] pub struct omena_tsgo_client::TsgoSpanTypeFactTargetV0
+pub omena_tsgo_client::TsgoSpanTypeFactTargetV0::end_position: u32
+pub omena_tsgo_client::TsgoSpanTypeFactTargetV0::expression_id: alloc::string::String
+pub omena_tsgo_client::TsgoSpanTypeFactTargetV0::file_path: alloc::string::String
+pub omena_tsgo_client::TsgoSpanTypeFactTargetV0::start_position: u32
+impl omena_tsgo_client::TsgoSpanTypeFactTargetV0
+pub fn omena_tsgo_client::TsgoSpanTypeFactTargetV0::new(alloc::string::String, alloc::string::String, u32, u32) -> Self
+pub struct omena_tsgo_client::TsgoTypeFactCollectionPlanV0
+pub omena_tsgo_client::TsgoTypeFactCollectionPlanV0::config_path: alloc::string::String
+pub omena_tsgo_client::TsgoTypeFactCollectionPlanV0::parallelizable_groups: alloc::vec::Vec<&'static str>
+pub omena_tsgo_client::TsgoTypeFactCollectionPlanV0::product: &'static str
+pub omena_tsgo_client::TsgoTypeFactCollectionPlanV0::request_path_blocking_allowed: bool
+pub omena_tsgo_client::TsgoTypeFactCollectionPlanV0::request_sequence: alloc::vec::Vec<omena_tsgo_client::TsgoClientRequestStepV0>
+pub omena_tsgo_client::TsgoTypeFactCollectionPlanV0::schema_version: &'static str
+pub omena_tsgo_client::TsgoTypeFactCollectionPlanV0::target_count: usize
+pub omena_tsgo_client::TsgoTypeFactCollectionPlanV0::unique_file_count: usize
+pub omena_tsgo_client::TsgoTypeFactCollectionPlanV0::workspace_root: alloc::string::String
+#[non_exhaustive] pub struct omena_tsgo_client::TsgoTypeFactCollectionResultV0
+pub omena_tsgo_client::TsgoTypeFactCollectionResultV0::span_type_fact_entries: alloc::vec::Vec<omena_tsgo_client::TsgoSpanTypeFactResultEntryV0>
+pub omena_tsgo_client::TsgoTypeFactCollectionResultV0::type_fact_entries: alloc::vec::Vec<omena_tsgo_client::TsgoTypeFactResultEntryV0>
+pub struct omena_tsgo_client::TsgoTypeFactRequestV0
+pub omena_tsgo_client::TsgoTypeFactRequestV0::config_path: alloc::string::String
+pub omena_tsgo_client::TsgoTypeFactRequestV0::targets: alloc::vec::Vec<omena_tsgo_client::TsgoTypeFactTargetV0>
+pub omena_tsgo_client::TsgoTypeFactRequestV0::workspace_root: alloc::string::String
+pub struct omena_tsgo_client::TsgoTypeFactResultEntryV0
+pub omena_tsgo_client::TsgoTypeFactResultEntryV0::expression_id: alloc::string::String
+pub omena_tsgo_client::TsgoTypeFactResultEntryV0::file_path: alloc::string::String
+pub omena_tsgo_client::TsgoTypeFactResultEntryV0::resolved_type: omena_tsgo_client::TsgoResolvedTypeV0
+pub struct omena_tsgo_client::TsgoTypeFactRpcClientV0
+impl omena_tsgo_client::TsgoTypeFactRpcClientV0
+pub fn omena_tsgo_client::TsgoTypeFactRpcClientV0::get_default_project_for_file(&mut self, &str, &str) -> core::result::Result<omena_tsgo_client::TsgoJsonRpcOutboundRequestV0, serde_json::error::Error>
+pub fn omena_tsgo_client::TsgoTypeFactRpcClientV0::get_source_file(&mut self, &str, &str, &str) -> core::result::Result<omena_tsgo_client::TsgoJsonRpcOutboundRequestV0, serde_json::error::Error>
+pub fn omena_tsgo_client::TsgoTypeFactRpcClientV0::get_type_at_exact_span(&mut self, &str, &str, &str) -> core::result::Result<omena_tsgo_client::TsgoJsonRpcOutboundRequestV0, serde_json::error::Error>
+pub fn omena_tsgo_client::TsgoTypeFactRpcClientV0::get_type_at_position(&mut self, &str, &str, &omena_tsgo_client::TsgoTypeFactTargetV0) -> core::result::Result<omena_tsgo_client::TsgoJsonRpcOutboundRequestV0, serde_json::error::Error>
+pub fn omena_tsgo_client::TsgoTypeFactRpcClientV0::get_types_of_type(&mut self, &str, &str) -> core::result::Result<omena_tsgo_client::TsgoJsonRpcOutboundRequestV0, serde_json::error::Error>
+pub fn omena_tsgo_client::TsgoTypeFactRpcClientV0::initialize(&mut self) -> core::result::Result<omena_tsgo_client::TsgoJsonRpcOutboundRequestV0, serde_json::error::Error>
+pub fn omena_tsgo_client::TsgoTypeFactRpcClientV0::release(&mut self, &str) -> core::result::Result<omena_tsgo_client::TsgoJsonRpcOutboundRequestV0, serde_json::error::Error>
+pub fn omena_tsgo_client::TsgoTypeFactRpcClientV0::update_snapshot(&mut self, &str) -> core::result::Result<omena_tsgo_client::TsgoJsonRpcOutboundRequestV0, serde_json::error::Error>
+pub struct omena_tsgo_client::TsgoTypeFactTargetV0
+pub omena_tsgo_client::TsgoTypeFactTargetV0::expression_id: alloc::string::String
+pub omena_tsgo_client::TsgoTypeFactTargetV0::file_path: alloc::string::String
+pub omena_tsgo_client::TsgoTypeFactTargetV0::position: u32
+pub struct omena_tsgo_client::TsgoWorkspaceProcessConfigV0
+pub omena_tsgo_client::TsgoWorkspaceProcessConfigV0::command: omena_tsgo_client::TsgoProcessCommandV0
+pub omena_tsgo_client::TsgoWorkspaceProcessConfigV0::workspace_root: alloc::string::String
+pub struct omena_tsgo_client::TsgoWorkspaceProcessPoolV0
+impl omena_tsgo_client::TsgoWorkspaceProcessPoolV0
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::ensure_workspace_process(&mut self, omena_tsgo_client::TsgoWorkspaceProcessConfigV0) -> std::io::error::Result<omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0>
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::is_empty(&self) -> bool
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::len(&self) -> usize
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::restart_workspace_process(&mut self, &str) -> std::io::error::Result<core::option::Option<omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0>>
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::send_json_rpc_request(&mut self, &str, &omena_tsgo_client::TsgoJsonRpcOutboundRequestV0) -> core::result::Result<core::option::Option<serde_json::value::Value>, omena_tsgo_client::TsgoJsonRpcIoErrorV0>
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::shutdown_all(&mut self) -> std::io::error::Result<usize>
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::shutdown_workspace(&mut self, &str) -> std::io::error::Result<bool>
+impl core::ops::drop::Drop for omena_tsgo_client::TsgoWorkspaceProcessPoolV0
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::drop(&mut self)
+impl omena_tsgo_client::TsgoJsonRpcProviderTransportV0 for omena_tsgo_client::TsgoWorkspaceProcessPoolV0
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::recover_workspace(&mut self, &str) -> core::result::Result<bool, omena_tsgo_client::TsgoJsonRpcIoErrorV0>
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::send_json_rpc_request(&mut self, &str, &omena_tsgo_client::TsgoJsonRpcOutboundRequestV0) -> core::result::Result<core::option::Option<serde_json::value::Value>, omena_tsgo_client::TsgoJsonRpcIoErrorV0>
+pub struct omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::args: alloc::vec::Vec<alloc::string::String>
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::command: alloc::string::String
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::cwd: alloc::string::String
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::generation: u64
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::process_id: core::option::Option<u32>
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::product: &'static str
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::reused: bool
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::running: bool
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::schema_version: &'static str
+pub omena_tsgo_client::TsgoWorkspaceProcessSnapshotV0::workspace_root: alloc::string::String
+pub struct omena_tsgo_client::TypeFactContractV0
+pub omena_tsgo_client::TypeFactContractV0::input_contract: &'static str
+pub omena_tsgo_client::TypeFactContractV0::output_contract: &'static str
+pub omena_tsgo_client::TypeFactContractV0::project_miss_behavior: &'static str
+pub omena_tsgo_client::TypeFactContractV0::target_identity: alloc::vec::Vec<&'static str>
+pub omena_tsgo_client::TypeFactContractV0::unresolved_behavior: &'static str
+pub struct omena_tsgo_client::WorkspaceProcessPolicyV0
+pub omena_tsgo_client::WorkspaceProcessPolicyV0::default_checker_workers: usize
+pub omena_tsgo_client::WorkspaceProcessPolicyV0::max_workspace_processes: usize
+pub omena_tsgo_client::WorkspaceProcessPolicyV0::process_scope: &'static str
+pub omena_tsgo_client::WorkspaceProcessPolicyV0::shutdown_owner: &'static str
+pub omena_tsgo_client::WorkspaceProcessPolicyV0::startup_mode: &'static str
+pub const omena_tsgo_client::TSGO_EXACT_DOMAIN_MEMBER_LIMIT_V0: usize
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_EXACT_FINITE_DOMAIN_V0: &str
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_INVALID_UNION_MEMBERS_V0: &str
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_MISSING_UNION_IDENTITY_V0: &str
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_NODE_SPAN_MISMATCH_V0: &str
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_NON_EXACT_DOMAIN_V0: &str
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_NON_EXACT_UNION_MEMBER_V0: &str
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_PROJECT_MISS_V0: &str
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_SOURCE_FILE_MISS_V0: &str
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_UNION_MEMBER_LIMIT_EXCEEDED_V0: &str
+pub const omena_tsgo_client::TSGO_SPAN_TYPE_FACT_REASON_VOCABULARY_V0: [&str; 9]
+pub const omena_tsgo_client::TSGO_TYPE_FLAGS_ANY: u64
+pub const omena_tsgo_client::TSGO_TYPE_FLAGS_NULL: u64
+pub const omena_tsgo_client::TSGO_TYPE_FLAGS_NULLISH: u64
+pub const omena_tsgo_client::TSGO_TYPE_FLAGS_UNDEFINED: u64
+pub const omena_tsgo_client::TSGO_TYPE_FLAGS_UNION: u64
+pub const omena_tsgo_client::TSGO_TYPE_ORACLE_PROVIDER_ID_V0: &str
+pub const omena_tsgo_client::TSGO_TYPE_ORACLE_PROVIDER_KIND_V0: &str
+pub const omena_tsgo_client::TSGO_UNKNOWN_PRECISION_PROVENANCE_V0: &str
+pub const omena_tsgo_client::TSGO_UNKNOWN_PRECISION_VALUE_DOMAIN_V0: &str
+pub trait omena_tsgo_client::TsgoCancellationTokenV0
+pub fn omena_tsgo_client::TsgoCancellationTokenV0::is_cancelled(&self) -> bool
+impl omena_tsgo_client::TsgoCancellationTokenV0 for omena_tsgo_client::TsgoNeverCancelledTokenV0
+pub fn omena_tsgo_client::TsgoNeverCancelledTokenV0::is_cancelled(&self) -> bool
+pub trait omena_tsgo_client::TsgoJsonRpcProviderTransportV0
+pub fn omena_tsgo_client::TsgoJsonRpcProviderTransportV0::recover_workspace(&mut self, &str) -> core::result::Result<bool, omena_tsgo_client::TsgoJsonRpcIoErrorV0>
+pub fn omena_tsgo_client::TsgoJsonRpcProviderTransportV0::send_json_rpc_request(&mut self, &str, &omena_tsgo_client::TsgoJsonRpcOutboundRequestV0) -> core::result::Result<core::option::Option<serde_json::value::Value>, omena_tsgo_client::TsgoJsonRpcIoErrorV0>
+impl omena_tsgo_client::TsgoJsonRpcProviderTransportV0 for omena_tsgo_client::TsgoWorkspaceProcessPoolV0
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::recover_workspace(&mut self, &str) -> core::result::Result<bool, omena_tsgo_client::TsgoJsonRpcIoErrorV0>
+pub fn omena_tsgo_client::TsgoWorkspaceProcessPoolV0::send_json_rpc_request(&mut self, &str, &omena_tsgo_client::TsgoJsonRpcOutboundRequestV0) -> core::result::Result<core::option::Option<serde_json::value::Value>, omena_tsgo_client::TsgoJsonRpcIoErrorV0>
+pub fn omena_tsgo_client::build_tsgo_api_args(&str, core::option::Option<usize>) -> alloc::vec::Vec<alloc::string::String>
+pub fn omena_tsgo_client::build_tsgo_process_command(&str, &str, core::option::Option<usize>) -> omena_tsgo_client::TsgoProcessCommandV0
+pub fn omena_tsgo_client::build_tsgo_type_fact_result_entry(&omena_tsgo_client::TsgoTypeFactTargetV0, &serde_json::value::Value, &[serde_json::value::Value]) -> omena_tsgo_client::TsgoTypeFactResultEntryV0
+pub fn omena_tsgo_client::drain_tsgo_json_rpc_frames(&mut alloc::vec::Vec<u8>) -> core::result::Result<alloc::vec::Vec<serde_json::value::Value>, omena_tsgo_client::TsgoJsonRpcFrameErrorV0>
+pub fn omena_tsgo_client::encode_tsgo_json_rpc_message(&serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<u8>, serde_json::error::Error>
+pub fn omena_tsgo_client::encode_tsgo_json_rpc_request(u64, &str, core::option::Option<serde_json::value::Value>) -> core::result::Result<alloc::vec::Vec<u8>, serde_json::error::Error>
+pub fn omena_tsgo_client::plan_tsgo_type_fact_collection(&omena_tsgo_client::TsgoTypeFactRequestV0) -> omena_tsgo_client::TsgoTypeFactCollectionPlanV0
+pub fn omena_tsgo_client::read_tsgo_json_rpc_message(&mut impl std::io::Read, &mut alloc::vec::Vec<u8>) -> core::result::Result<core::option::Option<serde_json::value::Value>, omena_tsgo_client::TsgoJsonRpcIoErrorV0>
+pub fn omena_tsgo_client::reduce_tsgo_type_response(&serde_json::value::Value, &[serde_json::value::Value]) -> omena_tsgo_client::TsgoResolvedTypeV0
+pub fn omena_tsgo_client::summarize_omena_tsgo_client_boundary() -> omena_tsgo_client::OmenaTsgoClientBoundarySummaryV0
+pub fn omena_tsgo_client::summarize_tsgo_json_rpc_transport() -> omena_tsgo_client::TsgoJsonRpcTransportSummaryV0
+pub fn omena_tsgo_client::tsgo_api_methods() -> alloc::vec::Vec<omena_tsgo_client::TsgoApiMethodV0>
+pub fn omena_tsgo_client::union_tsgo_type(impl core::iter::traits::collect::IntoIterator<Item = alloc::string::String>) -> omena_tsgo_client::TsgoResolvedTypeV0
+pub fn omena_tsgo_client::unresolvable_tsgo_type() -> omena_tsgo_client::TsgoResolvedTypeV0
+pub fn omena_tsgo_client::write_tsgo_json_rpc_request(&mut impl std::io::Write, &omena_tsgo_client::TsgoJsonRpcOutboundRequestV0) -> std::io::error::Result<()>
