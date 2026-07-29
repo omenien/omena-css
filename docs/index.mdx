@@ -35,6 +35,53 @@ the path that matches what you are trying to accomplish.
 ## How these docs stay accurate
 
 Generated reference pages are rendered from product contracts. Public code
-examples and release metadata are executed or validated in CI. Every page also
-declares whether its source is authored, generated, or hybrid so readers and
-contributors know where a correction belongs.
+examples that carry an executable fixture are run in CI; other examples are
+typechecked or reviewed with the site build. Release metadata is validated
+against an immutable release manifest. Every page also declares whether its
+source is authored, generated, or hybrid so readers and contributors know where
+a correction belongs.
+
+## Published surfaces
+
+<SupportMatrix
+  rows={[
+    {
+      surface: "VS Code extension",
+      version: "5.3.0",
+      channel: "GitHub Releases and Open VSX",
+      availability: "Available",
+    },
+    {
+      surface: "Rust CLI",
+      version: "0.3.0",
+      channel: "GitHub Releases",
+      availability: "Available",
+    },
+    {
+      surface: "WASM SDK",
+      version: "0.3.0",
+      channel: "npm",
+      availability: "Available",
+    },
+    {
+      surface: "NAPI SDK",
+      version: "0.2.1",
+      channel: "npm",
+      availability: "Available; repository source is newer",
+    },
+  ]}
+/>
+
+See [Compatibility and support](./project/compatibility.md) for channel-specific
+limits and repository-only surfaces.
+
+## Explore the system
+
+- [Integrations](./integrations/README.md) separates published npm packages from
+  APIs that exist only in repository source.
+- [Semantic analysis](./concepts/semantic-analysis.md) explains how parser facts
+  become cross-file diagnostics.
+- [Evidence and transform safety](./concepts/evidence-and-transform-safety.md)
+  explains why Omena preserves uncertainty instead of forcing a rewrite.
+- [Compatibility](./project/compatibility.md) records the currently available
+  registry and editor channels.

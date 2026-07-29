@@ -1,0 +1,5 @@
+{
+  "title": "Integrations",
+  "pagesIndex": "README",
+  "pages": ["README", "napi-wasm", "vite", "postcss", "linting"]
+}

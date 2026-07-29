@@ -1,0 +1,76 @@
+---
+title: Rust crate catalog
+description: Generated ownership and product-reachability index for every Rust workspace crate.
+kind: reference
+status: stable
+products: [rust, architecture]
+owner: architecture
+sourceOfTruth: generated
+---
+
+<!-- Generated from product code. Do not edit by hand. -->
+
+# Rust crate catalog
+
+The catalog classifies every workspace crate without presenting each substrate
+as a standalone product. Product guides document CLI, LSP, query, NAPI, WASM,
+and bundler facades; crate READMEs document lower-level contracts.
+
+| Crate | Surface | Layer role | Responsibility |
+| --- | --- | --- | --- |
+| [`engine-shadow-runner`](../../rust/crates/engine-shadow-runner/README.md) | Check and evidence | `I` | selected query shadow runner |
+| [`engine-style-parser`](../../rust/crates/engine-style-parser/README.md) | Legacy oracle | `I` | differential parser oracle only |
+| [`omena-abstract-value`](../../rust/crates/omena-abstract-value/README.md) | Product runtime | `R1` | query/checker class-value and selector projection substrate |
+| [`omena-benchmarks`](../../rust/crates/omena-benchmarks/README.md) | Check and evidence | `I` | performance baseline harness |
+| [`omena-bridge`](../../rust/crates/omena-bridge/README.md) | Product runtime | `R2` | semantic/source bridge consumed through omena-query |
+| [`omena-bundler`](../../rust/crates/omena-bundler/README.md) | Product runtime | `R2` | standalone 0.x bundle/source-map planning surface consumed through query transform runner and compatibility crate |
+| [`omena-cascade`](../../rust/crates/omena-cascade/README.md) | Product runtime | `R1` | cascade-formal substrate consumed by query/checker/transform paths |
+| [`omena-cascade-proof`](../../rust/crates/omena-cascade-proof/README.md) | Product runtime | `R1` | product-owned cascade proof contracts consumed by checker and transform paths |
+| [`omena-categorical`](../../rust/crates/omena-categorical/README.md) | Check and evidence | `R1` | lab categorical evidence compatibility exercised by product-lab severance gates |
+| [`omena-checker`](../../rust/crates/omena-checker/README.md) | Product runtime | `R2` | checker rule engine consumed by query checker orchestrator |
+| [`omena-cli`](../../rust/crates/omena-cli/README.md) | CLI runtime | `P` | shipped omena CLI command surface |
+| [`omena-cross-file-summary`](../../rust/crates/omena-cross-file-summary/README.md) | Product runtime | `R1` | cross-file hypergraph substrate consumed by query and streaming IFDS |
+| [`omena-cst-typed`](../../rust/crates/omena-cst-typed/README.md) | Product runtime | `R1` | borrowed typed CST projection consumed through omena-query |
+| [`omena-diff-test`](../../rust/crates/omena-diff-test/README.md) | Check and evidence | `I` | parser differential and regression oracle harness |
+| [`omena-engine-input-producers`](../../rust/crates/omena-engine-input-producers/README.md) | Product runtime | `R1` | source-derived producer contracts used by resolver/bridge/query |
+| [`omena-ensemble`](../../rust/crates/omena-ensemble/README.md) | Check and evidence | `R1` | lab replica-overlap evidence compatibility exercised by product-lab severance gates |
+| [`omena-evidence-graph`](../../rust/crates/omena-evidence-graph/README.md) | Product runtime | `R1` | evidence graph substrate consumed by omena-query diagnostics |
+| [`omena-incremental`](../../rust/crates/omena-incremental/README.md) | Product runtime | `R1` | incremental invalidation substrate used by query-core and LSP |
+| [`omena-interner`](../../rust/crates/omena-interner/README.md) | Product runtime | `R1` | parser/semantic interning substrate |
+| [`omena-lawvere`](../../rust/crates/omena-lawvere/README.md) | Research and fixture | `R1` | differential commutativity witness crate not in default product dependency closure |
+| [`omena-lsp-server`](../../rust/crates/omena-lsp-server/README.md) | Product runtime | `P` | standalone Rust LSP server and VS Code thin-client backend |
+| [`omena-meta-macros`](../../rust/crates/omena-meta-macros/README.md) | Support | `S` | metadata macro support for spec/audit surfaces |
+| [`omena-napi`](../../rust/crates/omena-napi/README.md) | published-binding | `P` | N-API product binding |
+| [`omena-parser`](../../rust/crates/omena-parser/README.md) | Product runtime | `R1` | product parser consumed by query/LSP/transform paths |
+| [`omena-product-hints`](../../rust/crates/omena-product-hints/README.md) | Product runtime | `R1` | product-owned hint contracts consumed by default checker diagnostics |
+| [`omena-query`](../../rust/crates/omena-query/README.md) | Product runtime | `R2` | consumer-facing analysis facade |
+| [`omena-query-checker-orchestrator`](../../rust/crates/omena-query-checker-orchestrator/README.md) | Product runtime | `R2` | query checker orchestration facade |
+| [`omena-query-core`](../../rust/crates/omena-query-core/README.md) | Product runtime | `R2` | query core substrate consumed by omena-query facade |
+| [`omena-query-transform-runner`](../../rust/crates/omena-query-transform-runner/README.md) | Product runtime | `R2` | transform family facade consumed by omena-query |
+| [`omena-reachability-datalog-lab`](../../rust/crates/omena-reachability-datalog-lab/README.md) | Check and evidence | `R1` | independent Datalog reachability witness consumed by diff-test equivalence checks |
+| [`omena-reactive`](../../rust/crates/omena-reactive/README.md) | Product runtime | `R1` | read-only reactive observation graph consumed by the LSP server |
+| [`omena-refinement`](../../rust/crates/omena-refinement/README.md) | Product runtime | `R1` | refinement bridge substrate consumed by query-core |
+| [`omena-refinement-trait`](../../rust/crates/omena-refinement-trait/README.md) | Product runtime | `R1` | refinement trait substrate consumed by cascade/smt |
+| [`omena-resolver`](../../rust/crates/omena-resolver/README.md) | Product runtime | `R1` | style/source resolver substrate consumed by query and bridge |
+| [`omena-rg-flow`](../../rust/crates/omena-rg-flow/README.md) | Check and evidence | `R1` | lab RG-flow evidence compatibility exercised by product-lab severance gates |
+| [`omena-scss-eval`](../../rust/crates/omena-scss-eval/README.md) | Product runtime | `R1` | oracle-first SCSS and Less value evaluator rail consumed by omena-query |
+| [`omena-semantic`](../../rust/crates/omena-semantic/README.md) | Product runtime | `R2` | semantic graph substrate consumed by query/bridge |
+| [`omena-sif`](../../rust/crates/omena-sif/README.md) | Product runtime | `R1` | SIF generation/resolution contract consumed by CLI/query/LSP |
+| [`omena-smt`](../../rust/crates/omena-smt/README.md) | Check and evidence | `R1` | lab SMT compatibility oracle preserved behind product-owned cascade proof contracts |
+| [`omena-spec-audit`](../../rust/crates/omena-spec-audit/README.md) | Check and evidence | `R1` | spec audit gate and metadata evidence |
+| [`omena-streaming-ifds`](../../rust/crates/omena-streaming-ifds/README.md) | Product runtime | `R1` | live cross-file reachability report used by CLI/LSP paths |
+| [`omena-syntax`](../../rust/crates/omena-syntax/README.md) | Product runtime | `R1` | syntax-kind substrate consumed by parser |
+| [`omena-testkit`](../../rust/crates/omena-testkit/README.md) | Check and evidence | `S` | fixture/testkit boundary for parser and differential gates |
+| [`omena-transform-bundle`](../../rust/crates/omena-transform-bundle/README.md) | Support | `R2` | historical compatibility re-export for the omena-bundler V0 surface |
+| [`omena-transform-cst`](../../rust/crates/omena-transform-cst/README.md) | Product runtime | `R1` | transform CST substrate consumed by transform family |
+| [`omena-transform-egg`](../../rust/crates/omena-transform-egg/README.md) | Product runtime | `R2` | egg-backed transform witness surface consumed by query transform runner |
+| [`omena-transform-passes`](../../rust/crates/omena-transform-passes/README.md) | Product runtime | `R2` | core transform pass runtime consumed through query transform runner |
+| [`omena-transform-print`](../../rust/crates/omena-transform-print/README.md) | Product runtime | `R2` | transform printer runtime consumed through query transform runner |
+| [`omena-transform-target`](../../rust/crates/omena-transform-target/README.md) | Product runtime | `R2` | target-sensitive transform planner consumed through query transform runner |
+| [`omena-tsgo-client`](../../rust/crates/omena-tsgo-client/README.md) | Product runtime | `S` | TypeScript/tsgo client support used by Rust LSP source facts |
+| [`omena-umbrella`](../../rust/crates/omena-umbrella/README.md) | Umbrella | `U` | aggregate crate for published crate-family imports |
+| [`omena-value-lattice`](../../rust/crates/omena-value-lattice/README.md) | Product runtime | `R1` | region-local CSS value lens and canonicalizer consumed by transform/query/SIF paths |
+| [`omena-variational`](../../rust/crates/omena-variational/README.md) | Check and evidence | `R1` | lab variational evidence compatibility exercised by product-lab severance gates |
+| [`omena-wasm`](../../rust/crates/omena-wasm/README.md) | published-binding | `P` | Wasm product binding |
+| [`omena-zk-audit`](../../rust/crates/omena-zk-audit/README.md) | CLI runtime | `R1` | opt-in CLI ZK audit command surface |
+| [`omena-zk-circuit`](../../rust/crates/omena-zk-circuit/README.md) | Research and fixture | `R1` | constraint-generation substrate behind opt-in ZK audit work |

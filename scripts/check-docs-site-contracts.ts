@@ -25,7 +25,9 @@ const forbiddenPublicTerms = [
 ];
 
 const pagePaths = collectPages(docsRoot);
-assert.ok(pagePaths.length >= 20, "the public documentation surface unexpectedly shrank");
+assert.ok(pagePaths.length >= 35, "the public documentation surface unexpectedly shrank");
+const metaPaths = collectNamedFiles(docsRoot, "meta.json");
+assert.ok(metaPaths.length > 0, "the documentation navigation metadata is missing");
 
 let generatedPageCount = 0;
 let hybridPageCount = 0;
@@ -83,18 +85,99 @@ for (const kind of validKinds) {
   assert.ok((kindCounts.get(kind) ?? 0) > 0, `documentation kind ${kind} has no pages`);
 }
 
+for (const metaPath of metaPaths) {
+  verifyNavigationMetadata(metaPath);
+}
+
 assert.ok(
   existsSync(path.join(repoRoot, "apps/docs/source.config.ts")),
   "the documentation schema must remain in the site application",
 );
 assert.ok(
-  existsSync(path.join(repoRoot, "apps/docs/app/docs/[[...slug]]/page.tsx")),
-  "the static documentation route must remain wired",
+  existsSync(path.join(repoRoot, "apps/docs/src/routes/docs/$.tsx")),
+  "the TanStack Start documentation route must remain wired",
+);
+assert.ok(
+  readFileSync(path.join(repoRoot, "apps/docs/src/styles/app.css"), "utf8").includes(
+    "fumadocs-ui/css/solar.css",
+  ),
+  "the documentation site must keep the Solar theme",
 );
 assert.ok(
   existsSync(path.join(repoRoot, "docs/playground.mdx")),
   "the browser playground guide must remain discoverable",
 );
+assertFileIncludes(
+  "apps/docs/src/routes/__root.tsx",
+  'className="docs-skip-link"',
+  "the site must expose skip navigation",
+);
+assertFileIncludes(
+  "apps/docs/src/components/documentation-page.tsx",
+  'id="main-content"',
+  "documentation pages must expose a main landmark",
+);
+const staticOutputPreparation = readFile("apps/docs/scripts/prepare-static-output.mjs");
+assert.ok(
+  !staticOutputPreparation.includes(
+    'copyFileSync(shellPath, path.join(publicOutput, "index.html"))',
+  ),
+  "the post-build step must not replace the prerendered root document with the SPA shell",
+);
+
+assertFileIncludes(
+  "docs/sdk.md",
+  "checkStyleSourceJson",
+  "the published NAPI example must use an API available in 0.2.1",
+);
+assertFileIncludes(
+  "docs/sdk.md",
+  'import { Workspace } from "@omena/wasm"',
+  "the WASM example must use the bundler-target package entrypoint",
+);
+assert.ok(
+  !readFile("docs/sdk.md").includes("import init"),
+  "the WASM SDK guide must not require a default initializer absent from the npm package",
+);
+assertFileIncludes(
+  "docs/releases/5.3.0.md",
+  "50 of 51 publishable crates",
+  "release notes must disclose the partial Rust publication",
+);
+assertFileIncludes(
+  "docs/releases/5.3.0.md",
+  "| NAPI binding | `0.2.1` |",
+  "release notes must report the registry NAPI version",
+);
+assertFileIncludes(
+  "docs/reference/cli.md",
+  "Cargo feature `mdl`",
+  "the CLI reference must expose the compress feature gate",
+);
+assertFileIncludes(
+  "docs/reference/cli.md",
+  "Cargo feature `zk-audit`",
+  "the CLI reference must expose the audit feature gate",
+);
+assertFileIncludes(
+  "docs/reference/editor-settings.md",
+  "Legacy compatibility",
+  "the editor settings reference must distinguish compatibility-only keys",
+);
+assertFileIncludes(
+  "docs/reference/crates.md",
+  "The catalog classifies every workspace crate",
+  "the generated crate catalog must retain its product-path authority",
+);
+for (const materialPath of [
+  "SECURITY.md",
+  "SUPPORT.md",
+  ".github/ISSUE_TEMPLATE/config.yml",
+  ".github/ISSUE_TEMPLATE/bug_report.yml",
+  ".github/ISSUE_TEMPLATE/feature_request.yml",
+]) {
+  assert.ok(existsSync(path.join(repoRoot, materialPath)), `${materialPath} is missing`);
+}
 
 process.stdout.write(
   `${JSON.stringify(
@@ -102,6 +185,7 @@ process.stdout.write(
       schemaVersion: "0",
       product: "docs.site-contracts",
       pageCount: pagePaths.length,
+      navigationMetadataCount: metaPaths.length,
       generatedPageCount,
       hybridPageCount,
       kindCounts: Object.fromEntries(
@@ -110,6 +194,8 @@ process.stdout.write(
       linkCount,
       missingMetadataCount: 0,
       brokenLocalLinkCount: 0,
+      unlistedNavigationPageCount: 0,
+      stalePublicContractCount: 0,
       forbiddenPlanningTermCount: 0,
     },
     null,
@@ -123,6 +209,16 @@ function collectPages(directory: string): string[] {
       const absolutePath = path.join(directory, entry.name);
       if (entry.isDirectory()) return collectPages(absolutePath);
       return /\.(?:md|mdx)$/u.test(entry.name) ? [absolutePath] : [];
+    })
+    .toSorted();
+}
+
+function collectNamedFiles(directory: string, filename: string): string[] {
+  return readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const absolutePath = path.join(directory, entry.name);
+      if (entry.isDirectory()) return collectNamedFiles(absolutePath, filename);
+      return entry.name === filename ? [absolutePath] : [];
     })
     .toSorted();
 }
@@ -181,4 +277,45 @@ function verifyLocalLink(sourcePath: string, target: string, relativePath: strin
     candidates.some((candidate) => existsSync(candidate)),
     `${relativePath} links to missing local target ${target}`,
   );
+}
+
+function verifyNavigationMetadata(metaPath: string) {
+  const directory = path.dirname(metaPath);
+  const relativePath = path.relative(repoRoot, metaPath).replaceAll(path.sep, "/");
+  const metadata = JSON.parse(readFileSync(metaPath, "utf8")) as {
+    pages?: string[];
+    pagesIndex?: string;
+  };
+  assert.ok(Array.isArray(metadata.pages), `${relativePath} must declare a pages array`);
+
+  const declaredPages = metadata.pages.filter((entry) => !entry.startsWith("---")).toSorted();
+  const availablePages = readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      if (entry.isDirectory()) {
+        return existsSync(path.join(directory, entry.name, "meta.json")) ? [entry.name] : [];
+      }
+      const match = /^(.*)\.(?:md|mdx)$/u.exec(entry.name);
+      return match ? [match[1]] : [];
+    })
+    .toSorted();
+
+  assert.deepEqual(
+    declaredPages,
+    availablePages,
+    `${relativePath} pages must exactly match the local content and child navigation trees`,
+  );
+  if (metadata.pagesIndex) {
+    assert.ok(
+      declaredPages.includes(metadata.pagesIndex),
+      `${relativePath} pagesIndex must name a declared page`,
+    );
+  }
+}
+
+function readFile(relativePath: string): string {
+  return readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function assertFileIncludes(relativePath: string, expected: string, message: string) {
+  assert.ok(readFile(relativePath).includes(expected), message);
 }

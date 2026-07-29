@@ -1,9 +1,29 @@
 # omena-reactive
 
-`omena-reactive` provides a small, deterministic reactive graph for observing
-Omena control-plane decisions without owning scheduling or external effects.
+## Role
 
-The graph is deliberately static. Inputs are deposited at event boundaries,
-derived nodes stabilize in height order, and effect boundaries produce typed
-receipts that a caller may compare with an authoritative execution path. The
-crate does not publish diagnostics or recompute facts owned by another engine.
+`omena-reactive` provides a deterministic graph for read-only observation of
+control-plane decisions.
+
+## Contract
+
+`ReactiveGraphBuilderV0` builds static input, map, zip, and effect nodes.
+`ReactiveEngineV0` deposits values, stabilizes waves in height order, and
+returns typed effect receipts. Every node requires an explicit
+`ChangePolicyV0`.
+
+## Consumers
+
+The LSP can compare observed graph state with its authoritative scheduler
+without giving this crate control of publication.
+
+## Boundaries
+
+The graph performs no external effects and owns no scheduling, persistence, or
+diagnostic output. Inputs deposited during one wave are visible in the next.
+
+## Verification
+
+```sh
+cargo test --manifest-path rust/Cargo.toml -p omena-reactive
+```

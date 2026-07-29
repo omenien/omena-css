@@ -1,6 +1,6 @@
 ---
 title: Browser playground
-description: Run Omena diagnostics and parser inspection locally with the published Rust-to-WASM engine.
+description: Follow CSS Modules references, run semantic transforms, and inspect target-aware output in the browser.
 kind: tutorial
 status: experimental
 products: [wasm, engine]
@@ -10,18 +10,47 @@ sourceOfTruth: hybrid
 
 # Browser playground
 
-This playground uses the same `omena-wasm` crate that backs the published
-`@omena/wasm` package. The documentation build compiles it for direct browser
-loading; your stylesheet stays in the current browser tab.
+These examples run the documentation build of the `omena-wasm` crate directly
+in your browser. Each section isolates one product workflow so that the source,
+result, and supporting evidence remain easy to connect.
 
-<WasmPlayground />
+## Follow references across files
 
-## What this demonstrates
+Omena evaluates CSS Modules references against the workspace rather than
+treating each stylesheet as an isolated string. The entry file below composes a
+selector and imports a value that its dependencies do not export.
 
-- **Diagnostics** exercise the browser binding and shared semantic checker.
-- **Parse tree** shows the typed stylesheet structure returned by the Rust parser.
-- **No server analysis** means source is not uploaded to an Omena service.
+<WasmPlayground scenario="workspace-diagnostics" />
 
-The playground is intentionally bounded to in-memory workflows. Filesystem
-discovery, package-manager resolution, and editor lifecycle behavior belong to
-the CLI, NAPI, and LSP surfaces documented in [SDK workflows](./sdk.md).
+Change `missing` to `base` and `absent` to `accent`, then analyze again. The
+underlines and Problems output clear only after both references resolve.
+
+## Build from workspace semantics
+
+The same in-memory workspace can feed conservative transform passes. This
+example resolves `@import` and `composes` while preserving the exported class
+relationship and source-map origins.
+
+<WasmPlayground scenario="workspace-build" />
+
+Open **Passes** to see which transformations actually changed the source. A
+registered pass that makes no change is not presented as applied work.
+
+## Plan output for a browser target
+
+Target queries select transformations from committed browser-support data. For
+IE 11, this example lowers `light-dark()`, scopes the CSS Module class, and adds
+the required flexbox prefix.
+
+<WasmPlayground scenario="target-build" />
+
+Open **Target plan** to connect each output change to the pass that produced it.
+The complete target-data contract remains available in the collapsed raw
+output.
+
+## Browser boundary
+
+These demonstrations are intentionally bounded to caller-supplied, in-memory
+files. Filesystem discovery, package-manager resolution, and editor lifecycle
+behavior belong to the CLI, NAPI, and LSP surfaces documented in
+[SDK workflows](./sdk.md).

@@ -6,6 +6,7 @@ node_modules/
 dist/
 apps/docs/.next/
 apps/docs/.source/
+apps/docs/.output/
 apps/docs/out/
 apps/docs/public/wasm/
 *.vsix

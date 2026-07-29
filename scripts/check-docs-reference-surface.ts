@@ -48,6 +48,7 @@ interface CommandRow {
   readonly variant: string;
   readonly command: string;
   readonly summary: string;
+  readonly feature: string | null;
 }
 
 interface ConfigKeyRow {
@@ -58,6 +59,32 @@ interface ConfigKeyRow {
 interface SdkWorkflowMatrix {
   readonly workflows: readonly string[];
   readonly surfaces: readonly string[];
+}
+
+type EditorSettingOwner = "extension-client" | "legacy-compat" | "rust-server";
+
+interface EditorSettingRow {
+  readonly key: string;
+  readonly owner: EditorSettingOwner;
+  readonly description: string;
+  readonly deprecated: boolean;
+}
+
+interface ExtensionPackage {
+  readonly contributes?: {
+    readonly configuration?: {
+      readonly properties?: Readonly<
+        Record<
+          string,
+          {
+            readonly description?: string;
+            readonly markdownDescription?: string;
+            readonly deprecationMessage?: string;
+          }
+        >
+      >;
+    };
+  };
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -93,6 +120,92 @@ const expectedUnwiredChecks = [
   "check-rust-m4-gamma-readiness.ts",
   "check-rust-m6-dimensional-refinement.ts",
 ] as const;
+const editorSettingContracts = {
+  "omena.features.definition": {
+    owner: "rust-server",
+    source: "rust/crates/omena-lsp-server/src/settings.rs",
+    anchor: 'features.get("definition")',
+  },
+  "omena.features.hover": {
+    owner: "rust-server",
+    source: "rust/crates/omena-lsp-server/src/settings.rs",
+    anchor: 'features.get("hover")',
+  },
+  "omena.features.completion": {
+    owner: "rust-server",
+    source: "rust/crates/omena-lsp-server/src/settings.rs",
+    anchor: 'features.get("completion")',
+  },
+  "omena.features.references": {
+    owner: "rust-server",
+    source: "rust/crates/omena-lsp-server/src/settings.rs",
+    anchor: 'features.get("references")',
+  },
+  "omena.features.rename": {
+    owner: "rust-server",
+    source: "rust/crates/omena-lsp-server/src/settings.rs",
+    anchor: 'features.get("rename")',
+  },
+  "omena.diagnostics.severity": {
+    owner: "rust-server",
+    source: "rust/crates/omena-lsp-server/src/settings.rs",
+    anchor: '.get("severity")',
+  },
+  "omena.diagnostics.deepAnalysis": {
+    owner: "rust-server",
+    source: "rust/crates/omena-lsp-server/src/settings.rs",
+    anchor: 'diagnostics.get("deepAnalysis")',
+  },
+  "omena.resolution.packageManifestPaths": {
+    owner: "rust-server",
+    source: "rust/crates/omena-lsp-server/src/settings.rs",
+    anchor: '.get("packageManifestPaths")',
+  },
+  "omena.typeFactBackend": {
+    owner: "extension-client",
+    source: "client/src/extension.ts",
+    anchor: '.get("typeFactBackend")',
+  },
+  "omena.lspServerRuntime": {
+    owner: "extension-client",
+    source: "client/src/extension.ts",
+    anchor: '.get("lspServerRuntime")',
+  },
+  "omena.diagnostics.unusedSelector": {
+    owner: "legacy-compat",
+    source: null,
+    anchor: null,
+  },
+  "omena.diagnostics.missingModule": {
+    owner: "legacy-compat",
+    source: null,
+    anchor: null,
+  },
+  "omena.hover.maxCandidates": {
+    owner: "legacy-compat",
+    source: null,
+    anchor: null,
+  },
+  "omena.pathAlias": {
+    owner: "legacy-compat",
+    source: null,
+    anchor: null,
+  },
+  "omena.scss.classnameTransform": {
+    owner: "legacy-compat",
+    source: null,
+    anchor: null,
+  },
+} as const satisfies Readonly<
+  Record<
+    string,
+    {
+      readonly owner: EditorSettingOwner;
+      readonly source: string | null;
+      readonly anchor: string | null;
+    }
+  >
+>;
 
 assert.ok(
   expectedUnwiredChecks.every((filename) => maximumUnwiredChecks.has(filename)),
@@ -103,6 +216,16 @@ assert.ok(expectedUnwiredChecks.length <= 2, "the unwired-check ledger may not g
 verifyProductVerbManifest();
 const productVerbs = readJson<ProductVerbManifest>("rust/crates/omena-cli/verb-census.json").verbs;
 const commands = extractCommandRows(read("rust/crates/omena-cli/src/commands.rs"));
+assert.equal(
+  commands.find(({ command }) => command === "compress")?.feature,
+  "mdl",
+  "the compress command must remain documented as an mdl feature",
+);
+assert.equal(
+  commands.find(({ command }) => command === "audit")?.feature,
+  "zk-audit",
+  "the audit command must remain documented as a zk-audit feature",
+);
 const productVerbNames = extractEnumVariants(
   read("rust/crates/omena-cli/src/product_verb.rs"),
   "ProductVerb",
@@ -122,6 +245,7 @@ assert.deepEqual(
 
 const personas = derivePersonas();
 const configKeys = deriveConfigKeys(read("rust/crates/omena-cli/src/config/schema.rs"));
+const editorSettings = deriveEditorSettings();
 const lspCapabilities = flattenObject(readLspBoundary().capabilities);
 const sdkWorkflowMatrix = deriveSdkWorkflowMatrix();
 const architectureCitations = verifyArchitectureCodemap();
@@ -132,6 +256,7 @@ const renderedFiles = new Map<string, string>([
   ["docs/reference/cli.md", renderCliReference(productVerbs, commands)],
   ["docs/reference/personas.md", renderPersonaReference(personas)],
   ["docs/reference/configuration.md", renderConfigReference(configKeys)],
+  ["docs/reference/editor-settings.md", renderEditorSettingsReference(editorSettings)],
   ["docs/reference/lsp-capabilities.md", renderLspReference(lspCapabilities)],
 ]);
 
@@ -176,6 +301,7 @@ process.stdout.write(
       cliCommands: commands.length,
       personas: personas.length,
       configKeys: configKeys.length,
+      editorSettings: editorSettings.length,
       lspCapabilityLeaves: lspCapabilities.length,
       generatedFiles: renderedFiles.size,
       readmeLineBudget,
@@ -336,6 +462,40 @@ function deriveConfigKeys(source: string): readonly ConfigKeyRow[] {
   return rows.toSorted((left, right) => left.key.localeCompare(right.key));
 }
 
+function deriveEditorSettings(): readonly EditorSettingRow[] {
+  const properties =
+    readJson<ExtensionPackage>("package.json").contributes?.configuration?.properties ?? {};
+  assert.deepEqual(
+    Object.keys(properties).toSorted(),
+    Object.keys(editorSettingContracts).toSorted(),
+    "every public editor setting must have one explicit runtime owner",
+  );
+
+  return Object.entries(properties).map(([key, value]) => {
+    const contract = editorSettingContracts[key as keyof typeof editorSettingContracts];
+    assert.ok(contract, `${key} has no editor-setting ownership contract`);
+    const description = value.markdownDescription ?? value.description ?? "";
+    assert.ok(description, `${key} must have a public description`);
+
+    if (contract.owner === "legacy-compat") {
+      assert.ok(value.deprecationMessage, `${key} must disclose that it is compatibility-only`);
+    } else {
+      assert.ok(contract.source && contract.anchor);
+      assert.ok(
+        read(contract.source).includes(contract.anchor),
+        `${key} is not consumed by its declared ${contract.owner} source`,
+      );
+    }
+
+    return {
+      key,
+      owner: contract.owner,
+      description,
+      deprecated: contract.owner === "legacy-compat",
+    };
+  });
+}
+
 function readLspBoundary(): LspBoundarySummary {
   const result = spawnSync(
     "cargo",
@@ -388,7 +548,9 @@ These tables are rendered from the current product contracts and checked in CI.
 - [CLI commands and product verbs](./cli.md)
 - [Persona presets](./personas.md)
 - [Configuration keys](./configuration.md)
+- [Editor settings and runtime owners](./editor-settings.md)
 - [LSP capabilities](./lsp-capabilities.md)
+- [Rust crate catalog](./crates.md)
 
 ## Contributor checks
 
@@ -500,6 +662,43 @@ ${table}
 `;
 }
 
+function renderEditorSettingsReference(rows: readonly EditorSettingRow[]): string {
+  const ownerLabels: Readonly<Record<EditorSettingOwner, string>> = {
+    "extension-client": "VS Code extension",
+    "legacy-compat": "Legacy compatibility",
+    "rust-server": "Rust language server",
+  };
+  const table = renderMarkdownTable(
+    ["Setting", "Owner", "Status", "Contract"],
+    rows.map(({ key, owner, deprecated, description }) => [
+      `\`${key}\``,
+      ownerLabels[owner],
+      deprecated ? "Deprecated" : "Active",
+      escapeTableCell(description),
+    ]),
+  );
+  return `---
+title: Editor settings
+description: Generated ownership and support status for every public VS Code setting.
+kind: reference
+status: stable
+products: [editor, lsp]
+owner: editor
+sourceOfTruth: generated
+---
+
+${generatedNotice}
+
+# Editor settings
+
+Each setting has one declared runtime owner. Compatibility-only keys remain visible
+so existing workspaces do not fail validation, but the current Rust server ignores
+them.
+
+${table}
+`;
+}
+
 function renderLspReference(
   rows: readonly { readonly path: string; readonly value: unknown }[],
 ): string {
@@ -569,16 +768,17 @@ function renderCommandTable(
   verbs: readonly ProductVerbRow[],
 ): string {
   const byVerb = new Map(verbs.map((row) => [row.verb, row]));
-  const rows = commandRows.map(({ command, summary }) => {
+  const rows = commandRows.map(({ command, feature, summary }) => {
     const verb = byVerb.get(command);
     const role = verb ? formatVerbStatus(verb.status) : "Specialized command";
     const purpose =
       verb?.status === "reserved-alias"
         ? `Compatibility route through \`${verb.wiredBy}\`.`
         : summary;
-    return [`\`omena ${command}\``, role, escapeTableCell(purpose)];
+    const availability = feature ? `Cargo feature \`${feature}\`` : "Default build";
+    return [`\`omena ${command}\``, role, availability, escapeTableCell(purpose)];
   });
-  return renderMarkdownTable(["Command", "Role", "Purpose"], rows);
+  return renderMarkdownTable(["Command", "Role", "Availability", "Purpose"], rows);
 }
 
 function formatVerbStatus(status: ProductVerbStatus): string {
@@ -808,22 +1008,33 @@ function extractCommandRows(source: string): readonly CommandRow[] {
   const rows: CommandRow[] = [];
   let depth = 0;
   let docs: string[] = [];
+  let feature: string | null = null;
   for (const line of body.split("\n")) {
     if (depth === 0) {
       const doc = line.match(/^\s{4}\/\/\/\s?(.*)$/u)?.[1];
       if (doc !== undefined) {
         docs.push(doc);
       } else {
+        const featureAttribute = line.match(
+          /^\s{4}#\[cfg\(feature\s*=\s*"([^"]+)"\)\]\s*$/u,
+        )?.[1];
+        if (featureAttribute) {
+          feature = featureAttribute;
+          continue;
+        }
         const variant = line.match(/^\s{4}([A-Z][A-Za-z0-9_]*)(?:\s*\{|\s*\(|,)\s*/u)?.[1];
         if (variant) {
           rows.push({
             variant,
             command: toKebabCase(variant),
             summary: docs.join(" ").replace(/\s+/gu, " ").trim() || "CLI command.",
+            feature,
           });
           docs = [];
+          feature = null;
         } else if (line.trim() && !line.trimStart().startsWith("#[")) {
           docs = [];
+          feature = null;
         }
       }
     }

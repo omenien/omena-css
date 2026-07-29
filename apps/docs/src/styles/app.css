@@ -1,0 +1,60 @@
+@import "@fontsource-variable/instrument-sans";
+@import "tailwindcss";
+@import "fumadocs-ui/css/solar.css";
+@import "fumadocs-ui/css/preset.css";
+
+:root {
+  --fd-layout-width: 1440px;
+  --font-sans: "Instrument Sans Variable", "Avenir Next", sans-serif;
+}
+
+html {
+  scrollbar-gutter: stable;
+  font-family: var(--font-sans);
+  font-feature-settings:
+    "ss01" 1,
+    "cv05" 1;
+}
+
+body {
+  letter-spacing: -0.006em;
+}
+
+.docs-skip-link {
+  position: fixed;
+  inset-block-start: 0.75rem;
+  inset-inline-start: 0.75rem;
+  z-index: 100;
+  translate: 0 -200%;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.5rem;
+  background: var(--color-fd-background);
+  padding: 0.5rem 0.75rem;
+  color: var(--color-fd-foreground);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.docs-skip-link:focus-visible {
+  translate: 0;
+  outline: 2px solid var(--color-fd-ring);
+  outline-offset: 2px;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0 !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+.prose {
+  --fd-prose-body: 1rem;
+}
+
+.prose :where(h2, h3, h4) {
+  letter-spacing: -0.025em;
+}
+
+.prose :where(p, li, blockquote) {
+  max-width: 74ch;
+  line-height: 1.72;
+}

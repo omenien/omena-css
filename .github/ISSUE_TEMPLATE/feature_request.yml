@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a focused addition to an existing Omena product surface.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Product surface
+      options:
+        - CLI
+        - Editor and LSP
+        - Rust API
+        - NAPI or WASM
+        - Build integration
+        - Lint integration
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user task or correctness gap, not only the desired API.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Compatibility and safety boundaries
+      description: Note defaults, opt-ins, host constraints, or output changes.

@@ -689,22 +689,30 @@
           "default": "warning",
           "description": "Severity level for unresolved class diagnostics."
         },
+        "omena.diagnostics.deepAnalysis": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable deeper workspace diagnostic analysis in the Rust language server."
+        },
         "omena.diagnostics.unusedSelector": {
           "type": "boolean",
           "default": true,
-          "description": "Show hints for CSS class selectors that are declared but never referenced in any TS/TSX file."
+          "description": "Legacy compatibility setting retained for older Node language-server builds. The current Rust server does not consume it.",
+          "deprecationMessage": "The current Rust language server does not consume this setting."
         },
         "omena.diagnostics.missingModule": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when 'import styles from ...' for a CSS Module cannot be resolved on disk."
+          "description": "Legacy compatibility setting retained for older Node language-server builds. The current Rust server does not consume it.",
+          "deprecationMessage": "The current Rust language server does not consume this setting."
         },
         "omena.hover.maxCandidates": {
           "type": "number",
           "default": 10,
           "minimum": 1,
           "maximum": 50,
-          "description": "Maximum template/variable candidates shown in hover."
+          "description": "Legacy compatibility setting retained for older Node language-server builds. The current Rust server does not consume it.",
+          "deprecationMessage": "The current Rust language server does not consume this setting."
         },
         "omena.typeFactBackend": {
           "type": "string",
@@ -728,7 +736,8 @@
           "type": "object",
           "default": {},
           "scope": "resource",
-          "markdownDescription": "Resource-scoped import alias map for CSS Module paths. Keys are non-relative import prefixes, values are workspace-relative or absolute target paths."
+          "markdownDescription": "Legacy compatibility map for older Node language-server builds. The current Rust server does not consume this setting; configure package manifests through `omena.resolution.packageManifestPaths` where applicable.",
+          "deprecationMessage": "The current Rust language server does not consume this setting."
         },
         "omena.scss.classnameTransform": {
           "type": "string",
@@ -741,7 +750,17 @@
           ],
           "default": "asIs",
           "scope": "resource",
-          "markdownDescription": "Mirror of css-loader's `modules.localsConvention`. Controls how CSS class selectors are exposed to JS/TS — e.g. `.btn-primary` is reachable as `styles['btn-primary']` (`asIs`), both that and `styles.btnPrimary` (`camelCase`), or only `styles.btnPrimary` (`camelCaseOnly`). Port your `css-loader` setting verbatim."
+          "markdownDescription": "Legacy compatibility mirror of css-loader's `modules.localsConvention` for older Node language-server builds. The current Rust server does not consume this setting.",
+          "deprecationMessage": "The current Rust language server does not consume this setting."
+        },
+        "omena.resolution.packageManifestPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "Package manifest file paths or file URIs loaded by the Rust language server for Sass package resolution."
         }
       }
     }
@@ -783,7 +802,7 @@
   ],
   "preview": false,
   "engines": {
-    "node": ">=22",
+    "node": ">=26",
     "vscode": "^1.125.0"
   },
   "packageManager": "pnpm@10.30.3"

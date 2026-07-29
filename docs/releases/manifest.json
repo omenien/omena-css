@@ -7,14 +7,24 @@
       "name": "Omena CSS Modules 5.3.0",
       "axis": "extension",
       "version": "5.3.0",
-      "notesFile": "docs/releases/5.3.0.md"
+      "notesFile": "docs/releases/5.3.0.md",
+      "distribution": [
+        "The GitHub Release contains the `5.3.0` VSIX and its SPDX SBOM.",
+        "Open VSX distributes `omena.omena-css` version `5.3.0`.",
+        "The legacy Visual Studio Marketplace listing `yongsk0066.css-module-explainer` remains at `5.2.0`; it is not evidence that `5.3.0` was published there."
+      ]
     },
     {
       "tag": "release-v0.3.0",
       "name": "Omena Rust crate train and CLI 0.3.0",
       "axis": "rust",
       "version": "0.3.0",
-      "notesFile": "docs/releases/5.3.0.md"
+      "notesFile": "docs/releases/5.3.0.md",
+      "distribution": [
+        "The GitHub Release contains native `omena-cli` archives and SHA-256 checksums for version `0.3.0`.",
+        "crates.io contains 50 of the 51 publishable workspace crates at `0.3.0`; `omena-reactive` is not published.",
+        "npm contains `@omena/wasm@0.3.0`; the latest published `@omena/napi` remains `0.2.1`."
+      ]
     }
   ]
 }

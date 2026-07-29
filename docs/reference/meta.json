@@ -1,5 +1,13 @@
 {
   "title": "Reference",
   "pagesIndex": "README",
-  "pages": ["README", "cli", "configuration", "personas", "lsp-capabilities"]
+  "pages": [
+    "README",
+    "cli",
+    "configuration",
+    "editor-settings",
+    "personas",
+    "lsp-capabilities",
+    "crates"
+  ]
 }

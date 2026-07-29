@@ -5,7 +5,7 @@ Vite consumer surface for the in-process Omena CSS native/wasm build API.
 ## Install
 
 ```sh
-npm install -D @omena/vite-plugin @omena/napi vite
+npm install -D @omena/vite-plugin@0.2.1 @omena/napi@0.2.1 vite@^8
 ```
 
 `@omena/napi` is the preferred runtime. The plugin can fall back to
@@ -32,7 +32,7 @@ export default {
 
 ## Scope
 
-Default scope is intentionally conservative:
+The published `0.2.1` scope is intentionally conservative:
 
 - `.module.css` and `.module.scss` files are transformed by default
 - the hot path calls `@omena/napi` directly and falls back to `@omena/wasm`
@@ -48,3 +48,7 @@ Default scope is intentionally conservative:
 
 Use `include` to opt into a wider path set after the downstream build pipeline
 is ready for omena-owned preprocessing.
+
+Repository source also recognizes `.module.less`, but that behavior is not part
+of the published `0.2.1` contract. Check the installed package version before
+relying on repository-only defaults.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://omenien.github.io/omena-css/
+    about: Read setup, integration, compatibility, and troubleshooting guidance.
+  - name: Security report
+    url: https://github.com/omenien/omena-css/security/advisories/new
+    about: Report a vulnerability privately.

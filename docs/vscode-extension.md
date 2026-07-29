@@ -59,6 +59,7 @@ All extension settings use the `omena.*` namespace. The generated references
 are the current sources for the complete surface:
 
 - [Configuration keys](reference/configuration.md)
+- [Editor settings and runtime owners](reference/editor-settings.md)
 - [LSP capabilities](reference/lsp-capabilities.md)
 - [CLI commands](reference/cli.md)
 
@@ -67,15 +68,16 @@ Frequently adjusted settings include:
 | Setting                         | Purpose                                         |
 | ------------------------------- | ----------------------------------------------- |
 | `omena.features.*`              | Enable editor feature families.                 |
-| `omena.diagnostics.*`           | Control diagnostic severity and selected rules. |
-| `omena.scss.classnameTransform` | Mirror css-loader `localsConvention`.           |
-| `omena.pathAlias`               | Add resource-scoped import aliases.             |
-| `omena.hover.maxCandidates`     | Bound dynamic candidates shown in hover.        |
+| `omena.diagnostics.severity`               | Set the Rust server's diagnostic severity.       |
+| `omena.diagnostics.deepAnalysis`           | Enable deeper workspace diagnostic analysis.     |
+| `omena.resolution.packageManifestPaths`    | Supply package manifests for Sass resolution.    |
+| `omena.typeFactBackend`                    | Select the extension's type-fact process.         |
+| `omena.lspServerRuntime`                   | Select the extension's Rust server executable.   |
 
-For a selector such as `.btn-primary`, `asIs` exposes the original name;
-`camelCase`/`dashes` expose original and camelized names; `camelCaseOnly` and
-`dashesOnly` expose only the alias. Rename is rejected where reverse mapping is
-lossy.
+Older settings for per-rule diagnostics, hover candidate limits, aliases, and
+classname transforms remain registered so existing workspaces validate, but the
+current Rust server does not consume them. The generated settings reference
+marks these keys as deprecated rather than implying that they affect analysis.
 
 ## CLI Persona Presets
 

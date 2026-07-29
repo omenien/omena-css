@@ -20,7 +20,9 @@ GitHub Release mutation.
 
 1. Add or update the user-facing release document in this directory.
 2. Register each independently published tag in `manifest.json`. The editor uses
-   `vscode-vX.Y.Z`; the Rust crate train and CLI use `release-vX.Y.Z`.
+   `vscode-vX.Y.Z`; the Rust crate train and CLI use `release-vX.Y.Z`. Record
+   channel-specific distribution facts in the same entry after checking the
+   registries and GitHub Release assets.
 3. Render the body locally:
 
    ```sh
@@ -34,9 +36,10 @@ GitHub Release mutation.
    pnpm omena-check run rust/crate-documentation
    ```
 
-The renderer adds channel-specific artifacts and immutable source links to the
-curated document. Preview extension tags reuse the registered stable document
-and receive an explicit prerelease warning.
+The renderer adds the entry's immutable distribution facts and source links to
+the curated document. It never derives a historical release from the current
+workspace crate list. Preview extension tags reuse the registered stable
+document and receive an explicit prerelease warning.
 
 ## Required content
 
@@ -62,6 +65,12 @@ node --import tsx ./scripts/release-notes.ts backfill
 node --import tsx ./scripts/release-notes.ts backfill --tag v4.1.24 --print
 node --import tsx ./scripts/release-notes.ts backfill --apply
 ```
+
+For registered tags, backfill renders only the reviewed document and the
+distribution facts frozen in `manifest.json`. For unregistered historical tags,
+it preserves a substantive existing body, otherwise using the matching
+changelog section or GitHub comparison. It does not inspect the current crate
+inventory to describe an old release.
 
 The command is idempotent. Run it with an authenticated `gh` session and review
 the dry-run summary before applying remote changes.

@@ -96,6 +96,7 @@ documentation-only evaluator. Keep interactive examples:
 - local-only by default, with no source upload;
 - bounded to browser-supported in-memory workflows;
 - accessible without pointer-only controls;
+- focused on one product workflow per component instance;
 - paired with prose that names filesystem or host limitations.
 
 If an example needs package resolution, workspace discovery, or editor
@@ -125,7 +126,7 @@ Pull requests declare `docs impact: paths` or `docs impact: none + reason`.
 CODEOWNERS routes `docs/` and `apps/docs/` changes to the documentation owner.
 Product owners review generated or hybrid pages for the contracts they own.
 
-On `master`, the Pages workflow builds the browser WASM package, exports the
-static Next.js site, uploads the immutable Pages artifact, and deploys through
-the protected `github-pages` environment. The deployment does not use runtime
-server actions or documentation-time API calls.
+On `master`, the Pages workflow builds the browser WASM package, prerenders the
+TanStack Start site, uploads the immutable Pages artifact, and deploys through
+the protected `github-pages` environment. The deployment does not depend on
+runtime server actions or documentation-time API calls.

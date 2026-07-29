@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a reproducible defect in an Omena product surface.
+title: "fix: "
+labels:
+  - bug
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Product surface
+      options:
+        - CLI
+        - VS Code extension
+        - Language server
+        - Rust crate
+        - NAPI
+        - WASM
+        - Vite
+        - PostCSS
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "For example: omena-cli 0.3.0 or @omena/wasm 0.3.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "OS, architecture, Node/Rust/editor version when relevant"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the smallest source and exact command, API call, or setting.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: This report contains no credentials, private source, or undisclosed vulnerability.
+          required: true

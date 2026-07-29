@@ -17,7 +17,9 @@ These tables are rendered from the current product contracts and checked in CI.
 - [CLI commands and product verbs](./cli.md)
 - [Persona presets](./personas.md)
 - [Configuration keys](./configuration.md)
+- [Editor settings and runtime owners](./editor-settings.md)
 - [LSP capabilities](./lsp-capabilities.md)
+- [Rust crate catalog](./crates.md)
 
 ## Contributor checks
 

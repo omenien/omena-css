@@ -1,5 +1,4 @@
 import { strict as assert } from "node:assert";
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +11,7 @@ interface ReleaseManifestEntry {
   readonly axis: ReleaseAxis;
   readonly version: string;
   readonly notesFile: string;
+  readonly distribution: readonly string[];
 }
 
 interface ReleaseManifest {
@@ -83,6 +83,15 @@ function checkCommand(): void {
     assert.ok(!tags.has(entry.tag), `duplicate release tag ${entry.tag}`);
     tags.add(entry.tag);
     assertTagMatchesEntry(entry);
+    assert.ok(
+      entry.distribution.length > 0,
+      `${entry.tag} must freeze its channel-specific distribution facts`,
+    );
+    assert.equal(
+      new Set(entry.distribution).size,
+      entry.distribution.length,
+      `${entry.tag} distribution facts must be unique`,
+    );
     const notePath = path.join(repoRoot, entry.notesFile);
     assert.ok(existsSync(notePath), `${entry.tag} notes file does not exist: ${entry.notesFile}`);
     const notes = readFileSync(notePath, "utf8");
@@ -302,28 +311,10 @@ function renderRegisteredRelease(tag: string): string {
 }
 
 function renderArtifactSection(entry: ReleaseManifestEntry): string {
-  if (entry.axis === "extension") {
-    return [
-      "## Distribution",
-      "",
-      "- VS Code Marketplace and Open VSX packages are produced from the tagged commit.",
-      "- The GitHub Release contains the signed VSIX, SBOM, and build provenance.",
-    ].join("\n");
-  }
-
-  const order = canonicalPublishOrder();
   return [
     "## Distribution",
     "",
-    "- The GitHub Release contains native `omena-cli` archives and SHA-256 checksums.",
-    `- The lockstep Rust train contains ${order.length} publishable crates at version \`${entry.version}\`.`,
-    "",
-    "<details>",
-    "<summary>Rust crate publish order</summary>",
-    "",
-    ...order.map((crate) => `- \`${crate}\``),
-    "",
-    "</details>",
+    ...entry.distribution.map((fact) => `- ${fact}`),
   ].join("\n");
 }
 
@@ -441,16 +432,6 @@ function compareReleaseTags(left: string, right: string): number {
     if (difference !== 0) return difference;
   }
   return left.localeCompare(right);
-}
-
-function canonicalPublishOrder(): readonly string[] {
-  const raw = execFileSync(
-    process.execPath,
-    ["--import", "tsx", "scripts/check-rust-publish-train-closure.ts"],
-    { cwd: repoRoot, encoding: "utf8" },
-  );
-  const parsed = JSON.parse(raw) as { canonicalPublishOrder: string[] };
-  return parsed.canonicalPublishOrder;
 }
 
 function readWorkspaceVersion(): string {

@@ -10,7 +10,7 @@ Vite plugin.
 ## Install
 
 ```sh
-npm install -D @omena/postcss-plugin @omena/napi postcss
+npm install -D @omena/postcss-plugin@0.2.1 @omena/napi@0.2.1 postcss@^8.5
 ```
 
 `@omena/napi` is the preferred runtime. The plugin can fall back to
@@ -50,7 +50,8 @@ export default {
 
 ## Scope
 
-- `.module.css` and `.module.scss` files are transformed by default.
+- The published `0.2.1` package transforms `.module.css` and `.module.scss`
+  files by default.
 - `minify`, `treeShake`, and `bundle` compose built-in pass presets.
 - `sources` and `packageManifests` provide additional workspace context for
   bundle-oriented transforms.
@@ -62,3 +63,6 @@ export default {
 
 Use `include` to opt into a wider path set after the downstream build pipeline
 is ready for Omena-owned preprocessing.
+
+Repository source also recognizes `.module.less`, but that behavior is not part
+of the published `0.2.1` contract.

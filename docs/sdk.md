@@ -15,18 +15,33 @@ omena-css exposes the same snapshot-bound workflows through NAPI, WASM, the
 `contracts/engine-sdk-workflow/main.tsp` owns request, response, partition, and
 typed error envelopes.
 
+## Registry Availability
+
+The repository and npm registry do not currently expose identical NAPI
+versions. Choose examples by the version you can install, not by the repository
+source alone.
+
+| Package | Latest published | API shape |
+| --- | --- | --- |
+| `@omena/napi` | `0.2.1` | JSON functions such as `checkStyleSourceJson` |
+| `@omena/wasm` | `0.3.0` | JavaScript values and `Workspace` |
+
+The Node `Workspace` implementation in this repository belongs to the
+unreleased NAPI `0.3.0` surface.
+
 ## Install
 
 ```bash
-npm install @omena/napi
-npm install @omena/wasm
+npm install @omena/napi@0.2.1
+npm install @omena/wasm@0.3.0
 cargo install omena-cli --locked
 ```
 
 ## Workflow Matrix
 
 This table is generated from the TypeSpec request models and checked against the
-committed four-surface parity matrix.
+repository's four-surface parity matrix. It describes source-level contract
+coverage; it is not a registry-availability claim.
 
 <!-- BEGIN GENERATED: OMENA SDK WORKFLOWS -->
 <!-- Generated from product code. Do not edit by hand. -->
@@ -47,34 +62,29 @@ of reading mutable state implicitly.
 
 ## NAPI
 
-NAPI uses JSON strings at the binding edge while preserving the shared IDL
-shape:
+The published NAPI package uses JSON strings at the binding edge:
 
 ```js
-const { Workspace } = require("@omena/napi");
+const { checkStyleSourceJson } = require("@omena/napi");
 
-const sources = [{ stylePath: "button.module.css", styleSource: ".button {}" }];
-const workspace = new Workspace(process.cwd(), JSON.stringify(sources));
-const snapshot = JSON.parse(workspace.snapshotJson());
-const diagnostics = JSON.parse(
-  workspace.diagnosticsJson(
-    JSON.stringify({
-      snapshotId: snapshot.snapshotId,
-      stylePath: sources[0].stylePath,
-      styleSource: sources[0].styleSource,
-    }),
-  ),
+const report = JSON.parse(
+  checkStyleSourceJson(".button { color: royalblue; }", "button.module.css"),
 );
 ```
 
+Repository source also defines a snapshot-bound Node `Workspace`, but that class
+is not part of `@omena/napi@0.2.1`. Do not copy the workspace example into a
+published-package integration until a compatible NAPI release is available.
+
 ## WASM
 
-WASM uses in-memory JavaScript values and performs no filesystem access:
+The published WASM package is a bundler-target module. Importing it starts the
+module; there is no default `init()` export. It uses in-memory JavaScript values
+and performs no filesystem access:
 
 ```js
-import init, { Workspace } from "@omena/wasm";
+import { Workspace } from "@omena/wasm";
 
-await init();
 const sources = [{ stylePath: "button.module.css", styleSource: ".button {}" }];
 const workspace = new Workspace("/workspace", sources);
 const snapshot = workspace.snapshot();
@@ -86,9 +96,10 @@ const diagnostics = workspace.diagnostics({
 ```
 
 The [browser playground](playground.mdx) loads a web-target build of this same
-crate and runs diagnostics or parse-tree inspection without uploading source.
-It deliberately omits filesystem discovery and host-specific workspace
-resolution.
+crate and demonstrates workspace diagnostics, semantic transforms, and
+target-aware builds without uploading source. Its examples use caller-supplied
+in-memory files and deliberately omit filesystem discovery and host-specific
+workspace resolution.
 
 ## CLI
 
