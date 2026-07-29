@@ -40,6 +40,7 @@ pub enum LinkedEmissionByteDifferentialPerturbationV0 {
     DropLiveDeclaration,
     AddUnclaimedLinkedToken,
     DropComposesReachability,
+    BreakEnginePathEquivalence,
     AddUnattributedReachabilityReference,
     FlipAuthoredLivenessExpectation,
     DropFixture,
@@ -231,6 +232,8 @@ pub struct LinkedEmissionLiveDeclarationFixtureV0 {
     pub fixture_id: String,
     pub reachability_reference_count: usize,
     pub engine_input_style_source_count: usize,
+    pub engine_input_path_form: &'static str,
+    pub unmatched_target_style_path_count: usize,
     pub composes_resolution_count: usize,
     pub declaration_preserving_pass_ids: Vec<String>,
     pub modules: Vec<LinkedEmissionLiveDeclarationModuleV0>,
@@ -359,6 +362,8 @@ struct LinkedEmissionFixtureAnalysisV0 {
     class_name_rewrites_by_module: BTreeMap<String, BTreeMap<String, String>>,
     live_declared_names_by_module: BTreeMap<String, BTreeSet<String>>,
     engine_input_style_source_count: usize,
+    engine_input_path_form: &'static str,
+    unmatched_target_style_path_count: usize,
     composes_resolution_count: usize,
     declaration_preserving_pass_ids: Vec<String>,
     collision_plan_owner_override: bool,
@@ -368,6 +373,7 @@ struct LinkedEmissionFixtureAnalysisV0 {
 struct LinkedEmissionFixtureReachabilityV0 {
     report: OmenaQueryEngineInputModuleReachabilityV0,
     engine_input_style_source_count: usize,
+    engine_input_path_form: &'static str,
 }
 
 #[derive(Debug)]
@@ -521,6 +527,11 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
                     perturbation
                 }
                 LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability
+                    if fixture.id == "module-qualified-composes-reachability" =>
+                {
+                    perturbation
+                }
+                LinkedEmissionByteDifferentialPerturbationV0::BreakEnginePathEquivalence
                     if fixture.id == "module-qualified-composes-reachability" =>
                 {
                     perturbation
@@ -717,6 +728,8 @@ fn summarize_linked_emission_coverage_census_v0(
                 fixture_id: fixture.id.clone(),
                 reachability_reference_count: fixture.reachability_references.len(),
                 engine_input_style_source_count: analysis.engine_input_style_source_count,
+                engine_input_path_form: analysis.engine_input_path_form,
+                unmatched_target_style_path_count: analysis.unmatched_target_style_path_count,
                 composes_resolution_count: analysis.composes_resolution_count,
                 declaration_preserving_pass_ids: analysis.declaration_preserving_pass_ids.clone(),
                 modules: fixture
@@ -1088,7 +1101,7 @@ fn validate_module_token_collision_paths_v0(
         let observed_scope =
             module_token_collision_path_scope_v0(collision.observed_emission_paths.as_slice());
         if collision.path_scope != observed_scope {
-            // FALSIFIER: id=linked-emission-rust-007 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
+            // FALSIFIER: id=linked-emission-rust-007 class=structuralEntailment via=STRUCTURAL producer=entailed owner=linked-emission-collision-accounting entry=derived-path-scope reentry=path-scope-stored-independently
             return Err(format!(
                 "emitted token collision {} in fixture {} declared scope {:?}, observed {:?}",
                 collision.emitted_token,
@@ -1269,6 +1282,19 @@ fn analyze_linked_emission_fixture_v0(
         .unwrap_or_default();
     let legacy_css = legacy.bundle_result.artifact.output_css;
     let mut linked_css = linked.bundle_result.artifact.output_css;
+    let unmatched_target_style_path_count = linked_attribution
+        .as_ref()
+        .map(|attribution| attribution.unmatched_target_style_paths().len())
+        .unwrap_or_default();
+    if fixture.id == "module-qualified-composes-reachability"
+        && unmatched_target_style_path_count > 0
+    {
+        // FALSIFIER: id=linked-emission-attribution-path-equivalence class=liveness via=BreakEnginePathEquivalence producer=can-fail owner=linked-emission-instrument entry=equivalent-engine-and-build-paths
+        return Err(format!(
+            "linked-emission attribution could not reconcile {} target style paths in fixture {}",
+            unmatched_target_style_path_count, fixture.id
+        ));
+    }
     match perturbation {
         LinkedEmissionByteDifferentialPerturbationV0::None => {}
         LinkedEmissionByteDifferentialPerturbationV0::AddUnexpectedRule => {
@@ -1295,6 +1321,7 @@ fn analyze_linked_emission_fixture_v0(
             linked_css.push_str("\n._unclaimed_linked_token { color: inherit; }");
         }
         LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability
+        | LinkedEmissionByteDifferentialPerturbationV0::BreakEnginePathEquivalence
         | LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference
         | LinkedEmissionByteDifferentialPerturbationV0::FlipAuthoredLivenessExpectation
         | LinkedEmissionByteDifferentialPerturbationV0::DropFixture
@@ -1465,6 +1492,12 @@ fn analyze_linked_emission_fixture_v0(
         class_name_rewrites_by_module,
         live_declared_names_by_module,
         engine_input_style_source_count,
+        engine_input_path_form: fixture_reachability
+            .as_ref()
+            .map_or("notApplicable", |reachability| {
+                reachability.engine_input_path_form
+            }),
+        unmatched_target_style_path_count,
         composes_resolution_count,
         declaration_preserving_pass_ids: pass_ids,
         collision_plan_owner_override: perturbation
@@ -1484,6 +1517,23 @@ fn module_reachability_for_fixture_v0(
         .iter()
         .chain(&fixture.workspace_only_modules)
         .collect::<Vec<_>>();
+    let uses_equivalent_cross_form_paths = fixture.id == "module-qualified-composes-reachability";
+    let engine_input_path_form = if uses_equivalent_cross_form_paths {
+        "absoluteEngineRelativeBuild"
+    } else {
+        "sameAsBuild"
+    };
+    let engine_style_path = |module_index: usize, module_path: &str| {
+        if perturbation == LinkedEmissionByteDifferentialPerturbationV0::BreakEnginePathEquivalence
+            && uses_equivalent_cross_form_paths
+        {
+            format!("/engine-only/module-{module_index}.module.css")
+        } else if uses_equivalent_cross_form_paths {
+            format!("/workspace/{}", module_path.trim_start_matches('/'))
+        } else {
+            module_path.to_string()
+        }
+    };
     let range = fixture_range_v0();
     let mut input = EngineInputV2 {
         version: "2".to_string(),
@@ -1497,7 +1547,10 @@ fn module_reachability_for_fixture_v0(
                         class_expressions: vec![ClassExpressionInputV2 {
                             id: reference.id.to_string(),
                             kind: "styleAccess".to_string(),
-                            scss_module_path: module.path.clone(),
+                            scss_module_path: engine_style_path(
+                                reference.module_index,
+                                module.path.as_str(),
+                            ),
                             range: range.clone(),
                             class_name: Some(reference.class_name.to_string()),
                             root_binding_decl_id: None,
@@ -1509,11 +1562,12 @@ fn module_reachability_for_fixture_v0(
             .collect(),
         styles: workspace_modules
             .iter()
-            .map(|module| {
+            .enumerate()
+            .map(|(module_index, module)| {
                 let collection =
                     collect_style_fact_collection(module.source.as_str(), module.dialect);
                 StyleAnalysisInputV2 {
-                    file_path: module.path.clone(),
+                    file_path: engine_style_path(module_index, module.path.as_str()),
                     source: Some(module.source.clone()),
                     document: StyleDocumentV2 {
                         selectors: collection
@@ -1615,6 +1669,7 @@ fn module_reachability_for_fixture_v0(
             true,
         ),
         engine_input_style_source_count,
+        engine_input_path_form,
     })
 }
 

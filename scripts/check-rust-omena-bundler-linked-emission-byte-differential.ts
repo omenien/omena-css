@@ -93,6 +93,8 @@ interface LinkedEmissionCoverageCensusV0 {
     readonly fixtureId: string;
     readonly reachabilityReferenceCount: number;
     readonly engineInputStyleSourceCount: number;
+    readonly engineInputPathForm: "sameAsBuild" | "absoluteEngineRelativeBuild";
+    readonly unmatchedTargetStylePathCount: number;
     readonly composesResolutionCount: number;
     readonly declarationPreservingPassIds: readonly string[];
     readonly modules: ReadonlyArray<{
@@ -345,6 +347,7 @@ const forwardedArguments = process.argv
       "--inject-live-declaration-loss",
       "--inject-unclaimed-linked-token",
       "--inject-composes-liveness-loss",
+      "--inject-incompatible-style-paths",
       "--inject-unattributed-reference",
       "--inject-authored-liveness-flip",
       "--inject-missing-fixture",
@@ -367,6 +370,7 @@ const run = spawnSync(
   ],
   { encoding: "utf8" },
 );
+// FALSIFIER: id=linked-emission-product-run-status class=liveness via=--inject-live-declaration-loss,--inject-linked-rule-misattribution,--inject-authored-liveness-flip,--inject-composed-declaration-loss,--inject-composes-liveness-loss,--inject-incompatible-style-paths,--inject-unclaimed-linked-token producer=can-fail owner=linked-emission-instrument entry=product-run-success
 assert.equal(run.status, 0, [run.stdout, run.stderr].filter(Boolean).join("\n"));
 const observedEnvelope = JSON.parse(run.stdout) as LinkedEmissionByteDifferentialEnvelopeV0;
 const envelope = process.argv.includes("--inject-missing-justification")
@@ -492,10 +496,22 @@ for (const fixture of census.liveDeclarationFixtures) {
 const composesDomainFixture = census.liveDeclarationFixtures.find(
   (fixture) => fixture.fixtureId === "module-qualified-composes-reachability",
 );
-// FALSIFIER: id=linked-emission-composes-source-precondition class=liveness via=--inject-composed-declaration-loss producer=can-fail owner=linked-emission-instrument entry=composes-resolution-observed
+// FALSIFIER: id=linked-emission-composes-source-precondition class=liveness via=--inject-composed-declaration-loss,--inject-composes-liveness-loss producer=can-fail owner=linked-emission-instrument entry=composes-resolution-observed
 assert.ok(
   composesDomainFixture && composesDomainFixture.composesResolutionCount > 0,
   "the composes fixture must derive at least one source-backed resolution",
+);
+// FALSIFIER: id=linked-emission-path-attribution-precondition class=liveness via=BreakEnginePathEquivalence producer=can-fail owner=linked-emission-instrument entry=cross-form-target-paths-reconciled
+assert.equal(
+  composesDomainFixture?.unmatchedTargetStylePathCount,
+  0,
+  "the cross-form composes fixture has unmatched engine-input target style paths",
+);
+// FALSIFIER: id=linked-emission-cross-form-path-fixture class=liveness via=BreakEnginePathEquivalence producer=can-fail owner=linked-emission-instrument entry=absolute-engine-relative-build
+assert.equal(
+  composesDomainFixture?.engineInputPathForm,
+  "absoluteEngineRelativeBuild",
+  "the composes fixture must exercise equivalent absolute and relative path forms",
 );
 const liveDeclarationArmStart = linkedEmissionSource.indexOf(
   "fn validate_live_declared_names_survive_linked_emission_v0",
@@ -670,6 +686,7 @@ const serializedCensus = censusFormat.stdout;
 if (process.argv.includes("--update-census")) {
   writeFileSync(censusPath, serializedCensus);
 }
+// FALSIFIER: id=linked-emission-census-baseline-equality class=accounting via=--inject-unattributed-reference,--inject-incompatible-style-paths producer=can-fail owner=linked-emission-instrument entry=committed-census-equals-runtime
 assert.equal(
   readFileSync(censusPath, "utf8"),
   serializedCensus,
@@ -717,6 +734,7 @@ for (const entry of report.cases) {
     assert.equal(entry.byteEqual, false);
     if (entry.fixtureId === "module-qualified-reachability") {
       assert.equal(entry.semanticPreserved, false);
+      // FALSIFIER: id=linked-emission-semantic-mismatch-count class=liveness via=--inject-cross-module-declaration-loss,--inject-unattributed-reference producer=can-fail owner=linked-emission-instrument entry=single-authored-semantic-mismatch
       assert.equal(entry.semanticMismatchCount, 1);
       // FALSIFIER: id=linked-emission-gate-025 class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
       assert.deepEqual(entry.legacyMarkerOrder, ["_entry-marker_1"]);

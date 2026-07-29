@@ -1063,6 +1063,77 @@ fn composes_closure_is_partitioned_to_the_declaring_module() -> Result<(), Strin
 }
 
 #[test]
+fn composes_closure_survives_equivalent_engine_and_build_path_forms() -> Result<(), String> {
+    let engine_entry_path = "/workspace/src/entry.module.css";
+    let engine_base_path = "/workspace/src/base.module.css";
+    let build_entry_path = "src/entry.module.css";
+    let build_base_path = "src/base.module.css";
+    let entry_source = "@import \"./base.module.css\"; \
+        .card { composes: base from \"./base.module.css\"; color: red; }";
+    let base_source =
+        ".base { padding: 2px; } .base-live { color: blue; } .base-dead { color: gray; }";
+    let input = module_reachability_input(
+        &[
+            ("entry-card", engine_entry_path, "card"),
+            ("base-live", engine_base_path, "base-live"),
+        ],
+        &[
+            (engine_entry_path, entry_source, &["card"]),
+            (
+                engine_base_path,
+                base_source,
+                &["base", "base-live", "base-dead"],
+            ),
+        ],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, build_entry_path, true);
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: build_entry_path.to_string(),
+            style_source: entry_source.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: build_base_path.to_string(),
+            style_source: base_source.to_string(),
+        },
+    ];
+    let result = run_omena_query_bundle_with_module_reachability_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: build_entry_path,
+            style_sources: &style_sources,
+            source_map_sources: &style_sources,
+            requested_pass_ids: &["tree-shake-class".to_string()],
+            context: &OmenaQueryTransformExecutionContextV0::default(),
+            resolution_inputs: &OmenaQueryStyleResolutionInputsV0::default(),
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        },
+        &reachability,
+    )?;
+
+    assert!(
+        result
+            .bundle_result()
+            .artifact
+            .output_css
+            .contains("padding: 2px")
+    );
+    assert!(
+        result
+            .reachability_attribution()
+            .unmatched_target_style_paths()
+            .is_empty()
+    );
+    Ok(())
+}
+
+#[test]
 fn unattributed_projection_fans_out_to_every_style_module() {
     let first_path = "src/first.module.css";
     let second_path = "src/second.module.css";

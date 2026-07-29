@@ -18,6 +18,8 @@ fn main() {
         LinkedEmissionByteDifferentialPerturbationV0::AddUnclaimedLinkedToken
     } else if std::env::args().any(|arg| arg == "--inject-composes-liveness-loss") {
         LinkedEmissionByteDifferentialPerturbationV0::DropComposesReachability
+    } else if std::env::args().any(|arg| arg == "--inject-incompatible-style-paths") {
+        LinkedEmissionByteDifferentialPerturbationV0::BreakEnginePathEquivalence
     } else if std::env::args().any(|arg| arg == "--inject-unattributed-reference") {
         LinkedEmissionByteDifferentialPerturbationV0::AddUnattributedReachabilityReference
     } else if std::env::args().any(|arg| arg == "--inject-authored-liveness-flip") {

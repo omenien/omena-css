@@ -74,6 +74,8 @@
       "fixtureId": "combinator-companion-liveness",
       "reachabilityReferenceCount": 3,
       "engineInputStyleSourceCount": 2,
+      "engineInputPathForm": "sameAsBuild",
+      "unmatchedTargetStylePathCount": 0,
       "composesResolutionCount": 0,
       "declarationPreservingPassIds": [
         "import-inline",
@@ -102,6 +104,8 @@
       "fixtureId": "global-at-rule-liveness",
       "reachabilityReferenceCount": 4,
       "engineInputStyleSourceCount": 2,
+      "engineInputPathForm": "sameAsBuild",
+      "unmatchedTargetStylePathCount": 0,
       "composesResolutionCount": 0,
       "declarationPreservingPassIds": [
         "import-inline",
@@ -139,6 +143,8 @@
       "fixtureId": "module-qualified-at-rule-reachability",
       "reachabilityReferenceCount": 2,
       "engineInputStyleSourceCount": 2,
+      "engineInputPathForm": "sameAsBuild",
+      "unmatchedTargetStylePathCount": 0,
       "composesResolutionCount": 1,
       "declarationPreservingPassIds": [
         "import-inline",
@@ -167,6 +173,8 @@
       "fixtureId": "module-qualified-composes-reachability",
       "reachabilityReferenceCount": 2,
       "engineInputStyleSourceCount": 2,
+      "engineInputPathForm": "absoluteEngineRelativeBuild",
+      "unmatchedTargetStylePathCount": 0,
       "composesResolutionCount": 1,
       "declarationPreservingPassIds": [
         "import-inline",
@@ -195,6 +203,8 @@
       "fixtureId": "module-qualified-reachability",
       "reachabilityReferenceCount": 4,
       "engineInputStyleSourceCount": 3,
+      "engineInputPathForm": "sameAsBuild",
+      "unmatchedTargetStylePathCount": 1,
       "composesResolutionCount": 0,
       "declarationPreservingPassIds": [
         "import-inline",
@@ -223,6 +233,8 @@
       "fixtureId": "package-path-composes-liveness",
       "reachabilityReferenceCount": 1,
       "engineInputStyleSourceCount": 2,
+      "engineInputPathForm": "sameAsBuild",
+      "unmatchedTargetStylePathCount": 0,
       "composesResolutionCount": 1,
       "declarationPreservingPassIds": [
         "import-inline",
@@ -251,6 +263,8 @@
       "fixtureId": "shaken-referrer-liveness",
       "reachabilityReferenceCount": 1,
       "engineInputStyleSourceCount": 3,
+      "engineInputPathForm": "sameAsBuild",
+      "unmatchedTargetStylePathCount": 0,
       "composesResolutionCount": 0,
       "declarationPreservingPassIds": [
         "import-inline",
@@ -286,6 +300,8 @@
       "fixtureId": "two-hop-composes-liveness",
       "reachabilityReferenceCount": 1,
       "engineInputStyleSourceCount": 3,
+      "engineInputPathForm": "sameAsBuild",
+      "unmatchedTargetStylePathCount": 0,
       "composesResolutionCount": 1,
       "declarationPreservingPassIds": [
         "import-inline",
@@ -321,6 +337,8 @@
       "fixtureId": "workspace-only-referrer-liveness",
       "reachabilityReferenceCount": 2,
       "engineInputStyleSourceCount": 3,
+      "engineInputPathForm": "sameAsBuild",
+      "unmatchedTargetStylePathCount": 1,
       "composesResolutionCount": 1,
       "declarationPreservingPassIds": [
         "import-inline",

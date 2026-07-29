@@ -300,9 +300,16 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
         .iter()
         .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
-    let target_entry = style_fact_entries
+    let known_style_paths = available_style_paths
         .iter()
-        .find(|entry| entry.style_path == target_style_path);
+        .map(|path| normalize_omena_query_style_path(path))
+        .collect::<Vec<_>>();
+    let canonical_target_style_path =
+        resolve_omena_query_style_path_against_known(target_style_path, &known_style_paths)
+            .unwrap_or_else(|| normalize_omena_query_style_path(target_style_path));
+    let target_entry = style_fact_entries.iter().find(|entry| {
+        normalize_omena_query_style_path(entry.style_path.as_str()) == canonical_target_style_path
+    });
 
     let mut context = TransformExecutionContextV0::default();
 
