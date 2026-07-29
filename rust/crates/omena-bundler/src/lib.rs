@@ -3197,8 +3197,10 @@ mod tests {
             range_start: 0,
             range_end: 7,
         };
-        let Some(layer_ordinal) = omena_cascade::LayerOrdinal::new(2) else {
-            panic!("two must remain a sentinel-safe layer ordinal");
+        let layer_ordinal = omena_cascade::LayerOrdinal::new(2);
+        assert_eq!(layer_ordinal.map(omena_cascade::LayerOrdinal::get), Some(2));
+        let Some(layer_ordinal) = layer_ordinal else {
+            return;
         };
         let key = rule.cascade_key_with_global_source_order(
             omena_cascade::CascadeLevel::AuthorNormal,
