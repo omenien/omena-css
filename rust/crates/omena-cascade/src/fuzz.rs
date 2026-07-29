@@ -148,7 +148,7 @@ fn generated_cascade_fuzz_declarations(
                 "margin"
             };
             let layer_important = fuzz_next(&mut state).is_multiple_of(2);
-            let layer_ordinal = LayerOrdinal::new((fuzz_next(&mut state) % 9) as i32);
+            let layer_ordinal = LayerOrdinal::new((fuzz_next(&mut state) % 10) as i32);
             CascadeDeclaration {
                 id: format!("decl-{seed}-{index}"),
                 property: property.to_string(),
@@ -176,15 +176,16 @@ fn generated_cascade_fuzz_declarations(
 }
 
 fn fuzz_cascade_level(value: u64) -> CascadeLevel {
-    match value % 9 {
+    match value % 10 {
         0 => CascadeLevel::UserAgentNormal,
         1 => CascadeLevel::UserNormal,
         2 => CascadeLevel::AuthorNormal,
         3 => CascadeLevel::InlineNormal,
         4 => CascadeLevel::Animation,
-        5 => CascadeLevel::AuthorImportant,
-        6 => CascadeLevel::UserImportant,
-        7 => CascadeLevel::UserAgentImportant,
+        5 => CascadeLevel::InlineImportant,
+        6 => CascadeLevel::AuthorImportant,
+        7 => CascadeLevel::UserImportant,
+        8 => CascadeLevel::UserAgentImportant,
         _ => CascadeLevel::Transition,
     }
 }

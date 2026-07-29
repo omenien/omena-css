@@ -83,17 +83,18 @@ fn origin_inputs_drive_every_non_temporal_cascade_level() {
         CascadeLevel::UserNormal,
         CascadeLevel::AuthorNormal,
         CascadeLevel::InlineNormal,
+        CascadeLevel::InlineImportant,
         CascadeLevel::AuthorImportant,
         CascadeLevel::UserImportant,
         CascadeLevel::UserAgentImportant,
     ]);
 
     assert_eq!(driven_levels, expected);
-    assert_eq!(cascade_level_catalog_v0().len(), 9);
-    assert_eq!(driven_levels.len(), 7);
+    assert_eq!(cascade_level_catalog_v0().len(), 10);
+    assert_eq!(driven_levels.len(), 8);
     assert_eq!(
         cascade_level_for_origin(CascadeOriginV0::Inline, true),
-        CascadeLevel::AuthorImportant
+        CascadeLevel::InlineImportant
     );
 }
 
@@ -2648,7 +2649,18 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
     let report = run_cascade_conformance_seed_corpus();
 
     assert_eq!(report.product, "omena-cascade.conformance-seed-corpus");
-    assert_eq!(report.case_count, 17);
+    assert_eq!(report.case_count, 18);
+    let important_origin_pin = report
+        .results
+        .iter()
+        .find(|result| result.name == "author-important-outranks-inline-important")
+        .map(|result| (result.actual_outcome, result.actual_winner_id.as_deref()));
+    // Mapping inline importance onto the author tier makes the later inline declaration false here.
+    // The hand-written corpus can emit that ordering because both declarations use the live ranker.
+    assert_eq!(
+        important_origin_pin,
+        Some(("definite", Some("author-important")))
+    );
     assert_eq!(report.passed_count, report.case_count);
     assert_eq!(report.failed_count, 0);
     assert!(report.results.iter().all(|result| result.passed));

@@ -19,6 +19,7 @@ pub enum CascadeLevel {
     AuthorNormal,
     InlineNormal,
     Animation,
+    InlineImportant,
     AuthorImportant,
     UserImportant,
     UserAgentImportant,

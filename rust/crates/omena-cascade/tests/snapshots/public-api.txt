@@ -30,7 +30,7 @@ pub const fn omena_cascade::ScopeProximityV0::unknown(omena_cascade::ScopeProxim
 pub const fn omena_cascade::Specificity::new(u32, u32, u32) -> Self
 pub const fn omena_cascade::SupportsTargetCapabilityV0::all_supported() -> Self
 pub const fn omena_cascade::SupportsTargetCapabilityV0::none_supported() -> Self
-pub const fn omena_cascade::cascade_level_catalog_v0() -> [omena_cascade::CascadeLevel; 9]
+pub const fn omena_cascade::cascade_level_catalog_v0() -> [omena_cascade::CascadeLevel; 10]
 pub const fn omena_cascade::cascade_level_for_origin(omena_cascade::CascadeOriginV0, bool) -> omena_cascade::CascadeLevel
 pub const fn omena_cascade::cascade_level_name_v0(omena_cascade::CascadeLevel) -> &'static str
 pub const fn omena_cascade::cascade_origin_driver_catalog_v0() -> [omena_cascade::CascadeOriginDriverV0; 8]
@@ -266,6 +266,7 @@ pub omena_cascade::CascadeKey::specificity: omena_cascade::Specificity
 pub omena_cascade::CascadeLevel::Animation
 pub omena_cascade::CascadeLevel::AuthorImportant
 pub omena_cascade::CascadeLevel::AuthorNormal
+pub omena_cascade::CascadeLevel::InlineImportant
 pub omena_cascade::CascadeLevel::InlineNormal
 pub omena_cascade::CascadeLevel::Transition
 pub omena_cascade::CascadeLevel::UserAgentImportant

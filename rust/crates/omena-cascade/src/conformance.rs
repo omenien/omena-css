@@ -6,9 +6,9 @@
 
 use crate::{
     CascadeConformanceSeedCase, CascadeConformanceSeedReport, CascadeConformanceSeedResult,
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerOrdinal,
-    ModuleRank, Specificity, SpecificityExactnessV0, cascade_property, normalized_layer_rank,
-    parse_simple_selector_signature,
+    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOriginV0, CascadeOutcome, CascadeValue,
+    LayerOrdinal, ModuleRank, Specificity, SpecificityExactnessV0, cascade_level_for_origin,
+    cascade_property, normalized_layer_rank, parse_simple_selector_signature,
 };
 
 struct SelectorSpecificitySeedDeclaration {
@@ -240,6 +240,38 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
                         0,
                         Specificity::new(0, 1, 0),
                         1,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("author-important".to_string()),
+        },
+        CascadeConformanceSeedCase {
+            name: "author-important-outranks-inline-important".to_string(),
+            property: "color",
+            declarations: vec![
+                conformance_decl(
+                    "author-important",
+                    "color",
+                    "blue",
+                    conformance_key(
+                        CascadeLevel::AuthorImportant,
+                        0,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        1,
+                    ),
+                ),
+                conformance_decl(
+                    "inline-important",
+                    "color",
+                    "red",
+                    conformance_key(
+                        cascade_level_for_origin(CascadeOriginV0::Inline, true),
+                        0,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        2,
                     ),
                 ),
             ],
@@ -590,6 +622,7 @@ fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
         CascadeLevel::AuthorNormal,
         CascadeLevel::InlineNormal,
         CascadeLevel::Animation,
+        CascadeLevel::InlineImportant,
         CascadeLevel::AuthorImportant,
         CascadeLevel::UserImportant,
         CascadeLevel::UserAgentImportant,

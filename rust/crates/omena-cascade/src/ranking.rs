@@ -216,9 +216,10 @@ fn cascade_level_rank(level: CascadeLevel) -> i64 {
         CascadeLevel::AuthorNormal => 2,
         CascadeLevel::InlineNormal => 3,
         CascadeLevel::Animation => 4,
-        CascadeLevel::AuthorImportant => 5,
-        CascadeLevel::UserImportant => 6,
-        CascadeLevel::UserAgentImportant => 7,
-        CascadeLevel::Transition => 8,
+        CascadeLevel::InlineImportant => 5,
+        CascadeLevel::AuthorImportant => 6,
+        CascadeLevel::UserImportant => 7,
+        CascadeLevel::UserAgentImportant => 8,
+        CascadeLevel::Transition => 9,
     }
 }

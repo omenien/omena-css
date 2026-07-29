@@ -29,9 +29,14 @@
       "followUp": "animation-origin-environment"
     },
     {
+      "level": "inlineImportant",
+      "status": "driven",
+      "driverInputs": ["inlineStyleImportant"]
+    },
+    {
       "level": "authorImportant",
       "status": "driven",
-      "driverInputs": ["authorStylesheetImportant", "inlineStyleImportant"]
+      "driverInputs": ["authorStylesheetImportant"]
     },
     {
       "level": "userImportant",

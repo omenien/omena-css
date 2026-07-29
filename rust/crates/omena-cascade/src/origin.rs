@@ -114,6 +114,12 @@ pub fn cascade_driver_census_is_consistent_v0() -> bool {
         .filter(|entry| entry.status == "driven")
         .filter_map(|entry| cascade_level_from_name_v0(entry.level.as_str()))
         .collect::<Vec<_>>();
+    let inline_important_driver_count = census
+        .levels
+        .iter()
+        .flat_map(|entry| entry.driver_inputs.iter())
+        .filter(|input| input.as_str() == "inlineStyleImportant")
+        .count();
     let expected_driven = cascade_origin_driver_catalog_v0()
         .into_iter()
         .map(|driver| driver.level)
@@ -138,6 +144,7 @@ pub fn cascade_driver_census_is_consistent_v0() -> bool {
         && census.product == "omena-cascade.driver-census"
         && levels == catalog
         && driven.into_iter().collect::<BTreeSet<_>>() == expected_driven
+        && inline_important_driver_count == 1
         && all_levels_have_evidence
         && census.winner_axes.len() == expected_axes.len()
         && census
@@ -165,17 +172,19 @@ pub const fn cascade_level_for_origin(origin: CascadeOriginV0, important: bool) 
         (CascadeOriginV0::Inline, false) => CascadeLevel::InlineNormal,
         (CascadeOriginV0::UserAgent, true) => CascadeLevel::UserAgentImportant,
         (CascadeOriginV0::User, true) => CascadeLevel::UserImportant,
-        (CascadeOriginV0::Author | CascadeOriginV0::Inline, true) => CascadeLevel::AuthorImportant,
+        (CascadeOriginV0::Author, true) => CascadeLevel::AuthorImportant,
+        (CascadeOriginV0::Inline, true) => CascadeLevel::InlineImportant,
     }
 }
 
-pub const fn cascade_level_catalog_v0() -> [CascadeLevel; 9] {
+pub const fn cascade_level_catalog_v0() -> [CascadeLevel; 10] {
     [
         CascadeLevel::UserAgentNormal,
         CascadeLevel::UserNormal,
         CascadeLevel::AuthorNormal,
         CascadeLevel::InlineNormal,
         CascadeLevel::Animation,
+        CascadeLevel::InlineImportant,
         CascadeLevel::AuthorImportant,
         CascadeLevel::UserImportant,
         CascadeLevel::UserAgentImportant,
@@ -190,6 +199,7 @@ pub const fn cascade_level_name_v0(level: CascadeLevel) -> &'static str {
         CascadeLevel::AuthorNormal => "authorNormal",
         CascadeLevel::InlineNormal => "inlineNormal",
         CascadeLevel::Animation => "animation",
+        CascadeLevel::InlineImportant => "inlineImportant",
         CascadeLevel::AuthorImportant => "authorImportant",
         CascadeLevel::UserImportant => "userImportant",
         CascadeLevel::UserAgentImportant => "userAgentImportant",
