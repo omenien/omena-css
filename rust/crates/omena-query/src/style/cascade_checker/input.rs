@@ -4,6 +4,11 @@ use omena_query_checker_orchestrator::{
     CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCustomPropertyInputV0,
 };
+use omena_semantic::{
+    LayerBindingResolutionV0, StyleLayerIndexV0, layer_ordinal_for_byte_span,
+    summarize_style_layer_order_from_source,
+};
+use omena_syntax::StyleDialect;
 
 use super::super::{
     ParserByteSpanV0, ParserRangeV0, omena_parser_dialect_for_style_path,
@@ -26,7 +31,8 @@ pub(super) fn collect_query_checker_cascade_input(
     BTreeMap<String, ParserRangeV0>,
     BTreeMap<String, ParserRangeV0>,
 ) {
-    let declarations = collect_query_checker_cascade_declarations(source);
+    let dialect = omena_parser_dialect_for_style_path(style_uri);
+    let declarations = collect_query_checker_cascade_declarations_with_dialect(source, dialect);
     let custom_property_registrations =
         collect_query_checker_custom_property_registrations(style_uri, source);
     let declaration_ranges = declarations
@@ -38,7 +44,6 @@ pub(super) fn collect_query_checker_cascade_input(
             )
         })
         .collect::<BTreeMap<_, _>>();
-    let dialect = omena_parser_dialect_for_style_path(style_uri);
     let guaranteed_invalid_custom_properties =
         summarize_static_css_custom_property_fixed_point_from_source(source, dialect)
             .entries
@@ -108,44 +113,42 @@ pub(in crate::style) struct QueryCheckerCascadeDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct QueryCheckerCascadeScope {
     condition_context: Vec<String>,
-    layer_name: Option<String>,
-    layer_order: Option<i32>,
 }
 
 pub(in crate::style) fn collect_query_checker_cascade_declarations(
     source: &str,
 ) -> Vec<QueryCheckerCascadeDeclaration> {
+    collect_query_checker_cascade_declarations_with_dialect(source, StyleDialect::Css)
+}
+
+pub(in crate::style) fn collect_query_checker_cascade_declarations_with_dialect(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<QueryCheckerCascadeDeclaration> {
     #[cfg(test)]
     cascade_declarations_collect_probe::record();
+    let layer_index = summarize_style_layer_order_from_source(source, dialect);
     let mut declarations = Vec::new();
-    let mut layer_orders = BTreeMap::new();
-    let mut next_layer_order = 0i32;
     collect_query_checker_cascade_blocks(
         source,
         0,
         source.len(),
         None,
         Vec::new(),
-        None,
-        None,
-        &mut layer_orders,
-        &mut next_layer_order,
         &mut declarations,
     );
+    for declaration in &mut declarations {
+        apply_query_checker_layer_binding(&layer_index, declaration);
+    }
     declarations
 }
 
-#[allow(clippy::too_many_arguments)]
 fn collect_query_checker_cascade_blocks(
     source: &str,
     start: usize,
     end: usize,
     parent_selector: Option<String>,
     condition_context: Vec<String>,
-    layer_name: Option<String>,
-    layer_order: Option<i32>,
-    layer_orders: &mut BTreeMap<String, i32>,
-    next_layer_order: &mut i32,
     declarations: &mut Vec<QueryCheckerCascadeDeclaration>,
 ) {
     let mut index = start;
@@ -157,22 +160,13 @@ fn collect_query_checker_cascade_blocks(
         let prelude = source[prelude_start..open_index].trim();
         let body_start = open_index + 1;
 
-        if let Some(layer) = query_layer_name_from_prelude(prelude) {
-            let order = *layer_orders.entry(layer.clone()).or_insert_with(|| {
-                let order = *next_layer_order;
-                *next_layer_order += 1;
-                order
-            });
+        if query_layer_name_from_prelude(prelude).is_some() || prelude.trim_start() == "@layer" {
             collect_query_checker_cascade_blocks(
                 source,
                 body_start,
                 close_index,
                 parent_selector.clone(),
                 condition_context.clone(),
-                Some(layer),
-                Some(order),
-                layer_orders,
-                next_layer_order,
                 declarations,
             );
         } else if let Some(at_root_selector) = query_at_root_selector_from_prelude(prelude) {
@@ -196,8 +190,6 @@ fn collect_query_checker_cascade_blocks(
                     &canonical_selector,
                     QueryCheckerCascadeScope {
                         condition_context: condition_context.clone(),
-                        layer_name: layer_name.clone(),
-                        layer_order,
                     },
                     declarations,
                 );
@@ -207,10 +199,6 @@ fn collect_query_checker_cascade_blocks(
                     close_index,
                     Some(canonical_selector),
                     condition_context.clone(),
-                    layer_name.clone(),
-                    layer_order,
-                    layer_orders,
-                    next_layer_order,
                     declarations,
                 );
             }
@@ -223,10 +211,6 @@ fn collect_query_checker_cascade_blocks(
                 close_index,
                 parent_selector.clone(),
                 nested_condition_context,
-                layer_name.clone(),
-                layer_order,
-                layer_orders,
-                next_layer_order,
                 declarations,
             );
         } else if !prelude.is_empty() {
@@ -251,8 +235,6 @@ fn collect_query_checker_cascade_blocks(
                     &canonical_selector,
                     QueryCheckerCascadeScope {
                         condition_context: condition_context.clone(),
-                        layer_name: layer_name.clone(),
-                        layer_order,
                     },
                     declarations,
                 );
@@ -262,16 +244,38 @@ fn collect_query_checker_cascade_blocks(
                     close_index,
                     Some(canonical_selector),
                     condition_context.clone(),
-                    layer_name.clone(),
-                    layer_order,
-                    layer_orders,
-                    next_layer_order,
                     declarations,
                 );
             }
         }
 
         index = close_index + 1;
+    }
+}
+
+fn apply_query_checker_layer_binding(
+    layer_index: &StyleLayerIndexV0,
+    declaration: &mut QueryCheckerCascadeDeclaration,
+) {
+    let span = declaration.byte_span;
+    let resolution = layer_ordinal_for_byte_span(layer_index, span.start, span.end);
+    let binding = layer_index
+        .block_bindings
+        .iter()
+        .filter(|binding| {
+            binding.byte_span.start <= span.start && span.end <= binding.byte_span.end
+        })
+        .max_by_key(|binding| binding.nesting_depth);
+
+    match resolution {
+        LayerBindingResolutionV0::Resolved(ordinal) => {
+            declaration.input.layer_name = binding.map(|binding| binding.canonical_name.clone());
+            declaration.input.layer_order = ordinal.map(omena_cascade::LayerOrdinal::get);
+        }
+        LayerBindingResolutionV0::TopologyIncomplete { .. } => {
+            declaration.input.layer_name = None;
+            declaration.input.layer_order = None;
+        }
     }
 }
 
@@ -387,8 +391,8 @@ fn push_query_checker_declaration(
             value: value.clone(),
             source_order: source_order.min(u32::MAX as usize) as u32,
             condition_context: scope.condition_context.clone(),
-            layer_name: scope.layer_name.clone(),
-            layer_order: scope.layer_order,
+            layer_name: None,
+            layer_order: None,
             origin: omena_cascade::CascadeOriginV0::Author,
             important,
             var_references: collect_query_var_references_in_value(&value),
@@ -420,5 +424,101 @@ pub(crate) mod cascade_declarations_collect_probe {
 
     pub(super) fn record() {
         COLLECT_CALLS.with(|calls| calls.set(calls.get() + 1));
+    }
+}
+
+#[cfg(test)]
+mod layer_binding_tests {
+    use super::*;
+
+    #[test]
+    fn statement_order_and_nested_paths_share_the_semantic_layer_index() {
+        let statement_order = collect_query_checker_cascade_declarations_with_dialect(
+            r#"
+@layer overrides, base;
+@layer base { .target { color: red; } }
+@layer overrides { .target { color: blue; } }
+"#,
+            StyleDialect::Css,
+        );
+        let statement_bindings = statement_order
+            .iter()
+            .map(|declaration| {
+                (
+                    declaration.input.value.as_str(),
+                    declaration.input.layer_name.as_deref(),
+                    declaration.input.layer_order,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            statement_bindings,
+            vec![
+                ("red", Some("base"), Some(1)),
+                ("blue", Some("overrides"), Some(0)),
+            ]
+        );
+
+        let nested = collect_query_checker_cascade_declarations_with_dialect(
+            r#"
+@layer b { .target { color: blue; } }
+@layer a { @layer b { .target { color: purple; } } }
+"#,
+            StyleDialect::Css,
+        );
+        let nested_bindings = nested
+            .iter()
+            .map(|declaration| {
+                (
+                    declaration.input.value.as_str(),
+                    declaration.input.layer_name.as_deref(),
+                    declaration.input.layer_order,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            nested_bindings,
+            vec![
+                ("blue", Some("b"), Some(0)),
+                ("purple", Some("a.b"), Some(1)),
+            ]
+        );
+    }
+
+    #[test]
+    fn string_embedded_layer_tokens_do_not_enter_checker_bindings() {
+        let declarations = collect_query_checker_cascade_declarations_with_dialect(
+            r#"
+.noise::before {
+  content: "@layer fakeString; @layer fakeStringBlock { .fakeString {";
+}
+@layer reset;
+@layer components {
+  .card { content: "{"; color: red; }
+}
+"#,
+            StyleDialect::Scss,
+        );
+        let noise = declarations
+            .iter()
+            .filter(|declaration| declaration.input.selector.as_str() == ".noise::before")
+            .collect::<Vec<_>>();
+
+        assert_eq!(noise.len(), 1);
+        assert!(
+            noise
+                .iter()
+                .all(|declaration| declaration.input.layer_name.is_none())
+        );
+        assert!(
+            noise
+                .iter()
+                .all(|declaration| declaration.input.layer_order.is_none())
+        );
+        assert!(
+            declarations
+                .iter()
+                .all(|declaration| declaration.input.layer_name.as_deref() != Some("fakeString"))
+        );
     }
 }

@@ -145,6 +145,88 @@ fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_jso
 }
 
 #[test]
+fn statement_layer_order_controls_the_winner_and_dead_layer_anchor() {
+    let source = r#"
+@layer overrides, base;
+@layer base {
+  .target { color: red; }
+}
+@layer overrides {
+  .target { color: blue; }
+}
+"#;
+    let outcomes = crate::summarize_omena_query_cascade_site_outcomes_from_source(source);
+    let outcome = outcomes
+        .iter()
+        .filter(|outcome| outcome.selector == ".target" && outcome.property == "color")
+        .collect::<Vec<_>>();
+    // For normal declarations, the later declared layer `base` outranks `overrides`.
+    assert_eq!(outcome.len(), 1);
+    assert!(outcome.iter().all(|outcome| outcome.winning_value == "red"));
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/test.css",
+        source,
+        &[],
+    );
+    let dead_layer = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .collect::<Vec<_>>();
+    assert_eq!(dead_layer.len(), 1);
+    assert!(
+        dead_layer
+            .iter()
+            .all(|diagnostic| diagnostic.range.start.line == 6)
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "unspecifiedCascadeTie")
+    );
+}
+
+#[test]
+fn nested_layer_paths_do_not_collapse_into_a_source_order_tie() {
+    let source = r#"
+@layer b {
+  .target { color: blue; }
+}
+@layer a {
+  @layer b {
+    .target { color: purple; }
+  }
+}
+"#;
+    let outcomes = crate::summarize_omena_query_cascade_site_outcomes_from_source(source);
+    let outcome = outcomes
+        .iter()
+        .filter(|outcome| outcome.selector == ".target" && outcome.property == "color")
+        .collect::<Vec<_>>();
+    // The nested `a.b` layer is a distinct later layer and therefore wins.
+    assert_eq!(outcome.len(), 1);
+    assert!(
+        outcome
+            .iter()
+            .all(|outcome| outcome.winning_value == "purple")
+    );
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/test.css",
+        source,
+        &[],
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "unspecifiedCascadeTie")
+    );
+}
+
+#[test]
 fn workspace_style_diagnostics_include_sass_module_identity_conflicts() {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
