@@ -21,7 +21,8 @@ pub use emission_order::{
 };
 
 use omena_cascade::{
-    CascadeKey, CascadeLevel, LayerOrdinal, ModuleRank, Specificity, normalized_layer_rank,
+    CascadeKey, CascadeLevel, LayerOrdinal, LayerRank, ModuleRank, Specificity,
+    normalized_layer_rank,
 };
 use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
 use omena_parser::{
@@ -485,6 +486,24 @@ pub struct LinkedStylesheetRuleV0 {
 
 impl LinkedStylesheetRuleV0 {
     pub fn cascade_key_with_global_source_order(
+        &self,
+        level: CascadeLevel,
+        layer_rank: LayerRank,
+        scope_proximity: u32,
+        specificity: Specificity,
+        module_rank: ModuleRank,
+    ) -> CascadeKey {
+        CascadeKey::new(
+            level,
+            layer_rank,
+            scope_proximity,
+            specificity,
+            module_rank,
+            self.global_order_index,
+        )
+    }
+
+    pub fn cascade_key_with_global_source_order_from_layer_ordinal(
         &self,
         level: CascadeLevel,
         layer_ordinal: LayerOrdinal,
@@ -2367,7 +2386,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::{
-        LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0,
+        LinkedStylesheetRuleV0, LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0,
         TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0, TransformBundleAssetUrlKind,
         TransformBundleChunkKind, TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
         TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
@@ -3188,6 +3207,30 @@ mod tests {
     }
 
     #[test]
+    fn direct_layer_rank_helper_preserves_the_public_call_shape() {
+        let rule = LinkedStylesheetRuleV0 {
+            global_order_index: 7,
+            module_instance: ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.css")),
+            selector_name: "target".to_string(),
+            selector_kind: "class",
+            range_start: 0,
+            range_end: 7,
+        };
+        let layer_rank =
+            omena_cascade::normalized_layer_rank(false, omena_cascade::LayerOrdinal::new(2));
+        let key = rule.cascade_key_with_global_source_order(
+            omena_cascade::CascadeLevel::AuthorNormal,
+            layer_rank,
+            0,
+            omena_cascade::Specificity::new(0, 1, 0),
+            omena_cascade::ModuleRank::ZERO,
+        );
+
+        assert_eq!(key.layer_rank, layer_rank);
+        assert_eq!(key.source_order, 7);
+    }
+
+    #[test]
     fn cascade_source_order_is_fed_by_global_rule_order() -> Result<(), String> {
         let modules = vec![
             TransformBundleModuleInputV0::new(
@@ -3239,7 +3282,7 @@ mod tests {
                     ),
                     property: "color".to_string(),
                     value: omena_cascade::CascadeValue::Literal(value.to_string()),
-                    key: rule.cascade_key_with_global_source_order(
+                    key: rule.cascade_key_with_global_source_order_from_layer_ordinal(
                         omena_cascade::CascadeLevel::AuthorNormal,
                         layer_ordinal,
                         false,
@@ -3308,7 +3351,7 @@ mod tests {
                     } else {
                         "red".to_string()
                     }),
-                    key: rule.cascade_key_with_global_source_order(
+                    key: rule.cascade_key_with_global_source_order_from_layer_ordinal(
                         omena_cascade::CascadeLevel::AuthorNormal,
                         layer_ordinal,
                         false,
