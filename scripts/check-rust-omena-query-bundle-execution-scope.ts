@@ -457,9 +457,9 @@ for (const surface of [
   assert.ok(publicApiSource.includes(surface), `public API snapshot is missing ${surface}`);
 }
 
-// These committed transform-pass fixtures are the load-bearing growth and
-// omission authority. The declaration/sample loop below only checks consistency
-// after this independent serializer key-set contract has passed.
+// The declaration/sample checks above establish consistency. This production
+// serializer test is the separate load-bearing growth and omission authority;
+// its position in this process is not part of the contract.
 runCargoTest(
   "omena-transform-passes",
   "module_qualified_tree_shake_distinguishes_same_name_owners",

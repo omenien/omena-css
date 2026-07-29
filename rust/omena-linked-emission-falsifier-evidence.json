@@ -4,7 +4,7 @@
   "limitations": [
     "These records are regenerated from the first repository assertion frame observed while executing each direct perturbation; semantic defect classification remains authored.",
     "Non-executable semantic perturbation names are disclosures only and are not represented as observed firing records.",
-    "The 86 sites whose disclosed perturbation is executable but shadowed by an earlier first failure in the same run carry no firing observation and are not claimed to fire."
+    "Among the 86 executable-but-unobserved sites, 47 are shadowed by an earlier first failure in the same command, 16 are reached and remain green, and 23 are not executed by that command. At least 6 reached-and-green sites assert committed artifacts that their disclosed perturbation cannot change; no site in these three buckets is claimed to have fired."
   ],
   "firedSitesByPerturbation": [
     {

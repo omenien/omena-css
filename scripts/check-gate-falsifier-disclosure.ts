@@ -81,6 +81,13 @@ interface FalsifierEvidenceV0 {
   readonly deadTestAudit: readonly DeadTestAuditRecordV0[];
 }
 
+interface UnobservedExecutableSiteSummaryV0 {
+  readonly shadowedSiteIds: readonly string[];
+  readonly reachedGreenSiteIds: readonly string[];
+  readonly notExecutedSiteIds: readonly string[];
+  readonly committedArtifactSiteIds: readonly string[];
+}
+
 const scriptPath = fileURLToPath(import.meta.url);
 const repositoryRoot = resolve(dirname(scriptPath), "..");
 const domainPath = resolve(repositoryRoot, "rust/omena-linked-emission-instrument-domain.json");
@@ -384,6 +391,78 @@ function generatedFiringRecords(
   });
 }
 
+function summarizeUnobservedExecutableSites(
+  instrumentMap: InstrumentMapV0,
+  firingRecords: readonly FalsifierFiringRecordV0[],
+): UnobservedExecutableSiteSummaryV0 {
+  const recordsByPerturbation = new Map(
+    firingRecords.map((record) => [record.perturbation, record] as const),
+  );
+  const sitesById = new Map(instrumentMap.sites.map((site) => [site.id, site] as const));
+  const firedSiteIds = new Set(firingRecords.flatMap((record) => record.firedSiteIds));
+  const shadowedSiteIds: string[] = [];
+  const reachedGreenSiteIds: string[] = [];
+  const notExecutedSiteIds: string[] = [];
+
+  for (const site of instrumentMap.sites) {
+    if (site.producerReachability !== "can-fail" || firedSiteIds.has(site.id)) continue;
+
+    const executableRecords = site.falsifiers
+      .map((falsifier) => recordsByPerturbation.get(falsifier))
+      .filter((record): record is FalsifierFiringRecordV0 => record !== undefined);
+    if (executableRecords.length === 0) continue;
+    const classifications = executableRecords.map((record) => {
+      assert.equal(
+        record.firedSiteIds.length,
+        1,
+        `first-failure record must name exactly one site: ${record.perturbation}`,
+      );
+      const firstFailure = sitesById.get(record.firedSiteIds[0] ?? "");
+      assert.ok(firstFailure, `first-failure record names an unknown site: ${record.perturbation}`);
+
+      if (site.file !== firstFailure.file) return "not-executed";
+      assert.notEqual(
+        site.lineHint,
+        firstFailure.lineHint,
+        `unobserved site overlaps the first-failure location: ${site.id}`,
+      );
+      return site.lineHint < firstFailure.lineHint ? "reached-green" : "shadowed";
+    });
+    assert.equal(
+      new Set(classifications).size,
+      1,
+      `executable perturbations disagree on the unobserved-site classification: ${site.id}`,
+    );
+
+    const classification = classifications[0];
+    if (classification === "not-executed") notExecutedSiteIds.push(site.id);
+    if (classification === "reached-green") reachedGreenSiteIds.push(site.id);
+    if (classification === "shadowed") shadowedSiteIds.push(site.id);
+  }
+
+  const committedArtifactSiteIds = [
+    "linked-emission-gate-001",
+    "linked-emission-baseline-domain-floor",
+    "linked-emission-gate-002",
+    "linked-emission-gate-003",
+    "linked-emission-gate-018",
+    "linked-emission-gate-019",
+  ];
+  const reachedGreenSet = new Set(reachedGreenSiteIds);
+  assert.deepEqual(
+    committedArtifactSiteIds.filter((siteId) => reachedGreenSet.has(siteId)),
+    committedArtifactSiteIds,
+    "committed-artifact assertions must remain explicit reached-and-green witnesses",
+  );
+
+  return {
+    shadowedSiteIds,
+    reachedGreenSiteIds,
+    notExecutedSiteIds,
+    committedArtifactSiteIds,
+  };
+}
+
 function validateFiringEvidence(
   instrumentMap: InstrumentMapV0,
   evidence: FalsifierEvidenceV0,
@@ -499,6 +578,10 @@ const observedFiringRecords = generatedFiringRecords(instrumentMapWithoutFiringC
 const observedFiringSiteCount = new Set(
   observedFiringRecords.flatMap((record) => record.firedSiteIds),
 ).size;
+const unobservedExecutableSites = summarizeUnobservedExecutableSites(
+  instrumentMapWithoutFiringCounts,
+  observedFiringRecords,
+);
 const nonStructuralSiteCount =
   instrumentMapWithoutFiringCounts.assertionSiteCount -
   instrumentMapWithoutFiringCounts.structuralEntailmentCount;
@@ -510,8 +593,20 @@ const instrumentMap: InstrumentMapV0 = {
   ],
 };
 const writeMode = process.argv.includes("--write");
+const unobservedExecutableLimitation = `Among the ${
+  unobservedExecutableSites.shadowedSiteIds.length +
+  unobservedExecutableSites.reachedGreenSiteIds.length +
+  unobservedExecutableSites.notExecutedSiteIds.length
+} executable-but-unobserved sites, ${unobservedExecutableSites.shadowedSiteIds.length} are shadowed by an earlier first failure in the same command, ${unobservedExecutableSites.reachedGreenSiteIds.length} are reached and remain green, and ${unobservedExecutableSites.notExecutedSiteIds.length} are not executed by that command. At least ${unobservedExecutableSites.committedArtifactSiteIds.length} reached-and-green sites assert committed artifacts that their disclosed perturbation cannot change; no site in these three buckets is claimed to have fired.`;
 const generatedEvidence: FalsifierEvidenceV0 = {
   ...falsifierEvidence,
+  limitations: [
+    falsifierEvidence.limitations[0] ??
+      "First-failure records are recomputed from direct perturbation runs; semantic defect classification remains authored.",
+    falsifierEvidence.limitations[1] ??
+      "Non-executable semantic perturbation names are disclosures only and are not represented as observed firing records.",
+    unobservedExecutableLimitation,
+  ],
   firedSitesByPerturbation: observedFiringRecords,
 };
 validateFiringEvidence(instrumentMap, writeMode ? generatedEvidence : falsifierEvidence);
@@ -521,6 +616,11 @@ const committedFiringRecords = process.argv.includes("--inject-firing-evidence-d
     )
   : falsifierEvidence.firedSitesByPerturbation;
 if (!writeMode) {
+  assert.deepEqual(
+    falsifierEvidence.limitations,
+    generatedEvidence.limitations,
+    "committed falsifier limitations do not match measured first-failure coverage",
+  );
   assert.deepEqual(
     committedFiringRecords,
     observedFiringRecords,
@@ -553,6 +653,11 @@ console.log(
     structuralEntailmentCount: instrumentMap.structuralEntailmentCount,
     domainFileCount: instrumentMap.domainFiles.length,
     firingRecordCount: generatedEvidence.firedSitesByPerturbation.length,
+    shadowedExecutableSiteCount: unobservedExecutableSites.shadowedSiteIds.length,
+    reachedGreenExecutableSiteCount: unobservedExecutableSites.reachedGreenSiteIds.length,
+    notExecutedExecutableSiteCount: unobservedExecutableSites.notExecutedSiteIds.length,
+    committedArtifactReachedGreenSiteCount:
+      unobservedExecutableSites.committedArtifactSiteIds.length,
     deadTestAuditCount: falsifierEvidence.deadTestAudit.length,
   }),
 );
