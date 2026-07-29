@@ -25,10 +25,12 @@ export default defineConfig({
     tanstackStart({
       spa: {
         enabled: true,
+        maskPath: `${withDeploymentBase("/")}?__spa_shell=1`,
       },
       prerender: {
         enabled: true,
-        crawlLinks: true,
+        autoStaticPathsDiscovery: false,
+        crawlLinks: false,
         failOnError: true,
       },
       pages: [

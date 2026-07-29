@@ -124,6 +124,21 @@ assert.ok(
   ),
   "the post-build step must not replace the prerendered root document with the SPA shell",
 );
+assertFileIncludes(
+  "apps/docs/vite.config.ts",
+  'maskPath: `${withDeploymentBase("/")}?__spa_shell=1`',
+  "the SPA shell mask must not shadow the prerendered root documentation route",
+);
+assertFileIncludes(
+  "apps/docs/vite.config.ts",
+  "crawlLinks: false",
+  "the explicit static route inventory must not crawl unbased routes during Pages builds",
+);
+assertFileIncludes(
+  "apps/docs/vite.config.ts",
+  "autoStaticPathsDiscovery: false",
+  "the explicit static route inventory must not discover unbased routes during Pages builds",
+);
 
 assertFileIncludes(
   "docs/sdk.md",
