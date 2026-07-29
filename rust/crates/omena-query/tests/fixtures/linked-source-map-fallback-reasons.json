@@ -1,0 +1,5 @@
+{
+  "LINKED_FALLBACK_EXACT_TOKEN_REASON": "module output differs; fallback anchors a unique surviving token sequence",
+  "LINKED_FALLBACK_AMBIGUOUS_TOKEN_REASON": "module output differs; fallback uses source-start convention because the surviving token sequence is ambiguous",
+  "LINKED_FALLBACK_SOURCE_START_REASON": "module output differs; fallback uses source-start convention without token correspondence"
+}

@@ -144,6 +144,11 @@ const executionSummarySamples = executionWireKeySamples.filter(
   (sample) => sample.interfaceName === "OmenaTransformExecutionSummaryV0",
 );
 assert.ok(executionSummarySamples.length > 1, "execution summary needs conditional wire samples");
+assert.deepEqual(
+  executionSummarySamples.map((sample) => sample.sampleName).toSorted(),
+  ["conditional", "unconditional"],
+  "the authored transform-pass key-set authority must retain both serializer states",
+);
 if (injectExecutionWireFieldRename) {
   for (const sample of executionSummarySamples) {
     const fieldIndex = sample.keys.indexOf("mutationCount");
@@ -202,6 +207,9 @@ assert.deepEqual(
 );
 const bundleFields = scopeRows.filter((row) => row.scope === "Bundle").map((row) => row.fieldName);
 const projectionBody = extractFunctionBody(transformSource, "project_linked_bundle_execution");
+// This static census sees direct `execution.field = value` writes only. The
+// runtime serialization fixtures remain load-bearing for clone, spread, or
+// helper-based write styles that this expression cannot discover.
 const projectedFields = [...projectionBody.matchAll(/execution\.([a-z][a-z0-9_]*)\s*=/gmu)].map(
   (match) => snakeToCamel(match[1]),
 );
@@ -449,6 +457,13 @@ for (const surface of [
   assert.ok(publicApiSource.includes(surface), `public API snapshot is missing ${surface}`);
 }
 
+// These committed transform-pass fixtures are the load-bearing growth and
+// omission authority. The declaration/sample loop below only checks consistency
+// after this independent serializer key-set contract has passed.
+runCargoTest(
+  "omena-transform-passes",
+  "module_qualified_tree_shake_distinguishes_same_name_owners",
+);
 runCargoTest("omena-query", "linked_bundle_retains_each_module_execution_before_bundle_projection");
 runCargoTest("omena-query", "bundle_execution_scope_wire_matches_typescript_fixture");
 runCargoTest("omena-query", "linked_bundle_source_map_");
@@ -474,6 +489,8 @@ console.log(
       unboundLocalTypeScriptInterfaceCount: unboundLocalInterfaces.length,
       executionSummaryUndeclaredWireKeyCount:
         TRANSFORM_EXECUTION_SUMMARY_UNDECLARED_WIRE_KEYS.length,
+      executionSummaryKeyAuthority:
+        "omena-transform-passes/execution-summary-wire/conditional+unconditional",
     },
     null,
     2,

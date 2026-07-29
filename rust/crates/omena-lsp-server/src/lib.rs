@@ -1135,7 +1135,7 @@ fn source_type_fact_tier_trace(
     {
         return Some(json!({
             "attempted": false,
-            "outcome": source_type_facts::SOURCE_TYPE_FACT_OUTCOME_NEVER_ATTEMPTED,
+            "outcome": source_type_facts::SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED,
             "reason": fact.reason,
             "skippedTargetCount": skipped_count,
         }));

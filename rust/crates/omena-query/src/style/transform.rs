@@ -4543,8 +4543,15 @@ mod linked_source_map_tests {
             serde_json::to_value(&retained_entry.execution).map_err(|error| error.to_string())?;
         let projected_json =
             serde_json::to_value(&execution.execution).map_err(|error| error.to_string())?;
-        let conditionally_serialized_fields =
-            BTreeSet::from(["moduleQualifiedShake", "winnerEqualityObligations"]);
+        let conditionally_serialized_fields = scope_evidence
+            .field_scopes
+            .iter()
+            .filter(|field| {
+                retained_json.get(field.field_name).is_none()
+                    && projected_json.get(field.field_name).is_none()
+            })
+            .map(|field| field.field_name)
+            .collect::<BTreeSet<_>>();
         for field in &scope_evidence.field_scopes {
             let projected_value = projected_json.get(field.field_name);
             match field.scope {
@@ -4559,6 +4566,12 @@ mod linked_source_map_tests {
                             field.field_name
                         );
                     }
+                    assert_eq!(
+                        projected_value.is_some(),
+                        retained_value.is_some(),
+                        "entry-scoped field {} must have symmetric presence",
+                        field.field_name
+                    );
                     assert_eq!(
                         projected_value, retained_value,
                         "entry-scoped field {}",
@@ -4651,12 +4664,9 @@ mod linked_source_map_tests {
         };
         let actual = serde_json::to_value(evidence).map_err(|error| error.to_string())?;
         let expected_fixture =
-            include_str!("../../tests/fixtures/bundle-execution-scope-wire.json").replace(
-                "__SOURCE_START_FALLBACK_REASON__",
-                LINKED_FALLBACK_SOURCE_START_REASON,
-            );
+            include_str!("../../tests/fixtures/bundle-execution-scope-wire.json");
         let expected: serde_json::Value =
-            serde_json::from_str(&expected_fixture).map_err(|error| error.to_string())?;
+            serde_json::from_str(expected_fixture).map_err(|error| error.to_string())?;
         assert_eq!(actual, expected);
         Ok(())
     }

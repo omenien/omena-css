@@ -51,7 +51,7 @@
         "configuration": "with:none"
       },
       "granularity": "wholeModuleFallback",
-      "fallbackReason": "__SOURCE_START_FALLBACK_REASON__",
+      "fallbackReason": "module output differs; fallback uses source-start convention without token correspondence",
       "segmentCount": 1
     }
   ]

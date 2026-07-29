@@ -414,6 +414,11 @@ function auditExactSpanReasonVocabulary(): Readonly<Record<string, unknown>> {
     nodeEmitted.every((reason) => declared.includes(reason)),
     "Node emitted undeclared reason",
   );
+  assert.equal(
+    nodeEmitted.length,
+    5,
+    "Node exact-span reason-site census drifted; inspect the producer-body extractor and update the contract deliberately",
+  );
   assert.deepEqual(
     [...new Set([...rustEmitted, ...nodeEmitted])].sort(),
     declared,
@@ -446,7 +451,19 @@ function extractRustFunctionSource(source: string, name: string): string {
 function extractFunctionBody(source: string, signature: string): string {
   const signatureIndex = source.indexOf(signature);
   assert(signatureIndex >= 0, `missing function ${signature}`);
-  const open = source.indexOf("{", signatureIndex);
+  const parameterOpen = source.indexOf("(", signatureIndex + signature.length);
+  assert(parameterOpen >= 0, `missing parameter list ${signature}`);
+  const parameterClose = matchingDelimiter(source, parameterOpen, "(", ")");
+  let angleDepth = 0;
+  let open = -1;
+  for (let index = parameterClose + 1; index < source.length; index += 1) {
+    if (source[index] === "<") angleDepth += 1;
+    if (source[index] === ">") angleDepth -= 1;
+    if (source[index] === "{" && angleDepth === 0) {
+      open = index;
+      break;
+    }
+  }
   assert(open >= 0, `missing function body ${signature}`);
   let depth = 0;
   for (let index = open; index < source.length; index += 1) {
@@ -457,6 +474,23 @@ function extractFunctionBody(source: string, signature: string): string {
     }
   }
   throw new Error(`unterminated function body ${signature}`);
+}
+
+function matchingDelimiter(
+  source: string,
+  open: number,
+  openCharacter: string,
+  closeCharacter: string,
+): number {
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === openCharacter) depth += 1;
+    if (source[index] === closeCharacter) {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error(`unterminated ${openCharacter}${closeCharacter} pair`);
 }
 
 function spanTarget(source: string, filePath: string, expressionId: string, needle: string) {

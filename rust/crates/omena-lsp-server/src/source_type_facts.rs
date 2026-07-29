@@ -42,7 +42,6 @@ const SOURCE_TYPE_FACT_TIER_LEXICAL: &str = "lexical";
 const SOURCE_TYPE_FACT_TIER_TSGO: &str = "tsgo";
 const SOURCE_TYPE_FACT_OUTCOME_RESOLVED: &str = "resolved";
 pub(crate) const SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED: &str = "notAttempted";
-pub(crate) const SOURCE_TYPE_FACT_OUTCOME_NEVER_ATTEMPTED: &str = "neverAttempted";
 const SOURCE_TYPE_FACT_OUTCOME_UNAVAILABLE: &str = "unavailable";
 const SOURCE_TYPE_FACT_OUTCOME_UNRESOLVED: &str = "unresolved";
 const SOURCE_TYPE_FACT_OUTCOME_REFUSED: &str = "refused";
@@ -60,8 +59,8 @@ const SOURCE_TYPE_FACT_REASON_INVALID_CSS_IDENTIFIER_CHARACTER: &str =
 const SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER: &str = "unsafeCssIdentifier";
 
 // Parser-built documents pair every lexical site with an initial tier attempt.
-// Sidecar reconstruction deliberately accepts a skipped fact without its
-// attempt record, so hover traces retain a distinct never-attempted state.
+// Sidecar reconstruction also accepts a skipped fact without that record; both
+// paths report the same canonical not-attempted outcome.
 pub(crate) fn initial_source_type_fact_tier_attempts(
     lexical_attempts: &[SourceTypeFactLexicalAttempt],
 ) -> Vec<LspSourceTypeFactTierAttemptV0> {
@@ -1322,6 +1321,20 @@ mod tests {
     use serde_json::json;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    #[test]
+    fn source_type_fact_outcome_values_match_authored_contract() -> TestResult {
+        let contract: serde_json::Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/source-type-fact-outcome-values.json"
+        ))?;
+        assert_eq!(contract["schemaVersion"], "0");
+        assert_eq!(contract["product"], "omena.lsp.source-type-fact-outcomes");
+        assert_eq!(
+            contract["notAttempted"].as_str(),
+            Some(SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED)
+        );
+        Ok(())
+    }
 
     #[test]
     fn css_identifier_safety_matches_shared_cases() -> TestResult {

@@ -79,6 +79,16 @@ const binaryAstLayoutNames = [
   "KIND_NODE_LIST",
   "NODE_EXTENDED_DATA_MASK",
 ] as const;
+const rustBinaryAstLayoutNames = [
+  ...rustSource.matchAll(
+    /^(?:pub(?:\([^)\n]+\))?\s+)?const ((?:HEADER_|NODE_|KIND_)[A-Z0-9_]+):/gmu,
+  ),
+].map((match) => match[1]);
+assert.deepEqual(
+  [...binaryAstLayoutNames].sort(),
+  rustBinaryAstLayoutNames.sort(),
+  "every top-level Rust binary AST layout constant must be bound to the installed protocol",
+);
 
 const observedBinaryAstLayout = binaryAstLayoutNames.map((name) => {
   const rustValue = parseRustIntegerConstant(
@@ -118,7 +128,6 @@ async function main(): Promise<void> {
         package: packageJson.name,
         packageVersion: packageJson.version,
         protocolVersion,
-        protocolBumpDisposition: "failClosedUntilLayoutRevalidated",
         typeFlags: {
           bindings: observedTypeFlags,
           derived: [...derivedTypeFlagConstants].sort(),
