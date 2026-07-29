@@ -100,7 +100,7 @@ function writeFixtureProject(): void {
           jsx: "preserve",
           module: "esnext",
           moduleResolution: "bundler",
-          target: "es2022",
+          target: "es2025",
           allowArbitraryExtensions: true,
         },
         include: ["src"],

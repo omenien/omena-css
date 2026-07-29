@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -311,11 +312,7 @@ function renderRegisteredRelease(tag: string): string {
 }
 
 function renderArtifactSection(entry: ReleaseManifestEntry): string {
-  return [
-    "## Distribution",
-    "",
-    ...entry.distribution.map((fact) => `- ${fact}`),
-  ].join("\n");
+  return ["## Distribution", "", ...entry.distribution.map((fact) => `- ${fact}`)].join("\n");
 }
 
 function buildHistoricalBody(release: GitHubRelease, previousTag: string | undefined): string {

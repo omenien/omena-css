@@ -263,7 +263,7 @@ function typecheckConsumer(
     "--module",
     "ESNext",
     "--target",
-    "ES2022",
+    "ES2025",
     "--allowArbitraryExtensions",
     "--skipLibCheck",
     consumerPath,

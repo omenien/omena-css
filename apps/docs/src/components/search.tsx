@@ -19,7 +19,7 @@ import { oramaStaticClient } from "fumadocs-core/search/client/orama-static";
 import { useEffect, useRef, useState } from "react";
 import { withBasePath } from "@/lib/site";
 
-export default function OmenaSearchDialog(props: SharedProps) {
+export function OmenaSearchDialog(props: SharedProps) {
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const [activeDescendant, setActiveDescendant] = useState<string>();
   const { search, setSearch, query } = useDocsSearch({
@@ -38,7 +38,9 @@ export default function OmenaSearchDialog(props: SharedProps) {
       <SearchDialogContent
         onOpenAutoFocus={() => {
           returnFocusRef.current =
-            document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            globalThis.document.activeElement instanceof globalThis.HTMLElement
+              ? globalThis.document.activeElement
+              : null;
         }}
         onCloseAutoFocus={(event) => {
           if (!returnFocusRef.current) return;

@@ -2,7 +2,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "env": {
     "node": true,
-    "es2023": true
+    "es2025": true
   },
   "plugins": ["unicorn", "typescript", "oxc", "import"],
   "categories": {

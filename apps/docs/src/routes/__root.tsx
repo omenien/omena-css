@@ -3,7 +3,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { RootProvider } from "fumadocs-ui/provider/tanstack";
 import type { ReactNode } from "react";
-import SearchDialog from "@/components/search";
+import { OmenaSearchDialog } from "@/components/search";
 import { site } from "@/lib/site";
 import appCss from "@/styles/app.css?url";
 
@@ -49,7 +49,7 @@ function RootDocument({ children }: { children: ReactNode }) {
           Skip to content
         </a>
         <RootProvider
-          search={{ SearchDialog }}
+          search={{ SearchDialog: OmenaSearchDialog }}
           theme={{
             defaultTheme: "light",
             enableSystem: false,

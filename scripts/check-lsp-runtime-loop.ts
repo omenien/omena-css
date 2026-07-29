@@ -70,7 +70,7 @@ async function main(): Promise<void> {
     JSON.stringify(
       {
         compilerOptions: {
-          target: "ES2022",
+          target: "ES2025",
           module: "ESNext",
           moduleResolution: "Bundler",
           jsx: "react-jsx",

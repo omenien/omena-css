@@ -28,7 +28,7 @@ try {
       module: "esnext",
       moduleResolution: "bundler",
       strict: true,
-      target: "es2022",
+      target: "es2025",
       types: [],
     },
     include: ["App.tsx", "types/**/*.d.ts"],

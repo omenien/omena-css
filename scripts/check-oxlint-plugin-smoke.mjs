@@ -18,7 +18,7 @@ try {
       {
         env: {
           browser: true,
-          es2022: true,
+          es2025: true,
         },
         jsPlugins: [
           {
