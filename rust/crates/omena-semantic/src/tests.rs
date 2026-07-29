@@ -20,11 +20,11 @@ use super::{
     summarize_sass_module_graph_resolution, summarize_sass_module_instance_identity_key,
     summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
     summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
-    summarize_style_import_reachability, summarize_style_runtime_index_facts_from_source,
-    summarize_style_semantic_boundary, summarize_style_semantic_facts,
-    summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
-    summarize_style_semantic_soa_tables, summarize_theory_observation_contract,
-    summarize_theory_observation_harness,
+    summarize_style_import_reachability, summarize_style_layer_order_from_source,
+    summarize_style_runtime_index_facts_from_source, summarize_style_semantic_boundary,
+    summarize_style_semantic_facts, summarize_style_semantic_graph,
+    summarize_style_semantic_graph_from_source, summarize_style_semantic_soa_tables,
+    summarize_theory_observation_contract, summarize_theory_observation_harness,
 };
 use engine_input_producers::{
     ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
@@ -1094,6 +1094,22 @@ fn resolves_nested_layer_order_from_statements_and_blocks() {
         layer_ordinal_for_byte_span(&layers, selector_start, selector_start + ".theme".len()),
         LayerBindingResolutionV0::Resolved(omena_cascade::LayerOrdinal::new(1))
     );
+}
+
+#[test]
+fn layer_order_without_layer_at_keyword_is_empty_and_complete() {
+    let (layers, instrumentation) = omena_parser::with_omena_parser_parse_instrumentation(|| {
+        summarize_style_layer_order_from_source(
+            ".card { color: red; } @media (width > 1px) { .wide { color: blue; } }",
+            omena_parser::StyleDialect::Css,
+        )
+    });
+
+    assert_eq!(instrumentation.parse_invocation_count, 0);
+    assert!(layers.topology_complete);
+    assert!(layers.order_nodes.is_empty());
+    assert!(layers.block_bindings.is_empty());
+    assert_eq!(layers.unresolved_topology_count, 0);
 }
 
 #[test]

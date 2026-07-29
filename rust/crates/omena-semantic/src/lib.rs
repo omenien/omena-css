@@ -712,6 +712,15 @@ pub fn summarize_style_layer_order_from_source(
     source: &str,
     dialect: StyleDialect,
 ) -> StyleLayerIndexV0 {
+    // A case-insensitive substring probe may produce false positives in comments
+    // or strings, which only fall through to the parser. It cannot skip a source
+    // containing a literal layer at-keyword.
+    if !css_keyword(source).contains("@layer") {
+        return StyleLayerIndexV0 {
+            topology_complete: true,
+            ..StyleLayerIndexV0::default()
+        };
+    }
     let parsed = parse(source, dialect);
     let cst = parsed.cst();
     let context = summarize_style_context_index(source, &cst);
