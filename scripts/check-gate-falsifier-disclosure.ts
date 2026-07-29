@@ -143,6 +143,26 @@ function assertionSyntax(line: string): string | undefined {
   return assertionPatterns.map((pattern) => line.match(pattern)?.[0]).find(Boolean);
 }
 
+function trackedRustTestNames(): ReadonlySet<string> {
+  const files = execFileSync("git", ["ls-files", "rust/crates"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  })
+    .split(/\r?\n/u)
+    .filter((file) => file.endsWith(".rs"));
+  const names = new Set<string>();
+
+  for (const file of files) {
+    const source = readFileSync(resolve(repositoryRoot, file), "utf8");
+    for (const match of source.matchAll(/#\[test\]\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)\b/gu)) {
+      const name = match[1];
+      if (name) names.add(name);
+    }
+  }
+
+  return names;
+}
+
 function enumerateSites(file: string): {
   readonly sites: readonly InstrumentSiteV0[];
   readonly excludedCounts: ReadonlyMap<string, number>;
@@ -438,6 +458,7 @@ function validateFiringEvidence(
     expectedAuditTests,
     "dead-test audit does not cover the declared regression lineage",
   );
+  const currentRustTests = trackedRustTestNames();
   for (const [auditIndex, record] of evidence.deadTestAudit.entries()) {
     assert.ok(record.namedFix, `dead-test audit row has no named fix: ${record.test}`);
     assert.ok(record.evidence, `dead-test audit row has no evidence: ${record.test}`);
@@ -447,22 +468,8 @@ function validateFiringEvidence(
       process.argv.includes("--inject-dead-test-audit-drift") && auditIndex === 0
         ? "injected_missing_regression_test"
         : record.test;
-    const escapedTest = lookupTest.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-    const testDefinition = spawnSync(
-      "rg",
-      [
-        "--quiet",
-        "--multiline",
-        "--glob",
-        "*.rs",
-        `#\\[test\\]\\s*fn\\s+${escapedTest}\\b`,
-        "rust/crates",
-      ],
-      { cwd: repositoryRoot },
-    );
-    assert.equal(
-      testDefinition.status,
-      0,
+    assert.ok(
+      currentRustTests.has(lookupTest),
       `dead-test audit names no current Rust test: ${record.test}`,
     );
     assert.equal(
