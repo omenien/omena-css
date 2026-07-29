@@ -52,9 +52,12 @@ fn key(
     specificity: Specificity,
     source_order: u32,
 ) -> CascadeKey {
+    let Some(layer_ordinal) = LayerOrdinal::new(layer_rank) else {
+        unreachable!("test fixtures only use sentinel-safe layer ordinals");
+    };
     CascadeKey::new(
         level,
-        LayerRank(layer_rank),
+        normalized_layer_rank(false, Some(layer_ordinal)),
         scope_proximity,
         specificity,
         ModuleRank::ZERO,
@@ -286,7 +289,7 @@ fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
 fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
     let css_specificity_winner = CascadeKey::new(
         CascadeLevel::AuthorNormal,
-        LayerRank(0),
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::new(0, 2, 0),
         ModuleRank::ZERO,
@@ -294,7 +297,7 @@ fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
     );
     let module_rank_winner = CascadeKey::new(
         CascadeLevel::AuthorNormal,
-        LayerRank(0),
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::new(0, 1, 0),
         ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
@@ -307,7 +310,7 @@ fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
 
     let earlier_module = CascadeKey::new(
         CascadeLevel::AuthorNormal,
-        LayerRank(0),
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::ZERO,
         ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
@@ -315,7 +318,7 @@ fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
     );
     let later_module = CascadeKey::new(
         CascadeLevel::AuthorNormal,
-        LayerRank(0),
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::ZERO,
         ModuleRank::ZERO,
@@ -328,7 +331,7 @@ fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
 
     let first = CascadeKey::new(
         CascadeLevel::AuthorNormal,
-        LayerRank(0),
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::ZERO,
         ModuleRank::ZERO,
@@ -336,7 +339,7 @@ fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
     );
     let same_exact_key_different_module_rank = CascadeKey::new(
         CascadeLevel::AuthorNormal,
-        LayerRank(0),
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::ZERO,
         ModuleRank::new(1, 2, 3),
@@ -355,7 +358,7 @@ fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
         "red",
         CascadeKey::new(
             CascadeLevel::AuthorNormal,
-            LayerRank(0),
+            normalized_layer_rank(false, LayerOrdinal::new(0)),
             1,
             Specificity::ZERO,
             ModuleRank::ZERO,
@@ -367,7 +370,7 @@ fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
         "blue",
         CascadeKey::new(
             CascadeLevel::AuthorNormal,
-            LayerRank(0),
+            normalized_layer_rank(false, LayerOrdinal::new(0)),
             1,
             Specificity::ZERO,
             ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),

@@ -1,10 +1,11 @@
 use std::collections::BTreeSet;
 
 use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeOutcome, CascadeValue, LayerRank, ModuleRank,
+    CascadeDeclaration, CascadeKey, CascadeOutcome, CascadeValue, LayerOrdinal, ModuleRank,
     SelectorMatchVerdict, Specificity, SpecificityExactnessV0, StaticSupportsAssumptionV0,
     StaticSupportsEvalVerdictV0, cascade_level_for_origin, cascade_property,
-    evaluate_static_supports_condition, parse_simple_selector_signature, selector_co_match_verdict,
+    evaluate_static_supports_condition, normalized_layer_rank, parse_simple_selector_signature,
+    selector_co_match_verdict,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
@@ -494,7 +495,10 @@ pub(in crate::style) fn query_runtime_cascade_declaration_from_input(
     input: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> CascadeDeclaration {
     let level = cascade_level_for_origin(input.origin, input.important);
-    let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
+    let layer_rank = normalized_layer_rank(
+        false,
+        LayerOrdinal::new(input.layer_order.unwrap_or_default()),
+    );
     let (specificity, specificity_exactness) =
         parse_simple_selector_signature(input.selector.as_str()).map_or(
             (Specificity::ZERO, SpecificityExactnessV0::Inexact),

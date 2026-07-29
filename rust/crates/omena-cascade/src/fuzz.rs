@@ -7,8 +7,8 @@
 use crate::{
     CascadeDeclaration, CascadeEvaluationFuzzCaseV0, CascadeEvaluationFuzzResultV0,
     CascadeFuzzSeedReportV0, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue,
-    CustomPropertyEnv, LayerRank, ModuleRank, Specificity, VarSubstitutionFuzzCaseV0,
-    VarSubstitutionFuzzResultV0, cascade_property, rank_cascade_items,
+    CustomPropertyEnv, LayerOrdinal, ModuleRank, Specificity, VarSubstitutionFuzzCaseV0,
+    VarSubstitutionFuzzResultV0, cascade_property, normalized_layer_rank, rank_cascade_items,
     substitute_custom_properties,
 };
 
@@ -147,13 +147,15 @@ fn generated_cascade_fuzz_declarations(
             } else {
                 "margin"
             };
+            let layer_important = fuzz_next(&mut state).is_multiple_of(2);
+            let layer_ordinal = LayerOrdinal::new((fuzz_next(&mut state) % 9) as i32);
             CascadeDeclaration {
                 id: format!("decl-{seed}-{index}"),
                 property: property.to_string(),
                 value: CascadeValue::Literal(format!("v{}", fuzz_next(&mut state) % 17)),
                 key: CascadeKey::new(
                     fuzz_cascade_level(fuzz_next(&mut state)),
-                    LayerRank((fuzz_next(&mut state) % 9) as i32 - 4),
+                    normalized_layer_rank(layer_important, layer_ordinal),
                     (fuzz_next(&mut state) % 12) as u32,
                     Specificity::new(
                         (fuzz_next(&mut state) % 4) as u32,

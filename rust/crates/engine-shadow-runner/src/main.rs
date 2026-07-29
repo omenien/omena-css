@@ -40,7 +40,7 @@ use omena_abstract_value::{
 };
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeProof, CascadeValue,
-    LayerRank, ModuleRank, Specificity,
+    LayerOrdinal, ModuleRank, Specificity, normalized_layer_rank,
 };
 use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
@@ -3701,7 +3701,7 @@ fn replica_ensemble_definite_outcome(winner: &str, source_order: u32) -> Cascade
         value: CascadeValue::Literal(winner.to_string()),
         key: CascadeKey {
             level: CascadeLevel::AuthorNormal,
-            layer_rank: LayerRank(0),
+            layer_rank: normalized_layer_rank(false, LayerOrdinal::new(0)),
             scope_proximity: 0,
             specificity: Specificity {
                 ids: 0,

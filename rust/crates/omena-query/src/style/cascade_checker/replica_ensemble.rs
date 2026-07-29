@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 
 use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeValue, LayerRank, ModuleRank, Specificity,
-    cascade_level_for_origin, cascade_property, parse_simple_selector_signature,
+    CascadeDeclaration, CascadeKey, CascadeValue, LayerOrdinal, ModuleRank, Specificity,
+    cascade_level_for_origin, cascade_property, normalized_layer_rank,
+    parse_simple_selector_signature,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
@@ -80,7 +81,10 @@ fn query_cascade_declaration_from_input(
     input: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> CascadeDeclaration {
     let level = cascade_level_for_origin(input.origin, input.important);
-    let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
+    let layer_rank = normalized_layer_rank(
+        false,
+        LayerOrdinal::new(input.layer_order.unwrap_or_default()),
+    );
     let (specificity, specificity_exactness) =
         parse_simple_selector_signature(input.selector.as_str()).map_or(
             (

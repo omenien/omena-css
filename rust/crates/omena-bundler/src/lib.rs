@@ -20,7 +20,9 @@ pub use emission_order::{
     EmissionOrderKeyV0, EmissionOrderingPolicyV0, EmissionPlanV0,
 };
 
-use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity};
+use omena_cascade::{
+    CascadeKey, CascadeLevel, LayerOrdinal, ModuleRank, Specificity, normalized_layer_rank,
+};
 use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
 use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
@@ -485,14 +487,15 @@ impl LinkedStylesheetRuleV0 {
     pub fn cascade_key_with_global_source_order(
         &self,
         level: CascadeLevel,
-        layer_rank: LayerRank,
+        layer_ordinal: LayerOrdinal,
+        important: bool,
         scope_proximity: u32,
         specificity: Specificity,
         module_rank: ModuleRank,
     ) -> CascadeKey {
         CascadeKey::new(
             level,
-            layer_rank,
+            normalized_layer_rank(important, Some(layer_ordinal)),
             scope_proximity,
             specificity,
             module_rank,
@@ -3217,6 +3220,9 @@ mod tests {
             vec![0, 1]
         );
 
+        let Some(layer_ordinal) = omena_cascade::LayerOrdinal::new(0) else {
+            return Err("zero must remain a sentinel-safe layer ordinal".to_string());
+        };
         let declarations = button_rules
             .iter()
             .map(|rule| {
@@ -3235,7 +3241,8 @@ mod tests {
                     value: omena_cascade::CascadeValue::Literal(value.to_string()),
                     key: rule.cascade_key_with_global_source_order(
                         omena_cascade::CascadeLevel::AuthorNormal,
-                        omena_cascade::LayerRank(0),
+                        layer_ordinal,
+                        false,
                         0,
                         omena_cascade::Specificity::new(0, 1, 0),
                         if rule.global_order_index == 0 {
@@ -3279,6 +3286,9 @@ mod tests {
 
         let linked = link_omena_transform_bundle_modules(&["src/app.module.css"], &modules)
             .map_err(|err| format!("{err:?}"))?;
+        let Some(layer_ordinal) = omena_cascade::LayerOrdinal::new(0) else {
+            return Err("zero must remain a sentinel-safe layer ordinal".to_string());
+        };
         let declarations = linked
             .global_rule_order
             .rules
@@ -3300,7 +3310,8 @@ mod tests {
                     }),
                     key: rule.cascade_key_with_global_source_order(
                         omena_cascade::CascadeLevel::AuthorNormal,
-                        omena_cascade::LayerRank(0),
+                        layer_ordinal,
+                        false,
                         0,
                         omena_cascade::Specificity::new(0, 1, 0),
                         if linked_later {

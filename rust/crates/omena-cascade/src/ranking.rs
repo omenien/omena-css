@@ -175,7 +175,7 @@ fn dominant_cascade_key_margin(winner: CascadeKey, challenger: CascadeKey) -> (&
         return ("level", level_delta);
     }
 
-    let layer_delta = i64::from(winner.layer_rank.0) - i64::from(challenger.layer_rank.0);
+    let layer_delta = i64::from(winner.layer_rank.get()) - i64::from(challenger.layer_rank.get());
     if layer_delta != 0 {
         return ("layerRank", layer_delta);
     }

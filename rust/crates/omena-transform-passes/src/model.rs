@@ -1387,7 +1387,8 @@ pub struct TransformDesignTokenRouteV0 {
 mod evidence_graph_tests {
     use super::*;
     use omena_cascade::{
-        CascadeKey, CascadeValue, LayerRank, ModuleRank, Specificity, cascade_property,
+        CascadeKey, CascadeValue, LayerOrdinal, ModuleRank, Specificity, cascade_property,
+        normalized_layer_rank,
     };
 
     fn winner_equality_test_declaration(
@@ -1401,7 +1402,7 @@ mod evidence_graph_tests {
             value: CascadeValue::Literal(value.to_string()),
             key: CascadeKey::new(
                 CascadeLevel::AuthorNormal,
-                LayerRank(0),
+                normalized_layer_rank(false, LayerOrdinal::new(0)),
                 0,
                 Specificity::new(0, 1, 0),
                 ModuleRank::ZERO,

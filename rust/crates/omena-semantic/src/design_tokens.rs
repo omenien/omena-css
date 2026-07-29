@@ -5,8 +5,9 @@
 //! diagnostics, and cascade-aware resolution.
 
 use omena_cascade::{
-    CascadeKey, CascadeLevel, LayerRank, ModuleRank, SelectorMatchVerdict, Specificity,
-    select_cascade_winner, selector_context_witness, selector_context_witness_for_declaration,
+    CascadeKey, CascadeLevel, LayerOrdinal, LayerRank, ModuleRank, SelectorMatchVerdict,
+    Specificity, normalized_layer_rank, select_cascade_winner, selector_context_witness,
+    selector_context_witness_for_declaration,
 };
 use omena_syntax::css_keyword;
 use serde::Serialize;
@@ -538,7 +539,7 @@ fn summarize_design_token_cascade_ranking_signal(
             winner_declaration_range: winner.range(),
             winner_import_graph_distance: winner.import_graph_distance(),
             winner_import_graph_order: winner.import_graph_order(),
-            winner_declaration_layer_rank: winner.layer_rank(&cascade_context).0,
+            winner_declaration_layer_rank: winner.layer_rank(&cascade_context).get(),
             winner_scope_proximity_status: "legacySelectorContextFallback",
             winner_declaration_layer_name: winner.layer_name(&cascade_context),
             shadowed_declaration_source_orders,
@@ -719,7 +720,6 @@ struct DesignTokenCascadeContext {
     layer_name_depths: BTreeMap<String, usize>,
     layer_ranks_by_selector: BTreeMap<String, i32>,
     layer_names_by_selector: BTreeMap<String, String>,
-    unlayered_rank: i32,
 }
 
 impl DesignTokenCascadeContext {
@@ -780,20 +780,11 @@ impl DesignTokenCascadeContext {
             .map(|(selector, (_, _, name))| (selector, name))
             .collect();
 
-        let unlayered_rank = index
-            .layer_index
-            .order_nodes
-            .len()
-            .saturating_add(index.layer_index.anonymous_layer_block_count)
-            .saturating_add(1)
-            .min(i32::MAX as usize) as i32;
-
         Self {
             layer_name_ranks,
             layer_name_depths,
             layer_ranks_by_selector,
             layer_names_by_selector,
-            unlayered_rank,
         }
     }
 
@@ -804,11 +795,11 @@ impl DesignTokenCascadeContext {
         under_layer: bool,
     ) -> LayerRank {
         if !under_layer {
-            return LayerRank(self.unlayered_rank);
+            return normalized_layer_rank(false, None);
         }
         let canonical_path = layer_names.join(".");
         if let Some(rank) = self.layer_name_ranks.get(canonical_path.as_str()) {
-            return LayerRank(*rank);
+            return normalized_layer_rank(false, LayerOrdinal::new(*rank));
         }
         if let Some((rank, _)) = layer_names
             .iter()
@@ -820,18 +811,17 @@ impl DesignTokenCascadeContext {
             })
             .max_by_key(|(_, depth)| *depth)
         {
-            return LayerRank(rank);
+            return normalized_layer_rank(false, LayerOrdinal::new(rank));
         }
-        selector_contexts
+        let selector_rank = selector_contexts
             .iter()
             .filter_map(|selector| {
                 self.layer_ranks_by_selector
                     .get(normalized_selector(selector))
             })
             .copied()
-            .max()
-            .map(LayerRank)
-            .unwrap_or(LayerRank(0))
+            .max();
+        normalized_layer_rank(false, selector_rank.and_then(LayerOrdinal::new))
     }
 
     fn layer_name_for(

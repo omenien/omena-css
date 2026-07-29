@@ -37,8 +37,9 @@
     },
     {
       "crate": "omena-cascade",
-      "disposition": "trainSemverOnly",
-      "registryBaselineAtRegistration": "present"
+      "disposition": "snapshotGated",
+      "registryBaselineAtRegistration": "present",
+      "snapshot": "rust/crates/omena-cascade/tests/snapshots/public-api.txt"
     },
     {
       "crate": "omena-categorical",

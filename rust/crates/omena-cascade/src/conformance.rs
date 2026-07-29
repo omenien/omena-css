@@ -6,8 +6,8 @@
 
 use crate::{
     CascadeConformanceSeedCase, CascadeConformanceSeedReport, CascadeConformanceSeedResult,
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    ModuleRank, Specificity, SpecificityExactnessV0, cascade_property,
+    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerOrdinal,
+    ModuleRank, Specificity, SpecificityExactnessV0, cascade_property, normalized_layer_rank,
     parse_simple_selector_signature,
 };
 
@@ -633,8 +633,8 @@ fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
         }
     }
 
-    for layer_left in -3..=3 {
-        for layer_right in -3..=3 {
+    for layer_left in 0..=6 {
+        for layer_right in 0..=6 {
             if layer_left == layer_right {
                 continue;
             }
@@ -811,9 +811,12 @@ fn conformance_key(
     specificity: Specificity,
     source_order: u32,
 ) -> CascadeKey {
+    let Some(layer_ordinal) = LayerOrdinal::new(layer_rank) else {
+        unreachable!("the conformance corpus only emits sentinel-safe layer ordinals");
+    };
     CascadeKey::new(
         level,
-        LayerRank(layer_rank),
+        normalized_layer_rank(false, Some(layer_ordinal)),
         scope_proximity,
         specificity,
         ModuleRank::ZERO,

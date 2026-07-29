@@ -1919,7 +1919,8 @@ fn ranks_unlayered_design_tokens_above_later_layered_tokens() -> Result<(), Stri
     let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
     assert_eq!(ranked_reference.reference_name, "--surface");
     assert_eq!(ranked_reference.winner_declaration_source_order, 0);
-    assert_eq!(ranked_reference.winner_declaration_layer_rank, 2);
+    // Unlayered ranks are opaque ordering tokens, not layer-count magnitudes.
+    assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);
     assert_eq!(ranked_reference.winner_declaration_layer_name, None);
     assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![1]);
     Ok(())

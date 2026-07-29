@@ -1,7 +1,7 @@
 #![allow(clippy::expect_used)]
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeProof, CascadeValue,
-    LayerRank, ModuleRank, Specificity, summarize_replica_overlap,
+    LayerOrdinal, ModuleRank, Specificity, normalized_layer_rank, summarize_replica_overlap,
 };
 
 use crate::{ConsumerId, ProjectionFamily, TopVariantTreatment};
@@ -391,7 +391,7 @@ fn definite_outcome(id: &str) -> CascadeOutcome {
         value: CascadeValue::Literal(id.to_string()),
         key: CascadeKey {
             level: CascadeLevel::AuthorNormal,
-            layer_rank: LayerRank(0),
+            layer_rank: normalized_layer_rank(false, LayerOrdinal::new(0)),
             scope_proximity: 0,
             specificity: Specificity {
                 ids: 0,

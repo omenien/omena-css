@@ -27,7 +27,14 @@ pub enum CascadeLevel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LayerRank(pub i32);
+pub struct LayerRank(i32);
+
+impl LayerRank {
+    /// Returns the opaque scalar used by the cascade key ordering.
+    pub const fn get(self) -> i32 {
+        self.0
+    }
+}
 
 /// Position in a flattened cascade-layer order before importance normalization.
 ///
