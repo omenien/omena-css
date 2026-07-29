@@ -1,0 +1,28 @@
+# Omena
+
+> Omena is a semantic CSS tooling platform for evidence-aware diagnostics, transformations, CSS Modules, Sass, editor workflows, and build automation.
+
+Omena documentation is published as prerendered HTML. The repository is available at https://github.com/omenien/omena-css.
+
+## Start
+
+- [Documentation home](https://omena.dev/)
+- [Getting started](https://omena.dev/docs/getting-started/)
+- [Browser playground](https://omena.dev/docs/playground/)
+- [VS Code extension](https://omena.dev/docs/vscode-extension/)
+
+## Concepts and integration
+
+- [Where Omena fits](https://omena.dev/docs/positioning/)
+- [Semantic analysis](https://omena.dev/docs/concepts/semantic-analysis/)
+- [Evidence and transform safety](https://omena.dev/docs/concepts/evidence-and-transform-safety/)
+- [SDK workflows](https://omena.dev/docs/sdk/)
+- [Integrations](https://omena.dev/docs/integrations/README/)
+
+## Reference and project status
+
+- [CLI reference](https://omena.dev/docs/reference/cli/)
+- [Configuration reference](https://omena.dev/docs/reference/configuration/)
+- [Compatibility and availability](https://omena.dev/docs/project/compatibility/)
+- [Architecture guide](https://omena.dev/docs/project/architecture/)
+- [Release notes](https://omena.dev/docs/releases/README/)
