@@ -25,6 +25,22 @@ export interface DocumentationPageData {
   description: string | undefined;
 }
 
+export function createDocumentationHead(data: DocumentationPageData | undefined) {
+  return {
+    meta: data
+      ? [
+          {
+            title: `${data.title} | Omena`,
+          },
+          {
+            name: "description",
+            content: data.description,
+          },
+        ]
+      : [],
+  };
+}
+
 export const loadDocumentationPage = createServerFn({
   method: "GET",
 })

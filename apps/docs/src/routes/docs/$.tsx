@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  createDocumentationHead,
   DocumentationPage,
   loadDocumentationPage,
   preloadDocumentationPage,
@@ -12,19 +13,7 @@ export const Route = createFileRoute("/docs/$")({
     const data = await loadDocumentationPage({ data: slugs });
     return preloadDocumentationPage(data);
   },
-  head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [
-          {
-            title: `${loaderData.title} | Omena`,
-          },
-          {
-            name: "description",
-            content: loaderData.description,
-          },
-        ]
-      : [],
-  }),
+  head: ({ loaderData }) => createDocumentationHead(loaderData),
 });
 
 function RouteComponent() {

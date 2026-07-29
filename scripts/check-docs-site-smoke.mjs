@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const docsRoot = path.join(repoRoot, "docs");
 const outputRoot = path.join(repoRoot, "apps/docs/.output/public");
+const deploymentBasePath = normalizeBasePath(process.env.OMENA_DOCS_BASE_PATH ?? "");
 const sourcePages = collect(docsRoot, /\.(?:md|mdx)$/u);
 const expectedDocumentationOutputs = sourcePages
   .map((sourcePath) => documentationOutputForSource(sourcePath))
@@ -48,6 +49,10 @@ const gettingStarted = readFileSync(
 assertDocumentHtml(home, "index.html");
 assert.ok(home.includes("Omena documentation"), "the root route is still an empty SPA shell");
 assert.ok(
+  !home.includes('"/docs/$":'),
+  "the root document contains hydration state for the catch-all documentation route",
+);
+assert.ok(
   documentationHome.includes("/docs/playground"),
   "the documentation index does not link to the playground",
 );
@@ -75,6 +80,42 @@ assert.ok(gettingStarted.includes("Install The CLI"), "getting-started content d
 
 const assetFiles = collect(path.join(outputRoot, "assets"), /./u);
 assert.ok(assetFiles.length > 0, "TanStack Start static assets are missing");
+const staticFunctionCacheFiles = collect(
+  path.join(outputRoot, "__tsr/staticServerFnCache"),
+  /\.json$/u,
+);
+assert.ok(staticFunctionCacheFiles.length > 0, "static server function cache is missing");
+
+const staticFunctionClientAssets = assetFiles.filter((assetPath) => {
+  if (!assetPath.endsWith(".js")) return false;
+  return readFileSync(assetPath, "utf8").includes("/__tsr/staticServerFnCache/");
+});
+assert.ok(
+  staticFunctionClientAssets.length > 0,
+  "client assets do not contain the static server function cache route",
+);
+
+if (deploymentBasePath) {
+  for (const assetPath of staticFunctionClientAssets) {
+    const clientSource = readFileSync(assetPath, "utf8");
+    const cacheRouteIndex = clientSource.indexOf("/__tsr/staticServerFnCache/");
+    const cacheRoutingContext = clientSource.slice(
+      Math.max(0, cacheRouteIndex - 500),
+      cacheRouteIndex + 500,
+    );
+    assert.ok(
+      cacheRoutingContext.includes(deploymentBasePath.replace(/^\//u, "")),
+      `${path.relative(outputRoot, assetPath)} does not apply the deployment base path to the static server function cache`,
+    );
+  }
+
+  assert.equal(
+    collect(path.join(outputRoot, deploymentBasePath, "__tsr/staticServerFnCache"), /\.json$/u)
+      .length,
+    0,
+    "static server function cache was written into a duplicated deployment base directory",
+  );
+}
 
 process.stdout.write(
   `${JSON.stringify(
@@ -87,6 +128,8 @@ process.stdout.write(
       mainLandmarkCount: actualDocumentationOutputs.length + 1,
       skipNavigationCount: actualDocumentationOutputs.length + 1,
       assetFileCount: assetFiles.length,
+      staticFunctionCacheFileCount: staticFunctionCacheFiles.length,
+      staticFunctionClientAssetCount: staticFunctionClientAssets.length,
       missingPageCount: 0,
       orphanPageCount: 0,
       playgroundWorkflowCount: 3,
@@ -111,6 +154,11 @@ function documentationOutputForSource(sourcePath) {
   const relativePath = path.relative(docsRoot, sourcePath).replaceAll(path.sep, "/");
   const slug = relativePath.replace(/\.(?:md|mdx)$/u, "");
   return slug === "index" ? "docs/index.html" : `docs/${slug}/index.html`;
+}
+
+function normalizeBasePath(basePath) {
+  if (!basePath || basePath === "/") return "";
+  return `/${basePath.replace(/^\/+|\/+$/gu, "")}`;
 }
 
 function collect(directory, filePattern) {
