@@ -86,6 +86,10 @@ const repositoryRoot = resolve(dirname(scriptPath), "..");
 const domainPath = resolve(repositoryRoot, "rust/omena-linked-emission-instrument-domain.json");
 const mapPath = resolve(repositoryRoot, "rust/omena-linked-emission-instrument-map.json");
 const evidencePath = resolve(repositoryRoot, "rust/omena-linked-emission-falsifier-evidence.json");
+const ansiEscapeSequencePattern = new RegExp(
+  `${String.fromCodePoint(27)}\\[[0-?]*[ -/]*[@-~]`,
+  "gu",
+);
 const assertionPatterns = [
   /assert\.deepEqual/,
   /assert\.strictEqual/,
@@ -334,7 +338,7 @@ function generatedFiringRecords(
     const output = [run.stdout, run.stderr]
       .filter(Boolean)
       .join("\n")
-      .replace(/\u001B\[[0-?]*[ -/]*[@-~]/gu, "");
+      .replace(ansiEscapeSequencePattern, "");
     const escapedRoot = repositoryRoot.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
     const firstRepositoryFrame = new RegExp(`${escapedRoot}/([^:\\n]+):(\\d+):(\\d+)`, "u").exec(
       output,
