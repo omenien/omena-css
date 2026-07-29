@@ -31,7 +31,11 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
     ],
   },
   "rust/product-test-contracts": {
-    "api-surface": ["rust/omena-bundler/public-surface", "rust/published-crate-surface-register"],
+    "api-surface": [
+      "rust/omena-bundler/public-surface",
+      "rust/omena-cascade/layer-rank-construction",
+      "rust/published-crate-surface-register",
+    ],
     "structural-shadow": ["rust/omena-transform-passes/structural-ir-shadow"],
   },
 };

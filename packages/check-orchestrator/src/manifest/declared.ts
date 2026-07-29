@@ -971,6 +971,7 @@ export const DECLARED_CHECK_GATES = [
     scope: "rust",
     deps: [
       "rust/omena-bundler/public-surface",
+      "rust/omena-cascade/layer-rank-construction",
       "rust/published-crate-surface-register",
       "rust/omena-bundler/adapter-pass-authority",
       "rust/omena-bundler/closed-world-authority",
@@ -1130,6 +1131,15 @@ export const DECLARED_CHECK_GATES = [
     scope: "rust",
     packageTarget: "rust/omena-cascade/property-metadata",
     tags: ["rust-workspace", "cascade", "property-metadata"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
+    id: "rust/omena-cascade/layer-rank-construction",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-cascade/layer-rank-construction",
+    tags: ["rust-workspace", "cascade", "public-api", "construction-census"],
     ciTier: "rust-workspace",
     ciGroup: "rust-workspace",
   },
