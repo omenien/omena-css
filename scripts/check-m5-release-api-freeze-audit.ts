@@ -193,10 +193,12 @@ assertIncludes(historicalM5ReleaseNotes, "final APIs or completed theory claims"
 assertIncludes(releasing, "Release claim discipline");
 assertIncludes(
   releasing,
-  `\`${LAST_PUBLISHED_EXTENSION_VERSION}\` is the published extension baseline`,
+  `Current versions are crate/npm \`${cargoWorkspaceVersion}\` and extension \`${packageJson.version}\``,
 );
-assertIncludes(releasing, `\`vscode-v${LAST_PUBLISHED_EXTENSION_VERSION}\``);
-assertIncludes(releasing, "must not be reused as closure artifacts");
+assertIncludes(releasing, "verify live state at each registry");
+assertIncludes(releasing, "Earlier tags are historical evidence, not reusable closure artifacts");
+assertIncludes(releasing, "Every GitHub Release follows the");
+assertIncludes(releasing, "Maintainers, agents,\nreruns, and tag workflows have no exception");
 assertIncludes(releasing, "Publish Extension` workflow");
 assertIncludes(releasing, "pnpm check:release-m5-api-freeze-audit");
 assertIncludes(releasing, "pnpm check:release-m5-class-value-universe-matrix");
@@ -215,6 +217,10 @@ assertIncludes(
 );
 assertIncludes(releasing, "Cargo crate versioning stays on the gradual `0.x` line");
 assertIncludes(releasing, "Do not publish or describe a Cargo `1.0.0` API-freeze line");
+assertIncludes(
+  releasing,
+  "Do not claim a public Datalog host, egglog binding, modal theorem prover",
+);
 
 assertEvidenceMarkers();
 const theoryAudit = loadTheoryClaimAudit();
