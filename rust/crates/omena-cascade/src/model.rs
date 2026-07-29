@@ -29,6 +29,44 @@ pub enum CascadeLevel {
 #[serde(rename_all = "camelCase")]
 pub struct LayerRank(pub i32);
 
+/// Position in a flattened cascade-layer order before importance normalization.
+///
+/// The sentinel-safe domain is `0 <= ordinal < i32::MAX`; `None` represents an
+/// unlayered declaration at the normalization boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+pub struct LayerOrdinal(i32);
+
+impl LayerOrdinal {
+    /// Rejects ordinals that would collide with the unlayered sentinels.
+    pub const fn new(ordinal: i32) -> Option<Self> {
+        if 0 <= ordinal && ordinal < i32::MAX {
+            Some(Self(ordinal))
+        } else {
+            None
+        }
+    }
+
+    pub const fn get(self) -> i32 {
+        self.0
+    }
+}
+
+/// Maps a layer ordinal into the comparison domain used by `CascadeKey`.
+///
+/// Unlayered declarations form an implicit final layer, and the whole layer
+/// order is reversed for important declarations. This scalar encoding is sound
+/// because `CascadeKey` compares `level` before `layer_rank`, so normal and
+/// important declarations never rely on their shared zero value.
+pub const fn normalized_layer_rank(important: bool, ordinal: Option<LayerOrdinal>) -> LayerRank {
+    match (important, ordinal) {
+        (false, Some(ordinal)) => LayerRank(ordinal.get()),
+        (false, None) => LayerRank(i32::MAX),
+        (true, Some(ordinal)) => LayerRank(-ordinal.get()),
+        (true, None) => LayerRank(i32::MIN),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Specificity {

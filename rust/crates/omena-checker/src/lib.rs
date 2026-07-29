@@ -3888,6 +3888,110 @@ mod tests {
     }
 
     #[test]
+    fn normalized_layer_rank_matches_the_independent_checker_suborder() {
+        use omena_cascade::{LayerOrdinal, normalized_layer_rank};
+
+        let ordinals = [
+            None,
+            LayerOrdinal::new(0),
+            LayerOrdinal::new(1),
+            LayerOrdinal::new(i32::MAX - 1),
+        ];
+        let mut checked_pair_count = 0_usize;
+        let mut mismatch_count = 0_usize;
+
+        for important in [false, true] {
+            for candidate_ordinal in ordinals {
+                for declaration_ordinal in ordinals {
+                    let candidate = cascade_declaration(CascadeDeclarationFixture {
+                        declaration_id: "candidate",
+                        selector: ".item",
+                        property: "color",
+                        value: "red",
+                        source_order: 2,
+                        condition_context: &[],
+                        layer_name: candidate_ordinal.map(|_| "candidate-layer"),
+                        layer_order: candidate_ordinal.map(LayerOrdinal::get),
+                        important,
+                        var_references: &[],
+                    });
+                    let declaration = cascade_declaration(CascadeDeclarationFixture {
+                        declaration_id: "declaration",
+                        selector: ".item",
+                        property: "color",
+                        value: "blue",
+                        source_order: 1,
+                        condition_context: &[],
+                        layer_name: declaration_ordinal.map(|_| "declaration-layer"),
+                        layer_order: declaration_ordinal.map(LayerOrdinal::get),
+                        important,
+                        var_references: &[],
+                    });
+                    let checker = declaration_outranks_by_layer(&candidate, &declaration);
+                    let normalized = normalized_layer_rank(important, candidate_ordinal)
+                        > normalized_layer_rank(important, declaration_ordinal);
+                    checked_pair_count += 1;
+                    mismatch_count += usize::from(checker != normalized);
+                }
+            }
+        }
+
+        // False when either implementation changes its valid same-importance,
+        // same-context order; every ordinal here is emitted by LayerOrdinal::new.
+        assert_eq!((checked_pair_count, mismatch_count), (32, 0));
+        // False if the constructor admits a sentinel or negative ordinal; the
+        // constructor is the sole producer and therefore owns this invariant.
+        assert_eq!(
+            (
+                LayerOrdinal::new(i32::MAX),
+                LayerOrdinal::new(i32::MIN),
+                LayerOrdinal::new(-1),
+            ),
+            (None, None, None)
+        );
+
+        let candidate = cascade_declaration(CascadeDeclarationFixture {
+            declaration_id: "candidate",
+            selector: ".item",
+            property: "color",
+            value: "red",
+            source_order: 2,
+            condition_context: &[],
+            layer_name: None,
+            layer_order: None,
+            important: false,
+            var_references: &[],
+        });
+        let declaration = cascade_declaration(CascadeDeclarationFixture {
+            declaration_id: "declaration",
+            selector: ".item",
+            property: "color",
+            value: "blue",
+            source_order: 1,
+            condition_context: &[],
+            layer_name: Some("sentinel-alias"),
+            layer_order: Some(i32::MAX),
+            important: false,
+            var_references: &[],
+        });
+        let out_of_domain_normalized =
+            normalized_layer_rank(false, declaration.layer_order.and_then(LayerOrdinal::new));
+        // False if the known boundary alias disappears. The production ordinal
+        // constructor cannot emit MAX; LayerOrdinal::new owns that structural
+        // exclusion, while this witness records why widening it is unsafe.
+        assert_eq!(
+            (
+                declaration_outranks_by_layer(&candidate, &declaration),
+                normalized_layer_rank(false, None) > out_of_domain_normalized,
+            ),
+            (true, false)
+        );
+
+        // This differential does not cover mixed importance, checker-only
+        // context guards, collector correctness, or out-of-domain ordinals.
+    }
+
+    #[test]
     fn cascade_rules_ignore_vendor_prefix_gradient_progressive_enhancement() {
         let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
             declarations: vec![

@@ -4,12 +4,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::{
     CascadeDeclaration, CascadeLevel, CascadeValue, CascadeWinnerAxisV0, ElementSignature,
-    LayerRank, ModuleRank, SelectorMatchVerdict, SpecificityExactnessV0, cascade_driven_levels_v0,
-    cascade_driven_winner_axes_v0, cascade_level_for_origin, cascade_property,
-    parse_simple_selector_signature, selector_match_witness,
+    LayerOrdinal, LayerRank, ModuleRank, SelectorMatchVerdict, SpecificityExactnessV0,
+    cascade_driven_levels_v0, cascade_driven_winner_axes_v0, cascade_level_for_origin,
+    cascade_property, normalized_layer_rank, parse_simple_selector_signature,
+    selector_match_witness,
 };
 use omena_parser::{StyleDialect, css_keyword};
-use omena_semantic::summarize_style_layer_order_from_source;
+use omena_semantic::{
+    LayerBindingResolutionV0, layer_ordinal_for_byte_span, summarize_style_layer_order_from_source,
+};
 use omena_transform_cst::{
     ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, TransformIrV0,
     TransformPassKind, pass_observation_contract,
@@ -391,13 +394,22 @@ fn winner_for_pair(
                     reason: TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact,
                 });
             }
-            let raw_layer_rank = declaration.layer_rank;
-            let layer_rank = match (declaration.important, raw_layer_rank) {
-                (false, Some(rank)) => LayerRank(rank),
-                (false, None) => LayerRank(i32::MAX),
-                (true, Some(rank)) => LayerRank(rank.saturating_neg()),
-                (true, None) => LayerRank(i32::MIN),
+            let layer_ordinal = match declaration.layer_rank {
+                Some(rank) => {
+                    let Some(ordinal) = LayerOrdinal::new(rank) else {
+                        reasons.push(TransformWinnerEqualityAbsenceV0 {
+                            axis: TransformWinnerEqualityAxisV0::LayerRank,
+                            reason: TransformWinnerEqualityAbsenceReasonV0::DriverUnavailable {
+                                level: None,
+                            },
+                        });
+                        continue;
+                    };
+                    Some(ordinal)
+                }
+                None => None,
             };
+            let layer_rank = normalized_layer_rank(declaration.important, layer_ordinal);
             declarations.push(CascadeDeclaration {
                 id: declaration.declaration_id.clone(),
                 property: declaration.property.clone(),
@@ -426,27 +438,21 @@ fn layer_rank_for_candidate(
     layer_index: &omena_semantic::StyleLayerIndexV0,
     reasons: &mut Vec<TransformWinnerEqualityAbsenceV0>,
 ) -> LayerRank {
-    if !layer_index.topology_complete && !layer_index.block_bindings.is_empty() {
-        reasons.push(TransformWinnerEqualityAbsenceV0 {
-            axis: TransformWinnerEqualityAxisV0::LayerRank,
-            reason: TransformWinnerEqualityAbsenceReasonV0::DriverUnavailable { level: None },
-        });
-    }
-    let rank = layer_index
-        .block_bindings
-        .iter()
-        .filter(|binding| {
-            binding.byte_span.start <= candidate.source_span_start
-                && candidate.source_span_end <= binding.byte_span.end
-        })
-        .max_by_key(|binding| binding.nesting_depth)
-        .map(|binding| i32::try_from(binding.cascade_rank).unwrap_or(i32::MAX - 1));
-    match (candidate.important, rank) {
-        (false, Some(rank)) => LayerRank(rank),
-        (false, None) => LayerRank(i32::MAX),
-        (true, Some(rank)) => LayerRank(rank.saturating_neg()),
-        (true, None) => LayerRank(i32::MIN),
-    }
+    let ordinal = match layer_ordinal_for_byte_span(
+        layer_index,
+        candidate.source_span_start,
+        candidate.source_span_end,
+    ) {
+        LayerBindingResolutionV0::Resolved(ordinal) => ordinal,
+        LayerBindingResolutionV0::TopologyIncomplete { .. } => {
+            reasons.push(TransformWinnerEqualityAbsenceV0 {
+                axis: TransformWinnerEqualityAxisV0::LayerRank,
+                reason: TransformWinnerEqualityAbsenceReasonV0::DriverUnavailable { level: None },
+            });
+            None
+        }
+    };
+    normalized_layer_rank(candidate.important, ordinal)
 }
 
 pub(crate) fn driven_transform_axes() -> Vec<TransformWinnerEqualityAxisV0> {

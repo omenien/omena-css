@@ -61,6 +61,7 @@ pub use evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
     summarize_semantic_promotion_evidence, summarize_semantic_promotion_evidence_with_source_input,
 };
+pub use layer_tree::{LayerBindingResolutionV0, layer_ordinal_for_byte_span};
 pub use lossless_cst::{
     LosslessCstConsumerReadinessV0, LosslessCstContractV0, LosslessCstSpanInvariantsV0,
     summarize_lossless_cst_contract,

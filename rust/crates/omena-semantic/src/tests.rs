@@ -1,17 +1,17 @@
 use super::{
     CssModulesComposesEdgeFactV0, CssModulesCrossFileStyleFactsV0, CssModulesIcssExportEdgeFactV0,
     CssModulesIcssImportEdgeFactV0, CssModulesValueDefinitionEdgeFactV0,
-    CssModulesValueImportEdgeFactV0, SassModuleConfigurableNamesResolverV0,
-    SassModuleForwardConfigurationRequestV0, SassModuleGraphConfigurationResolverV0,
-    SassModuleGraphEdgeFactV0, SassModuleUseConfigurationRequestV0,
-    SassModuleVisibleSymbolsResolverV0, SassSymbolKeyV0, StyleImportReachabilityEdgeFactV0,
-    TheoryObservationHarnessInput, collect_visible_sass_symbol_keys,
-    derive_sass_forward_effective_variable_overrides, derive_sass_forward_export_prefix_at_ordinal,
-    derive_sass_module_configurable_variable_names,
+    CssModulesValueImportEdgeFactV0, LayerBindingResolutionV0,
+    SassModuleConfigurableNamesResolverV0, SassModuleForwardConfigurationRequestV0,
+    SassModuleGraphConfigurationResolverV0, SassModuleGraphEdgeFactV0,
+    SassModuleUseConfigurationRequestV0, SassModuleVisibleSymbolsResolverV0, SassSymbolKeyV0,
+    StyleImportReachabilityEdgeFactV0, TheoryObservationHarnessInput,
+    collect_visible_sass_symbol_keys, derive_sass_forward_effective_variable_overrides,
+    derive_sass_forward_export_prefix_at_ordinal, derive_sass_module_configurable_variable_names,
     derive_sass_module_forward_variable_overrides_at_ordinal,
     derive_sass_module_rule_variable_overrides_at_ordinal,
-    filter_sass_forward_configurable_variable_names, parse_style_module,
-    resolve_sass_module_effective_variable_overrides,
+    filter_sass_forward_configurable_variable_names, layer_ordinal_for_byte_span,
+    parse_style_module, resolve_sass_module_effective_variable_overrides,
     sass_module_configuration_variables_are_valid, summarize_css_modules_cross_file_closure,
     summarize_css_modules_cross_file_resolution, summarize_lossless_cst_contract,
     summarize_omena_parser_contract_facts,
@@ -1051,9 +1051,7 @@ fn context_index_ignores_layer_tokens_inside_comments_strings_and_interpolation(
 
 #[test]
 fn resolves_nested_layer_order_from_statements_and_blocks() {
-    let summary = summarize_omena_parser_style_semantic_boundary_from_source(
-        "layers.css",
-        r#"
+    let source = r#"
 @layer framework {
   @layer reset, theme;
   @layer theme { .theme { color: blue; } }
@@ -1061,8 +1059,8 @@ fn resolves_nested_layer_order_from_statements_and_blocks() {
   .direct { color: green; }
 }
 @layer utilities { .utility { color: black; } }
-"#,
-    );
+"#;
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source("layers.css", source);
     let layers = summary.semantic_facts.context_index.layer_index;
 
     assert!(layers.topology_complete);
@@ -1083,6 +1081,19 @@ fn resolves_nested_layer_order_from_statements_and_blocks() {
     assert!(layers.block_bindings.iter().any(|binding| {
         binding.canonical_name == "framework.theme" && binding.nesting_depth == 1
     }));
+    let selector_start = source.find(".theme").unwrap_or_default();
+    // False if the static fixture no longer contains the measured selector;
+    // the literal source above is the producer and can emit that edit.
+    assert_eq!(
+        source.get(selector_start..selector_start + ".theme".len()),
+        Some(".theme")
+    );
+    // False if span resolution selects an outer block or a different ordinal;
+    // the CST-backed block binding producer emits this nested span.
+    assert_eq!(
+        layer_ordinal_for_byte_span(&layers, selector_start, selector_start + ".theme".len()),
+        LayerBindingResolutionV0::Resolved(omena_cascade::LayerOrdinal::new(1))
+    );
 }
 
 #[test]
@@ -1149,6 +1160,28 @@ fn anonymous_layer_parent_keeps_nested_topology_unresolved() {
     assert_eq!(layers.anonymous_layer_block_count, 1);
     assert!(layers.unresolved_topology_count >= 2);
     assert!(layers.order_nodes.is_empty());
+}
+
+#[test]
+fn layer_binding_resolution_discloses_incomplete_mixed_topology() {
+    let source = "@layer stable { .item { color: red; } } @layer { .anonymous { color: blue; } }";
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source("layers.css", source);
+    let layers = summary.semantic_facts.context_index.layer_index;
+    let selector_start = source.find(".item").unwrap_or_default();
+    // False if the static fixture no longer contains the measured selector;
+    // the literal source above is the producer and can emit that edit.
+    assert_eq!(
+        source.get(selector_start..selector_start + ".item".len()),
+        Some(".item")
+    );
+    // False if an incomplete tree is silently promoted to a resolved ordinal;
+    // mixed named and anonymous blocks are a production-emittable topology.
+    assert!(matches!(
+        layer_ordinal_for_byte_span(&layers, selector_start, selector_start + ".item".len()),
+        LayerBindingResolutionV0::TopologyIncomplete {
+            unresolved_count: 1..
+        }
+    ));
 }
 
 #[test]
