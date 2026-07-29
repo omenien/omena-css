@@ -70,7 +70,7 @@
   "sites": [
     {
       "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-      "line": 1568,
+      "line": 1581,
       "idiom": "brace-contains",
       "family": "engine-support",
       "disposition": "named-exempt",
@@ -124,7 +124,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-      "line": 365,
+      "line": 398,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -133,7 +133,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-      "line": 366,
+      "line": 399,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -151,7 +151,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 423,
+      "line": 424,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -160,7 +160,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 428,
+      "line": 429,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -268,7 +268,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1607,
+      "line": 1608,
       "idiom": "brace-list-search",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -277,7 +277,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1613,
+      "line": 1614,
       "idiom": "brace-find",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -1284,7 +1284,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:0eb46583abc78fc2b6896bb94a0dae808907aaeaef4cb48a11dd4dd03a934d43",
+  "siteDigest": "sha256:814b6a0a4d3d54f3ea2f0cfb71f0980a85fcfb8231cfba24848c7a6a0323aa1b",
   "moduleInterfaceLessScanner": {
     "policy": "single-named-seam",
     "path": "rust/crates/omena-sif/src/generator.rs",
