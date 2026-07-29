@@ -6499,7 +6499,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryEngineInputTransformContextDerivationV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform/context.rs",
-      "line": 395
+      "line": 402
     },
     {
       "crate": "omena-query",
