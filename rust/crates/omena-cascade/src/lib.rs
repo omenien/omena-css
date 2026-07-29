@@ -84,7 +84,7 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "layerFlattenProof",
             "modalCheckWitnessV0",
             "cascadeMarginSchemaV0",
-            "wptCascadeSeedCorpus",
+            "cascadeOrderingAxisSelfCheckCorpus",
             "spinGlassStatisticsV0",
             "grnAttractorBasinV0",
             "diagnosticFrameFootprintV0",

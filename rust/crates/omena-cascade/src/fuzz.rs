@@ -1,8 +1,9 @@
-//! Deterministic fuzz harness entry points for cascade invariants.
+//! Deterministic generated self-check entry points for cascade invariants.
 //!
 //! The public functions convert compact seed cases into repeatable cascade
 //! ranking and custom-property substitution checks used by cargo-fuzz smoke
-//! gates and the H1 readiness bundle.
+//! gates. Their expected values are generated from the same inputs, so these
+//! checks are not browser-conformance or regression evidence.
 
 use crate::{
     CascadeDeclaration, CascadeEvaluationFuzzCaseV0, CascadeEvaluationFuzzResultV0,
@@ -94,7 +95,7 @@ pub fn run_var_substitution_fuzz_case(
     }
 }
 
-pub fn run_cascade_fuzz_seed_corpus() -> CascadeFuzzSeedReportV0 {
+pub fn run_generated_cascade_invariant_self_check_corpus() -> CascadeFuzzSeedReportV0 {
     let seeds = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144];
     let cascade_results = seeds
         .into_iter()
@@ -126,7 +127,7 @@ pub fn run_cascade_fuzz_seed_corpus() -> CascadeFuzzSeedReportV0 {
 
     CascadeFuzzSeedReportV0 {
         schema_version: "0",
-        product: "omena-cascade.fuzz-seed-corpus",
+        product: "omena-cascade.generated-invariant-self-check-corpus",
         case_count,
         passed_count,
         failed_count: case_count - passed_count,

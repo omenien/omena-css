@@ -14,12 +14,14 @@ concrete signatures, and returns `Maybe` for unsupported selectors or inexact
 abstract element signatures instead of pretending to be a full browser selector
 engine.
 
-The crate also exposes a seed conformance corpus for the cascade ordering model.
-That corpus covers source order, specificity, origin/importance level, layer
-rank, scope proximity, and missing-property inheritance. It is not a replacement
-for the full WPT `css/css-cascade` corpus. A larger WPT-style seed matrix covers
-200+ origin/importance, layer, scope-proximity, and specificity ordering cases;
-the full external WPT mirror remains a later conformance target.
+The crate also exposes a hand-authored conformance seed corpus for the cascade
+ordering model. That corpus covers source order, specificity,
+origin/importance level, layer rank, scope proximity, and missing-property
+inheritance. It is not a replacement for the full WPT `css/css-cascade`
+corpus. Separate generated ordering-axis and invariant self-checks exercise the
+model broadly, but derive expectations from the same implementation and are
+therefore not conformance or regression evidence. A full external WPT mirror
+remains a later conformance target.
 
 Transform proof helpers live here as well. `@supports` static evaluation uses an
 explicit modern-browser assumption witness, and `@scope` / `@layer` flattening

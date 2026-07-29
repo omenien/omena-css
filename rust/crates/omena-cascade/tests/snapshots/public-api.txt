@@ -118,9 +118,9 @@ pub fn omena_cascade::refine_declaration_in_context(&omena_cascade::CascadeDecla
 pub fn omena_cascade::resolve_custom_property_env_least_fixed_point(&omena_cascade::CustomPropertyEnv) -> omena_cascade::CustomPropertyEnv
 pub fn omena_cascade::run_cascade_conformance_seed_corpus() -> omena_cascade::CascadeConformanceSeedReport
 pub fn omena_cascade::run_cascade_evaluation_fuzz_case(omena_cascade::CascadeEvaluationFuzzCaseV0) -> omena_cascade::CascadeEvaluationFuzzResultV0
-pub fn omena_cascade::run_cascade_fuzz_seed_corpus() -> omena_cascade::CascadeFuzzSeedReportV0
+pub fn omena_cascade::run_cascade_ordering_axis_self_check_corpus() -> omena_cascade::CascadeConformanceSeedReport
+pub fn omena_cascade::run_generated_cascade_invariant_self_check_corpus() -> omena_cascade::CascadeFuzzSeedReportV0
 pub fn omena_cascade::run_var_substitution_fuzz_case(omena_cascade::VarSubstitutionFuzzCaseV0) -> omena_cascade::VarSubstitutionFuzzResultV0
-pub fn omena_cascade::run_wpt_cascade_seed_corpus() -> omena_cascade::CascadeConformanceSeedReport
 pub fn omena_cascade::scope_proximity_from_ancestor_signatures(&str, &[(omena_cascade::ElementIdentityV0, omena_cascade::ElementSignature)], bool) -> omena_cascade::ScopeProximityV0
 pub fn omena_cascade::select_cascade_winner<T>(impl core::iter::traits::collect::IntoIterator<Item = T>, impl core::ops::function::Fn(&T) -> omena_cascade::CascadeKey) -> core::option::Option<(T, alloc::vec::Vec<T>)>
 pub fn omena_cascade::select_recheck_set(&[omena_cascade::DiagnosticFrameFootprintV0], &omena_cascade::ModuleFootprintV0) -> omena_cascade::RecheckSelectionV0

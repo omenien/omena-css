@@ -2578,10 +2578,13 @@ fn summarizes_custom_property_least_fixed_point() {
 }
 
 #[test]
-fn fuzz_seed_corpus_preserves_cascade_and_var_invariants() {
-    let report = run_cascade_fuzz_seed_corpus();
+fn generated_invariant_self_check_corpus_preserves_cascade_and_var_invariants() {
+    let report = run_generated_cascade_invariant_self_check_corpus();
 
-    assert_eq!(report.product, "omena-cascade.fuzz-seed-corpus");
+    assert_eq!(
+        report.product,
+        "omena-cascade.generated-invariant-self-check-corpus"
+    );
     assert_eq!(report.failed_count, 0);
     assert_eq!(report.passed_count, report.case_count);
     assert!(
@@ -2633,14 +2636,17 @@ fn summarizes_current_boundary_status() {
     );
     assert!(summary.ready_surfaces.contains(&"scopeFlattenProof"));
     assert!(summary.ready_surfaces.contains(&"layerFlattenProof"));
-    assert!(summary.ready_surfaces.contains(&"wptCascadeSeedCorpus"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"cascadeOrderingAxisSelfCheckCorpus")
+    );
     assert!(
         summary
             .ready_surfaces
             .contains(&"cascadeConformanceSeedCorpus")
     );
     assert!(!summary.not_ready_surfaces.contains(&"selectorMatchWitness"));
-    assert!(!summary.not_ready_surfaces.contains(&"wptCascadeCorpus"));
     assert!(summary.not_ready_surfaces.contains(&"fullWptCascadeCorpus"));
 }
 
@@ -2649,7 +2655,7 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
     let report = run_cascade_conformance_seed_corpus();
 
     assert_eq!(report.product, "omena-cascade.conformance-seed-corpus");
-    assert_eq!(report.case_count, 18);
+    assert_eq!(report.case_count, 21);
     let important_origin_pin = report
         .results
         .iter()
@@ -2673,11 +2679,55 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
     assert_eq!(inversion_pin, Some(("definite", Some("complex"))));
 }
 
-#[test]
-fn wpt_cascade_seed_corpus_passes_current_cascade_model() {
-    let report = run_wpt_cascade_seed_corpus();
+fn hand_written_cascade_winner(case_name: &str) -> Option<String> {
+    run_cascade_conformance_seed_corpus()
+        .results
+        .into_iter()
+        .find(|result| result.name == case_name)
+        .and_then(|result| result.passed.then_some(result.actual_winner_id))
+        .flatten()
+}
 
-    assert_eq!(report.product, "omena-cascade.wpt-cascade-seed-corpus");
+#[test]
+fn normal_layer_order_control_remains_spec_aligned() {
+    assert_eq!(
+        hand_written_cascade_winner("layer-rank-beats-specificity-within-level").as_deref(),
+        Some("higher-layer")
+    );
+}
+
+#[test]
+fn important_layer_order_conformance_is_hand_written() {
+    assert_eq!(
+        hand_written_cascade_winner("important-layer-order-is-reversed").as_deref(),
+        Some("earlier-layer")
+    );
+}
+
+#[test]
+fn unlayered_normal_conformance_is_hand_written() {
+    assert_eq!(
+        hand_written_cascade_winner("unlayered-normal-outranks-layered-normal").as_deref(),
+        Some("unlayered")
+    );
+}
+
+#[test]
+fn unlayered_important_conformance_is_hand_written() {
+    assert_eq!(
+        hand_written_cascade_winner("layered-important-outranks-unlayered-important").as_deref(),
+        Some("layered")
+    );
+}
+
+#[test]
+fn ordering_axis_self_check_corpus_passes_current_cascade_model() {
+    let report = run_cascade_ordering_axis_self_check_corpus();
+
+    assert_eq!(
+        report.product,
+        "omena-cascade.ordering-axis-self-check-corpus"
+    );
     assert!(report.case_count >= 200);
     assert_eq!(report.passed_count, report.case_count);
     assert_eq!(report.failed_count, 0);
