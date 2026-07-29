@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,17 @@ interface InstrumentDomainV0 {
   readonly schemaVersion: "0";
   readonly product: "omena.linked-emission-instrument-domain";
   readonly files: readonly string[];
+  readonly minimumFileCount: number;
+  readonly excludedAssertionForms: readonly ExcludedAssertionFormV0[];
   readonly widenWhen: string;
+}
+
+interface ExcludedAssertionFormV0 {
+  readonly file: string;
+  readonly syntax: string;
+  readonly expectedCount: number;
+  readonly owner: string;
+  readonly reentry: string;
 }
 
 interface InstrumentSiteV0 {
@@ -20,7 +30,7 @@ interface InstrumentSiteV0 {
   readonly lineHint: number;
   readonly syntax: string;
   readonly defectClass: DefectClass;
-  readonly falsifier: string;
+  readonly falsifiers: readonly string[];
   readonly producerReachability: "can-fail" | "entailed";
   readonly entryState: string;
   readonly owner: string;
@@ -33,6 +43,7 @@ interface InstrumentMapV0 {
   readonly domainFiles: readonly string[];
   readonly domainWideningCondition: string;
   readonly assertionSiteCount: number;
+  readonly excludedAssertionCount: number;
   readonly structuralEntailmentCount: number;
   readonly limitations: readonly string[];
   readonly sites: readonly InstrumentSiteV0[];
@@ -75,7 +86,19 @@ const repositoryRoot = resolve(dirname(scriptPath), "..");
 const domainPath = resolve(repositoryRoot, "rust/omena-linked-emission-instrument-domain.json");
 const mapPath = resolve(repositoryRoot, "rust/omena-linked-emission-instrument-map.json");
 const evidencePath = resolve(repositoryRoot, "rust/omena-linked-emission-falsifier-evidence.json");
-const assertionPattern = /assert!|assert_eq!|assert\.ok|assert\.deepEqual|return Err\(/;
+const assertionPatterns = [
+  /assert\.deepEqual/,
+  /assert\.strictEqual/,
+  /assert\.notEqual/,
+  /assert\.equal/,
+  /assert\.match/,
+  /assert\.throws/,
+  /assert\.ok/,
+  /assert_ne!/,
+  /assert_eq!/,
+  /assert!/,
+  /return Err\(/,
+] as const;
 const notePattern = /^\s*\/\/ FALSIFIER: (.+)$/;
 const allowedClasses = new Set<DefectClass>([
   "shaking",
@@ -99,35 +122,48 @@ function nearestSymbol(lines: readonly string[], lineIndex: number): string {
   for (let index = lineIndex; index >= 0; index -= 1) {
     const line = lines[index] ?? "";
     const rustFunction = line.match(/\bfn\s+([A-Za-z0-9_]+)/);
-    if (rustFunction?.[1]) {
-      return rustFunction[1];
-    }
     const tsFunction = line.match(/\bfunction\s+([A-Za-z0-9_]+)/);
-    if (tsFunction?.[1]) {
-      return tsFunction[1];
-    }
+    const functionName = rustFunction?.[1] ?? tsFunction?.[1];
+    if (!functionName) continue;
+
+    const functionToSite = lines.slice(index, lineIndex + 1).join("\n");
+    const scopeDepth =
+      [...functionToSite].filter((character) => character === "{").length -
+      [...functionToSite].filter((character) => character === "}").length;
+    if (scopeDepth > 0) return functionName;
   }
   return "<module>";
 }
 
-function enumerateSites(file: string): readonly InstrumentSiteV0[] {
+function assertionSyntax(line: string): string | undefined {
+  return assertionPatterns.map((pattern) => line.match(pattern)?.[0]).find(Boolean);
+}
+
+function enumerateSites(file: string): {
+  readonly sites: readonly InstrumentSiteV0[];
+  readonly excludedCounts: ReadonlyMap<string, number>;
+} {
   const source = readFileSync(resolve(repositoryRoot, file), "utf8");
   const lines = source.split(/\r?\n/);
   const sites: InstrumentSiteV0[] = [];
+  const excludedCounts = new Map<string, number>();
   const orphanNotes = new Set<number>();
 
   lines.forEach((line, index) => {
     if (notePattern.test(line)) {
       orphanNotes.add(index);
     }
-    const syntax = line.match(assertionPattern)?.[0];
+    const syntax = assertionSyntax(line);
     if (!syntax) {
       return;
     }
 
     const noteLineIndex = index - 1;
     const note = lines[noteLineIndex]?.match(notePattern)?.[1];
-    assert.ok(note, `assertion site has no FALSIFIER note: ${file}:${index + 1}`);
+    if (!note) {
+      excludedCounts.set(syntax, (excludedCounts.get(syntax) ?? 0) + 1);
+      return;
+    }
     orphanNotes.delete(noteLineIndex);
     const fields = parseFields(note);
     const defectClass = fields.class as DefectClass;
@@ -140,9 +176,10 @@ function enumerateSites(file: string): readonly InstrumentSiteV0[] {
     assert.ok(fields.owner, `FALSIFIER owner is missing at ${file}:${index + 1}`);
     assert.ok(fields.entry, `FALSIFIER entry state is missing at ${file}:${index + 1}`);
 
+    const falsifiers = fields.via?.split(",").filter(Boolean) ?? [];
     const structural = defectClass === "structuralEntailment";
     assert.equal(
-      fields.via === "STRUCTURAL",
+      falsifiers.length === 1 && falsifiers[0] === "STRUCTURAL",
       structural,
       `STRUCTURAL target/class mismatch at ${file}:${index + 1}`,
     );
@@ -162,7 +199,7 @@ function enumerateSites(file: string): readonly InstrumentSiteV0[] {
       lineHint: index + 1,
       syntax,
       defectClass,
-      falsifier: fields.via,
+      falsifiers,
       producerReachability: structural ? "entailed" : "can-fail",
       entryState: fields.entry,
       owner: fields.owner,
@@ -175,7 +212,7 @@ function enumerateSites(file: string): readonly InstrumentSiteV0[] {
     [],
     `FALSIFIER notes without syntactic assertion sites in ${file}`,
   );
-  return sites;
+  return { sites, excludedCounts };
 }
 
 function knownFalsifierSource(): string {
@@ -190,22 +227,54 @@ function knownFalsifierSource(): string {
 }
 
 function buildMap(domain: InstrumentDomainV0): InstrumentMapV0 {
-  const sites = domain.files.flatMap((file) => enumerateSites(file));
+  const enumerated = domain.files.map((file) => ({ file, ...enumerateSites(file) }));
+  const sites = enumerated.flatMap((entry) => entry.sites);
   const ids = sites.map((site) => site.id);
   assert.equal(new Set(ids).size, ids.length, "FALSIFIER site ids must be unique");
+
+  const actualExclusions = enumerated
+    .flatMap(({ file, excludedCounts }) =>
+      [...excludedCounts].map(([syntax, expectedCount]) => ({ file, syntax, expectedCount })),
+    )
+    .sort((left, right) =>
+      `${left.file}\0${left.syntax}`.localeCompare(`${right.file}\0${right.syntax}`),
+    );
+  if (process.argv.includes("--inject-unannotated-assertion")) {
+    const first = actualExclusions[0];
+    assert.ok(first, "assertion exclusion injection needs a non-empty domain");
+    first.expectedCount += 1;
+  }
+  const expectedExclusions = domain.excludedAssertionForms
+    .map(({ file, syntax, expectedCount }) => ({ file, syntax, expectedCount }))
+    .sort((left, right) =>
+      `${left.file}\0${left.syntax}`.localeCompare(`${right.file}\0${right.syntax}`),
+    );
+  assert.deepEqual(
+    actualExclusions,
+    expectedExclusions,
+    "unannotated assertion census drifted; annotate the site or update the owned exclusion",
+  );
+  for (const exclusion of domain.excludedAssertionForms) {
+    assert.ok(exclusion.owner, `assertion exclusion has no owner: ${exclusion.file}`);
+    assert.ok(exclusion.reentry, `assertion exclusion has no re-entry: ${exclusion.file}`);
+    assert.ok(domain.files.includes(exclusion.file), `assertion exclusion is outside the domain`);
+  }
 
   const knownSource = knownFalsifierSource()
     .split(/\r?\n/)
     .filter((line) => !notePattern.test(line))
     .join("\n");
   for (const site of sites) {
-    if (site.falsifier === "STRUCTURAL") {
-      continue;
+    for (const falsifier of site.falsifiers) {
+      if (falsifier === "STRUCTURAL") {
+        continue;
+      }
+      const escaped = falsifier.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+      assert.ok(
+        new RegExp(`(?<![A-Za-z0-9_-])${escaped}(?![A-Za-z0-9_-])`, "u").test(knownSource),
+        `FALSIFIER target does not resolve: ${site.id} -> ${falsifier}`,
+      );
     }
-    assert.ok(
-      knownSource.includes(site.falsifier),
-      `FALSIFIER target does not resolve: ${site.id} -> ${site.falsifier}`,
-    );
   }
 
   return {
@@ -214,14 +283,81 @@ function buildMap(domain: InstrumentDomainV0): InstrumentMapV0 {
     domainFiles: domain.files,
     domainWideningCondition: domain.widenWhen,
     assertionSiteCount: sites.length,
+    excludedAssertionCount: actualExclusions.reduce(
+      (count, exclusion) => count + exclusion.expectedCount,
+      0,
+    ),
     structuralEntailmentCount: sites.filter((site) => site.defectClass === "structuralEntailment")
       .length,
     limitations: [
-      "This map verifies disclosure coverage and identifier resolution; firing is enforced by the registered falsifier-disclosure closure gate.",
+      "Firing observations are attached after executable perturbations run; all other rows remain disclosures.",
+      "Unannotated assertion forms are accepted only through exact, owner-bound per-file counts.",
       "The mechanism cannot prove that a selected defect class is semantically correct.",
     ],
     sites,
   };
+}
+
+function generatedFiringRecords(
+  instrumentMap: InstrumentMapV0,
+): readonly FalsifierFiringRecordV0[] {
+  const directFalsifiers = [
+    ...new Set(
+      instrumentMap.sites
+        .flatMap((site) => site.falsifiers)
+        .filter((falsifier) => falsifier.startsWith("--inject-")),
+    ),
+  ].sort();
+
+  return directFalsifiers.map((perturbation) => {
+    const candidateFiles = instrumentMap.domainFiles.filter((file) => {
+      if (!file.endsWith(".ts")) return false;
+      const sourceWithoutDisclosures = readFileSync(resolve(repositoryRoot, file), "utf8")
+        .split(/\r?\n/u)
+        .filter((line) => !notePattern.test(line))
+        .join("\n");
+      return sourceWithoutDisclosures.includes(perturbation);
+    });
+    assert.equal(
+      candidateFiles.length,
+      1,
+      `direct falsifier must resolve to one executable gate: ${perturbation}`,
+    );
+    const file = candidateFiles[0];
+    assert.ok(file);
+    const commandArguments = ["--import", "tsx", `./${file}`, perturbation];
+    const run = spawnSync(process.execPath, commandArguments, {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+    });
+    assert.notEqual(run.status, 0, `direct falsifier stayed green: ${perturbation}`);
+    const output = [run.stdout, run.stderr]
+      .filter(Boolean)
+      .join("\n")
+      .replace(/\u001B\[[0-?]*[ -/]*[@-~]/gu, "");
+    const escapedRoot = repositoryRoot.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const firstRepositoryFrame = new RegExp(`${escapedRoot}/([^:\\n]+):(\\d+):(\\d+)`, "u").exec(
+      output,
+    );
+    assert.ok(firstRepositoryFrame, `direct falsifier emitted no repository stack frame`);
+    const [, failureFile, failureLine] = firstRepositoryFrame;
+    const line = Number(failureLine);
+    const firedSite = instrumentMap.sites.find(
+      (site) =>
+        site.file === failureFile &&
+        site.lineHint === line &&
+        site.falsifiers.includes(perturbation),
+    );
+    assert.ok(
+      firedSite,
+      `first RED is not an instrumented site: ${perturbation} -> ${failureFile}:${line}`,
+    );
+    return {
+      perturbation,
+      observedRedCommand: `node ${commandArguments.join(" ")}`,
+      firedSiteIds: [firedSite.id],
+    };
+  });
 }
 
 function validateFiringEvidence(
@@ -236,7 +372,6 @@ function validateFiringEvidence(
   );
 
   const sitesById = new Map(instrumentMap.sites.map((site) => [site.id, site]));
-  const firedSiteOwner = new Map<string, string>();
   const firingRecords = new Map<string, FalsifierFiringRecordV0>();
   for (const record of evidence.firedSitesByPerturbation) {
     assert.ok(record.perturbation, "firing record has no perturbation");
@@ -251,10 +386,9 @@ function validateFiringEvidence(
       const site = sitesById.get(siteId);
       assert.ok(site, `firing record names an unknown assertion site: ${siteId}`);
       assert.ok(
-        !firedSiteOwner.has(siteId),
-        `assertion site appears in multiple firing records: ${siteId}`,
+        site.falsifiers.includes(record.perturbation),
+        `firing record assigns ${siteId} to an undisclosed perturbation`,
       );
-      firedSiteOwner.set(siteId, record.perturbation);
     }
   }
 
@@ -270,57 +404,63 @@ function validateFiringEvidence(
   }
 
   for (const site of instrumentMap.sites) {
-    if (site.falsifier === "STRUCTURAL") {
+    if (site.falsifiers.includes("STRUCTURAL")) {
       const structural = structuralRecords.get(site.id);
       assert.ok(structural, `STRUCTURAL site has no owned census row: ${site.id}`);
       assert.equal(structural.owner, site.owner, `STRUCTURAL owner drift: ${site.id}`);
       assert.equal(structural.reentry, site.reentry, `STRUCTURAL re-entry drift: ${site.id}`);
       continue;
     }
-    const record = firingRecords.get(site.falsifier);
-    assert.ok(record, `FALSIFIER target has no firing record: ${site.id} -> ${site.falsifier}`);
-    assert.ok(
-      record.firedSiteIds.includes(site.id),
-      `FALSIFIER did not fire the disclosed assertion site: ${site.id} -> ${site.falsifier}`,
-    );
-  }
-
-  for (const [siteId, perturbation] of firedSiteOwner) {
-    const site = sitesById.get(siteId);
-    assert.ok(site);
-    assert.equal(
-      site.falsifier,
-      perturbation,
-      `firing record assigns ${siteId} to ${perturbation}, but its disclosure names ${site.falsifier}`,
-    );
   }
 
   assert.deepEqual(
     [...structuralRecords.keys()].sort(),
     instrumentMap.sites
-      .filter((site) => site.falsifier === "STRUCTURAL")
+      .filter((site) => site.falsifiers.includes("STRUCTURAL"))
       .map((site) => site.id)
       .sort(),
     "STRUCTURAL entitlement census is stale",
   );
 
   const expectedAuditTests = [
-    "directional_no_loss_rejects_composed_declaration_removal",
-    "directional_no_loss_rejects_cross_module_declaration_removal",
+    "linked_emission_preserves_composes_target_from_dependency",
+    "linked_emission_routes_reachability_by_owning_module",
     "missing_target_source_precedes_attribution_domain_validation",
-    "module_reachability_partition_rejects_unassigned_live_names",
-    "observedEmissionPaths",
+    "production_attribution_domains_assign_every_admitted_name",
+    "token_collision_path_gate_rejects_path_specific_selector_loss",
   ];
   assert.deepEqual(
     evidence.deadTestAudit.map((record) => record.test).sort(),
     expectedAuditTests,
     "dead-test audit does not cover the declared regression lineage",
   );
-  for (const record of evidence.deadTestAudit) {
+  for (const [auditIndex, record] of evidence.deadTestAudit.entries()) {
     assert.ok(record.namedFix, `dead-test audit row has no named fix: ${record.test}`);
     assert.ok(record.evidence, `dead-test audit row has no evidence: ${record.test}`);
     assert.ok(record.owner, `dead-test audit row has no owner: ${record.test}`);
     assert.ok(record.reentry, `dead-test audit row has no re-entry: ${record.test}`);
+    const lookupTest =
+      process.argv.includes("--inject-dead-test-audit-drift") && auditIndex === 0
+        ? "injected_missing_regression_test"
+        : record.test;
+    const escapedTest = lookupTest.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const testDefinition = spawnSync(
+      "rg",
+      [
+        "--quiet",
+        "--multiline",
+        "--glob",
+        "*.rs",
+        `#\\[test\\]\\s*fn\\s+${escapedTest}\\b`,
+        "rust/crates",
+      ],
+      { cwd: repositoryRoot },
+    );
+    assert.equal(
+      testDefinition.status,
+      0,
+      `dead-test audit names no current Rust test: ${record.test}`,
+    );
     assert.equal(
       record.currentColor === "green",
       record.disposition === "owned",
@@ -333,22 +473,63 @@ const domain = JSON.parse(readFileSync(domainPath, "utf8")) as InstrumentDomainV
 assert.equal(domain.schemaVersion, "0");
 assert.equal(domain.product, "omena.linked-emission-instrument-domain");
 assert.ok(domain.files.length > 0, "instrument domain must contain at least one file");
+assert.ok(
+  domain.files.length >= domain.minimumFileCount,
+  `instrument domain shrank below its committed floor ${domain.minimumFileCount}`,
+);
 assert.equal(
   new Set(domain.files).size,
   domain.files.length,
   "instrument domain files must be unique",
 );
-const instrumentMap = buildMap(domain);
+const instrumentMapWithoutFiringCounts = buildMap(domain);
 const falsifierEvidence = JSON.parse(readFileSync(evidencePath, "utf8")) as FalsifierEvidenceV0;
-validateFiringEvidence(instrumentMap, falsifierEvidence);
-const serialized = `${JSON.stringify(instrumentMap, null, 2)}\n`;
+const observedFiringRecords = generatedFiringRecords(instrumentMapWithoutFiringCounts);
+const observedFiringSiteCount = new Set(
+  observedFiringRecords.flatMap((record) => record.firedSiteIds),
+).size;
+const nonStructuralSiteCount =
+  instrumentMapWithoutFiringCounts.assertionSiteCount -
+  instrumentMapWithoutFiringCounts.structuralEntailmentCount;
+const instrumentMap: InstrumentMapV0 = {
+  ...instrumentMapWithoutFiringCounts,
+  limitations: [
+    `Firing is observed only as the first-failure site of each executable perturbation (currently ${observedFiringSiteCount} of ${nonStructuralSiteCount} non-structural sites); the remaining rows are disclosures whose producerReachability: can-fail is not verified by this mechanism.`,
+    ...instrumentMapWithoutFiringCounts.limitations.slice(1),
+  ],
+};
+const writeMode = process.argv.includes("--write");
+const generatedEvidence: FalsifierEvidenceV0 = {
+  ...falsifierEvidence,
+  firedSitesByPerturbation: observedFiringRecords,
+};
+validateFiringEvidence(instrumentMap, writeMode ? generatedEvidence : falsifierEvidence);
+const committedFiringRecords = process.argv.includes("--inject-firing-evidence-drift")
+  ? falsifierEvidence.firedSitesByPerturbation.map((record, index) =>
+      index === 0 ? { ...record, firedSiteIds: ["injected-unknown-site"] } : record,
+    )
+  : falsifierEvidence.firedSitesByPerturbation;
+if (!writeMode) {
+  assert.deepEqual(
+    committedFiringRecords,
+    observedFiringRecords,
+    "committed firing evidence does not match the generated first-failure observations",
+  );
+}
+const serializedMap = `${JSON.stringify(instrumentMap, null, 2)}\n`;
+const serializedEvidence = `${JSON.stringify(generatedEvidence, null, 2)}\n`;
 
-if (process.argv.includes("--write")) {
-  writeFileSync(mapPath, serialized);
-  execFileSync("pnpm", ["exec", "oxfmt", relative(repositoryRoot, mapPath)], {
-    cwd: repositoryRoot,
-    stdio: "inherit",
-  });
+if (writeMode) {
+  writeFileSync(mapPath, serializedMap);
+  writeFileSync(evidencePath, serializedEvidence);
+  execFileSync(
+    "pnpm",
+    ["exec", "oxfmt", relative(repositoryRoot, mapPath), relative(repositoryRoot, evidencePath)],
+    {
+      cwd: repositoryRoot,
+      stdio: "inherit",
+    },
+  );
 } else {
   const committed = JSON.parse(readFileSync(mapPath, "utf8")) as InstrumentMapV0;
   assert.deepEqual(committed, instrumentMap, "linked-emission instrument map is stale");
@@ -357,9 +538,10 @@ if (process.argv.includes("--write")) {
 console.log(
   JSON.stringify({
     assertionSiteCount: instrumentMap.assertionSiteCount,
+    excludedAssertionCount: instrumentMap.excludedAssertionCount,
     structuralEntailmentCount: instrumentMap.structuralEntailmentCount,
     domainFileCount: instrumentMap.domainFiles.length,
-    firingRecordCount: falsifierEvidence.firedSitesByPerturbation.length,
+    firingRecordCount: generatedEvidence.firedSitesByPerturbation.length,
     deadTestAuditCount: falsifierEvidence.deadTestAudit.length,
   }),
 );
