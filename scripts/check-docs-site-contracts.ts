@@ -144,9 +144,9 @@ assertFileIncludes(
   "50 of 51 publishable crates",
   "release notes must disclose the partial Rust publication",
 );
-assertFileIncludes(
-  "docs/releases/5.3.0.md",
-  "| NAPI binding | `0.2.1` |",
+assert.match(
+  readFile("docs/releases/5.3.0.md"),
+  /\|\s*NAPI binding\s*\|\s*`0\.2\.1`\s*\|/u,
   "release notes must report the registry NAPI version",
 );
 assertFileIncludes(

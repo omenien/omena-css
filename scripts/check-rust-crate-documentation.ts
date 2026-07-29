@@ -117,8 +117,8 @@ if (writeMode) {
 } else {
   assert.ok(existsSync(catalogPath), "docs/reference/crates.md must be generated");
   assert.equal(
-    readFileSync(catalogPath, "utf8"),
-    catalog,
+    normalizeMarkdownTableLayout(readFileSync(catalogPath, "utf8")),
+    normalizeMarkdownTableLayout(catalog),
     "docs/reference/crates.md is stale; regenerate the crate catalog",
   );
 }
@@ -196,4 +196,31 @@ function surfaceLabel(surface: string): string {
 
 function escapeTableCell(value: string): string {
   return value.replaceAll("|", "\\|").replace(/\s+/gu, " ").trim();
+}
+
+function normalizeMarkdownTableLayout(source: string): string {
+  return source
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return line;
+
+      const cells: string[] = [];
+      let cell = "";
+      for (let index = 1; index < trimmed.length; index += 1) {
+        const character = trimmed[index];
+        if (character === "|" && trimmed[index - 1] !== "\\") {
+          cells.push(cell.trim());
+          cell = "";
+        } else {
+          cell += character;
+        }
+      }
+
+      const separatorRow = cells.every((value) => /^:?-{3,}:?$/u.test(value));
+      return `|${cells
+        .map((value) => (separatorRow ? value.replace(/^(:?)-{3,}(:?)$/u, "$1---$2") : value))
+        .join("|")}|`;
+    })
+    .join("\n");
 }
