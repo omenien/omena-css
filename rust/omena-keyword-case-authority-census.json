@@ -25,7 +25,7 @@
   "currentDefectReachableCount": 0,
   "classificationCounts": {
     "DEFECT-REACHABLE": 0,
-    "PROTECTED-BY-PARSER": 158,
+    "PROTECTED-BY-PARSER": 159,
     "TEST-ONLY": 24,
     "ORACLE-DEMOTED": 1
   },
@@ -1066,7 +1066,18 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 854,
+      "line": 718,
+      "function": "summarize_style_layer_order_from_source",
+      "idiom": "contains",
+      "keyword": "@layer",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "if !css_keyword(source).contains(\"@layer\") {"
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/lib.rs",
+      "line": 863,
       "function": "layer_rule_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -1077,7 +1088,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1579,
+      "line": 1588,
       "function": "style_context_for_cst_offset",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -2044,7 +2055,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:ebbcd34fec52ffa0fa8129e41b5aae243f94c62d4e3fe6fe38bca7b8155050ba",
+  "siteDigest": "sha256:222edca8e67946636952ac416307205423c983a08dc8ba792f6191f7fdab3361",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
@@ -2073,6 +2084,7 @@
       "rust/crates/omena-semantic/src/layer_tree.rs#layer_names",
       "rust/crates/omena-semantic/src/lib.rs#layer_rule_prelude",
       "rust/crates/omena-semantic/src/lib.rs#style_context_for_cst_offset",
+      "rust/crates/omena-semantic/src/lib.rs#summarize_style_layer_order_from_source",
       "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_css_module_class_name_rewrite_replacements",
       "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_css_module_class_name_rewrite_replacements_from_ir",
       "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_local_css_module_composes_edges",
@@ -2086,7 +2098,7 @@
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#conditional_context_is_open",
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair"
     ],
-    "functionKeyDigest": "sha256:5dc53fbe052df4857125ce3912f7681af5dfc1ad10733578e5697ba7235eb2a5",
+    "functionKeyDigest": "sha256:c89e795929153c48b42f011cec412895cbc397f09ab9a490b69dae77b3790dea",
     "adHocCaseOperationCount": 0,
     "adHocCaseOperations": []
   }

@@ -9469,7 +9469,7 @@
       "crate": "omena-semantic",
       "typeName": "SassSelectorResolution",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1356
+      "line": 1365
     },
     {
       "crate": "omena-semantic",
@@ -9655,7 +9655,7 @@
       "crate": "omena-semantic",
       "typeName": "StyleOffsetContext",
       "sourcePath": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1531
+      "line": 1540
     },
     {
       "crate": "omena-semantic",
