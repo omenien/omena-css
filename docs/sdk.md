@@ -21,10 +21,10 @@ The repository and npm registry do not currently expose identical NAPI
 versions. Choose examples by the version you can install, not by the repository
 source alone.
 
-| Package | Latest published | API shape |
-| --- | --- | --- |
-| `@omena/napi` | `0.2.1` | JSON functions such as `checkStyleSourceJson` |
-| `@omena/wasm` | `0.3.0` | JavaScript values and `Workspace` |
+| Package       | Latest published | API shape                                     |
+| ------------- | ---------------- | --------------------------------------------- |
+| `@omena/napi` | `0.2.1`          | JSON functions such as `checkStyleSourceJson` |
+| `@omena/wasm` | `0.3.0`          | JavaScript values and `Workspace`             |
 
 The Node `Workspace` implementation in this repository belongs to the
 unreleased NAPI `0.3.0` surface.

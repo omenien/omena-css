@@ -12,6 +12,7 @@
   "insertFinalNewline": true,
   "ignorePatterns": [
     ".*/**",
+    "apps/docs/src/routeTree.gen.ts",
     "examples/**",
     "**/*.vsix",
     "CHANGELOG.md",

@@ -65,14 +65,14 @@ are the current sources for the complete surface:
 
 Frequently adjusted settings include:
 
-| Setting                         | Purpose                                         |
-| ------------------------------- | ----------------------------------------------- |
-| `omena.features.*`              | Enable editor feature families.                 |
-| `omena.diagnostics.severity`               | Set the Rust server's diagnostic severity.       |
-| `omena.diagnostics.deepAnalysis`           | Enable deeper workspace diagnostic analysis.     |
-| `omena.resolution.packageManifestPaths`    | Supply package manifests for Sass resolution.    |
-| `omena.typeFactBackend`                    | Select the extension's type-fact process.         |
-| `omena.lspServerRuntime`                   | Select the extension's Rust server executable.   |
+| Setting                                 | Purpose                                        |
+| --------------------------------------- | ---------------------------------------------- |
+| `omena.features.*`                      | Enable editor feature families.                |
+| `omena.diagnostics.severity`            | Set the Rust server's diagnostic severity.     |
+| `omena.diagnostics.deepAnalysis`        | Enable deeper workspace diagnostic analysis.   |
+| `omena.resolution.packageManifestPaths` | Supply package manifests for Sass resolution.  |
+| `omena.typeFactBackend`                 | Select the extension's type-fact process.      |
+| `omena.lspServerRuntime`                | Select the extension's Rust server executable. |
 
 Older settings for per-rule diagnostics, hover candidate limits, aliases, and
 classname transforms remain registered so existing workspaces validate, but the

@@ -21,11 +21,11 @@ host rules to Omena diagnostic codes. These packages are not currently
 published on npm. Treat their READMEs and tests as source-development
 documentation, not installation instructions.
 
-| Adapter | Registry status | Repository entry |
-| --- | --- | --- |
-| ESLint | unpublished | `packages/eslint-plugin` |
-| Stylelint | unpublished | `packages/stylelint-plugin` |
-| Oxlint | unpublished | `packages/oxlint-plugin` |
+| Adapter   | Registry status | Repository entry            |
+| --------- | --------------- | --------------------------- |
+| ESLint    | unpublished     | `packages/eslint-plugin`    |
+| Stylelint | unpublished     | `packages/stylelint-plugin` |
+| Oxlint    | unpublished     | `packages/oxlint-plugin`    |
 
 Do not install a similarly named third-party package and assume it is this
 repository's adapter. A future publication must add a versioned example and

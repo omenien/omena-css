@@ -1015,9 +1015,7 @@ function extractCommandRows(source: string): readonly CommandRow[] {
       if (doc !== undefined) {
         docs.push(doc);
       } else {
-        const featureAttribute = line.match(
-          /^\s{4}#\[cfg\(feature\s*=\s*"([^"]+)"\)\]\s*$/u,
-        )?.[1];
+        const featureAttribute = line.match(/^\s{4}#\[cfg\(feature\s*=\s*"([^"]+)"\)\]\s*$/u)?.[1];
         if (featureAttribute) {
           feature = featureAttribute;
           continue;

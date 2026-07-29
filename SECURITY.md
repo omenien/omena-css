@@ -5,11 +5,11 @@
 Security fixes target the latest published editor and Rust release lines. Older
 versions may be affected even when a report reproduces only on a newer build.
 
-| Surface | Supported line |
-| --- | --- |
-| VS Code extension | `5.3.x` |
-| Rust crates and CLI | `0.3.x` |
-| npm packages | latest published version of each package |
+| Surface             | Supported line                           |
+| ------------------- | ---------------------------------------- |
+| VS Code extension   | `5.3.x`                                  |
+| Rust crates and CLI | `0.3.x`                                  |
+| npm packages        | latest published version of each package |
 
 ## Report a vulnerability
 
