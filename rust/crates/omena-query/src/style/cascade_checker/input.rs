@@ -459,6 +459,108 @@ pub(crate) mod cascade_declarations_collect_probe {
 #[cfg(test)]
 mod layer_binding_tests {
     use super::*;
+    use omena_cascade::{
+        CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel,
+        CascadeStandardValueVerdictV0, CascadeValue, ComputedCascadeValueStatusV0,
+        CustomPropertyEnv, ModuleRank, Specificity, SpecificityExactnessV0,
+        compute_cascade_computed_value, normalized_layer_rank,
+    };
+    use omena_query_checker_orchestrator::{
+        OmenaCheckerCascadeInputV0,
+        run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0,
+    };
+
+    #[test]
+    fn one_standard_grammar_verdict_drives_checker_and_computed_value() {
+        let declaration_id = "invalid-color";
+        let invalid_value = "definitely-not-a-color";
+        let non_definite_value = "!!! not-a-color 42px };drop";
+        assert_eq!(
+            omena_query_checker_orchestrator::standard_property_value_verdict_v0(
+                "color",
+                non_definite_value,
+            ),
+            CascadeStandardValueVerdictV0::Unknown
+        );
+        let checker_input = OmenaCheckerCascadeInputV0 {
+            declarations: vec![OmenaCheckerCascadeDeclarationInputV0 {
+                declaration_id: declaration_id.to_string(),
+                selector: CanonicalSelector::from_canonical(".target"),
+                property: "color".to_string(),
+                value: invalid_value.to_string(),
+                source_order: 0,
+                condition_context: Vec::new(),
+                layer_name: None,
+                layer_order: None,
+                origin: omena_cascade::CascadeOriginV0::Author,
+                important: false,
+                var_references: Vec::new(),
+            }],
+            custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
+        };
+        let verdicts = standard_property_value_verdicts_v0(checker_input.declarations.as_slice());
+        let checker_gate =
+            run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0(
+                checker_input,
+                &verdicts,
+            );
+        let computed = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: "color".to_string(),
+            declarations: vec![CascadeDeclaration {
+                id: declaration_id.to_string(),
+                property: "color".to_string(),
+                value: CascadeValue::Literal(invalid_value.to_string()),
+                key: CascadeKey::new(
+                    CascadeLevel::AuthorNormal,
+                    normalized_layer_rank(false, None),
+                    0,
+                    Specificity::ZERO,
+                    ModuleRank::ZERO,
+                    0,
+                ),
+                specificity_exactness: SpecificityExactnessV0::Exact,
+            }],
+            custom_property_env: CustomPropertyEnv::new(),
+            parent_computed_value: None,
+            registered_custom_property: None,
+            standard_property_value_verdicts: verdicts.clone(),
+        });
+
+        assert_eq!(
+            verdicts.get(declaration_id),
+            Some(&CascadeStandardValueVerdictV0::Unmatched)
+        );
+        assert!(
+            checker_gate
+                .evaluations
+                .iter()
+                .any(|evaluation| evaluation.rule_code_name == "invalid-property-value")
+        );
+        assert_eq!(
+            computed.status,
+            ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+        );
+        assert!(computed.invalid_at_computed_value_time);
+    }
+
+    #[test]
+    fn cascade_input_collection_carries_standard_grammar_verdicts() {
+        let collection = collect_query_checker_cascade_input(
+            "file:///tmp/invalid.css",
+            ".target { color: definitely-not-a-color; }",
+        );
+        let declaration_id = collection.checker_input.declarations[0]
+            .declaration_id
+            .as_str();
+
+        assert_eq!(
+            collection
+                .standard_property_value_verdicts
+                .get(declaration_id),
+            Some(&CascadeStandardValueVerdictV0::Unmatched)
+        );
+    }
 
     #[test]
     fn statement_order_and_nested_paths_share_the_semantic_layer_index() {
