@@ -1,3 +1,13 @@
+---
+title: Zed
+description: Run the standalone Omena language server from Zed.
+kind: how-to
+status: stable
+products: [editor, lsp]
+owner: editor
+sourceOfTruth: authored
+---
+
 # Zed
 
 This project now ships a standalone Rust `omena-lsp-server` entrypoint.

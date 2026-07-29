@@ -1,3 +1,13 @@
+---
+title: Persona presets
+description: Generated configuration presets for common Omena workflows.
+kind: reference
+status: stable
+products: [cli, configuration]
+owner: cli
+sourceOfTruth: generated
+---
+
 <!-- Generated from product code. Do not edit by hand. -->
 
 # Persona presets

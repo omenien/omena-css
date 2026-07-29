@@ -1,3 +1,13 @@
+---
+title: CLI reference
+description: The complete generated Omena command surface and dispatch ownership.
+kind: reference
+status: stable
+products: [cli]
+owner: cli
+sourceOfTruth: generated
+---
+
 <!-- Generated from product code. Do not edit by hand. -->
 
 # CLI reference

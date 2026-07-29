@@ -1,3 +1,13 @@
+---
+title: External Sass and SIF compatibility
+description: Configure external Sass interfaces, lockfiles, and provenance-aware compatibility modes.
+kind: how-to
+status: stable
+products: [cli, sass, sif]
+owner: sass
+sourceOfTruth: authored
+---
+
 # External Sass And SIF Compatibility
 
 This guide describes how external Sass references, SIF artifacts, and

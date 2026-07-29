@@ -4,6 +4,10 @@ node_modules/
 
 # Build output
 dist/
+apps/docs/.next/
+apps/docs/.source/
+apps/docs/out/
+apps/docs/public/wasm/
 *.vsix
 *.tsbuildinfo
 target/

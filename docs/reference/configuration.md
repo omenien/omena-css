@@ -1,3 +1,13 @@
+---
+title: Configuration reference
+description: Generated keys and typed owners for omena.toml.
+kind: reference
+status: stable
+products: [configuration]
+owner: cli
+sourceOfTruth: generated
+---
+
 <!-- Generated from product code. Do not edit by hand. -->
 
 # Configuration reference

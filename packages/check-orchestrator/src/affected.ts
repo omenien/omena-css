@@ -121,6 +121,7 @@ function classifyChangedPath(changedPath: string): AffectedCheckReason {
 
   if (
     changedPath.startsWith("docs/") ||
+    changedPath.startsWith("apps/docs/") ||
     changedPath === "README.md" ||
     changedPath === "CHANGELOG.md" ||
     changedPath.endsWith(".md")

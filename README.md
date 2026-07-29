@@ -2,6 +2,9 @@
 
 omena-css is a CSS-family semantic engine with CLI, LSP, SDK, build, and editor surfaces.
 
+[Browse the documentation](https://omenien.github.io/omena-css/) for guided
+setup, generated reference, release notes, and an in-browser WASM playground.
+
 ## Install
 
 VS Code:
@@ -62,6 +65,7 @@ captured finding, so the example changes when product behavior changes.
 | Start here   | [Getting started](docs/getting-started.md)                                                                      |
 | CLI          | [Command guide](rust/crates/omena-cli/README.md)                                                                |
 | SDK          | [NAPI, WASM, CLI, and LSP workflows](docs/sdk.md)                                                               |
+| Playground   | [Run the Rust engine in your browser](docs/playground.mdx)                                                      |
 | LSP          | [Rust API docs](https://docs.rs/omena-lsp-server), [Zed](docs/clients/zed.md), [Neovim](docs/clients/neovim.md) |
 | Bundler      | [Rust bundler](rust/crates/omena-bundler/README.md), [Vite host](packages/vite-plugin/README.md)                |
 | Lint plugins | [ESLint](packages/eslint-plugin/README.md), [Stylelint](packages/stylelint-plugin/README.md)                    |

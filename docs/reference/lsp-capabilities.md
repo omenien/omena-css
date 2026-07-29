@@ -1,3 +1,13 @@
+---
+title: LSP capabilities
+description: The generated language-server capability contract reported during initialization.
+kind: reference
+status: stable
+products: [lsp, editor]
+owner: lsp
+sourceOfTruth: generated
+---
+
 <!-- Generated from product code. Do not edit by hand. -->
 
 # LSP capabilities

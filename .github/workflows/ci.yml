@@ -64,13 +64,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - run: pnpm omena-check run docs/reference-surface
-      - run: pnpm omena-check run docs/readme-example
-      - run: pnpm omena-check run docs/version-strings
-      - run: pnpm omena-check run docs/version-governance
-      - run: pnpm omena-check run docs/publication-material
-      - run: pnpm omena-check run release/check/release-notes
-      - run: pnpm omena-check run rust/crate-documentation
+      - run: pnpm omena-check bundle docs/contracts
+      - run: pnpm omena-check run docs/site
+      - run: pnpm omena-check run docs/smoke
 
   verify-native-linux:
     # omena-ci-tier: verify

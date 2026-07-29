@@ -1,0 +1,27 @@
+---
+title: Browser playground
+description: Run Omena diagnostics and parser inspection locally with the published Rust-to-WASM engine.
+kind: tutorial
+status: experimental
+products: [wasm, engine]
+owner: sdk
+sourceOfTruth: hybrid
+---
+
+# Browser playground
+
+This playground uses the same `omena-wasm` crate that backs the published
+`@omena/wasm` package. The documentation build compiles it for direct browser
+loading; your stylesheet stays in the current browser tab.
+
+<WasmPlayground />
+
+## What this demonstrates
+
+- **Diagnostics** exercise the browser binding and shared semantic checker.
+- **Parse tree** shows the typed stylesheet structure returned by the Rust parser.
+- **No server analysis** means source is not uploaded to an Omena service.
+
+The playground is intentionally bounded to in-memory workflows. Filesystem
+discovery, package-manager resolution, and editor lifecycle behavior belong to
+the CLI, NAPI, and LSP surfaces documented in [SDK workflows](./sdk.md).

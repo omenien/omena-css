@@ -1,3 +1,13 @@
+---
+title: VS Code extension
+description: Install and configure the Omena extension and its Rust language server.
+kind: how-to
+status: stable
+products: [editor, lsp]
+owner: editor
+sourceOfTruth: hybrid
+---
+
 # VS Code Extension
 
 The Omena CSS Modules extension connects VS Code to the Rust

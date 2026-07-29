@@ -1,3 +1,13 @@
+---
+title: SDK workflows
+description: Use snapshot-bound Omena workflows from NAPI, WASM, CLI, and LSP clients.
+kind: how-to
+status: stable
+products: [sdk, napi, wasm, cli, lsp]
+owner: sdk
+sourceOfTruth: hybrid
+---
+
 # SDK Workflows
 
 omena-css exposes the same snapshot-bound workflows through NAPI, WASM, the
@@ -74,6 +84,11 @@ const diagnostics = workspace.diagnostics({
   styleSource: sources[0].styleSource,
 });
 ```
+
+The [browser playground](playground.mdx) loads a web-target build of this same
+crate and runs diagnostics or parse-tree inspection without uploading source.
+It deliberately omits filesystem discovery and host-specific workspace
+resolution.
 
 ## CLI
 

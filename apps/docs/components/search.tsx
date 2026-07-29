@@ -1,0 +1,38 @@
+"use client";
+
+import {
+  SearchDialog,
+  SearchDialogClose,
+  SearchDialogContent,
+  SearchDialogHeader,
+  SearchDialogIcon,
+  SearchDialogInput,
+  SearchDialogList,
+  SearchDialogOverlay,
+  type SharedProps,
+} from "fumadocs-ui/components/dialog/search";
+import { useDocsSearch } from "fumadocs-core/search/client";
+import { oramaStaticClient } from "fumadocs-core/search/client/orama-static";
+import { deploymentBasePath } from "@/lib/site";
+
+export function OmenaSearchDialog(props: SharedProps) {
+  const { search, setSearch, query } = useDocsSearch({
+    client: oramaStaticClient({
+      from: `${deploymentBasePath}/api/search`,
+    }),
+  });
+
+  return (
+    <SearchDialog search={search} onSearchChange={setSearch} isLoading={query.isLoading} {...props}>
+      <SearchDialogOverlay />
+      <SearchDialogContent>
+        <SearchDialogHeader>
+          <SearchDialogIcon />
+          <SearchDialogInput />
+          <SearchDialogClose />
+        </SearchDialogHeader>
+        <SearchDialogList items={query.data === "empty" ? null : query.data} />
+      </SearchDialogContent>
+    </SearchDialog>
+  );
+}

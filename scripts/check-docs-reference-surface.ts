@@ -369,7 +369,17 @@ function renderReferenceIndex(): string {
       purpose,
     ]),
   );
-  return `${generatedNotice}
+  return `---
+title: Omena reference
+description: Generated product contracts for commands, configuration, personas, and editor capabilities.
+kind: reference
+status: stable
+products: [cli, lsp, configuration]
+owner: product-contracts
+sourceOfTruth: generated
+---
+
+${generatedNotice}
 
 # Omena reference
 
@@ -398,7 +408,17 @@ function renderCliReference(
       wiredBy ? `\`${wiredBy}\`` : "-",
     ]),
   );
-  return `${generatedNotice}
+  return `---
+title: CLI reference
+description: The complete generated Omena command surface and dispatch ownership.
+kind: reference
+status: stable
+products: [cli]
+owner: cli
+sourceOfTruth: generated
+---
+
+${generatedNotice}
 
 # CLI reference
 
@@ -413,7 +433,17 @@ ${renderCommandTable(commandRows, verbs)}
 }
 
 function renderPersonaReference(personaRows: PersonaManifest["presets"]): string {
-  return `${generatedNotice}
+  return `---
+title: Persona presets
+description: Generated configuration presets for common Omena workflows.
+kind: reference
+status: stable
+products: [cli, configuration]
+owner: cli
+sourceOfTruth: generated
+---
+
+${generatedNotice}
 
 # Persona presets
 
@@ -450,7 +480,17 @@ function renderConfigReference(rows: readonly ConfigKeyRow[]): string {
     ["Key path", "Typed owner"],
     rows.map(({ key, owner }) => [`\`${key}\``, `\`${owner}\``]),
   );
-  return `${generatedNotice}
+  return `---
+title: Configuration reference
+description: Generated keys and typed owners for omena.toml.
+kind: reference
+status: stable
+products: [configuration]
+owner: cli
+sourceOfTruth: generated
+---
+
+${generatedNotice}
 
 # Configuration reference
 
@@ -470,7 +510,17 @@ function renderLspReference(
       `\`${formatValue(value)}\``,
     ]),
   );
-  return `${generatedNotice}
+  return `---
+title: LSP capabilities
+description: The generated language-server capability contract reported during initialization.
+kind: reference
+status: stable
+products: [lsp, editor]
+owner: lsp
+sourceOfTruth: generated
+---
+
+${generatedNotice}
 
 # LSP capabilities
 

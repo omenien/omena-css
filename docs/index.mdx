@@ -1,0 +1,40 @@
+---
+title: Omena documentation
+description: Learn the semantic CSS engine through tutorials, task guides, generated reference, and design explanations.
+kind: tutorial
+status: stable
+products: [platform]
+owner: developer-experience
+sourceOfTruth: authored
+---
+
+# Omena documentation
+
+Omena is a semantic CSS-family platform for CSS Modules, Sass, editor tooling,
+and evidence-aware build automation. Start with a working command, then follow
+the path that matches what you are trying to accomplish.
+
+## Start here
+
+- [Getting started](./getting-started.md) installs the CLI and configures a workspace.
+- [Browser playground](./playground.mdx) runs the real Rust engine locally through WASM.
+- [VS Code extension](./vscode-extension.md) connects editor features to the same engine.
+- [SDK workflows](./sdk.md) cover NAPI, WASM, CLI, and LSP integration.
+
+## Choose by task
+
+| Goal                              | Guide                                                   |
+| --------------------------------- | ------------------------------------------------------- |
+| Adopt Omena in an editor          | [Editor setup](./clients/README.md)                     |
+| Analyze Sass dependencies         | [External Sass and SIF compatibility](./sass-compat.md) |
+| Plan a safe codemod               | [Plan and apply migrations](./migrate-verb.md)          |
+| Integrate a host or SDK           | [SDK workflows](./sdk.md)                               |
+| Reproduce a performance claim     | [Performance evidence](./performance.md)                |
+| Look up an exact product contract | [Generated reference](./reference/README.md)            |
+
+## How these docs stay accurate
+
+Generated reference pages are rendered from product contracts. Public code
+examples and release metadata are executed or validated in CI. Every page also
+declares whether its source is authored, generated, or hybrid so readers and
+contributors know where a correction belongs.

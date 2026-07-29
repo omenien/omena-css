@@ -1,3 +1,13 @@
+---
+title: Neovim
+description: Run the standalone Omena language server from Neovim.
+kind: how-to
+status: stable
+products: [editor, lsp]
+owner: editor
+sourceOfTruth: authored
+---
+
 # Neovim
 
 This project now ships a standalone Rust `omena-lsp-server` entrypoint.

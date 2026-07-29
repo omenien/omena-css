@@ -1,3 +1,13 @@
+---
+title: Getting started
+description: Install Omena, lint a stylesheet, and configure a workspace in a few minutes.
+kind: tutorial
+status: stable
+products: [cli, editor]
+owner: developer-experience
+sourceOfTruth: authored
+---
+
 # Getting Started
 
 This walkthrough goes from install to a configured workspace in a few minutes.
@@ -58,6 +68,7 @@ decisions, precision, and tree-shaking retention.
 
 ## 5. Where To Go Next
 
+- [Browser playground](playground.mdx) — run the Rust engine without installing a package.
 - [SDK workflows](sdk.md) — the same engine from NAPI, WASM, CLI, and LSP.
 - [Sass compatibility](sass-compat.md) — SIF adoption and provenance tiers.
 - [Codemods](migrate-verb.md) — plan-first migrations with typed rollback.

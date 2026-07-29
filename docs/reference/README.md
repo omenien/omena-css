@@ -1,3 +1,13 @@
+---
+title: Omena reference
+description: Generated product contracts for commands, configuration, personas, and editor capabilities.
+kind: reference
+status: stable
+products: [cli, lsp, configuration]
+owner: product-contracts
+sourceOfTruth: generated
+---
+
 <!-- Generated from product code. Do not edit by hand. -->
 
 # Omena reference

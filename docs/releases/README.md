@@ -1,3 +1,13 @@
+---
+title: Release notes
+description: Curated Omena release notes and the manifest-backed publishing contract.
+kind: how-to
+status: stable
+products: [release]
+owner: release
+sourceOfTruth: hybrid
+---
+
 # Release notes
 
 `manifest.json` is the release-note authority for every new GitHub Release.

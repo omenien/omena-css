@@ -1,3 +1,13 @@
+---
+title: Performance evidence
+description: Reproduce Omena benchmarks and interpret their committed evidence without overclaiming.
+kind: explanation
+status: stable
+products: [benchmarks, engine]
+owner: performance
+sourceOfTruth: authored
+---
+
 # Performance Evidence
 
 This document is the reproducible entry point for omena-css performance work.

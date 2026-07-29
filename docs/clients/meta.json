@@ -1,0 +1,5 @@
+{
+  "title": "Editors",
+  "pagesIndex": "README",
+  "pages": ["README", "zed", "neovim"]
+}

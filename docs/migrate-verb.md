@@ -1,3 +1,13 @@
+---
+title: Plan and apply migrations
+description: Create reviewable migration plans and apply them through Omena's shared write-safety gate.
+kind: how-to
+status: stable
+products: [cli, migration]
+owner: cli
+sourceOfTruth: authored
+---
+
 # Using `omena migrate`
 
 `omena migrate` is a plan-first codemod surface. Planning never changes source

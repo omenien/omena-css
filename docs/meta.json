@@ -1,0 +1,20 @@
+{
+  "title": "Omena",
+  "pages": [
+    "index",
+    "getting-started",
+    "playground",
+    "sdk",
+    "vscode-extension",
+    "clients",
+    "sass-compat",
+    "migrate-verb",
+    "positioning",
+    "performance",
+    "reference",
+    "releases",
+    "contributing",
+    "governance",
+    "internals"
+  ]
+}

@@ -1,3 +1,13 @@
+---
+title: Workspace session routing
+description: How editor, CLI, daemon, and build-tool consumers share one semantic authority.
+kind: explanation
+status: stable
+products: [cli, lsp, daemon, sdk]
+owner: architecture
+sourceOfTruth: authored
+---
+
 # Workspace Session Routing
 
 Omena has one semantic workspace authority in `omena-query`, with several host-specific ways to

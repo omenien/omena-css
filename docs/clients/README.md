@@ -1,3 +1,13 @@
+---
+title: Editor setup
+description: Connect VS Code, Zed, Neovim, or another LSP client to Omena.
+kind: how-to
+status: stable
+products: [editor, lsp]
+owner: editor
+sourceOfTruth: authored
+---
+
 # Editor Setup
 
 One language server, several hosts. Pick your editor:

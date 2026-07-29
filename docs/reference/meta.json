@@ -1,0 +1,5 @@
+{
+  "title": "Reference",
+  "pagesIndex": "README",
+  "pages": ["README", "cli", "configuration", "personas", "lsp-capabilities"]
+}

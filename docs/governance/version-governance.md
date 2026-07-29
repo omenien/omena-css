@@ -1,3 +1,13 @@
+---
+title: Version governance
+description: The independently versioned extension, Rust crate train, and npm release contracts.
+kind: reference
+status: stable
+products: [release, extension, crates, npm]
+owner: release
+sourceOfTruth: hybrid
+---
+
 # Version governance
 
 Omena uses independent version axes so an editor release cannot accidentally
