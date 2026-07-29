@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-rust-semver-intent",
+  "baselineWorkspaceVersion": "0.3.0",
+  "targetReleaseVersion": "0.4.0",
+  "intents": [
+    {
+      "crate": "omena-cascade",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor seals layer-rank construction, adds explicit cascade and computed-value states, extends proof carriers, and retires the old corpus entry points.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field SelectorSignature.functional_pseudo_constraints",
+            "field CascadeComputedValueResultV0.fallback_indeterminate_reason",
+            "field CustomPropertyLeastFixedPointProofV0.bounded_fixed_point_computation_witness",
+            "field CustomPropertyLeastFixedPointProofV0.monotonic_progress_witness",
+            "field SelectorMatchWitness.specificity_exactness",
+            "field CascadeComputedValueInputV0.standard_property_value_verdicts"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "SelectorSignature.functional_pseudo_constraints",
+            "CascadeComputedValueResultV0.fallback_indeterminate_reason",
+            "CustomPropertyLeastFixedPointProofV0.bounded_fixed_point_computation_witness",
+            "CustomPropertyLeastFixedPointProofV0.monotonic_progress_witness",
+            "SelectorMatchWitness.specificity_exactness",
+            "CascadeComputedValueInputV0.standard_property_value_verdicts"
+          ]
+        },
+        {
+          "lint": "enum_no_repr_variant_discriminant_changed",
+          "evidenceNeedles": [
+            "CascadeLevel::AuthorImportant 5 -> 6",
+            "CascadeLevel::UserImportant 6 -> 7",
+            "CascadeLevel::UserAgentImportant 7 -> 8",
+            "CascadeLevel::Transition 8 -> 9",
+            "ComputedCascadeIndeterminateReasonV0::InheritedFromIndeterminateParent 4 -> 5"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "CascadeLevel:InlineImportant",
+            "ComputedCascadeIndeterminateReasonV0:StandardPropertySyntaxIndeterminate"
+          ]
+        },
+        {
+          "lint": "function_missing",
+          "evidenceNeedles": [
+            "function omena_cascade::run_wpt_cascade_seed_corpus",
+            "function omena_cascade::run_cascade_fuzz_seed_corpus"
+          ]
+        },
+        {
+          "lint": "struct_pub_field_missing",
+          "evidenceNeedles": ["field 0 of struct LayerRank"]
+        },
+        {
+          "lint": "struct_pub_field_now_doc_hidden",
+          "evidenceNeedles": ["field LayerRank.0"]
+        }
+      ],
+      "expectedWarnings": [
+        {
+          "lint": "partial_ord_enum_variants_reordered",
+          "evidenceNeedles": [
+            "CascadeLevel::AuthorImportant moved from position 6 to 7",
+            "CascadeLevel::UserImportant moved from position 7 to 8",
+            "CascadeLevel::UserAgentImportant moved from position 8 to 9",
+            "CascadeLevel::Transition moved from position 9 to 10",
+            "ComputedCascadeIndeterminateReasonV0::InheritedFromIndeterminateParent moved from position 5 to 6"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-bundler",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The public cascade-key constructor must accept an ordinal and importance so callers cannot bypass normalized layer ordering.",
+      "expectedFailures": [
+        {
+          "lint": "method_parameter_count_changed",
+          "evidenceNeedles": [
+            "omena_bundler::LinkedStylesheetRuleV0::cascade_key_with_global_source_order takes 5 parameters",
+            "but now takes 6 parameters"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-query",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance instead of reconstructing them from adjacent labels.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field OmenaQueryInlineStyleRuntimeOverrideV0.important",
+            "field OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "OmenaQueryInlineStyleRuntimeOverrideV0.important",
+            "OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-bridge",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, surface, and inline-importance observations.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field SourceInlineStyleDeclarationFactV0.important",
+            "field SourceSelectorReferenceFactV0.surface",
+            "field SourceSyntaxIndexV0.type_fact_target_skipped",
+            "field SourceSyntaxIndexV0.type_fact_target_skipped_count"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "SourceInlineStyleDeclarationFactV0.important",
+            "SourceSelectorReferenceFactV0.surface",
+            "SourceSyntaxIndexV0.type_fact_target_skipped",
+            "SourceSyntaxIndexV0.type_fact_target_skipped_count"
+          ]
+        }
+      ]
+    }
+  ]
+}

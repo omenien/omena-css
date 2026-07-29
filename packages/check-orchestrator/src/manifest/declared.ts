@@ -151,6 +151,15 @@ export const DECLARED_CHECK_GATES = [
     ciReason: "Live crates.io registry classification is an operator-time release preflight.",
   },
   {
+    id: "rust/release-semver",
+    kind: "command",
+    scope: "release",
+    command: ["node", "--import", "tsx", "./scripts/check-rust-release-semver.ts"],
+    tags: ["release", "rust", "public-api", "publish"],
+    ciTier: "release",
+    ciGroup: "release",
+  },
+  {
     id: "docs/reference-surface:update",
     kind: "command",
     scope: "docs",

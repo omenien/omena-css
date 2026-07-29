@@ -265,6 +265,10 @@ pub struct SourceInlineStyleDeclarationFactV0 {
     pub value: Option<String>,
     pub target_style_uri: Option<String>,
     pub cascade_tier: &'static str,
+    /// Whether the static source text ended with a CSS `!important` suffix.
+    ///
+    /// This is a source-text observation, not a claim about browser setter behavior.
+    pub important: bool,
     pub static_value: bool,
 }
 
@@ -274,7 +278,7 @@ impl SourceInlineStyleDeclarationFactV0 {
     /// This records source syntax only. It does not claim that a JSX style
     /// setter applies the suffix at runtime.
     pub fn important_suffix_present(&self) -> bool {
-        self.cascade_tier == SOURCE_INLINE_STYLE_IMPORTANT_SUFFIX_TIER_V0
+        self.important
     }
 }
 
@@ -3411,6 +3415,7 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                     } else {
                         SOURCE_INLINE_STYLE_TIER_V0
                     },
+                    important: important_suffix_present,
                     static_value: self.inline_style_value_is_static(&property.value),
                 });
         }

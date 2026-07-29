@@ -1091,6 +1091,7 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
                 value: Some("red".to_string()),
                 target_style_uri: Some(style_uri.clone()),
                 cascade_tier: "authorInlineStyle",
+                important: false,
                 static_value: true,
             },
         ],

@@ -1874,6 +1874,7 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub scenarios: Vec<OmenaQueryRuntimeStateScenarioV0>,
     pub static_condition_pruning: Vec<OmenaQueryStaticConditionPruningEvidenceV0>,
     pub inline_style_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
+    pub cascade_layer_topology_incomplete: Option<OmenaQueryCascadeLayerTopologyIncompleteV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1913,6 +1914,10 @@ pub struct OmenaQueryInlineStyleRuntimeOverrideV0 {
     pub property_name: String,
     pub value: Option<String>,
     pub cascade_tier: &'static str,
+    /// Whether the static source text ended with a CSS `!important` suffix.
+    ///
+    /// This is a source-text observation, not a claim about browser setter behavior.
+    pub important: bool,
     pub static_value: bool,
 }
 
@@ -1921,7 +1926,7 @@ impl OmenaQueryInlineStyleRuntimeOverrideV0 {
     ///
     /// The flag describes source syntax, not browser setter behavior.
     pub fn important_suffix_present(&self) -> bool {
-        self.cascade_tier == SOURCE_INLINE_STYLE_IMPORTANT_SUFFIX_TIER_V0
+        self.important
     }
 }
 

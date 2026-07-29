@@ -21,8 +21,7 @@ pub use emission_order::{
 };
 
 use omena_cascade::{
-    CascadeKey, CascadeLevel, LayerOrdinal, LayerRank, ModuleRank, Specificity,
-    normalized_layer_rank,
+    CascadeKey, CascadeLevel, LayerOrdinal, ModuleRank, Specificity, normalized_layer_rank,
 };
 use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
 use omena_parser::{
@@ -486,24 +485,6 @@ pub struct LinkedStylesheetRuleV0 {
 
 impl LinkedStylesheetRuleV0 {
     pub fn cascade_key_with_global_source_order(
-        &self,
-        level: CascadeLevel,
-        layer_rank: LayerRank,
-        scope_proximity: u32,
-        specificity: Specificity,
-        module_rank: ModuleRank,
-    ) -> CascadeKey {
-        CascadeKey::new(
-            level,
-            layer_rank,
-            scope_proximity,
-            specificity,
-            module_rank,
-            self.global_order_index,
-        )
-    }
-
-    pub fn cascade_key_with_global_source_order_from_layer_ordinal(
         &self,
         level: CascadeLevel,
         layer_ordinal: LayerOrdinal,
@@ -3207,7 +3188,7 @@ mod tests {
     }
 
     #[test]
-    fn direct_layer_rank_helper_preserves_the_public_call_shape() {
+    fn public_cascade_key_helper_normalizes_the_layer_ordinal() {
         let rule = LinkedStylesheetRuleV0 {
             global_order_index: 7,
             module_instance: ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.css")),
@@ -3216,17 +3197,22 @@ mod tests {
             range_start: 0,
             range_end: 7,
         };
-        let layer_rank =
-            omena_cascade::normalized_layer_rank(false, omena_cascade::LayerOrdinal::new(2));
+        let Some(layer_ordinal) = omena_cascade::LayerOrdinal::new(2) else {
+            panic!("two must remain a sentinel-safe layer ordinal");
+        };
         let key = rule.cascade_key_with_global_source_order(
             omena_cascade::CascadeLevel::AuthorNormal,
-            layer_rank,
+            layer_ordinal,
+            false,
             0,
             omena_cascade::Specificity::new(0, 1, 0),
             omena_cascade::ModuleRank::ZERO,
         );
 
-        assert_eq!(key.layer_rank, layer_rank);
+        assert_eq!(
+            key.layer_rank,
+            omena_cascade::normalized_layer_rank(false, Some(layer_ordinal))
+        );
         assert_eq!(key.source_order, 7);
     }
 
@@ -3282,7 +3268,7 @@ mod tests {
                     ),
                     property: "color".to_string(),
                     value: omena_cascade::CascadeValue::Literal(value.to_string()),
-                    key: rule.cascade_key_with_global_source_order_from_layer_ordinal(
+                    key: rule.cascade_key_with_global_source_order(
                         omena_cascade::CascadeLevel::AuthorNormal,
                         layer_ordinal,
                         false,
@@ -3351,7 +3337,7 @@ mod tests {
                     } else {
                         "red".to_string()
                     }),
-                    key: rule.cascade_key_with_global_source_order_from_layer_ordinal(
+                    key: rule.cascade_key_with_global_source_order(
                         omena_cascade::CascadeLevel::AuthorNormal,
                         layer_ordinal,
                         false,

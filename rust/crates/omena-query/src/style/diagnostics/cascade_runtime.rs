@@ -298,6 +298,7 @@ pub(in crate::style) fn collect_omena_query_inline_style_runtime_overrides_by_st
                     property_name: declaration.property_name,
                     value: declaration.value,
                     cascade_tier: declaration.cascade_tier,
+                    important: declaration.important,
                     static_value: declaration.static_value,
                 });
         }

@@ -1279,6 +1279,7 @@ pub omena_query::OmenaQueryIcssImportEdgeFactV0::local_name: alloc::string::Stri
 pub omena_query::OmenaQueryIcssImportEdgeFactV0::remote_name: alloc::string::String
 pub struct omena_query::OmenaQueryInlineStyleRuntimeOverrideV0
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::cascade_tier: &'static str
+pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::important: bool
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::property_name: alloc::string::String
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::range: omena_parser::spans::ParserRangeV0
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::source_path: alloc::string::String
@@ -1490,6 +1491,7 @@ pub omena_query::OmenaQueryRuntimeStateDriverSummaryV0::provenance: alloc::vec::
 pub omena_query::OmenaQueryRuntimeStateDriverSummaryV0::scenario_count: usize
 pub omena_query::OmenaQueryRuntimeStateDriverSummaryV0::status: &'static str
 pub struct omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
+pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::cascade_layer_topology_incomplete: core::option::Option<omena_query::OmenaQueryCascadeLayerTopologyIncompleteV0>
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::confidence_tier: &'static str
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::confidence_tier_within_modeled_environment: &'static str
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::driver_summaries: alloc::vec::Vec<omena_query::OmenaQueryRuntimeStateDriverSummaryV0>

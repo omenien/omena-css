@@ -6,7 +6,6 @@ use super::{
 };
 
 const UNKNOWN_ACTIVATION_ID_PREFIX: &str = "\0omena-query:unknown-activation:";
-const CASCADE_LAYER_TOPOLOGY_DRIVER: &str = "cascadeLayerTopologyCompleteness";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ResultCertainty {
@@ -98,14 +97,7 @@ impl OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub fn cascade_layer_topology_incomplete(
         &self,
     ) -> Option<OmenaQueryCascadeLayerTopologyIncompleteV0> {
-        self.driver_summaries
-            .iter()
-            .find(|driver| {
-                driver.driver == CASCADE_LAYER_TOPOLOGY_DRIVER && driver.status == "incomplete"
-            })
-            .map(|driver| OmenaQueryCascadeLayerTopologyIncompleteV0 {
-                unresolved_count: driver.scenario_count,
-            })
+        self.cascade_layer_topology_incomplete.clone()
     }
 
     pub fn result_certainty(&self) -> &'static str {

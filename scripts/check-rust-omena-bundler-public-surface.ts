@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { runDeclaredRustSemverCheck } from "./lib/rust-semver-intent.ts";
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const snapshotPath = path.join(
   repoRoot,
@@ -76,24 +78,20 @@ const baseline = semverChecksRequired ? resolveSemverBaseline() : null;
 if (baseline?.kind === "revision") {
   ensureGitRevision(baseline);
 }
+let semverPolicy = semverChecksRequired ? "steady-state" : "genesis-snapshot-only";
+let declaredFailureCount = 0;
+let declaredReleaseVersion: string | null = null;
 if (baseline) {
-  execFileSync(
-    "cargo",
-    [
-      "semver-checks",
-      "--manifest-path",
-      "rust/Cargo.toml",
-      "-p",
-      "omena-bundler",
-      ...semverBaselineArgs(baseline),
-      "--all-features",
-      "--release-type",
-      "patch",
-      "--color",
-      "never",
-    ],
-    { cwd: repoRoot, stdio: "inherit" },
-  );
+  const result = runDeclaredRustSemverCheck({
+    repoRoot,
+    crate: "omena-bundler",
+    workspaceVersion,
+    baselineArgs: semverBaselineArgs(baseline),
+    allFeatures: true,
+  });
+  semverPolicy = result.policy;
+  declaredFailureCount = result.declaredFailureCount;
+  declaredReleaseVersion = result.declaredReleaseVersion;
 }
 
 process.stdout.write(
@@ -103,7 +101,9 @@ process.stdout.write(
       product: "rust.omena-bundler.public-surface",
       snapshot: path.relative(repoRoot, snapshotPath),
       workspaceVersion,
-      semverPolicy: semverChecksRequired ? "steady-state" : "genesis-snapshot-only",
+      semverPolicy,
+      declaredFailureCount,
+      declaredReleaseVersion,
       baselineKind: baseline?.kind ?? null,
       baselineRev: baseline?.kind === "revision" ? baseline.rev : null,
       cargoPublicApiVersion: "0.52.0",

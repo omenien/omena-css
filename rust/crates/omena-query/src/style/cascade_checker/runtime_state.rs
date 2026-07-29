@@ -20,9 +20,10 @@ use crate::types::runtime_state_result_certainty_labels;
 use crate::types::runtime_state_unknown_activation_declaration_id;
 
 use super::super::{
-    OmenaQueryInlineStyleRuntimeOverrideV0, OmenaQueryRuntimeStateDriverSummaryV0,
-    OmenaQueryRuntimeStateScenarioEvidenceV0, OmenaQueryRuntimeStateScenarioV0,
-    OmenaQueryRuntimeStateStaticBoundaryV0, OmenaQueryStaticConditionPruningEvidenceV0,
+    OmenaQueryCascadeLayerTopologyIncompleteV0, OmenaQueryInlineStyleRuntimeOverrideV0,
+    OmenaQueryRuntimeStateDriverSummaryV0, OmenaQueryRuntimeStateScenarioEvidenceV0,
+    OmenaQueryRuntimeStateScenarioV0, OmenaQueryRuntimeStateStaticBoundaryV0,
+    OmenaQueryStaticConditionPruningEvidenceV0,
 };
 
 const RUNTIME_STATE_STATIC_BOUNDARY_KIND: &str = "staticValueAssumingNoRuntimeOverride";
@@ -173,6 +174,9 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
         scenarios,
         static_condition_pruning,
         inline_style_overrides: Vec::new(),
+        cascade_layer_topology_incomplete: topology_incomplete_unresolved_count.map(
+            |unresolved_count| OmenaQueryCascadeLayerTopologyIncompleteV0 { unresolved_count },
+        ),
     })
 }
 
@@ -842,6 +846,7 @@ mod tests {
             property_name: "color".to_string(),
             value: Some("blue".to_string()),
             cascade_tier: "authorInlineStyle",
+            important: false,
             static_value: true,
         };
         let (scenario, outcome) = query_runtime_state_scenario_evaluation(
@@ -885,6 +890,7 @@ mod tests {
             property_name: "color".to_string(),
             value: Some("blue !important".to_string()),
             cascade_tier: "authorInlineStyleImportantSuffix",
+            important: true,
             static_value: true,
         };
         let (_, outcome) = query_runtime_state_scenario_evaluation(
@@ -925,6 +931,7 @@ mod tests {
             property_name: "color".to_string(),
             value: Some("red".to_string()),
             cascade_tier: "authorInlineStyle",
+            important: false,
             static_value: true,
         }];
         let (conditional_tier, conditional_tier_within_modeled_environment) =

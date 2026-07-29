@@ -335,6 +335,7 @@ fn inline_style_declarations_from_value(
                     .and_then(Value::as_str)
                     .map(str::to_string),
                 cascade_tier: cascade_tier_from_value(declaration.get("cascadeTier")?)?,
+                important: declaration.get("important")?.as_bool()?,
                 static_value: declaration.get("staticValue")?.as_bool()?,
             })
         })

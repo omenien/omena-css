@@ -21,7 +21,7 @@ pub use sass_unsupported::{
 
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
-    SOURCE_INLINE_STYLE_IMPORTANT_SUFFIX_TIER_V0, StyleSemanticGraphSummaryV0,
+    StyleSemanticGraphSummaryV0,
     collect_omena_bridge_design_token_workspace_declarations_from_source,
     summarize_omena_bridge_style_semantic_graph_from_source,
     summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations,
