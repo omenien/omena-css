@@ -2668,6 +2668,18 @@
           "skipDeserializing": false
         },
         {
+          "memberPath": "important",
+          "memberKind": "field",
+          "rustName": "important",
+          "serializeKey": "important",
+          "deserializeKey": "important",
+          "typeExpression": "bool",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
           "memberPath": "static_value",
           "memberKind": "field",
           "rustName": "static_value",
