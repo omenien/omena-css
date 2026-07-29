@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omena_cascade::CascadeStandardValueVerdictV0;
 use omena_query_checker_orchestrator::{
     CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
-    OmenaCheckerCustomPropertyInputV0,
+    OmenaCheckerCustomPropertyInputV0, standard_property_value_verdicts_v0,
 };
 use omena_semantic::{
     LayerBindingResolutionV0, StyleLayerIndexV0, layer_ordinal_for_byte_span,
@@ -26,12 +27,7 @@ use super::source_scanner::{
 pub(super) fn collect_query_checker_cascade_input(
     style_uri: &str,
     source: &str,
-) -> (
-    OmenaCheckerCascadeInputV0,
-    BTreeMap<String, ParserRangeV0>,
-    BTreeMap<String, ParserRangeV0>,
-    Option<usize>,
-) {
+) -> QueryCheckerCascadeInputCollection {
     let dialect = omena_parser_dialect_for_style_path(style_uri);
     let collection = collect_query_checker_cascade_declaration_collection(source, dialect);
     let declarations = collection.declarations;
@@ -91,20 +87,32 @@ pub(super) fn collect_query_checker_cascade_input(
             },
         )
         .collect::<Vec<_>>();
+    let checker_declarations = declarations
+        .into_iter()
+        .map(|declaration| declaration.input)
+        .collect::<Vec<_>>();
+    let standard_property_value_verdicts =
+        standard_property_value_verdicts_v0(checker_declarations.as_slice());
 
-    (
-        OmenaCheckerCascadeInputV0 {
-            declarations: declarations
-                .into_iter()
-                .map(|declaration| declaration.input)
-                .collect(),
+    QueryCheckerCascadeInputCollection {
+        checker_input: OmenaCheckerCascadeInputV0 {
+            declarations: checker_declarations,
             custom_properties,
             custom_property_registrations,
         },
         declaration_ranges,
         custom_property_ranges,
-        collection.topology_incomplete_unresolved_count,
-    )
+        topology_incomplete_unresolved_count: collection.topology_incomplete_unresolved_count,
+        standard_property_value_verdicts,
+    }
+}
+
+pub(super) struct QueryCheckerCascadeInputCollection {
+    pub(super) checker_input: OmenaCheckerCascadeInputV0,
+    pub(super) declaration_ranges: BTreeMap<String, ParserRangeV0>,
+    pub(super) custom_property_ranges: BTreeMap<String, ParserRangeV0>,
+    pub(super) topology_incomplete_unresolved_count: Option<usize>,
+    pub(super) standard_property_value_verdicts: BTreeMap<String, CascadeStandardValueVerdictV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

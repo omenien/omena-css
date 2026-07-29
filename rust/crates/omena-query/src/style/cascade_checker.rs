@@ -1,6 +1,9 @@
-use omena_query_checker_orchestrator::run_omena_query_checker_cascade_gate_v0;
+use omena_query_checker_orchestrator::run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0;
 #[cfg(test)]
-use omena_query_checker_orchestrator::{CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0};
+use omena_query_checker_orchestrator::{
+    CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
+    standard_property_value_verdicts_v0,
+};
 
 mod confidence;
 mod custom_property_registration;
@@ -21,10 +24,10 @@ use diagnostic_render::{
 #[cfg(test)]
 pub(crate) use input::cascade_declarations_collect_probe;
 pub(in crate::style) use input::collect_query_checker_cascade_declarations_with_dialect;
-use input::collect_query_checker_cascade_input;
 pub(super) use input::{
     QueryCheckerCascadeDeclaration, collect_query_checker_cascade_declarations,
 };
+use input::{QueryCheckerCascadeInputCollection, collect_query_checker_cascade_input};
 pub(super) use replica_ensemble::collect_query_replica_ensemble_site_outcomes;
 pub(crate) use runtime_state::query_condition_context_static_supports_pruning_evidence;
 pub(super) use runtime_state::query_runtime_cascade_declaration_from_input;
@@ -72,12 +75,13 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     source: &str,
     deep_analysis: bool,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let (
+    let QueryCheckerCascadeInputCollection {
         checker_input,
         declaration_ranges,
         custom_property_ranges,
         topology_incomplete_unresolved_count,
-    ) = collect_query_checker_cascade_input(style_uri, source);
+        standard_property_value_verdicts,
+    } = collect_query_checker_cascade_input(style_uri, source);
     let mut diagnostics = Vec::new();
 
     // Theory diagnostics are produced eagerly only when deep-analysis is on; the
@@ -100,7 +104,10 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
         (Vec::new(), Vec::new(), Vec::new())
     };
 
-    let gate = run_omena_query_checker_cascade_gate_v0(checker_input.clone());
+    let gate = run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0(
+        checker_input.clone(),
+        &standard_property_value_verdicts,
+    );
     if !gate.enforcement_passed {
         return vec![OmenaQueryStyleDiagnosticV0 {
             code: "checkerDiagnosticGateFailed",
@@ -224,6 +231,12 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omena_cascade::{
+        CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel,
+        CascadeStandardValueVerdictV0, CascadeValue, ComputedCascadeValueStatusV0,
+        CustomPropertyEnv, ModuleRank, Specificity, SpecificityExactnessV0,
+        compute_cascade_computed_value, normalized_layer_rank,
+    };
 
     fn recorded(source: &str) -> Vec<(String, String, String)> {
         collect_query_checker_cascade_declarations(source)
@@ -256,6 +269,105 @@ mod tests {
         assert!(
             !codes.contains(&"invalidPropertyValue"),
             "valid declarations produced invalid-property-value diagnostics: {codes:?}"
+        );
+    }
+
+    #[test]
+    fn one_standard_grammar_verdict_drives_checker_and_computed_value() {
+        let declaration_id = "invalid-color";
+        let invalid_value = "definitely-not-a-color";
+        let non_definite_value = "!!! not-a-color 42px };drop";
+        // The validator can emit Unknown for this punctuation-heavy value.
+        // Reclassifying it as a definite mismatch makes this observation false.
+        assert_eq!(
+            omena_query_checker_orchestrator::standard_property_value_verdict_v0(
+                "color",
+                non_definite_value,
+            ),
+            CascadeStandardValueVerdictV0::Unknown
+        );
+        let declaration = OmenaCheckerCascadeDeclarationInputV0 {
+            declaration_id: declaration_id.to_string(),
+            selector: CanonicalSelector::from_canonical(".target"),
+            property: "color".to_string(),
+            value: invalid_value.to_string(),
+            source_order: 0,
+            condition_context: Vec::new(),
+            layer_name: None,
+            layer_order: None,
+            origin: omena_cascade::CascadeOriginV0::Author,
+            important: false,
+            var_references: Vec::new(),
+        };
+        let checker_input = OmenaCheckerCascadeInputV0 {
+            declarations: vec![declaration],
+            custom_properties: Vec::new(),
+            custom_property_registrations: Vec::new(),
+        };
+        let verdicts = standard_property_value_verdicts_v0(checker_input.declarations.as_slice());
+        let checker_gate =
+            run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0(
+                checker_input,
+                &verdicts,
+            );
+        let computed = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: "color".to_string(),
+            declarations: vec![CascadeDeclaration {
+                id: declaration_id.to_string(),
+                property: "color".to_string(),
+                value: CascadeValue::Literal(invalid_value.to_string()),
+                key: CascadeKey::new(
+                    CascadeLevel::AuthorNormal,
+                    normalized_layer_rank(false, None),
+                    0,
+                    Specificity::ZERO,
+                    ModuleRank::ZERO,
+                    0,
+                ),
+                specificity_exactness: SpecificityExactnessV0::Exact,
+            }],
+            custom_property_env: CustomPropertyEnv::new(),
+            parent_computed_value: None,
+            registered_custom_property: None,
+            standard_property_value_verdicts: verdicts.clone(),
+        });
+
+        // The validator can emit Unmatched for this literal. Removing the
+        // shared verdict builder empties the map and changes both observations.
+        assert_eq!(
+            verdicts.get(declaration_id),
+            Some(&CascadeStandardValueVerdictV0::Unmatched)
+        );
+        assert!(
+            checker_gate
+                .evaluations
+                .iter()
+                .any(|evaluation| evaluation.rule_code_name == "invalid-property-value")
+        );
+        assert_eq!(
+            computed.status,
+            ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+        );
+        assert!(computed.invalid_at_computed_value_time);
+    }
+
+    #[test]
+    fn cascade_input_collection_carries_standard_grammar_verdicts() {
+        let collection = collect_query_checker_cascade_input(
+            "file:///tmp/invalid.css",
+            ".target { color: definitely-not-a-color; }",
+        );
+        let declaration_id = collection.checker_input.declarations[0]
+            .declaration_id
+            .as_str();
+
+        // A standard declaration is a normal collector output. Deleting the
+        // validator call leaves this map empty and makes this assertion fail.
+        assert_eq!(
+            collection
+                .standard_property_value_verdicts
+                .get(declaration_id),
+            Some(&CascadeStandardValueVerdictV0::Unmatched)
         );
     }
 
@@ -626,15 +738,15 @@ mod tests {
         // even though their output is deduplicated here: the rg-flow coupling and
         // categorical mapping are both populated for a cyclic stylesheet, so the
         // underlying mechanisms still execute (proving the opt-in path is live).
-        let (checker_input, _, _, _) =
+        let collection =
             collect_query_checker_cascade_input("file:///tmp/test.scss", VAR_CYCLE_SOURCE);
         let rg_flow = summarize_query_rg_flow_coupling_diagnostics(
             VAR_CYCLE_SOURCE,
-            &checker_input.custom_properties,
+            &collection.checker_input.custom_properties,
         );
         let categorical = summarize_query_categorical_cascade_evidence_diagnostics(
             VAR_CYCLE_SOURCE,
-            &checker_input.custom_properties,
+            &collection.checker_input.custom_properties,
         );
         assert!(
             !rg_flow.is_empty(),

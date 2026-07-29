@@ -46,6 +46,7 @@ pub enum omena_cascade::CascadeLevel
 pub enum omena_cascade::CascadeOriginV0
 pub enum omena_cascade::CascadeOutcome
 pub enum omena_cascade::CascadeRegisteredValueVerdictV0
+pub enum omena_cascade::CascadeStandardValueVerdictV0
 pub enum omena_cascade::CascadeValue
 pub enum omena_cascade::CascadeWinnerAxisV0
 pub enum omena_cascade::ComputedCascadeIndeterminateReasonV0
@@ -191,7 +192,9 @@ pub omena_cascade::CascadeComputedValueInputV0::declarations: alloc::vec::Vec<om
 pub omena_cascade::CascadeComputedValueInputV0::parent_computed_value: core::option::Option<omena_cascade::CascadeValue>
 pub omena_cascade::CascadeComputedValueInputV0::property: alloc::string::String
 pub omena_cascade::CascadeComputedValueInputV0::registered_custom_property: core::option::Option<omena_cascade::CascadeRegisteredCustomPropertyV0>
+pub omena_cascade::CascadeComputedValueInputV0::standard_property_value_verdicts: alloc::collections::btree::map::BTreeMap<alloc::string::String, omena_cascade::CascadeStandardValueVerdictV0>
 pub omena_cascade::CascadeComputedValueResultV0::derivation_steps: alloc::vec::Vec<&'static str>
+pub omena_cascade::CascadeComputedValueResultV0::fallback_indeterminate_reason: core::option::Option<omena_cascade::ComputedCascadeIndeterminateReasonV0>
 pub omena_cascade::CascadeComputedValueResultV0::indeterminate_reason: core::option::Option<omena_cascade::ComputedCascadeIndeterminateReasonV0>
 pub omena_cascade::CascadeComputedValueResultV0::inherited: bool
 pub omena_cascade::CascadeComputedValueResultV0::invalid_at_computed_value_time: bool
@@ -380,6 +383,9 @@ pub omena_cascade::CascadeStabilityScoreV0::layer_marker: &'static str
 pub omena_cascade::CascadeStabilityScoreV0::product: &'static str
 pub omena_cascade::CascadeStabilityScoreV0::schema_version: &'static str
 pub omena_cascade::CascadeStabilityScoreV0::score: f64
+pub omena_cascade::CascadeStandardValueVerdictV0::Matched
+pub omena_cascade::CascadeStandardValueVerdictV0::Unknown
+pub omena_cascade::CascadeStandardValueVerdictV0::Unmatched
 pub omena_cascade::CascadeUltrametricPathV0::declaration: u8
 pub omena_cascade::CascadeUltrametricPathV0::layer: u8
 pub omena_cascade::CascadeUltrametricPathV0::origin: u8
@@ -405,6 +411,7 @@ pub omena_cascade::ComputedCascadeIndeterminateReasonV0::InheritedFromIndetermin
 pub omena_cascade::ComputedCascadeIndeterminateReasonV0::PropertyInheritanceMetadataUnavailable
 pub omena_cascade::ComputedCascadeIndeterminateReasonV0::PropertyInitialValueMetadataUnavailable
 pub omena_cascade::ComputedCascadeIndeterminateReasonV0::RegisteredPropertySyntaxIndeterminate
+pub omena_cascade::ComputedCascadeIndeterminateReasonV0::StandardPropertySyntaxIndeterminate
 pub omena_cascade::ComputedCascadeValueStatusV0::Indeterminate
 pub omena_cascade::ComputedCascadeValueStatusV0::Inherited
 pub omena_cascade::ComputedCascadeValueStatusV0::Initial

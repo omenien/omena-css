@@ -8,6 +8,7 @@ use omena_abstract_value::{
     registered_property_syntax_requires_initial_value_v0, validate_registered_property_value_v0,
     validate_standard_property_value_v0,
 };
+pub use omena_cascade::CascadeStandardValueVerdictV0;
 use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
 #[cfg(not(feature = "smt-z3"))]
 use omena_cascade_proof::{
@@ -1474,6 +1475,47 @@ pub fn evaluate_omena_checker_m_tier_rules(
 pub fn evaluate_omena_checker_cascade_rules(
     input: OmenaCheckerCascadeInputV0,
 ) -> Vec<OmenaCheckerCascadeEvaluationV0> {
+    let standard_property_value_verdicts =
+        standard_property_value_verdicts_v0(input.declarations.as_slice());
+    evaluate_omena_checker_cascade_rules_with_standard_property_value_verdicts(
+        input,
+        &standard_property_value_verdicts,
+    )
+}
+
+pub fn standard_property_value_verdict_v0(
+    property: &str,
+    value: &str,
+) -> CascadeStandardValueVerdictV0 {
+    match validate_standard_property_value_v0(property, value).class {
+        CssValueValidationClassV0::Valid => CascadeStandardValueVerdictV0::Matched,
+        CssValueValidationClassV0::Invalid => CascadeStandardValueVerdictV0::Unmatched,
+        CssValueValidationClassV0::NotValidatable => CascadeStandardValueVerdictV0::Unknown,
+    }
+}
+
+pub fn standard_property_value_verdicts_v0(
+    declarations: &[OmenaCheckerCascadeDeclarationInputV0],
+) -> BTreeMap<String, CascadeStandardValueVerdictV0> {
+    declarations
+        .iter()
+        .filter(|declaration| !declaration.property.starts_with("--"))
+        .map(|declaration| {
+            (
+                declaration.declaration_id.clone(),
+                standard_property_value_verdict_v0(
+                    declaration.property.as_str(),
+                    declaration.value.as_str(),
+                ),
+            )
+        })
+        .collect()
+}
+
+pub fn evaluate_omena_checker_cascade_rules_with_standard_property_value_verdicts(
+    input: OmenaCheckerCascadeInputV0,
+    standard_property_value_verdicts: &BTreeMap<String, CascadeStandardValueVerdictV0>,
+) -> Vec<OmenaCheckerCascadeEvaluationV0> {
     let declarations = input.declarations;
     let custom_properties = input.custom_properties;
     let active_registrations = active_omena_checker_custom_property_registrations_v0(
@@ -1595,12 +1637,8 @@ pub fn evaluate_omena_checker_cascade_rules(
         if declaration.property.starts_with("--") {
             continue;
         }
-        if validate_standard_property_value_v0(
-            declaration.property.as_str(),
-            declaration.value.as_str(),
-        )
-        .class
-            == CssValueValidationClassV0::Invalid
+        if standard_property_value_verdicts.get(declaration.declaration_id.as_str())
+            == Some(&CascadeStandardValueVerdictV0::Unmatched)
         {
             evaluations.push(cascade_evaluation(
                 OmenaCheckerRuleCodeV0::InvalidPropertyValue,

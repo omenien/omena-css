@@ -327,12 +327,21 @@ define_computed_cascade_indeterminate_reasons! {
     PropertyInheritanceMetadataUnavailable => "propertyInheritanceMetadataUnavailable",
     PropertyInitialValueMetadataUnavailable => "propertyInitialValueMetadataUnavailable",
     RegisteredPropertySyntaxIndeterminate => "registeredPropertySyntaxIndeterminate",
+    StandardPropertySyntaxIndeterminate => "standardPropertySyntaxIndeterminate",
     InheritedFromIndeterminateParent => "inheritedFromIndeterminateParent",
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CascadeRegisteredValueVerdictV0 {
+    Matched,
+    Unmatched,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CascadeStandardValueVerdictV0 {
     Matched,
     Unmatched,
     Unknown,
@@ -356,6 +365,12 @@ pub struct CascadeComputedValueInputV0 {
     pub parent_computed_value: Option<CascadeValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub registered_custom_property: Option<CascadeRegisteredCustomPropertyV0>,
+    /// Caller-supplied grammar verdicts for standard (non-custom) properties,
+    /// keyed by declaration id. `omena-cascade` does not own a property grammar;
+    /// the authority is `omena-abstract-value::validate_standard_property_value_v0`,
+    /// consulted by the caller. Absence means no verdict is available, not that
+    /// the value is valid.
+    pub standard_property_value_verdicts: BTreeMap<String, CascadeStandardValueVerdictV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -372,6 +387,12 @@ pub struct CascadeComputedValueResultV0 {
     pub invalid_at_computed_value_time: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub indeterminate_reason: Option<ComputedCascadeIndeterminateReasonV0>,
+    /// Why the value the declaration falls back to could not be determined when
+    /// the declaration itself became invalid at computed-value time. This is
+    /// orthogonal to `indeterminate_reason`, which remains absent unless the
+    /// result status is `Indeterminate`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_indeterminate_reason: Option<ComputedCascadeIndeterminateReasonV0>,
     pub derivation_steps: Vec<&'static str>,
 }
 

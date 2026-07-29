@@ -208,9 +208,8 @@ fn query_categorical_role_mapping_for_cascade(
 pub(crate) fn query_exercised_cascade_primitive_role_pairs_from_source(
     source: &str,
 ) -> Vec<(String, String)> {
-    let (checker_input, _, _, _) =
-        collect_query_checker_cascade_input("query://categorical", source);
-    match query_categorical_role_mapping_for_cascade(&checker_input.custom_properties) {
+    let collection = collect_query_checker_cascade_input("query://categorical", source);
+    match query_categorical_role_mapping_for_cascade(&collection.checker_input.custom_properties) {
         Some(mapping) => mapping
             .primitive_role_pairs
             .into_iter()

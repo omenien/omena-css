@@ -5,10 +5,11 @@
 
 use crate::{
     CascadeComputedValueInputV0, CascadeComputedValueResultV0, CascadeOutcome,
-    CascadeRegisteredCustomPropertyV0, CascadeRegisteredValueVerdictV0, CascadeValue,
-    ComputedCascadeIndeterminateReasonV0, ComputedCascadeValueStatusV0, CssPropertyInheritanceV0,
-    CssPropertyInitialValueV0, cascade_property, css_property_initial_value,
-    css_property_is_inherited, substitute_custom_properties,
+    CascadeRegisteredCustomPropertyV0, CascadeRegisteredValueVerdictV0,
+    CascadeStandardValueVerdictV0, CascadeValue, ComputedCascadeIndeterminateReasonV0,
+    ComputedCascadeValueStatusV0, CssPropertyInheritanceV0, CssPropertyInitialValueV0,
+    cascade_property, css_property_initial_value, css_property_is_inherited,
+    substitute_custom_properties,
 };
 
 pub fn compute_cascade_computed_value(
@@ -20,6 +21,7 @@ pub fn compute_cascade_computed_value(
         custom_property_env,
         parent_computed_value,
         registered_custom_property,
+        standard_property_value_verdicts,
     } = input;
     let registered_custom_property =
         registered_custom_property.filter(|registration| registration.name == property);
@@ -27,52 +29,67 @@ pub fn compute_cascade_computed_value(
     if let Some(result) = computed_value_from_indeterminate_cascade_outcome(&property, &outcome) {
         return result;
     }
-    let (winner_declaration_id, cascaded_value, registered_value_verdict, mut derivation_steps) =
-        match outcome {
-            CascadeOutcome::Definite { winner, .. } => {
-                let registered_value_verdict =
-                    registered_custom_property.as_ref().map(|registration| {
-                        registration
-                            .declaration_value_verdicts
-                            .get(winner.id.as_str())
-                            .copied()
-                            .unwrap_or(CascadeRegisteredValueVerdictV0::Unknown)
-                    });
-                (
-                    Some(winner.id),
-                    winner.value,
-                    registered_value_verdict,
-                    vec!["cascadeWinnerSelected", "computedValueResolutionStarted"],
-                )
-            }
-            CascadeOutcome::Inherit => {
-                match property_inheritance(&property, registered_custom_property.as_ref()) {
-                    CssPropertyInheritanceV0::Inherited => (
-                        None,
-                        CascadeValue::Inherit,
-                        None,
-                        vec!["noCascadeWinner", "inheritanceOrInitialSelected"],
-                    ),
-                    CssPropertyInheritanceV0::NotInherited => (
-                        None,
-                        CascadeValue::Initial,
-                        None,
-                        vec!["noCascadeWinner", "inheritanceOrInitialSelected"],
-                    ),
-                    CssPropertyInheritanceV0::Unknown => {
-                        return computed_value_from_unknown_metadata(
+    let (
+        winner_declaration_id,
+        cascaded_value,
+        registered_value_verdict,
+        standard_value_verdict,
+        mut derivation_steps,
+    ) = match outcome {
+        CascadeOutcome::Definite { winner, .. } => {
+            let registered_value_verdict =
+                registered_custom_property.as_ref().map(|registration| {
+                    registration
+                        .declaration_value_verdicts
+                        .get(winner.id.as_str())
+                        .copied()
+                        .unwrap_or(CascadeRegisteredValueVerdictV0::Unknown)
+                });
+            let standard_value_verdict = (!property.starts_with("--"))
+                .then(|| {
+                    standard_property_value_verdicts
+                        .get(winner.id.as_str())
+                        .copied()
+                })
+                .flatten();
+            (
+                Some(winner.id),
+                winner.value,
+                registered_value_verdict,
+                standard_value_verdict,
+                vec!["cascadeWinnerSelected", "computedValueResolutionStarted"],
+            )
+        }
+        CascadeOutcome::Inherit => {
+            match property_inheritance(&property, registered_custom_property.as_ref()) {
+                CssPropertyInheritanceV0::Inherited => (
+                    None,
+                    CascadeValue::Inherit,
+                    None,
+                    None,
+                    vec!["noCascadeWinner", "inheritanceOrInitialSelected"],
+                ),
+                CssPropertyInheritanceV0::NotInherited => (
+                    None,
+                    CascadeValue::Initial,
+                    None,
+                    None,
+                    vec!["noCascadeWinner", "inheritanceOrInitialSelected"],
+                ),
+                CssPropertyInheritanceV0::Unknown => {
+                    return computed_value_from_unknown_metadata(
                             property,
                             None,
                             ComputedCascadeIndeterminateReasonV0::PropertyInheritanceMetadataUnavailable,
                             vec!["noCascadeWinner", "propertyInheritanceMetadataUnavailable"],
                         );
-                    }
                 }
             }
-            CascadeOutcome::RankedSet(_) | CascadeOutcome::Top => {
-                unreachable!("indeterminate cascade outcomes return before winner resolution")
-            }
-        };
+        }
+        CascadeOutcome::RankedSet(_) | CascadeOutcome::Top => {
+            unreachable!("indeterminate cascade outcomes return before winner resolution")
+        }
+    };
 
     match registered_value_verdict {
         Some(CascadeRegisteredValueVerdictV0::Unmatched) => {
@@ -97,6 +114,42 @@ pub fn compute_cascade_computed_value(
             );
         }
         Some(CascadeRegisteredValueVerdictV0::Matched) | None => {}
+    }
+
+    match standard_value_verdict {
+        Some(CascadeStandardValueVerdictV0::Unmatched) => {
+            derivation_steps.push("standardPropertySyntaxUnmatched");
+            derivation_steps.push("invalidAtComputedValueTimeFallsBackAsUnset");
+            return computed_value_from_unset(
+                property,
+                winner_declaration_id,
+                parent_computed_value,
+                true,
+                derivation_steps,
+                registered_custom_property.as_ref(),
+            );
+        }
+        Some(CascadeStandardValueVerdictV0::Unknown)
+            if cascade_value_contains_var_reference(&cascaded_value) =>
+        {
+            derivation_steps.push("standardPropertySyntaxDeferredByVarReference");
+        }
+        Some(CascadeStandardValueVerdictV0::Unknown) => {
+            derivation_steps.push("standardPropertySyntaxIndeterminate");
+            return computed_value_from_unknown_metadata(
+                property,
+                winner_declaration_id,
+                ComputedCascadeIndeterminateReasonV0::StandardPropertySyntaxIndeterminate,
+                derivation_steps,
+            );
+        }
+        Some(CascadeStandardValueVerdictV0::Matched) => {
+            derivation_steps.push("standardPropertySyntaxMatched");
+        }
+        None if !property.starts_with("--") => {
+            derivation_steps.push("standardPropertySyntaxVerdictUnavailable");
+        }
+        None => {}
     }
 
     let substituted_value = substitute_custom_properties(&cascaded_value, &custom_property_env);
@@ -157,9 +210,23 @@ pub fn compute_cascade_computed_value(
                 used_initial_value: false,
                 invalid_at_computed_value_time: false,
                 indeterminate_reason: None,
+                fallback_indeterminate_reason: None,
                 derivation_steps,
             }
         }
+    }
+}
+
+fn cascade_value_contains_var_reference(value: &CascadeValue) -> bool {
+    match value {
+        CascadeValue::Var { .. } => true,
+        CascadeValue::Composite(values) => values.iter().any(cascade_value_contains_var_reference),
+        CascadeValue::Literal(_)
+        | CascadeValue::Initial
+        | CascadeValue::Inherit
+        | CascadeValue::Indeterminate
+        | CascadeValue::GuaranteedInvalid
+        | CascadeValue::Unset => false,
     }
 }
 
@@ -236,6 +303,7 @@ fn computed_value_from_inherit(
                 used_initial_value: false,
                 invalid_at_computed_value_time: false,
                 indeterminate_reason: None,
+                fallback_indeterminate_reason: None,
                 derivation_steps,
             }
         }
@@ -270,6 +338,7 @@ fn computed_value_from_initial(
             used_initial_value: true,
             invalid_at_computed_value_time: false,
             indeterminate_reason: None,
+            fallback_indeterminate_reason: None,
             derivation_steps,
         };
     }
@@ -286,6 +355,7 @@ fn computed_value_from_initial(
             used_initial_value: true,
             invalid_at_computed_value_time: false,
             indeterminate_reason: None,
+            fallback_indeterminate_reason: None,
             derivation_steps,
         },
         CssPropertyInitialValueV0::GuaranteedInvalid => CascadeComputedValueResultV0 {
@@ -299,6 +369,7 @@ fn computed_value_from_initial(
             used_initial_value: true,
             invalid_at_computed_value_time: false,
             indeterminate_reason: None,
+            fallback_indeterminate_reason: None,
             derivation_steps,
         },
         CssPropertyInitialValueV0::Unknown => {
@@ -342,6 +413,7 @@ fn computed_value_from_unknown_metadata(
         used_initial_value: false,
         invalid_at_computed_value_time: false,
         indeterminate_reason: Some(reason),
+        fallback_indeterminate_reason: None,
         derivation_steps,
     }
 }
@@ -370,7 +442,7 @@ impl CascadeComputedValueResultV0 {
             self.invalid_at_computed_value_time = true;
             if self.value == CascadeValue::Indeterminate {
                 self.value = CascadeValue::GuaranteedInvalid;
-                self.indeterminate_reason = None;
+                self.fallback_indeterminate_reason = self.indeterminate_reason.take();
             }
         }
         self

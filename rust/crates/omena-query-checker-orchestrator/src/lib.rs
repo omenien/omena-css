@@ -4,7 +4,7 @@
 //! narrower checker handoff: it invokes `omena-checker`, verifies that emitted
 //! rule codes are registered, and returns a gate summary alongside evaluations.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
@@ -15,7 +15,7 @@ use omena_abstract_value::{
     external_string_type_facts_from_abstract_class_value,
 };
 pub use omena_checker::{
-    CanonicalSelector, CategoricalCascadeEvidenceV0,
+    CanonicalSelector, CascadeStandardValueVerdictV0, CategoricalCascadeEvidenceV0,
     OmenaCheckerActiveCustomPropertyRegistrationV0, OmenaCheckerCascadeDeclarationInputV0,
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCategoricalEvaluationV0, OmenaCheckerCategoricalInputV0,
@@ -37,12 +37,14 @@ pub use omena_checker::{
 use omena_checker::{
     OmenaCheckerDynamicClassDomainInputV0, active_omena_checker_smt_backend_kind_name_v0,
     active_omena_checker_smt_product_scope_v0, active_omena_checker_smt_solver_backed_v0,
-    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_categorical_rules,
-    evaluate_omena_checker_m_tier_rules, evaluate_omena_checker_replica_ensemble_rules,
-    evaluate_omena_checker_rg_flow_rules, evaluate_omena_checker_smt_layer_inversion_rules,
-    evaluate_omena_checker_smt_rules, list_omena_checker_m_tier_rule_code_names,
-    list_omena_checker_rule_code_names,
+    evaluate_omena_checker_cascade_rules,
+    evaluate_omena_checker_cascade_rules_with_standard_property_value_verdicts,
+    evaluate_omena_checker_categorical_rules, evaluate_omena_checker_m_tier_rules,
+    evaluate_omena_checker_replica_ensemble_rules, evaluate_omena_checker_rg_flow_rules,
+    evaluate_omena_checker_smt_layer_inversion_rules, evaluate_omena_checker_smt_rules,
+    list_omena_checker_m_tier_rule_code_names, list_omena_checker_rule_code_names,
 };
+pub use omena_checker::{standard_property_value_verdict_v0, standard_property_value_verdicts_v0};
 pub use omena_product_hints::{
     CATEGORICAL_FEATURE_GATE_V0, CATEGORICAL_LAYER_MARKER_V0, CATEGORICAL_SCHEMA_VERSION_V0,
     DesignSystemEdgeKindCountV0, DesignSystemInvariantSummaryV0, DesignSystemModelV0,
@@ -168,11 +170,28 @@ pub fn query_product_diagnostic_checker_rule_code_name_v0(
 pub fn run_omena_query_checker_cascade_gate_v0(
     input: OmenaCheckerCascadeInputV0,
 ) -> OmenaQueryCheckerCascadeGateV0 {
+    finish_omena_query_checker_cascade_gate(evaluate_omena_checker_cascade_rules(input))
+}
+
+pub fn run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0(
+    input: OmenaCheckerCascadeInputV0,
+    standard_property_value_verdicts: &BTreeMap<String, CascadeStandardValueVerdictV0>,
+) -> OmenaQueryCheckerCascadeGateV0 {
+    finish_omena_query_checker_cascade_gate(
+        evaluate_omena_checker_cascade_rules_with_standard_property_value_verdicts(
+            input,
+            standard_property_value_verdicts,
+        ),
+    )
+}
+
+fn finish_omena_query_checker_cascade_gate(
+    evaluations: Vec<OmenaCheckerCascadeEvaluationV0>,
+) -> OmenaQueryCheckerCascadeGateV0 {
     let registered_rules = list_omena_checker_rule_code_names()
         .into_iter()
         .collect::<BTreeSet<_>>();
     let enabled_rule_names = cascade_gate_enabled_rule_names_v0();
-    let evaluations = evaluate_omena_checker_cascade_rules(input);
     let emitted_rule_names = evaluations
         .iter()
         .map(|evaluation| evaluation.rule_code_name)

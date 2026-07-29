@@ -578,6 +578,7 @@ fn computes_values_through_var_substitution() {
         custom_property_env: env,
         parent_computed_value: Some(CascadeValue::Literal("blue".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     assert_eq!(result.product, "omena-cascade.computed-value");
@@ -598,6 +599,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("purple".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(inherited.status, ComputedCascadeValueStatusV0::Inherited);
     assert_eq!(inherited.value, CascadeValue::Literal("purple".to_string()));
@@ -609,6 +611,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("0.5".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(initial.status, ComputedCascadeValueStatusV0::Initial);
     assert_eq!(initial.value, CascadeValue::Literal("1".to_string()));
@@ -625,6 +628,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("green".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(
         unset_inherited.status,
@@ -646,6 +650,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("0.5".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(unset_initial.status, ComputedCascadeValueStatusV0::Initial);
     assert_eq!(unset_initial.value, CascadeValue::Literal("1".to_string()));
@@ -723,6 +728,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
         registered_custom_property: Some(registration(false, BTreeMap::new())),
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(initial.status, ComputedCascadeValueStatusV0::Initial);
     assert_eq!(initial.value, CascadeValue::Literal("8px".to_string()));
@@ -734,6 +740,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
         registered_custom_property: Some(registration(true, BTreeMap::new())),
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(inherited.status, ComputedCascadeValueStatusV0::Inherited);
     assert_eq!(inherited.value, CascadeValue::Literal("16px".to_string()));
@@ -756,6 +763,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
                 CascadeRegisteredValueVerdictV0::Unmatched,
             )]),
         )),
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(
         invalid.status,
@@ -783,9 +791,178 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
                 CascadeRegisteredValueVerdictV0::Matched,
             )]),
         )),
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(valid.status, ComputedCascadeValueStatusV0::Resolved);
     assert_eq!(valid.value, CascadeValue::Literal("12px".to_string()));
+}
+
+#[test]
+fn standard_property_syntax_unmatched_uses_iacvt_fallback() {
+    let declaration_id = "invalid-color";
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            declaration_id,
+            "color",
+            CascadeValue::Literal("definitely-not-a-color".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            declaration_id.to_string(),
+            CascadeStandardValueVerdictV0::Unmatched,
+        )]),
+    });
+
+    // The grammar-owning caller emits Unmatched for this definite invalid
+    // literal. Removing or relabeling that verdict observes Resolved instead.
+    assert_eq!(
+        result.status,
+        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+    );
+    assert!(result.invalid_at_computed_value_time);
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"standardPropertySyntaxUnmatched")
+    );
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"invalidAtComputedValueTimeFallsBackAsUnset")
+    );
+}
+
+#[test]
+fn standard_property_syntax_unknown_is_typed_indeterminate() {
+    let declaration_id = "unknown-color";
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            declaration_id,
+            "color",
+            CascadeValue::Literal("future-color-function(1)".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            declaration_id.to_string(),
+            CascadeStandardValueVerdictV0::Unknown,
+        )]),
+    });
+
+    // NotValidatable is a live caller output for unsupported grammar forms.
+    // Mapping it to Matched makes both the status and typed reason differ.
+    assert_eq!(result.status, ComputedCascadeValueStatusV0::Indeterminate);
+    assert_eq!(
+        result.indeterminate_reason,
+        Some(ComputedCascadeIndeterminateReasonV0::StandardPropertySyntaxIndeterminate)
+    );
+}
+
+#[test]
+fn standard_property_syntax_unknown_defers_across_var_substitution() {
+    let declaration_id = "variable-color";
+    let mut custom_property_env = CustomPropertyEnv::new();
+    custom_property_env.insert(
+        "--tone".to_string(),
+        CascadeValue::Literal("red".to_string()),
+    );
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            declaration_id,
+            "color",
+            CascadeValue::Var {
+                name: "--tone".to_string(),
+                fallback: None,
+            },
+            1,
+        )],
+        custom_property_env,
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            declaration_id.to_string(),
+            CascadeStandardValueVerdictV0::Unknown,
+        )]),
+    });
+
+    assert_eq!(result.status, ComputedCascadeValueStatusV0::Resolved);
+    assert_eq!(result.value, CascadeValue::Literal("red".to_string()));
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"standardPropertySyntaxDeferredByVarReference")
+    );
+}
+
+#[test]
+fn missing_standard_property_verdict_is_explicitly_unavailable() {
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            "unchecked-color",
+            "color",
+            CascadeValue::Literal("!!! not-a-color 42px };drop".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
+    });
+
+    // Callers can omit a declaration id. The result may proceed for backward
+    // compatibility, but it must not claim that a grammar match was observed.
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"standardPropertySyntaxVerdictUnavailable")
+    );
+    assert!(
+        !result
+            .derivation_steps
+            .contains(&"standardPropertySyntaxMatched")
+    );
+}
+
+#[test]
+fn iacvt_fallback_preserves_its_indeterminate_reason_separately() {
+    let declaration_id = "invalid-future-property";
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "future-property".to_string(),
+        declarations: vec![property_declaration(
+            declaration_id,
+            "future-property",
+            CascadeValue::Literal("invalid".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            declaration_id.to_string(),
+            CascadeStandardValueVerdictV0::Unmatched,
+        )]),
+    });
+
+    // Unknown inheritance metadata is a live fallback state. Clearing the
+    // sibling reason at the IACVT choke point makes this assertion observe None.
+    assert_eq!(
+        result.status,
+        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+    );
+    assert_eq!(result.indeterminate_reason, None);
+    assert_eq!(
+        result.fallback_indeterminate_reason,
+        Some(ComputedCascadeIndeterminateReasonV0::PropertyInheritanceMetadataUnavailable)
+    );
 }
 
 #[test]
@@ -796,6 +973,7 @@ fn unregistered_custom_property_keeps_the_inherited_computed_value_contract() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     assert_eq!(result.status, ComputedCascadeValueStatusV0::Inherited);
@@ -841,6 +1019,7 @@ fn unknown_property_metadata_is_typed_as_indeterminate() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(result.status, ComputedCascadeValueStatusV0::Indeterminate);
     assert_eq!(result.value, CascadeValue::Indeterminate);
@@ -873,6 +1052,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     let unknown_initial_value = compute_cascade_computed_value(CascadeComputedValueInputV0 {
@@ -881,6 +1061,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     let unknown_declaration = property_declaration(
@@ -903,6 +1084,24 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
                 CascadeRegisteredValueVerdictV0::Unknown,
             )]),
         }),
+        standard_property_value_verdicts: BTreeMap::new(),
+    });
+
+    let unknown_standard_syntax = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            "unknown-color",
+            "color",
+            CascadeValue::Literal("future-color-function(1)".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            "unknown-color".to_string(),
+            CascadeStandardValueVerdictV0::Unknown,
+        )]),
     });
 
     let inherited_from_indeterminate =
@@ -912,6 +1111,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
             custom_property_env: CustomPropertyEnv::new(),
             parent_computed_value: Some(CascadeValue::Indeterminate),
             registered_custom_property: None,
+            standard_property_value_verdicts: BTreeMap::new(),
         });
 
     let fixtures = [
@@ -919,6 +1119,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
         unknown_inheritance,
         unknown_initial_value,
         unknown_registered_syntax,
+        unknown_standard_syntax,
         inherited_from_indeterminate,
     ];
     for fixture in &fixtures {
@@ -964,6 +1165,7 @@ fn genuine_substitution_failure_survives_unknown_metadata_fallbacks() {
             custom_property_env: env,
             parent_computed_value: None,
             registered_custom_property: None,
+            standard_property_value_verdicts: BTreeMap::new(),
         });
 
         assert_eq!(
@@ -1009,6 +1211,7 @@ fn treats_guaranteed_invalid_var_substitution_as_iacvt_unset() {
         custom_property_env: env,
         parent_computed_value: Some(CascadeValue::Literal("canvas".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     assert_eq!(
@@ -1992,6 +2195,7 @@ fn inexact_specificity_reaches_computed_value_as_indeterminate() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     assert_eq!(result.status, ComputedCascadeValueStatusV0::Indeterminate);
