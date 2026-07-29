@@ -2,7 +2,7 @@
 
 omena-css is a CSS-family semantic engine with CLI, LSP, SDK, build, and editor surfaces.
 
-[Browse the documentation](https://omenien.github.io/omena-css/) for guided
+[Browse the documentation](https://omena.dev/) for guided
 setup, generated reference, release notes, and an in-browser WASM playground.
 
 ## Install
