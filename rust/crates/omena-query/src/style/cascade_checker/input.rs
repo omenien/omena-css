@@ -189,7 +189,7 @@ fn collect_query_checker_cascade_blocks(
         let prelude = source[prelude_start..open_index].trim();
         let body_start = open_index + 1;
 
-        if query_layer_name_from_prelude(prelude).is_some() || prelude.trim_start() == "@layer" {
+        if query_layer_name_from_prelude(prelude).is_some() {
             collect_query_checker_cascade_blocks(
                 source,
                 body_start,
@@ -651,5 +651,16 @@ mod layer_binding_tests {
                 .iter()
                 .all(|declaration| declaration.input.layer_name.as_deref() != Some("fakeString"))
         );
+    }
+
+    #[test]
+    fn mixed_case_anonymous_layer_is_not_a_condition_context() {
+        let declarations = collect_query_checker_cascade_declarations_with_dialect(
+            "@LaYeR { .target { color: red; } }",
+            StyleDialect::Css,
+        );
+
+        assert_eq!(declarations.len(), 1);
+        assert!(declarations[0].input.condition_context.is_empty());
     }
 }
