@@ -794,6 +794,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             cascade_runtime::attach_omena_query_runtime_state_inline_overrides_with_shared(
                 target_style_path,
                 &mut summary,
+                style_sources,
                 overrides_by_style,
             )
         }

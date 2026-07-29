@@ -800,11 +800,9 @@ export function App() {
         runtime_state
             .driver_summaries
             .iter()
-            .any(
-                |driver| driver.driver == "inlineStyleHighestSpecificityTier"
-                    && driver.status == "sourceFactsJoined"
-                    && driver.scenario_count == 1
-            )
+            .any(|driver| driver.driver == "inlineStyleCascadeJoin"
+                && driver.status == "sourceFactsJoined"
+                && driver.scenario_count == 1)
     );
     assert!(runtime_state.scenarios.iter().any(|scenario| {
         scenario.pseudo_state.as_deref() == Some("hover")
@@ -829,7 +827,10 @@ export function App() {
     );
     assert!(runtime_state.scenarios.iter().any(|scenario| {
         scenario.scenario_kind == "inlineStyleOverride"
-            && scenario.winner_declaration_id.as_deref() == Some("inline-style-author-tier")
+            && scenario
+                .winner_declaration_id
+                .as_deref()
+                .is_some_and(|id| id.starts_with("inline-style:"))
             && scenario.winner_value.as_deref() == Some("\"rebeccapurple\"")
     }));
     assert!(
@@ -838,6 +839,118 @@ export function App() {
             .static_value_assuming_no_runtime_override
     );
     assert!(!runtime_state.static_boundary.tracks_class_list_mutation);
+    Ok(())
+}
+
+#[test]
+fn workspace_inline_override_joins_the_author_cascade_before_selecting_a_winner()
+-> Result<(), &'static str> {
+    let target_style_path = "file:///workspace/src/App.module.css";
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: target_style_path.to_string(),
+        style_source: ".btn { color: black; color: red !important; }".to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "file:///workspace/src/App.tsx".to_string(),
+        source_source: r#"import styles from "./App.module.css";
+export function App() {
+  return <button className={styles.btn} style={{ color: "blue" }} />;
+}"#
+        .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_style_path,
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .ok_or("runtime state scenario evidence")?;
+    let inline_scenario = runtime_state
+        .scenarios
+        .iter()
+        .find(|scenario| scenario.scenario_kind == "inlineStyleOverride")
+        .ok_or("joined inline scenario")?;
+
+    assert_eq!(runtime_state.result_certainty(), "conditionalDefinite");
+    assert_eq!(inline_scenario.winner_value.as_deref(), Some("red"));
+    assert!(
+        inline_scenario
+            .declaration_ids
+            .iter()
+            .any(|id| id.starts_with("inline-style:"))
+    );
+    assert!(
+        inline_scenario
+            .declaration_ids
+            .iter()
+            .any(|id| id.starts_with("decl-"))
+    );
+    Ok(())
+}
+
+#[test]
+fn workspace_inline_important_suffix_fact_reaches_the_shared_cascade_ranker()
+-> Result<(), &'static str> {
+    let target_style_path = "file:///workspace/src/App.module.css";
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: target_style_path.to_string(),
+        style_source: ".btn { color: black; color: red; }".to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "file:///workspace/src/App.tsx".to_string(),
+        source_source: r#"import styles from "./App.module.css";
+export function App() {
+  return <button className={styles.btn} style={{ color: "blue !important" }} />;
+}"#
+        .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_style_path,
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .ok_or("runtime state scenario evidence")?;
+    let inline_scenario = runtime_state
+        .scenarios
+        .iter()
+        .find(|scenario| scenario.scenario_kind == "inlineStyleOverride")
+        .ok_or("joined inline scenario")?;
+
+    assert_eq!(
+        inline_scenario.winner_value.as_deref(),
+        Some("\"blue !important\"")
+    );
+    assert!(
+        inline_scenario
+            .winner_declaration_id
+            .as_deref()
+            .is_some_and(|id| id.starts_with("inline-style:"))
+    );
+    assert_eq!(runtime_state.inline_style_overrides.len(), 1);
+    assert!(runtime_state.inline_style_overrides[0].important_suffix_present());
     Ok(())
 }
 

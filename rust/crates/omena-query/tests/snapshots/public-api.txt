@@ -1284,6 +1284,8 @@ pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::range: omena_parser::sp
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::source_path: alloc::string::String
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::static_value: bool
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::value: core::option::Option<alloc::string::String>
+impl omena_query::OmenaQueryInlineStyleRuntimeOverrideV0
+pub fn omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::important_suffix_present(&self) -> bool
 pub struct omena_query::OmenaQueryInsightV0
 pub omena_query::OmenaQueryInsightV0::cascade_insight: core::option::Option<omena_query::OmenaQueryCascadeInsightV0>
 pub omena_query::OmenaQueryInsightV0::confidence: &'static str

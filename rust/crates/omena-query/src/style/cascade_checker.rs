@@ -20,6 +20,7 @@ use diagnostic_render::{
 };
 #[cfg(test)]
 pub(crate) use input::cascade_declarations_collect_probe;
+pub(in crate::style) use input::collect_query_checker_cascade_declarations_with_dialect;
 use input::collect_query_checker_cascade_input;
 pub(super) use input::{
     QueryCheckerCascadeDeclaration, collect_query_checker_cascade_declarations,
@@ -30,6 +31,7 @@ pub(super) use runtime_state::query_runtime_cascade_declaration_from_input;
 #[cfg(test)]
 use runtime_state::query_runtime_selector_matches_anchor_classes;
 pub(super) use runtime_state::query_runtime_state_confidence_tier;
+pub(in crate::style) use runtime_state::query_runtime_state_scenario_with_inline_override;
 pub(super) use smt::query_smt_box_shorthand_longhand_quartets;
 use smt::summarize_query_smt_cascade_obligation_diagnostics;
 #[cfg(test)]

@@ -677,6 +677,29 @@ export function View() {
 }
 
 #[test]
+fn records_inline_important_as_a_source_text_observation() {
+    let source = r#"import styles from "./App.module.scss";
+export function View() {
+  return <div className={styles.root} style={{ color: "red !IMPORTANT", opacity: 0.5 }} />;
+}"#;
+    let index = summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }],
+        Vec::new(),
+    );
+
+    assert_eq!(index.inline_style_declarations.len(), 2);
+    assert!(
+        index.inline_style_declarations[0].important_suffix_present(),
+        "the unquoted StringLiteral value carries the source-text suffix"
+    );
+    assert!(!index.inline_style_declarations[1].important_suffix_present());
+}
+
+#[test]
 fn walks_anonymous_arrow_default_export_body_for_style_property_accesses() {
     // Regression for RFC-0007 #53: `collect_export_default_declaration` dropped every
     // expression-kind default export except member/call, so `export default () => <JSX/>` was

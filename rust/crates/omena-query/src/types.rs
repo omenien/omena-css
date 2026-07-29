@@ -1916,6 +1916,15 @@ pub struct OmenaQueryInlineStyleRuntimeOverrideV0 {
     pub static_value: bool,
 }
 
+impl OmenaQueryInlineStyleRuntimeOverrideV0 {
+    /// Whether the originating static source text ended with `!important`.
+    ///
+    /// The flag describes source syntax, not browser setter behavior.
+    pub fn important_suffix_present(&self) -> bool {
+        self.cascade_tier == SOURCE_INLINE_STYLE_IMPORTANT_SUFFIX_TIER_V0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleDiagnosticV0 {

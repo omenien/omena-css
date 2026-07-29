@@ -63,6 +63,7 @@ pub use source_language::{
     summarize_omena_bridge_source_language_parser_boundary_v0,
 };
 pub use source_syntax::{
+    SOURCE_INLINE_STYLE_IMPORTANT_SUFFIX_TIER_V0, SOURCE_INLINE_STYLE_TIER_V0,
     SourceBindingDeclFactV0, SourceBindingIndexV0, SourceBindingScopeFactV0,
     SourceBindingStyleImportFactV0, SourceClassExpressionNodeFactV0,
     SourceClassUtilityBindingFactV0, SourceClassValuePatternMatcherV0, SourceClassValuePatternV0,

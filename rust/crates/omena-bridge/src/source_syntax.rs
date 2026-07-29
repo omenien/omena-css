@@ -30,6 +30,9 @@ use crate::style_intelligence::{
     BuiltInRecipeProviderConfigV0 as VariantRecipeConfigV0, built_in_recipe_provider_configs,
 };
 
+pub const SOURCE_INLINE_STYLE_TIER_V0: &str = "authorInlineStyle";
+pub const SOURCE_INLINE_STYLE_IMPORTANT_SUFFIX_TIER_V0: &str = "authorInlineStyleImportantSuffix";
+
 const SOURCE_TYPE_FACT_TARGET_SKIPPED_UNSUPPORTED_EXPRESSION_SHAPE: &str =
     "unsupportedExpressionShape";
 
@@ -263,6 +266,16 @@ pub struct SourceInlineStyleDeclarationFactV0 {
     pub target_style_uri: Option<String>,
     pub cascade_tier: &'static str,
     pub static_value: bool,
+}
+
+impl SourceInlineStyleDeclarationFactV0 {
+    /// Whether the static source text ended with a CSS `!important` suffix.
+    ///
+    /// This records source syntax only. It does not claim that a JSX style
+    /// setter applies the suffix at runtime.
+    pub fn important_suffix_present(&self) -> bool {
+        self.cascade_tier == SOURCE_INLINE_STYLE_IMPORTANT_SUFFIX_TIER_V0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -3384,6 +3397,8 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 continue;
             };
             let value_byte_span = Some(parser_byte_span(property.value.span()));
+            let important_suffix_present =
+                self.inline_style_important_suffix_present(&property.value);
             self.inline_style_declarations
                 .push(SourceInlineStyleDeclarationFactV0 {
                     byte_span,
@@ -3391,7 +3406,11 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                     property_name,
                     value: self.inline_style_static_value(&property.value),
                     target_style_uri: target_style_uri.clone(),
-                    cascade_tier: "authorInlineStyle",
+                    cascade_tier: if important_suffix_present {
+                        SOURCE_INLINE_STYLE_IMPORTANT_SUFFIX_TIER_V0
+                    } else {
+                        SOURCE_INLINE_STYLE_TIER_V0
+                    },
                     static_value: self.inline_style_value_is_static(&property.value),
                 });
         }
@@ -3544,6 +3563,38 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
             }
             Expression::TSTypeAssertion(expression) => {
                 self.inline_style_value_is_static(&expression.expression)
+            }
+            _ => false,
+        }
+    }
+
+    fn inline_style_important_suffix_present(&self, expression: &Expression<'a>) -> bool {
+        match expression {
+            Expression::StringLiteral(literal) => literal
+                .value
+                .trim_end()
+                .get(
+                    literal
+                        .value
+                        .trim_end()
+                        .len()
+                        .saturating_sub("!important".len())..,
+                )
+                .is_some_and(|suffix| suffix.eq_ignore_ascii_case("!important")),
+            Expression::ParenthesizedExpression(expression) => {
+                self.inline_style_important_suffix_present(&expression.expression)
+            }
+            Expression::TSAsExpression(expression) => {
+                self.inline_style_important_suffix_present(&expression.expression)
+            }
+            Expression::TSSatisfiesExpression(expression) => {
+                self.inline_style_important_suffix_present(&expression.expression)
+            }
+            Expression::TSNonNullExpression(expression) => {
+                self.inline_style_important_suffix_present(&expression.expression)
+            }
+            Expression::TSTypeAssertion(expression) => {
+                self.inline_style_important_suffix_present(&expression.expression)
             }
             _ => false,
         }
