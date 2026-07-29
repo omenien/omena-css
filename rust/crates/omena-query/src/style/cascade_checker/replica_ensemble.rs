@@ -82,8 +82,8 @@ fn query_cascade_declaration_from_input(
 ) -> CascadeDeclaration {
     let level = cascade_level_for_origin(input.origin, input.important);
     let layer_rank = normalized_layer_rank(
-        false,
-        LayerOrdinal::new(input.layer_order.unwrap_or_default()),
+        input.important,
+        input.layer_order.and_then(LayerOrdinal::new),
     );
     let (specificity, specificity_exactness) =
         parse_simple_selector_signature(input.selector.as_str()).map_or(

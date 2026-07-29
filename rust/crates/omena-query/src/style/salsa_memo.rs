@@ -2797,7 +2797,7 @@ fn memo_source_element_static_declarations(
     property: String,
 ) -> SourceElementDeclarationProjectionV0 {
     use omena_cascade::{
-        CascadeDeclaration, CascadeKey, CascadeLevel, LayerOrdinal, ModuleRank, Specificity,
+        CascadeDeclaration, CascadeKey, CascadeLevel, ModuleRank, Specificity,
         normalized_layer_rank,
     };
     use omena_query_transform_runner::parse_static_css_cascade_value;
@@ -2873,7 +2873,7 @@ fn memo_source_element_static_declarations(
             value,
             key: CascadeKey::new(
                 CascadeLevel::InlineNormal,
-                normalized_layer_rank(false, LayerOrdinal::new(0)),
+                normalized_layer_rank(false, None),
                 0,
                 Specificity::ZERO,
                 ModuleRank::ZERO,

@@ -227,6 +227,130 @@ fn nested_layer_paths_do_not_collapse_into_a_source_order_tie() {
 }
 
 #[test]
+fn important_layer_order_is_reversed_on_both_cascade_planes() {
+    for source in [
+        r#"
+@layer base, overrides;
+@layer base { .target { color: red !important; } }
+@layer overrides { .target { color: blue !important; } }
+"#,
+        r#"
+@layer base { .target { color: red !important; } }
+@layer overrides { .target { color: blue !important; } }
+"#,
+    ] {
+        let outcomes = crate::summarize_omena_query_cascade_site_outcomes_from_source(source);
+        assert_eq!(outcomes.len(), 1);
+
+        let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+            "file:///tmp/important-layers.css",
+            source,
+            &[],
+        );
+        let diagnostic = diagnostics
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+            .expect("important layered declarations should expose the losing layer");
+        let runtime_state = diagnostic
+            .cascade_narrowing
+            .as_ref()
+            .and_then(|narrowing| narrowing.runtime_state.as_ref())
+            .expect("important layered diagnostic should carry runtime state");
+        let runtime_winner = runtime_state.scenarios[0]
+            .winner_value
+            .as_deref()
+            .expect("important layered runtime state should select a winner");
+        assert_eq!(
+            outcomes[0].winning_value, runtime_winner,
+            "replica and runtime cascade planes must agree"
+        );
+        assert_eq!(outcomes[0].winning_value, "red");
+        assert_eq!(
+            diagnostic
+                .cascade_confidence
+                .as_ref()
+                .map(|confidence| confidence.dominant_axis),
+            Some("layerRank")
+        );
+    }
+}
+
+#[test]
+fn unlayered_normal_declaration_outranks_layered_normal_declaration() {
+    let source = r#"
+.target { color: blue; }
+@layer base { .target { color: red; } }
+"#;
+    let outcomes = crate::summarize_omena_query_cascade_site_outcomes_from_source(source);
+    assert_eq!(outcomes.len(), 1);
+    assert_eq!(outcomes[0].winning_value, "blue");
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/unlayered-normal.css",
+        source,
+        &[],
+    );
+    let diagnostic = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .expect("layered declaration should be reported as the losing layer");
+    let runtime_state = diagnostic
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("layered diagnostic should carry runtime state");
+    assert_eq!(
+        runtime_state.scenarios[0].winner_value.as_deref(),
+        Some("blue")
+    );
+    assert_eq!(
+        diagnostic
+            .cascade_confidence
+            .as_ref()
+            .map(|confidence| confidence.dominant_axis),
+        Some("layerRank")
+    );
+}
+
+#[test]
+fn incomplete_layer_topology_is_typed_and_never_static_definite() {
+    let source = r#"
+@layer stable { .target { color: red; } }
+@layer { .target { color: blue; } }
+"#;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/incomplete-layers.css",
+        source,
+        &[],
+    );
+
+    assert!(diagnostics.diagnostics.iter().all(|diagnostic| !matches!(
+        diagnostic.code,
+        "deadCascadeLayer" | "unspecifiedCascadeTie"
+    )));
+    let diagnostic = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .expect("conservative unlayered evaluation should retain actionable diagnostics");
+    let runtime_state = diagnostic
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("incomplete topology should be disclosed with the runtime result");
+    assert_eq!(runtime_state.confidence_tier, "staticDefinite");
+    assert_eq!(runtime_state.result_certainty(), "staticIndeterminate");
+    assert_eq!(
+        runtime_state
+            .cascade_layer_topology_incomplete()
+            .map(|reason| reason.unresolved_count),
+        Some(1)
+    );
+}
+
+#[test]
 fn workspace_style_diagnostics_include_sass_module_identity_conflicts() {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {

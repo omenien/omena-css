@@ -30,9 +30,11 @@ pub(super) fn collect_query_checker_cascade_input(
     OmenaCheckerCascadeInputV0,
     BTreeMap<String, ParserRangeV0>,
     BTreeMap<String, ParserRangeV0>,
+    Option<usize>,
 ) {
     let dialect = omena_parser_dialect_for_style_path(style_uri);
-    let declarations = collect_query_checker_cascade_declarations_with_dialect(source, dialect);
+    let collection = collect_query_checker_cascade_declaration_collection(source, dialect);
+    let declarations = collection.declarations;
     let custom_property_registrations =
         collect_query_checker_custom_property_registrations(style_uri, source);
     let declaration_ranges = declarations
@@ -101,6 +103,7 @@ pub(super) fn collect_query_checker_cascade_input(
         },
         declaration_ranges,
         custom_property_ranges,
+        collection.topology_incomplete_unresolved_count,
     )
 }
 
@@ -115,6 +118,12 @@ struct QueryCheckerCascadeScope {
     condition_context: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct QueryCheckerCascadeDeclarationCollection {
+    declarations: Vec<QueryCheckerCascadeDeclaration>,
+    topology_incomplete_unresolved_count: Option<usize>,
+}
+
 pub(in crate::style) fn collect_query_checker_cascade_declarations(
     source: &str,
 ) -> Vec<QueryCheckerCascadeDeclaration> {
@@ -125,6 +134,13 @@ pub(in crate::style) fn collect_query_checker_cascade_declarations_with_dialect(
     source: &str,
     dialect: StyleDialect,
 ) -> Vec<QueryCheckerCascadeDeclaration> {
+    collect_query_checker_cascade_declaration_collection(source, dialect).declarations
+}
+
+fn collect_query_checker_cascade_declaration_collection(
+    source: &str,
+    dialect: StyleDialect,
+) -> QueryCheckerCascadeDeclarationCollection {
     #[cfg(test)]
     cascade_declarations_collect_probe::record();
     let layer_index = summarize_style_layer_order_from_source(source, dialect);
@@ -140,7 +156,12 @@ pub(in crate::style) fn collect_query_checker_cascade_declarations_with_dialect(
     for declaration in &mut declarations {
         apply_query_checker_layer_binding(&layer_index, declaration);
     }
-    declarations
+    QueryCheckerCascadeDeclarationCollection {
+        declarations,
+        topology_incomplete_unresolved_count: (!layer_index.topology_complete
+            && !layer_index.block_bindings.is_empty())
+        .then_some(layer_index.unresolved_topology_count),
+    }
 }
 
 fn collect_query_checker_cascade_blocks(

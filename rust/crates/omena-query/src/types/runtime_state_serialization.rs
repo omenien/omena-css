@@ -1,8 +1,12 @@
 use serde::{Serialize, ser::SerializeStruct};
 
-use super::{OmenaQueryRuntimeStateScenarioEvidenceV0, OmenaQueryRuntimeStateScenarioV0};
+use super::{
+    OmenaQueryCascadeLayerTopologyIncompleteV0, OmenaQueryRuntimeStateScenarioEvidenceV0,
+    OmenaQueryRuntimeStateScenarioV0,
+};
 
 const UNKNOWN_ACTIVATION_ID_PREFIX: &str = "\0omena-query:unknown-activation:";
+const CASCADE_LAYER_TOPOLOGY_DRIVER: &str = "cascadeLayerTopologyCompleteness";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ResultCertainty {
@@ -40,12 +44,15 @@ fn serialized_declaration_ids(scenario: &OmenaQueryRuntimeStateScenarioV0) -> Ve
 pub(crate) fn runtime_state_result_certainty_labels(
     scenarios: &[OmenaQueryRuntimeStateScenarioV0],
     confidence_tier: &str,
+    cascade_layer_topology_incomplete: bool,
 ) -> (&'static str, &'static str) {
     // The legacy confidence tier remains the 0.x environment-coverage field.
     // Re-keying or deprecating it is a major-version API decision; result
     // certainty is serialized as a separate axis for compatible consumers.
     let conditional_environment = confidence_tier == "conditionalDefinite";
-    let certainty = if scenarios
+    let certainty = if cascade_layer_topology_incomplete {
+        ResultCertainty::Indeterminate
+    } else if scenarios
         .iter()
         .any(|scenario| !scenario.unknown_activation_declaration_ids().is_empty())
     {
@@ -87,12 +94,36 @@ pub(crate) fn runtime_state_result_certainty_labels(
 }
 
 impl OmenaQueryRuntimeStateScenarioEvidenceV0 {
+    /// Returns the typed layer-topology disclosure projected into this result.
+    pub fn cascade_layer_topology_incomplete(
+        &self,
+    ) -> Option<OmenaQueryCascadeLayerTopologyIncompleteV0> {
+        self.driver_summaries
+            .iter()
+            .find(|driver| {
+                driver.driver == CASCADE_LAYER_TOPOLOGY_DRIVER && driver.status == "incomplete"
+            })
+            .map(|driver| OmenaQueryCascadeLayerTopologyIncompleteV0 {
+                unresolved_count: driver.scenario_count,
+            })
+    }
+
     pub fn result_certainty(&self) -> &'static str {
-        runtime_state_result_certainty_labels(self.scenarios.as_slice(), self.confidence_tier).0
+        runtime_state_result_certainty_labels(
+            self.scenarios.as_slice(),
+            self.confidence_tier,
+            self.cascade_layer_topology_incomplete().is_some(),
+        )
+        .0
     }
 
     pub fn result_certainty_within_modeled_environment(&self) -> &'static str {
-        runtime_state_result_certainty_labels(self.scenarios.as_slice(), self.confidence_tier).1
+        runtime_state_result_certainty_labels(
+            self.scenarios.as_slice(),
+            self.confidence_tier,
+            self.cascade_layer_topology_incomplete().is_some(),
+        )
+        .1
     }
 }
 
@@ -101,9 +132,11 @@ impl Serialize for OmenaQueryRuntimeStateScenarioEvidenceV0 {
     where
         S: serde::Serializer,
     {
+        let cascade_layer_topology_incomplete = self.cascade_layer_topology_incomplete();
         let field_count = 13
             + usize::from(!self.static_condition_pruning.is_empty())
-            + usize::from(!self.inline_style_overrides.is_empty());
+            + usize::from(!self.inline_style_overrides.is_empty())
+            + usize::from(cascade_layer_topology_incomplete.is_some());
         let mut state =
             serializer.serialize_struct("OmenaQueryRuntimeStateScenarioEvidenceV0", field_count)?;
         state.serialize_field("schemaVersion", self.schema_version)?;
@@ -130,6 +163,9 @@ impl Serialize for OmenaQueryRuntimeStateScenarioEvidenceV0 {
         }
         if !self.inline_style_overrides.is_empty() {
             state.serialize_field("inlineStyleOverrides", &self.inline_style_overrides)?;
+        }
+        if let Some(topology_incomplete) = &cascade_layer_topology_incomplete {
+            state.serialize_field("cascadeLayerTopologyIncomplete", topology_incomplete)?;
         }
         state.end()
     }

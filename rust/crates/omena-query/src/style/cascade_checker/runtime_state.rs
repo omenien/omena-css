@@ -37,6 +37,7 @@ enum ScenarioActivation {
 pub(super) fn summarize_query_runtime_state_for_evaluation(
     evaluation: &OmenaCheckerCascadeEvaluationV0,
     declarations: &[OmenaCheckerCascadeDeclarationInputV0],
+    topology_incomplete_unresolved_count: Option<usize>,
 ) -> Option<OmenaQueryRuntimeStateScenarioEvidenceV0> {
     let anchor_id = evaluation.declaration_ids.first()?;
     let anchor = declarations
@@ -101,6 +102,63 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
             &[],
             static_boundary.boundary_kind,
         );
+    let mut driver_summaries = vec![
+        OmenaQueryRuntimeStateDriverSummaryV0 {
+            driver: "pseudoStateScenarioSweep",
+            status: if pseudo_scenario_count == 0 {
+                "noRuntimePseudoStates"
+            } else {
+                "fixtureWitnessed"
+            },
+            scenario_count: pseudo_scenario_count,
+            provenance: omena_query_evidence_graph_provenance![
+                "omena-cascade.selector-signature",
+                "omena-query.runtime-state-driver",
+            ],
+        },
+        OmenaQueryRuntimeStateDriverSummaryV0 {
+            driver: "inlineStyleHighestSpecificityTier",
+            status: "awaitingSourceFacts",
+            scenario_count: 0,
+            provenance: omena_query_evidence_graph_provenance![
+                "omena-bridge.source-syntax-index",
+                "omena-query.runtime-state-driver",
+            ],
+        },
+        OmenaQueryRuntimeStateDriverSummaryV0 {
+            driver: "mediaEnvironmentScenarioSweep",
+            status: if media_scenario_count == 0 {
+                "noConditionalEnvironment"
+            } else {
+                "fixtureWitnessed"
+            },
+            scenario_count: media_scenario_count,
+            provenance: omena_query_evidence_graph_provenance![
+                "omena-query.cascade-condition-context",
+                "omena-query.runtime-state-driver",
+            ],
+        },
+        OmenaQueryRuntimeStateDriverSummaryV0 {
+            driver: "staticRuntimeOverrideBoundary",
+            status: "documentedAnalyticalBoundary",
+            scenario_count: scenarios.len(),
+            provenance: omena_query_evidence_graph_provenance![
+                "omena-query.static-runtime-boundary",
+                "omena-query.runtime-state-driver",
+            ],
+        },
+    ];
+    if let Some(unresolved_count) = topology_incomplete_unresolved_count {
+        driver_summaries.push(OmenaQueryRuntimeStateDriverSummaryV0 {
+            driver: "cascadeLayerTopologyCompleteness",
+            status: "incomplete",
+            scenario_count: unresolved_count,
+            provenance: omena_query_evidence_graph_provenance![
+                "omena-semantic.layer-order",
+                "omena-query.runtime-state-driver",
+            ],
+        });
+    }
     Some(OmenaQueryRuntimeStateScenarioEvidenceV0 {
         schema_version: "0",
         product: "omena-query.runtime-state-scenario-evidence",
@@ -111,52 +169,7 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
         confidence_tier,
         confidence_tier_within_modeled_environment,
         static_boundary,
-        driver_summaries: vec![
-            OmenaQueryRuntimeStateDriverSummaryV0 {
-                driver: "pseudoStateScenarioSweep",
-                status: if pseudo_scenario_count == 0 {
-                    "noRuntimePseudoStates"
-                } else {
-                    "fixtureWitnessed"
-                },
-                scenario_count: pseudo_scenario_count,
-                provenance: omena_query_evidence_graph_provenance![
-                    "omena-cascade.selector-signature",
-                    "omena-query.runtime-state-driver",
-                ],
-            },
-            OmenaQueryRuntimeStateDriverSummaryV0 {
-                driver: "inlineStyleHighestSpecificityTier",
-                status: "awaitingSourceFacts",
-                scenario_count: 0,
-                provenance: omena_query_evidence_graph_provenance![
-                    "omena-bridge.source-syntax-index",
-                    "omena-query.runtime-state-driver",
-                ],
-            },
-            OmenaQueryRuntimeStateDriverSummaryV0 {
-                driver: "mediaEnvironmentScenarioSweep",
-                status: if media_scenario_count == 0 {
-                    "noConditionalEnvironment"
-                } else {
-                    "fixtureWitnessed"
-                },
-                scenario_count: media_scenario_count,
-                provenance: omena_query_evidence_graph_provenance![
-                    "omena-query.cascade-condition-context",
-                    "omena-query.runtime-state-driver",
-                ],
-            },
-            OmenaQueryRuntimeStateDriverSummaryV0 {
-                driver: "staticRuntimeOverrideBoundary",
-                status: "documentedAnalyticalBoundary",
-                scenario_count: scenarios.len(),
-                provenance: omena_query_evidence_graph_provenance![
-                    "omena-query.static-runtime-boundary",
-                    "omena-query.runtime-state-driver",
-                ],
-            },
-        ],
+        driver_summaries,
         scenarios,
         static_condition_pruning,
         inline_style_overrides: Vec::new(),
@@ -496,8 +509,8 @@ pub(in crate::style) fn query_runtime_cascade_declaration_from_input(
 ) -> CascadeDeclaration {
     let level = cascade_level_for_origin(input.origin, input.important);
     let layer_rank = normalized_layer_rank(
-        false,
-        LayerOrdinal::new(input.layer_order.unwrap_or_default()),
+        input.important,
+        input.layer_order.and_then(LayerOrdinal::new),
     );
     let (specificity, specificity_exactness) =
         parse_simple_selector_signature(input.selector.as_str()).map_or(
@@ -756,26 +769,32 @@ mod tests {
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&definite_scenario),
                 static_tier,
+                false,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&indeterminate_scenario),
                 static_tier,
+                false,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&unknown_scenario),
                 static_tier,
+                false,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&definite_scenario),
                 conditional_tier,
+                false,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&indeterminate_scenario),
                 conditional_tier,
+                false,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&unknown_scenario),
                 conditional_tier,
+                false,
             ),
         ];
         assert_eq!(

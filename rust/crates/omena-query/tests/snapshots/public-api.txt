@@ -912,6 +912,8 @@ pub omena_query::OmenaQueryCascadeInsightV0::related_source_order: core::option:
 pub omena_query::OmenaQueryCascadeInsightV0::relationship: &'static str
 pub omena_query::OmenaQueryCascadeInsightV0::selector: alloc::string::String
 pub omena_query::OmenaQueryCascadeInsightV0::source_order: u32
+pub struct omena_query::OmenaQueryCascadeLayerTopologyIncompleteV0
+pub omena_query::OmenaQueryCascadeLayerTopologyIncompleteV0::unresolved_count: usize
 pub struct omena_query::OmenaQueryCascadeNarrowingEvidenceV0
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::condition_context: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
@@ -1500,6 +1502,7 @@ pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::selector_class_names:
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::static_boundary: omena_query::OmenaQueryRuntimeStateStaticBoundaryV0
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::static_condition_pruning: alloc::vec::Vec<omena_query::OmenaQueryStaticConditionPruningEvidenceV0>
 impl omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
+pub fn omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::cascade_layer_topology_incomplete(&self) -> core::option::Option<omena_query::OmenaQueryCascadeLayerTopologyIncompleteV0>
 pub fn omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::result_certainty(&self) -> &'static str
 pub fn omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::result_certainty_within_modeled_environment(&self) -> &'static str
 impl serde_core::ser::Serialize for omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0

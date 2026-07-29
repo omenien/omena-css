@@ -70,8 +70,12 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     source: &str,
     deep_analysis: bool,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let (checker_input, declaration_ranges, custom_property_ranges) =
-        collect_query_checker_cascade_input(style_uri, source);
+    let (
+        checker_input,
+        declaration_ranges,
+        custom_property_ranges,
+        topology_incomplete_unresolved_count,
+    ) = collect_query_checker_cascade_input(style_uri, source);
     let mut diagnostics = Vec::new();
 
     // Theory diagnostics are produced eagerly only when deep-analysis is on; the
@@ -123,6 +127,14 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     // Build the product cascade gate diagnostics first so the `circularVar`
     // ranges are known before the theory hints are deduplicated against them.
     for evaluation in gate.evaluations {
+        if topology_incomplete_unresolved_count.is_some()
+            && matches!(
+                evaluation.rule_code_name,
+                "dead-cascade-layer" | "unspecified-cascade-tie"
+            )
+        {
+            continue;
+        }
         if evaluation.rule_code_name == "iacvt-prone"
             && evaluation
                 .custom_property_names
@@ -159,6 +171,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
         let cascade_narrowing = summarize_query_cascade_narrowing_for_evaluation(
             &evaluation,
             checker_input.declarations.as_slice(),
+            topology_incomplete_unresolved_count,
         );
         if cascade_narrowing.is_some() {
             provenance.extend([
@@ -611,7 +624,7 @@ mod tests {
         // even though their output is deduplicated here: the rg-flow coupling and
         // categorical mapping are both populated for a cyclic stylesheet, so the
         // underlying mechanisms still execute (proving the opt-in path is live).
-        let (checker_input, _, _) =
+        let (checker_input, _, _, _) =
             collect_query_checker_cascade_input("file:///tmp/test.scss", VAR_CYCLE_SOURCE);
         let rg_flow = summarize_query_rg_flow_coupling_diagnostics(
             VAR_CYCLE_SOURCE,

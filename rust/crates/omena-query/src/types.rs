@@ -1851,6 +1851,14 @@ pub struct OmenaQueryStaticConditionPruningEvidenceV0 {
     pub anchor_context: bool,
 }
 
+/// Why a cascade result could not use a complete named-layer ordering.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCascadeLayerTopologyIncompleteV0 {
+    /// Number of unresolved layer-topology facts observed by the semantic index.
+    pub unresolved_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub schema_version: &'static str,
