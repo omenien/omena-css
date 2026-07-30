@@ -25,7 +25,7 @@ omena-sif = { path = "../omena-sif", version = "=0.3.0" }
 omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }
 oxc_allocator = "0.141.0"
 oxc_ast = "0.141.0"
-oxc_ast_visit = "0.141.0"
+oxc_ast_visit = "0.142.0"
 oxc_parser = "0.141.0"
 oxc_semantic = "0.141.0"
 oxc_span = "0.141.0"
