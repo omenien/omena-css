@@ -263,22 +263,23 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "decodeEquivalentClassNames")
         );
-        let values = [
-            response.class_map.get("card"),
-            response.class_map.get(r"c\61 rd"),
-        ]
-        .into_iter()
-        .collect::<Option<Vec<_>>>()
-        .expect("both raw export keys must remain public");
-        assert_eq!(values[0], values[1]);
-        assert_eq!(
-            values
-                .iter()
-                .flat_map(|value| value.split_ascii_whitespace())
-                .collect::<BTreeSet<_>>()
-                .len(),
-            1
+        let plain = response.class_map.get("card");
+        let escaped = response.class_map.get(r"c\61 rd");
+        assert!(
+            plain.is_some() && escaped.is_some(),
+            "both raw export keys must remain public"
         );
+        if let (Some(plain), Some(escaped)) = (plain, escaped) {
+            assert_eq!(plain, escaped);
+            assert_eq!(
+                [plain, escaped]
+                    .into_iter()
+                    .flat_map(|value| value.split_ascii_whitespace())
+                    .collect::<BTreeSet<_>>()
+                    .len(),
+                1
+            );
+        }
     }
 
     #[test]
@@ -299,16 +300,16 @@ mod tests {
         ));
 
         assert!(response.ready, "{:?}", response.diagnostics);
-        let emitted = response
-            .class_map
-            .get("x")
-            .expect("the local export must remain public");
-        assert!(
-            emitted
-                .split_ascii_whitespace()
-                .any(|name| name == "_card_0"),
-            "cross-module canonical identity did not resolve the target token: {emitted:?}"
-        );
+        let emitted = response.class_map.get("x");
+        assert!(emitted.is_some(), "the local export must remain public");
+        if let Some(emitted) = emitted {
+            assert!(
+                emitted
+                    .split_ascii_whitespace()
+                    .any(|name| name == "_card_0"),
+                "cross-module canonical identity did not resolve the target token: {emitted:?}"
+            );
+        }
     }
 
     #[test]
