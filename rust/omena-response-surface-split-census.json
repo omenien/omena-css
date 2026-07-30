@@ -10213,13 +10213,13 @@
       "crate": "omena-syntax",
       "typeName": "CanonicalClassKeySealV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 54
+      "line": 61
     },
     {
       "crate": "omena-syntax",
       "typeName": "CanonicalClassKeyV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 57
+      "line": 64
     },
     {
       "crate": "omena-syntax",
@@ -10231,13 +10231,13 @@
       "crate": "omena-syntax",
       "typeName": "ClassSelectorNameV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 72
+      "line": 79
     },
     {
       "crate": "omena-syntax",
       "typeName": "ClassSelectorPositionV0",
       "sourcePath": "rust/crates/omena-syntax/src/ident.rs",
-      "line": 66
+      "line": 73
     },
     {
       "crate": "omena-syntax",

@@ -48,6 +48,13 @@ impl ClassNameV0 {
         let decoded = self.decoded.unwrap_or(self.raw);
         CanonicalClassKeyV0(decoded, CanonicalClassKeySealV0(()))
     }
+
+    fn from_plain(raw: &str) -> Self {
+        Self {
+            raw: raw.to_owned(),
+            decoded: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -212,6 +219,75 @@ pub fn class_selector_name_end(text: &str, start: usize) -> Option<usize> {
 }
 
 pub fn class_selector_names(selector: &str) -> Vec<ClassSelectorNameV0> {
+    if let Some(names) = ascii_class_selector_names(selector) {
+        return names;
+    }
+    general_class_selector_names(selector)
+}
+
+fn ascii_class_selector_names(selector: &str) -> Option<Vec<ClassSelectorNameV0>> {
+    let bytes = selector.as_bytes();
+    let mut names = Vec::new();
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if !byte.is_ascii() || byte == b'\\' {
+            return None;
+        }
+        if let Some(active_quote) = quote {
+            if byte == active_quote {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        match byte {
+            b'"' | b'\'' => quote = Some(byte),
+            b'(' => paren_depth += 1,
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth += 1,
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b'.' if paren_depth == 0 && bracket_depth == 0 => {
+                let start = index + 1;
+                let Some(first) = bytes.get(start).copied() else {
+                    index += 1;
+                    continue;
+                };
+                if !ascii_css_name_start(first) {
+                    index += 1;
+                    continue;
+                }
+                let mut end = start + 1;
+                while end < bytes.len() && ascii_css_name_continue(bytes[end]) {
+                    end += 1;
+                }
+                names.push(ClassSelectorNameV0 {
+                    name: ClassNameV0::from_plain(&selector[start..end]),
+                    position: ClassSelectorPositionV0 { start, end },
+                });
+                index = end;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    Some(names)
+}
+
+fn ascii_css_name_start(byte: u8) -> bool {
+    matches!(byte, b'-' | b'_') || byte.is_ascii_alphabetic()
+}
+
+fn ascii_css_name_continue(byte: u8) -> bool {
+    ascii_css_name_start(byte) || byte.is_ascii_digit()
+}
+
+fn general_class_selector_names(selector: &str) -> Vec<ClassSelectorNameV0> {
     let mut names = Vec::new();
     let mut index = 0usize;
     let mut paren_depth = 0usize;
@@ -323,6 +399,32 @@ mod tests {
         assert!(escaped.same_as(&plain));
         assert_eq!(escaped.raw(), r"a\.b");
         assert_eq!(escaped.canonical_key().as_str(), "a.b");
+    }
+
+    #[test]
+    fn ascii_class_scanner_matches_the_general_authority() {
+        let selector = r#".card .title[data-x="a.b"]:is(.nested).plain"#;
+        let summarize = |names: Vec<ClassSelectorNameV0>| {
+            names
+                .into_iter()
+                .map(|entry| {
+                    (
+                        entry.name.into_raw(),
+                        entry.position.start,
+                        entry.position.end,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let fast = ascii_class_selector_names(selector);
+        assert!(fast.is_some(), "fixture must stay on the fast path");
+        if let Some(fast) = fast {
+            assert_eq!(
+                summarize(fast),
+                summarize(general_class_selector_names(selector))
+            );
+        }
     }
 
     #[test]
