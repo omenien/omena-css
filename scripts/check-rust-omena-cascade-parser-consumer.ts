@@ -30,12 +30,20 @@ assert.ok(
 
 const designTokens = read("rust/crates/omena-semantic/src/design_tokens.rs");
 assert.ok(
-  designTokens.includes("use omena_cascade::{") && designTokens.includes("select_cascade_winner"),
-  "design token semantics must call omena-cascade winner selection",
+  designTokens.includes("use omena_cascade::{") &&
+    designTokens.includes("select_open_world_cascade_winner"),
+  "design token semantics must call omena-cascade open-world winner selection",
+);
+assert.equal(
+  countOccurrences(designTokens, "select_open_world_cascade_winner("),
+  1,
+  "design token semantics must use one shared open-world winner selection",
 );
 assert.ok(
-  countOccurrences(designTokens, "select_cascade_winner(") >= 2,
-  "design token semantics must rank both same-file and workspace candidate sets",
+  designTokens.includes(".map(DesignTokenCandidateDeclaration::Local)") &&
+    designTokens.includes(".map(DesignTokenCandidateDeclaration::Workspace)") &&
+    !designTokens.includes("local_winner.or(workspace_winner)"),
+  "design token semantics must rank same-file and workspace candidates in one domain",
 );
 assert.ok(
   designTokens.includes("source_order_cascade_ranking_ready") &&
@@ -61,7 +69,7 @@ assert.ok(
 );
 
 process.stdout.write(
-  "validated omena-cascade parser consumer: semanticParserFacts=true sameFileRanking=true workspaceRanking=true queryReadSurface=true\n",
+  "validated omena-cascade parser consumer: semanticParserFacts=true unifiedCandidateDomain=true openWorldSelection=true queryReadSurface=true\n",
 );
 
 function read(filePath: string): string {
