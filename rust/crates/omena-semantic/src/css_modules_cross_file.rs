@@ -11,7 +11,10 @@ use omena_cross_file_summary::{
 use omena_resolver::{
     OmenaResolverStylePackageManifestV0, resolve_omena_resolver_style_module_source,
 };
-use omena_syntax::ident::{CanonicalClassKeyV0, ClassNameV0};
+use omena_syntax::{
+    css_keyword,
+    ident::{CanonicalClassKeyV0, ClassNameV0},
+};
 use serde::Serialize;
 
 fn canonical_class_key(name: &str) -> CanonicalClassKeyV0 {
@@ -429,7 +432,7 @@ fn resolve_css_modules_import_edge(
         .map(|facts| exported_names_for_kind(facts).to_vec())
         .unwrap_or_default();
     let imported_names = sorted_unique_strings(imported_names);
-    let matched_names = if import_kind == "composes" {
+    let matched_names = if css_keyword(import_kind).equals("composes") {
         sorted_class_name_intersection(imported_names.as_slice(), exported_names.as_slice())
     } else {
         sorted_name_intersection(imported_names.as_slice(), exported_names.as_slice())
