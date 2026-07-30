@@ -12,10 +12,7 @@
     "idiomPopulation": "non-test Rust source lines that contain both a class-name-labelled binding and a comparison primitive"
   },
   "preconditions": {
-    "dependencyGateExitCodes": [
-      0,
-      0
-    ],
+    "dependencyGateExitCodes": [0, 0],
     "onFailure": "stop-and-escalate-without-adding-a-layer-exception"
   },
   "idiomRefinement": {

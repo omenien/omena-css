@@ -2135,14 +2135,17 @@ fn parses_simple_selector_specificity() {
 
 #[test]
 fn simple_selector_signature_uses_escape_aware_class_names() {
-    let Some(signature) = parse_simple_selector_signature(r".a\.b.카드") else {
-        panic!("escape-aware class selector should parse");
-    };
-
-    // Both class spellings are emitted directly by this selector; an ASCII or
-    // non-escape-aware extractor makes one of these assertions false.
-    assert!(signature.required_classes.contains(r"a\.b"));
-    assert!(signature.required_classes.contains("카드"));
+    let signature = parse_simple_selector_signature(r".a\.b.카드");
+    assert!(
+        signature.is_some(),
+        "escape-aware class selector should parse"
+    );
+    if let Some(signature) = signature {
+        // Both class spellings are emitted directly by this selector; an ASCII or
+        // non-escape-aware extractor makes one of these assertions false.
+        assert!(signature.required_classes.contains(r"a\.b"));
+        assert!(signature.required_classes.contains("카드"));
+    }
 }
 
 #[test]
