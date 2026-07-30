@@ -1315,6 +1315,7 @@ dependencies = [
 name = "engine-style-parser"
 version = "0.3.0"
 dependencies = [
+ "omena-syntax",
  "serde",
  "serde_json",
 ]

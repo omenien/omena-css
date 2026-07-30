@@ -1331,7 +1331,7 @@ fn starts_with_css_function_name(text: &str, index: usize, name: &str) -> bool {
 }
 
 fn css_function_name_codepoint(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+    omena_syntax::ident::is_ascii_word_continue(ch)
 }
 
 fn rewrite_local_composes_value(

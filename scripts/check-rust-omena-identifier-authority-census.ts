@@ -612,7 +612,7 @@ function discoverPredicateCopies(): DiscoveredSite[] {
     sources.push({
       relativePath: "rust/crates/omena-query/src/injected_identifier_predicate.rs",
       source:
-        "fn unrelated_name(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }\n",
+        "fn unrelated_name(ch: char) -> bool { matches!(ch, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_') }\n",
     });
   }
   const discovered: DiscoveredSite[] = [];
@@ -641,25 +641,17 @@ function directCharacterPredicateBodies(
     const openBrace = match.index + match[0].lastIndexOf("{");
     const closeBrace = matchingBrace(scannable, openBrace);
     if (closeBrace === undefined) continue;
-    const body = scannable
-      .slice(openBrace + 1, closeBrace)
+    const body = maskCommentsStringsAndTestTail(
+      source.slice(openBrace + 1, closeBrace),
+      false,
+      false,
+      true,
+    )
       .replace(/\s+/gu, "")
       .replace(/^return/u, "")
       .replace(/;$/u, "");
-    const directSharedContinue =
-      /^is_css_name_start\([A-Za-z_][A-Za-z0-9_]*\)\|\|[A-Za-z_][A-Za-z0-9_]*\.is_ascii_digit\(\)$/u.test(
-        body,
-      );
-    const asciiWordShape =
-      /^[A-Za-z_][A-Za-z0-9_]*\.is_ascii_alphanumeric\(\)\|\|matches!\([A-Za-z_][A-Za-z0-9_]*,(?:'_'\|'-'|'-'\|'_')\)(?:\|\|![A-Za-z_][A-Za-z0-9_]*\.is_ascii\(\))?$/u.test(
-        body,
-      );
-    const explicitCssShape =
-      body.includes(".is_ascii_alphanumeric()") &&
-      body.includes("!ch.is_ascii()") &&
-      body.includes("ch=='-'") &&
-      body.includes("ch=='_'");
-    if (!directSharedContinue && !asciiWordShape && !explicitCssShape) continue;
+    const parameter = match[0].match(/\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:char|u8)\s*\)/u)?.[1];
+    if (!parameter || !isIdentifierContinuationPredicate(body, parameter)) continue;
     found.push({
       name: match[1],
       line: lineNumberAt(source, match.index),
@@ -670,6 +662,39 @@ function directCharacterPredicateBodies(
     });
   }
   return found;
+}
+
+function isIdentifierContinuationPredicate(body: string, parameter: string): boolean {
+  const escapedParameter = escapeRegExp(parameter);
+  const acceptsHyphen = new RegExp(
+    `(?:${escapedParameter}==b?'-'|b?'-'==${escapedParameter}|matches!\\(${escapedParameter},[^)]*b?'-')`,
+    "u",
+  ).test(body);
+  const acceptsUnderscore = new RegExp(
+    `(?:${escapedParameter}==b?'_'|b?'_'==${escapedParameter}|matches!\\(${escapedParameter},[^)]*b?'_')`,
+    "u",
+  ).test(body);
+  const usesAlphanumericPredicate = new RegExp(
+    `${escapedParameter}\\.is_(?:ascii_)?alphanumeric\\(\\)`,
+    "u",
+  ).test(body);
+  const usesSharedCssPredicate = new RegExp(
+    `is_css_name_start\\(${escapedParameter}\\).*${escapedParameter}\\.is_ascii_digit\\(\\)`,
+    "u",
+  ).test(body);
+  const rangeBody = body.match(new RegExp(`matches!\\(${escapedParameter},([^)]*)\\)`, "u"))?.[1];
+  const usesAlphaNumericRanges =
+    rangeBody !== undefined &&
+    /b?'[a-zA-Z0-9]'\.\.=b?'[a-zA-Z0-9]'/u.test(rangeBody) &&
+    (rangeBody.match(/b?'[a-zA-Z0-9]'\.\.=b?'[a-zA-Z0-9]'/gu)?.length ?? 0) >= 3;
+  return (
+    (usesSharedCssPredicate || usesAlphanumericPredicate || usesAlphaNumericRanges) &&
+    (usesSharedCssPredicate || (acceptsHyphen && acceptsUnderscore))
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function classifySites(
@@ -799,6 +824,7 @@ function maskCommentsStringsAndTestTail(
   source: string,
   preserveStringContents: boolean,
   truncateAtFirstTestAttribute: boolean,
+  preserveCharacterContents = false,
 ): string {
   const chars = [...source];
   let blockDepth = 0;
@@ -849,6 +875,18 @@ function maskCommentsStringsAndTestTail(
     if (current === '"') {
       stringQuote = current;
       if (!preserveStringContents) chars[index] = " ";
+      continue;
+    }
+    if (current === "'") {
+      const characterEnd = rustCharacterLiteralEnd(chars, index);
+      if (characterEnd !== undefined) {
+        if (!preserveCharacterContents) {
+          for (let cursor = index; cursor <= characterEnd; cursor += 1) {
+            if (chars[cursor] !== "\n") chars[cursor] = " ";
+          }
+        }
+        index = characterEnd;
+      }
     }
   }
   let masked = chars.join("");
@@ -861,6 +899,27 @@ function maskCommentsStringsAndTestTail(
       .replace(/[^\n]/gu, " ")}`;
   }
   return masked;
+}
+
+function rustCharacterLiteralEnd(chars: readonly string[], quoteIndex: number): number | undefined {
+  let index = quoteIndex + 1;
+  if (index >= chars.length || chars[index] === "\n") return undefined;
+  if (chars[index] === "\\") {
+    index += 1;
+    if (chars[index] === "x") {
+      index += 3;
+    } else if (chars[index] === "u" && chars[index + 1] === "{") {
+      index += 2;
+      while (index < chars.length && chars[index] !== "}" && chars[index] !== "\n") index += 1;
+      if (chars[index] !== "}") return undefined;
+      index += 1;
+    } else {
+      index += 1;
+    }
+  } else {
+    index += 1;
+  }
+  return chars[index] === "'" ? index : undefined;
 }
 
 function enclosingFunctionName(source: string, offset: number): string {
