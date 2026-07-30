@@ -42,9 +42,12 @@ pub const omena_cascade::LONGHAND_MERGE_SHORTHAND_FAMILIES_V0: [&str; 38]
 pub const omena_cascade::ModuleRank::ZERO: Self
 pub const omena_cascade::Specificity::ZERO: Self
 pub enum omena_cascade::AttractorEnumerationStrategyV0
+pub enum omena_cascade::CascadeAxisPrefixV0
 pub enum omena_cascade::CascadeLevel
 pub enum omena_cascade::CascadeOriginV0
 pub enum omena_cascade::CascadeOutcome
+pub enum omena_cascade::CascadeRankedSetFunctionV0
+pub enum omena_cascade::CascadeRankedSetLossClassV0
 pub enum omena_cascade::CascadeRegisteredValueVerdictV0
 pub enum omena_cascade::CascadeStandardValueVerdictV0
 pub enum omena_cascade::CascadeValue
@@ -80,6 +83,7 @@ pub fn omena_cascade::Specificity::cmp(&self, &Self) -> core::cmp::Ordering
 pub fn omena_cascade::Specificity::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
 pub fn omena_cascade::SupportsTargetCapabilityV0::default() -> Self
 pub fn omena_cascade::box_shorthand_longhands_v0(&str) -> core::option::Option<[&'static str; 4]>
+pub fn omena_cascade::capture_cascade_ranked_set_losses<R>(impl core::ops::function::FnOnce() -> R) -> core::result::Result<(R, omena_cascade::CascadeRankedSetLossCaptureV0), &'static str>
 pub fn omena_cascade::cascade_driven_levels_v0() -> alloc::vec::Vec<omena_cascade::CascadeLevel>
 pub fn omena_cascade::cascade_driven_winner_axes_v0() -> alloc::vec::Vec<omena_cascade::CascadeWinnerAxisV0>
 pub fn omena_cascade::cascade_driver_census_is_consistent_v0() -> bool
@@ -88,6 +92,7 @@ pub fn omena_cascade::cascade_property(impl core::iter::traits::collect::IntoIte
 pub fn omena_cascade::cascade_property_open_world(impl core::iter::traits::collect::IntoIterator<Item = omena_cascade::CascadeDeclaration>, &str) -> omena_cascade::CascadeOutcome
 pub fn omena_cascade::cascade_ultrametric_distance_v0(omena_cascade::CascadeUltrametricPathV0, omena_cascade::CascadeUltrametricPathV0) -> u8
 pub fn omena_cascade::choose_grn_attractor_strategy(usize) -> omena_cascade::AttractorEnumerationStrategyV0
+pub fn omena_cascade::classify_cascade_ranked_set_loss(&[omena_cascade::CascadeDeclaration]) -> omena_cascade::CascadeRankedSetLossClassV0
 pub fn omena_cascade::classify_kauffman_regime(usize) -> omena_cascade::KauffmanRegimeV0
 pub fn omena_cascade::compute_cascade_computed_value(omena_cascade::CascadeComputedValueInputV0) -> omena_cascade::CascadeComputedValueResultV0
 pub fn omena_cascade::compute_edit_footprint(alloc::vec::Vec<alloc::string::String>) -> omena_cascade::ModuleFootprintV0
@@ -182,6 +187,9 @@ pub omena_cascade::CascadeAttractorBasinV0::strategy: omena_cascade::AttractorEn
 pub omena_cascade::CascadeAttractorBasinV0::transition_count: usize
 pub omena_cascade::CascadeAttractorBasinV0::transition_digest: core::option::Option<alloc::string::String>
 pub omena_cascade::CascadeAttractorBasinV0::variable_count: usize
+pub omena_cascade::CascadeAxisPrefixV0::LayerRank
+pub omena_cascade::CascadeAxisPrefixV0::Level
+pub omena_cascade::CascadeAxisPrefixV0::ScopeProximity
 pub omena_cascade::CascadeBoundarySummary::least_fixed_point_proof_model: &'static str
 pub omena_cascade::CascadeBoundarySummary::not_ready_surfaces: alloc::vec::Vec<&'static str>
 pub omena_cascade::CascadeBoundarySummary::ordering_model: &'static str
@@ -324,6 +332,23 @@ pub omena_cascade::CascadeProof::property: alloc::string::String
 pub omena_cascade::CascadeProof::scope_proximity: u32
 pub omena_cascade::CascadeProof::source_order: u32
 pub omena_cascade::CascadeProof::specificity: omena_cascade::Specificity
+pub omena_cascade::CascadeRankedSetFunctionV0::CascadeProperty
+pub omena_cascade::CascadeRankedSetFunctionV0::CascadePropertyOpenWorld
+pub omena_cascade::CascadeRankedSetLossCaptureV0::product: &'static str
+pub omena_cascade::CascadeRankedSetLossCaptureV0::rows: alloc::vec::Vec<omena_cascade::CascadeRankedSetLossCensusRowV0>
+pub omena_cascade::CascadeRankedSetLossCaptureV0::schema_version: &'static str
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::candidate_count: usize
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::classification: omena_cascade::CascadeRankedSetLossClassV0
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::function: omena_cascade::CascadeRankedSetFunctionV0
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::invocation_site: &'static str
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::property: alloc::string::String
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::source_path: alloc::string::String
+pub omena_cascade::CascadeRankedSetLossClassV0::AxisWinnerInexact
+pub omena_cascade::CascadeRankedSetLossClassV0::NoStrictAxisDominance
+pub omena_cascade::CascadeRankedSetLossClassV0::RecoverableAxisDominant
+pub omena_cascade::CascadeRankedSetLossClassV0::RecoverableAxisDominant::axis: omena_cascade::CascadeAxisPrefixV0
+pub omena_cascade::CascadeRankedSetLossClassV0::SingleInexactCandidate
 pub omena_cascade::CascadeRefinementContextV0::closed_bundle: bool
 pub omena_cascade::CascadeRefinementContextV0::layer_name: core::option::Option<alloc::string::String>
 pub omena_cascade::CascadeRefinementContextV0::scope_root_selector: core::option::Option<alloc::string::String>
@@ -799,6 +824,8 @@ pub struct omena_cascade::CascadeMarginV0
 pub struct omena_cascade::CascadeOriginDriverV0
 pub struct omena_cascade::CascadeOutcomeProjectionRecordV0
 pub struct omena_cascade::CascadeProof
+pub struct omena_cascade::CascadeRankedSetLossCaptureV0
+pub struct omena_cascade::CascadeRankedSetLossCensusRowV0
 pub struct omena_cascade::CascadeRefinementContextV0
 pub struct omena_cascade::CascadeRegisteredCustomPropertyV0
 pub struct omena_cascade::CascadeReplicaOverlapV0
