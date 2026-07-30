@@ -1618,7 +1618,7 @@ pub fn resolve_omena_query_selector_rename_edits(
 
     let mut edits = definitions
         .iter()
-        .filter(|definition| definition.name == selector_name)
+        .filter(|definition| class_names_match(definition.name.as_str(), selector_name))
         .filter(|definition| {
             target_style_uri
                 .is_none_or(|target_uri| file_uri_equivalent(target_uri, definition.uri.as_str()))
@@ -1631,7 +1631,7 @@ pub fn resolve_omena_query_selector_rename_edits(
         .chain(
             references
                 .iter()
-                .filter(|reference| reference.name == selector_name)
+                .filter(|reference| class_names_match(reference.name.as_str(), selector_name))
                 .filter(|reference| {
                     source_reference_matches_target_style(reference, target_style_uri)
                 })

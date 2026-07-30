@@ -102,6 +102,7 @@ interface IdentifierAuthorityCensus {
   };
   readonly predicateCopies: {
     readonly derivation: "direct-character-predicate-body";
+    readonly blindSpots: readonly string[];
     readonly currentSiteCount: number;
     readonly sites: readonly CensusSite[];
     readonly siteDigest: string;
@@ -114,6 +115,7 @@ interface ExemptionRule {
   readonly operation: string;
   readonly evidence: string;
   readonly reason: string;
+  readonly disposition?: Exclude<Disposition, "unclassified">;
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -128,6 +130,10 @@ const injectUnlabelledComparison =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNLABELLED_COMPARISON === "1";
 const injectPredicateCopy =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PREDICATE_COPY === "1";
+const injectPredicateCopyExplicit =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PREDICATE_COPY_EXPLICIT === "1";
+const injectPredicateCopyReversed =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PREDICATE_COPY_REVERSED === "1";
 
 const sourceRoots = ["rust/crates"] as const;
 const lexemeGlobs = [
@@ -241,6 +247,138 @@ const idiomExemptions: readonly ExemptionRule[] = [
     operation: "str-eq",
     evidence: "|| reference.selector_name.as_deref() != Some(prefix)",
     reason: "This retires an exact template prefix rather than joining complete class names.",
+  },
+  {
+    path: "rust/crates/omena-diff-test/src/linked_emission.rs",
+    function: "validate_authored_liveness_expectations_v0",
+    operation: "contains",
+    evidence: ".contains(expectation.class_name);",
+    reason: "The differential harness compares authored expectation data with measured output.",
+  },
+  {
+    path: "rust/crates/omena-diff-test/src/linked_emission.rs",
+    function: "validate_authored_liveness_expectations_v0",
+    operation: "contains",
+    evidence: ".is_some_and(|names| names.contains(expectation.class_name));",
+    reason: "The differential harness compares authored expectation data with measured output.",
+  },
+  {
+    path: "rust/crates/omena-diff-test/src/linked_emission.rs",
+    function: "rule_declaration_counts_for_class_v0",
+    operation: "str-eq",
+    evidence: "&& selector.name == class_name",
+    reason: "The differential harness compares two already-emitted selector spellings.",
+  },
+  {
+    path: "rust/crates/omena-lsp-server/src/source_document_cache.rs",
+    function: "class_value_universes_from_value",
+    operation: "map-get",
+    evidence: 'class_names: strings_from_value(universe.get("classNames")?)?,',
+    reason: "This reads a serialized field name rather than a class-name map key.",
+  },
+  {
+    path: "rust/crates/omena-lsp-server/src/source_document_cache.rs",
+    function: "source_elements_from_value",
+    operation: "map-get",
+    evidence: 'static_class_names: match fact.get("staticClassNames") {',
+    reason: "This reads a serialized field name rather than a class-name map key.",
+  },
+  {
+    path: "rust/crates/omena-lsp-server/src/source_type_facts.rs",
+    function: "take_type_fact_prefix_references",
+    operation: "str-eq",
+    evidence: "&& reference.selector_name.as_deref() == Some(prefix)",
+    reason: "This consumes an exact prefix reference rather than joining complete class names.",
+  },
+  {
+    path: "rust/crates/omena-parser/src/public_product.rs",
+    function: "summarize_parser_evaluator_candidates",
+    operation: "contains",
+    evidence: "has_local_composes: local_selector_names.contains(selector),",
+    reason: "Both operands come from the shared parser class-name extraction.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-parser/src/public_product.rs",
+    function: "summarize_parser_evaluator_candidates",
+    operation: "contains",
+    evidence: "has_imported_composes: imported_selector_names.contains(selector),",
+    reason: "Both operands come from the shared parser class-name extraction.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-parser/src/public_product.rs",
+    function: "summarize_parser_evaluator_candidates",
+    operation: "contains",
+    evidence: "has_global_composes: global_selector_names.contains(selector),",
+    reason: "Both operands come from the shared parser class-name extraction.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
+    function: "collect_css_modules_composes_adjacency_with_path_mappings",
+    operation: "str-eq",
+    evidence: "let target_class_names = if target_style_path == *style_path {",
+    reason: "This compares normalized style paths before selecting a class-name set.",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
+    function: "collect_css_modules_composes_adjacency_with_path_mappings",
+    operation: "contains",
+    evidence: "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
+    reason: "Both operands are normalized through the shared canonical class-name key.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
+    function: "collect_css_modules_composes_adjacency_with_path_mappings",
+    operation: "contains",
+    evidence: "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
+    reason: "Both operands are normalized through the shared canonical class-name key.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
+    function: "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
+    operation: "insert",
+    evidence: "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
+    reason: "This tuple insertion deduplicates parser facts by span and authored spelling.",
+  },
+  {
+    path: "rust/crates/omena-query/src/style/transform.rs",
+    function: "closed_world_bound_reachability_precision",
+    operation: "contains",
+    evidence: ".any(|name| !closed_world_class_names.contains(name.as_str()))",
+    reason: "The closed-world carrier and query projection share the canonical class-name domain.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-query/src/types.rs",
+    function: "flat_class_names_for_style_paths",
+    operation: "contains",
+    evidence: ".filter(|(_, names)| names.contains(class_name))",
+    reason: "This partitions already-emitted tokens and does not compare source identifiers.",
+  },
+  {
+    path: "rust/crates/omena-query/src/types.rs",
+    function: "from_style_paths",
+    operation: "contains",
+    evidence: "if directly_attributed_class_names.contains(class_name) {",
+    reason: "This partitions already-emitted tokens and does not compare source identifiers.",
+  },
+  {
+    path: "rust/crates/omena-query/src/types.rs",
+    function: "from_style_paths",
+    operation: "contains",
+    evidence: ".filter(|(_, names)| names.contains(class_name))",
+    reason: "This partitions already-emitted tokens and does not compare source identifiers.",
+  },
+  {
+    path: "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+    function: "run_hash_css_module_class_names_structural",
+    operation: "str-eq",
+    evidence: "if mutation_count == 0 && class_name_rewrites.is_empty() {",
+    reason: "This checks whether transform outputs are empty rather than comparing identifiers.",
   },
 ] as const;
 
@@ -363,6 +501,10 @@ const census: IdentifierAuthorityCensus = {
   },
   predicateCopies: {
     derivation: "direct-character-predicate-body",
+    blindSpots: [
+      "Methods and functions whose character input is not the sole typed parameter are outside this syntactic arm.",
+      "Character membership hidden behind a constant, helper call, or other indirection is outside this syntactic arm.",
+    ],
     currentSiteCount: classifiedPredicateSites.length,
     sites: classifiedPredicateSites,
     siteDigest: digest(classifiedPredicateSites),
@@ -376,7 +518,9 @@ if (writeMode) {
       !injectEgress &&
       !injectLabelledComparison &&
       !injectUnlabelledComparison &&
-      !injectPredicateCopy,
+      !injectPredicateCopy &&
+      !injectPredicateCopyExplicit &&
+      !injectPredicateCopyReversed,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -520,7 +664,7 @@ function discoverEgressSites(): DiscoveredSite[] {
     });
   }
   for (const { relativePath, source } of sources) {
-    const scannable = maskCommentsStringsAndTestTail(source, false, false);
+    const scannable = maskCommentsStringsAndTestItems(source, false);
     const candidatePatterns: readonly (readonly [string, RegExp])[] = [
       ["ClassNameV0::into_raw", /\b[A-Za-z_][A-Za-z0-9_]*\.name\.into_raw\s*\(\s*\)/gu],
       [
@@ -584,7 +728,7 @@ function discoverIdiomSites(): DiscoveredSite[] {
   }
   const discovered: DiscoveredSite[] = [];
   for (const { relativePath, source } of sources) {
-    const scannable = maskCommentsStringsAndTestTail(source, true, true);
+    const scannable = maskCommentsStringsAndTestItems(source, true);
     const sourceLines = source.split(/\r?\n/u);
     for (const [index, line] of scannable.split(/\r?\n/u).entries()) {
       if (!classBindingLexeme.test(line)) continue;
@@ -615,6 +759,20 @@ function discoverPredicateCopies(): DiscoveredSite[] {
         "fn unrelated_name(ch: char) -> bool { matches!(ch, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_') }\n",
     });
   }
+  if (injectPredicateCopyExplicit) {
+    sources.push({
+      relativePath: "rust/crates/omena-query/src/injected_identifier_predicate_explicit.rs",
+      source:
+        "fn arbitrary_spelling(codepoint: char) -> bool { codepoint.is_alphanumeric() || codepoint == '-' || codepoint == '_' }\n",
+    });
+  }
+  if (injectPredicateCopyReversed) {
+    sources.push({
+      relativePath: "rust/crates/omena-query/src/injected_identifier_predicate_reversed.rs",
+      source:
+        "fn another_spelling(byte: u8) -> bool { matches!(byte, b'-' | b'_') || byte.is_ascii_alphanumeric() }\n",
+    });
+  }
   const discovered: DiscoveredSite[] = [];
   for (const { relativePath, source } of sources) {
     for (const functionBody of directCharacterPredicateBodies(source)) {
@@ -633,7 +791,7 @@ function discoverPredicateCopies(): DiscoveredSite[] {
 function directCharacterPredicateBodies(
   source: string,
 ): readonly { name: string; line: number; evidence: string }[] {
-  const scannable = maskCommentsStringsAndTestTail(source, false, false);
+  const scannable = maskCommentsStringsAndTestItems(source, false);
   const found: { name: string; line: number; evidence: string }[] = [];
   const declaration =
     /\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*:\s*(?:char|u8)\s*\)\s*->\s*bool\s*\{/gu;
@@ -641,9 +799,8 @@ function directCharacterPredicateBodies(
     const openBrace = match.index + match[0].lastIndexOf("{");
     const closeBrace = matchingBrace(scannable, openBrace);
     if (closeBrace === undefined) continue;
-    const body = maskCommentsStringsAndTestTail(
+    const body = maskCommentsStringsAndTestItems(
       source.slice(openBrace + 1, closeBrace),
-      false,
       false,
       true,
     )
@@ -707,7 +864,11 @@ function classifySites(
   return discovered.map((site) => {
     const exemption = exemptions.find((rule) => stableSiteKey(rule) === stableSiteKey(site));
     if (exemption) {
-      return { ...site, disposition: "named-exempt", reason: exemption.reason } as const;
+      return {
+        ...site,
+        disposition: exemption.disposition ?? "named-exempt",
+        reason: exemption.reason,
+      } as const;
     }
     const prior = previousByKey.get(stableSiteKey(site));
     if (prior)
@@ -820,10 +981,9 @@ function trackedProductionSources(): string[] {
     .toSorted();
 }
 
-function maskCommentsStringsAndTestTail(
+function maskCommentsStringsAndTestItems(
   source: string,
   preserveStringContents: boolean,
-  truncateAtFirstTestAttribute: boolean,
   preserveCharacterContents = false,
 ): string {
   const chars = [...source];
@@ -889,16 +1049,54 @@ function maskCommentsStringsAndTestTail(
       }
     }
   }
-  let masked = chars.join("");
-  const testTail = truncateAtFirstTestAttribute
-    ? masked.match(/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]/u)
-    : masked.match(/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*mod\s+[A-Za-z0-9_]+\s*\{/u);
-  if (testTail?.index !== undefined) {
-    masked = `${masked.slice(0, testTail.index)}${masked
-      .slice(testTail.index)
-      .replace(/[^\n]/gu, " ")}`;
+  return maskCfgTestItems(chars.join(""));
+}
+
+function maskCfgTestItems(source: string): string {
+  const spans: { readonly start: number; readonly end: number }[] = [];
+  const testAttribute = /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]/gu;
+  for (const match of source.matchAll(testAttribute)) {
+    const start = match.index;
+    const end = cfgTestItemEnd(source, start + match[0].length);
+    if (end !== undefined) spans.push({ start, end });
   }
-  return masked;
+  if (spans.length === 0) return source;
+
+  const chars = [...source];
+  for (const span of spans) {
+    for (let index = span.start; index < span.end; index += 1) {
+      if (chars[index] !== "\n") chars[index] = " ";
+    }
+  }
+  return chars.join("");
+}
+
+function cfgTestItemEnd(source: string, attributeEnd: number): number | undefined {
+  let cursor = attributeEnd;
+  while (cursor < source.length) {
+    while (/\s/u.test(source[cursor] ?? "")) cursor += 1;
+    if (!source.startsWith("#", cursor)) break;
+    const attributeClose = source.indexOf("]", cursor + 1);
+    if (attributeClose < 0) return undefined;
+    cursor = attributeClose + 1;
+  }
+
+  let parentheses = 0;
+  let brackets = 0;
+  for (let index = cursor; index < source.length; index += 1) {
+    const current = source[index];
+    if (current === "(") parentheses += 1;
+    else if (current === ")") parentheses -= 1;
+    else if (current === "[") brackets += 1;
+    else if (current === "]") brackets -= 1;
+    else if (current === "{" && parentheses === 0 && brackets === 0) {
+      const closeBrace = matchingBrace(source, index);
+      return closeBrace === undefined ? undefined : closeBrace + 1;
+    } else if (current === ";" && parentheses === 0 && brackets === 0) {
+      return index + 1;
+    }
+  }
+  return undefined;
 }
 
 function rustCharacterLiteralEnd(chars: readonly string[], quoteIndex: number): number | undefined {

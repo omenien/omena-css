@@ -700,3 +700,13 @@ fn is_known_animation_shorthand_keyword(value: &str) -> bool {
             | "step-start"
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::static_animation_name_candidate;
+
+    #[test]
+    fn rejects_newline_escapes_as_static_animation_names() {
+        assert_eq!(static_animation_name_candidate("a\\\nb"), None);
+    }
+}

@@ -349,6 +349,29 @@
       ]
     },
     {
+      "crate": "omena-transform-passes",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor aligns static keyframe-name admission with the shared CSS identifier escape boundary.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "keyframe-custom-ident-newline-escape-values",
+          "kind": "selection-outcome-changing",
+          "surface": "Static animation-name candidates used by keyframe tree shaking",
+          "reason": "A backslash followed by a CSS newline no longer produces a static custom-ident candidate.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+              "needles": [
+                "css_identifier_escape_sequence_end(value, index)",
+                "fn rejects_newline_escapes_as_static_animation_names()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-bridge",
       "releaseClass": "pre1MinorBreaking",
       "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, surface, and inline-importance observations.",
