@@ -26,6 +26,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly measurementInvocationCount: number;
   readonly rankedSetOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
+  readonly layerSyntaxFileCount: number;
   readonly rowCount: number;
   readonly recoverableCount: number;
   readonly undecidableCount: number;
@@ -59,6 +60,19 @@ interface RankedSetLossCensusRowV0 {
   readonly candidates: readonly RankedSetLossCandidateV0[];
   readonly classification: FixtureResultV0["classification"];
 }
+
+const cascadeLevels = [
+  "userAgentNormal",
+  "userNormal",
+  "authorNormal",
+  "inlineNormal",
+  "animation",
+  "authorImportant",
+  "inlineImportant",
+  "userImportant",
+  "userAgentImportant",
+  "transition",
+] as const;
 
 const repoRoot = process.cwd();
 const artifactPath = path.join(
@@ -134,6 +148,32 @@ assert.deepEqual(
   actual,
   expected,
   "ranked-set loss classification must match the independently authored axis-prefix cases",
+);
+const multiCandidateRecheckFixture: RankedSetLossCensusRowV0 = {
+  declarationIds: ["exact-author", "inexact-user"],
+  candidateCount: 2,
+  candidates: [
+    {
+      declarationId: "exact-author",
+      level: "authorNormal",
+      layerRank: 0,
+      scopeProximity: 0,
+      specificityExactness: "exact",
+    },
+    {
+      declarationId: "inexact-user",
+      level: "userNormal",
+      layerRank: 0,
+      scopeProximity: 0,
+      specificityExactness: "inexact",
+    },
+  ],
+  classification: { recoverableAxisDominant: { axis: "level" } },
+};
+assert.deepEqual(
+  classifyArtifactRow(multiCandidateRecheckFixture),
+  multiCandidateRecheckFixture.classification,
+  "the committed-row adjudicator must execute the multi-candidate axis-prefix path",
 );
 
 const artifactBytes = readFileSync(artifactPath);
@@ -244,21 +284,24 @@ assert.ok(
   artifact.limitations.some((limitation) => limitation.includes("not prevalence estimates")),
   "the artifact must reject prevalence interpretation",
 );
-assert.ok(
+assert.equal(
   artifact.limitations.some((limitation) =>
     limitation.includes("No multi-candidate inexact RankedSet outcome"),
   ),
-  "the artifact must disclose the empty eligible multi-candidate population",
+  artifact.multiCandidateInexactRankedSetCount === 0,
+  "the empty multi-candidate limitation must follow its measured denominator",
 );
-assert.ok(
+assert.equal(
   artifact.limitations.some((limitation) =>
     limitation.includes("zero eligible product executions"),
   ),
-  "the artifact must disclose that product data did not execute the classifier predicate",
+  artifact.multiCandidateInexactRankedSetCount === 0,
+  "the classifier-execution limitation must follow its measured denominator",
 );
-assert.ok(
+assert.equal(
   artifact.limitations.some((limitation) => limitation.includes("no @layer")),
-  "the artifact must disclose the missing cascade-layer corpus shape",
+  artifact.layerSyntaxFileCount === 0,
+  "the cascade-layer limitation must follow its measured style-file denominator",
 );
 assert.ok(
   artifact.limitations.some((limitation) => limitation.includes("empty by construction")),
@@ -280,6 +323,8 @@ process.stdout.write(
       measurementInvocationCount: artifact.measurementInvocationCount,
       rankedSetOutcomeCount: artifact.rankedSetOutcomeCount,
       multiCandidateInexactRankedSetCount: artifact.multiCandidateInexactRankedSetCount,
+      multiCandidateRecheckFixtureCount: 1,
+      layerSyntaxFileCount: artifact.layerSyntaxFileCount,
       rowCount: artifact.rowCount,
       recoverableCount: artifact.recoverableCount,
       undecidableCount: artifact.undecidableCount,
@@ -296,19 +341,6 @@ function fixture(actual: FixtureResultV0[], name: string): FixtureResultV0 {
   assert.ok(result, `classifier fixture is missing ${name}`);
   return result;
 }
-
-const cascadeLevels = [
-  "userAgentNormal",
-  "userNormal",
-  "authorNormal",
-  "inlineNormal",
-  "animation",
-  "authorImportant",
-  "inlineImportant",
-  "userImportant",
-  "userAgentImportant",
-  "transition",
-] as const;
 
 function classifyArtifactRow(row: RankedSetLossCensusRowV0): FixtureResultV0["classification"] {
   assert.ok(

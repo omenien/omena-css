@@ -107,6 +107,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly measurementInvocationCount: number;
   readonly rankedSetOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
+  readonly layerSyntaxFileCount: number;
   readonly rowCount: number;
   readonly recoverableCount: number;
   readonly undecidableCount: number;
@@ -649,6 +650,13 @@ function buildRankedSetLossCensus(
   const multiCandidateInexactRankedSetCount = sum(
     entries.map((entry) => entry.multiCandidateInexactRankedSetCount),
   );
+  const layerSyntaxFileCount = manifest.fixtures
+    .filter(isLocalLintCensusEntry)
+    .flatMap((entry) =>
+      listWorkspaceCorpusFiles(path.resolve(repoRoot, entry.source.workspacePath)),
+    )
+    .filter((filePath) => /\.(?:css|scss|sass|less)$/u.test(filePath))
+    .filter((filePath) => /@layer\b/u.test(readFileSync(filePath, "utf8"))).length;
   const classCounts = initializedCounts([
     "recoverableAxisDominant",
     "axisWinnerInexact",
@@ -696,24 +704,33 @@ function buildRankedSetLossCensus(
     "the bounded corpus reached an unclassified cascade invocation site",
   );
 
+  const limitations = [
+    "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
+    "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
+    "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction.",
+  ];
+  if (multiCandidateInexactRankedSetCount === 0) {
+    limitations.push(
+      "No multi-candidate inexact RankedSet outcome was observed in the bounded corpus.",
+      "The strict axis-prefix classifier had zero eligible product executions in the bounded corpus.",
+    );
+  }
+  if (layerSyntaxFileCount === 0) {
+    limitations.push("The bounded style corpus contains no @layer declaration or statement.");
+  }
+
   return {
     schemaVersion: "0",
     product: "omena-diff-test.ranked-set-loss-census",
     generatedBy: "scripts/oss-corpus-farm.ts",
     corpusManifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
-    limitations: [
-      "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
-      "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
-      "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction.",
-      "No multi-candidate inexact RankedSet outcome was observed in the bounded corpus.",
-      "The strict axis-prefix classifier had zero eligible product executions in the bounded corpus.",
-      "The bounded style corpus contains no @layer declaration or statement.",
-    ],
+    limitations,
     entryCount: entries.length,
     captureStateRecoveryCount,
     measurementInvocationCount,
     rankedSetOutcomeCount,
     multiCandidateInexactRankedSetCount,
+    layerSyntaxFileCount,
     rowCount: rows.length,
     recoverableCount,
     undecidableCount,
