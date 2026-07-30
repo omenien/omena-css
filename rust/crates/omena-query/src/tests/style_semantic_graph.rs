@@ -585,6 +585,37 @@ fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_togethe
 }
 
 #[test]
+fn style_semantic_graph_batch_prefers_the_local_file_on_a_full_cascade_tie() {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/_theme.scss", ".button { --brand: workspace; }"),
+            (
+                "/tmp/App.module.scss",
+                "@use \"./theme\";\n.button { --brand: local; color: var(--brand); }",
+            ),
+        ],
+        &input,
+    );
+    let ranked_reference = &batch
+        .graphs
+        .iter()
+        .find(|entry| entry.style_path == "/tmp/App.module.scss")
+        .and_then(|entry| entry.graph.as_ref())
+        .expect("the target style graph must be present")
+        .design_token_semantics
+        .cascade_ranking_signal
+        .ranked_references[0];
+
+    assert_eq!(
+        ranked_reference.winner_declaration_file_path, None,
+        "reversion: restoring ModuleRank::ZERO for the local arm makes workspace provenance win a full cascade tie"
+    );
+    assert_eq!(ranked_reference.winner_declaration_source_order, 0);
+    assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);
+}
+
+#[test]
 fn style_semantic_graph_batch_resolves_package_root_forward_chain_token_candidates() {
     let input = sample_input();
     let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(

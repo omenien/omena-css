@@ -870,7 +870,14 @@ impl DesignTokenCandidateDeclaration<'_> {
                 ),
                 scope_proximity,
                 Specificity::ZERO,
-                ModuleRank::ZERO,
+                // The local file is provenance distance 0, import order 0, and
+                // file rank 0, expressed through the same inverse domain as
+                // workspace candidates.
+                ModuleRank::new(
+                    cascade_inverse_rank(0),
+                    cascade_inverse_rank(0),
+                    cascade_inverse_rank(0),
+                ),
                 cascade_u32_rank(declaration.source_order),
             ),
             DesignTokenCandidateDeclaration::Workspace(declaration) => {
