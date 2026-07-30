@@ -33,6 +33,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm omena-check doctor
       - run: pnpm omena-check run tooling/orchestrator-inventory
+      - run: pnpm omena-check run rust/release-semver-intent-contract
       - id: closure-fast-shards
         run: echo "matrix=$(pnpm --silent omena-check shards rust/closure-fast --json)" >> "$GITHUB_OUTPUT"
 

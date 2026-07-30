@@ -160,6 +160,21 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "release",
   },
   {
+    id: "rust/release-semver-intent-contract",
+    kind: "gate",
+    scope: "rust",
+    command: [
+      "node",
+      "--import",
+      "tsx",
+      "./scripts/check-rust-release-semver.ts",
+      "--validate-intents-only",
+    ],
+    tags: ["verify", "rust", "public-api", "publish"],
+    ciTier: "verify",
+    ciGroup: "verify",
+  },
+  {
     id: "docs/reference-surface:update",
     kind: "command",
     scope: "docs",
