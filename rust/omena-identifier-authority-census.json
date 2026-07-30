@@ -674,7 +674,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 82,
+        "line": 83,
         "function": "is_css_name_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_css_name_continue(ch: char) -> bool { is_css_name_start(ch) || ch.is_ascii_digit() }",
@@ -683,7 +683,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 91,
+        "line": 92,
         "function": "is_ascii_word_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_ascii_word_continue(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }",
@@ -691,6 +691,6 @@
         "reason": "The shared syntax crate owns the identifier character predicate."
       }
     ],
-    "siteDigest": "sha256:2ba01e4c65e9f45a61792246766d35716e5f7dacd8c2443030d9f06eeac1accc"
+    "siteDigest": "sha256:e7fb12d0b8eb198409f3e7bd206e33017d5afef679a4e5e214f17cd05d04df35"
   }
 }

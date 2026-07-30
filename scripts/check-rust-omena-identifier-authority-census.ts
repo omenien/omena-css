@@ -453,17 +453,17 @@ function inspectTypeSeal(): IdentifierAuthorityCensus["typeSeal"] {
   );
   assert.match(
     source,
-    /pub fn canonical_key\s*\(&self\)\s*->\s*CanonicalClassKeyV0/u,
+    /pub fn canonical_key\s*\(self\)\s*->\s*CanonicalClassKeyV0/u,
     "ClassNameV0 key construction must remain behind canonical_key",
   );
   const canonicalKeyBody = source.match(
-    /pub fn canonical_key\s*\(&self\)\s*->\s*CanonicalClassKeyV0\s*\{(?<body>[\s\S]*?)\n\s{4}\}/u,
+    /pub fn canonical_key\s*\(self\)\s*->\s*CanonicalClassKeyV0\s*\{(?<body>[\s\S]*?)\n\s{4}\}/u,
   )?.groups?.body;
   assert.ok(canonicalKeyBody, "canonical_key body must remain inspectable");
   assert.match(
     canonicalKeyBody,
-    /self\.decoded\(\)/u,
-    "canonical class key must be constructed from the decoded spelling",
+    /self\.decoded\.unwrap_or\(self\.raw\)/u,
+    "canonical class key must consume the decoded spelling or unchanged raw spelling",
   );
   const constructorMatches = [...canonicalKeyBody.matchAll(/CanonicalClassKeyV0\s*\(/gu)];
   assert.equal(

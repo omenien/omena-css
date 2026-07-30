@@ -44,8 +44,9 @@ impl ClassNameV0 {
         self.decoded() == other.decoded()
     }
 
-    pub fn canonical_key(&self) -> CanonicalClassKeyV0 {
-        CanonicalClassKeyV0(self.decoded().to_owned(), CanonicalClassKeySealV0(()))
+    pub fn canonical_key(self) -> CanonicalClassKeyV0 {
+        let decoded = self.decoded.unwrap_or(self.raw);
+        CanonicalClassKeyV0(decoded, CanonicalClassKeySealV0(()))
     }
 }
 
