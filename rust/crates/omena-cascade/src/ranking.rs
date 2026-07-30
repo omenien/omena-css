@@ -80,10 +80,13 @@ fn compare_open_world_declarations(
     left: &CascadeDeclaration,
     right: &CascadeDeclaration,
 ) -> Ordering {
+    compare_open_world_cascade_keys(left.key, right.key)
+}
+
+fn compare_open_world_cascade_keys(left: CascadeKey, right: CascadeKey) -> Ordering {
     right
-        .key
-        .cmp(&left.key)
-        .then_with(|| right.key.module_rank.cmp(&left.key.module_rank))
+        .cmp(&left)
+        .then_with(|| right.module_rank.cmp(&left.module_rank))
 }
 
 pub fn rank_cascade_items<T>(
@@ -100,6 +103,24 @@ pub fn select_cascade_winner<T>(
     key_for: impl Fn(&T) -> CascadeKey,
 ) -> Option<(T, Vec<T>)> {
     let mut ranked = rank_cascade_items(items, key_for);
+    if ranked.is_empty() {
+        return None;
+    }
+
+    let winner = ranked.remove(0);
+    Some((winner, ranked))
+}
+
+/// Selects an open-world winner while retaining provenance as a final tiebreak.
+///
+/// `CascadeKey::Ord` owns the spec-defined cascade axes. `module_rank` remains
+/// outside that order and is considered only after those axes compare equal.
+pub fn select_open_world_cascade_winner<T>(
+    items: impl IntoIterator<Item = T>,
+    key_for: impl Fn(&T) -> CascadeKey,
+) -> Option<(T, Vec<T>)> {
+    let mut ranked = items.into_iter().collect::<Vec<_>>();
+    ranked.sort_by(|left, right| compare_open_world_cascade_keys(key_for(left), key_for(right)));
     if ranked.is_empty() {
         return None;
     }

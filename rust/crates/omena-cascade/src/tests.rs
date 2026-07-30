@@ -1,5 +1,6 @@
 use super::*;
 use std::{
+    cmp::Reverse,
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
@@ -391,6 +392,159 @@ fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
     assert_eq!(ranked.len(), 2);
     assert_eq!(ranked[0].id, "stronger-module-hint");
     assert_eq!(ranked[1].id, "weaker-module-hint");
+}
+
+#[test]
+fn open_world_winner_is_independent_of_input_order_when_only_module_rank_differs() {
+    let weaker_key = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        ModuleRank::ZERO,
+        1,
+    );
+    let stronger_key = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        ModuleRank::new(1, 0, 0),
+        1,
+    );
+
+    for items in [
+        [("weaker", weaker_key), ("stronger", stronger_key)],
+        [("stronger", stronger_key), ("weaker", weaker_key)],
+    ] {
+        let (winner, _) = select_open_world_cascade_winner(items, |(_, key)| *key)
+            .expect("the fixture always contains two candidates");
+        assert_eq!(
+            winner.0, "stronger",
+            "reversion: replacing the open-world selector with select_cascade_winner makes the first-listed candidate win"
+        );
+    }
+}
+
+#[test]
+fn open_world_module_provenance_remains_below_source_order() {
+    let earlier_with_stronger_provenance = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
+        1,
+    );
+    let later_with_weaker_provenance = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        ModuleRank::ZERO,
+        2,
+    );
+
+    let (winner, _) = select_open_world_cascade_winner(
+        [
+            ("earlier", earlier_with_stronger_provenance),
+            ("later", later_with_weaker_provenance),
+        ],
+        |(_, key)| *key,
+    )
+    .expect("the fixture always contains two candidates");
+    assert_eq!(
+        winner.0, "later",
+        "reversion: promoting module provenance above CascadeKey::Ord makes the earlier candidate win"
+    );
+}
+
+#[test]
+fn open_world_selector_matches_the_hand_written_axis_order() {
+    let mut keys = Vec::new();
+    for level in [CascadeLevel::AuthorNormal, CascadeLevel::AuthorImportant] {
+        for layer_ordinal in [0, 1] {
+            for scope_proximity in [1, 3] {
+                for specificity in [Specificity::ZERO, Specificity::new(0, 1, 0)] {
+                    for source_order in [1, 2] {
+                        for module_rank in [ModuleRank::ZERO, ModuleRank::new(1, 0, 0)] {
+                            keys.push(CascadeKey::new(
+                                level,
+                                normalized_layer_rank(false, LayerOrdinal::new(layer_ordinal)),
+                                scope_proximity,
+                                specificity,
+                                module_rank,
+                                source_order,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (left_index, left) in keys.iter().copied().enumerate() {
+        for (right_index, right) in keys.iter().copied().enumerate() {
+            if left_index == right_index {
+                continue;
+            }
+
+            // This independent tuple is intentionally test-only: it makes the
+            // production comparator's module-rank limb falsifiable.
+            let oracle_key = |key: CascadeKey| {
+                (
+                    key.level,
+                    key.layer_rank.get(),
+                    Reverse(key.scope_proximity),
+                    key.specificity.ids,
+                    key.specificity.classes,
+                    key.specificity.elements,
+                    key.source_order,
+                    key.module_rank.distance_priority,
+                    key.module_rank.import_order_priority,
+                    key.module_rank.file_order_priority,
+                )
+            };
+            let expected = if oracle_key(left) > oracle_key(right) {
+                "left"
+            } else {
+                "right"
+            };
+            let (selected, _) =
+                select_open_world_cascade_winner([("left", left), ("right", right)], |(_, key)| {
+                    *key
+                })
+                .expect("the enumerated fixture always contains two candidates");
+
+            let outcome = cascade_property_open_world(
+                [
+                    declaration("left", "red", left),
+                    declaration("right", "blue", right),
+                ],
+                "color",
+            );
+            let ranked = match outcome {
+                CascadeOutcome::Definite {
+                    winner,
+                    also_considered,
+                    ..
+                } => std::iter::once(winner)
+                    .chain(also_considered)
+                    .collect::<Vec<_>>(),
+                CascadeOutcome::RankedSet(ranked) => ranked,
+                other => panic!("two matching declarations must be ranked, got {other:?}"),
+            };
+
+            assert_eq!(
+                selected.0, expected,
+                "open-world selector disagreed for pair ({left_index}, {right_index})"
+            );
+            assert_eq!(
+                ranked[0].id, expected,
+                "cascade_property_open_world disagreed for pair ({left_index}, {right_index})"
+            );
+        }
+    }
 }
 
 #[test]

@@ -124,6 +124,7 @@ pub fn omena_cascade::run_generated_cascade_invariant_self_check_corpus() -> ome
 pub fn omena_cascade::run_var_substitution_fuzz_case(omena_cascade::VarSubstitutionFuzzCaseV0) -> omena_cascade::VarSubstitutionFuzzResultV0
 pub fn omena_cascade::scope_proximity_from_ancestor_signatures(&str, &[(omena_cascade::ElementIdentityV0, omena_cascade::ElementSignature)], bool) -> omena_cascade::ScopeProximityV0
 pub fn omena_cascade::select_cascade_winner<T>(impl core::iter::traits::collect::IntoIterator<Item = T>, impl core::ops::function::Fn(&T) -> omena_cascade::CascadeKey) -> core::option::Option<(T, alloc::vec::Vec<T>)>
+pub fn omena_cascade::select_open_world_cascade_winner<T>(impl core::iter::traits::collect::IntoIterator<Item = T>, impl core::ops::function::Fn(&T) -> omena_cascade::CascadeKey) -> core::option::Option<(T, alloc::vec::Vec<T>)>
 pub fn omena_cascade::select_recheck_set(&[omena_cascade::DiagnosticFrameFootprintV0], &omena_cascade::ModuleFootprintV0) -> omena_cascade::RecheckSelectionV0
 pub fn omena_cascade::selector_co_match_verdict(&str, &str) -> omena_cascade::SelectorMatchVerdict
 pub fn omena_cascade::selector_context_witness(&[alloc::string::String], &[alloc::string::String]) -> omena_cascade::SelectorContextWitness
