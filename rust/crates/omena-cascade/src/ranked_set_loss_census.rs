@@ -69,17 +69,10 @@ pub fn capture_cascade_ranked_set_losses<R>(
     CAPTURE_ACTIVE
         .compare_exchange(false, true, AtomicOrdering::AcqRel, AtomicOrdering::Acquire)
         .map_err(|_| "cascade ranked-set loss capture is already active")?;
-    CAPTURED_ROWS
-        .lock()
-        .expect("cascade ranked-set loss capture mutex")
-        .clear();
+    captured_rows().clear();
     let guard = CaptureGuard;
     let result = operation();
-    let mut rows = std::mem::take(
-        &mut *CAPTURED_ROWS
-            .lock()
-            .expect("cascade ranked-set loss capture mutex"),
-    );
+    let mut rows = std::mem::take(&mut *captured_rows());
     rows.sort_by(|left, right| {
         (
             left.function,
@@ -164,10 +157,7 @@ pub(crate) fn observe_cascade_outcome(
         candidate_count: declarations.len(),
         classification: classify_cascade_ranked_set_loss(declarations),
     };
-    CAPTURED_ROWS
-        .lock()
-        .expect("cascade ranked-set loss capture mutex")
-        .push(row);
+    captured_rows().push(row);
 }
 
 fn strict_axis_prefix_winner(
@@ -182,11 +172,8 @@ fn strict_axis_prefix_winner(
     if ordering != Ordering::Greater {
         return None;
     }
-    Some((
-        *winner_index,
-        deciding_axis(&winner.key, &runner_up.key)
-            .expect("a strict axis-prefix winner must differ on one prefix axis"),
-    ))
+    let deciding_axis = deciding_axis(&winner.key, &runner_up.key)?;
+    Some((*winner_index, deciding_axis))
 }
 
 fn compare_axis_prefix(left: &crate::CascadeKey, right: &crate::CascadeKey) -> Ordering {
@@ -224,6 +211,13 @@ fn invocation_site(source_path: &str) -> &'static str {
         "transformWinnerEqualityFromCascadeOutcome"
     } else {
         "unclassified"
+    }
+}
+
+fn captured_rows() -> std::sync::MutexGuard<'static, Vec<CascadeRankedSetLossCensusRowV0>> {
+    match CAPTURED_ROWS.lock() {
+        Ok(rows) => rows,
+        Err(poisoned) => poisoned.into_inner(),
     }
 }
 
