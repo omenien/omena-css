@@ -42,10 +42,17 @@ assert.ok(
 assert.ok(
   packageJson.includes('"check:rust-release-bundle"') &&
     releaseBundleDryRun.includes("check:rust-omena-parser-boundary") &&
-    releaseBundleDryRun.includes("check:rust-parser-public-product") &&
+    releaseBundleDryRun.includes(
+      "node --import tsx ./scripts/check-rust-parser-canonical-producer.ts",
+    ) &&
+    releaseBundleDryRun.includes(
+      "node --import tsx ./scripts/check-rust-parser-consumer-boundary.ts",
+    ) &&
     releaseBundleDryRun.includes("check:rust-omena-bridge-boundary") &&
     releaseBundleDryRun.includes("check:rust-omena-cascade-boundary") &&
-    releaseBundleDryRun.includes("check:rust-gate-evidence -- --variant tsgo --repeat 1 --json"),
+    releaseBundleDryRun.includes(
+      "node --import tsx ./scripts/check-rust-gate-evidence.ts --variant tsgo --repeat 1 --json",
+    ),
   "release bundle must keep parser, public product, bridge, cascade, and evidence gates together",
 );
 assert.ok(
