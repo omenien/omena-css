@@ -89,6 +89,7 @@ interface CascadeRankedSetLossCaptureRowV0 {
 interface CascadeRankedSetLossCaptureV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-cascade.ranked-set-loss-capture";
+  readonly captureStateRecoveryCount: number;
   readonly measurementInvocationCount: number;
   readonly rankedSetOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
@@ -102,6 +103,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly corpusManifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json";
   readonly limitations: readonly string[];
   readonly entryCount: number;
+  readonly captureStateRecoveryCount: number;
   readonly measurementInvocationCount: number;
   readonly rankedSetOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
@@ -115,6 +117,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly unclassifiedInvocationCount: number;
   readonly entries: readonly {
     readonly id: string;
+    readonly captureStateRecoveryCount: number;
     readonly measurementInvocationCount: number;
     readonly rankedSetOutcomeCount: number;
     readonly multiCandidateInexactRankedSetCount: number;
@@ -631,6 +634,7 @@ function buildRankedSetLossCensus(
     assert.equal(capture.product, "omena-cascade.ranked-set-loss-capture");
     return {
       id,
+      captureStateRecoveryCount: capture.captureStateRecoveryCount,
       measurementInvocationCount: capture.measurementInvocationCount,
       rankedSetOutcomeCount: capture.rankedSetOutcomeCount,
       multiCandidateInexactRankedSetCount: capture.multiCandidateInexactRankedSetCount,
@@ -639,9 +643,8 @@ function buildRankedSetLossCensus(
     };
   });
   const rows = entries.flatMap((entry) => entry.rows);
-  const measurementInvocationCount = sum(
-    entries.map((entry) => entry.measurementInvocationCount),
-  );
+  const measurementInvocationCount = sum(entries.map((entry) => entry.measurementInvocationCount));
+  const captureStateRecoveryCount = sum(entries.map((entry) => entry.captureStateRecoveryCount));
   const rankedSetOutcomeCount = sum(entries.map((entry) => entry.rankedSetOutcomeCount));
   const multiCandidateInexactRankedSetCount = sum(
     entries.map((entry) => entry.multiCandidateInexactRankedSetCount),
@@ -683,6 +686,11 @@ function buildRankedSetLossCensus(
   );
   const unclassifiedInvocationCount = invocationSitePopulations.unclassified;
   assert.equal(
+    captureStateRecoveryCount,
+    0,
+    "ranked-set capture storage recovery invalidates the bounded census",
+  );
+  assert.equal(
     unclassifiedInvocationCount,
     0,
     "the bounded corpus reached an unclassified cascade invocation site",
@@ -702,6 +710,7 @@ function buildRankedSetLossCensus(
       "The bounded style corpus contains no @layer declaration or statement.",
     ],
     entryCount: entries.length,
+    captureStateRecoveryCount,
     measurementInvocationCount,
     rankedSetOutcomeCount,
     multiCandidateInexactRankedSetCount,

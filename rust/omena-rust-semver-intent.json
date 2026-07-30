@@ -135,6 +135,7 @@
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
+            "field CascadeRankedSetLossCaptureV0.capture_state_recovery_count",
             "field CascadeRankedSetLossCaptureV0.measurement_invocation_count",
             "field CascadeRankedSetLossCaptureV0.multi_candidate_inexact_ranked_set_count",
             "field CascadeRankedSetLossCaptureV0.ranked_set_outcome_count",
@@ -148,6 +149,7 @@
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
+            "CascadeRankedSetLossCaptureV0.capture_state_recovery_count",
             "CascadeRankedSetLossCaptureV0.measurement_invocation_count",
             "CascadeRankedSetLossCaptureV0.multi_candidate_inexact_ranked_set_count",
             "CascadeRankedSetLossCaptureV0.ranked_set_outcome_count",

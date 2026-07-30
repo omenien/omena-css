@@ -339,6 +339,7 @@ pub omena_cascade::CascadeRankedSetLossCandidateV0::layer_rank: i32
 pub omena_cascade::CascadeRankedSetLossCandidateV0::level: omena_cascade::CascadeLevel
 pub omena_cascade::CascadeRankedSetLossCandidateV0::scope_proximity: u32
 pub omena_cascade::CascadeRankedSetLossCandidateV0::specificity_exactness: omena_cascade::SpecificityExactnessV0
+pub omena_cascade::CascadeRankedSetLossCaptureV0::capture_state_recovery_count: usize
 pub omena_cascade::CascadeRankedSetLossCaptureV0::measurement_invocation_count: usize
 pub omena_cascade::CascadeRankedSetLossCaptureV0::multi_candidate_inexact_ranked_set_count: usize
 pub omena_cascade::CascadeRankedSetLossCaptureV0::product: &'static str

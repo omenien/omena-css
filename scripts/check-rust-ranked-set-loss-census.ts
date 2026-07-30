@@ -22,6 +22,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly product: "omena-diff-test.ranked-set-loss-census";
   readonly limitations: readonly string[];
   readonly entryCount: number;
+  readonly captureStateRecoveryCount: number;
   readonly measurementInvocationCount: number;
   readonly rankedSetOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
@@ -35,6 +36,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly unclassifiedInvocationCount: number;
   readonly entries: readonly {
     readonly id: string;
+    readonly captureStateRecoveryCount: number;
     readonly measurementInvocationCount: number;
     readonly rankedSetOutcomeCount: number;
     readonly multiCandidateInexactRankedSetCount: number;
@@ -144,7 +146,21 @@ assert.equal(
   "the committed farm manifest has three local workspace entries",
 );
 const artifactRows = artifact.entries.flatMap((entry) => entry.rows);
-assert.equal(artifact.rowCount, artifactRows.length, "entry rows must equal the artifact row count");
+assert.equal(
+  artifact.rowCount,
+  artifactRows.length,
+  "entry rows must equal the artifact row count",
+);
+assert.equal(
+  artifact.captureStateRecoveryCount,
+  sum(artifact.entries.map((entry) => entry.captureStateRecoveryCount)),
+  "capture-state recovery count must be derived from entry captures",
+);
+assert.equal(
+  artifact.captureStateRecoveryCount,
+  0,
+  "capture-state recovery invalidates the committed census",
+);
 assert.equal(
   artifact.measurementInvocationCount,
   sum(artifact.entries.map((entry) => entry.measurementInvocationCount)),
@@ -294,9 +310,7 @@ const cascadeLevels = [
   "transition",
 ] as const;
 
-function classifyArtifactRow(
-  row: RankedSetLossCensusRowV0,
-): FixtureResultV0["classification"] {
+function classifyArtifactRow(row: RankedSetLossCensusRowV0): FixtureResultV0["classification"] {
   assert.ok(
     row.candidates.some((candidate) => candidate.specificityExactness === "inexact"),
     "census rows must contain an inexact candidate",

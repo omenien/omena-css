@@ -12,6 +12,7 @@
     "The bounded style corpus contains no @layer declaration or statement."
   ],
   "entryCount": 3,
+  "captureStateRecoveryCount": 0,
   "measurementInvocationCount": 22,
   "rankedSetOutcomeCount": 1,
   "multiCandidateInexactRankedSetCount": 0,
@@ -45,6 +46,7 @@
   "entries": [
     {
       "id": "local-examples-lint-census",
+      "captureStateRecoveryCount": 0,
       "measurementInvocationCount": 13,
       "rankedSetOutcomeCount": 0,
       "multiCandidateInexactRankedSetCount": 0,
@@ -53,6 +55,7 @@
     },
     {
       "id": "local-real-workspace-lint-census",
+      "captureStateRecoveryCount": 0,
       "measurementInvocationCount": 9,
       "rankedSetOutcomeCount": 1,
       "multiCandidateInexactRankedSetCount": 0,
@@ -63,9 +66,7 @@
           "invocationSite": "collectQueryReplicaEnsembleSiteOutcomes",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
           "property": "border",
-          "declarationIds": [
-            "1px solid #d1d5db"
-          ],
+          "declarationIds": ["1px solid #d1d5db"],
           "candidateCount": 1,
           "candidates": [
             {
@@ -82,6 +83,7 @@
     },
     {
       "id": "local-unused-selector-fanout-lint-census",
+      "captureStateRecoveryCount": 0,
       "measurementInvocationCount": 0,
       "rankedSetOutcomeCount": 0,
       "multiCandidateInexactRankedSetCount": 0,
