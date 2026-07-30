@@ -63,10 +63,10 @@
     "rust/crates/omena-syntax/",
     "rust/crates/omena-value-lattice/"
   ],
-  "baselineSiteCount": 190,
-  "currentSiteCount": 135,
-  "baselineNamedExemptSiteCount": 137,
-  "currentNamedExemptSiteCount": 135,
+  "baselineSiteCount": 144,
+  "currentSiteCount": 144,
+  "baselineNamedExemptSiteCount": 143,
+  "currentNamedExemptSiteCount": 143,
   "sites": [
     {
       "path": "rust/crates/omena-bridge/src/source_syntax.rs",
@@ -121,6 +121,42 @@
       "disposition": "named-exempt",
       "evidence": "pub(crate) fn matching_right_brace(tokens: &[Token<'_>], open: usize, end: usize) -> Option<usize> {",
       "reason": "Parser-owned token and CST construction is the syntax authority, not a parallel consumer."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 1111,
+      "idiom": "brace-list-search",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": ".rfind(['{', '}', ';'])",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 3708,
+      "idiom": "brace-find",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "let open_brace = source[line_start..].find('{')? + line_start;",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 3764,
+      "idiom": "brace-find",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "let open_brace = source[line_start..].find('{')? + line_start;",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
+    },
+    {
+      "path": "rust/crates/omena-query/src/style.rs",
+      "line": 3850,
+      "idiom": "brace-contains",
+      "family": "query-surface",
+      "disposition": "named-exempt",
+      "evidence": "if after_include.contains(';') || after_include.contains('{') || after_include.contains('}') {",
+      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
@@ -292,6 +328,14 @@
       "disposition": "named-exempt",
       "evidence": "let header_end = statement.find('{').unwrap_or(statement.len());",
       "reason": "Module-interface extraction remains a named consumer follow-up."
+    },
+    {
+      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+      "line": 3686,
+      "idiom": "source-substring-gate",
+      "family": "transform-ir-ownership",
+      "disposition": "migration-target",
+      "evidence": ".is_some_and(|text| text.contains(\"--alias\"))"
     },
     {
       "path": "rust/crates/omena-transform-egg/src/lib.rs",
@@ -1239,6 +1283,33 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     },
     {
+      "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
+      "line": 1223,
+      "idiom": "brace-find",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": ".find('{')",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
+      "line": 1270,
+      "idiom": "brace-find",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": ".find('{')",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
+      "line": 1310,
+      "idiom": "brace-find",
+      "family": "transform-helper",
+      "disposition": "named-exempt",
+      "evidence": ".rfind('}')",
+      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
       "path": "rust/crates/omena-transform-passes/src/helpers/rules.rs",
       "line": 33,
       "idiom": "matching-brace-helper",
@@ -1282,9 +1353,18 @@
       "disposition": "named-exempt",
       "evidence": "pub(crate) fn matching_right_brace_index(",
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+      "line": 4007,
+      "idiom": "brace-find",
+      "family": "transform-runtime",
+      "disposition": "named-exempt",
+      "evidence": ".find('{')",
+      "reason": "Transform runtime scanning outside the preservation observer remains a named follow-up."
     }
   ],
-  "siteDigest": "sha256:1bacced7175cd82707f04960a16ec73c8351e01d4b23c772f831c1bbd4d49372",
+  "siteDigest": "sha256:41262444c98e261e0239c1fafc5276f43590fac47395c42c0c59d62d1fc17a86",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,

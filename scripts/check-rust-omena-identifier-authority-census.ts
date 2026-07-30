@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
 
 type Disposition = "sanctioned" | "named-exempt" | "unclassified";
 type PrimitiveId = "str-eq" | "contains" | "insert" | "map-get" | "cmp";
@@ -1049,54 +1050,7 @@ function maskCommentsStringsAndTestItems(
       }
     }
   }
-  return maskCfgTestItems(chars.join(""));
-}
-
-function maskCfgTestItems(source: string): string {
-  const spans: { readonly start: number; readonly end: number }[] = [];
-  const testAttribute = /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]/gu;
-  for (const match of source.matchAll(testAttribute)) {
-    const start = match.index;
-    const end = cfgTestItemEnd(source, start + match[0].length);
-    if (end !== undefined) spans.push({ start, end });
-  }
-  if (spans.length === 0) return source;
-
-  const chars = [...source];
-  for (const span of spans) {
-    for (let index = span.start; index < span.end; index += 1) {
-      if (chars[index] !== "\n") chars[index] = " ";
-    }
-  }
-  return chars.join("");
-}
-
-function cfgTestItemEnd(source: string, attributeEnd: number): number | undefined {
-  let cursor = attributeEnd;
-  while (cursor < source.length) {
-    while (/\s/u.test(source[cursor] ?? "")) cursor += 1;
-    if (!source.startsWith("#", cursor)) break;
-    const attributeClose = source.indexOf("]", cursor + 1);
-    if (attributeClose < 0) return undefined;
-    cursor = attributeClose + 1;
-  }
-
-  let parentheses = 0;
-  let brackets = 0;
-  for (let index = cursor; index < source.length; index += 1) {
-    const current = source[index];
-    if (current === "(") parentheses += 1;
-    else if (current === ")") parentheses -= 1;
-    else if (current === "[") brackets += 1;
-    else if (current === "]") brackets -= 1;
-    else if (current === "{" && parentheses === 0 && brackets === 0) {
-      const closeBrace = matchingBrace(source, index);
-      return closeBrace === undefined ? undefined : closeBrace + 1;
-    } else if (current === ";" && parentheses === 0 && brackets === 0) {
-      return index + 1;
-    }
-  }
-  return undefined;
+  return maskRustCfgTestItems(chars.join(""));
 }
 
 function rustCharacterLiteralEnd(chars: readonly string[], quoteIndex: number): number | undefined {
