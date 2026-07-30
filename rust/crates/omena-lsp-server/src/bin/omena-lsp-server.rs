@@ -1663,7 +1663,7 @@ mod tests {
     fn stdio_escaped_css_module_member_supports_product_navigation() -> Result<(), String> {
         let style_uri = "file:///workspace-a/src/App.module.css";
         let source_uri = "file:///workspace-a/src/App.tsx";
-        let style_text = r#".md\:flex { display: flex; }
+        let style_text = r#".\6d d\:flex { display: flex; }
 .plain { display: block; }
 "#;
         let source_text = r#"import styles from "./App.module.css";
@@ -1680,7 +1680,7 @@ export const plainClass = styles.plain;
             + "styles.".len()
             + 2;
         let escaped_style_offset = style_text
-            .find(r#"md\:flex"#)
+            .find(r#"\6d d\:flex"#)
             .ok_or_else(|| "escaped style class is missing".to_string())?
             + 2;
 
@@ -1789,12 +1789,12 @@ export const plainClass = styles.plain;
             .and_then(|items| {
                 items
                     .iter()
-                    .find(|item| item.get("label") == Some(&json!(r#"md\:flex"#)))
+                    .find(|item| item.get("label") == Some(&json!(r#"\6d d\:flex"#)))
             })
             .ok_or_else(|| "escaped class completion is missing".to_string())?;
         assert_eq!(
             escaped_item.get("insertText"),
-            Some(&json!(r#"md\\:flex"#)),
+            Some(&json!(r#"\\6d d\\:flex"#)),
             "computed-member completion must escape the CSS spelling for TypeScript"
         );
         Ok(())
