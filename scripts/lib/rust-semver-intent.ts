@@ -10,12 +10,24 @@ interface ExpectedCargoSemverDiagnostic {
   readonly expectedWitnesses?: readonly string[];
 }
 
+interface ExpectedRuntimeValueChange {
+  readonly id: string;
+  readonly kind: "wire-value-order-preserving" | "selection-outcome-changing";
+  readonly surface: string;
+  readonly reason: string;
+  readonly evidence: readonly {
+    readonly sourcePath: string;
+    readonly needles: readonly string[];
+  }[];
+}
+
 interface RustSemverIntent {
   readonly crate: string;
   readonly releaseClass: "pre1MinorBreaking";
   readonly reason: string;
   readonly expectedFailures: readonly ExpectedCargoSemverDiagnostic[];
   readonly expectedWarnings?: readonly ExpectedCargoSemverDiagnostic[];
+  readonly expectedRuntimeValueChanges?: readonly ExpectedRuntimeValueChange[];
 }
 
 interface RustSemverIntentRegister {
@@ -38,6 +50,7 @@ export interface DeclaredRustSemverCheckResult {
   readonly policy: "steady-state-patch" | "declared-pre1-minor-breaking";
   readonly declaredFailureCount: number;
   readonly declaredWarningCount: number;
+  readonly declaredRuntimeValueChangeCount: number;
   readonly declaredReleaseVersion: string | null;
 }
 
@@ -46,6 +59,65 @@ const diagnosticHeaderPattern = /^--- (failure|warning) ([a-z0-9_]+):[^\n]*$/gmu
 
 export function declaredRustSemverIntentCrates(repoRoot: string): readonly string[] {
   return readRegister(repoRoot).intents.map((intent) => intent.crate);
+}
+
+export function validateRustSemverIntentRegister(repoRoot: string): {
+  readonly intentCount: number;
+  readonly runtimeValueChangeCount: number;
+} {
+  const register = readRegister(repoRoot);
+  const workspaceVersion = readWorkspaceVersion(repoRoot);
+  assertReleaseWindow(
+    register.baselineWorkspaceVersion,
+    register.targetReleaseVersion,
+    workspaceVersion,
+  );
+
+  let runtimeValueChangeCount = 0;
+  for (const intent of register.intents) {
+    assert.ok(intent.reason.trim().length > 0, `${intent.crate} semver intent requires a reason`);
+    const runtimeChanges = intent.expectedRuntimeValueChanges ?? [];
+    assert.ok(
+      intent.expectedFailures.length > 0 || runtimeChanges.length > 0,
+      `${intent.crate} semver intent must name a cargo diagnostic or runtime value change`,
+    );
+    assert.equal(
+      new Set(runtimeChanges.map((change) => change.id)).size,
+      runtimeChanges.length,
+      `${intent.crate} runtime value change ids must be unique`,
+    );
+    for (const change of runtimeChanges) {
+      assert.ok(change.reason.trim().length > 0, `${intent.crate}:${change.id} requires a reason`);
+      assert.ok(
+        change.surface.trim().length > 0,
+        `${intent.crate}:${change.id} requires a surface`,
+      );
+      assert.ok(change.evidence.length > 0, `${intent.crate}:${change.id} requires evidence`);
+      for (const evidence of change.evidence) {
+        assert.ok(
+          evidence.sourcePath.startsWith("rust/"),
+          `${intent.crate}:${change.id} evidence must stay in the Rust product surface`,
+        );
+        assert.ok(
+          evidence.needles.length > 0,
+          `${intent.crate}:${change.id} evidence requires source needles`,
+        );
+        const source = readFileSync(path.join(repoRoot, evidence.sourcePath), "utf8");
+        for (const needle of evidence.needles) {
+          assert.ok(
+            source.includes(needle),
+            `${intent.crate}:${change.id} is missing evidence ${JSON.stringify(needle)} in ${evidence.sourcePath}`,
+          );
+        }
+      }
+    }
+    runtimeValueChangeCount += runtimeChanges.length;
+  }
+
+  return {
+    intentCount: register.intents.length,
+    runtimeValueChangeCount,
+  };
 }
 
 export function runDeclaredRustSemverCheck(
@@ -75,6 +147,7 @@ export function runDeclaredRustSemverCheck(
       policy: "steady-state-patch",
       declaredFailureCount: 0,
       declaredWarningCount: 0,
+      declaredRuntimeValueChangeCount: 0,
       declaredReleaseVersion: null,
     };
   }
@@ -85,10 +158,12 @@ export function runDeclaredRustSemverCheck(
     options.workspaceVersion,
   );
   assert.ok(intent.reason.trim().length > 0, `${options.crate} semver intent requires a reason`);
+  const runtimeValueChanges = intent.expectedRuntimeValueChanges ?? [];
   assert.ok(
-    intent.expectedFailures.length > 0,
-    `${options.crate} breaking semver intent must name at least one cargo-semver-checks failure`,
+    intent.expectedFailures.length > 0 || runtimeValueChanges.length > 0,
+    `${options.crate} breaking semver intent must name a cargo diagnostic or runtime value change`,
   );
+  validateRustSemverIntentRegister(options.repoRoot);
 
   const patchCheck = spawnSync("cargo", args, {
     cwd: options.repoRoot,
@@ -97,11 +172,19 @@ export function runDeclaredRustSemverCheck(
   });
   const output = `${patchCheck.stdout ?? ""}${patchCheck.stderr ?? ""}`;
   process.stdout.write(output);
-  assert.notEqual(
-    patchCheck.status,
-    0,
-    `${options.crate} semver intent is stale because the steady-state patch check passed`,
-  );
+  if (intent.expectedFailures.length > 0) {
+    assert.notEqual(
+      patchCheck.status,
+      0,
+      `${options.crate} semver intent is stale because the steady-state patch check passed`,
+    );
+  } else {
+    assert.equal(
+      patchCheck.status,
+      0,
+      `${options.crate} runtime-value-only intent has undeclared cargo-semver-checks failures`,
+    );
+  }
 
   const diagnosticSections = parseDiagnosticSections(output);
   const observedFailures = diagnosticSections
@@ -136,13 +219,24 @@ export function runDeclaredRustSemverCheck(
   const summary = output.match(
     /Summary semver requires new major version: (\d+) major and (\d+) minor checks failed/u,
   );
-  assert.ok(summary, `${options.crate} cargo-semver-checks output is missing the failure summary`);
-  assert.equal(
-    Number(summary[1]),
-    intent.expectedFailures.length,
-    `${options.crate} major failure count drifted`,
-  );
-  assert.equal(Number(summary[2]), 0, `${options.crate} has undeclared minor semver failures`);
+  if (intent.expectedFailures.length > 0) {
+    assert.ok(
+      summary,
+      `${options.crate} cargo-semver-checks output is missing the failure summary`,
+    );
+    assert.equal(
+      Number(summary[1]),
+      intent.expectedFailures.length,
+      `${options.crate} major failure count drifted`,
+    );
+    assert.equal(Number(summary[2]), 0, `${options.crate} has undeclared minor semver failures`);
+  } else {
+    assert.equal(
+      summary,
+      null,
+      `${options.crate} runtime-value-only intent emitted undeclared failures`,
+    );
+  }
   const warningSummary = output.match(
     /Warning produced (\d+) major and (\d+) minor level warnings/u,
   );
@@ -200,6 +294,7 @@ export function runDeclaredRustSemverCheck(
     policy: "declared-pre1-minor-breaking",
     declaredFailureCount: intent.expectedFailures.length,
     declaredWarningCount: expectedWarnings.length,
+    declaredRuntimeValueChangeCount: runtimeValueChanges.length,
     declaredReleaseVersion: register.targetReleaseVersion,
   };
 }
@@ -240,6 +335,13 @@ function readRegister(repoRoot: string): RustSemverIntentRegister {
     `${registerRelativePath} must contain at most one intent per crate`,
   );
   return register;
+}
+
+function readWorkspaceVersion(repoRoot: string): string {
+  const source = readFileSync(path.join(repoRoot, "rust/Cargo.toml"), "utf8");
+  const match = source.match(/\[workspace\.package\][\s\S]*?\bversion\s*=\s*"([^"]+)"/u);
+  assert.ok(match, "rust/Cargo.toml must define workspace.package.version");
+  return match[1]!;
 }
 
 function assertReleaseWindow(baseline: string, target: string, current: string): void {

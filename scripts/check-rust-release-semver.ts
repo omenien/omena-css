@@ -2,9 +2,26 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 
-import { runDeclaredRustSemverCheck } from "./lib/rust-semver-intent.ts";
+import {
+  runDeclaredRustSemverCheck,
+  validateRustSemverIntentRegister,
+} from "./lib/rust-semver-intent.ts";
 
 const repoRoot = process.cwd();
+if (process.argv.includes("--validate-intents-only")) {
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        schemaVersion: "0",
+        product: "rust.release-semver-intent-contract",
+        ...validateRustSemverIntentRegister(repoRoot),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  process.exit(0);
+}
 const crate = requiredArg("--crate");
 const baselineVersion = requiredArg("--baseline-version");
 const workspaceVersion = readWorkspaceVersion();

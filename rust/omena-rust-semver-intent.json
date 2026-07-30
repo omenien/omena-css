@@ -5,6 +5,57 @@
   "targetReleaseVersion": "0.4.0",
   "intents": [
     {
+      "crate": "omena-semantic",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes layer rank an opaque ordering token and changes the unresolved layered-selector fallback outcome.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "design-token-unlayered-rank-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "DesignTokenRankedReferenceV0.winnerDeclarationLayerRank",
+          "reason": "The serialized value moves to the unlayered-normal sentinel while preserving every ordering comparison.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
+              "needles": [
+                "Opaque cascade ordering token; consumers must not interpret it as a layer-count magnitude.",
+                "return normalized_layer_rank(false, None);"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
+              "needles": [
+                "fn ranks_unlayered_design_tokens_above_later_layered_tokens()",
+                "assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/types.rs",
+              "needles": [
+                "Opaque cascade ordering token; consumers must not interpret it as a layer-count magnitude."
+              ]
+            }
+          ]
+        },
+        {
+          "id": "design-token-unresolved-selector-fallback",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeLayerContextV0::layer_rank_for",
+          "reason": "An unresolved selector in a layered context now falls back to the unlayered-normal sentinel instead of the weakest layered rank.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
+              "needles": [
+                "normalized_layer_rank(false, selector_rank.and_then(LayerOrdinal::new))",
+                "fn unresolved_layer_selector_uses_the_unlayered_normal_ordering_token()"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "crate": "omena-cascade",
       "releaseClass": "pre1MinorBreaking",
       "reason": "The next pre-1.0 minor seals layer-rank construction, adds explicit cascade and computed-value states, extends proof carriers, and retires the old corpus entry points.",
@@ -32,7 +83,6 @@
         {
           "lint": "enum_no_repr_variant_discriminant_changed",
           "evidenceNeedles": [
-            "CascadeLevel::AuthorImportant 5 -> 6",
             "CascadeLevel::UserImportant 6 -> 7",
             "CascadeLevel::UserAgentImportant 7 -> 8",
             "CascadeLevel::Transition 8 -> 9",
@@ -66,7 +116,6 @@
         {
           "lint": "partial_ord_enum_variants_reordered",
           "evidenceNeedles": [
-            "CascadeLevel::AuthorImportant moved from position 6 to 7",
             "CascadeLevel::UserImportant moved from position 7 to 8",
             "CascadeLevel::UserAgentImportant moved from position 8 to 9",
             "CascadeLevel::Transition moved from position 9 to 10",
