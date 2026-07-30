@@ -549,11 +549,26 @@ fn apply_source_type_fact_results_to_document_with_span(
     let legacy_targets = document.source_syntax_index.type_fact_targets.clone();
     let mut targets = legacy_targets.clone();
     targets.extend_from_slice(span_targets);
+    let span_targets_by_id = span_targets
+        .iter()
+        .map(|target| (target.expression_id.as_str(), target))
+        .collect::<BTreeMap<_, _>>();
     let mut projection_entries = entries.to_vec();
     projection_entries.extend(
         span_entries
             .iter()
-            .filter(|entry| span_type_fact_entry_admissibility(entry).is_ok())
+            .filter(|entry| {
+                span_targets_by_id
+                    .get(entry.expression_id.as_str())
+                    .is_some_and(|target| {
+                        span_type_fact_entry_admissibility(
+                            entry,
+                            target.prefix.as_str(),
+                            target.suffix.as_str(),
+                        )
+                        .is_ok()
+                    })
+            })
             .map(|entry| TsgoTypeFactResultEntryV0 {
                 file_path: entry.file_path.clone(),
                 expression_id: entry.expression_id.clone(),
@@ -589,6 +604,7 @@ fn apply_source_type_fact_results_to_document_with_span(
         document.source_type_fact_lexical_attempts.as_slice(),
         entries,
         span_entries,
+        span_targets,
         &complete_projection_ids,
     );
     let mut next_type_fact_references = Vec::new();
@@ -644,6 +660,8 @@ fn apply_source_type_fact_results_to_document_with_span(
 
 fn span_type_fact_entry_admissibility(
     entry: &TsgoSpanTypeFactResultEntryV0,
+    prefix: &str,
+    suffix: &str,
 ) -> Result<(), &'static str> {
     if entry.outcome != SOURCE_TYPE_FACT_OUTCOME_RESOLVED {
         return Err(SOURCE_TYPE_FACT_REASON_OUTCOME_NOT_RESOLVED);
@@ -675,7 +693,7 @@ fn span_type_fact_entry_admissibility(
         .resolved_type
         .values
         .iter()
-        .all(|value| is_safe_css_identifier(value))
+        .all(|value| is_safe_css_identifier(format!("{prefix}{value}{suffix}").as_str()))
     {
         return Err(SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER);
     }
@@ -793,6 +811,7 @@ fn source_type_fact_tier_attempts_with_span_results(
     lexical_attempts: &[SourceTypeFactLexicalAttempt],
     entries: &[TsgoTypeFactResultEntryV0],
     span_entries: &[TsgoSpanTypeFactResultEntryV0],
+    span_targets: &[SourceTypeFactTarget],
     complete_projection_ids: &BTreeSet<String>,
 ) -> Vec<LspSourceTypeFactTierAttemptV0> {
     let mut attempts = source_type_fact_tier_attempts_with_results(
@@ -803,6 +822,10 @@ fn source_type_fact_tier_attempts_with_span_results(
     let span_entries_by_id = span_entries
         .iter()
         .map(|entry| (entry.expression_id.as_str(), entry))
+        .collect::<BTreeMap<_, _>>();
+    let span_targets_by_id = span_targets
+        .iter()
+        .map(|target| (target.expression_id.as_str(), target))
         .collect::<BTreeMap<_, _>>();
     for (lexical, attempt) in lexical_attempts.iter().zip(attempts.iter_mut()) {
         if lexical.lexical_disposition != SourceTypeFactLexicalDisposition::Unresolved
@@ -825,7 +848,16 @@ fn source_type_fact_tier_attempts_with_span_results(
                 attempt.reason = Some(entry.reason);
             }
             Some(entry) => {
-                if let Err(reason) = span_type_fact_entry_admissibility(entry) {
+                let admissibility = span_targets_by_id
+                    .get(lexical.expression_id.as_str())
+                    .map_or(Err(SOURCE_TYPE_FACT_REASON_NON_EXACT_DOMAIN), |target| {
+                        span_type_fact_entry_admissibility(
+                            entry,
+                            target.prefix.as_str(),
+                            target.suffix.as_str(),
+                        )
+                    });
+                if let Err(reason) = admissibility {
                     attempt.outcome = SOURCE_TYPE_FACT_OUTCOME_REFUSED;
                     attempt.reason = Some(reason);
                 } else {
@@ -1360,7 +1392,7 @@ mod tests {
                 values: vec!["primary".to_string()],
             },
         );
-        assert_eq!(span_type_fact_entry_admissibility(&base), Ok(()));
+        assert_eq!(span_type_fact_entry_admissibility(&base, "", ""), Ok(()));
 
         let mut outcome = base.clone();
         outcome.outcome = "unresolved";
@@ -1397,7 +1429,7 @@ mod tests {
             (unsafe_start, SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER),
         ] {
             assert_eq!(
-                span_type_fact_entry_admissibility(&entry),
+                span_type_fact_entry_admissibility(&entry, "", ""),
                 Err(expected_reason)
             );
         }
@@ -1439,7 +1471,7 @@ mod tests {
                 },
             );
             assert_eq!(
-                span_type_fact_entry_admissibility(&entry),
+                span_type_fact_entry_admissibility(&entry, prefix, suffix),
                 expected,
                 "admission should classify the composed selector {prefix}<member>{suffix}"
             );
@@ -1459,12 +1491,15 @@ mod tests {
         std::fs::create_dir_all(&src_dir)?;
         std::fs::write(workspace_root.join("tsconfig.json"), "{}")?;
         let source_text = r#"import bind from "classnames/bind";
-import styles from "./App.module.scss";
-const cx = bind.bind(styles);
-declare function pickTone(): "primary" | "secondary";
-export const App = () => <div className={cx(`theme-${pickTone()}-active`)} />;"#;
-        let style_text =
-            ".theme-primary-active { color: red; }\n.theme-secondary-active { color: blue; }";
+	import styles from "./App.module.scss";
+	const cx = bind.bind(styles);
+	declare function pickTone(): "primary" | "secondary";
+	declare function pickSize(): 1 | 2;
+	export const App = () => <>
+	  <div className={cx(`theme-${pickTone()}-active`)} />
+	  <div className={cx(`btn-${pickSize()}`)} />
+	</>;"#;
+        let style_text = ".theme-primary-active { color: red; }\n.theme-secondary-active { color: blue; }\n.btn-1 { display: block; }\n.btn-2 { display: grid; }";
         std::fs::write(&source_path, source_text)?;
         std::fs::write(&style_path, style_text)?;
         let workspace_uri = path_to_file_uri(workspace_root.as_path());
@@ -1506,19 +1541,33 @@ export const App = () => <div className={cx(`theme-${pickTone()}-active`)} />;"#
             );
         }
 
-        let (target, file_path, baseline_references) = {
+        let (target, numeric_target, file_path, baseline_references) = {
             let document = state
                 .document(source_uri.as_str())
                 .ok_or_else(|| std::io::Error::other("source document should be open"))?;
-            let target = span_source_type_fact_targets(document)
-                .into_iter()
+            let span_targets = span_source_type_fact_targets(document);
+            let target = span_targets
+                .iter()
                 .find(|target| {
                     source_text.get(target.byte_span.start..target.byte_span.end)
                         == Some("pickTone()")
                 })
+                .cloned()
                 .ok_or_else(|| std::io::Error::other("call expression should be harvested"))?;
+            let numeric_target = span_targets
+                .iter()
+                .find(|target| {
+                    source_text.get(target.byte_span.start..target.byte_span.end)
+                        == Some("pickSize()")
+                })
+                .cloned()
+                .ok_or_else(|| {
+                    std::io::Error::other("numeric call expression should be harvested")
+                })?;
             assert_eq!(target.prefix, "theme-");
             assert_eq!(target.suffix, "-active");
+            assert_eq!(numeric_target.prefix, "btn-");
+            assert_eq!(numeric_target.suffix, "");
             let unavailable_attempts = source_type_fact_tier_attempts_with_unavailable(
                 document.source_type_fact_lexical_attempts.as_slice(),
                 TSGO_PROVIDER_PROCESS_UNAVAILABLE,
@@ -1547,6 +1596,7 @@ export const App = () => <div className={cx(`theme-${pickTone()}-active`)} />;"#
             );
             (
                 target,
+                numeric_target,
                 request_target.file_path.clone(),
                 document
                     .source_syntax_index
@@ -1617,6 +1667,50 @@ export const App = () => <div className={cx(`theme-${pickTone()}-active`)} />;"#
                 })
         );
 
+        let numeric = TsgoSpanTypeFactResultEntryV0::resolved(
+            file_path.clone(),
+            numeric_target.expression_id.clone(),
+            "exactFiniteDomain",
+            2,
+            TsgoResolvedTypeV0 {
+                kind: "union",
+                values: vec!["1".to_string(), "2".to_string()],
+            },
+        );
+        apply_source_type_fact_results_to_document_with_span(
+            &mut state,
+            source_uri.as_str(),
+            &[],
+            std::slice::from_ref(&numeric),
+            std::slice::from_ref(&numeric_target),
+        );
+        let document = state
+            .document(source_uri.as_str())
+            .ok_or_else(|| std::io::Error::other("source document should remain open"))?;
+        let numeric_projected = document
+            .source_syntax_index
+            .selector_references
+            .iter()
+            .filter(|reference| {
+                reference.surface == SourceSelectorReferenceSurface::OmenaTsgoTypeFactProjection
+            })
+            .filter_map(|reference| reference.selector_name.clone())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            numeric_projected,
+            BTreeSet::from(["btn-1".to_string(), "btn-2".to_string()])
+        );
+        assert!(
+            document
+                .source_type_fact_tier_attempts
+                .iter()
+                .any(|attempt| {
+                    attempt.expression_id == numeric_target.expression_id
+                        && attempt.outcome == SOURCE_TYPE_FACT_OUTCOME_RESOLVED
+                        && attempt.reason.is_none()
+                })
+        );
+
         let refused = TsgoSpanTypeFactResultEntryV0::refused(
             file_path.clone(),
             target.expression_id.clone(),
@@ -1668,12 +1762,17 @@ export const App = () => <div className={cx(`theme-${pickTone()}-active`)} />;"#
                 values: vec!["9valid".to_string()],
             },
         );
+        let unsafe_target = SourceTypeFactTarget {
+            prefix: String::new(),
+            suffix: String::new(),
+            ..target.clone()
+        };
         apply_source_type_fact_results_to_document_with_span(
             &mut state,
             source_uri.as_str(),
             &[],
             std::slice::from_ref(&unsafe_value),
-            std::slice::from_ref(&target),
+            std::slice::from_ref(&unsafe_target),
         );
         let document = state
             .document(source_uri.as_str())
