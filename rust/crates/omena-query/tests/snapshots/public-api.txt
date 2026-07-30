@@ -49,6 +49,7 @@ pub use omena_query::OmenaParserStyleDialect
 pub use omena_query::OmenaPlugin
 pub use omena_query::OmenaQueryAnalysisPrecisionV0
 pub use omena_query::OmenaQueryAnalysisResultV0
+pub use omena_query::OmenaQueryCascadeRankedSetLossCaptureV0
 pub use omena_query::OmenaQueryCategoricalDesignSystemInvariantSummaryV0
 pub use omena_query::OmenaQueryCategoricalDesignSystemModelV0
 pub use omena_query::OmenaQueryCrossFileSccEvidenceV0
@@ -238,6 +239,7 @@ pub use omena_query::built_in_omena_query_plugins
 pub use omena_query::built_in_omena_query_style_intelligence_provider
 pub use omena_query::built_in_omena_query_style_intelligence_providers
 pub use omena_query::canonicalize_css_value
+pub use omena_query::capture_omena_query_cascade_ranked_set_losses
 pub use omena_query::classify_omena_query_utility_class
 pub use omena_query::closed_world_omena_query_minify_build_profile
 pub use omena_query::collect_directed_graph_cycles

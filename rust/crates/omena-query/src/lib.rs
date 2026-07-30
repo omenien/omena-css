@@ -2,6 +2,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+pub use omena_cascade::{
+    CascadeRankedSetLossCaptureV0 as OmenaQueryCascadeRankedSetLossCaptureV0,
+    capture_cascade_ranked_set_losses as capture_omena_query_cascade_ranked_set_losses,
+};
+
 mod explain;
 pub use explain::{
     OmenaQueryExplainAvailabilityV0, OmenaQueryExplainCapabilityV0,
