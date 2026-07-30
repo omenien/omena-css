@@ -32,7 +32,7 @@
   "sites": [
     {
       "path": "rust/crates/omena-cascade/src/lib.rs",
-      "line": 52,
+      "line": 85,
       "function": "prove_scope_flatten_candidate",
       "idiom": "equals",
       "keyword": ":root",
@@ -978,7 +978,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/design_tokens.rs",
-      "line": 638,
+      "line": 654,
       "function": "summarize_design_token_resolution_signal",
       "idiom": "equals",
       "keyword": ":root",
@@ -989,7 +989,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/design_tokens.rs",
-      "line": 648,
+      "line": 664,
       "function": "summarize_design_token_resolution_signal",
       "idiom": "equals",
       "keyword": ":root",
@@ -1099,7 +1099,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/tests.rs",
-      "line": 276,
+      "line": 278,
       "function": "css_modules_cross_file_resolution_is_semantic_layer_owned",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -2044,7 +2044,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:aea866cd1ae4c3b0999c839cd0bc6eaf39e08545c767e74307c6cba86c612789",
+  "siteDigest": "sha256:328d75444e83e3f2695ed827a82025d5018901870942c685ca6bcea210e108e5",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

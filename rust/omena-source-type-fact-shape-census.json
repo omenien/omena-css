@@ -10,7 +10,7 @@
   },
   "corpus": {
     "manifestPath": "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
-    "manifestSha256": "7229dd4585579ea6ea8ad25226c4a720ad47406f409b4590ea31407059fbf8e9",
+    "manifestSha256": "9b6ab1a0310039f905ecf9511bcf7e435e4a43e9f50a17fd164ec3a85302df3e",
     "lintReportPath": "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-report.json",
     "lintReportSha256": "489e8f766ec80995c9d29800474c4f4811ff1905415afc7b8f708ce1e3d9d925",
     "lintPolicyDigest": "f09d97143f20cd65e0a41143ffe7c912022ca2902d3ed08ca708700b08c5923f",
