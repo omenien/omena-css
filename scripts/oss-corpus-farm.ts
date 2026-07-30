@@ -379,9 +379,9 @@ void (async () => {
       writeFileSync(rankedSetLossCensusPath, rendered);
     } else {
       assert.ok(existsSync(rankedSetLossCensusPath), "ranked-set loss census must be committed");
-      assert.equal(
-        readFileSync(rankedSetLossCensusPath, "utf8"),
-        rendered,
+      assert.deepEqual(
+        JSON.parse(readFileSync(rankedSetLossCensusPath, "utf8")),
+        report,
         "ranked-set loss census drifted; regenerate it with --write-ranked-set-loss-census",
       );
     }
@@ -405,9 +405,9 @@ void (async () => {
         "real-workspace lint census report drifted; regenerate it with --write-lint-census",
       );
       assert.ok(existsSync(rankedSetLossCensusPath), "ranked-set loss census must be committed");
-      assert.equal(
-        readFileSync(rankedSetLossCensusPath, "utf8"),
-        rankedSetLossRendered,
+      assert.deepEqual(
+        JSON.parse(readFileSync(rankedSetLossCensusPath, "utf8")),
+        rankedSetLossReport,
         "ranked-set loss census drifted; regenerate it with --write-lint-census",
       );
     }
