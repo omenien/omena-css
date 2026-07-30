@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
 
+use omena_syntax::ident::ClassNameV0;
+
 use crate::automaton::{automaton_matches_string, finite_language_values};
 use crate::{
     AbstractClassValueV0, AbstractSelectorProjectionV0, SelectorProjectionCertaintyV0,
@@ -122,9 +124,10 @@ pub(crate) fn abstract_value_matches_string(value: &AbstractClassValueV0, candid
 }
 
 fn find_selectors(selector_universe: &[String], value: &str) -> Vec<String> {
+    let value = ClassNameV0::new(value);
     selector_universe
         .iter()
-        .filter(|selector| selector.as_str() == value)
+        .filter(|selector| ClassNameV0::new(selector.as_str()).same_as(&value))
         .cloned()
         .collect()
 }

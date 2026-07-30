@@ -1,5 +1,5 @@
 use super::super::parser_facade::lex_omena_query_omena_parser_style_source;
-use super::context::{css_identifier_names_match, decode_css_identifier_escapes};
+use super::context::css_identifier_names_match;
 use super::*;
 use omena_query_core::canonicalize_css_value;
 use omena_query_transform_runner::{
@@ -7,7 +7,7 @@ use omena_query_transform_runner::{
     TransformCssModuleValueResolutionV0,
     resolve_static_css_modules_local_value_resolutions_from_source,
 };
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, ident::decode_css_identifier_escapes};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub(in crate::style) fn derive_class_name_rewrites_for_transform_context(
@@ -317,10 +317,7 @@ fn css_module_composes_closure_for_context(
     style_path: &str,
     selector_name: &str,
 ) -> BTreeSet<CssModulesComposesNode> {
-    let start = CssModulesComposesNode {
-        style_path: style_path.to_string(),
-        selector_name: selector_name.to_string(),
-    };
+    let start = CssModulesComposesNode::new(style_path, selector_name);
     let mut closure = BTreeSet::new();
     let mut pending = VecDeque::from([start]);
 

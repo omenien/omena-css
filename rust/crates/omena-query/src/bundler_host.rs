@@ -4,7 +4,8 @@ use crate::{
     render_omena_query_css_module_typescript_declaration,
     summarize_omena_query_css_modules_interface_bundle,
 };
-use std::collections::BTreeMap;
+use omena_syntax::ident::ClassNameV0;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0: &str = "0";
 
@@ -54,10 +55,36 @@ pub fn resolve_omena_bundler_host_module_v0(
     let mut named_exports = BTreeMap::new();
     let mut composes_edges = Vec::new();
     let mut diagnostics = Vec::new();
+    let mut has_blocking_diagnostic = false;
     let typescript_declaration = render_omena_query_css_module_typescript_declaration(&module);
+
+    let mut spellings_by_identity = BTreeMap::new();
+    for export in &module.class_exports {
+        spellings_by_identity
+            .entry(ClassNameV0::new(&export.name).canonical_key())
+            .or_insert_with(BTreeSet::new)
+            .insert(export.name.clone());
+    }
+    for spellings in spellings_by_identity
+        .into_values()
+        .filter(|spellings| spellings.len() > 1)
+    {
+        diagnostics.push(OmenaBundlerHostDiagnosticV0 {
+            code: "decodeEquivalentClassNames".to_string(),
+            message: format!(
+                "CSS Module class spellings {} decode to one identifier and share an emitted name.",
+                spellings
+                    .iter()
+                    .map(|name| format!("'{name}'"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        });
+    }
 
     for export in module.class_exports {
         if export.emitted_classes.len() != export.resolved_classes.len() {
+            has_blocking_diagnostic = true;
             diagnostics.push(OmenaBundlerHostDiagnosticV0 {
                 code: "unresolvedEmittedClass".to_string(),
                 message: format!(
@@ -96,7 +123,7 @@ pub fn resolve_omena_bundler_host_module_v0(
         named_exports,
         typescript_declaration,
         composes_edges,
-        ready: diagnostics.is_empty(),
+        ready: !has_blocking_diagnostic,
         diagnostics,
     }
 }
@@ -182,5 +209,134 @@ mod tests {
         assert!(!response.ready);
         assert!(response.class_map.is_empty());
         assert_eq!(response.diagnostics[0].code, "moduleNotFound");
+    }
+
+    #[test]
+    fn resolves_every_raw_export_through_decoded_class_identity() {
+        let response = resolve_omena_bundler_host_module_v0(request(
+            "/src/names.module.css",
+            vec![OmenaQueryStyleSourceInputV0 {
+                style_path: "/src/names.module.css".to_string(),
+                style_source: r".a\62 c { color: red; } .abc { color: blue; } .z { color: green; }"
+                    .to_string(),
+            }],
+        ));
+
+        // Either one-sided canonicalization leaves one of these source-produced
+        // raw keys unresolved, so the assertion names the exact missing key.
+        let emitted_total = response
+            .class_map
+            .values()
+            .map(|value| value.split_ascii_whitespace().count())
+            .sum::<usize>();
+        for raw_key in [r"a\62 c", "abc", "z"] {
+            assert!(
+                response.class_map.contains_key(raw_key),
+                "missing emitted class for raw export key {raw_key:?}; emitted total {emitted_total}: {:?}",
+                response.diagnostics
+            );
+        }
+        assert_eq!(emitted_total, 3);
+        assert!(response.ready, "{:?}", response.diagnostics);
+    }
+
+    #[test]
+    fn decode_equivalent_exports_share_one_emitted_token() {
+        let response = resolve_omena_bundler_host_module_v0(request(
+            "/src/card.module.css",
+            vec![OmenaQueryStyleSourceInputV0 {
+                style_path: "/src/card.module.css".to_string(),
+                style_source: r".card { color: red; } .c\61 rd { color: blue; }".to_string(),
+            }],
+        ));
+
+        assert!(response.ready, "{:?}", response.diagnostics);
+        assert!(
+            response
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "unresolvedEmittedClass")
+        );
+        assert!(
+            response
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "decodeEquivalentClassNames")
+        );
+        let values = [
+            response.class_map.get("card"),
+            response.class_map.get(r"c\61 rd"),
+        ]
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .expect("both raw export keys must remain public");
+        assert_eq!(values[0], values[1]);
+        assert_eq!(
+            values
+                .iter()
+                .flat_map(|value| value.split_ascii_whitespace())
+                .collect::<BTreeSet<_>>()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn composes_resolves_a_target_spelled_only_by_the_importer() {
+        let response = resolve_omena_bundler_host_module_v0(request(
+            "/src/b.module.css",
+            vec![
+                OmenaQueryStyleSourceInputV0 {
+                    style_path: "/src/a.module.css".to_string(),
+                    style_source: ".card { color: red; }".to_string(),
+                },
+                OmenaQueryStyleSourceInputV0 {
+                    style_path: "/src/b.module.css".to_string(),
+                    style_source: r#".x { composes: c\61 rd from "./a.module.css"; color: blue; }"#
+                        .to_string(),
+                },
+            ],
+        ));
+
+        assert!(response.ready, "{:?}", response.diagnostics);
+        let emitted = response
+            .class_map
+            .get("x")
+            .expect("the local export must remain public");
+        assert!(
+            emitted
+                .split_ascii_whitespace()
+                .any(|name| name == "_card_0"),
+            "cross-module canonical identity did not resolve the target token: {emitted:?}"
+        );
+    }
+
+    #[test]
+    fn escape_free_interface_emitted_class_total_is_stable() {
+        let response = resolve_omena_bundler_host_module_v0(request(
+            "/src/button.module.css",
+            vec![
+                OmenaQueryStyleSourceInputV0 {
+                    style_path: "/src/base.module.css".to_string(),
+                    style_source: ".base {} .quiet {}".to_string(),
+                },
+                OmenaQueryStyleSourceInputV0 {
+                    style_path: "/src/button.module.css".to_string(),
+                    style_source: ".button { composes: base from './base.module.css'; } .label {}"
+                        .to_string(),
+                },
+            ],
+        ));
+
+        assert!(response.ready, "{:?}", response.diagnostics);
+        let emitted_total = response
+            .class_map
+            .values()
+            .map(|value| value.split_ascii_whitespace().count())
+            .sum::<usize>();
+        // The fixture itself supplies two local exports and one composed edge;
+        // dropping either side of the join changes this independently counted total.
+        assert_eq!(emitted_total, 3);
+        assert_eq!(response.class_map.len(), 2);
     }
 }

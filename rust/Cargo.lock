@@ -2453,6 +2453,7 @@ dependencies = [
  "omena-evidence-graph",
  "omena-incremental",
  "omena-spec-audit",
+ "omena-syntax",
  "omena-value-lattice",
  "serde",
  "serde_json",

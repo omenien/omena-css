@@ -22,6 +22,7 @@ default = []
 omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.3.0" }
 omena-incremental = { path = "../omena-incremental", version = "=0.3.0" }
 omena-spec-audit = { path = "../omena-spec-audit", version = "=0.3.0" }
+omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }
 omena-value-lattice = { path = "../omena-value-lattice", version = "=0.3.0" }
 serde.workspace = true
 

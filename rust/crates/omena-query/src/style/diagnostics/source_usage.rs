@@ -793,10 +793,7 @@ fn propagate_omena_query_composes_usage(
         .flat_map(|(style_path, selectors)| {
             selectors
                 .iter()
-                .map(|selector_name| CssModulesComposesNode {
-                    style_path: style_path.clone(),
-                    selector_name: selector_name.clone(),
-                })
+                .map(move |selector_name| CssModulesComposesNode::new(style_path, selector_name))
         })
         .collect::<BTreeSet<_>>();
 

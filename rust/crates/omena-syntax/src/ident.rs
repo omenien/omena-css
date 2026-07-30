@@ -26,7 +26,7 @@ impl ClassNameV0 {
     }
 
     pub fn same_as(&self, other: &Self) -> bool {
-        self.canonical_key() == other.canonical_key()
+        self.decoded == other.decoded
     }
 
     pub fn canonical_key(&self) -> CanonicalClassKeyV0 {

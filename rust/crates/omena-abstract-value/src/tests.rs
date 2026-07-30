@@ -3011,6 +3011,21 @@ fn projects_exact_and_finite_values_into_selector_universe() {
 }
 
 #[test]
+fn selector_projection_uses_decoded_class_identity() {
+    let selectors = selector_universe([r"c\61 rd"]);
+
+    let raw = project_abstract_value_selectors(&exact_class_value(r"c\61 rd"), &selectors);
+    let decoded = project_abstract_value_selectors(&exact_class_value("card"), &selectors);
+    let emitted = project_abstract_value_selectors(&exact_class_value("_card_0"), &selectors);
+
+    // Raw and decoded spellings are source-producible aliases. The emitted
+    // token is deliberately outside this author-selector universe.
+    assert_eq!(raw.selector_names, selectors);
+    assert_eq!(decoded.selector_names, selectors);
+    assert!(emitted.selector_names.is_empty());
+}
+
+#[test]
 fn projects_constrained_values_into_selector_universe() {
     let selectors = selector_universe(["btn-primary", "btn-secondary", "card", "link-active"]);
 
