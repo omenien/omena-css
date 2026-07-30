@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.identifier-authority-seal-decision",
+  "measurementContract": {
+    "compileCommand": "cargo check --workspace --message-format=json",
+    "dependencyGateCommands": [
+      "pnpm run check:rust-layer-dependency-exceptions",
+      "pnpm run check:rust-role-boundaries"
+    ],
+    "errorPopulation": "compiler errors caused by replacing class-name comparison carriers with ClassNameV0 while ClassNameV0 has no PartialEq, Eq, PartialOrd, Ord, or Hash derives",
+    "aggregation": "count compiler errors per crate and in total",
+    "idiomPopulation": "non-test Rust source lines that contain both a class-name-labelled binding and a comparison primitive"
+  },
+  "preconditions": {
+    "dependencyGateExitCodes": [
+      0,
+      0
+    ],
+    "onFailure": "stop-and-escalate-without-adding-a-layer-exception"
+  },
+  "idiomRefinement": {
+    "maximumCandidateCount": 240,
+    "maximumNamedExemptFractionBasisPoints": 8000,
+    "onExcess": "narrow-the-binding-lexeme-set-before-freezing-the-census"
+  },
+  "decisionArms": [
+    {
+      "outcome": "fullSeal",
+      "when": {
+        "maximumTotalCompilerErrorCount": 128,
+        "maximumCompilerErrorCountPerCrate": 32
+      }
+    },
+    {
+      "outcome": "scopedSeal",
+      "when": {
+        "minimumCrateCountAtOrBelowThirtyTwoErrors": 4,
+        "maximumTotalCompilerErrorCount": 320
+      },
+      "scopeRule": "seal every measured crate with at most 32 compiler errors and cover the remaining crates with the egress and idiom censuses"
+    },
+    {
+      "outcome": "deferredSeal",
+      "when": {
+        "minimumTotalCompilerErrorCount": 321,
+        "orCrateCountAtOrBelowThirtyTwoErrorsIsLessThan": 4
+      },
+      "owner": "omena-syntax maintainers",
+      "reentryCondition": "a later carrier migration measures at most 320 total compiler errors with at least four crates at or below 32 errors"
+    }
+  ]
+}
