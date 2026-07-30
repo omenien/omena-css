@@ -43,7 +43,6 @@ interface RealWorkspaceLintCensusManifestV0 {
   readonly perSourceFileBudgetSeconds: number;
   readonly perStyleFileBudgetSeconds: number;
   readonly githubActionsTimeBudgetMultiplier: number;
-  readonly githubActionsFixedJitterSeconds: number;
 }
 
 interface RankedSetLossCensusManifestV0 {
@@ -731,8 +730,7 @@ function runRealWorkspaceLintCensusEntry(
     budget.perStyleFileBudgetSeconds * productReport.styleFileCount;
   const elapsedBudgetSeconds =
     baseElapsedBudgetSeconds *
-      (process.env.GITHUB_ACTIONS === "true" ? budget.githubActionsTimeBudgetMultiplier : 1) +
-    (process.env.GITHUB_ACTIONS === "true" ? budget.githubActionsFixedJitterSeconds : 0);
+    (process.env.GITHUB_ACTIONS === "true" ? budget.githubActionsTimeBudgetMultiplier : 1);
   if (entry.lintScaleFloor) {
     assert.ok(
       productReport.styleFileCount >= entry.lintScaleFloor.styleFileCount,
@@ -1475,11 +1473,6 @@ function assertManifest(manifest: ExternalCorpusDifferentialManifestV1): void {
     manifest.lintCensus.githubActionsTimeBudgetMultiplier >= 1 &&
       manifest.lintCensus.githubActionsTimeBudgetMultiplier <= 2,
     "GitHub Actions lint time multiplier must stay within the bounded runner allowance",
-  );
-  assert.ok(
-    manifest.lintCensus.githubActionsFixedJitterSeconds >= 0 &&
-      manifest.lintCensus.githubActionsFixedJitterSeconds <= 1,
-    "GitHub Actions fixed lint jitter must stay within one second",
   );
   const dialects = new Set(
     manifest.fixtures.filter(isPinnedRepositoryEntry).map((entry) => entry.dialect),
