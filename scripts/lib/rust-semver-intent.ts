@@ -56,6 +56,10 @@ export interface DeclaredRustSemverCheckResult {
 
 const registerRelativePath = "rust/omena-rust-semver-intent.json";
 const diagnosticHeaderPattern = /^--- (failure|warning) ([a-z0-9_]+):[^\n]*$/gmu;
+const runtimeValueChangeKinds = new Set<ExpectedRuntimeValueChange["kind"]>([
+  "wire-value-order-preserving",
+  "selection-outcome-changing",
+]);
 
 export function declaredRustSemverIntentCrates(repoRoot: string): readonly string[] {
   return readRegister(repoRoot).intents.map((intent) => intent.crate);
@@ -87,6 +91,10 @@ export function validateRustSemverIntentRegister(repoRoot: string): {
       `${intent.crate} runtime value change ids must be unique`,
     );
     for (const change of runtimeChanges) {
+      assert.ok(
+        runtimeValueChangeKinds.has(change.kind),
+        `${intent.crate}:${change.id} has unsupported runtime value change kind ${JSON.stringify(change.kind)}`,
+      );
       assert.ok(change.reason.trim().length > 0, `${intent.crate}:${change.id} requires a reason`);
       assert.ok(
         change.surface.trim().length > 0,

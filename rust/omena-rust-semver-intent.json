@@ -48,7 +48,8 @@
               "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
               "needles": [
                 "normalized_layer_rank(false, selector_rank.and_then(LayerOrdinal::new))",
-                "fn unresolved_layer_selector_uses_the_unlayered_normal_ordering_token()"
+                "fn unresolved_layer_selector_uses_the_unlayered_normal_ordering_token()",
+                "assert_eq!(\n            context\n                .layer_rank_for(&[], &[\".unresolved\".to_string()], true)\n                .get(),\n            i32::MAX\n        );"
               ]
             }
           ]
@@ -122,6 +123,35 @@
             "ComputedCascadeIndeterminateReasonV0::InheritedFromIndeterminateParent moved from position 5 to 6"
           ]
         }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "inline-important-cascade-level-order",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeLevel Ord, cascade_level_catalog_v0(), and cascade_level_rank",
+          "reason": "Element-attached important declarations move above author-important declarations in enum order, the public level catalog, and the cascade-key rank.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": [
+                "#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]",
+                "Animation,\n    AuthorImportant,\n    InlineImportant,\n    UserImportant,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+              "needles": [
+                "CascadeLevel::Animation,\n        CascadeLevel::AuthorImportant,\n        CascadeLevel::InlineImportant,\n        CascadeLevel::UserImportant,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/ranking.rs",
+              "needles": [
+                "CascadeLevel::AuthorImportant => 5,\n        CascadeLevel::InlineImportant => 6,"
+              ]
+            }
+          ]
+        }
       ]
     },
     {
@@ -153,6 +183,40 @@
           "expectedWitnesses": [
             "OmenaQueryInlineStyleRuntimeOverrideV0.important",
             "OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "inline-important-runtime-winner",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryRuntimeStateScenarioEvidenceV0.winnerValue, winnerDeclarationId, and declarationIds",
+          "reason": "A source-text inline value ending in !important no longer supplies the cascade winner or a synthetic inline declaration identity.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/style_diagnostics.rs",
+              "needles": [
+                "assert_eq!(inline_scenario.winner_value.as_deref(), Some(\"red\"));",
+                ".is_some_and(|id| id.starts_with(\"decl-\"))",
+                ".all(|id| !id.starts_with(\"inline-style:\"))"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "inline-important-source-element-computed-value",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryElementComputedValueV0.status and computedValue",
+          "reason": "A source-text inline value ending in !important is preserved as unsupported static input instead of being exposed as a resolved literal.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
+              "needles": [
+                "fn source_element_computed_value_rejects_jsx_inline_important_suffix()",
+                "OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue",
+                "assert_eq!(color.computed_value, None);"
+              ]
+            }
           ]
         }
       ]
