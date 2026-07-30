@@ -395,6 +395,43 @@ mod tests {
     }
 
     #[test]
+    fn css_modules_interface_collapses_decode_equivalent_composes_in_owner_first_order() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/base.module.css".to_string(),
+                style_source: r".a\62 c {} .abc {}".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/button.module.css".to_string(),
+                style_source: r#".button { composes: a\62 c abc from "./base.module.css"; }"#
+                    .to_string(),
+            },
+        ];
+
+        let bundle = super::super::summarize_omena_query_css_modules_interface_bundle(
+            sources.as_slice(),
+            &[],
+        );
+        let button = bundle
+            .modules
+            .iter()
+            .find(|module| module.style_path.ends_with("button.module.css"))
+            .and_then(|module| module.class_exports.first());
+
+        assert!(button.is_some());
+        if let Some(button) = button {
+            assert_eq!(button.resolved_classes.len(), 2);
+            assert_eq!(button.resolved_classes[0].name, "button");
+            assert_eq!(
+                ClassNameV0::new(&button.resolved_classes[1].name)
+                    .canonical_key()
+                    .as_str(),
+                "abc"
+            );
+        }
+    }
+
+    #[test]
     fn css_modules_interface_declaration_and_json_are_byte_deterministic() -> Result<(), String> {
         let sources = vec![
             OmenaQueryStyleSourceInputV0 {

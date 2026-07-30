@@ -282,6 +282,54 @@
               ]
             }
           ]
+        },
+        {
+          "id": "selector-class-name-extraction-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryRuntimeStateScenarioEvidenceV0.selectorClassNames",
+          "reason": "Selector evidence now excludes string and nested-pseudo phantoms while preserving escaped and non-ASCII authored class names.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+              "needles": [
+                "fn extracts_selector_classes_without_string_or_depth_phantoms()",
+                "assert!(query_selector_class_names(r#\"[data-x=\"a.b\"]\"#).is_empty());",
+                "query_selector_class_names(\".card .title\"),\n            [\"card\", \"title\"]"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "css-module-resolved-class-identity-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryCssModuleClassExportV0.resolvedClasses ordering and cardinality",
+          "reason": "Decode-equivalent class references collapse to one canonical module/name identity while the owning class remains first.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/module_interface.rs",
+              "needles": [
+                "fn css_modules_interface_collapses_decode_equivalent_composes_in_owner_first_order()",
+                "assert_eq!(button.resolved_classes.len(), 2);",
+                "assert_eq!(button.resolved_classes[0].name, \"button\");"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "class-context-merge-precedence-values",
+          "kind": "selection-outcome-changing",
+          "surface": "TransformExecutionContextV0 classNameRewrites and cssModuleComposesResolutions ordering",
+          "reason": "Explicit class records replace decode-equivalent derived records at declaration position instead of being ordered by raw escape spelling.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/transform/context.rs",
+              "needles": [
+                "fn explicit_class_rewrite_precedence_ignores_escape_spelling_order()",
+                "vec![class_rewrite(explicit_name, \"_explicit\")]",
+                "exported_class_names: vec![\"explicit\".to_string()]"
+              ]
+            }
+          ]
         }
       ]
     },
