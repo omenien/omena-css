@@ -1,0 +1,358 @@
+use std::{
+    cmp::Ordering,
+    panic::Location,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering as AtomicOrdering},
+    },
+};
+
+use serde::Serialize;
+
+use crate::{CascadeDeclaration, CascadeOutcome, SpecificityExactnessV0};
+
+static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
+static CAPTURED_ROWS: Mutex<Vec<CascadeRankedSetLossCensusRowV0>> = Mutex::new(Vec::new());
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CascadeRankedSetFunctionV0 {
+    CascadeProperty,
+    CascadePropertyOpenWorld,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CascadeAxisPrefixV0 {
+    Level,
+    LayerRank,
+    ScopeProximity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CascadeRankedSetLossClassV0 {
+    RecoverableAxisDominant { axis: CascadeAxisPrefixV0 },
+    AxisWinnerInexact,
+    NoStrictAxisDominance,
+    SingleInexactCandidate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeRankedSetLossCensusRowV0 {
+    pub function: CascadeRankedSetFunctionV0,
+    pub invocation_site: &'static str,
+    pub source_path: String,
+    pub property: String,
+    pub declaration_ids: Vec<String>,
+    pub candidate_count: usize,
+    pub classification: CascadeRankedSetLossClassV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeRankedSetLossCaptureV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub rows: Vec<CascadeRankedSetLossCensusRowV0>,
+}
+
+/// Captures inexactness-bail `RankedSet` outcomes produced while `operation` runs.
+///
+/// Capture is process-wide so worker threads participate in the same bounded
+/// measurement. Nested or concurrent captures are rejected instead of merging
+/// unrelated populations.
+pub fn capture_cascade_ranked_set_losses<R>(
+    operation: impl FnOnce() -> R,
+) -> Result<(R, CascadeRankedSetLossCaptureV0), &'static str> {
+    CAPTURE_ACTIVE
+        .compare_exchange(false, true, AtomicOrdering::AcqRel, AtomicOrdering::Acquire)
+        .map_err(|_| "cascade ranked-set loss capture is already active")?;
+    CAPTURED_ROWS
+        .lock()
+        .expect("cascade ranked-set loss capture mutex")
+        .clear();
+    let guard = CaptureGuard;
+    let result = operation();
+    let mut rows = std::mem::take(
+        &mut *CAPTURED_ROWS
+            .lock()
+            .expect("cascade ranked-set loss capture mutex"),
+    );
+    rows.sort_by(|left, right| {
+        (
+            left.function,
+            left.invocation_site,
+            left.source_path.as_str(),
+            left.property.as_str(),
+            left.declaration_ids.as_slice(),
+        )
+            .cmp(&(
+                right.function,
+                right.invocation_site,
+                right.source_path.as_str(),
+                right.property.as_str(),
+                right.declaration_ids.as_slice(),
+            ))
+    });
+    drop(guard);
+    Ok((
+        result,
+        CascadeRankedSetLossCaptureV0 {
+            schema_version: "0",
+            product: "omena-cascade.ranked-set-loss-capture",
+            rows,
+        },
+    ))
+}
+
+pub fn classify_cascade_ranked_set_loss(
+    declarations: &[CascadeDeclaration],
+) -> CascadeRankedSetLossClassV0 {
+    assert!(
+        declarations.iter().any(|declaration| {
+            declaration.specificity_exactness == SpecificityExactnessV0::Inexact
+        }),
+        "ranked-set loss classification requires an inexact declaration",
+    );
+    if declarations.len() == 1 {
+        return CascadeRankedSetLossClassV0::SingleInexactCandidate;
+    }
+
+    let Some((winner_index, deciding_axis)) = strict_axis_prefix_winner(declarations) else {
+        return CascadeRankedSetLossClassV0::NoStrictAxisDominance;
+    };
+    if declarations[winner_index].specificity_exactness == SpecificityExactnessV0::Inexact {
+        CascadeRankedSetLossClassV0::AxisWinnerInexact
+    } else {
+        CascadeRankedSetLossClassV0::RecoverableAxisDominant {
+            axis: deciding_axis,
+        }
+    }
+}
+
+pub(crate) fn observe_cascade_outcome(
+    function: CascadeRankedSetFunctionV0,
+    caller: &'static Location<'static>,
+    outcome: &CascadeOutcome,
+) {
+    if !CAPTURE_ACTIVE.load(AtomicOrdering::Acquire) {
+        return;
+    }
+    let CascadeOutcome::RankedSet(declarations) = outcome else {
+        return;
+    };
+    if !declarations
+        .iter()
+        .any(|declaration| declaration.specificity_exactness == SpecificityExactnessV0::Inexact)
+    {
+        return;
+    }
+    let row = CascadeRankedSetLossCensusRowV0 {
+        function,
+        invocation_site: invocation_site(caller.file()),
+        source_path: caller.file().to_string(),
+        property: declarations
+            .first()
+            .map(|declaration| declaration.property.clone())
+            .unwrap_or_default(),
+        declaration_ids: declarations
+            .iter()
+            .map(|declaration| declaration.id.clone())
+            .collect(),
+        candidate_count: declarations.len(),
+        classification: classify_cascade_ranked_set_loss(declarations),
+    };
+    CAPTURED_ROWS
+        .lock()
+        .expect("cascade ranked-set loss capture mutex")
+        .push(row);
+}
+
+fn strict_axis_prefix_winner(
+    declarations: &[CascadeDeclaration],
+) -> Option<(usize, CascadeAxisPrefixV0)> {
+    let mut ranked = declarations.iter().enumerate().collect::<Vec<_>>();
+    ranked.sort_by(|(_, left), (_, right)| compare_axis_prefix(&right.key, &left.key));
+    let [(winner_index, winner), (_, runner_up), ..] = ranked.as_slice() else {
+        return None;
+    };
+    let ordering = compare_axis_prefix(&winner.key, &runner_up.key);
+    if ordering != Ordering::Greater {
+        return None;
+    }
+    Some((
+        *winner_index,
+        deciding_axis(&winner.key, &runner_up.key)
+            .expect("a strict axis-prefix winner must differ on one prefix axis"),
+    ))
+}
+
+fn compare_axis_prefix(left: &crate::CascadeKey, right: &crate::CascadeKey) -> Ordering {
+    left.level
+        .cmp(&right.level)
+        .then_with(|| left.layer_rank.cmp(&right.layer_rank))
+        .then_with(|| right.scope_proximity.cmp(&left.scope_proximity))
+}
+
+fn deciding_axis(
+    winner: &crate::CascadeKey,
+    runner_up: &crate::CascadeKey,
+) -> Option<CascadeAxisPrefixV0> {
+    if winner.level != runner_up.level {
+        Some(CascadeAxisPrefixV0::Level)
+    } else if winner.layer_rank != runner_up.layer_rank {
+        Some(CascadeAxisPrefixV0::LayerRank)
+    } else if winner.scope_proximity != runner_up.scope_proximity {
+        Some(CascadeAxisPrefixV0::ScopeProximity)
+    } else {
+        None
+    }
+}
+
+fn invocation_site(source_path: &str) -> &'static str {
+    if source_path.ends_with("omena-query/src/style/cascade_checker/runtime_state.rs") {
+        "queryRuntimeStateScenarioEvaluation"
+    } else if source_path.ends_with("omena-query/src/style/cascade_checker/confidence.rs") {
+        "queryCascadeMarginForEvaluation"
+    } else if source_path.ends_with("omena-query/src/style/cascade_checker/replica_ensemble.rs") {
+        "collectQueryReplicaEnsembleSiteOutcomes"
+    } else if source_path.ends_with("omena-cascade/src/computed_value.rs") {
+        "computeCascadeComputedValue"
+    } else if source_path.ends_with("omena-transform-passes/src/runtime/winner_equality.rs") {
+        "transformWinnerEqualityFromCascadeOutcome"
+    } else {
+        "unclassified"
+    }
+}
+
+struct CaptureGuard;
+
+impl Drop for CaptureGuard {
+    fn drop(&mut self) {
+        CAPTURE_ACTIVE.store(false, AtomicOrdering::Release);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        CascadeAxisPrefixV0, CascadeRankedSetLossClassV0, classify_cascade_ranked_set_loss,
+    };
+    use crate::{
+        CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerOrdinal, ModuleRank,
+        Specificity, SpecificityExactnessV0, normalized_layer_rank,
+    };
+
+    fn declaration(
+        id: &str,
+        level: CascadeLevel,
+        layer_ordinal: i32,
+        scope_proximity: u32,
+        specificity: Specificity,
+        exactness: SpecificityExactnessV0,
+    ) -> CascadeDeclaration {
+        CascadeDeclaration {
+            id: id.to_string(),
+            property: "color".to_string(),
+            value: CascadeValue::Literal(id.to_string()),
+            key: CascadeKey::new(
+                level,
+                normalized_layer_rank(false, LayerOrdinal::new(layer_ordinal)),
+                scope_proximity,
+                specificity,
+                ModuleRank::ZERO,
+                0,
+            ),
+            specificity_exactness: exactness,
+        }
+    }
+
+    #[test]
+    fn axis_winner_exactness_changes_the_recoverability_class() {
+        let lower = declaration(
+            "lower",
+            CascadeLevel::UserNormal,
+            0,
+            0,
+            Specificity::new(9, 9, 9),
+            SpecificityExactnessV0::Inexact,
+        );
+        let exact_winner = declaration(
+            "winner",
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::ZERO,
+            SpecificityExactnessV0::Exact,
+        );
+        assert_eq!(
+            classify_cascade_ranked_set_loss(&[lower.clone(), exact_winner.clone()]),
+            CascadeRankedSetLossClassV0::RecoverableAxisDominant {
+                axis: CascadeAxisPrefixV0::Level
+            }
+        );
+
+        let mut inexact_winner = exact_winner;
+        inexact_winner.specificity_exactness = SpecificityExactnessV0::Inexact;
+        assert_eq!(
+            classify_cascade_ranked_set_loss(&[lower, inexact_winner]),
+            CascadeRankedSetLossClassV0::AxisWinnerInexact
+        );
+    }
+
+    #[test]
+    fn specificity_only_winner_has_no_strict_axis_dominance() {
+        let weaker = declaration(
+            "weaker",
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::new(0, 1, 0),
+            SpecificityExactnessV0::Inexact,
+        );
+        let stronger = declaration(
+            "stronger",
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::new(1, 0, 0),
+            SpecificityExactnessV0::Exact,
+        );
+        assert_eq!(
+            classify_cascade_ranked_set_loss(&[weaker, stronger]),
+            CascadeRankedSetLossClassV0::NoStrictAxisDominance
+        );
+    }
+
+    #[test]
+    fn single_inexact_candidate_is_not_vacuously_recoverable() {
+        let candidate = declaration(
+            "only",
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::ZERO,
+            SpecificityExactnessV0::Inexact,
+        );
+        assert_eq!(
+            classify_cascade_ranked_set_loss(&[candidate]),
+            CascadeRankedSetLossClassV0::SingleInexactCandidate
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "requires an inexact declaration")]
+    fn exact_only_input_is_outside_the_loss_classifier_domain() {
+        let candidate = declaration(
+            "exact",
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::ZERO,
+            SpecificityExactnessV0::Exact,
+        );
+        let _ = classify_cascade_ranked_set_loss(&[candidate]);
+    }
+}

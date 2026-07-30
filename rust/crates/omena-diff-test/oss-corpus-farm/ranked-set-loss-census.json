@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.ranked-set-loss-census",
+  "generatedBy": "scripts/oss-corpus-farm.ts",
+  "corpusManifestPath": "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
+  "limitations": [
+    "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
+    "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
+    "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction."
+  ],
+  "entryCount": 3,
+  "rowCount": 1,
+  "recoverableCount": 0,
+  "undecidableCount": 1,
+  "classCounts": {
+    "recoverableAxisDominant": 0,
+    "axisWinnerInexact": 0,
+    "noStrictAxisDominance": 0,
+    "singleInexactCandidate": 1
+  },
+  "functionPopulations": {
+    "cascadeProperty": 1,
+    "cascadePropertyOpenWorld": 0
+  },
+  "invocationSitePopulations": {
+    "queryRuntimeStateScenarioEvaluation": 0,
+    "queryCascadeMarginForEvaluation": 0,
+    "collectQueryReplicaEnsembleSiteOutcomes": 1,
+    "computeCascadeComputedValue": 0,
+    "transformWinnerEqualityFromCascadeOutcome": 0,
+    "unclassified": 0
+  },
+  "decidingAxisCounts": {
+    "level": 0,
+    "layerRank": 0,
+    "scopeProximity": 0
+  },
+  "unclassifiedInvocationCount": 0,
+  "entries": [
+    {
+      "id": "local-examples-lint-census",
+      "rowCount": 0,
+      "rows": []
+    },
+    {
+      "id": "local-real-workspace-lint-census",
+      "rowCount": 1,
+      "rows": [
+        {
+          "function": "cascadeProperty",
+          "invocationSite": "collectQueryReplicaEnsembleSiteOutcomes",
+          "sourcePath": "crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
+          "property": "border",
+          "declarationIds": ["1px solid #d1d5db"],
+          "candidateCount": 1,
+          "classification": "singleInexactCandidate"
+        }
+      ]
+    },
+    {
+      "id": "local-unused-selector-fanout-lint-census",
+      "rowCount": 0,
+      "rows": []
+    }
+  ]
+}

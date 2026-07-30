@@ -18,6 +18,9 @@
     "perStyleFileBudgetSeconds": 0.03,
     "githubActionsTimeBudgetMultiplier": 1.75
   },
+  "rankedSetLossCensus": {
+    "reportPath": "ranked-set-loss-census.json"
+  },
   "lastVerified": "2026-07-23",
   "fixtures": [
     {

@@ -2565,6 +2565,7 @@ dependencies = [
  "clap",
  "globset",
  "lightningcss",
+ "omena-cascade",
  "omena-checker",
  "omena-evidence-graph",
  "omena-query",

@@ -40,6 +40,7 @@ required-features = ["variational-trace"]
 
 [dependencies]
 clap.workspace = true
+omena-cascade = { path = "../omena-cascade", version = "=0.3.0" }
 omena-checker = { path = "../omena-checker", version = "=0.3.0" }
 omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.3.0" }
 omena-sif = { path = "../omena-sif", version = "=0.3.0" }

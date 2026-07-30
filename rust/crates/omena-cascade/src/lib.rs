@@ -16,6 +16,7 @@ mod origin;
 mod proofs;
 mod property_metadata;
 mod property_metadata_idl_generated;
+mod ranked_set_loss_census;
 mod ranking;
 mod refinement;
 mod selector;
@@ -42,11 +43,43 @@ pub use property_metadata_idl_generated::{
     CssPropertyMetadataRecordV1Json, CssPropertyMetadataSourceStaticV1,
     CssPropertyMetadataSourceV1Json, CssPropertyMetadataStaticV1, CssPropertyMetadataV1Json,
 };
-pub use ranking::*;
+pub use ranked_set_loss_census::*;
+pub use ranking::{
+    cascade_margin_for_outcome, rank_cascade_items, select_cascade_winner,
+    select_open_world_cascade_winner, summarize_cascade_margin_schema_v0,
+};
 pub use refinement::*;
 pub use selector::*;
 pub use shorthand_authority::*;
 pub use statistics::*;
+
+#[track_caller]
+pub fn cascade_property(
+    declarations: impl IntoIterator<Item = CascadeDeclaration>,
+    property: &str,
+) -> CascadeOutcome {
+    let outcome = ranking::cascade_property(declarations, property);
+    ranked_set_loss_census::observe_cascade_outcome(
+        CascadeRankedSetFunctionV0::CascadeProperty,
+        std::panic::Location::caller(),
+        &outcome,
+    );
+    outcome
+}
+
+#[track_caller]
+pub fn cascade_property_open_world(
+    declarations: impl IntoIterator<Item = CascadeDeclaration>,
+    property: &str,
+) -> CascadeOutcome {
+    let outcome = ranking::cascade_property_open_world(declarations, property);
+    ranked_set_loss_census::observe_cascade_outcome(
+        CascadeRankedSetFunctionV0::CascadePropertyOpenWorld,
+        std::panic::Location::caller(),
+        &outcome,
+    );
+    outcome
+}
 
 pub fn prove_scope_flatten_candidate(mut input: ScopeFlattenInputV0) -> ScopeFlattenProofV0 {
     if omena_syntax::css_keyword(input.root_selector.trim()).equals(":root") {
