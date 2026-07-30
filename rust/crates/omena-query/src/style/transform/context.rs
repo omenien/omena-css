@@ -126,14 +126,14 @@ pub(super) fn merge_transform_context(
         );
     }
     if !context.class_name_rewrites.is_empty() {
-        merge_context_records_by_key(
+        merge_class_context_records_by_key(
             &mut merged.class_name_rewrites,
             &context.class_name_rewrites,
             |rewrite| rewrite.original_name.as_str(),
         );
     }
     if !context.css_module_composes_resolutions.is_empty() {
-        merge_context_records_by_key(
+        merge_class_context_records_by_key(
             &mut merged.css_module_composes_resolutions,
             &context.css_module_composes_resolutions,
             |resolution| resolution.local_class_name.as_str(),
@@ -621,4 +621,118 @@ where
         }
     }
     target.sort_by(|left, right| key(left).cmp(key(right)));
+}
+
+fn merge_class_context_records_by_key<T, F>(target: &mut Vec<T>, overrides: &[T], key: F)
+where
+    T: Clone,
+    F: Fn(&T) -> &str,
+{
+    // Precedence follows the caller's module partition and then source declaration order.
+    // An explicit record replaces a derived record under the same canonical class key;
+    // raw spelling order never selects a winner. A future module-qualified compound key
+    // adds module identity to this normalized name component rather than decoding it again.
+    for item in overrides {
+        let item_key = ClassNameV0::new(key(item));
+        if let Some(existing) = target
+            .iter_mut()
+            .find(|existing| ClassNameV0::new(key(existing)).same_as(&item_key))
+        {
+            *existing = item.clone();
+        } else {
+            target.push(item.clone());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omena_query_transform_runner::{
+        TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
+        TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformImportInlineV0,
+    };
+
+    fn class_rewrite(original_name: &str, rewritten_name: &str) -> TransformClassNameRewriteV0 {
+        TransformClassNameRewriteV0 {
+            original_name: original_name.to_string(),
+            rewritten_name: rewritten_name.to_string(),
+        }
+    }
+
+    #[test]
+    fn explicit_class_rewrite_precedence_ignores_escape_spelling_order() {
+        for (derived_name, explicit_name) in [(r#"\E9 tat"#, "état"), ("état", r#"\E9 tat"#)] {
+            let derived = TransformExecutionContextV0 {
+                class_name_rewrites: vec![class_rewrite(derived_name, "_derived")],
+                css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
+                    local_class_name: derived_name.to_string(),
+                    exported_class_names: vec!["derived".to_string()],
+                }],
+                ..TransformExecutionContextV0::default()
+            };
+            let explicit = TransformExecutionContextV0 {
+                class_name_rewrites: vec![class_rewrite(explicit_name, "_explicit")],
+                css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
+                    local_class_name: explicit_name.to_string(),
+                    exported_class_names: vec!["explicit".to_string()],
+                }],
+                ..TransformExecutionContextV0::default()
+            };
+
+            let merged = merge_transform_context(derived, &explicit);
+
+            assert_eq!(
+                merged.class_name_rewrites,
+                vec![class_rewrite(explicit_name, "_explicit")]
+            );
+            assert_eq!(
+                merged.css_module_composes_resolutions,
+                vec![TransformCssModuleComposesResolutionV0 {
+                    local_class_name: explicit_name.to_string(),
+                    exported_class_names: vec!["explicit".to_string()],
+                }]
+            );
+        }
+    }
+
+    #[test]
+    fn class_merge_normalization_does_not_apply_to_other_context_keys() {
+        let derived = TransformExecutionContextV0 {
+            import_inlines: vec![TransformImportInlineV0 {
+                import_source: r#"\E9 tat"#.to_string(),
+                replacement_css: "derived".to_string(),
+            }],
+            css_module_value_resolutions: vec![TransformCssModuleValueResolutionV0 {
+                local_name: r#"\E9 tat"#.to_string(),
+                resolved_value: "derived".to_string(),
+            }],
+            design_token_routes: vec![TransformDesignTokenRouteV0 {
+                token_name: r#"\E9 tat"#.to_string(),
+                routed_value: "derived".to_string(),
+            }],
+            ..TransformExecutionContextV0::default()
+        };
+        let explicit = TransformExecutionContextV0 {
+            import_inlines: vec![TransformImportInlineV0 {
+                import_source: "état".to_string(),
+                replacement_css: "explicit".to_string(),
+            }],
+            css_module_value_resolutions: vec![TransformCssModuleValueResolutionV0 {
+                local_name: "état".to_string(),
+                resolved_value: "explicit".to_string(),
+            }],
+            design_token_routes: vec![TransformDesignTokenRouteV0 {
+                token_name: "état".to_string(),
+                routed_value: "explicit".to_string(),
+            }],
+            ..TransformExecutionContextV0::default()
+        };
+
+        let merged = merge_transform_context(derived, &explicit);
+
+        assert_eq!(merged.import_inlines.len(), 2);
+        assert_eq!(merged.css_module_value_resolutions.len(), 2);
+        assert_eq!(merged.design_token_routes.len(), 2);
+    }
 }

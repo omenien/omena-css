@@ -49,10 +49,11 @@ use crate::{
     ModelClassV0, OmenaQueryBuildAdmissionRequirementsV0, OmenaQueryBuildVerificationProfileV0,
     OmenaQueryConsumerBuildOptionsV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformDesignTokenRouteV0,
-    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformPrintMode,
-    OmenaQueryTransformPrintOptionsV0, OmenaQueryTransformStrictPolicyReasonV0,
-    OmenaQueryTsconfigPathMappingV0, collect_omena_query_style_cascade_narrowing_substrate,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformClassNameRewriteV0,
+    OmenaQueryTransformDesignTokenRouteV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryTransformPrintMode, OmenaQueryTransformPrintOptionsV0,
+    OmenaQueryTransformStrictPolicyReasonV0, OmenaQueryTsconfigPathMappingV0,
+    collect_omena_query_style_cascade_narrowing_substrate,
     default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
     read_sass_module_resolution_direct_recompute_count_for_test,
     reset_sass_module_resolution_direct_recompute_count_for_test,
@@ -1971,6 +1972,34 @@ fn explicit_context_extends_query_derived_transform_context()
     );
     assert!(summary.execution.output_css.contains("color: red"));
     assert!(summary.execution.output_css.contains("background: blue"));
+    Ok(())
+}
+
+#[test]
+fn explicit_class_rewrite_wins_over_escape_equivalent_derived_record()
+-> Result<(), Box<dyn std::error::Error>> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "State.module.css".to_string(),
+        style_source: r#".\E9 tat { color: red; }"#.to_string(),
+    }];
+    let context = OmenaQueryTransformExecutionContextV0 {
+        class_name_rewrites: vec![OmenaQueryTransformClassNameRewriteV0 {
+            original_name: "état".to_string(),
+            rewritten_name: "_explicit".to_string(),
+        }],
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+
+    let summary = execute_omena_query_consumer_build_style_sources_with_context(
+        "State.module.css",
+        &sources,
+        &["css-modules-class-hashing".to_string()],
+        &context,
+        &[],
+    )?;
+
+    assert!(summary.execution.output_css.contains("._explicit"));
+    assert!(!summary.execution.output_css.contains(".__tat_0"));
     Ok(())
 }
 
