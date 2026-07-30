@@ -1940,6 +1940,7 @@ fn ranks_unlayered_design_tokens_above_later_layered_tokens() -> Result<(), Stri
     // Unlayered ranks are opaque ordering tokens, not layer-count magnitudes.
     assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);
     assert_eq!(ranked_reference.winner_declaration_layer_name, None);
+    assert_eq!(ranked_reference.winner_layer_resolution_status, "unlayered");
     assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![1]);
     Ok(())
 }
@@ -1978,7 +1979,38 @@ fn ranks_named_layer_order_above_later_layer_source_order() -> Result<(), String
         ranked_reference.winner_declaration_layer_name.as_deref(),
         Some("components")
     );
+    assert_eq!(
+        ranked_reference.winner_layer_resolution_status,
+        "resolvedLayer"
+    );
     assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![1]);
+    Ok(())
+}
+
+#[test]
+fn discloses_unmodeled_design_token_importance_without_ranking_it() -> Result<(), String> {
+    for source in [
+        ".button { --surface: normal; --surface: important !important; color: var(--surface); }",
+        ".button { --surface: important !important; --surface: normal; color: var(--surface); }",
+    ] {
+        let sheet = parse_style_module("Component.module.css", source)
+            .ok_or_else(|| "CSS module path should parse".to_string())?;
+        let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
+        let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
+
+        assert_eq!(
+            ranked_reference.winner_declaration_source_order, 1,
+            "reversion: threading source-text importance into the ranking key manufactures a definite importance model that the parser facts do not carry"
+        );
+        assert_eq!(
+            ranked_reference.winner_importance_status,
+            "importanceUnmodeled"
+        );
+        assert_eq!(
+            ranked_reference.winner_source_order_status,
+            "singleFileOrdinal"
+        );
+    }
     Ok(())
 }
 

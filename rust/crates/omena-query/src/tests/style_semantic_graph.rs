@@ -557,6 +557,10 @@ fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_togethe
         "reversion: restoring local_winner.or(workspace_winner) makes the local base-layer declaration win without a key comparison"
     );
     assert_eq!(ranked_reference.winner_declaration_layer_rank, 1);
+    assert_eq!(
+        ranked_reference.winner_source_order_status,
+        "crossFileOrdinalUncalibrated"
+    );
 
     let control = summarize_omena_query_style_semantic_graph_batch_from_sources(
         [

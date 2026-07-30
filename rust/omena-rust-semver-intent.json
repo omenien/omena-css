@@ -7,9 +7,73 @@
     {
       "crate": "omena-semantic",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor makes layer rank an opaque ordering token and changes the unresolved layered-selector fallback outcome.",
-      "expectedFailures": [],
+      "reason": "The next pre-1.0 minor makes layer rank an opaque ordering token, changes design-token winner selection, and adds typed disclosures for ranking axes the facts do not model.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field DesignTokenRankedReferenceV0.winner_importance_status",
+            "field DesignTokenRankedReferenceV0.winner_source_order_status",
+            "field DesignTokenRankedReferenceV0.winner_layer_resolution_status"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "DesignTokenRankedReferenceV0.winner_importance_status",
+            "DesignTokenRankedReferenceV0.winner_source_order_status",
+            "DesignTokenRankedReferenceV0.winner_layer_resolution_status"
+          ]
+        }
+      ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "design-token-open-world-winner-selection",
+          "kind": "selection-outcome-changing",
+          "surface": "DesignTokenRankedReferenceV0 winner declaration and provenance fields",
+          "reason": "Local and workspace declarations are selected in one cascade domain, with module provenance breaking only full CascadeKey ties.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
+              "needles": [
+                "select_open_world_cascade_winner(",
+                "file-local ordinal even when candidates come",
+                "winner_source_order_status: if candidate_file_domain_count > 1"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/style_semantic_graph.rs",
+              "needles": [
+                "fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_together()",
+                "fn style_semantic_graph_batch_prefers_the_local_file_on_a_full_cascade_tie()",
+                "\"crossFileOrdinalUncalibrated\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "design-token-ranking-disclosure-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "DesignTokenRankedReferenceV0 importance, source-order, and layer-resolution status fields",
+          "reason": "The wire now distinguishes unmodeled importance, cross-file ordinal comparisons, and unavailable layer topology without manufacturing missing cascade semantics.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
+              "needles": [
+                "winner_importance_status: \"importanceUnmodeled\"",
+                "\"crossFileOrdinalUncalibrated\"",
+                "\"layerTopologyUnavailable\""
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
+              "needles": [
+                "fn discloses_unmodeled_design_token_importance_without_ranking_it()",
+                "\"importanceUnmodeled\"",
+                "\"unlayered\"",
+                "\"resolvedLayer\""
+              ]
+            }
+          ]
+        },
         {
           "id": "design-token-unlayered-rank-wire",
           "kind": "wire-value-order-preserving",
@@ -47,7 +111,7 @@
             {
               "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
               "needles": [
-                "normalized_layer_rank(false, selector_rank.and_then(LayerOrdinal::new))",
+                "self.layer_ordinal_for(layer_names, selector_contexts)",
                 "fn unresolved_layer_selector_uses_the_unlayered_normal_ordering_token()",
                 "assert_eq!(\n            context\n                .layer_rank_for(&[], &[\".unresolved\".to_string()], true)\n                .get(),\n            i32::MAX\n        );"
               ]

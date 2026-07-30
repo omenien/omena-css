@@ -102,6 +102,12 @@ pub struct DesignTokenRankedReferenceV0 {
     /// Opaque cascade ordering token; consumers must not interpret it as a layer-count magnitude.
     pub winner_declaration_layer_rank: i32,
     pub winner_scope_proximity_status: &'static str,
+    /// Importance is not represented by the current custom-property declaration facts.
+    pub winner_importance_status: &'static str,
+    /// Cross-file source ordinals are compared but are not a cascade-semantic relation.
+    pub winner_source_order_status: &'static str,
+    /// Distinguishes an unlayered declaration from missing layer topology.
+    pub winner_layer_resolution_status: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_declaration_layer_name: Option<String>,
     pub shadowed_declaration_source_orders: Vec<usize>,
@@ -506,6 +512,12 @@ fn summarize_design_token_cascade_ranking_signal(
 
         ranked_reference_count += 1;
         let candidate_declaration_count = local_candidates.len() + workspace_candidates.len();
+        let candidate_file_domain_count = usize::from(!local_candidates.is_empty())
+            + workspace_candidates
+                .iter()
+                .map(|candidate| candidate.file_path.as_str())
+                .collect::<BTreeSet<_>>()
+                .len();
         let reference_cross_file_candidate_declaration_count = workspace_candidates.len();
         cross_file_candidate_declaration_count += reference_cross_file_candidate_declaration_count;
         let mut shadowed_declaration_source_orders = Vec::new();
@@ -539,6 +551,13 @@ fn summarize_design_token_cascade_ranking_signal(
             winner_import_graph_order: winner.import_graph_order(),
             winner_declaration_layer_rank: winner.layer_rank(&cascade_context).get(),
             winner_scope_proximity_status: "legacySelectorContextFallback",
+            winner_importance_status: "importanceUnmodeled",
+            winner_source_order_status: if candidate_file_domain_count > 1 {
+                "crossFileOrdinalUncalibrated"
+            } else {
+                "singleFileOrdinal"
+            },
+            winner_layer_resolution_status: winner.layer_resolution_status(&cascade_context),
             winner_declaration_layer_name: winner.layer_name(&cascade_context),
             shadowed_declaration_source_orders,
             candidate_declaration_count,
@@ -795,9 +814,20 @@ impl DesignTokenCascadeContext {
         if !under_layer {
             return normalized_layer_rank(false, None);
         }
+        normalized_layer_rank(
+            false,
+            self.layer_ordinal_for(layer_names, selector_contexts),
+        )
+    }
+
+    fn layer_ordinal_for(
+        &self,
+        layer_names: &[String],
+        selector_contexts: &[String],
+    ) -> Option<LayerOrdinal> {
         let canonical_path = layer_names.join(".");
         if let Some(rank) = self.layer_name_ranks.get(canonical_path.as_str()) {
-            return normalized_layer_rank(false, LayerOrdinal::new(*rank));
+            return LayerOrdinal::new(*rank);
         }
         if let Some((rank, _)) = layer_names
             .iter()
@@ -809,17 +839,36 @@ impl DesignTokenCascadeContext {
             })
             .max_by_key(|(_, depth)| *depth)
         {
-            return normalized_layer_rank(false, LayerOrdinal::new(rank));
+            return LayerOrdinal::new(rank);
         }
-        let selector_rank = selector_contexts
+        selector_contexts
             .iter()
             .filter_map(|selector| {
                 self.layer_ranks_by_selector
                     .get(normalized_selector(selector))
             })
             .copied()
-            .max();
-        normalized_layer_rank(false, selector_rank.and_then(LayerOrdinal::new))
+            .max()
+            .and_then(LayerOrdinal::new)
+    }
+
+    fn layer_resolution_status_for(
+        &self,
+        layer_names: &[String],
+        selector_contexts: &[String],
+        under_layer: bool,
+    ) -> &'static str {
+        if !under_layer {
+            return "unlayered";
+        }
+        if self
+            .layer_ordinal_for(layer_names, selector_contexts)
+            .is_some()
+        {
+            "resolvedLayer"
+        } else {
+            "layerTopologyUnavailable"
+        }
     }
 
     fn layer_name_for(
@@ -851,6 +900,13 @@ impl DesignTokenCascadeContext {
 }
 
 impl DesignTokenCandidateDeclaration<'_> {
+    /// `CascadeKey::Ord` owns the CSS cascade axes through `source_order`.
+    /// Open-world comparators then consume `module_rank` as a provenance
+    /// tiebreak; `select_cascade_winner` intentionally discards that field.
+    ///
+    /// `source_order` remains a file-local ordinal even when candidates come
+    /// from different files, so cross-file comparisons are disclosed on the
+    /// ranked-reference wire instead of being treated as cascade semantics.
     fn cascade_key(
         &self,
         reference: &ParserIndexCustomPropertyRefFactV0,
@@ -994,6 +1050,23 @@ impl DesignTokenCandidateDeclaration<'_> {
             ),
             DesignTokenCandidateDeclaration::Workspace(declaration) => cascade_context
                 .layer_name_for(
+                    &declaration.layer_names,
+                    &declaration.selector_contexts,
+                    declaration.under_layer,
+                ),
+        }
+    }
+
+    fn layer_resolution_status(&self, cascade_context: &DesignTokenCascadeContext) -> &'static str {
+        match self {
+            DesignTokenCandidateDeclaration::Local(declaration) => cascade_context
+                .layer_resolution_status_for(
+                    &declaration.layer_names,
+                    &declaration.selector_contexts,
+                    declaration.under_layer,
+                ),
+            DesignTokenCandidateDeclaration::Workspace(declaration) => cascade_context
+                .layer_resolution_status_for(
                     &declaration.layer_names,
                     &declaration.selector_contexts,
                     declaration.under_layer,
@@ -1160,6 +1233,10 @@ mod layer_rank_fallback_tests {
                 .layer_rank_for(&[], &[".unresolved".to_string()], true)
                 .get(),
             i32::MAX
+        );
+        assert_eq!(
+            context.layer_resolution_status_for(&[], &[".unresolved".to_string()], true),
+            "layerTopologyUnavailable"
         );
     }
 }
