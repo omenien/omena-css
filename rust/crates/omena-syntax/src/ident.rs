@@ -15,13 +15,16 @@ use std::borrow::Cow;
 #[derive(Debug, Clone)]
 pub struct ClassNameV0 {
     raw: String,
-    decoded: String,
+    decoded: Option<String>,
 }
 
 impl ClassNameV0 {
     pub fn new(raw: impl Into<String>) -> Self {
         let raw = raw.into();
-        let decoded = decode_css_identifier_escapes(&raw).into_owned();
+        let decoded = match decode_css_identifier_escapes(&raw) {
+            Cow::Borrowed(_) => None,
+            Cow::Owned(decoded) => Some(decoded),
+        };
         Self { raw, decoded }
     }
 
@@ -30,7 +33,7 @@ impl ClassNameV0 {
     }
 
     pub fn decoded(&self) -> &str {
-        &self.decoded
+        self.decoded.as_deref().unwrap_or(&self.raw)
     }
 
     pub fn into_raw(self) -> String {
@@ -38,11 +41,11 @@ impl ClassNameV0 {
     }
 
     pub fn same_as(&self, other: &Self) -> bool {
-        self.decoded == other.decoded
+        self.decoded() == other.decoded()
     }
 
     pub fn canonical_key(&self) -> CanonicalClassKeyV0 {
-        CanonicalClassKeyV0(self.decoded.clone(), CanonicalClassKeySealV0(()))
+        CanonicalClassKeyV0(self.decoded().to_owned(), CanonicalClassKeySealV0(()))
     }
 }
 

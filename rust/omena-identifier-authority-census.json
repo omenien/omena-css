@@ -532,7 +532,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/css_modules_cross_file.rs",
-        "line": 613,
+        "line": 616,
         "function": "collect_css_modules_composes_adjacency",
         "operation": "str-eq",
         "evidence": "let target_class_names = if target_style_path == *style_path {",
@@ -541,7 +541,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/css_modules_cross_file.rs",
-        "line": 628,
+        "line": 631,
         "function": "collect_css_modules_composes_adjacency",
         "operation": "contains",
         "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
@@ -550,7 +550,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/css_modules_cross_file.rs",
-        "line": 634,
+        "line": 637,
         "function": "collect_css_modules_composes_adjacency",
         "operation": "contains",
         "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
@@ -648,7 +648,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:2af450874368f1078f233a63501cff461c50c6b758281ab4e8342f4e17179cb0"
+    "siteDigest": "sha256:8053fc14566d2871b13789bced2404fbef243b10450a3debf208e9f5953753ca"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -674,7 +674,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 79,
+        "line": 82,
         "function": "is_css_name_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_css_name_continue(ch: char) -> bool { is_css_name_start(ch) || ch.is_ascii_digit() }",
@@ -683,7 +683,7 @@
       },
       {
         "path": "rust/crates/omena-syntax/src/ident.rs",
-        "line": 88,
+        "line": 91,
         "function": "is_ascii_word_continue",
         "operation": "character-predicate-copy",
         "evidence": "fn is_ascii_word_continue(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }",
@@ -691,6 +691,6 @@
         "reason": "The shared syntax crate owns the identifier character predicate."
       }
     ],
-    "siteDigest": "sha256:78e37de303875361aac1065adea526d402bf6df12dfdc52300e391a9683b4286"
+    "siteDigest": "sha256:2ba01e4c65e9f45a61792246766d35716e5f7dacd8c2443030d9f06eeac1accc"
   }
 }
