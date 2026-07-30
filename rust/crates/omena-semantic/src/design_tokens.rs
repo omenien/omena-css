@@ -99,6 +99,7 @@ pub struct DesignTokenRankedReferenceV0 {
     pub winner_import_graph_distance: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_import_graph_order: Option<usize>,
+    /// Opaque cascade ordering token; consumers must not interpret it as a layer-count magnitude.
     pub winner_declaration_layer_rank: i32,
     pub winner_scope_proximity_status: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1134,4 +1135,27 @@ fn cascade_inverse_rank(rank: usize) -> u32 {
 
 fn normalized_selector(selector: &str) -> &str {
     selector.trim().trim_start_matches('.')
+}
+
+#[cfg(test)]
+mod layer_rank_fallback_tests {
+    use super::DesignTokenCascadeContext;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn unresolved_layer_selector_uses_the_unlayered_normal_ordering_token() {
+        let context = DesignTokenCascadeContext {
+            layer_name_ranks: BTreeMap::new(),
+            layer_name_depths: BTreeMap::new(),
+            layer_ranks_by_selector: BTreeMap::new(),
+            layer_names_by_selector: BTreeMap::new(),
+        };
+
+        assert_eq!(
+            context
+                .layer_rank_for(&[], &[".unresolved".to_string()], true)
+                .get(),
+            i32::MAX
+        );
+    }
 }

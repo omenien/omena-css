@@ -2872,12 +2872,11 @@ fn memo_source_element_static_declarations(
                 OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue,
             );
         };
-        let important_suffix_present = declaration.important_suffix_present();
-        let css_value_source = if important_suffix_present {
-            strip_inline_important_suffix(css_value_source.as_str())
-        } else {
-            css_value_source
-        };
+        if declaration.important_suffix_present() {
+            return source_element_declaration_projection(
+                OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue,
+            );
+        }
         let Some(value) = parse_static_css_cascade_value(css_value_source.as_str()) else {
             return source_element_declaration_projection(
                 OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue,
@@ -2891,8 +2890,8 @@ fn memo_source_element_static_declarations(
             property: property.clone(),
             value,
             key: CascadeKey::new(
-                cascade_level_for_origin(CascadeOriginV0::Inline, important_suffix_present),
-                normalized_layer_rank(important_suffix_present, None),
+                cascade_level_for_origin(CascadeOriginV0::Inline, false),
+                normalized_layer_rank(false, None),
                 0,
                 Specificity::ZERO,
                 ModuleRank::ZERO,
@@ -2927,17 +2926,6 @@ fn source_inline_css_value(value_source: &str) -> Option<String> {
     };
     let inner = value_source.get(1..value_source.len().checked_sub(1)?)?;
     (!inner.contains(['\\', '$'])).then(|| inner.to_string())
-}
-
-fn strip_inline_important_suffix(value: &str) -> String {
-    let trimmed = value.trim_end();
-    let suffix_start = trimmed.len().saturating_sub("!important".len());
-    match trimmed.get(suffix_start..) {
-        Some(suffix) if suffix.eq_ignore_ascii_case("!important") => {
-            trimmed[..suffix_start].trim_end().to_string()
-        }
-        _ => value.to_string(),
-    }
 }
 
 fn element_computed_value_report(
@@ -5625,8 +5613,8 @@ $_private-token: changed;
     }
 
     #[test]
-    fn source_element_computed_value_separates_inline_importance_from_the_css_value() {
-        use omena_cascade::{CascadeValue, ComputedCascadeValueStatusV0, ElementIdentityV0};
+    fn source_element_computed_value_rejects_jsx_inline_important_suffix() {
+        use omena_cascade::ElementIdentityV0;
 
         let source_path = "/workspace/App.tsx";
         let source = r#"export const App = () => <main style={{ color: "blue !important" }} />;"#;
@@ -5655,18 +5643,9 @@ $_private-token: changed;
 
         assert_eq!(
             color.status,
-            OmenaQueryElementComputedValueStatusV0::Resolved
+            OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue
         );
-        assert_eq!(
-            color
-                .computed_value
-                .as_ref()
-                .map(|value| (&value.status, &value.value)),
-            Some((
-                &ComputedCascadeValueStatusV0::Resolved,
-                &CascadeValue::Literal("blue".to_string()),
-            ))
-        );
+        assert_eq!(color.computed_value, None);
     }
 
     #[test]

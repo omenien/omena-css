@@ -475,8 +475,12 @@ fn query_runtime_state_scenario_evaluation(
         .iter()
         .map(|declaration| query_runtime_cascade_declaration_from_input(declaration))
         .collect::<Vec<_>>();
-    let inline_declaration_id = inline_override.map(query_runtime_inline_style_declaration_id);
-    if let Some(override_fact) = inline_override {
+    let inline_declaration_id = inline_override
+        .filter(|override_fact| !override_fact.important_suffix_present())
+        .map(query_runtime_inline_style_declaration_id);
+    if let Some(override_fact) =
+        inline_override.filter(|override_fact| !override_fact.important_suffix_present())
+    {
         let value = override_fact
             .value
             .clone()
@@ -573,7 +577,6 @@ fn query_runtime_inline_style_cascade_declaration(
     property_name: &str,
     override_fact: &OmenaQueryInlineStyleRuntimeOverrideV0,
 ) -> CascadeDeclaration {
-    let important = override_fact.important_suffix_present();
     let value = override_fact
         .value
         .clone()
@@ -583,8 +586,8 @@ fn query_runtime_inline_style_cascade_declaration(
         property: property_name.to_string(),
         value: CascadeValue::Literal(value),
         key: CascadeKey::new(
-            cascade_level_for_origin(CascadeOriginV0::Inline, important),
-            normalized_layer_rank(important, None),
+            cascade_level_for_origin(CascadeOriginV0::Inline, false),
+            normalized_layer_rank(false, None),
             0,
             Specificity::ZERO,
             ModuleRank::ZERO,
@@ -882,7 +885,7 @@ mod tests {
     }
 
     #[test]
-    fn inline_important_source_fact_reaches_the_explicit_cascade_level() {
+    fn jsx_inline_important_suffix_remains_observational() {
         let author_normal = declaration("author-normal", CascadeOriginV0::Author, false);
         let inline_override = OmenaQueryInlineStyleRuntimeOverrideV0 {
             source_path: "file:///workspace/src/App.tsx".to_string(),
@@ -901,18 +904,13 @@ mod tests {
             Some(&inline_override),
         );
 
-        assert!(
-            matches!(outcome, CascadeOutcome::Definite { .. }),
-            "normal author and inline-important must produce a definite ranking"
-        );
+        assert!(matches!(outcome, CascadeOutcome::Definite { .. }));
         let CascadeOutcome::Definite { winner, .. } = outcome else {
             return;
         };
-        assert_eq!(
-            winner.id,
-            query_runtime_inline_style_declaration_id(&inline_override)
-        );
-        assert_eq!(winner.key.level, CascadeLevel::InlineImportant);
+        assert_eq!(winner.id, "author-normal");
+        assert_eq!(winner.key.level, CascadeLevel::AuthorNormal);
+        assert!(inline_override.important_suffix_present());
     }
 
     #[test]

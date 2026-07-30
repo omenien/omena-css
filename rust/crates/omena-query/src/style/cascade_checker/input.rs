@@ -166,9 +166,8 @@ fn collect_query_checker_cascade_declaration_collection(
     }
     QueryCheckerCascadeDeclarationCollection {
         declarations,
-        topology_incomplete_unresolved_count: (!layer_index.topology_complete
-            && !layer_index.block_bindings.is_empty())
-        .then_some(layer_index.unresolved_topology_count),
+        topology_incomplete_unresolved_count: (!layer_index.topology_complete)
+            .then_some(layer_index.unresolved_topology_count),
     }
 }
 

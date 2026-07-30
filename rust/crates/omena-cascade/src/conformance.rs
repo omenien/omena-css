@@ -247,7 +247,7 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: Some("author-important".to_string()),
         },
         CascadeConformanceSeedCase {
-            name: "author-important-outranks-inline-important".to_string(),
+            name: "inline-important-outranks-author-important".to_string(),
             property: "color",
             declarations: vec![
                 conformance_decl(
@@ -259,7 +259,7 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
                         0,
                         0,
                         Specificity::new(0, 1, 0),
-                        1,
+                        2,
                     ),
                 ),
                 conformance_decl(
@@ -271,12 +271,12 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
                         0,
                         0,
                         Specificity::new(0, 1, 0),
-                        2,
+                        1,
                     ),
                 ),
             ],
             expected_outcome: "definite",
-            expected_winner_id: Some("author-important".to_string()),
+            expected_winner_id: Some("inline-important".to_string()),
         },
         CascadeConformanceSeedCase {
             name: "layer-rank-beats-specificity-within-level".to_string(),

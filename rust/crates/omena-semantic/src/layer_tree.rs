@@ -21,7 +21,7 @@ pub fn layer_ordinal_for_byte_span(
     span_start: usize,
     span_end: usize,
 ) -> LayerBindingResolutionV0 {
-    if !layer_index.topology_complete && !layer_index.block_bindings.is_empty() {
+    if !layer_index.topology_complete {
         return LayerBindingResolutionV0::TopologyIncomplete {
             unresolved_count: layer_index.unresolved_topology_count,
         };

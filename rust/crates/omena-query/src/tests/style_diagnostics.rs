@@ -146,6 +146,7 @@ fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_jso
 
 #[test]
 fn statement_layer_order_controls_the_winner_and_dead_layer_anchor() {
+    // Reversion witness: replace the semantic layer ordinal with declaration encounter order.
     let source = r#"
 @layer overrides, base;
 @layer base {
@@ -175,6 +176,12 @@ fn statement_layer_order_controls_the_winner_and_dead_layer_anchor() {
         .filter(|diagnostic| diagnostic.code == "deadCascadeLayer")
         .collect::<Vec<_>>();
     assert_eq!(dead_layer.len(), 1);
+    let runtime_state = dead_layer[0]
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("statement-order diagnostic should carry runtime state");
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
     assert!(
         dead_layer
             .iter()
@@ -190,6 +197,7 @@ fn statement_layer_order_controls_the_winner_and_dead_layer_anchor() {
 
 #[test]
 fn nested_layer_paths_do_not_collapse_into_a_source_order_tie() {
+    // Reversion witness: replace canonical nested bindings with the local layer name.
     let source = r#"
 @layer b {
   .target { color: blue; }
@@ -224,60 +232,80 @@ fn nested_layer_paths_do_not_collapse_into_a_source_order_tie() {
             .iter()
             .all(|diagnostic| diagnostic.code != "unspecifiedCascadeTie")
     );
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("nested-layer diagnostic should carry runtime state");
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
 }
 
 #[test]
-fn important_layer_order_is_reversed_on_both_cascade_planes() {
-    for source in [
+fn important_statement_layer_order_is_reversed_on_both_cascade_planes() {
+    // Reversion witness: normalize important layers without reversing their ordinal.
+    assert_important_layer_order_is_reversed(
         r#"
 @layer base, overrides;
 @layer base { .target { color: red !important; } }
 @layer overrides { .target { color: blue !important; } }
 "#,
+    );
+}
+
+#[test]
+fn important_block_layer_order_is_reversed_on_both_cascade_planes() {
+    // Reversion witness: normalize important layers without reversing their ordinal.
+    assert_important_layer_order_is_reversed(
         r#"
 @layer base { .target { color: red !important; } }
 @layer overrides { .target { color: blue !important; } }
 "#,
-    ] {
-        let outcomes = crate::summarize_omena_query_cascade_site_outcomes_from_source(source);
-        assert_eq!(outcomes.len(), 1);
+    );
+}
 
-        let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
-            "file:///tmp/important-layers.css",
-            source,
-            &[],
-        );
-        let diagnostic = diagnostics
-            .diagnostics
-            .iter()
-            .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
-            .expect("important layered declarations should expose the losing layer");
-        let runtime_state = diagnostic
-            .cascade_narrowing
+fn assert_important_layer_order_is_reversed(source: &str) {
+    let outcomes = crate::summarize_omena_query_cascade_site_outcomes_from_source(source);
+    assert_eq!(outcomes.len(), 1);
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/important-layers.css",
+        source,
+        &[],
+    );
+    let diagnostic = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .expect("important layered declarations should expose the losing layer");
+    let runtime_state = diagnostic
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("important layered diagnostic should carry runtime state");
+    let runtime_winner = runtime_state.scenarios[0]
+        .winner_value
+        .as_deref()
+        .expect("important layered runtime state should select a winner");
+    assert_eq!(
+        outcomes[0].winning_value, runtime_winner,
+        "replica and runtime cascade planes must agree"
+    );
+    assert_eq!(outcomes[0].winning_value, "red");
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
+    assert_eq!(
+        diagnostic
+            .cascade_confidence
             .as_ref()
-            .and_then(|narrowing| narrowing.runtime_state.as_ref())
-            .expect("important layered diagnostic should carry runtime state");
-        let runtime_winner = runtime_state.scenarios[0]
-            .winner_value
-            .as_deref()
-            .expect("important layered runtime state should select a winner");
-        assert_eq!(
-            outcomes[0].winning_value, runtime_winner,
-            "replica and runtime cascade planes must agree"
-        );
-        assert_eq!(outcomes[0].winning_value, "red");
-        assert_eq!(
-            diagnostic
-                .cascade_confidence
-                .as_ref()
-                .map(|confidence| confidence.dominant_axis),
-            Some("layerRank")
-        );
-    }
+            .map(|confidence| confidence.dominant_axis),
+        Some("layerRank")
+    );
 }
 
 #[test]
 fn unlayered_normal_declaration_outranks_layered_normal_declaration() {
+    // Reversion witness: normalize an unlayered normal declaration to rank zero.
     let source = r#"
 .target { color: blue; }
 @layer base { .target { color: red; } }
@@ -305,6 +333,7 @@ fn unlayered_normal_declaration_outranks_layered_normal_declaration() {
         runtime_state.scenarios[0].winner_value.as_deref(),
         Some("blue")
     );
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
     assert_eq!(
         diagnostic
             .cascade_confidence
@@ -315,11 +344,61 @@ fn unlayered_normal_declaration_outranks_layered_normal_declaration() {
 }
 
 #[test]
-fn incomplete_layer_topology_is_typed_and_never_static_definite() {
+fn ordinary_named_layer_order_remains_a_green_control() {
     let source = r#"
+@layer base { .target { color: red; } }
+@layer overrides { .target { color: blue; } }
+"#;
+    let outcomes = crate::summarize_omena_query_cascade_site_outcomes_from_source(source);
+    assert_eq!(outcomes.len(), 1);
+    assert_eq!(outcomes[0].winning_value, "blue");
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/normal-layer-control.css",
+        source,
+        &[],
+    );
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("normal-layer control should carry runtime state");
+    assert_eq!(
+        runtime_state.scenarios[0].winner_value.as_deref(),
+        Some("blue")
+    );
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
+}
+
+#[test]
+fn incomplete_layer_topology_is_typed_and_never_static_definite() {
+    assert_incomplete_layer_topology(
+        r#"
 @layer stable { .target { color: red; } }
 @layer { .target { color: blue; } }
-"#;
+"#,
+    );
+}
+
+#[test]
+fn anonymous_only_layer_topology_is_never_static_definite() {
+    for source in [
+        r#"
+@layer { .target { color: red; } }
+.target { color: blue; }
+"#,
+        r#"
+@layer { .target { color: red !important; } }
+.target { color: blue !important; }
+"#,
+    ] {
+        assert_incomplete_layer_topology(source);
+    }
+}
+
+fn assert_incomplete_layer_topology(source: &str) {
     let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
         "file:///tmp/incomplete-layers.css",
         source,
@@ -900,8 +979,7 @@ export function App() {
 }
 
 #[test]
-fn workspace_inline_important_suffix_fact_reaches_the_shared_cascade_ranker()
--> Result<(), &'static str> {
+fn workspace_inline_important_suffix_fact_stays_observational() -> Result<(), &'static str> {
     let target_style_path = "file:///workspace/src/App.module.css";
     let style_sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: target_style_path.to_string(),
@@ -939,15 +1017,18 @@ export function App() {
         .find(|scenario| scenario.scenario_kind == "inlineStyleOverride")
         .ok_or("joined inline scenario")?;
 
-    assert_eq!(
-        inline_scenario.winner_value.as_deref(),
-        Some("\"blue !important\"")
-    );
+    assert_eq!(inline_scenario.winner_value.as_deref(), Some("red"));
     assert!(
         inline_scenario
             .winner_declaration_id
             .as_deref()
-            .is_some_and(|id| id.starts_with("inline-style:"))
+            .is_some_and(|id| id.starts_with("decl-"))
+    );
+    assert!(
+        inline_scenario
+            .declaration_ids
+            .iter()
+            .all(|id| !id.starts_with("inline-style:"))
     );
     assert_eq!(runtime_state.inline_style_overrides.len(), 1);
     assert!(runtime_state.inline_style_overrides[0].important_suffix_present());

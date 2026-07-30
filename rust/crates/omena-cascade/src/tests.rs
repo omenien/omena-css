@@ -2863,13 +2863,12 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
     let important_origin_pin = report
         .results
         .iter()
-        .find(|result| result.name == "author-important-outranks-inline-important")
+        .find(|result| result.name == "inline-important-outranks-author-important")
         .map(|result| (result.actual_outcome, result.actual_winner_id.as_deref()));
-    // Mapping inline importance onto the author tier makes the later inline declaration false here.
-    // The hand-written corpus can emit that ordering because both declarations use the live ranker.
+    // Element-attached declarations outrank style-rule declarations at equal importance.
     assert_eq!(
         important_origin_pin,
-        Some(("definite", Some("author-important")))
+        Some(("definite", Some("inline-important")))
     );
     assert_eq!(report.passed_count, report.case_count);
     assert_eq!(report.failed_count, 0);

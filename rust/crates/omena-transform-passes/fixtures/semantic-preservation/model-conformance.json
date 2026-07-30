@@ -4,11 +4,11 @@
   "cascadeSeedProduct": "omena-cascade.conformance-seed-corpus",
   "cascadeSeedCaseCount": 21,
   "cascadeSeedFailedCount": 0,
-  "cascadeSeedDigest": "fnv1a64:5fe8487f919d32c7",
+  "cascadeSeedDigest": "fnv1a64:4433d0e4f8ff4563",
   "orderingAxisSelfCheckProduct": "omena-cascade.ordering-axis-self-check-corpus",
   "orderingAxisSelfCheckCaseCount": 434,
   "orderingAxisSelfCheckFailedCount": 0,
-  "orderingAxisSelfCheckDigest": "fnv1a64:6f569a0324ade7b7",
+  "orderingAxisSelfCheckDigest": "fnv1a64:d4c292d2911e3337",
   "semanticObservationCaseCount": 11,
   "semanticObservationFailedCount": 0,
   "modelConformancePassed": true

@@ -2240,6 +2240,7 @@ pub struct OmenaQueryCascadeAtPositionV0 {
     pub winner_declaration_file_path: Option<String>,
     pub winner_declaration_range: Option<ParserRangeV0>,
     pub winner_context_kind: Option<&'static str>,
+    /// Opaque cascade ordering token; consumers must not interpret it as a layer-count magnitude.
     pub winner_declaration_layer_rank: Option<i32>,
     pub winner_declaration_layer_name: Option<String>,
     pub candidate_declaration_count: usize,
