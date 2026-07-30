@@ -395,7 +395,8 @@ fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
 }
 
 #[test]
-fn open_world_winner_is_independent_of_input_order_when_only_module_rank_differs() {
+fn open_world_winner_is_independent_of_input_order_when_only_module_rank_differs()
+-> Result<(), String> {
     let weaker_key = CascadeKey::new(
         CascadeLevel::AuthorNormal,
         normalized_layer_rank(false, LayerOrdinal::new(0)),
@@ -418,16 +419,17 @@ fn open_world_winner_is_independent_of_input_order_when_only_module_rank_differs
         [("stronger", stronger_key), ("weaker", weaker_key)],
     ] {
         let (winner, _) = select_open_world_cascade_winner(items, |(_, key)| *key)
-            .expect("the fixture always contains two candidates");
+            .ok_or_else(|| "the fixture always contains two candidates".to_string())?;
         assert_eq!(
             winner.0, "stronger",
             "reversion: replacing the open-world selector with select_cascade_winner makes the first-listed candidate win"
         );
     }
+    Ok(())
 }
 
 #[test]
-fn open_world_module_provenance_remains_below_source_order() {
+fn open_world_module_provenance_remains_below_source_order() -> Result<(), String> {
     let earlier_with_stronger_provenance = CascadeKey::new(
         CascadeLevel::AuthorNormal,
         normalized_layer_rank(false, LayerOrdinal::new(0)),
@@ -452,15 +454,16 @@ fn open_world_module_provenance_remains_below_source_order() {
         ],
         |(_, key)| *key,
     )
-    .expect("the fixture always contains two candidates");
+    .ok_or_else(|| "the fixture always contains two candidates".to_string())?;
     assert_eq!(
         winner.0, "later",
         "reversion: promoting module provenance above CascadeKey::Ord makes the earlier candidate win"
     );
+    Ok(())
 }
 
 #[test]
-fn open_world_selector_matches_the_hand_written_axis_order() {
+fn open_world_selector_matches_the_hand_written_axis_order() -> Result<(), String> {
     let mut keys = Vec::new();
     for level in [CascadeLevel::AuthorNormal, CascadeLevel::AuthorImportant] {
         for layer_ordinal in [0, 1] {
@@ -514,7 +517,9 @@ fn open_world_selector_matches_the_hand_written_axis_order() {
                 select_open_world_cascade_winner([("left", left), ("right", right)], |(_, key)| {
                     *key
                 })
-                .expect("the enumerated fixture always contains two candidates");
+                .ok_or_else(|| {
+                    "the enumerated fixture always contains two candidates".to_string()
+                })?;
 
             let outcome = cascade_property_open_world(
                 [
@@ -532,7 +537,11 @@ fn open_world_selector_matches_the_hand_written_axis_order() {
                     .chain(also_considered)
                     .collect::<Vec<_>>(),
                 CascadeOutcome::RankedSet(ranked) => ranked,
-                other => panic!("two matching declarations must be ranked, got {other:?}"),
+                other => {
+                    return Err(format!(
+                        "two matching declarations must be ranked, got {other:?}"
+                    ));
+                }
             };
 
             assert_eq!(
@@ -545,6 +554,7 @@ fn open_world_selector_matches_the_hand_written_axis_order() {
             );
         }
     }
+    Ok(())
 }
 
 #[test]

@@ -11,7 +11,7 @@ struct FixtureResult {
     classification: omena_cascade::CascadeRankedSetLossClassV0,
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lower = declaration(
         "lower",
         CascadeLevel::UserNormal,
@@ -70,10 +70,8 @@ fn main() {
             classification: classify_cascade_ranked_set_loss(&[single_inexact]),
         },
     ];
-    println!(
-        "{}",
-        serde_json::to_string(&results).expect("classifier fixture must serialize")
-    );
+    println!("{}", serde_json::to_string(&results)?);
+    Ok(())
 }
 
 fn declaration(

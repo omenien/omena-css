@@ -520,7 +520,8 @@ fn style_semantic_graph_batch_prefers_nearer_import_graph_token_candidates() {
 }
 
 #[test]
-fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_together() {
+fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_together()
+-> Result<(), String> {
     let input = sample_input();
     let workspace_source = "@layer theme { .button { --brand: workspace; } }";
     let target_source = r#"
@@ -545,7 +546,7 @@ fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_togethe
         .iter()
         .find(|entry| entry.style_path == "/tmp/App.module.scss")
         .and_then(|entry| entry.graph.as_ref())
-        .expect("the target style graph must be present");
+        .ok_or_else(|| "the target style graph must be present".to_string())?;
     let ranked_reference = &app_graph
         .design_token_semantics
         .cascade_ranking_signal
@@ -577,7 +578,7 @@ fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_togethe
         .iter()
         .find(|entry| entry.style_path == "/tmp/App.module.scss")
         .and_then(|entry| entry.graph.as_ref())
-        .expect("the control style graph must be present")
+        .ok_or_else(|| "the control style graph must be present".to_string())?
         .design_token_semantics
         .cascade_ranking_signal
         .ranked_references[0];
@@ -586,10 +587,11 @@ fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_togethe
         Some("/tmp/_theme.scss")
     );
     assert_eq!(control_reference.winner_declaration_layer_rank, 1);
+    Ok(())
 }
 
 #[test]
-fn style_semantic_graph_batch_prefers_the_local_file_on_a_full_cascade_tie() {
+fn style_semantic_graph_batch_prefers_the_local_file_on_a_full_cascade_tie() -> Result<(), String> {
     let input = sample_input();
     let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
         [
@@ -606,7 +608,7 @@ fn style_semantic_graph_batch_prefers_the_local_file_on_a_full_cascade_tie() {
         .iter()
         .find(|entry| entry.style_path == "/tmp/App.module.scss")
         .and_then(|entry| entry.graph.as_ref())
-        .expect("the target style graph must be present")
+        .ok_or_else(|| "the target style graph must be present".to_string())?
         .design_token_semantics
         .cascade_ranking_signal
         .ranked_references[0];
@@ -617,6 +619,7 @@ fn style_semantic_graph_batch_prefers_the_local_file_on_a_full_cascade_tie() {
     );
     assert_eq!(ranked_reference.winner_declaration_source_order, 0);
     assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);
+    Ok(())
 }
 
 #[test]
