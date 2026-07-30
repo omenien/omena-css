@@ -24,6 +24,7 @@ pub(crate) struct SourceCompletionContext {
     pub(crate) value_prefix: Option<String>,
     pub(crate) preferred_selector_names: Vec<String>,
     pub(crate) domain_option_names: Vec<String>,
+    pub(crate) string_literal_quote: Option<char>,
 }
 
 pub(crate) fn source_completion_context_at_position(
@@ -50,6 +51,10 @@ pub(crate) fn source_completion_context_at_position(
                 &document.source_syntax_index,
                 reference,
             ),
+            string_literal_quote: source_string_literal_quote_for_span(
+                document.text.as_str(),
+                reference.byte_span,
+            ),
         });
     }
     if let Some(target) = document
@@ -67,6 +72,10 @@ pub(crate) fn source_completion_context_at_position(
                 target.target_style_uri.as_deref(),
             ),
             domain_option_names: Vec::new(),
+            string_literal_quote: source_string_literal_quote_for_span(
+                document.text.as_str(),
+                target.byte_span,
+            ),
         });
     }
     if let Some(candidate) = source_selector_candidates_at_position(state, document, position)
@@ -86,6 +95,10 @@ pub(crate) fn source_completion_context_at_position(
             ),
             preferred_selector_names: Vec::new(),
             domain_option_names: Vec::new(),
+            string_literal_quote: source_string_literal_quote_for_span(
+                document.text.as_str(),
+                span,
+            ),
         });
     }
     if let Some(access) = document
@@ -107,6 +120,10 @@ pub(crate) fn source_completion_context_at_position(
             ),
             preferred_selector_names: Vec::new(),
             domain_option_names: Vec::new(),
+            string_literal_quote: source_string_literal_quote_for_span(
+                document.text.as_str(),
+                access.byte_span,
+            ),
         });
     }
     if let Some(reference) = document
@@ -128,6 +145,10 @@ pub(crate) fn source_completion_context_at_position(
             ),
             preferred_selector_names: Vec::new(),
             domain_option_names: Vec::new(),
+            string_literal_quote: source_string_literal_quote_for_span(
+                document.text.as_str(),
+                reference.byte_span,
+            ),
         });
     }
     if document
@@ -151,6 +172,10 @@ pub(crate) fn source_completion_context_at_position(
             ),
             preferred_selector_names: Vec::new(),
             domain_option_names: Vec::new(),
+            string_literal_quote: source_string_literal_quote_for_span(
+                document.text.as_str(),
+                span,
+            ),
         });
     }
     None
@@ -215,6 +240,30 @@ fn byte_span_for_parser_range(source: &str, range: ParserRangeV0) -> Option<Pars
         start: byte_offset_for_parser_position(source, range.start)?,
         end: byte_offset_for_parser_position(source, range.end)?,
     })
+}
+
+fn source_string_literal_quote_for_span(source: &str, span: ParserByteSpanV0) -> Option<char> {
+    let quote = source.get(..span.start)?.chars().next_back()?;
+    matches!(quote, '\'' | '"' | '`').then_some(quote)
+}
+
+pub(crate) fn escape_source_completion_for_string_literal(value: &str, quote: char) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            character if character == quote => {
+                escaped.push('\\');
+                escaped.push(character);
+            }
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\u{2028}' => escaped.push_str("\\u2028"),
+            '\u{2029}' => escaped.push_str("\\u2029"),
+            character => escaped.push(character),
+        }
+    }
+    escaped
 }
 
 fn source_completion_value_domain_selectors_for_target(

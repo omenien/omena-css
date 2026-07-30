@@ -444,7 +444,7 @@ fn collects_style_property_accesses_from_oxc_ast() {
     let source = r#"import styles from "./App.module.scss";
 const text = "styles.fake";
 export function View() {
-  return <div className={styles.root} data-token={styles["item--primary"]} />;
+  return <div className={styles.root} data-token={styles["item--primary"]} data-mode={styles["md\\:flex"]} />;
 }"#;
 
     let index = summarize_omena_bridge_source_syntax_index(
@@ -462,7 +462,7 @@ export function View() {
         .map(|access| &source[access.byte_span.start..access.byte_span.end])
         .collect::<Vec<_>>();
 
-    assert_eq!(access_names, vec!["root", "item--primary"]);
+    assert_eq!(access_names, vec!["root", "item--primary", r#"md\\:flex"#]);
     assert!(index.style_property_accesses.iter().all(|access| {
         access.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
     }));
@@ -472,6 +472,10 @@ export function View() {
             .iter()
             .any(|reference| selector_reference_name(source, reference) == "fake")
     );
+    assert!(index.selector_references.iter().any(|reference| {
+        reference.selector_name.as_deref() == Some(r#"md\:flex"#)
+            && &source[reference.byte_span.start..reference.byte_span.end] == r#"md\\:flex"#
+    }));
 }
 
 #[test]

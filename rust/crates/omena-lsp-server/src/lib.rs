@@ -1414,6 +1414,14 @@ fn resolve_source_lsp_completion(
         context.value_prefix.as_deref(),
         context.preferred_selector_names.as_slice(),
     );
+    if let Some(quote) = context.string_literal_quote {
+        for item in &mut completion.items {
+            item.insert_text = source_completion::escape_source_completion_for_string_literal(
+                item.insert_text.as_str(),
+                quote,
+            );
+        }
+    }
     // Cascade documentation is attached lazily AFTER ranking/dedup and only for the
     // top-ranked items a completion list actually surfaces. The name-independent
     // narrowing inputs come from the memoized substrate (rfcs#63 E-ii) — fetched once

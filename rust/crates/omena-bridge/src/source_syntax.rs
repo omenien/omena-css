@@ -4,7 +4,8 @@ use omena_abstract_value::{
 };
 use omena_parser::ParserByteSpanV0;
 use omena_syntax::ident::{
-    is_css_name_continue as is_css_identifier_continue, is_safe_css_identifier,
+    class_selector_name_end, is_css_name_continue as is_css_identifier_continue,
+    is_safe_css_identifier,
 };
 use oxc_allocator::Allocator;
 use oxc_ast::ast::TSModuleReference;
@@ -718,6 +719,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language_with_type_
     );
     let class_string_literals = ast_facts.class_string_literals;
     let style_property_accesses = ast_facts.style_property_accesses;
+    let style_property_access_selector_names = ast_facts.style_property_access_selector_names;
     let class_name_expression_spans = ast_facts.class_name_expression_spans;
     let classnames_bind_targets = ast_facts.classnames_bind_utility_bindings;
     let classnames_bind_call_arguments = ast_facts.classnames_bind_call_arguments;
@@ -775,11 +777,18 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language_with_type_
         );
     }
     for access in &index.style_property_accesses {
+        let selector_name = style_property_access_selector_names
+            .get(&(
+                access.byte_span.start,
+                access.byte_span.end,
+                access.target_style_uri.clone(),
+            ))
+            .cloned();
         index
             .selector_references
             .push(SourceSelectorReferenceFactV0 {
                 byte_span: access.byte_span,
-                selector_name: None,
+                selector_name,
                 match_kind: SourceSelectorReferenceMatchKindV0::Exact,
                 target_style_uri: access.target_style_uri.clone(),
                 surface: SourceSelectorReferenceSurfaceV0::OmenaQuerySourceSyntaxIndex,
@@ -1949,6 +1958,7 @@ struct SourceSyntaxAstFacts {
     scope_contains_decls: Vec<SourceScopeContainsDeclFactV0>,
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
+    style_property_access_selector_names: BTreeMap<(usize, usize, Option<String>), String>,
     inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
@@ -1981,6 +1991,7 @@ fn collect_source_syntax_ast_facts(
             scope_contains_decls: Vec::new(),
             class_string_literals: Vec::new(),
             style_property_accesses: Vec::new(),
+            style_property_access_selector_names: BTreeMap::new(),
             inline_style_declarations: Vec::new(),
             class_name_expression_spans: Vec::new(),
             classnames_bind_utility_bindings: Vec::new(),
@@ -2017,6 +2028,7 @@ fn collect_source_syntax_ast_facts(
         scope_stack: Vec::new(),
         class_string_literals: Vec::new(),
         style_property_accesses: Vec::new(),
+        style_property_access_selector_names: BTreeMap::new(),
         inline_style_declarations: Vec::new(),
         class_name_expression_spans: Vec::new(),
         classnames_bind_utility_bindings: Vec::new(),
@@ -2037,6 +2049,7 @@ fn collect_source_syntax_ast_facts(
         scope_contains_decls: collector.scope_contains_decls,
         class_string_literals: collector.class_string_literals,
         style_property_accesses: collector.style_property_accesses,
+        style_property_access_selector_names: collector.style_property_access_selector_names,
         inline_style_declarations: collector.inline_style_declarations,
         class_name_expression_spans: collector.class_name_expression_spans,
         classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
@@ -2615,6 +2628,7 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
     scope_stack: Vec<SourceBindingScopeFactV0>,
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
+    style_property_access_selector_names: BTreeMap<(usize, usize, Option<String>), String>,
     inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
@@ -3777,12 +3791,18 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
 
     fn collect_computed_member_expression(&mut self, member: &ComputedMemberExpression<'a>) {
         if let Some(target) = self.target_for_object(&member.object)
-            && let Some(byte_span) = self.static_string_expression_content_span(&member.expression)
+            && let Some((byte_span, selector_name)) =
+                self.static_string_expression_class_name(&member.expression)
         {
+            let target_style_uri = target.target_style_uri.clone();
+            self.style_property_access_selector_names.insert(
+                (byte_span.start, byte_span.end, target_style_uri.clone()),
+                selector_name,
+            );
             self.style_property_accesses
                 .push(SourceStylePropertyAccessFactV0 {
                     byte_span,
-                    target_style_uri: target.target_style_uri.clone(),
+                    target_style_uri,
                 });
         }
         self.collect_expression(&member.object);
@@ -3819,36 +3839,30 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         }
     }
 
-    fn static_string_expression_content_span(
+    fn static_string_expression_class_name(
         &self,
         expression: &Expression<'a>,
-    ) -> Option<ParserByteSpanV0> {
-        match expression {
-            Expression::StringLiteral(literal) => self.css_identifier_content_span(literal.span),
-            Expression::TemplateLiteral(literal) if literal.expressions.is_empty() => {
-                self.css_identifier_content_span(literal.span)
+    ) -> Option<(ParserByteSpanV0, String)> {
+        let (span, selector_name) = match expression {
+            Expression::StringLiteral(literal) => {
+                (literal.span, literal.value.as_str().to_string())
             }
-            _ => None,
-        }
+            Expression::TemplateLiteral(literal) if literal.expressions.is_empty() => {
+                let selector_name = literal.quasis.first()?.value.cooked.as_ref()?.to_string();
+                (literal.span, selector_name)
+            }
+            _ => return None,
+        };
+        let byte_span = self.string_literal_content_span(span)?;
+        (!selector_name.is_empty()
+            && class_selector_name_end(selector_name.as_str(), 0) == Some(selector_name.len()))
+        .then_some((byte_span, selector_name))
     }
 
     fn css_identifier_span(&self, span: Span) -> Option<ParserByteSpanV0> {
         let span = parser_byte_span(span);
         let text = self.source.get(span.start..span.end)?;
         (!text.is_empty() && text.chars().all(is_css_identifier_continue)).then_some(span)
-    }
-
-    fn css_identifier_content_span(&self, span: Span) -> Option<ParserByteSpanV0> {
-        let span = parser_byte_span(span);
-        if span.end <= span.start + 1 {
-            return None;
-        }
-        let content = ParserByteSpanV0 {
-            start: span.start + 1,
-            end: span.end - 1,
-        };
-        let text = self.source.get(content.start..content.end)?;
-        (!text.is_empty() && text.chars().all(is_css_identifier_continue)).then_some(content)
     }
 
     fn string_literal_content_span(&self, span: Span) -> Option<ParserByteSpanV0> {

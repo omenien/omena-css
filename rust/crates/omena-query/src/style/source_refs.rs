@@ -1656,9 +1656,12 @@ fn source_selector_candidate_matches_definition(
     definition: &OmenaQueryStyleSelectorDefinitionV0,
 ) -> bool {
     let selector_matches = if candidate.kind == "sourceSelectorPrefixReference" {
-        definition.name.starts_with(candidate.name.as_str())
+        ClassNameV0::new(definition.name.as_str())
+            .decoded()
+            .starts_with(ClassNameV0::new(candidate.name.as_str()).decoded())
     } else {
-        definition.name == candidate.name
+        canonical_class_key(definition.name.as_str())
+            == canonical_class_key(candidate.name.as_str())
     };
     selector_matches
         && candidate
