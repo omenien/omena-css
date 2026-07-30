@@ -28,6 +28,7 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
       "rust/oss-corpus-farm-determinism",
       "rust/oss-corpus-farm-regressions",
       "rust/lint-finding-census",
+      "rust/ranked-set-loss-census",
     ],
   },
   "rust/product-test-contracts": {
