@@ -1,5 +1,17 @@
 use std::borrow::Cow;
 
+/// A CSS class name with authored and decoded spellings.
+///
+/// Equality is intentionally available only through [`ClassNameV0::same_as`].
+/// This keeps raw spelling equality from becoming an accidental join key.
+///
+/// ```compile_fail,E0369
+/// use omena_syntax::ident::ClassNameV0;
+///
+/// fn raw_structural_equality(left: &ClassNameV0, right: &ClassNameV0) -> bool {
+///     left == right
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct ClassNameV0 {
     raw: String,
@@ -30,12 +42,15 @@ impl ClassNameV0 {
     }
 
     pub fn canonical_key(&self) -> CanonicalClassKeyV0 {
-        CanonicalClassKeyV0(self.decoded.clone())
+        CanonicalClassKeyV0(self.decoded.clone(), CanonicalClassKeySealV0(()))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CanonicalClassKeyV0(String);
+struct CanonicalClassKeySealV0(());
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CanonicalClassKeyV0(String, CanonicalClassKeySealV0);
 
 impl CanonicalClassKeyV0 {
     pub fn as_str(&self) -> &str {

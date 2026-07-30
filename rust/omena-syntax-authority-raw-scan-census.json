@@ -70,7 +70,7 @@
   "sites": [
     {
       "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-      "line": 1585,
+      "line": 1597,
       "idiom": "brace-contains",
       "family": "engine-support",
       "disposition": "named-exempt",
@@ -151,7 +151,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 424,
+      "line": 425,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -160,7 +160,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 429,
+      "line": 430,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -376,7 +376,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
-      "line": 191,
+      "line": 193,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -385,7 +385,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/color.rs",
-      "line": 251,
+      "line": 253,
       "idiom": "matching-brace-helper",
       "family": "transform-domain",
       "disposition": "named-exempt",
@@ -1284,7 +1284,42 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:826914be5d68b7f613f2405ba2278978e30b493bdd49d994c57e15aad4c555e3",
+  "siteDigest": "sha256:1bacced7175cd82707f04960a16ec73c8351e01d4b23c772f831c1bbd4d49372",
+  "classSelectorScanner": {
+    "policy": "decrease-only",
+    "baselineSiteCount": 3,
+    "currentSiteCount": 3,
+    "sites": [
+      {
+        "path": "rust/crates/omena-cascade/src/selector.rs",
+        "line": 753,
+        "idiom": "char-identifier-reader",
+        "family": "cascade-analysis",
+        "disposition": "named-exempt",
+        "evidence": "fn read_identifier(chars: &[char], start: usize) -> Option<(String, usize)> {",
+        "reason": "Cascade value and selector scanning remains owned by the cascade analysis track."
+      },
+      {
+        "path": "rust/crates/omena-semantic/src/lib.rs",
+        "line": 1525,
+        "idiom": "class-dot-byte-walk",
+        "family": "semantic-model",
+        "disposition": "named-exempt",
+        "evidence": "let dot_index = if bytes[selector_start] == b'.' {",
+        "reason": "Semantic-model source scanning remains a named consumer follow-up."
+      },
+      {
+        "path": "rust/crates/omena-semantic/src/lib.rs",
+        "line": 1529,
+        "idiom": "class-dot-byte-walk",
+        "family": "semantic-model",
+        "disposition": "named-exempt",
+        "evidence": "Some(index) if bytes[index] == b'.' => index,",
+        "reason": "Semantic-model source scanning remains a named consumer follow-up."
+      }
+    ],
+    "siteDigest": "sha256:550ace110fef1aebe0df5c4efe7ae870f77c2b9c18f79730662c9d6333cff622"
+  },
   "moduleInterfaceLessScanner": {
     "policy": "single-named-seam",
     "path": "rust/crates/omena-sif/src/generator.rs",
