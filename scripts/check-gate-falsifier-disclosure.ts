@@ -81,10 +81,10 @@ interface FalsifierEvidenceV0 {
   readonly deadTestAudit: readonly DeadTestAuditRecordV0[];
 }
 
-interface UnobservedExecutableSiteSummaryV0 {
-  readonly shadowedSiteIds: readonly string[];
-  readonly reachedGreenSiteIds: readonly string[];
-  readonly notExecutedSiteIds: readonly string[];
+interface UnobservedExecutableSiteLocationSummaryV0 {
+  readonly sameFileAfterFirstFailureSiteIds: readonly string[];
+  readonly sameFileBeforeFirstFailureSiteIds: readonly string[];
+  readonly differentFileSiteIds: readonly string[];
   readonly committedArtifactSiteIds: readonly string[];
 }
 
@@ -391,18 +391,18 @@ function generatedFiringRecords(
   });
 }
 
-function summarizeUnobservedExecutableSites(
+function summarizeUnobservedExecutableSiteLocations(
   instrumentMap: InstrumentMapV0,
   firingRecords: readonly FalsifierFiringRecordV0[],
-): UnobservedExecutableSiteSummaryV0 {
+): UnobservedExecutableSiteLocationSummaryV0 {
   const recordsByPerturbation = new Map(
     firingRecords.map((record) => [record.perturbation, record] as const),
   );
   const sitesById = new Map(instrumentMap.sites.map((site) => [site.id, site] as const));
   const firedSiteIds = new Set(firingRecords.flatMap((record) => record.firedSiteIds));
-  const shadowedSiteIds: string[] = [];
-  const reachedGreenSiteIds: string[] = [];
-  const notExecutedSiteIds: string[] = [];
+  const sameFileAfterFirstFailureSiteIds: string[] = [];
+  const sameFileBeforeFirstFailureSiteIds: string[] = [];
+  const differentFileSiteIds: string[] = [];
 
   for (const site of instrumentMap.sites) {
     if (site.producerReachability !== "can-fail" || firedSiteIds.has(site.id)) continue;
@@ -420,13 +420,15 @@ function summarizeUnobservedExecutableSites(
       const firstFailure = sitesById.get(record.firedSiteIds[0] ?? "");
       assert.ok(firstFailure, `first-failure record names an unknown site: ${record.perturbation}`);
 
-      if (site.file !== firstFailure.file) return "not-executed";
+      if (site.file !== firstFailure.file) return "different-file";
       assert.notEqual(
         site.lineHint,
         firstFailure.lineHint,
         `unobserved site overlaps the first-failure location: ${site.id}`,
       );
-      return site.lineHint < firstFailure.lineHint ? "reached-green" : "shadowed";
+      return site.lineHint < firstFailure.lineHint
+        ? "same-file-before-first-failure"
+        : "same-file-after-first-failure";
     });
     assert.equal(
       new Set(classifications).size,
@@ -435,11 +437,16 @@ function summarizeUnobservedExecutableSites(
     );
 
     const classification = classifications[0];
-    if (classification === "not-executed") notExecutedSiteIds.push(site.id);
-    if (classification === "reached-green") reachedGreenSiteIds.push(site.id);
-    if (classification === "shadowed") shadowedSiteIds.push(site.id);
+    if (classification === "different-file") differentFileSiteIds.push(site.id);
+    if (classification === "same-file-before-first-failure") {
+      sameFileBeforeFirstFailureSiteIds.push(site.id);
+    }
+    if (classification === "same-file-after-first-failure") {
+      sameFileAfterFirstFailureSiteIds.push(site.id);
+    }
   }
 
+  // Authored list: these committed-artifact assertions are not inferred from execution.
   const committedArtifactSiteIds = [
     "linked-emission-gate-001",
     "linked-emission-baseline-domain-floor",
@@ -448,17 +455,17 @@ function summarizeUnobservedExecutableSites(
     "linked-emission-gate-018",
     "linked-emission-gate-019",
   ];
-  const reachedGreenSet = new Set(reachedGreenSiteIds);
+  const sameFileBeforeFirstFailureSet = new Set(sameFileBeforeFirstFailureSiteIds);
   assert.deepEqual(
-    committedArtifactSiteIds.filter((siteId) => reachedGreenSet.has(siteId)),
+    committedArtifactSiteIds.filter((siteId) => sameFileBeforeFirstFailureSet.has(siteId)),
     committedArtifactSiteIds,
-    "committed-artifact assertions must remain explicit reached-and-green witnesses",
+    "committed-artifact assertions must remain explicit earlier-line witnesses",
   );
 
   return {
-    shadowedSiteIds,
-    reachedGreenSiteIds,
-    notExecutedSiteIds,
+    sameFileAfterFirstFailureSiteIds,
+    sameFileBeforeFirstFailureSiteIds,
+    differentFileSiteIds,
     committedArtifactSiteIds,
   };
 }
@@ -578,7 +585,7 @@ const observedFiringRecords = generatedFiringRecords(instrumentMapWithoutFiringC
 const observedFiringSiteCount = new Set(
   observedFiringRecords.flatMap((record) => record.firedSiteIds),
 ).size;
-const unobservedExecutableSites = summarizeUnobservedExecutableSites(
+const unobservedExecutableSiteLocations = summarizeUnobservedExecutableSiteLocations(
   instrumentMapWithoutFiringCounts,
   observedFiringRecords,
 );
@@ -594,10 +601,10 @@ const instrumentMap: InstrumentMapV0 = {
 };
 const writeMode = process.argv.includes("--write");
 const unobservedExecutableLimitation = `Among the ${
-  unobservedExecutableSites.shadowedSiteIds.length +
-  unobservedExecutableSites.reachedGreenSiteIds.length +
-  unobservedExecutableSites.notExecutedSiteIds.length
-} executable-but-unobserved sites, ${unobservedExecutableSites.shadowedSiteIds.length} are shadowed by an earlier first failure in the same command, ${unobservedExecutableSites.reachedGreenSiteIds.length} are reached and remain green, and ${unobservedExecutableSites.notExecutedSiteIds.length} are not executed by that command. At least ${unobservedExecutableSites.committedArtifactSiteIds.length} reached-and-green sites assert committed artifacts that their disclosed perturbation cannot change; no site in these three buckets is claimed to have fired.`;
+  unobservedExecutableSiteLocations.sameFileAfterFirstFailureSiteIds.length +
+  unobservedExecutableSiteLocations.sameFileBeforeFirstFailureSiteIds.length +
+  unobservedExecutableSiteLocations.differentFileSiteIds.length
+} executable-but-unobserved sites, source-location inference places ${unobservedExecutableSiteLocations.sameFileAfterFirstFailureSiteIds.length} after the first-failure line in the same file, ${unobservedExecutableSiteLocations.sameFileBeforeFirstFailureSiteIds.length} before it in the same file, and ${unobservedExecutableSiteLocations.differentFileSiteIds.length} in a different file. This is not execution tracing: same-file sites are inferred from source-line order, different-file sites are inferred from a file mismatch, and neither inference proves execution order or reachability. linked-emission-gate-017 is guarded by --require-import-graph-winners, which the generated perturbation command does not pass. The following ${unobservedExecutableSiteLocations.committedArtifactSiteIds.length} earlier-line committed-artifact sites come from an authored list rather than an execution observation; no site in these three inferred buckets is claimed to have fired.`;
 const generatedEvidence: FalsifierEvidenceV0 = {
   ...falsifierEvidence,
   limitations: [
@@ -653,11 +660,13 @@ console.log(
     structuralEntailmentCount: instrumentMap.structuralEntailmentCount,
     domainFileCount: instrumentMap.domainFiles.length,
     firingRecordCount: generatedEvidence.firedSitesByPerturbation.length,
-    shadowedExecutableSiteCount: unobservedExecutableSites.shadowedSiteIds.length,
-    reachedGreenExecutableSiteCount: unobservedExecutableSites.reachedGreenSiteIds.length,
-    notExecutedExecutableSiteCount: unobservedExecutableSites.notExecutedSiteIds.length,
-    committedArtifactReachedGreenSiteCount:
-      unobservedExecutableSites.committedArtifactSiteIds.length,
+    inferredSameFileAfterFirstFailureSiteCount:
+      unobservedExecutableSiteLocations.sameFileAfterFirstFailureSiteIds.length,
+    inferredSameFileBeforeFirstFailureSiteCount:
+      unobservedExecutableSiteLocations.sameFileBeforeFirstFailureSiteIds.length,
+    inferredDifferentFileSiteCount: unobservedExecutableSiteLocations.differentFileSiteIds.length,
+    committedArtifactEarlierLineSiteCount:
+      unobservedExecutableSiteLocations.committedArtifactSiteIds.length,
     deadTestAuditCount: falsifierEvidence.deadTestAudit.length,
   }),
 );
