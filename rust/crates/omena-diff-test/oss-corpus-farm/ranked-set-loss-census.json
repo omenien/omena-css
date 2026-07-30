@@ -6,9 +6,15 @@
   "limitations": [
     "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
     "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
-    "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction."
+    "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction.",
+    "No multi-candidate inexact RankedSet outcome was observed in the bounded corpus.",
+    "The strict axis-prefix classifier had zero eligible product executions in the bounded corpus.",
+    "The bounded style corpus contains no @layer declaration or statement."
   ],
   "entryCount": 3,
+  "measurementInvocationCount": 22,
+  "rankedSetOutcomeCount": 1,
+  "multiCandidateInexactRankedSetCount": 0,
   "rowCount": 1,
   "recoverableCount": 0,
   "undecidableCount": 1,
@@ -39,11 +45,17 @@
   "entries": [
     {
       "id": "local-examples-lint-census",
+      "measurementInvocationCount": 13,
+      "rankedSetOutcomeCount": 0,
+      "multiCandidateInexactRankedSetCount": 0,
       "rowCount": 0,
       "rows": []
     },
     {
       "id": "local-real-workspace-lint-census",
+      "measurementInvocationCount": 9,
+      "rankedSetOutcomeCount": 1,
+      "multiCandidateInexactRankedSetCount": 0,
       "rowCount": 1,
       "rows": [
         {
@@ -51,14 +63,28 @@
           "invocationSite": "collectQueryReplicaEnsembleSiteOutcomes",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
           "property": "border",
-          "declarationIds": ["1px solid #d1d5db"],
+          "declarationIds": [
+            "1px solid #d1d5db"
+          ],
           "candidateCount": 1,
+          "candidates": [
+            {
+              "declarationId": "1px solid #d1d5db",
+              "level": "authorNormal",
+              "layerRank": 2147483647,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            }
+          ],
           "classification": "singleInexactCandidate"
         }
       ]
     },
     {
       "id": "local-unused-selector-fanout-lint-census",
+      "measurementInvocationCount": 0,
+      "rankedSetOutcomeCount": 0,
+      "multiCandidateInexactRankedSetCount": 0,
       "rowCount": 0,
       "rows": []
     }

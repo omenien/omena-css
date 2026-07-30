@@ -57,6 +57,24 @@ type CascadeRankedSetLossClassV0 =
       readonly recoverableAxisDominant: { readonly axis: "level" | "layerRank" | "scopeProximity" };
     };
 
+interface CascadeRankedSetLossCandidateV0 {
+  readonly declarationId: string;
+  readonly level:
+    | "userAgentNormal"
+    | "userNormal"
+    | "authorNormal"
+    | "inlineNormal"
+    | "animation"
+    | "authorImportant"
+    | "inlineImportant"
+    | "userImportant"
+    | "userAgentImportant"
+    | "transition";
+  readonly layerRank: number;
+  readonly scopeProximity: number;
+  readonly specificityExactness: "exact" | "inexact";
+}
+
 interface CascadeRankedSetLossCaptureRowV0 {
   readonly function: "cascadeProperty" | "cascadePropertyOpenWorld";
   readonly invocationSite: string;
@@ -64,12 +82,16 @@ interface CascadeRankedSetLossCaptureRowV0 {
   readonly property: string;
   readonly declarationIds: readonly string[];
   readonly candidateCount: number;
+  readonly candidates: readonly CascadeRankedSetLossCandidateV0[];
   readonly classification: CascadeRankedSetLossClassV0;
 }
 
 interface CascadeRankedSetLossCaptureV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-cascade.ranked-set-loss-capture";
+  readonly measurementInvocationCount: number;
+  readonly rankedSetOutcomeCount: number;
+  readonly multiCandidateInexactRankedSetCount: number;
   readonly rows: readonly CascadeRankedSetLossCaptureRowV0[];
 }
 
@@ -80,6 +102,9 @@ interface RankedSetLossCensusArtifactV0 {
   readonly corpusManifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json";
   readonly limitations: readonly string[];
   readonly entryCount: number;
+  readonly measurementInvocationCount: number;
+  readonly rankedSetOutcomeCount: number;
+  readonly multiCandidateInexactRankedSetCount: number;
   readonly rowCount: number;
   readonly recoverableCount: number;
   readonly undecidableCount: number;
@@ -90,6 +115,9 @@ interface RankedSetLossCensusArtifactV0 {
   readonly unclassifiedInvocationCount: number;
   readonly entries: readonly {
     readonly id: string;
+    readonly measurementInvocationCount: number;
+    readonly rankedSetOutcomeCount: number;
+    readonly multiCandidateInexactRankedSetCount: number;
     readonly rowCount: number;
     readonly rows: readonly CascadeRankedSetLossCaptureRowV0[];
   }[];
@@ -603,11 +631,21 @@ function buildRankedSetLossCensus(
     assert.equal(capture.product, "omena-cascade.ranked-set-loss-capture");
     return {
       id,
+      measurementInvocationCount: capture.measurementInvocationCount,
+      rankedSetOutcomeCount: capture.rankedSetOutcomeCount,
+      multiCandidateInexactRankedSetCount: capture.multiCandidateInexactRankedSetCount,
       rowCount: capture.rows.length,
       rows: capture.rows,
     };
   });
   const rows = entries.flatMap((entry) => entry.rows);
+  const measurementInvocationCount = sum(
+    entries.map((entry) => entry.measurementInvocationCount),
+  );
+  const rankedSetOutcomeCount = sum(entries.map((entry) => entry.rankedSetOutcomeCount));
+  const multiCandidateInexactRankedSetCount = sum(
+    entries.map((entry) => entry.multiCandidateInexactRankedSetCount),
+  );
   const classCounts = initializedCounts([
     "recoverableAxisDominant",
     "axisWinnerInexact",
@@ -659,8 +697,14 @@ function buildRankedSetLossCensus(
       "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
       "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
       "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction.",
+      "No multi-candidate inexact RankedSet outcome was observed in the bounded corpus.",
+      "The strict axis-prefix classifier had zero eligible product executions in the bounded corpus.",
+      "The bounded style corpus contains no @layer declaration or statement.",
     ],
     entryCount: entries.length,
+    measurementInvocationCount,
+    rankedSetOutcomeCount,
+    multiCandidateInexactRankedSetCount,
     rowCount: rows.length,
     recoverableCount,
     undecidableCount,
@@ -675,6 +719,10 @@ function buildRankedSetLossCensus(
 
 function initializedCounts(keys: readonly string[]): Record<string, number> {
   return Object.fromEntries(keys.map((key) => [key, 0]));
+}
+
+function sum(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0);
 }
 
 function classificationName(classification: CascadeRankedSetLossClassV0): string {

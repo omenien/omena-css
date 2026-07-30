@@ -106,14 +106,21 @@
           "id": "design-token-unresolved-selector-fallback",
           "kind": "selection-outcome-changing",
           "surface": "CascadeLayerContextV0::layer_rank_for",
-          "reason": "An unresolved selector in a layered context now falls back to the unlayered-normal sentinel instead of the weakest layered rank.",
+          "reason": "An unresolved layered declaration uses the weakest layered rank instead of colliding with the unlayered-normal sentinel.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
               "needles": [
                 "self.layer_ordinal_for(layer_names, selector_contexts)",
-                "fn unresolved_layer_selector_uses_the_unlayered_normal_ordering_token()",
-                "assert_eq!(\n            context\n                .layer_rank_for(&[], &[\".unresolved\".to_string()], true)\n                .get(),\n            i32::MAX\n        );"
+                ".or_else(|| LayerOrdinal::new(0))",
+                "fn unresolved_layer_selector_uses_the_weakest_layered_ordering_token()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/style_semantic_graph.rs",
+              "needles": [
+                "fn unresolved_workspace_layer_never_outranks_an_unlayered_design_token()",
+                "renaming the unresolved layered file must not change the unlayered winner"
               ]
             }
           ]
@@ -128,6 +135,10 @@
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
+            "field CascadeRankedSetLossCaptureV0.measurement_invocation_count",
+            "field CascadeRankedSetLossCaptureV0.multi_candidate_inexact_ranked_set_count",
+            "field CascadeRankedSetLossCaptureV0.ranked_set_outcome_count",
+            "field CascadeRankedSetLossCensusRowV0.candidates",
             "field SelectorSignature.functional_pseudo_constraints",
             "field CascadeComputedValueResultV0.fallback_indeterminate_reason",
             "field CustomPropertyLeastFixedPointProofV0.bounded_fixed_point_computation_witness",
@@ -137,6 +148,10 @@
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
+            "CascadeRankedSetLossCaptureV0.measurement_invocation_count",
+            "CascadeRankedSetLossCaptureV0.multi_candidate_inexact_ranked_set_count",
+            "CascadeRankedSetLossCaptureV0.ranked_set_outcome_count",
+            "CascadeRankedSetLossCensusRowV0.candidates",
             "SelectorSignature.functional_pseudo_constraints",
             "CascadeComputedValueResultV0.fallback_indeterminate_reason",
             "CustomPropertyLeastFixedPointProofV0.bounded_fixed_point_computation_witness",

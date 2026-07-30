@@ -22,6 +22,9 @@ interface RankedSetLossCensusArtifactV0 {
   readonly product: "omena-diff-test.ranked-set-loss-census";
   readonly limitations: readonly string[];
   readonly entryCount: number;
+  readonly measurementInvocationCount: number;
+  readonly rankedSetOutcomeCount: number;
+  readonly multiCandidateInexactRankedSetCount: number;
   readonly rowCount: number;
   readonly recoverableCount: number;
   readonly undecidableCount: number;
@@ -30,6 +33,29 @@ interface RankedSetLossCensusArtifactV0 {
   readonly invocationSitePopulations: Readonly<Record<string, number>>;
   readonly decidingAxisCounts: Readonly<Record<string, number>>;
   readonly unclassifiedInvocationCount: number;
+  readonly entries: readonly {
+    readonly id: string;
+    readonly measurementInvocationCount: number;
+    readonly rankedSetOutcomeCount: number;
+    readonly multiCandidateInexactRankedSetCount: number;
+    readonly rowCount: number;
+    readonly rows: readonly RankedSetLossCensusRowV0[];
+  }[];
+}
+
+interface RankedSetLossCandidateV0 {
+  readonly declarationId: string;
+  readonly level: string;
+  readonly layerRank: number;
+  readonly scopeProximity: number;
+  readonly specificityExactness: "exact" | "inexact";
+}
+
+interface RankedSetLossCensusRowV0 {
+  readonly declarationIds: readonly string[];
+  readonly candidateCount: number;
+  readonly candidates: readonly RankedSetLossCandidateV0[];
+  readonly classification: FixtureResultV0["classification"];
 }
 
 const repoRoot = process.cwd();
@@ -117,6 +143,46 @@ assert.equal(
   3,
   "the committed farm manifest has three local workspace entries",
 );
+const artifactRows = artifact.entries.flatMap((entry) => entry.rows);
+assert.equal(artifact.rowCount, artifactRows.length, "entry rows must equal the artifact row count");
+assert.equal(
+  artifact.measurementInvocationCount,
+  sum(artifact.entries.map((entry) => entry.measurementInvocationCount)),
+  "measurement invocation denominator must be derived from entry captures",
+);
+assert.equal(
+  artifact.rankedSetOutcomeCount,
+  sum(artifact.entries.map((entry) => entry.rankedSetOutcomeCount)),
+  "RankedSet denominator must be derived from entry captures",
+);
+assert.equal(
+  artifact.multiCandidateInexactRankedSetCount,
+  sum(artifact.entries.map((entry) => entry.multiCandidateInexactRankedSetCount)),
+  "multi-candidate inexact denominator must be derived from entry captures",
+);
+assert.ok(
+  artifact.measurementInvocationCount >= artifact.rankedSetOutcomeCount &&
+    artifact.rankedSetOutcomeCount >= artifact.rowCount,
+  "capture denominators must narrow from invocations to RankedSet outcomes to classified rows",
+);
+assert.equal(
+  artifact.multiCandidateInexactRankedSetCount,
+  artifactRows.filter((row) => row.candidateCount > 1).length,
+  "multi-candidate inexact denominator must equal eligible captured rows",
+);
+for (const row of artifactRows) {
+  assert.equal(row.candidateCount, row.candidates.length, "candidate payload must be total");
+  assert.deepEqual(
+    row.declarationIds,
+    row.candidates.map((candidate) => candidate.declarationId),
+    "candidate identities must align with the legacy declaration-id projection",
+  );
+  assert.deepEqual(
+    row.classification,
+    classifyArtifactRow(row),
+    "committed classification must be independently recomputable from axis-prefix values",
+  );
+}
 assert.deepEqual(Object.keys(artifact.classCounts).sort(), [
   "axisWinnerInexact",
   "noStrictAxisDominance",
@@ -163,6 +229,22 @@ assert.ok(
   "the artifact must reject prevalence interpretation",
 );
 assert.ok(
+  artifact.limitations.some((limitation) =>
+    limitation.includes("No multi-candidate inexact RankedSet outcome"),
+  ),
+  "the artifact must disclose the empty eligible multi-candidate population",
+);
+assert.ok(
+  artifact.limitations.some((limitation) =>
+    limitation.includes("zero eligible product executions"),
+  ),
+  "the artifact must disclose that product data did not execute the classifier predicate",
+);
+assert.ok(
+  artifact.limitations.some((limitation) => limitation.includes("no @layer")),
+  "the artifact must disclose the missing cascade-layer corpus shape",
+);
+assert.ok(
   artifact.limitations.some((limitation) => limitation.includes("empty by construction")),
   "the artifact must disclose the structurally empty open-world population",
 );
@@ -179,6 +261,9 @@ process.stdout.write(
       product: "omena-cascade.ranked-set-loss-census-gate",
       artifactSha256,
       entryCount: artifact.entryCount,
+      measurementInvocationCount: artifact.measurementInvocationCount,
+      rankedSetOutcomeCount: artifact.rankedSetOutcomeCount,
+      multiCandidateInexactRankedSetCount: artifact.multiCandidateInexactRankedSetCount,
       rowCount: artifact.rowCount,
       recoverableCount: artifact.recoverableCount,
       undecidableCount: artifact.undecidableCount,
@@ -194,6 +279,69 @@ function fixture(actual: FixtureResultV0[], name: string): FixtureResultV0 {
   const result = actual.find((candidate) => candidate.name === name);
   assert.ok(result, `classifier fixture is missing ${name}`);
   return result;
+}
+
+const cascadeLevels = [
+  "userAgentNormal",
+  "userNormal",
+  "authorNormal",
+  "inlineNormal",
+  "animation",
+  "authorImportant",
+  "inlineImportant",
+  "userImportant",
+  "userAgentImportant",
+  "transition",
+] as const;
+
+function classifyArtifactRow(
+  row: RankedSetLossCensusRowV0,
+): FixtureResultV0["classification"] {
+  assert.ok(
+    row.candidates.some((candidate) => candidate.specificityExactness === "inexact"),
+    "census rows must contain an inexact candidate",
+  );
+  if (row.candidates.length === 1) return "singleInexactCandidate";
+
+  const ranked = row.candidates.toSorted((left, right) => compareAxisPrefix(right, left));
+  const winner = ranked[0];
+  const runnerUp = ranked[1];
+  assert.ok(winner && runnerUp, "multi-candidate row must contain a winner and runner-up");
+  if (compareAxisPrefix(winner, runnerUp) !== 1) return "noStrictAxisDominance";
+  if (winner.specificityExactness === "inexact") return "axisWinnerInexact";
+
+  const axis =
+    levelRank(winner.level) !== levelRank(runnerUp.level)
+      ? "level"
+      : winner.layerRank !== runnerUp.layerRank
+        ? "layerRank"
+        : "scopeProximity";
+  return { recoverableAxisDominant: { axis } };
+}
+
+function compareAxisPrefix(
+  left: RankedSetLossCandidateV0,
+  right: RankedSetLossCandidateV0,
+): -1 | 0 | 1 {
+  return compareNumberTuple(
+    [levelRank(left.level), left.layerRank, -left.scopeProximity],
+    [levelRank(right.level), right.layerRank, -right.scopeProximity],
+  );
+}
+
+function levelRank(level: string): number {
+  const rank = cascadeLevels.indexOf(level as (typeof cascadeLevels)[number]);
+  assert.notEqual(rank, -1, `unknown cascade level in census row: ${level}`);
+  return rank;
+}
+
+function compareNumberTuple(left: readonly number[], right: readonly number[]): -1 | 0 | 1 {
+  for (let index = 0; index < left.length; index += 1) {
+    const delta = (left[index] ?? 0) - (right[index] ?? 0);
+    if (delta < 0) return -1;
+    if (delta > 0) return 1;
+  }
+  return 0;
 }
 
 function sum(values: readonly number[]): number {

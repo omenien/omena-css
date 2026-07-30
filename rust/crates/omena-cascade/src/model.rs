@@ -201,12 +201,16 @@ impl CascadeKey {
     }
 }
 
+pub(crate) fn compare_cascade_axis_prefix(left: &CascadeKey, right: &CascadeKey) -> Ordering {
+    left.level
+        .cmp(&right.level)
+        .then_with(|| left.layer_rank.cmp(&right.layer_rank))
+        .then_with(|| right.scope_proximity.cmp(&left.scope_proximity))
+}
+
 impl Ord for CascadeKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.level
-            .cmp(&other.level)
-            .then_with(|| self.layer_rank.cmp(&other.layer_rank))
-            .then_with(|| other.scope_proximity.cmp(&self.scope_proximity))
+        compare_cascade_axis_prefix(self, other)
             .then_with(|| self.specificity.cmp(&other.specificity))
             .then_with(|| self.source_order.cmp(&other.source_order))
     }

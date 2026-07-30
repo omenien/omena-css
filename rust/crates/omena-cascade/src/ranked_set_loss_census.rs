@@ -3,16 +3,22 @@ use std::{
     panic::Location,
     sync::{
         Mutex,
-        atomic::{AtomicBool, Ordering as AtomicOrdering},
+        atomic::{AtomicBool, AtomicUsize, Ordering as AtomicOrdering},
     },
 };
 
 use serde::Serialize;
 
-use crate::{CascadeDeclaration, CascadeOutcome, SpecificityExactnessV0};
+use crate::{
+    CascadeDeclaration, CascadeLevel, CascadeOutcome, SpecificityExactnessV0,
+    model::compare_cascade_axis_prefix,
+};
 
 static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 static CAPTURED_ROWS: Mutex<Vec<CascadeRankedSetLossCensusRowV0>> = Mutex::new(Vec::new());
+static MEASUREMENT_INVOCATION_COUNT: AtomicUsize = AtomicUsize::new(0);
+static RANKED_SET_OUTCOME_COUNT: AtomicUsize = AtomicUsize::new(0);
+static MULTI_CANDIDATE_INEXACT_RANKED_SET_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +46,16 @@ pub enum CascadeRankedSetLossClassV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CascadeRankedSetLossCandidateV0 {
+    pub declaration_id: String,
+    pub level: CascadeLevel,
+    pub layer_rank: i32,
+    pub scope_proximity: u32,
+    pub specificity_exactness: SpecificityExactnessV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CascadeRankedSetLossCensusRowV0 {
     pub function: CascadeRankedSetFunctionV0,
     pub invocation_site: &'static str,
@@ -47,6 +63,7 @@ pub struct CascadeRankedSetLossCensusRowV0 {
     pub property: String,
     pub declaration_ids: Vec<String>,
     pub candidate_count: usize,
+    pub candidates: Vec<CascadeRankedSetLossCandidateV0>,
     pub classification: CascadeRankedSetLossClassV0,
 }
 
@@ -55,6 +72,9 @@ pub struct CascadeRankedSetLossCensusRowV0 {
 pub struct CascadeRankedSetLossCaptureV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub measurement_invocation_count: usize,
+    pub ranked_set_outcome_count: usize,
+    pub multi_candidate_inexact_ranked_set_count: usize,
     pub rows: Vec<CascadeRankedSetLossCensusRowV0>,
 }
 
@@ -70,6 +90,9 @@ pub fn capture_cascade_ranked_set_losses<R>(
         .compare_exchange(false, true, AtomicOrdering::AcqRel, AtomicOrdering::Acquire)
         .map_err(|_| "cascade ranked-set loss capture is already active")?;
     captured_rows().clear();
+    MEASUREMENT_INVOCATION_COUNT.store(0, AtomicOrdering::Release);
+    RANKED_SET_OUTCOME_COUNT.store(0, AtomicOrdering::Release);
+    MULTI_CANDIDATE_INEXACT_RANKED_SET_COUNT.store(0, AtomicOrdering::Release);
     let guard = CaptureGuard;
     let result = operation();
     let mut rows = std::mem::take(&mut *captured_rows());
@@ -95,6 +118,11 @@ pub fn capture_cascade_ranked_set_losses<R>(
         CascadeRankedSetLossCaptureV0 {
             schema_version: "0",
             product: "omena-cascade.ranked-set-loss-capture",
+            measurement_invocation_count: MEASUREMENT_INVOCATION_COUNT
+                .load(AtomicOrdering::Acquire),
+            ranked_set_outcome_count: RANKED_SET_OUTCOME_COUNT.load(AtomicOrdering::Acquire),
+            multi_candidate_inexact_ranked_set_count: MULTI_CANDIDATE_INEXACT_RANKED_SET_COUNT
+                .load(AtomicOrdering::Acquire),
             rows,
         },
     ))
@@ -133,14 +161,19 @@ pub(crate) fn observe_cascade_outcome(
     if !CAPTURE_ACTIVE.load(AtomicOrdering::Acquire) {
         return;
     }
+    MEASUREMENT_INVOCATION_COUNT.fetch_add(1, AtomicOrdering::AcqRel);
     let CascadeOutcome::RankedSet(declarations) = outcome else {
         return;
     };
+    RANKED_SET_OUTCOME_COUNT.fetch_add(1, AtomicOrdering::AcqRel);
     if !declarations
         .iter()
         .any(|declaration| declaration.specificity_exactness == SpecificityExactnessV0::Inexact)
     {
         return;
+    }
+    if declarations.len() > 1 {
+        MULTI_CANDIDATE_INEXACT_RANKED_SET_COUNT.fetch_add(1, AtomicOrdering::AcqRel);
     }
     let row = CascadeRankedSetLossCensusRowV0 {
         function,
@@ -155,6 +188,16 @@ pub(crate) fn observe_cascade_outcome(
             .map(|declaration| declaration.id.clone())
             .collect(),
         candidate_count: declarations.len(),
+        candidates: declarations
+            .iter()
+            .map(|declaration| CascadeRankedSetLossCandidateV0 {
+                declaration_id: declaration.id.clone(),
+                level: declaration.key.level,
+                layer_rank: declaration.key.layer_rank.get(),
+                scope_proximity: declaration.key.scope_proximity,
+                specificity_exactness: declaration.specificity_exactness,
+            })
+            .collect(),
         classification: classify_cascade_ranked_set_loss(declarations),
     };
     captured_rows().push(row);
@@ -164,23 +207,17 @@ fn strict_axis_prefix_winner(
     declarations: &[CascadeDeclaration],
 ) -> Option<(usize, CascadeAxisPrefixV0)> {
     let mut ranked = declarations.iter().enumerate().collect::<Vec<_>>();
-    ranked.sort_by(|(_, left), (_, right)| compare_axis_prefix(&right.key, &left.key));
+    ranked.sort_by(|(_, left), (_, right)| compare_cascade_axis_prefix(&right.key, &left.key));
     let [(winner_index, winner), (_, runner_up), ..] = ranked.as_slice() else {
         return None;
     };
-    let ordering = compare_axis_prefix(&winner.key, &runner_up.key);
+    let ordering = compare_cascade_axis_prefix(&winner.key, &runner_up.key);
     if ordering != Ordering::Greater {
         return None;
     }
-    let deciding_axis = deciding_axis(&winner.key, &runner_up.key)?;
+    let deciding_axis = deciding_axis(&winner.key, &runner_up.key)
+        .expect("a strict axis-prefix winner must differ on one prefix axis");
     Some((*winner_index, deciding_axis))
-}
-
-fn compare_axis_prefix(left: &crate::CascadeKey, right: &crate::CascadeKey) -> Ordering {
-    left.level
-        .cmp(&right.level)
-        .then_with(|| left.layer_rank.cmp(&right.layer_rank))
-        .then_with(|| right.scope_proximity.cmp(&left.scope_proximity))
 }
 
 fn deciding_axis(
@@ -215,10 +252,9 @@ fn invocation_site(source_path: &str) -> &'static str {
 }
 
 fn captured_rows() -> std::sync::MutexGuard<'static, Vec<CascadeRankedSetLossCensusRowV0>> {
-    match CAPTURED_ROWS.lock() {
-        Ok(rows) => rows,
-        Err(poisoned) => poisoned.into_inner(),
-    }
+    CAPTURED_ROWS
+        .lock()
+        .expect("ranked-set loss capture state must not be poisoned")
 }
 
 struct CaptureGuard;

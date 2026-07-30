@@ -816,7 +816,8 @@ impl DesignTokenCascadeContext {
         }
         normalized_layer_rank(
             false,
-            self.layer_ordinal_for(layer_names, selector_contexts),
+            self.layer_ordinal_for(layer_names, selector_contexts)
+                .or_else(|| LayerOrdinal::new(0)),
         )
     }
 
@@ -1220,7 +1221,7 @@ mod layer_rank_fallback_tests {
     use std::collections::BTreeMap;
 
     #[test]
-    fn unresolved_layer_selector_uses_the_unlayered_normal_ordering_token() {
+    fn unresolved_layer_selector_uses_the_weakest_layered_ordering_token() {
         let context = DesignTokenCascadeContext {
             layer_name_ranks: BTreeMap::new(),
             layer_name_depths: BTreeMap::new(),
@@ -1232,7 +1233,7 @@ mod layer_rank_fallback_tests {
             context
                 .layer_rank_for(&[], &[".unresolved".to_string()], true)
                 .get(),
-            i32::MAX
+            0
         );
         assert_eq!(
             context.layer_resolution_status_for(&[], &[".unresolved".to_string()], true),

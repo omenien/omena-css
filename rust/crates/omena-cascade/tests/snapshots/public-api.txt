@@ -334,10 +334,19 @@ pub omena_cascade::CascadeProof::source_order: u32
 pub omena_cascade::CascadeProof::specificity: omena_cascade::Specificity
 pub omena_cascade::CascadeRankedSetFunctionV0::CascadeProperty
 pub omena_cascade::CascadeRankedSetFunctionV0::CascadePropertyOpenWorld
+pub omena_cascade::CascadeRankedSetLossCandidateV0::declaration_id: alloc::string::String
+pub omena_cascade::CascadeRankedSetLossCandidateV0::layer_rank: i32
+pub omena_cascade::CascadeRankedSetLossCandidateV0::level: omena_cascade::CascadeLevel
+pub omena_cascade::CascadeRankedSetLossCandidateV0::scope_proximity: u32
+pub omena_cascade::CascadeRankedSetLossCandidateV0::specificity_exactness: omena_cascade::SpecificityExactnessV0
+pub omena_cascade::CascadeRankedSetLossCaptureV0::measurement_invocation_count: usize
+pub omena_cascade::CascadeRankedSetLossCaptureV0::multi_candidate_inexact_ranked_set_count: usize
 pub omena_cascade::CascadeRankedSetLossCaptureV0::product: &'static str
+pub omena_cascade::CascadeRankedSetLossCaptureV0::ranked_set_outcome_count: usize
 pub omena_cascade::CascadeRankedSetLossCaptureV0::rows: alloc::vec::Vec<omena_cascade::CascadeRankedSetLossCensusRowV0>
 pub omena_cascade::CascadeRankedSetLossCaptureV0::schema_version: &'static str
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::candidate_count: usize
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::candidates: alloc::vec::Vec<omena_cascade::CascadeRankedSetLossCandidateV0>
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::classification: omena_cascade::CascadeRankedSetLossClassV0
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
 pub omena_cascade::CascadeRankedSetLossCensusRowV0::function: omena_cascade::CascadeRankedSetFunctionV0
@@ -824,6 +833,7 @@ pub struct omena_cascade::CascadeMarginV0
 pub struct omena_cascade::CascadeOriginDriverV0
 pub struct omena_cascade::CascadeOutcomeProjectionRecordV0
 pub struct omena_cascade::CascadeProof
+pub struct omena_cascade::CascadeRankedSetLossCandidateV0
 pub struct omena_cascade::CascadeRankedSetLossCaptureV0
 pub struct omena_cascade::CascadeRankedSetLossCensusRowV0
 pub struct omena_cascade::CascadeRefinementContextV0
