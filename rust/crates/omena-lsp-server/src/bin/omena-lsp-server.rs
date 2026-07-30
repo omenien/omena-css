@@ -1640,6 +1640,166 @@ mod tests {
         parse_lsp_frames(output.as_slice())
     }
 
+    fn lsp_position_for_byte_offset(source: &str, offset: usize) -> Result<Value, String> {
+        let prefix = source
+            .get(..offset)
+            .ok_or_else(|| format!("byte offset {offset} is outside the source"))?;
+        let line = prefix.bytes().filter(|byte| *byte == b'\n').count();
+        let character = prefix
+            .rsplit_once('\n')
+            .map_or(prefix, |(_, tail)| tail)
+            .encode_utf16()
+            .count();
+        Ok(json!({ "line": line, "character": character }))
+    }
+
+    fn response_for_id(messages: &[Value], id: u64) -> Option<&Value> {
+        messages
+            .iter()
+            .find(|message| message.get("id") == Some(&json!(id)))
+    }
+
+    #[test]
+    fn stdio_escaped_css_module_member_supports_product_navigation() -> Result<(), String> {
+        let style_uri = "file:///workspace-a/src/App.module.css";
+        let source_uri = "file:///workspace-a/src/App.tsx";
+        let style_text = r#".md\:flex { display: flex; }
+.plain { display: block; }
+"#;
+        let source_text = r#"import styles from "./App.module.css";
+export const escapedClass = styles["md\\:flex"];
+export const plainClass = styles.plain;
+"#;
+        let escaped_access_offset = source_text
+            .find(r#"md\\:flex"#)
+            .ok_or_else(|| "escaped computed member is missing".to_string())?
+            + 2;
+        let plain_access_offset = source_text
+            .find("styles.plain")
+            .ok_or_else(|| "plain member is missing".to_string())?
+            + "styles.".len()
+            + 2;
+        let escaped_style_offset = style_text
+            .find(r#"md\:flex"#)
+            .ok_or_else(|| "escaped style class is missing".to_string())?
+            + 2;
+
+        let messages = run_script(&[
+            initialize_workspace_a_message(),
+            text_document_open_message(source_uri, "typescriptreact", 1, source_text),
+            text_document_open_message(style_uri, "css", 1, style_text),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": { "uri": source_uri },
+                    "position": lsp_position_for_byte_offset(
+                        source_text,
+                        escaped_access_offset,
+                    )?,
+                },
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": { "uri": source_uri },
+                    "position": lsp_position_for_byte_offset(source_text, plain_access_offset)?,
+                },
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/references",
+                "params": {
+                    "textDocument": { "uri": style_uri },
+                    "position": lsp_position_for_byte_offset(
+                        style_text,
+                        escaped_style_offset,
+                    )?,
+                    "context": { "includeDeclaration": true },
+                },
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": source_uri },
+                    "position": lsp_position_for_byte_offset(
+                        source_text,
+                        escaped_access_offset,
+                    )?,
+                },
+            }),
+        ])?;
+
+        for id in [2, 3] {
+            let definition = response_for_id(messages.as_slice(), id)
+                .ok_or_else(|| format!("definition response {id} is missing"))?;
+            assert!(
+                definition
+                    .pointer("/result")
+                    .and_then(Value::as_array)
+                    .is_some_and(|locations| locations.iter().any(|location| {
+                        location.get("uri").and_then(Value::as_str) == Some(style_uri)
+                    })),
+                "definition {id} should resolve to the style document: {definition}"
+            );
+        }
+
+        let references = response_for_id(messages.as_slice(), 4)
+            .ok_or_else(|| "references response is missing".to_string())?;
+        assert!(
+            references
+                .pointer("/result")
+                .and_then(Value::as_array)
+                .is_some_and(|locations| locations.iter().any(|location| {
+                    location.get("uri").and_then(Value::as_str) == Some(source_uri)
+                })),
+            "escaped class references should include the TSX access: {references}"
+        );
+
+        let diagnostics = publish_diagnostics_for_uri(messages.as_slice(), style_uri);
+        let final_diagnostics = diagnostics
+            .last()
+            .ok_or_else(|| "style diagnostics notification is missing".to_string())?;
+        let unused_messages = final_diagnostics
+            .pointer("/params/diagnostics")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|diagnostic| diagnostic.get("code") == Some(&json!("unusedSelector")))
+            .filter_map(|diagnostic| diagnostic.get("message").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert!(
+            !unused_messages
+                .iter()
+                .any(|message| message.contains("md") || message.contains("plain")),
+            "escaped and plain references must suppress unusedSelector: {unused_messages:?}"
+        );
+
+        let completion = response_for_id(messages.as_slice(), 5)
+            .ok_or_else(|| "completion response is missing".to_string())?;
+        let escaped_item = completion
+            .pointer("/result/items")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|item| item.get("label") == Some(&json!(r#"md\:flex"#)))
+            })
+            .ok_or_else(|| "escaped class completion is missing".to_string())?;
+        assert_eq!(
+            escaped_item.get("insertText"),
+            Some(&json!(r#"md\\:flex"#)),
+            "computed-member completion must escape the CSS spelling for TypeScript"
+        );
+        Ok(())
+    }
+
     #[test]
     fn stdio_external_sif_refresh_worker_publishes_follow_up_diagnostics() -> Result<(), String> {
         let root = std::env::temp_dir().join(format!(

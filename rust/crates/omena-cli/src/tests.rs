@@ -185,6 +185,44 @@ fn bundle_command_emits_css_and_deterministic_evidence() -> Result<(), String> {
 }
 
 #[test]
+fn bundle_command_rewrites_non_ascii_module_classes() -> Result<(), String> {
+    let root = temp_dir("bundle-command-non-ascii-module-class");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let entry = root.join("BracketAccess.module.scss");
+    let css_out = root.join("bundle.css");
+    fs::write(
+        &entry,
+        include_str!(
+            "../../../../examples/src/scenarios/17-bracket-access/BracketAccess.module.scss"
+        ),
+    )
+    .map_err(|error| error.to_string())?;
+
+    run(Cli {
+        command: Command::Bundle {
+            entry: Some(entry),
+            css_out: Some(css_out.clone()),
+            evidence: None,
+            source_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            sif_paths: Vec::new(),
+            lockfile: None,
+        },
+    })?;
+
+    let css = fs::read_to_string(css_out).map_err(|error| error.to_string())?;
+    assert!(
+        !css.contains(".한글-라벨"),
+        "the bundle product path must rewrite non-ASCII module class names"
+    );
+    assert!(
+        css.contains(".___-___2") && css.contains("font-weight: 600"),
+        "the rewritten class must retain its declaration in emitted CSS: {css}"
+    );
+    Ok(())
+}
+
+#[test]
 fn bundle_command_loads_configured_workspace_sources_without_flags() -> Result<(), String> {
     let root = temp_dir("bundle-command-config-sources");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
