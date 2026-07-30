@@ -2,7 +2,10 @@ use super::*;
 use omena_parser::{
     ParsedSassIncludeFact, ParsedSelectorFact, ParsedStyleFacts, ParsedVariableFact,
 };
-use omena_syntax::css_keyword;
+use omena_syntax::{
+    css_keyword,
+    ident::{is_ascii_word_continue, is_css_name_continue},
+};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
@@ -1152,7 +1155,7 @@ fn source_reference_text_selector_name(source: &str, span: ParserByteSpanV0) -> 
         return None;
     }
     text.chars()
-        .all(is_css_identifier_continue)
+        .all(is_css_name_continue)
         .then(|| text.to_string())
 }
 
@@ -3504,12 +3507,12 @@ fn infer_sass_include_generated_selector_names(params: &str) -> Vec<String> {
     let Some(prefix) = sass_named_argument_string_value(params, "prefix") else {
         return Vec::new();
     };
-    if prefix.is_empty() || !prefix.chars().all(is_css_identifier_continue) {
+    if prefix.is_empty() || !prefix.chars().all(is_css_name_continue) {
         return Vec::new();
     }
     let mut selectors = sass_first_map_string_keys(params)
         .into_iter()
-        .filter(|key| !key.is_empty() && key.chars().all(is_css_identifier_continue))
+        .filter(|key| !key.is_empty() && key.chars().all(is_css_name_continue))
         .map(|key| format!("{prefix}-{key}"))
         .collect::<Vec<_>>();
     selectors.sort();
@@ -3586,11 +3589,11 @@ fn sass_identifier_boundary(source: &str, start: usize, end: usize) -> bool {
     let before = source
         .get(..start)
         .and_then(|prefix| prefix.chars().next_back())
-        .is_none_or(|ch| !is_css_identifier_continue(ch) && ch != '$');
+        .is_none_or(|ch| !is_ascii_word_continue(ch) && ch != '$');
     let after = source
         .get(end..)
         .and_then(|suffix| suffix.chars().next())
-        .is_none_or(|ch| !is_css_identifier_continue(ch));
+        .is_none_or(|ch| !is_ascii_word_continue(ch));
     before && after
 }
 
@@ -3836,11 +3839,11 @@ fn sass_completion_trailing_token(text: &str) -> Option<&str> {
 }
 
 fn is_sass_completion_identifier_continue(ch: char) -> bool {
-    is_css_identifier_continue(ch)
+    is_ascii_word_continue(ch)
 }
 
 fn is_sass_completion_member_continue(ch: char) -> bool {
-    is_css_identifier_continue(ch) || ch == '.' || ch == '$'
+    is_ascii_word_continue(ch) || ch == '.' || ch == '$'
 }
 
 fn trim_hover_snippet(snippet: &str) -> String {
@@ -3850,10 +3853,6 @@ fn trim_hover_snippet(snippet: &str) -> String {
     }
     let end = char_boundary_floor(snippet, MAX_SNIPPET_LEN);
     format!("{}...", snippet[..end].trim_end())
-}
-
-fn is_css_identifier_continue(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
 }
 
 fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {

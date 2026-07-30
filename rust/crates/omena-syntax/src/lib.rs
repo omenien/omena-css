@@ -1,7 +1,8 @@
 //! Shared syntax vocabulary for the Omena CSS-family parser stack.
 //!
 //! This crate is intentionally substrate-only: it defines stable syntax kind
-//! ranges and CST integration without parsing source text yet.
+//! ranges, CST integration, and shared lexical identity without constructing
+//! parser-owned syntax trees.
 //!
 //! syntax_kind_extraction_decision: keep `SyntaxKind` extracted in
 //! `omena-syntax`; parser, semantic, resolver, LSP, and checker layers consume
@@ -9,6 +10,7 @@
 
 use cstree::{RawSyntaxKind, Syntax};
 
+pub mod ident;
 mod keyword;
 
 pub use keyword::{CssKeywordText, css_keyword};

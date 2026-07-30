@@ -368,10 +368,6 @@ pub(crate) fn lsp_position_from_value(position: &Value) -> Option<ParserPosition
     })
 }
 
-pub(crate) fn is_css_identifier_continue(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
-}
-
 pub(crate) fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
     ParserRangeV0 {
         start: parser_position_for_byte_offset(source, span.start),

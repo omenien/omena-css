@@ -7,12 +7,13 @@ use omena_query::{
     OmenaQueryStyleIntelligenceSnapshotV0 as StyleIntelligenceSnapshot, ParserByteSpanV0,
     ParserPositionV0, ParserRangeV0, omena_query_style_intelligence_completions_at_offset,
 };
+use omena_syntax::ident::is_ascii_word_continue;
 
 use crate::{
     LspShellState,
     protocol::{
-        byte_offset_for_parser_position, file_uri_equivalent, is_css_identifier_continue,
-        parser_range_contains_position, parser_range_for_byte_span,
+        byte_offset_for_parser_position, file_uri_equivalent, parser_range_contains_position,
+        parser_range_for_byte_span,
     },
     source_selector_candidates_at_position,
     state::LspTextDocumentState,
@@ -269,7 +270,7 @@ fn source_completion_prefix_from_span(
     if prefix.is_empty() {
         return None;
     }
-    if prefix.chars().all(is_css_identifier_continue) {
+    if prefix.chars().all(is_ascii_word_continue) {
         Some(prefix.to_string())
     } else {
         None
@@ -293,7 +294,7 @@ fn source_completion_class_token_prefix_from_span(
     if token.is_empty() {
         return None;
     }
-    if token.chars().all(is_css_identifier_continue) {
+    if token.chars().all(is_ascii_word_continue) {
         Some(token.to_string())
     } else {
         None

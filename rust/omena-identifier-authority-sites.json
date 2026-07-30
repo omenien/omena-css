@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "0",
+  "authority": "omena_syntax::ident",
+  "predicates": {
+    "cssNameGrammar": {
+      "start": "is_css_name_start",
+      "continue": "is_css_name_continue",
+      "widensNonAscii": true
+    },
+    "asciiCursorWord": {
+      "continue": "is_ascii_word_continue",
+      "widensNonAscii": false
+    }
+  },
+  "extractorSites": [
+    {
+      "id": "parser-facts-selector-oracle",
+      "file": "rust/crates/omena-parser/src/facts/selectors.rs",
+      "symbol": "collect_class_selector_names_from_header",
+      "assignment": "independentParserOracle",
+      "disposition": "retained"
+    },
+    {
+      "id": "parser-product-selector-classes",
+      "file": "rust/crates/omena-parser/src/public_product.rs",
+      "symbol": "class_names_in_selector",
+      "assignment": "cssNameGrammar",
+      "disposition": "sharedScanner"
+    },
+    {
+      "id": "query-runtime-selector-classes",
+      "file": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+      "symbol": "query_selector_class_names",
+      "assignment": "cssNameGrammar",
+      "disposition": "sharedScanner"
+    },
+    {
+      "id": "cascade-simple-class-selector",
+      "file": "rust/crates/omena-cascade/src/selector.rs",
+      "symbol": "read_class_identifier",
+      "assignment": "cssNameGrammar",
+      "disposition": "sharedScanner"
+    }
+  ],
+  "continueSetSites": [
+    {
+      "id": "parser-lexer-name-character",
+      "file": "rust/crates/omena-parser/src/lex.rs",
+      "symbol": "is_name_start/is_name_continue",
+      "assignment": "cssNameGrammar",
+      "disposition": "delegatesAfterCssPreprocessing"
+    },
+    {
+      "id": "transform-ascii-selector-step",
+      "file": "rust/crates/omena-transform-passes/src/helpers/ascii.rs",
+      "symbol": "ascii_css_identifier_end",
+      "assignment": "cssNameGrammar",
+      "disposition": "retiredIntoSharedScanner"
+    },
+    {
+      "id": "transform-plain-identifier-text",
+      "file": "rust/crates/omena-transform-passes/src/helpers/identifiers.rs",
+      "symbol": "css_identifier_text_is_plain",
+      "assignment": "cssNameGrammar",
+      "disposition": "delegates"
+    },
+    {
+      "id": "transform-identifier-character",
+      "file": "rust/crates/omena-transform-passes/src/domains",
+      "symbol": "is_css_name_start/is_css_name_continue",
+      "assignment": "cssNameGrammar",
+      "disposition": "directImport"
+    },
+    {
+      "id": "bridge-css-identifier-character",
+      "file": "rust/crates/omena-bridge/src/source_syntax.rs",
+      "symbol": "is_css_name_continue",
+      "assignment": "cssNameGrammar",
+      "disposition": "directImport"
+    },
+    {
+      "id": "lsp-cursor-word-character",
+      "file": "rust/crates/omena-lsp-server/src/source_completion.rs",
+      "symbol": "is_ascii_word_continue",
+      "assignment": "asciiCursorWord",
+      "disposition": "directImport"
+    },
+    {
+      "id": "lsp-type-fact-css-character",
+      "file": "rust/crates/omena-lsp-server/src/source_type_facts.rs",
+      "symbol": "is_css_name_continue",
+      "assignment": "cssNameGrammar",
+      "disposition": "directImport"
+    },
+    {
+      "id": "lsp-type-fact-cursor-word-character",
+      "file": "rust/crates/omena-lsp-server/src/source_type_facts.rs",
+      "symbol": "is_ascii_word_continue",
+      "assignment": "asciiCursorWord",
+      "disposition": "directImport"
+    },
+    {
+      "id": "query-css-identifier-character",
+      "file": "rust/crates/omena-query/src/style.rs",
+      "symbol": "is_css_name_continue",
+      "assignment": "cssNameGrammar",
+      "disposition": "directImport"
+    },
+    {
+      "id": "query-cursor-word-character",
+      "file": "rust/crates/omena-query/src/style.rs",
+      "symbol": "is_ascii_word_continue",
+      "assignment": "asciiCursorWord",
+      "disposition": "directImport"
+    },
+    {
+      "id": "query-cascade-position-word-character",
+      "file": "rust/crates/omena-query/src/style/cascade_position.rs",
+      "symbol": "is_ascii_word_continue",
+      "assignment": "asciiCursorWord",
+      "disposition": "directImport"
+    },
+    {
+      "id": "cascade-identifier-character",
+      "file": "rust/crates/omena-cascade/src/selector.rs",
+      "symbol": "is_css_name_start/is_css_name_continue",
+      "assignment": "cssNameGrammar",
+      "disposition": "directImport"
+    },
+    {
+      "id": "query-runtime-selector-byte",
+      "file": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+      "symbol": "query_selector_class_name_byte",
+      "assignment": "cssNameGrammar",
+      "disposition": "retiredIntoSharedScanner"
+    }
+  ],
+  "untouchedSites": [
+    {
+      "id": "bridge-javascript-identifier",
+      "file": "rust/crates/omena-bridge/src/source_syntax.rs",
+      "symbol": "is_js_identifier_start/is_js_identifier_continue",
+      "assignment": "javascriptIdentifierGrammar",
+      "reason": "JavaScript identifier syntax is a separate language plane."
+    }
+  ]
+}

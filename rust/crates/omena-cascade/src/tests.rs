@@ -2134,6 +2134,18 @@ fn parses_simple_selector_specificity() {
 }
 
 #[test]
+fn simple_selector_signature_uses_escape_aware_class_names() {
+    let Some(signature) = parse_simple_selector_signature(r".a\.b.카드") else {
+        panic!("escape-aware class selector should parse");
+    };
+
+    // Both class spellings are emitted directly by this selector; an ASCII or
+    // non-escape-aware extractor makes one of these assertions false.
+    assert!(signature.required_classes.contains(r"a\.b"));
+    assert!(signature.required_classes.contains("카드"));
+}
+
+#[test]
 fn where_pseudo_contributes_zero_specificity() {
     // RFC-0007-B B3: `:where(.box)` must parse (not drop the rule) and contribute
     // zero specificity, so a bare `.box` still beats it.

@@ -6,6 +6,45 @@ use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
 #[test]
+fn execution_runtime_rewrites_non_ascii_classes_from_tracked_content() {
+    let source = concat!(
+        include_str!(
+            "../../../../../examples/src/scenarios/17-bracket-access/BracketAccess.module.scss"
+        ),
+        "\n.카드 { color: red; }\n"
+    );
+    let context = TransformExecutionContextV0 {
+        class_name_rewrites: vec![
+            TransformClassNameRewriteV0 {
+                original_name: "한글-라벨".to_string(),
+                rewritten_name: "_tracked_hangul".to_string(),
+            },
+            TransformClassNameRewriteV0 {
+                original_name: "카드".to_string(),
+                rewritten_name: "_h4x_카드".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Scss,
+        &[
+            TransformPassKind::HashCssModuleClassNames,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    // Both selectors are emitted by the tracked source passed to the product
+    // transform; leaving either byte scanner in place falsifies these checks.
+    assert!(execution.output_css.contains("._tracked_hangul"));
+    assert!(execution.output_css.contains("._h4x_카드"));
+    assert!(!execution.output_css.contains(".한글-라벨"));
+    assert!(!execution.output_css.contains(".카드"));
+}
+
+#[test]
 fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
     let source = r#".button { composes: base utility global(reset); color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } :global(.standalone) { color: teal; } :global { .global-block { color: silver; } } :local(.button) { color: navy; } :local { .button { color: maroon; } } @media (min-width: 1px) { .button { color: black; } }"#;
     let context = TransformExecutionContextV0 {

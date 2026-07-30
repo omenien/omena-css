@@ -1,4 +1,5 @@
 use super::*;
+use crate::collect_style_facts;
 
 const SUMMARY_CONTRACT_SOURCE: &str = r#"@value tone: red;
 @forward "tokens" AS token-* show $color;
@@ -16,6 +17,34 @@ const SUMMARY_CONTRACT_SOURCE: &str = r#"@value tone: red;
 
 fn span_text(source: &str, span: ParserByteSpanV0) -> Option<&str> {
     source.get(span.start..span.end)
+}
+
+#[test]
+fn lexical_class_scanner_matches_live_parser_facts() {
+    for source in [
+        ".card .title { color: red; }",
+        "[data-x=\"a.b\"] { color: red; }",
+        "[data-x=a.b] { color: red; }",
+        r".a\.b { color: red; }",
+        r".\31 23 { color: red; }",
+        ".카드.café { color: red; }",
+    ] {
+        let header = source.split_once('{').map_or(source, |(header, _)| header);
+        let lexical_names = omena_syntax::ident::class_selector_names(header)
+            .into_iter()
+            .map(|entry| entry.name.into_raw())
+            .collect::<Vec<_>>();
+        let parser_names = collect_style_facts(source, StyleDialect::Css)
+            .selectors
+            .into_iter()
+            .filter(|fact| fact.kind == ParsedSelectorFactKind::Class)
+            .map(|fact| fact.name)
+            .collect::<Vec<_>>();
+
+        // Either live producer can emit a different list for the source above;
+        // this comparison fails instead of adapting an authored expectation.
+        assert_eq!(lexical_names, parser_names, "source: {source}");
+    }
 }
 
 #[test]

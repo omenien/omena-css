@@ -11,6 +11,7 @@ use omena_cascade::{
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
 use omena_semantic::DesignTokenRankedReferenceV0;
+use omena_syntax::ident::is_ascii_word_continue;
 
 use crate::{
     AbstractPropertyValueV0, CascadeContextV0, CascadeDimensionalRefinementBridgeV0,
@@ -21,7 +22,7 @@ use crate::{
 };
 
 use super::{
-    byte_offset_for_parser_position, is_css_identifier_continue, parser_range_for_byte_span,
+    byte_offset_for_parser_position, parser_range_for_byte_span,
     summarize_omena_query_style_semantic_graph_from_source,
 };
 
@@ -541,7 +542,7 @@ fn is_selector_name_boundary(source: &str, byte_offset: usize) -> bool {
     source[byte_offset..]
         .chars()
         .next()
-        .is_none_or(|ch| !is_css_identifier_continue(ch))
+        .is_none_or(|ch| !is_ascii_word_continue(ch))
 }
 
 fn parser_range_from_semantic_range(range: OmenaBridgeParserRangeV0) -> ParserRangeV0 {

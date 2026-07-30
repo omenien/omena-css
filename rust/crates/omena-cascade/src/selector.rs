@@ -6,6 +6,8 @@
 
 use std::collections::BTreeSet;
 
+use omena_syntax::ident::{class_selector_name_end, is_css_name_continue, is_css_name_start};
+
 use crate::{
     ElementIdentityV0, ElementSignature, ScopeProximityStatusV0, ScopeProximityV0,
     SelectorContextMatchKind, SelectorContextWitness, SelectorFunctionalPseudoConstraintV0,
@@ -473,7 +475,7 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
             '*' => index += 1,
             '.' => {
                 index += 1;
-                let (name, next) = read_identifier(&chars, index)?;
+                let (name, next) = read_class_identifier(selector, index)?;
                 specificity.classes += 1;
                 required_classes.insert(name);
                 index = next;
@@ -526,7 +528,7 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
                     }
                 }
             }
-            ch if is_identifier_start(ch) => {
+            ch if is_css_name_start(ch) => {
                 let (name, next) = read_identifier(&chars, index)?;
                 if required_tag.is_some() {
                     return None;
@@ -749,20 +751,25 @@ fn selector_has_pseudo_element(selector: &str) -> bool {
 }
 
 fn read_identifier(chars: &[char], start: usize) -> Option<(String, usize)> {
-    if start >= chars.len() || !is_identifier_start(chars[start]) {
+    if start >= chars.len() || !is_css_name_start(chars[start]) {
         return None;
     }
     let mut end = start + 1;
-    while end < chars.len() && is_identifier_continue(chars[end]) {
+    while end < chars.len() && is_css_name_continue(chars[end]) {
         end += 1;
     }
     Some((chars[start..end].iter().collect(), end))
 }
 
-fn is_identifier_start(ch: char) -> bool {
-    ch.is_ascii_alphabetic() || matches!(ch, '_' | '-')
-}
-
-fn is_identifier_continue(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+fn read_class_identifier(selector: &str, char_start: usize) -> Option<(String, usize)> {
+    let byte_start = selector
+        .char_indices()
+        .nth(char_start)
+        .map_or(selector.len(), |(index, _)| index);
+    let byte_end = class_selector_name_end(selector, byte_start)?;
+    let char_len = selector[byte_start..byte_end].chars().count();
+    Some((
+        selector[byte_start..byte_end].to_string(),
+        char_start + char_len,
+    ))
 }

@@ -14,6 +14,7 @@ use omena_query_core::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0,
     narrow_abstract_property_value_for_cascade_branch, prefix_suffix_class_value,
 };
+use omena_syntax::ident::class_selector_names;
 
 #[cfg(test)]
 use crate::types::runtime_state_result_certainty_labels;
@@ -683,31 +684,11 @@ pub(super) fn query_element_class_signature_constraints(
 }
 
 pub(super) fn query_selector_class_names(selector: &str) -> Vec<String> {
-    let bytes = selector.as_bytes();
-    let mut index = 0usize;
     let mut names = BTreeSet::new();
-    while index < bytes.len() {
-        if bytes[index] != b'.' {
-            index += 1;
-            continue;
-        }
-        let start = index + 1;
-        let mut end = start;
-        while end < bytes.len() && query_selector_class_name_byte(bytes[end]) {
-            end += 1;
-        }
-        if end > start {
-            names.insert(selector[start..end].to_string());
-            index = end;
-        } else {
-            index += 1;
-        }
+    for entry in class_selector_names(selector) {
+        names.insert(entry.name.into_raw());
     }
     names.into_iter().collect()
-}
-
-fn query_selector_class_name_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
 }
 
 #[cfg(test)]
@@ -755,6 +736,22 @@ mod tests {
             important: false,
             var_references: Vec::new(),
         }
+    }
+
+    #[test]
+    fn extracts_selector_classes_without_string_or_depth_phantoms() {
+        // Each assertion can be falsified directly by the selector supplied
+        // here; selectors with all of these shapes are accepted from product
+        // inputs before this extractor runs.
+        assert!(query_selector_class_names(r#"[data-x="a.b"]"#).is_empty());
+        assert_eq!(query_selector_class_names(r".a\.b"), [r"a\.b"]);
+        assert_eq!(query_selector_class_names(r".\31 23"), [r"\31 23"]);
+        assert_eq!(query_selector_class_names(".카드"), ["카드"]);
+        assert_eq!(query_selector_class_names(".café"), ["café"]);
+        assert_eq!(
+            query_selector_class_names(".card .title"),
+            ["card", "title"]
+        );
     }
 
     #[test]

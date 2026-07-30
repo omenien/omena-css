@@ -3,6 +3,9 @@ use omena_abstract_value::{
     finite_set_class_value,
 };
 use omena_parser::ParserByteSpanV0;
+use omena_syntax::ident::{
+    is_css_name_continue as is_css_identifier_continue, is_safe_css_identifier,
+};
 use oxc_allocator::Allocator;
 use oxc_ast::ast::TSModuleReference;
 use oxc_ast::ast::{
@@ -5485,26 +5488,6 @@ fn retire_template_prefix_reference(
     });
 }
 
-fn is_safe_css_identifier(value: &str) -> bool {
-    let mut characters = value.chars();
-    let Some(first) = characters.next() else {
-        return false;
-    };
-    match first {
-        character if character.is_ascii_alphabetic() || character == '_' => {}
-        '-' => {
-            let Some(second) = characters.next() else {
-                return false;
-            };
-            if !(second.is_ascii_alphabetic() || matches!(second, '-' | '_')) {
-                return false;
-            }
-        }
-        _ => return false,
-    }
-    characters.all(is_css_identifier_continue)
-}
-
 fn template_token_start(source: &str, literal_start: usize, prefix_end: usize) -> usize {
     source
         .get(literal_start..prefix_end)
@@ -6246,10 +6229,6 @@ fn is_js_identifier_start(ch: char) -> bool {
 
 fn is_js_identifier_continue(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$')
-}
-
-fn is_css_identifier_continue(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
 }
 
 #[cfg(test)]

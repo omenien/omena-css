@@ -1,4 +1,4 @@
-use crate::protocol::{file_uri_to_path, is_css_identifier_continue, workspace_folder_compatible};
+use crate::protocol::{file_uri_to_path, workspace_folder_compatible};
 use crate::source_type_fact_cache::{
     load_source_type_fact_sidecar, store_source_type_fact_sidecar,
 };
@@ -21,6 +21,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
+use omena_syntax::ident::{is_ascii_word_continue, is_css_name_continue, is_safe_css_identifier};
 use omena_tsgo_client::{
     TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0, TsgoSpanTypeFactRequestV0,
     TsgoSpanTypeFactResultEntryV0, TsgoSpanTypeFactTargetV0, TsgoTypeFactRequestV0,
@@ -445,7 +446,7 @@ fn span_type_fact_template_affixes(
         .get(..interpolation_start)?
         .char_indices()
         .rev()
-        .take_while(|(_, character)| is_css_identifier_continue(*character))
+        .take_while(|(_, character)| is_ascii_word_continue(*character))
         .last()
         .map(|(index, _)| index)
         .unwrap_or(interpolation_start);
@@ -453,7 +454,7 @@ fn span_type_fact_template_affixes(
     let suffix_end = source
         .get(suffix_start..)?
         .char_indices()
-        .take_while(|(_, character)| is_css_identifier_continue(*character))
+        .take_while(|(_, character)| is_ascii_word_continue(*character))
         .last()
         .map(|(index, character)| suffix_start + index + character.len_utf8())
         .unwrap_or(suffix_start);
@@ -666,7 +667,7 @@ fn span_type_fact_entry_admissibility(
         .resolved_type
         .values
         .iter()
-        .all(|value| value.chars().all(is_css_identifier_continue))
+        .all(|value| value.chars().all(is_css_name_continue))
     {
         return Err(SOURCE_TYPE_FACT_REASON_INVALID_CSS_IDENTIFIER_CHARACTER);
     }
@@ -957,7 +958,7 @@ fn complete_tsgo_projection_expression_ids(
                 .resolved_type
                 .values
                 .iter()
-                .any(|value| !value.chars().all(is_css_identifier_continue))
+                .any(|value| !value.chars().all(is_css_name_continue))
             {
                 return None;
             }
@@ -990,26 +991,6 @@ fn complete_tsgo_projection_expression_ids(
             .then(|| target.expression_id.clone())
         })
         .collect()
-}
-
-fn is_safe_css_identifier(value: &str) -> bool {
-    let mut characters = value.chars();
-    let Some(first) = characters.next() else {
-        return false;
-    };
-    match first {
-        character if character.is_ascii_alphabetic() || character == '_' => {}
-        '-' => {
-            let Some(second) = characters.next() else {
-                return false;
-            };
-            if !(second.is_ascii_alphabetic() || matches!(second, '-' | '_')) {
-                return false;
-            }
-        }
-        _ => return false,
-    }
-    characters.all(is_css_identifier_continue)
 }
 
 fn tsgo_provider_unavailable_facts_for_type_targets(
@@ -1219,7 +1200,7 @@ fn project_tsgo_type_fact_target(
     let mut names = resolved_type
         .values
         .into_iter()
-        .filter(|value| value.chars().all(is_css_identifier_continue))
+        .filter(|value| value.chars().all(is_css_name_continue))
         .map(|value| format!("{}{}{}", target.prefix, value, target.suffix))
         .filter(|value| !value.is_empty())
         .collect::<Vec<_>>();

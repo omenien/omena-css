@@ -43,6 +43,7 @@ omena-sif = { path = "../omena-sif", version = "=0.3.0" }
 omena-streaming-ifds = { path = "../omena-streaming-ifds", version = "=0.3.0", features = [
   "streaming-ifds",
 ] }
+omena-syntax = { path = "../omena-syntax", version = "=0.3.0" }
 omena-tsgo-client = { path = "../omena-tsgo-client", version = "=0.3.0" }
 rayon = { workspace = true, optional = true }
 salsa.workspace = true
