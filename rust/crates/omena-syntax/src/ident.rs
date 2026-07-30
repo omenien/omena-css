@@ -145,7 +145,7 @@ pub fn decode_css_identifier_escapes(text: &str) -> Cow<'_, str> {
         let escape_start = index;
         index += ch.len_utf8();
         let Some(next) = text[index..].chars().next() else {
-            output.push('\\');
+            output.push(char::REPLACEMENT_CHARACTER);
             break;
         };
         if is_css_newline(next) {
@@ -335,7 +335,10 @@ fn general_class_selector_names(selector: &str) -> Vec<ClassSelectorNameV0> {
     names
 }
 
-fn css_identifier_escape_sequence_end(text: &str, slash_index: usize) -> Option<usize> {
+/// Returns the byte immediately after a valid CSS identifier escape.
+///
+/// A newline or end-of-input after the reverse solidus is not a valid escape.
+pub fn css_identifier_escape_sequence_end(text: &str, slash_index: usize) -> Option<usize> {
     if text[slash_index..].chars().next()? != '\\' {
         return None;
     }
@@ -386,7 +389,16 @@ mod tests {
         assert_eq!(decode_css_identifier_escapes(r"a\.b"), "a.b");
         assert_eq!(decode_css_identifier_escapes(r"\31 23"), "123");
         assert_eq!(decode_css_identifier_escapes(r"\0"), "\u{fffd}");
+        assert_eq!(decode_css_identifier_escapes("\\"), "\u{fffd}");
         assert_eq!(decode_css_identifier_escapes("\\\n"), "\\\n");
+    }
+
+    #[test]
+    fn identifier_escape_boundaries_reject_newline_and_end_of_input() {
+        assert_eq!(css_identifier_escape_sequence_end(r"\31 23", 0), Some(4));
+        assert_eq!(css_identifier_escape_sequence_end(r"\:", 0), Some(2));
+        assert_eq!(css_identifier_escape_sequence_end("\\\n", 0), None);
+        assert_eq!(css_identifier_escape_sequence_end("\\", 0), None);
     }
 
     #[test]

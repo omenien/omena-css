@@ -1,5 +1,5 @@
 use omena_parser::StyleDialect;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{SyntaxKind, ident::css_identifier_escape_sequence_end};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -14,7 +14,7 @@ use crate::{
         blocks::rule_block_token_indexes,
         collections::push_unique_string,
         declarations::collect_simple_declarations_in_block,
-        identifiers::{css_identifier_escape_sequence_end, css_identifier_names_match},
+        identifiers::css_identifier_names_match,
         ir_transaction::{
             TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
             TransformIrSourceReplacementV0, delete_ir_nodes_in_ir,
