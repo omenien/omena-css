@@ -6,7 +6,7 @@
 
 use omena_cascade::{
     CascadeKey, CascadeLevel, LayerOrdinal, LayerRank, ModuleRank, SelectorMatchVerdict,
-    Specificity, normalized_layer_rank, select_cascade_winner, selector_context_witness,
+    Specificity, normalized_layer_rank, select_open_world_cascade_winner, selector_context_witness,
     selector_context_witness_for_declaration,
 };
 use omena_syntax::css_keyword;
@@ -481,26 +481,23 @@ fn summarize_design_token_cascade_ranking_signal(
             })
             .collect::<Vec<_>>();
 
-        let local_winner = select_cascade_winner(
+        let workspace_file_ranks = summarize_workspace_candidate_file_ranks(&workspace_candidates);
+        let winner = select_open_world_cascade_winner(
             local_candidates
                 .iter()
                 .copied()
-                .map(DesignTokenCandidateDeclaration::Local),
-            |candidate| candidate.cascade_key(reference, None, &cascade_context),
-        )
-        .map(|(winner, _)| winner);
-        let workspace_file_ranks = summarize_workspace_candidate_file_ranks(&workspace_candidates);
-        let workspace_winner = select_cascade_winner(
-            workspace_candidates
-                .iter()
-                .copied()
-                .map(DesignTokenCandidateDeclaration::Workspace),
+                .map(DesignTokenCandidateDeclaration::Local)
+                .chain(
+                    workspace_candidates
+                        .iter()
+                        .copied()
+                        .map(DesignTokenCandidateDeclaration::Workspace),
+                ),
             |candidate| {
                 candidate.cascade_key(reference, Some(&workspace_file_ranks), &cascade_context)
             },
         )
         .map(|(winner, _)| winner);
-        let winner = local_winner.or(workspace_winner);
 
         let Some(winner) = winner else {
             unranked_reference_count += 1;
