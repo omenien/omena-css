@@ -1404,6 +1404,49 @@ mod tests {
     }
 
     #[test]
+    fn span_type_fact_admission_uses_the_composed_selector_name() {
+        let cases = [
+            ("btn-", "", vec!["1".to_string(), "2".to_string()], Ok(())),
+            (
+                "",
+                "",
+                vec!["1".to_string(), "2".to_string()],
+                Err(SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER),
+            ),
+            (
+                "",
+                "-tail",
+                vec!["9x".to_string()],
+                Err(SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER),
+            ),
+            (
+                "btn-",
+                "",
+                vec!["not valid".to_string()],
+                Err(SOURCE_TYPE_FACT_REASON_INVALID_CSS_IDENTIFIER_CHARACTER),
+            ),
+        ];
+
+        for (prefix, suffix, values, expected) in cases {
+            let entry = TsgoSpanTypeFactResultEntryV0::resolved(
+                "/workspace/App.ts".to_string(),
+                format!("expression-{prefix}-{suffix}"),
+                "exactFiniteDomain",
+                values.len(),
+                TsgoResolvedTypeV0 {
+                    kind: "union",
+                    values,
+                },
+            );
+            assert_eq!(
+                span_type_fact_entry_admissibility(&entry),
+                expected,
+                "admission should classify the composed selector {prefix}<member>{suffix}"
+            );
+        }
+    }
+
+    #[test]
     fn exact_span_type_facts_project_only_complete_css_identifier_domains() -> TestResult {
         let workspace_root = std::env::temp_dir().join(format!(
             "omena-lsp-exact-span-type-facts-{}",
