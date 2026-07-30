@@ -16,7 +16,8 @@
     "fixedTimeBudgetSeconds": 10,
     "perSourceFileBudgetSeconds": 0.69,
     "perStyleFileBudgetSeconds": 0.03,
-    "githubActionsTimeBudgetMultiplier": 1.75
+    "githubActionsTimeBudgetMultiplier": 1.75,
+    "githubActionsFixedJitterSeconds": 1
   },
   "rankedSetLossCensus": {
     "reportPath": "ranked-set-loss-census.json"
