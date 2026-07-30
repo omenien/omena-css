@@ -1,7 +1,8 @@
 use super::{
     CssModulesComposesEdgeFactV0, CssModulesCrossFileStyleFactsV0, CssModulesIcssExportEdgeFactV0,
     CssModulesIcssImportEdgeFactV0, CssModulesValueDefinitionEdgeFactV0,
-    CssModulesValueImportEdgeFactV0, LayerBindingResolutionV0,
+    CssModulesValueImportEdgeFactV0, DesignTokenWorkspaceDeclarationFactV0,
+    LayerBindingResolutionV0, ParserByteSpanV0, ParserRangeV0,
     SassModuleConfigurableNamesResolverV0, SassModuleForwardConfigurationRequestV0,
     SassModuleGraphConfigurationResolverV0, SassModuleGraphEdgeFactV0,
     SassModuleUseConfigurationRequestV0, SassModuleVisibleSymbolsResolverV0, SassSymbolKeyV0,
@@ -23,6 +24,7 @@ use super::{
     summarize_style_import_reachability, summarize_style_layer_order_from_source,
     summarize_style_runtime_index_facts_from_source, summarize_style_semantic_boundary,
     summarize_style_semantic_facts, summarize_style_semantic_graph,
+    summarize_style_semantic_graph_for_path_with_workspace_declarations,
     summarize_style_semantic_graph_from_source, summarize_style_semantic_soa_tables,
     summarize_theory_observation_contract, summarize_theory_observation_harness,
 };
@@ -1977,6 +1979,76 @@ fn ranks_named_layer_order_above_later_layer_source_order() -> Result<(), String
         Some("components")
     );
     assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![1]);
+    Ok(())
+}
+
+#[test]
+fn design_token_workspace_provenance_is_permutation_invariant_and_load_bearing()
+-> Result<(), String> {
+    let sheet = parse_style_module("Component.module.css", ".button { color: var(--brand); }")
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+    let workspace_candidate = |file_path: &str, value: &str, import_graph_distance: usize| {
+        DesignTokenWorkspaceDeclarationFactV0 {
+            file_path: file_path.to_string(),
+            name: "--brand".to_string(),
+            value: value.to_string(),
+            source_order: 0,
+            import_graph_distance: Some(import_graph_distance),
+            import_graph_order: Some(0),
+            byte_span: ParserByteSpanV0::default(),
+            range: ParserRangeV0::default(),
+            selector_contexts: vec![".button".to_string()],
+            condition_context: Vec::new(),
+            layer_names: Vec::new(),
+            under_media: false,
+            under_supports: false,
+            under_layer: false,
+        }
+    };
+    let near = workspace_candidate("/tmp/a-near.css", "near", 1);
+    let far = workspace_candidate("/tmp/z-far.css", "far", 2);
+
+    // Both candidates intentionally tie on source_order. Without that
+    // precondition CascadeKey::Ord decides before module provenance is read.
+    for candidates in [
+        vec![near.clone(), far.clone()],
+        vec![far.clone(), near.clone()],
+    ] {
+        let summary = summarize_style_semantic_graph_for_path_with_workspace_declarations(
+            &sheet,
+            &sample_engine_input(),
+            Some("/tmp/Component.module.css"),
+            &candidates,
+        );
+        let ranked_reference = &summary
+            .design_token_semantics
+            .cascade_ranking_signal
+            .ranked_references[0];
+        assert_eq!(
+            ranked_reference.winner_declaration_file_path.as_deref(),
+            Some("/tmp/a-near.css"),
+            "reversion: sorting candidates before selection hides the input-order dependency instead of fixing provenance ranking"
+        );
+        assert_eq!(ranked_reference.winner_import_graph_distance, Some(1));
+    }
+
+    let far_promoted = workspace_candidate("/tmp/z-far.css", "far", 0);
+    let summary = summarize_style_semantic_graph_for_path_with_workspace_declarations(
+        &sheet,
+        &sample_engine_input(),
+        Some("/tmp/Component.module.css"),
+        &[near, far_promoted],
+    );
+    let ranked_reference = &summary
+        .design_token_semantics
+        .cascade_ranking_signal
+        .ranked_references[0];
+    assert_eq!(
+        ranked_reference.winner_declaration_file_path.as_deref(),
+        Some("/tmp/z-far.css"),
+        "reversion: ignoring import_graph_distance leaves the near candidate selected"
+    );
+    assert_eq!(ranked_reference.winner_import_graph_distance, Some(0));
     Ok(())
 }
 
