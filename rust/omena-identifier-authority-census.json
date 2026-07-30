@@ -186,16 +186,16 @@
     ],
     "primitiveIds": ["str-eq", "contains", "insert", "map-get", "cmp"],
     "unlabelledBindingBlindSpot": "Bindings without a class or selector label are intentionally invisible; typed carriers and API egresses are the backstops.",
-    "currentSiteCount": 63,
+    "currentSiteCount": 60,
     "primitiveCounts": {
       "str-eq": 23,
-      "contains": 20,
+      "contains": 17,
       "insert": 12,
       "map-get": 6,
       "cmp": 2
     },
     "sanctionedSiteCount": 42,
-    "namedExemptSiteCount": 21,
+    "namedExemptSiteCount": 18,
     "sites": [
       {
         "path": "rust/crates/engine-style-parser/src/lib.rs",
@@ -603,33 +603,6 @@
         "reason": "idiom site reviewed in the initial authored census."
       },
       {
-        "path": "rust/crates/omena-query/src/types.rs",
-        "line": 1314,
-        "function": "flat_class_names_for_style_paths",
-        "operation": "contains",
-        "evidence": ".filter(|(_, names)| names.contains(class_name))",
-        "disposition": "named-exempt",
-        "reason": "This partitions already-emitted tokens and does not compare source identifiers."
-      },
-      {
-        "path": "rust/crates/omena-query/src/types.rs",
-        "line": 1493,
-        "function": "from_style_paths",
-        "operation": "contains",
-        "evidence": "if directly_attributed_class_names.contains(class_name) {",
-        "disposition": "named-exempt",
-        "reason": "This partitions already-emitted tokens and does not compare source identifiers."
-      },
-      {
-        "path": "rust/crates/omena-query/src/types.rs",
-        "line": 1499,
-        "function": "from_style_paths",
-        "operation": "contains",
-        "evidence": ".filter(|(_, names)| names.contains(class_name))",
-        "disposition": "named-exempt",
-        "reason": "This partitions already-emitted tokens and does not compare source identifiers."
-      },
-      {
         "path": "rust/crates/omena-resolver/src/module_graph.rs",
         "line": 46,
         "function": "summarize_omena_resolver_module_graph_index",
@@ -765,7 +738,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:a46216a9ed0ec010ad23905c0f37e5fd041bd94e956327d4c9d598d56bf81063"
+    "siteDigest": "sha256:5874cba66f7f8046842485f9222882b9de405ec6715e3999c1eae1f54f0e3a88"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",

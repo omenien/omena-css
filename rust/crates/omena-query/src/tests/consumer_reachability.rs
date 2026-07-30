@@ -922,6 +922,31 @@ fn production_attribution_domains_assign_every_admitted_name() -> Result<(), Str
 }
 
 #[test]
+fn equivalent_class_spellings_have_one_attribution_identity() {
+    let style_path = "src/entry.module.css";
+    let input = module_reachability_input(
+        &[("entry-ref", style_path, "card")],
+        &[(style_path, r#".c\61 rd {}"#, &[r#"c\61 rd"#])],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, style_path, true);
+    let flat_class_names =
+        reachability.flat_class_names_for_style_paths([style_path], &["card".to_string()]);
+    let report = OmenaQueryModuleReachabilityAttributionReportV0::from_style_paths(
+        &reachability,
+        [style_path],
+        flat_class_names.as_slice(),
+    );
+
+    assert!(report.lost_class_names().is_empty());
+    assert_eq!(report.attributed_class_names().len(), 1);
+    assert!(
+        omena_syntax::ident::ClassNameV0::new(&report.attributed_class_names()[0])
+            .same_as(&omena_syntax::ident::ClassNameV0::new("card"))
+    );
+}
+
+#[test]
 fn ambiguous_build_path_keeps_every_matching_owner_in_the_attribution_domain() {
     let first_style_path = "/workspace/first/Button.module.css";
     let second_style_path = "/workspace/second/Button.module.css";

@@ -1311,7 +1311,9 @@ impl OmenaQueryEngineInputModuleReachabilityV0 {
                 let mut declared_owner_paths = self
                     .declared_class_names_by_style_path
                     .iter()
-                    .filter(|(_, names)| names.contains(class_name))
+                    .filter(|(_, names)| {
+                        class_name_collection_contains(names.iter().map(String::as_str), class_name)
+                    })
                     .map(|(style_path, _)| style_path);
                 let Some(first_owner_path) = declared_owner_paths.next() else {
                     return true;
@@ -1490,13 +1492,18 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             .flat_map(|entry| entry.class_names.iter().cloned())
             .collect::<BTreeSet<_>>();
         for class_name in &flat_class_names {
-            if directly_attributed_class_names.contains(class_name) {
+            if class_name_collection_contains(
+                directly_attributed_class_names.iter().map(String::as_str),
+                class_name,
+            ) {
                 continue;
             }
             let declared_owner_paths = attribution
                 .declared_class_names_by_style_path
                 .iter()
-                .filter(|(_, names)| names.contains(class_name))
+                .filter(|(_, names)| {
+                    class_name_collection_contains(names.iter().map(String::as_str), class_name)
+                })
                 .map(|(style_path, _)| normalize_omena_query_style_path(style_path))
                 .collect::<BTreeSet<_>>();
             for entry in &mut entries {
@@ -1608,6 +1615,16 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
     pub fn attributed_empty_module_count(&self) -> usize {
         self.attributed_empty_module_count
     }
+}
+
+fn class_name_collection_contains<'a>(
+    names: impl IntoIterator<Item = &'a str>,
+    candidate: &str,
+) -> bool {
+    let candidate = omena_syntax::ident::ClassNameV0::new(candidate);
+    names
+        .into_iter()
+        .any(|name| omena_syntax::ident::ClassNameV0::new(name).same_as(&candidate))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
