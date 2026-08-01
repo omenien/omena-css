@@ -623,7 +623,7 @@ pub fn print_transform_ir_css(ir: &TransformIrV0) -> Result<String, TransformIrP
     Ok(output)
 }
 
-pub fn materialize_transform_ir_printed_source(
+fn materialize_transform_ir_printed_source_without_metadata_refresh(
     ir: &mut TransformIrV0,
 ) -> Result<String, TransformIrPrintErrorV0> {
     if ir.parser_error_count > 0 && ir.parse_error_spans.is_empty() {
@@ -680,9 +680,14 @@ pub fn materialize_transform_ir_printed_source(
     ir.parser_error_count = remapped_parse_error_spans.len();
     ir.parse_error_spans = remapped_parse_error_spans;
     refresh_ir_block_spans(ir);
-    refresh_transform_ir_metadata(ir);
     Ok(printed_css)
 }
+
+// The public materializer remains a deliberate indirect route to the sealed
+// refresh. A parent mutator could call it and thereby refresh transitively, so
+// the visibility boundary prevents direct refresh calls but is not airtight
+// against moving mutation work behind this public operation.
+pub use sealed_metadata_refresh::materialize_transform_ir_printed_source;
 
 struct RenderedTransformIrCssV0 {
     css: String,
@@ -777,7 +782,6 @@ impl<'ir> IrTransactionV0<'ir> {
             self.working.nodes[child_id.index()].parent = node.parent;
         }
         self.promote_nodes_after_anchor(node_id, &promoted_children);
-        refresh_transform_ir_metadata(&mut self.working);
         Ok(())
     }
 
@@ -818,7 +822,6 @@ impl<'ir> IrTransactionV0<'ir> {
         self.working.nodes.push(node);
         self.insert_node_in_parent(anchor_id, node_id);
         self.changed_node_ids.push(node_id);
-        refresh_transform_ir_metadata(&mut self.working);
         Ok(node_id)
     }
 
@@ -873,7 +876,6 @@ impl<'ir> IrTransactionV0<'ir> {
             self.insert_node_in_parent(anchor_id, *copied_root);
         }
         self.changed_node_ids.extend(copied_nodes);
-        refresh_transform_ir_metadata(&mut self.working);
         Ok(copied_roots)
     }
 
@@ -897,15 +899,6 @@ impl<'ir> IrTransactionV0<'ir> {
         self.mark_node_synthesized(node_id, canonical_text.into(), false)
     }
 
-    pub fn commit(mut self) -> Result<(), IrTransactionErrorV0> {
-        refresh_transform_ir_metadata(&mut self.working);
-        validate_transaction_commit(&self.working, &self.changed_node_ids, self.declared_region)
-            .map_err(IrTransactionErrorV0::Validation)?;
-        self.working.ir_epoch = self.ir.ir_epoch.saturating_add(1);
-        *self.ir = self.working;
-        Ok(())
-    }
-
     fn mark_node_synthesized(
         &mut self,
         node_id: IrNodeIdV0,
@@ -924,7 +917,6 @@ impl<'ir> IrTransactionV0<'ir> {
         node.deleted = deleted;
         node.canonical_text = Some(canonical_text);
         self.changed_node_ids.push(node_id);
-        refresh_transform_ir_metadata(&mut self.working);
         Ok(())
     }
 
@@ -958,7 +950,6 @@ impl<'ir> IrTransactionV0<'ir> {
         let node = &mut self.working.nodes[node_id.index()];
         node.source_span_start = source_span_start;
         node.source_span_end = source_span_end;
-        refresh_transform_ir_metadata(&mut self.working);
         Ok(())
     }
 
@@ -1304,30 +1295,76 @@ fn assign_parent_links(nodes: &mut [IrNodeV0]) {
     }
 }
 
-fn refresh_transform_ir_metadata(ir: &mut TransformIrV0) {
-    ir.indexes = build_indexes(&ir.nodes);
-    ir.original_node_count = ir
-        .nodes
-        .iter()
-        .filter(|node| {
-            !node.deleted
-                && ir
-                    .origins
-                    .get(node.origin_index)
-                    .is_some_and(NodeTextOriginV0::is_original)
-        })
-        .count();
-    ir.synthesized_node_count = ir
-        .nodes
-        .iter()
-        .filter(|node| {
-            !node.deleted
-                && ir
-                    .origins
-                    .get(node.origin_index)
-                    .is_some_and(|origin| !origin.is_original())
-        })
-        .count();
+mod sealed_metadata_refresh {
+    use super::*;
+
+    fn refresh_transform_ir_metadata(ir: &mut TransformIrV0) {
+        ir.indexes = build_indexes(&ir.nodes);
+        ir.original_node_count = ir
+            .nodes
+            .iter()
+            .filter(|node| {
+                !node.deleted
+                    && ir
+                        .origins
+                        .get(node.origin_index)
+                        .is_some_and(NodeTextOriginV0::is_original)
+            })
+            .count();
+        ir.synthesized_node_count = ir
+            .nodes
+            .iter()
+            .filter(|node| {
+                !node.deleted
+                    && ir
+                        .origins
+                        .get(node.origin_index)
+                        .is_some_and(|origin| !origin.is_original())
+            })
+            .count();
+    }
+
+    pub fn materialize_transform_ir_printed_source(
+        ir: &mut TransformIrV0,
+    ) -> Result<String, TransformIrPrintErrorV0> {
+        let printed = materialize_transform_ir_printed_source_without_metadata_refresh(ir)?;
+        refresh_transform_ir_metadata(ir);
+        Ok(printed)
+    }
+
+    impl IrTransactionV0<'_> {
+        pub fn commit(mut self) -> Result<(), IrTransactionErrorV0> {
+            refresh_transform_ir_metadata(&mut self.working);
+            validate_transaction_commit(
+                &self.working,
+                &self.changed_node_ids,
+                self.declared_region,
+            )
+            .map_err(IrTransactionErrorV0::Validation)?;
+            self.working.ir_epoch = self.ir.ir_epoch.saturating_add(1);
+            *self.ir = self.working;
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn child_module_control_can_call_the_sealed_refresh() {
+            let mut ir = lower_transform_ir_from_source(
+                ".control { color: red; }",
+                StyleDialect::Css,
+                "control.css",
+            );
+            refresh_transform_ir_metadata(&mut ir);
+            assert_eq!(
+                ir.original_node_count + ir.synthesized_node_count,
+                ir.nodes.len()
+            );
+        }
+    }
 }
 
 fn validate_transaction_commit(
