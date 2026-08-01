@@ -14,6 +14,12 @@ type PerfGateLane =
   | "committed-graph-edit-rebuild-2n"
   | "property-metadata-lookup-n"
   | "property-metadata-lookup-full"
+  | "transform-ir-mutation-density-m"
+  | "transform-ir-mutation-density-2m"
+  | "transform-ir-mutation-density-4m"
+  | "transform-ir-lowering-n"
+  | "transform-ir-lowering-2n"
+  | "transform-ir-lowering-4n"
   | "demand-ifds-fixed-query-n"
   | "demand-ifds-fixed-query-2n"
   | "demand-ifds-fixed-query-4n"
@@ -24,6 +30,8 @@ type PerfGateComparisonLane =
   | "cold-open-slope"
   | "committed-graph-edit-rebuild-slope"
   | "property-metadata-lookup-registry-size"
+  | "transform-ir-mutation-density-slope"
+  | "transform-ir-lowering-slope"
   | "demand-ifds-fixed-query-slope";
 
 interface PerfGateQueryFamilyV0 {
@@ -61,7 +69,7 @@ interface Z5PerfGateToolchainSnapshotV0 {
 interface Z5PerfGateResultSnapshotV0 {
   readonly lane: PerfGateLane;
   readonly benchmarkFunction: string;
-  readonly corpusScale: "N" | "2N" | "4N" | "8N" | "FULL";
+  readonly corpusScale: "N" | "2N" | "4N" | "8N" | "FULL" | "m" | "2m" | "4m";
   readonly metric: "instructions";
   readonly value: number;
   readonly unit: "Ir";
@@ -92,7 +100,8 @@ interface Z5PerfGateBaselineV0 {
     readonly measuredOperation:
       | "query-cold-open-and-memoized-recheck"
       | "query-cold-open-memoized-recheck-and-committed-graph-edit"
-      | "query-cold-open-memoized-recheck-committed-graph-edit-and-property-metadata-lookup";
+      | "query-cold-open-memoized-recheck-committed-graph-edit-and-property-metadata-lookup"
+      | "query-and-transform-runtime-substrate";
   };
   readonly results: readonly Z5PerfGateResultSnapshotV0[];
   readonly comparison: readonly Z5PerfGateComparisonSnapshotV0[];
@@ -176,6 +185,40 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
     includeInCommittedBaseline: true,
   },
   {
+    comparisonLane: "transform-ir-mutation-density-slope",
+    numeratorLane: "transform-ir-mutation-density-4m",
+    denominatorLane: "transform-ir-mutation-density-m",
+    threshold: 1.25,
+    thresholdPolicy:
+      "at fixed N, increasing successful mutations from m through 2m to 4m must stay near-flat because metadata refresh is deferred to the single commit",
+    enforceComplexitySlope: true,
+    enforceNoRegression: false,
+    resultLanes: [
+      "transform-ir-mutation-density-m",
+      "transform-ir-mutation-density-2m",
+      "transform-ir-mutation-density-4m",
+    ],
+    slopeFit: "ratio",
+    includeInCommittedBaseline: false,
+  },
+  {
+    comparisonLane: "transform-ir-lowering-slope",
+    numeratorLane: "transform-ir-lowering-4n",
+    denominatorLane: "transform-ir-lowering-n",
+    threshold: 20,
+    thresholdPolicy:
+      "the separate lowering family remains bounded near its existing quadratic N-axis work and cannot satisfy the fixed-N mutation-density contract",
+    enforceComplexitySlope: true,
+    enforceNoRegression: false,
+    resultLanes: [
+      "transform-ir-lowering-n",
+      "transform-ir-lowering-2n",
+      "transform-ir-lowering-4n",
+    ],
+    slopeFit: "ratio",
+    includeInCommittedBaseline: false,
+  },
+  {
     comparisonLane: "demand-ifds-fixed-query-slope",
     numeratorLane: "demand-ifds-fixed-query-8n",
     denominatorLane: "demand-ifds-fixed-query-n",
@@ -197,6 +240,7 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
 
 validateFixedQueryInstrumentationBoundary();
 validatePropertyMetadataLookupBoundary();
+validateTransformIrSlopeBoundary();
 
 if (writeMode) {
   writeBaseline();
@@ -262,6 +306,27 @@ function validatePropertyMetadataLookupBoundary() {
   );
 }
 
+function validateTransformIrSlopeBoundary() {
+  const source = readFileSync(perfGateSpinePath, "utf8");
+  for (const functionName of [
+    "transform_ir_mutation_density_m",
+    "transform_ir_mutation_density_2m",
+    "transform_ir_mutation_density_4m",
+    "transform_ir_lowering_n",
+    "transform_ir_lowering_2n",
+    "transform_ir_lowering_4n",
+  ]) {
+    assert.match(source, new RegExp(`fn ${functionName}\\(`, "u"));
+  }
+  assert.match(source, /setup_transform_ir_mutation_density\(8\)/u);
+  assert.match(source, /setup_transform_ir_mutation_density\(16\)/u);
+  assert.match(source, /setup_transform_ir_mutation_density\(32\)/u);
+  assert.match(source, /setup_transform_ir_lowering_n\(\) -> String/u);
+  assert.match(source, /setup_transform_ir_lowering_2n\(\) -> String/u);
+  assert.match(source, /setup_transform_ir_lowering_4n\(\) -> String/u);
+  assert.match(source, /telemetry\.refresh_conservation_holds\(\)/u);
+}
+
 function writeBaseline() {
   const valgrind = runCommand(["valgrind", "--version"]);
   assert.equal(valgrind.exitCode, 0, "writing the z5 perf baseline requires valgrind on PATH");
@@ -298,8 +363,7 @@ function writeBaseline() {
     runner: {
       command: benchCommand,
       tool: "iai-callgrind",
-      measuredOperation:
-        "query-cold-open-memoized-recheck-committed-graph-edit-and-property-metadata-lookup",
+      measuredOperation: "query-and-transform-runtime-substrate",
     },
     results,
     comparison: buildComparisons(results, committedBaselineFamilies()),
@@ -470,6 +534,9 @@ function parseIaiCallgrindSummaries(stdout: string): readonly Z5PerfGateResultSn
 }
 
 function corpusScaleForLane(lane: PerfGateLane): Z5PerfGateResultSnapshotV0["corpusScale"] {
+  if (lane.endsWith("-4m")) return "4m";
+  if (lane.endsWith("-2m")) return "2m";
+  if (lane.endsWith("-m")) return "m";
   if (lane.endsWith("full")) return "FULL";
   if (lane.endsWith("8n")) return "8N";
   if (lane.endsWith("4n")) return "4N";
@@ -629,6 +696,18 @@ function laneForBenchmarkFunction(functionName: string): PerfGateLane {
       return "property-metadata-lookup-n";
     case "property_metadata_lookup_registry_full":
       return "property-metadata-lookup-full";
+    case "transform_ir_mutation_density_m":
+      return "transform-ir-mutation-density-m";
+    case "transform_ir_mutation_density_2m":
+      return "transform-ir-mutation-density-2m";
+    case "transform_ir_mutation_density_4m":
+      return "transform-ir-mutation-density-4m";
+    case "transform_ir_lowering_n":
+      return "transform-ir-lowering-n";
+    case "transform_ir_lowering_2n":
+      return "transform-ir-lowering-2n";
+    case "transform_ir_lowering_4n":
+      return "transform-ir-lowering-4n";
     case "demand_ifds_fixed_query_corpus_n":
       return "demand-ifds-fixed-query-n";
     case "demand_ifds_fixed_query_corpus_2n":
@@ -738,6 +817,12 @@ function corpusScaleMultiplier(scale: Z5PerfGateResultSnapshotV0["corpusScale"])
       return 8;
     case "FULL":
       throw new Error("FULL registry scale is not valid for a log-log corpus fit");
+    case "m":
+      return 1;
+    case "2m":
+      return 2;
+    case "4m":
+      return 4;
   }
 }
 
