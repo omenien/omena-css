@@ -412,7 +412,7 @@ assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnDocumentC
 assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnResolutionConfigChange"));
 assert.ok(
   rustSummary.queryReuse.invalidationPolicy.includes(
-    "rebuildSourceTypeFactCacheOnContentConfigOrWorkspaceSourceMismatch",
+    "validateSourceTypeFactCacheAgainstCurrentContentEnvironmentBinaryAndWorkspaceInputs",
   ),
 );
 assert.ok(
