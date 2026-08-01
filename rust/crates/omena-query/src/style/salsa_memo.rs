@@ -4243,9 +4243,9 @@ const cls = styles.root;"#
             .workspace_revision_selector(corpus.as_slice(), &[], &[], &[], &resolution_inputs)
             .ok_or("edited selector must commit")?;
         let incremental = edited.style_cascade_narrowing_substrate();
-        let incremental_collection_count = cascade_declarations_collect_probe::count();
         assert_eq!(
-            incremental_collection_count, 1,
+            cascade_declarations_collect_probe::count(),
+            1,
             "a single-file edit must recollect exactly that file's cascade declarations",
         );
         cascade_declarations_collect_probe::reset();
@@ -4255,15 +4255,10 @@ const cls = styles.root;"#
             &[],
             &resolution_inputs,
         );
-        let direct_collection_count = cascade_declarations_collect_probe::count();
-        eprintln!(
-            "corpusFiles={} incrementalCollections={incremental_collection_count} directCollections={direct_collection_count}",
-            corpus.len(),
-        );
 
         assert_eq!(incremental, direct);
         assert_eq!(
-            direct_collection_count,
+            cascade_declarations_collect_probe::count(),
             corpus.len(),
             "the direct oracle must still exercise the full corpus",
         );
