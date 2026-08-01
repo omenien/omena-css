@@ -1,10 +1,11 @@
 use crate::protocol::{file_uri_to_path, workspace_folder_compatible};
 use crate::source_type_fact_cache::{
-    load_source_type_fact_sidecar, store_source_type_fact_sidecar,
+    SourceTypeFactSidecarFreshnessV0, SourceTypeFactSidecarLoadV0,
+    load_source_type_fact_sidecar_with_freshness, store_source_type_fact_sidecar_with_freshness,
 };
 use crate::{
-    LspShellState, LspSourceTypeFactTierAttemptV0, LspTextDocumentState,
-    ensure_style_document_loaded_from_disk, parser_range_for_byte_span,
+    LspShellState, LspSourceTypeFactCacheEntryV0, LspSourceTypeFactTierAttemptV0,
+    LspTextDocumentState, ensure_style_document_loaded_from_disk, parser_range_for_byte_span,
     source_selector_candidates_from_index,
 };
 use omena_query::{
@@ -27,8 +28,9 @@ use omena_tsgo_client::{
     TsgoSpanTypeFactResultEntryV0, TsgoSpanTypeFactTargetV0, TsgoTypeFactRequestV0,
     TsgoTypeFactResultEntryV0, TsgoTypeFactTargetV0, build_tsgo_process_command,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 const SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES: usize = 128;
@@ -58,6 +60,17 @@ const SOURCE_TYPE_FACT_REASON_EMPTY_RESOLVED_VALUES: &str = "emptyResolvedValues
 const SOURCE_TYPE_FACT_REASON_INVALID_CSS_IDENTIFIER_CHARACTER: &str =
     "invalidCssIdentifierCharacter";
 const SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER: &str = "unsafeCssIdentifier";
+const SOURCE_TYPE_FACT_CLOSURE_INDEX_BUDGET: &str = "indexBudgetExhausted";
+const SOURCE_TYPE_FACT_CLOSURE_MODULE_SPECIFIER: &str = "unindexedModuleSpecifier";
+const SOURCE_TYPE_FACT_CLOSURE_PACKAGE_EXTENDS: &str = "packageFormExtends";
+const SOURCE_TYPE_FACT_CLOSURE_WATCHED_FILES: &str = "watchedFilesUnobserved";
+const SOURCE_TYPE_FACT_CLOSURE_WORKSPACE_FOLDER: &str = "workspaceFolderUnknown";
+
+#[derive(Debug, Clone)]
+struct SourceTypeFactCacheContextV0 {
+    freshness: SourceTypeFactSidecarFreshnessV0,
+    closure_incomplete_reasons: BTreeSet<&'static str>,
+}
 
 // Parser-built documents pair every lexical site with an initial tier attempt.
 // Sidecar reconstruction also accepts a skipped fact without that record; both
@@ -130,9 +143,21 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
         );
         return;
     };
-    let cache_key =
-        source_type_fact_cache_key(state, &document, &request, type_fact_targets.as_slice());
-    let cached_entries = cached_source_type_fact_entries(state, &document, cache_key.as_deref());
+    let cache_context = source_type_fact_cache_context(state, &document, &request);
+    record_source_type_fact_closure_incomplete(state, &cache_context.closure_incomplete_reasons);
+    let cache_key = source_type_fact_cache_key(
+        state,
+        &document,
+        &request,
+        type_fact_targets.as_slice(),
+        &cache_context.freshness,
+    );
+    let cached_entries = cached_source_type_fact_entries(
+        state,
+        &document,
+        cache_key.as_deref(),
+        &cache_context.freshness,
+    );
     if span_request.targets.is_empty()
         && let Some(entries) = cached_entries.as_ref()
     {
@@ -197,17 +222,13 @@ pub(crate) fn refresh_source_type_fact_candidates_for_document(
         return;
     };
     if let Some(cache_key) = cache_key {
-        store_source_type_fact_sidecar(
+        cache_source_type_fact_results(
             state,
-            document.workspace_folder_uri.as_deref(),
-            document.uri.as_str(),
+            &document,
             cache_key.as_str(),
             entries.as_slice(),
+            &cache_context,
         );
-        state
-            .source_type_fact_cache
-            .insert(cache_key, entries.clone());
-        trim_source_type_fact_cache(&mut state.source_type_fact_cache);
     }
     apply_source_type_fact_results_to_document_with_span(
         state,
@@ -222,22 +243,66 @@ fn cached_source_type_fact_entries(
     state: &mut LspShellState,
     document: &LspTextDocumentState,
     cache_key: Option<&str>,
+    freshness: &SourceTypeFactSidecarFreshnessV0,
 ) -> Option<Vec<TsgoTypeFactResultEntryV0>> {
     let cache_key = cache_key?;
-    if let Some(entries) = state.source_type_fact_cache.get(cache_key).cloned() {
-        return Some(entries);
+    state.source_type_fact_cache_next_use = state.source_type_fact_cache_next_use.saturating_add(1);
+    let last_used = state.source_type_fact_cache_next_use;
+    if let Some(entry) = state.source_type_fact_cache.get_mut(cache_key) {
+        entry.last_used = last_used;
+        state.source_type_fact_cache_telemetry.hit_count = state
+            .source_type_fact_cache_telemetry
+            .hit_count
+            .saturating_add(1);
+        return Some(entry.entries.clone());
     }
-    let entries = load_source_type_fact_sidecar(
+    match load_source_type_fact_sidecar_with_freshness(
         state,
         document.workspace_folder_uri.as_deref(),
         document.uri.as_str(),
         cache_key,
-    )?;
-    state
-        .source_type_fact_cache
-        .insert(cache_key.to_string(), entries.clone());
-    trim_source_type_fact_cache(&mut state.source_type_fact_cache);
-    Some(entries)
+        freshness,
+    ) {
+        SourceTypeFactSidecarLoadV0::Hit(entries) => {
+            state.source_type_fact_cache_telemetry.hit_count = state
+                .source_type_fact_cache_telemetry
+                .hit_count
+                .saturating_add(1);
+            state.source_type_fact_cache_telemetry.sidecar_hit_count = state
+                .source_type_fact_cache_telemetry
+                .sidecar_hit_count
+                .saturating_add(1);
+            state.source_type_fact_cache.insert(
+                cache_key.to_string(),
+                LspSourceTypeFactCacheEntryV0 {
+                    entries: entries.clone(),
+                    last_used,
+                },
+            );
+            trim_source_type_fact_cache(state);
+            Some(entries)
+        }
+        SourceTypeFactSidecarLoadV0::Refused(reason) => {
+            increment_reason_counter(
+                &mut state
+                    .source_type_fact_cache_telemetry
+                    .sidecar_refused_by_reason,
+                reason.as_str(),
+            );
+            state.source_type_fact_cache_telemetry.miss_count = state
+                .source_type_fact_cache_telemetry
+                .miss_count
+                .saturating_add(1);
+            None
+        }
+        SourceTypeFactSidecarLoadV0::Miss => {
+            state.source_type_fact_cache_telemetry.miss_count = state
+                .source_type_fact_cache_telemetry
+                .miss_count
+                .saturating_add(1);
+            None
+        }
+    }
 }
 
 fn apply_tsgo_provider_unavailable_with_cached_legacy(
@@ -303,6 +368,7 @@ fn source_type_fact_cache_key(
     document: &LspTextDocumentState,
     request: &TsgoTypeFactRequestV0,
     type_fact_targets: &[SourceTypeFactTarget],
+    freshness: &SourceTypeFactSidecarFreshnessV0,
 ) -> Option<String> {
     let key = json!({
         "schemaVersion": "0",
@@ -311,7 +377,8 @@ fn source_type_fact_cache_key(
         "documentHash": document_text_hash(document),
         "workspaceRoot": request.workspace_root,
         "configPath": request.config_path,
-        "configSignature": source_type_fact_tsconfig_signature(request.config_path.as_str()),
+        "environmentFingerprint": freshness.environment_fingerprint,
+        "tsgoBinaryFingerprint": freshness.tsgo_binary_fingerprint,
         "workspaceSourceSignature": source_type_fact_workspace_signature(
             state,
             document.workspace_folder_uri.as_deref(),
@@ -327,14 +394,245 @@ fn source_type_fact_cache_key(
     )
 }
 
-fn source_type_fact_tsconfig_signature(config_path: &str) -> String {
-    std::fs::read(config_path)
+fn source_type_fact_cache_context(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    request: &TsgoTypeFactRequestV0,
+) -> SourceTypeFactCacheContextV0 {
+    let (environment_fingerprint, package_form_extends) = source_type_fact_environment_fingerprint(
+        request.workspace_root.as_str(),
+        request.config_path.as_str(),
+    );
+    let tsgo_binary_fingerprint = resolve_tsgo_binary_path()
+        .as_deref()
+        .map(source_type_fact_tsgo_binary_fingerprint)
+        .unwrap_or_else(|| "unavailable:tsgo-binary".to_string());
+    let mut project_by_file = request
+        .targets
+        .iter()
+        .map(|target| {
+            (
+                target.file_path.clone(),
+                Value::String(request.config_path.clone()),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    for file_path in request
+        .targets
+        .iter()
+        .map(|target| target.file_path.as_str())
+    {
+        project_by_file
+            .entry(file_path.to_string())
+            .or_insert(Value::Null);
+    }
+    let collection_provenance = json!({
+        "snapshotHandle": Value::Null,
+        "projectByFile": project_by_file,
+        "disclosure": "provider-owned snapshot handle is released after collection and is not a validity input",
+    });
+
+    let mut closure_incomplete_reasons = BTreeSet::new();
+    if state.source_type_fact_workspace_index_incomplete {
+        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_INDEX_BUDGET);
+    }
+    if !state.source_type_fact_watched_files_observed {
+        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_WATCHED_FILES);
+    }
+    if package_form_extends {
+        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_PACKAGE_EXTENDS);
+    }
+    if document.workspace_folder_uri.is_none()
+        || state.documents.values().any(|candidate| {
+            !crate::protocol::is_style_document_uri(candidate.uri.as_str())
+                && candidate.workspace_folder_uri.is_none()
+        })
+    {
+        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_WORKSPACE_FOLDER);
+    }
+    if !source_type_fact_module_specifiers_are_indexed(
+        state,
+        document.workspace_folder_uri.as_deref(),
+    ) {
+        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_MODULE_SPECIFIER);
+    }
+
+    SourceTypeFactCacheContextV0 {
+        freshness: SourceTypeFactSidecarFreshnessV0 {
+            environment_fingerprint,
+            tsgo_binary_fingerprint,
+            collection_provenance,
+        },
+        closure_incomplete_reasons,
+    }
+}
+
+fn source_type_fact_environment_fingerprint(
+    workspace_root: &str,
+    config_path: &str,
+) -> (String, bool) {
+    let (config_chain, package_form_extends) = source_type_fact_tsconfig_chain(config_path);
+    let environment = json!({
+        "schemaVersion": "0",
+        "product": "omena-lsp-server.source-type-fact-environment",
+        "workspaceRoot": workspace_root,
+        "configPath": config_path,
+        "configChain": config_chain,
+    });
+    let fingerprint = serde_json::to_vec(&environment)
+        .ok()
         .map(|bytes| {
             compute_omena_sif_leaf_hash_v1(bytes.as_slice())
                 .as_str()
                 .to_string()
         })
-        .unwrap_or_else(|_| format!("unreadable:{config_path}"))
+        .unwrap_or_else(|| "unavailable:environment".to_string());
+    (fingerprint, package_form_extends)
+}
+
+fn source_type_fact_tsconfig_chain(config_path: &str) -> (Vec<Value>, bool) {
+    let mut rows = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut package_form_extends = false;
+    collect_source_type_fact_tsconfig_chain(
+        Path::new(config_path),
+        &mut seen,
+        &mut rows,
+        &mut package_form_extends,
+    );
+    (rows, package_form_extends)
+}
+
+fn collect_source_type_fact_tsconfig_chain(
+    config_path: &Path,
+    seen: &mut BTreeSet<PathBuf>,
+    rows: &mut Vec<Value>,
+    package_form_extends: &mut bool,
+) {
+    let normalized = fs::canonicalize(config_path).unwrap_or_else(|_| config_path.to_path_buf());
+    if !seen.insert(normalized.clone()) {
+        return;
+    }
+    let Ok(bytes) = fs::read(config_path) else {
+        rows.push(json!({
+            "path": normalized.to_string_lossy(),
+            "digest": format!("unreadable:{}", normalized.to_string_lossy()),
+        }));
+        return;
+    };
+    rows.push(json!({
+        "path": normalized.to_string_lossy(),
+        "digest": compute_omena_sif_leaf_hash_v1(bytes.as_slice()).as_str(),
+    }));
+    let Ok(config) = serde_json::from_slice::<Value>(bytes.as_slice()) else {
+        return;
+    };
+    let Some(extends) = config.get("extends").and_then(Value::as_str) else {
+        return;
+    };
+    if !extends.starts_with('.') {
+        *package_form_extends = true;
+        return;
+    }
+    let Some(config_dir) = config_path.parent() else {
+        return;
+    };
+    let raw_path = config_dir.join(extends);
+    let next = if raw_path.extension().is_some() {
+        Some(raw_path)
+    } else {
+        [
+            raw_path.with_extension("json"),
+            raw_path.join("tsconfig.json"),
+        ]
+        .into_iter()
+        .find(|candidate| candidate.exists())
+    };
+    if let Some(next) = next {
+        collect_source_type_fact_tsconfig_chain(next.as_path(), seen, rows, package_form_extends);
+    }
+}
+
+fn source_type_fact_tsgo_binary_fingerprint(path: &Path) -> String {
+    let metadata = fs::metadata(path).ok();
+    let bytes = fs::read(path).unwrap_or_default();
+    let modified = metadata
+        .as_ref()
+        .and_then(|metadata| metadata.modified().ok())
+        .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok());
+    let fingerprint = json!({
+        "path": path.to_string_lossy(),
+        "byteLength": metadata.as_ref().map(std::fs::Metadata::len),
+        "modifiedSeconds": modified.map(|duration| duration.as_secs()),
+        "modifiedNanos": modified.map(|duration| duration.subsec_nanos()),
+        "contentDigest": compute_omena_sif_leaf_hash_v1(bytes.as_slice()).as_str(),
+    });
+    serde_json::to_vec(&fingerprint)
+        .ok()
+        .map(|bytes| {
+            compute_omena_sif_leaf_hash_v1(bytes.as_slice())
+                .as_str()
+                .to_string()
+        })
+        .unwrap_or_else(|| format!("unavailable:{}", path.to_string_lossy()))
+}
+
+fn source_type_fact_module_specifiers_are_indexed(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> bool {
+    let indexed_paths = state
+        .documents
+        .values()
+        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
+        .filter_map(|document| file_uri_to_path(document.uri.as_str()))
+        .map(|path| fs::canonicalize(path.as_path()).unwrap_or(path))
+        .collect::<BTreeSet<_>>();
+    state
+        .documents
+        .values()
+        .filter(|document| !crate::protocol::is_style_document_uri(document.uri.as_str()))
+        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
+        .all(|document| {
+            if !document.source_module_specifier_index_complete {
+                return false;
+            }
+            let Some(document_path) = file_uri_to_path(document.uri.as_str()) else {
+                return false;
+            };
+            document.source_module_specifiers.iter().all(|specifier| {
+                source_type_fact_module_specifier_is_indexed(
+                    document_path.as_path(),
+                    specifier.as_str(),
+                    &indexed_paths,
+                )
+            })
+        })
+}
+
+fn source_type_fact_module_specifier_is_indexed(
+    document_path: &Path,
+    specifier: &str,
+    indexed_paths: &BTreeSet<PathBuf>,
+) -> bool {
+    if !specifier.starts_with('.') {
+        return false;
+    }
+    let Some(document_dir) = document_path.parent() else {
+        return false;
+    };
+    let raw_path = document_dir.join(specifier);
+    let mut candidates = vec![raw_path.clone()];
+    if raw_path.extension().is_none() {
+        for extension in ["ts", "tsx", "js", "jsx", "css", "scss", "sass", "less"] {
+            candidates.push(raw_path.with_extension(extension));
+            candidates.push(raw_path.join(format!("index.{extension}")));
+        }
+    }
+    candidates.into_iter().any(|candidate| {
+        let normalized = fs::canonicalize(candidate.as_path()).unwrap_or(candidate);
+        indexed_paths.contains(&normalized)
+    })
 }
 
 fn source_type_fact_workspace_signature(
@@ -370,12 +668,64 @@ fn document_text_hash(document: &LspTextDocumentState) -> String {
     document.text_hash.clone()
 }
 
-fn trim_source_type_fact_cache(cache: &mut BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>) {
-    while cache.len() > SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES {
-        let Some(key) = cache.keys().next().cloned() else {
+fn cache_source_type_fact_results(
+    state: &mut LspShellState,
+    document: &LspTextDocumentState,
+    cache_key: &str,
+    entries: &[TsgoTypeFactResultEntryV0],
+    context: &SourceTypeFactCacheContextV0,
+) {
+    if context.closure_incomplete_reasons.is_empty() {
+        let _ = store_source_type_fact_sidecar_with_freshness(
+            state,
+            document.workspace_folder_uri.as_deref(),
+            document.uri.as_str(),
+            cache_key,
+            entries,
+            &context.freshness,
+        );
+    }
+    state.source_type_fact_cache_next_use = state.source_type_fact_cache_next_use.saturating_add(1);
+    state.source_type_fact_cache.insert(
+        cache_key.to_string(),
+        LspSourceTypeFactCacheEntryV0 {
+            entries: entries.to_vec(),
+            last_used: state.source_type_fact_cache_next_use,
+        },
+    );
+    trim_source_type_fact_cache(state);
+}
+
+fn increment_reason_counter(counters: &mut BTreeMap<String, u64>, reason: &str) {
+    let count = counters.entry(reason.to_string()).or_default();
+    *count = count.saturating_add(1);
+}
+
+fn record_source_type_fact_closure_incomplete(
+    state: &mut LspShellState,
+    reasons: &BTreeSet<&'static str>,
+) {
+    for reason in reasons {
+        increment_reason_counter(
+            &mut state
+                .source_type_fact_cache_telemetry
+                .closure_incomplete_by_reason,
+            reason,
+        );
+    }
+}
+
+fn trim_source_type_fact_cache(state: &mut LspShellState) {
+    while state.source_type_fact_cache.len() > SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES {
+        let Some(key) = state
+            .source_type_fact_cache
+            .iter()
+            .min_by_key(|(_, entry)| entry.last_used)
+            .map(|(key, _)| key.clone())
+        else {
             break;
         };
-        cache.remove(key.as_str());
+        state.source_type_fact_cache.remove(key.as_str());
     }
 }
 
@@ -1330,6 +1680,7 @@ fn resolve_tsgo_binary_path() -> Option<PathBuf> {
 mod tests {
     use super::*;
     use crate::{handle_lsp_message, protocol::path_to_file_uri};
+    use omena_query::OmenaQueryStyleResolutionInputsV0;
     use omena_tsgo_client::TsgoResolvedTypeV0;
     use serde_json::json;
 
@@ -1347,6 +1698,301 @@ mod tests {
             Some(SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED)
         );
         Ok(())
+    }
+
+    #[test]
+    fn source_type_fact_sidecar_refuses_changed_tsconfig_parent_as_environment() -> TestResult {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-source-type-fact-parent-freshness-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&workspace_root);
+        fs::create_dir_all(workspace_root.join("src"))?;
+        let parent_config = workspace_root.join("tsconfig.base.json");
+        let config = workspace_root.join("tsconfig.json");
+        fs::write(&parent_config, r#"{"compilerOptions":{"strict":true}}"#)?;
+        fs::write(
+            &config,
+            r#"{"extends":"./tsconfig.base.json","compilerOptions":{}}"#,
+        )?;
+        let document_path = workspace_root.join("src/App.tsx");
+        fs::write(&document_path, "export const value = 1;")?;
+        let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        let document_uri = path_to_file_uri(document_path.as_path());
+        let mut state = initialized_source_type_fact_test_state(workspace_uri.as_str());
+        let document = crate::lsp_text_document_state(
+            document_uri.clone(),
+            Some(workspace_uri.clone()),
+            "typescriptreact".to_string(),
+            1,
+            "export const value = 1;".to_string(),
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        let (environment_before, package_extends) = source_type_fact_environment_fingerprint(
+            workspace_root.to_string_lossy().as_ref(),
+            config.to_string_lossy().as_ref(),
+        );
+        assert!(!package_extends);
+        let freshness_before = test_sidecar_freshness(environment_before, "binary:stable");
+        let entries = vec![test_type_fact_entry(document_path.as_path())];
+        assert!(store_source_type_fact_sidecar_with_freshness(
+            &state,
+            Some(workspace_uri.as_str()),
+            document_uri.as_str(),
+            "parent-key",
+            entries.as_slice(),
+            &freshness_before,
+        ));
+
+        fs::write(&parent_config, r#"{"compilerOptions":{"strict":false}}"#)?;
+        assert_eq!(
+            load_source_type_fact_sidecar_with_freshness(
+                &state,
+                Some(workspace_uri.as_str()),
+                document_uri.as_str(),
+                "parent-key",
+                &freshness_before,
+            ),
+            SourceTypeFactSidecarLoadV0::Hit(entries.clone()),
+            "a payload-derived digest cannot detect a dependency change"
+        );
+        let (environment_after, _) = source_type_fact_environment_fingerprint(
+            workspace_root.to_string_lossy().as_ref(),
+            config.to_string_lossy().as_ref(),
+        );
+        let freshness_after = test_sidecar_freshness(environment_after, "binary:stable");
+        assert!(
+            cached_source_type_fact_entries(
+                &mut state,
+                &document,
+                Some("parent-key"),
+                &freshness_after,
+            )
+            .is_none()
+        );
+        assert_eq!(
+            state
+                .source_type_fact_cache_telemetry
+                .sidecar_refused_by_reason
+                .get("environment"),
+            Some(&1)
+        );
+
+        fs::write(&parent_config, r#"{"compilerOptions":{"strict":true}}"#)?;
+        let (environment_restored, _) = source_type_fact_environment_fingerprint(
+            workspace_root.to_string_lossy().as_ref(),
+            config.to_string_lossy().as_ref(),
+        );
+        let restored = test_sidecar_freshness(environment_restored, "binary:stable");
+        assert_eq!(
+            load_source_type_fact_sidecar_with_freshness(
+                &state,
+                Some(workspace_uri.as_str()),
+                document_uri.as_str(),
+                "parent-key",
+                &restored,
+            ),
+            SourceTypeFactSidecarLoadV0::Hit(entries),
+            "an unchanged environment must serve the cold-equivalent payload"
+        );
+        fs::remove_dir_all(&workspace_root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn source_type_fact_sidecar_refuses_changed_tsgo_binary_as_binary() -> TestResult {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-source-type-fact-binary-freshness-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&workspace_root);
+        fs::create_dir_all(&workspace_root)?;
+        let document_path = workspace_root.join("App.tsx");
+        let binary_path = workspace_root.join("tsgo");
+        fs::write(&document_path, "export const value = 1;")?;
+        fs::write(&binary_path, "binary-v1")?;
+        let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        let document_uri = path_to_file_uri(document_path.as_path());
+        let mut state = initialized_source_type_fact_test_state(workspace_uri.as_str());
+        let document = crate::lsp_text_document_state(
+            document_uri.clone(),
+            Some(workspace_uri.clone()),
+            "typescriptreact".to_string(),
+            1,
+            "export const value = 1;".to_string(),
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        let freshness_before = test_sidecar_freshness(
+            "environment:stable",
+            source_type_fact_tsgo_binary_fingerprint(binary_path.as_path()),
+        );
+        assert!(store_source_type_fact_sidecar_with_freshness(
+            &state,
+            Some(workspace_uri.as_str()),
+            document_uri.as_str(),
+            "binary-key",
+            &[test_type_fact_entry(document_path.as_path())],
+            &freshness_before,
+        ));
+
+        fs::write(&binary_path, "binary-v2")?;
+        let freshness_after = test_sidecar_freshness(
+            "environment:stable",
+            source_type_fact_tsgo_binary_fingerprint(binary_path.as_path()),
+        );
+        assert!(
+            cached_source_type_fact_entries(
+                &mut state,
+                &document,
+                Some("binary-key"),
+                &freshness_after,
+            )
+            .is_none()
+        );
+        assert_eq!(
+            state
+                .source_type_fact_cache_telemetry
+                .sidecar_refused_by_reason
+                .get("binary"),
+            Some(&1)
+        );
+        fs::remove_dir_all(&workspace_root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn incomplete_source_type_fact_closure_skips_sidecar_but_keeps_memory_answer() -> TestResult {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-source-type-fact-fail-soft-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&workspace_root);
+        fs::create_dir_all(&workspace_root)?;
+        let document_path = workspace_root.join("App.tsx");
+        fs::write(&document_path, "export const value = 1;")?;
+        let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        let document_uri = path_to_file_uri(document_path.as_path());
+        let mut state = initialized_source_type_fact_test_state(workspace_uri.as_str());
+        let document = crate::lsp_text_document_state(
+            document_uri.clone(),
+            Some(workspace_uri.clone()),
+            "typescriptreact".to_string(),
+            1,
+            "export const value = 1;".to_string(),
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        let freshness = test_sidecar_freshness("environment:stable", "binary:stable");
+        let context = SourceTypeFactCacheContextV0 {
+            freshness: freshness.clone(),
+            closure_incomplete_reasons: BTreeSet::from([SOURCE_TYPE_FACT_CLOSURE_INDEX_BUDGET]),
+        };
+        let entries = vec![test_type_fact_entry(document_path.as_path())];
+        record_source_type_fact_closure_incomplete(&mut state, &context.closure_incomplete_reasons);
+        cache_source_type_fact_results(
+            &mut state,
+            &document,
+            "fail-soft-key",
+            entries.as_slice(),
+            &context,
+        );
+        let path = crate::source_type_fact_cache::source_type_fact_sidecar_file_path_for_test(
+            &state,
+            Some(workspace_uri.as_str()),
+            document_uri.as_str(),
+        )
+        .ok_or_else(|| std::io::Error::other("sidecar path should resolve"))?;
+        assert!(
+            !path.exists(),
+            "incomplete closure must not write a sidecar"
+        );
+        assert_eq!(
+            cached_source_type_fact_entries(
+                &mut state,
+                &document,
+                Some("fail-soft-key"),
+                &freshness,
+            ),
+            Some(entries)
+        );
+        assert_eq!(
+            state
+                .source_type_fact_cache_telemetry
+                .closure_incomplete_by_reason
+                .get(SOURCE_TYPE_FACT_CLOSURE_INDEX_BUDGET),
+            Some(&1)
+        );
+        fs::remove_dir_all(&workspace_root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn source_type_fact_cache_evicts_least_recently_used_entry() {
+        let mut state = LspShellState::default();
+        for index in 0..=SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES {
+            state.source_type_fact_cache.insert(
+                format!("key-{index:03}"),
+                LspSourceTypeFactCacheEntryV0 {
+                    entries: Vec::new(),
+                    last_used: index as u64,
+                },
+            );
+        }
+        if let Some(entry) = state.source_type_fact_cache.get_mut("key-000") {
+            entry.last_used = u64::MAX;
+        }
+        trim_source_type_fact_cache(&mut state);
+
+        assert!(state.source_type_fact_cache.contains_key("key-000"));
+        assert!(!state.source_type_fact_cache.contains_key("key-001"));
+        assert_eq!(
+            state.source_type_fact_cache.len(),
+            SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES
+        );
+    }
+
+    fn initialized_source_type_fact_test_state(workspace_uri: &str) -> LspShellState {
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [{
+                        "uri": workspace_uri,
+                        "name": "source-type-fact-freshness",
+                    }],
+                },
+            }),
+        );
+        state
+    }
+
+    fn test_sidecar_freshness(
+        environment_fingerprint: impl Into<String>,
+        tsgo_binary_fingerprint: impl Into<String>,
+    ) -> SourceTypeFactSidecarFreshnessV0 {
+        SourceTypeFactSidecarFreshnessV0 {
+            environment_fingerprint: environment_fingerprint.into(),
+            tsgo_binary_fingerprint: tsgo_binary_fingerprint.into(),
+            collection_provenance: json!({
+                "snapshotHandle": Value::Null,
+                "projectByFile": {},
+                "disclosure": "test",
+            }),
+        }
+    }
+
+    fn test_type_fact_entry(file_path: &Path) -> TsgoTypeFactResultEntryV0 {
+        TsgoTypeFactResultEntryV0 {
+            file_path: file_path.to_string_lossy().to_string(),
+            expression_id: "test-expression".to_string(),
+            resolved_type: TsgoResolvedTypeV0 {
+                kind: "union",
+                values: vec!["small".to_string()],
+            },
+        }
     }
 
     #[test]
@@ -1884,7 +2530,7 @@ export function Badge({ size }: BadgeProps) {
             }),
         );
 
-        let (cache_key, entry) = {
+        let (cache_key, entry, freshness) = {
             let document = state
                 .document(source_uri.as_str())
                 .ok_or_else(|| std::io::Error::other("source document should be open"))?;
@@ -1898,11 +2544,13 @@ export function Badge({ size }: BadgeProps) {
             let request =
                 tsgo_type_fact_request_for_document(document, type_fact_targets.as_slice())
                     .ok_or_else(|| std::io::Error::other("type fact request should build"))?;
+            let context = source_type_fact_cache_context(&state, document, &request);
             let cache_key = source_type_fact_cache_key(
                 &state,
                 document,
                 &request,
                 type_fact_targets.as_slice(),
+                &context.freshness,
             )
             .ok_or_else(|| std::io::Error::other("cache key should build"))?;
             (
@@ -1919,14 +2567,16 @@ export function Badge({ size }: BadgeProps) {
                         values: vec!["medium".to_string(), "small".to_string()],
                     },
                 },
+                context.freshness,
             )
         };
-        crate::source_type_fact_cache::store_source_type_fact_sidecar(
+        crate::source_type_fact_cache::store_source_type_fact_sidecar_with_freshness(
             &state,
             Some(workspace_uri.as_str()),
             source_uri.as_str(),
             cache_key.as_str(),
             &[entry],
+            &freshness,
         );
         let sidecar_path =
             crate::source_type_fact_cache::source_type_fact_sidecar_file_path_for_test(
@@ -2076,7 +2726,7 @@ export function Badge({ size }: BadgeProps) {
             }),
         );
 
-        let (cache_key, resolved_entry, unresolved_entry) = {
+        let (cache_key, resolved_entry, unresolved_entry, freshness) = {
             let document = state
                 .document(source_uri.as_str())
                 .ok_or_else(|| std::io::Error::other("source document should be open"))?;
@@ -2090,11 +2740,13 @@ export function Badge({ size }: BadgeProps) {
             let request =
                 tsgo_type_fact_request_for_document(document, type_fact_targets.as_slice())
                     .ok_or_else(|| std::io::Error::other("type fact request should build"))?;
+            let context = source_type_fact_cache_context(&state, document, &request);
             let cache_key = source_type_fact_cache_key(
                 &state,
                 document,
                 &request,
                 type_fact_targets.as_slice(),
+                &context.freshness,
             )
             .ok_or_else(|| std::io::Error::other("cache key should build"))?;
             let file_path = request
@@ -2121,14 +2773,16 @@ export function Badge({ size }: BadgeProps) {
                         values: Vec::new(),
                     },
                 },
+                context.freshness,
             )
         };
-        crate::source_type_fact_cache::store_source_type_fact_sidecar(
+        crate::source_type_fact_cache::store_source_type_fact_sidecar_with_freshness(
             &state,
             Some(workspace_uri.as_str()),
             source_uri.as_str(),
             cache_key.as_str(),
             &[resolved_entry],
+            &freshness,
         );
         refresh_source_type_fact_candidates_for_document(&mut state, source_uri.as_str());
         let document = state
@@ -2150,16 +2804,21 @@ export function Badge({ size }: BadgeProps) {
             "resolved tsgo union should not produce unavailable facts",
         );
 
-        crate::source_type_fact_cache::store_source_type_fact_sidecar(
+        crate::source_type_fact_cache::store_source_type_fact_sidecar_with_freshness(
             &state,
             Some(workspace_uri.as_str()),
             source_uri.as_str(),
             cache_key.as_str(),
             std::slice::from_ref(&unresolved_entry),
+            &freshness,
         );
-        state
-            .source_type_fact_cache
-            .insert(cache_key.clone(), vec![unresolved_entry]);
+        state.source_type_fact_cache.insert(
+            cache_key.clone(),
+            LspSourceTypeFactCacheEntryV0 {
+                entries: vec![unresolved_entry],
+                last_used: 1,
+            },
+        );
 
         refresh_source_type_fact_candidates_for_document(&mut state, source_uri.as_str());
 

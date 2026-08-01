@@ -197,6 +197,8 @@ pub fn apply_background_workspace_index_result(
         result.exhausted
     );
     state.workspace_index_pending_file_count = result.pending_file_count;
+    state.source_type_fact_workspace_index_incomplete =
+        result.exhausted || result.pending_file_count > 0;
     if result.exhausted {
         state.workspace_style_index_exhausted_count += 1;
     }
@@ -219,6 +221,9 @@ pub(crate) fn index_workspace_style_files_with_budget(
     }
     if budget.exhausted {
         state.workspace_style_index_exhausted_count += 1;
+        state.source_type_fact_workspace_index_incomplete = true;
+    } else {
+        state.source_type_fact_workspace_index_incomplete = false;
     }
 }
 
