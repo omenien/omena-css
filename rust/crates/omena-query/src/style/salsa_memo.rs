@@ -4227,7 +4227,7 @@ const cls = styles.root;"#
     #[test]
     fn revision_selector_recollects_cascade_declarations_for_only_the_edited_style_file()
     -> Result<(), &'static str> {
-        let mut corpus = parallel_probe_corpus();
+        let mut corpus = doubled_parallel_probe_corpus();
         let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
         let mut host = OmenaQueryStyleMemoHostV0::new();
         let initial = host
@@ -4243,9 +4243,9 @@ const cls = styles.root;"#
             .workspace_revision_selector(corpus.as_slice(), &[], &[], &[], &resolution_inputs)
             .ok_or("edited selector must commit")?;
         let incremental = edited.style_cascade_narrowing_substrate();
+        let incremental_collection_count = cascade_declarations_collect_probe::count();
         assert_eq!(
-            cascade_declarations_collect_probe::count(),
-            1,
+            incremental_collection_count, 1,
             "a single-file edit must recollect exactly that file's cascade declarations",
         );
         cascade_declarations_collect_probe::reset();
@@ -4255,10 +4255,15 @@ const cls = styles.root;"#
             &[],
             &resolution_inputs,
         );
+        let direct_collection_count = cascade_declarations_collect_probe::count();
+        eprintln!(
+            "corpusFiles={} incrementalCollections={incremental_collection_count} directCollections={direct_collection_count}",
+            corpus.len(),
+        );
 
         assert_eq!(incremental, direct);
         assert_eq!(
-            cascade_declarations_collect_probe::count(),
+            direct_collection_count,
             corpus.len(),
             "the direct oracle must still exercise the full corpus",
         );
@@ -6253,5 +6258,57 @@ $_private-token: changed;
             "post-wave edit resolve must serialize",
         );
         Ok(())
+    }
+
+    #[test]
+    fn source_workspace_projection_records_length_changing_selector_stable_edit_limitation() {
+        let styles = source_workspace_projection_style_corpus();
+        let mut documents = vec![source_workspace_projection_document(
+            "/workspace/src/App.tsx",
+            "card",
+            "one",
+        )];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        exercise_source_workspace_projection_consumers(&host.db, workspace);
+
+        documents[0] = source_workspace_projection_document(
+            "/workspace/src/App.tsx",
+            "card",
+            "expanded-body-value",
+        );
+        let edited_workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        source_workspace_projection_probe::reset();
+        source_workspace_query_probe::reset();
+        exercise_source_workspace_projection_consumers(&host.db, edited_workspace);
+
+        let projection_recompute_set = source_workspace_projection_probe::read();
+        let consumer_recompute_counts = source_workspace_query_probe::read();
+        eprintln!(
+            "projectionRecomputeSet={projection_recompute_set:?} consumerRecomputeCounts={consumer_recompute_counts:?}"
+        );
+        assert_eq!(
+            projection_recompute_set,
+            set_of(["/workspace/src/App.tsx"]),
+            "the length-changing edited file projection must execute"
+        );
+        assert_eq!(
+            consumer_recompute_counts,
+            (1, 1),
+            "the current zero-recompute guarantee is limited to byte-length-preserving edits"
+        );
     }
 }
