@@ -382,8 +382,11 @@ impl ReactiveEngineV0 {
         else {
             return Ok(());
         };
-        let rebuilt_digest = full_delta_digest(&runtime.delta_entries);
-        if *incremental_digest == rebuilt_digest {
+        let Some(rebuilt_entries) = self.rebuild_delta_fold_from_dependencies(node) else {
+            return Err(DeltaFoldParityErrorV0::NotDeltaFold { node });
+        };
+        let rebuilt_digest = full_delta_digest(&rebuilt_entries);
+        if *incremental_digest == rebuilt_digest && runtime.delta_entries == rebuilt_entries {
             Ok(())
         } else {
             Err(DeltaFoldParityErrorV0::Diverged {
@@ -392,6 +395,24 @@ impl ReactiveEngineV0 {
                 rebuilt_digest,
             })
         }
+    }
+
+    fn rebuild_delta_fold_from_dependencies(
+        &self,
+        node: ReactiveNodeIdV0,
+    ) -> Option<BTreeMap<String, ReactiveStateV0>> {
+        let runtime = self.nodes.get(node.index())?;
+        let NodeOperationV0::DeltaFold { keys } = &runtime.operation else {
+            return None;
+        };
+        Some(
+            keys.iter()
+                .zip(&runtime.dependencies)
+                .map(|(key, dependency)| {
+                    (key.clone(), self.nodes[dependency.index()].state.clone())
+                })
+                .collect(),
+        )
     }
 
     fn begin_wave(&mut self) {
@@ -603,6 +624,15 @@ impl ReactiveEngineV0 {
         self.nodes[node.index()]
             .delta_entries
             .insert(key.to_string(), state);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replace_state_without_scheduling_for_test(
+        &mut self,
+        node: ReactiveNodeIdV0,
+        state: ReactiveStateV0,
+    ) {
+        self.nodes[node.index()].state = state;
     }
 }
 
@@ -912,8 +942,75 @@ mod tests {
             "first",
             ReactiveStateV0::available(ReactiveValueV0::Counter(99)),
         );
-        assert!(engine.verify_delta_fold(fold).is_err());
+        assert!(matches!(
+            engine.verify_delta_fold(fold),
+            Err(DeltaFoldParityErrorV0::Diverged {
+                incremental_digest,
+                rebuilt_digest,
+                ..
+            }) if incremental_digest == rebuilt_digest
+        ));
         Ok(())
+    }
+
+    #[test]
+    fn delta_fold_detects_dependency_changes_missed_by_dirty_tracking() -> Result<(), Box<dyn Error>>
+    {
+        let mut graph = ReactiveGraphBuilderV0::new();
+        let first = graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(1)),
+            exact_policy(),
+        );
+        let second = graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(2)),
+            exact_policy(),
+        );
+        let fold = graph.add_delta_fold(
+            vec![("first".to_string(), first), ("second".to_string(), second)],
+            exact_policy(),
+        )?;
+        let mut engine = graph.build()?;
+        engine.observe(fold)?;
+        settled(&mut engine)?;
+
+        engine.replace_state_without_scheduling_for_test(
+            first,
+            ReactiveStateV0::available(ReactiveValueV0::Counter(999)),
+        );
+
+        assert!(matches!(
+            engine.verify_delta_fold(fold),
+            Err(DeltaFoldParityErrorV0::Diverged {
+                incremental_digest,
+                rebuilt_digest,
+                ..
+            }) if incremental_digest != rebuilt_digest
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn dependency_rebuild_does_not_read_incremental_entries() {
+        let source = include_str!("engine.rs");
+        let marker = "fn rebuild_delta_fold_from_dependencies";
+        let start = source.find(marker).unwrap_or(source.len());
+        assert!(
+            start < source.len(),
+            "dependency rebuild function is missing"
+        );
+        let after_start = &source[start..];
+        let end = after_start
+            .find("\n    fn begin_wave")
+            .unwrap_or(after_start.len());
+        assert!(
+            end < after_start.len(),
+            "dependency rebuild function boundary is missing"
+        );
+        let function = &after_start[..end];
+        assert!(
+            !function.contains("delta_entries"),
+            "dependency rebuild must not read incremental fold entries"
+        );
     }
 
     #[test]
