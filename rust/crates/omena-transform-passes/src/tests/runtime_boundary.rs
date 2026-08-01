@@ -93,7 +93,7 @@ fn closed_world_composes_admission_covers_tri_state_and_independent_producer_mat
                 _ => "other",
             });
         eprintln!(
-            "G111_S4_CELL={}",
+            "CLOSED_WORLD_COMPOSES_ADMISSION_CELL={}",
             serde_json::json!({
                 "command": "cargo test -p omena-transform-passes tests::runtime_boundary::closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix -- --exact --nocapture",
                 "state": state,

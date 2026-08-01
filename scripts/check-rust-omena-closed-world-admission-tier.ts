@@ -74,8 +74,10 @@ interface MatrixCell {
 
 const matrixCells = matrixRun.transcript
   .split("\n")
-  .filter((line) => line.startsWith("G111_S4_CELL="))
-  .map((line) => JSON.parse(line.slice("G111_S4_CELL=".length)) as MatrixCell);
+  .filter((line) => line.startsWith("CLOSED_WORLD_COMPOSES_ADMISSION_CELL="))
+  .map(
+    (line) => JSON.parse(line.slice("CLOSED_WORLD_COMPOSES_ADMISSION_CELL=".length)) as MatrixCell,
+  );
 const matrixCell = (producer: string, fixture: string): MatrixCell | undefined =>
   matrixCells.find((cell) => cell.producer === producer && cell.fixture === fixture);
 const intactShape = matrixCell("intact", "shape");
