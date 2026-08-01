@@ -49,6 +49,7 @@ impl ReactiveNodeIdV0 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum ReactiveNodeKindV0 {
     Input,
     Map,
@@ -97,13 +98,13 @@ pub(crate) struct NodeBlueprintV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReactiveGraphBuildErrorV0 {
-    EmptyChangePolicyName {
-        node_index: usize,
-    },
-    DuplicateDeltaKey {
-        key: String,
-    },
+    #[non_exhaustive]
+    EmptyChangePolicyName { node_index: usize },
+    #[non_exhaustive]
+    DuplicateDeltaKey { key: String },
+    #[non_exhaustive]
     ForeignNodeId {
         node_index: usize,
         expected_graph: u64,

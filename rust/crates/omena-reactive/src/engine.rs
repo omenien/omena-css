@@ -11,6 +11,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct EffectReceiptV0 {
     pub channel: String,
     pub wave: u64,
@@ -18,11 +19,14 @@ pub struct EffectReceiptV0 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StabilizeStatusV0 {
+    #[non_exhaustive]
     Settled {
         wave: u64,
         recomputed_node_count: usize,
     },
+    #[non_exhaustive]
     Pending {
         wave: u64,
         recomputed_node_count: usize,
@@ -30,9 +34,16 @@ pub enum StabilizeStatusV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReactiveEngineErrorV0 {
-    InvalidNode { node_index: usize },
-    NodeDoesNotAcceptDeposits { node_index: usize },
+    #[non_exhaustive]
+    InvalidNode {
+        node_index: usize,
+    },
+    #[non_exhaustive]
+    NodeDoesNotAcceptDeposits {
+        node_index: usize,
+    },
     ObserverMutationDuringWave,
     ZeroStepBudget,
 }
@@ -63,13 +74,13 @@ impl fmt::Display for ReactiveEngineErrorV0 {
 impl Error for ReactiveEngineErrorV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DeltaFoldParityErrorV0 {
-    InvalidNode {
-        node_index: usize,
-    },
-    NotDeltaFold {
-        node: ReactiveNodeIdV0,
-    },
+    #[non_exhaustive]
+    InvalidNode { node_index: usize },
+    #[non_exhaustive]
+    NotDeltaFold { node: ReactiveNodeIdV0 },
+    #[non_exhaustive]
     Diverged {
         node: ReactiveNodeIdV0,
         incremental_digest: [u8; 32],

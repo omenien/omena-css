@@ -705,6 +705,9 @@ impl ReactiveShadowDriverV0 {
             Ok(StabilizeStatusV0::Pending { .. }) => self
                 .failures
                 .push("reactive shadow exceeded its bounded stabilization budget".to_string()),
+            Ok(_) => self
+                .failures
+                .push("reactive shadow observed an unknown stabilization status".to_string()),
             Err(error) => self.failures.push(error.to_string()),
         }
     }
