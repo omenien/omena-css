@@ -9,6 +9,7 @@
 #[non_exhaustive] pub enum omena_reactive::ReactiveValueV0
 #[non_exhaustive] pub enum omena_reactive::StabilizeStatusV0
 #[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::Diverged
+#[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::ForeignNodeId
 #[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::InvalidNode
 #[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::NotDeltaFold
 #[non_exhaustive] pub omena_reactive::ReactiveEngineErrorV0::ForeignNodeId
@@ -83,6 +84,9 @@ pub mod omena_reactive
 pub omena_reactive::DeltaFoldParityErrorV0::Diverged::incremental_digest: [u8; 32]
 pub omena_reactive::DeltaFoldParityErrorV0::Diverged::node: omena_reactive::ReactiveNodeIdV0
 pub omena_reactive::DeltaFoldParityErrorV0::Diverged::rebuilt_digest: [u8; 32]
+pub omena_reactive::DeltaFoldParityErrorV0::ForeignNodeId::actual_graph: u64
+pub omena_reactive::DeltaFoldParityErrorV0::ForeignNodeId::expected_graph: u64
+pub omena_reactive::DeltaFoldParityErrorV0::ForeignNodeId::node_index: usize
 pub omena_reactive::DeltaFoldParityErrorV0::InvalidNode::node_index: usize
 pub omena_reactive::DeltaFoldParityErrorV0::NotDeltaFold::node: omena_reactive::ReactiveNodeIdV0
 pub omena_reactive::EffectReceiptV0::channel: alloc::string::String

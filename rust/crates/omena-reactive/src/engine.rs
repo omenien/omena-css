@@ -93,6 +93,12 @@ pub enum DeltaFoldParityErrorV0 {
     #[non_exhaustive]
     InvalidNode { node_index: usize },
     #[non_exhaustive]
+    ForeignNodeId {
+        node_index: usize,
+        expected_graph: u64,
+        actual_graph: u64,
+    },
+    #[non_exhaustive]
     NotDeltaFold { node: ReactiveNodeIdV0 },
     #[non_exhaustive]
     Diverged {
@@ -108,6 +114,14 @@ impl fmt::Display for DeltaFoldParityErrorV0 {
             Self::InvalidNode { node_index } => {
                 write!(formatter, "reactive node {node_index} does not exist")
             }
+            Self::ForeignNodeId {
+                node_index,
+                expected_graph,
+                actual_graph,
+            } => write!(
+                formatter,
+                "reactive node {node_index} belongs to reactive graph {actual_graph}, not {expected_graph}"
+            ),
             Self::NotDeltaFold { node } => {
                 write!(
                     formatter,
@@ -385,6 +399,13 @@ impl ReactiveEngineV0 {
     }
 
     pub fn verify_delta_fold(&self, node: ReactiveNodeIdV0) -> Result<(), DeltaFoldParityErrorV0> {
+        if node.graph != self.graph_id {
+            return Err(DeltaFoldParityErrorV0::ForeignNodeId {
+                node_index: node.index(),
+                expected_graph: self.graph_id.value(),
+                actual_graph: node.graph.value(),
+            });
+        }
         let Some(runtime) = self.nodes.get(node.index()) else {
             return Err(DeltaFoldParityErrorV0::InvalidNode {
                 node_index: node.index(),
@@ -906,8 +927,18 @@ mod tests {
         let _second_engine = second_graph.build()?;
 
         for result in [
+            first_engine.node_kind(second_second_input).map(|_| ()),
             first_engine.state(second_second_input).map(|_| ()),
+            first_engine.is_necessary(second_second_input).map(|_| ()),
+            first_engine.is_stale(second_second_input).map(|_| ()),
+            first_engine
+                .node_recompute_count(second_second_input)
+                .map(|_| ()),
+            first_engine
+                .delta_update_count(second_second_input)
+                .map(|_| ()),
             first_engine.observe(second_second_input),
+            first_engine.unobserve(second_second_input),
             first_engine.deposit(
                 second_second_input,
                 ReactiveStateV0::available(ReactiveValueV0::Counter(777)),
@@ -922,6 +953,14 @@ mod tests {
                 }) if expected_graph != actual_graph
             ));
         }
+        assert!(matches!(
+            first_engine.verify_delta_fold(second_second_input),
+            Err(DeltaFoldParityErrorV0::ForeignNodeId {
+                node_index: 1,
+                expected_graph,
+                actual_graph,
+            }) if expected_graph != actual_graph
+        ));
         assert_eq!(
             first_engine.state(first_second_input)?,
             &ReactiveStateV0::available(ReactiveValueV0::Counter(2))

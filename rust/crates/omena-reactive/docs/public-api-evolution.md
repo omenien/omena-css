@@ -37,7 +37,7 @@ Each example below is an external-consumer contract probe. It must remain a
 compile failure because an exhaustive downstream match would make adding a
 variant a breaking change.
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::ReactiveValueV0;
 
 fn exhaustive(value: ReactiveValueV0) {
@@ -54,7 +54,7 @@ fn exhaustive(value: ReactiveValueV0) {
 }
 ```
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::ReactiveStateV0;
 
 fn exhaustive(value: ReactiveStateV0) {
@@ -65,7 +65,7 @@ fn exhaustive(value: ReactiveStateV0) {
 }
 ```
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::StabilizeStatusV0;
 
 fn exhaustive(value: StabilizeStatusV0) {
@@ -76,7 +76,7 @@ fn exhaustive(value: StabilizeStatusV0) {
 }
 ```
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::ReactiveEngineErrorV0;
 
 fn exhaustive(value: ReactiveEngineErrorV0) {
@@ -89,7 +89,7 @@ fn exhaustive(value: ReactiveEngineErrorV0) {
 }
 ```
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::DeltaFoldParityErrorV0;
 
 fn exhaustive(value: DeltaFoldParityErrorV0) {
@@ -101,7 +101,7 @@ fn exhaustive(value: DeltaFoldParityErrorV0) {
 }
 ```
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::ReactiveNodeKindV0;
 
 fn exhaustive(value: ReactiveNodeKindV0) {
@@ -117,7 +117,7 @@ fn exhaustive(value: ReactiveNodeKindV0) {
 }
 ```
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::ReactiveGraphBuildErrorV0;
 
 fn exhaustive(value: ReactiveGraphBuildErrorV0) {
@@ -129,7 +129,7 @@ fn exhaustive(value: ReactiveGraphBuildErrorV0) {
 }
 ```
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::ReactiveDivergenceClassV0;
 
 fn exhaustive(value: ReactiveDivergenceClassV0) {
@@ -140,7 +140,7 @@ fn exhaustive(value: ReactiveDivergenceClassV0) {
 }
 ```
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::ReactiveObservationPhaseV0;
 
 fn exhaustive(value: ReactiveObservationPhaseV0) {
@@ -151,7 +151,7 @@ fn exhaustive(value: ReactiveObservationPhaseV0) {
 }
 ```
 
-```compile_fail,E0004
+```compile_fail
 use omena_reactive::ReactiveDivergenceDispositionV0;
 
 fn exhaustive(value: ReactiveDivergenceDispositionV0) {

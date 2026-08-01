@@ -92,7 +92,7 @@ console.log(
     {
       schemaVersion: "omena.reactive-shadow-parity.v0",
       product: "rust.omena-lsp-server.reactive-shadow-parity",
-      discoveredContractTests: requiredTests.length,
+      discoveredContractTests: discoveredTests.length,
     },
     null,
     2,
