@@ -2769,6 +2769,13 @@ fn closed_world_admission_o3_reasons(
     // Structural entailment: planning and admission borrow the same immutable sealed bundle, so
     // recomputing its ownership digest here cannot detect drift. The transform execution planner
     // owns re-entry if planning and execution ever receive independently materialized evidence.
+    // The digest accessor remains available for that boundary, but calling it twice inside this
+    // function would still compare two projections of one object. There is no plan token,
+    // snapshot, mutation epoch, or independently owned bundle between the two reads. Keeping such
+    // a limb would therefore advertise temporal protection without observing a divergence. A
+    // future split planner must cross that temporal boundary explicitly and carry the captured
+    // value alongside the independently materialized bundle before admission can compare the two
+    // witnesses.
     let module_instance =
         closed_world_admission_module_instance(Some(bundle), module_qualified_symbols);
     if module_instance.is_some_and(|module_instance| {
