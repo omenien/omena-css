@@ -771,7 +771,10 @@ mod tests {
         );
         assert_eq!(summary.analyses.len(), 3);
         assert_eq!(summary.analyses[0].file_path, "/tmp/App.tsx");
-        assert_eq!(summary.analyses[0].analysis.context_sensitivity, "1-cfa");
+        assert_eq!(
+            summary.analyses[0].analysis.context_sensitivity,
+            "perSuppliedGraph"
+        );
         assert!(
             summary
                 .analyses

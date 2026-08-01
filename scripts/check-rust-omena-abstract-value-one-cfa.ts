@@ -54,6 +54,16 @@ assert.ok(
   "expression-domain flow check must expect the supplied-graph wire label",
 );
 
+const engineInputProducerTests = readFileSync(
+  "rust/crates/omena-engine-input-producers/src/expression_domain.rs",
+  "utf8",
+);
+assert.match(
+  engineInputProducerTests,
+  /summary\.analyses\[0\]\.analysis\.context_sensitivity,\s+"perSuppliedGraph"/u,
+  "engine-input-producers flow contract must expect the supplied-graph wire label",
+);
+
 const queryExpressionTests = readFileSync(
   "rust/crates/omena-query/src/tests/expression_domain.rs",
   "utf8",
