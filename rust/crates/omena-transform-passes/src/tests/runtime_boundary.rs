@@ -3,7 +3,8 @@ use std::collections::BTreeSet;
 use crate::{
     TransformExecutionContextV0, TransformExecutionPolicyV0,
     TransformModuleQualifiedExecutionErrorV0, TransformPassDispatchKindV0,
-    default_transform_pass_registry, execute_transform_passes_incremental_with_database,
+    TransformStrictPolicyReasonV0, default_transform_pass_registry,
+    execute_transform_passes_incremental_with_database,
     execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle,
     execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle,
     execute_transform_passes_on_source,
@@ -29,6 +30,45 @@ use omena_transform_cst::{
     default_transform_pass_contracts, default_transform_pass_descriptors,
     lower_transform_ir_from_source, print_transform_ir_css,
 };
+
+use super::test_closed_world_bundle;
+
+#[test]
+fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping_bytes()
+-> Result<(), String> {
+    let source = ".used { color: red; } .dead { color: blue; }";
+    let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("admission.module.css"));
+    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+        vec![instance.clone()],
+        vec![ClosedWorldLinkedModuleV0::new(instance).with_class_name("used")],
+    )
+    .map_err(|error| format!("incomplete bundle should still be constructible: {error:?}"))?;
+
+    let execution = execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+        source,
+        StyleDialect::Css,
+        &[TransformPassKind::TreeShakeClass],
+        &TransformExecutionContextV0::default(),
+        &bundle,
+    );
+
+    assert_eq!(execution.output_css, source);
+    assert_eq!(execution.planned_only_pass_ids, ["tree-shake-class"]);
+    assert_eq!(execution.closed_world_admission.refused_count, 1);
+    assert_eq!(execution.strict_policy.refused_count, 0);
+    assert!(matches!(
+        execution.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { missing }]
+            if missing == &[
+                "interfaceHash".to_string(),
+                "moduleReachabilityInputAbsent".to_string(),
+                "sourcePrecision".to_string(),
+            ]
+    ));
+    Ok(())
+}
 
 fn execution_summary_wire_key_sample(
     sample_name: &str,
@@ -526,15 +566,14 @@ fn structural_cascade_proof_obligations_match_source_and_ir_collectors() -> Resu
         ModuleIdV0::new("runtime-boundary.css"),
         ConfigurationHashV0::none(),
     );
-    let closed_world_bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let closed_world_bundle = test_closed_world_bundle(
         vec![instance.clone()],
         vec![
             ClosedWorldLinkedModuleV0::new(instance)
                 .with_class_name("item")
                 .with_class_name("grid"),
         ],
-    )
-    .map_err(|err| format!("closed-world test bundle should be constructible: {err:?}"))?;
+    );
     let ir = lower_transform_ir_from_source(
         source,
         StyleDialect::Css,
@@ -680,7 +719,7 @@ fn closed_world_bundle_authority_drives_reachability_transform_families() -> Res
         ModuleIdV0::new("bundle-authority.module.css"),
         ConfigurationHashV0::none(),
     );
-    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let bundle = test_closed_world_bundle(
         vec![instance.clone()],
         vec![
             ClosedWorldLinkedModuleV0::new(instance)
@@ -689,8 +728,7 @@ fn closed_world_bundle_authority_drives_reachability_transform_families() -> Res
                 .with_value_name("usedValue")
                 .with_custom_property_name("--explicit"),
         ],
-    )
-    .map_err(|err| format!("closed-world bundle should be constructible: {err:?}"))?;
+    );
     let misleading_context = TransformExecutionContextV0 {
         reachable_class_names: vec!["dead".to_string()],
         reachable_keyframe_names: vec!["ghost".to_string()],
@@ -777,7 +815,7 @@ fn tree_shake_bundle_driven_matches_reachability_projection_byte_identical() -> 
         ModuleIdV0::new("reachability-projection.module.css"),
         ConfigurationHashV0::none(),
     );
-    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let bundle = test_closed_world_bundle(
         vec![instance.clone()],
         vec![
             ClosedWorldLinkedModuleV0::new(instance)
@@ -786,8 +824,7 @@ fn tree_shake_bundle_driven_matches_reachability_projection_byte_identical() -> 
                 .with_value_name("usedValue")
                 .with_custom_property_name("--explicit"),
         ],
-    )
-    .map_err(|err| format!("closed-world bundle should be constructible: {err:?}"))?;
+    );
     let cases = [
         (
             TransformPassKind::TreeShakeClass,
@@ -859,11 +896,10 @@ fn module_qualified_tree_shake_distinguishes_same_name_owners() -> Result<(), St
     let detached_module = ClosedWorldLinkedModuleV0::new(detached.clone())
         .with_class_name(shared_names[0])
         .with_class_name(shared_names[1]);
-    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let bundle = test_closed_world_bundle(
         vec![app.clone()],
         vec![app_module.clone(), detached_module.clone()],
-    )
-    .map_err(|error| format!("closed-world bundle should be constructible: {error:?}"))?;
+    );
     let source = ".shared { color: red; } .shared-secondary { color: blue; }";
     let requested = [
         TransformPassKind::TreeShakeClass,
@@ -965,14 +1001,13 @@ fn module_qualified_tree_shake_distinguishes_same_name_owners() -> Result<(), St
         )
     );
 
-    let both_reachable_bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let both_reachable_bundle = test_closed_world_bundle(
         vec![app.clone()],
         vec![
             app_module.with_dependency(detached.clone()),
             detached_module,
         ],
-    )
-    .map_err(|error| format!("connected bundle should be constructible: {error:?}"))?;
+    );
     let both_reachable_execution =
         execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
             source,

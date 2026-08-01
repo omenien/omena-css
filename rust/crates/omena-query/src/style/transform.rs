@@ -1302,7 +1302,7 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_resolution_
             &pass_set,
             &context,
             closed_world_bundle,
-            classify_transform_reachability_precision(&context, true, None),
+            closed_world_bundle_reachability_precision(&context, &closed_world_bundle),
             options,
         )
     } else {
@@ -2867,7 +2867,7 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
             requested_pass_ids,
             &context,
             &closed_world_bundle,
-            classify_transform_reachability_precision(&context, true, None),
+            closed_world_bundle_reachability_precision(&context, &closed_world_bundle),
             &TransformExecutionPolicyV0::default(),
         );
     }
@@ -3730,10 +3730,9 @@ fn execute_linked_bundle_modules(
                 ModuleQualifiedExecutionInputsV0 {
                     closed_world_bundle: &linked_stylesheet.closed_world_bundle,
                     module_instance,
-                    reachability_precision: classify_transform_reachability_precision(
+                    reachability_precision: closed_world_bundle_reachability_precision(
                         &module_input.context,
-                        true,
-                        None,
+                        &linked_stylesheet.closed_world_bundle,
                     ),
                     retained_class_names,
                 },
@@ -4209,6 +4208,15 @@ fn style_sources_to_closed_world_metadata(
         .iter()
         .map(|input| {
             let mut metadata = ClosedWorldModuleMetadataV0::new(input.instance.clone())
+                .with_interface_hash(linker_input_interface_hash(
+                    input.source_path.as_str(),
+                    [
+                        input.class_names.as_slice(),
+                        input.keyframe_names.as_slice(),
+                        input.value_names.as_slice(),
+                        input.custom_property_names.as_slice(),
+                    ],
+                ))
                 .with_source_precision(source_precision);
             if let Some(interface_hash) = external_sifs.iter().find_map(|external_sif| {
                 sif_matches_style_path(external_sif, input.source_path.as_str()).then(|| {
@@ -4227,10 +4235,37 @@ fn style_sources_to_closed_world_metadata(
         .collect()
 }
 
+fn linker_input_interface_hash(source_path: &str, symbol_domains: [&[String]; 4]) -> String {
+    let mut digest = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in source_path.as_bytes().iter().copied().chain([0]) {
+        digest ^= u64::from(byte);
+        digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    for domain in symbol_domains {
+        for value in domain {
+            for byte in value.as_bytes().iter().copied().chain([0]) {
+                digest ^= u64::from(byte);
+                digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
+            }
+        }
+        digest ^= 0xff;
+        digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("local-interface-fnv1a64:{digest:016x}")
+}
+
 fn closed_world_source_precision_summary(
     context: &TransformExecutionContextV0,
 ) -> ClosedWorldSourcePrecisionSummaryV0 {
-    let precision = classify_transform_reachability_precision(context, true, None);
+    let precision = if context.reachable_class_names.is_empty()
+        && context.reachable_keyframe_names.is_empty()
+        && context.reachable_value_names.is_empty()
+        && context.reachable_custom_property_names.is_empty()
+    {
+        FactPrecision::Unknown
+    } else {
+        FactPrecision::Conservative
+    };
     let mut summary = ClosedWorldSourcePrecisionSummaryV0::default();
     match precision {
         FactPrecision::Exact => summary.exact_source_count = 1,
@@ -4239,6 +4274,26 @@ fn closed_world_source_precision_summary(
         FactPrecision::Unknown => summary.unknown_source_count = 1,
     }
     summary
+}
+
+fn closed_world_bundle_reachability_precision(
+    context: &TransformExecutionContextV0,
+    bundle: &ClosedWorldBundleV0,
+) -> FactPrecision {
+    let precision_ceiling = bundle.source_precision().and_then(|precision| {
+        if precision.unknown_source_count > 0 {
+            Some(FactPrecision::Unknown)
+        } else if precision.heuristic_source_count > 0 {
+            Some(FactPrecision::Heuristic)
+        } else if precision.conservative_source_count > 0 {
+            Some(FactPrecision::Conservative)
+        } else if precision.exact_source_count > 0 {
+            Some(FactPrecision::Exact)
+        } else {
+            None
+        }
+    });
+    classify_transform_reachability_precision(context, true, precision_ceiling)
 }
 
 fn sif_matches_style_path(external_sif: &OmenaQueryExternalSifInputV0, style_path: &str) -> bool {

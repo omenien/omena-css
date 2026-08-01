@@ -470,6 +470,14 @@ fn sdk_build_verification_reason(
         OmenaQueryTransformStrictPolicyReasonV0::DecisionCoverageIncomplete => {
             OmenaSdkBuildVerificationReasonV0::DecisionCoverageIncomplete
         }
+        OmenaQueryTransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { .. }
+        | OmenaQueryTransformStrictPolicyReasonV0::LivenessNotClosed { .. }
+        | OmenaQueryTransformStrictPolicyReasonV0::EvidenceUnavailable
+        | OmenaQueryTransformStrictPolicyReasonV0::OwnershipNotSeparable { .. } => {
+            // Admission-tier events are serialized through closedWorldAdmission,
+            // never through the strict-policy SDK summary.
+            OmenaSdkBuildVerificationReasonV0::ClosedWorldEvidenceUnavailable
+        }
     }
 }
 

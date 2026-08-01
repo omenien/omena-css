@@ -267,6 +267,9 @@ pub enum TransformBlockedReasonV0 {
     StrictVerification {
         reasons: Vec<TransformStrictPolicyReasonV0>,
     },
+    ClosedWorldAdmission {
+        reasons: Vec<TransformStrictPolicyReasonV0>,
+    },
     PassImplementation,
 }
 
@@ -613,6 +616,19 @@ pub enum TransformStrictPolicyReasonV0 {
     UnknownPass,
     ClosedWorldEvidenceUnavailable,
     DecisionCoverageIncomplete,
+    ClosedWorldEvidenceIncomplete {
+        missing: Vec<String>,
+    },
+    LivenessNotClosed {
+        symbol: String,
+        from_module: ModuleInstanceKeyV0,
+        via_edge: &'static str,
+    },
+    EvidenceUnavailable,
+    OwnershipNotSeparable {
+        token: String,
+        module_paths: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -662,6 +678,43 @@ impl TransformStrictPolicySummaryV0 {
             reasons,
         });
         self.rolled_back_count = self.rollback_reasons.len();
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ClosedWorldAdmissionTierV0;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformClosedWorldAdmissionEventV0 {
+    pub pass_id: String,
+    pub module_instance: Option<ModuleInstanceKeyV0>,
+    pub reasons: Vec<TransformStrictPolicyReasonV0>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformClosedWorldAdmissionSummaryV0 {
+    pub refused_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evidence_scope: Option<&'static str>,
+    pub refusal_reasons: Vec<TransformClosedWorldAdmissionEventV0>,
+}
+
+impl TransformClosedWorldAdmissionSummaryV0 {
+    pub fn record_refusal(
+        &mut self,
+        pass_id: impl Into<String>,
+        module_instance: Option<ModuleInstanceKeyV0>,
+        reasons: Vec<TransformStrictPolicyReasonV0>,
+    ) {
+        self.refusal_reasons
+            .push(TransformClosedWorldAdmissionEventV0 {
+                pass_id: pass_id.into(),
+                module_instance,
+                reasons,
+            });
+        self.refused_count = self.refusal_reasons.len();
     }
 }
 
@@ -1003,6 +1056,7 @@ pub struct TransformExecutionSummaryV0 {
     pub semantic_preservation_telemetry: TransformSemanticPreservationTelemetryV0,
     pub discharge_ledger_telemetry: TransformDischargeLedgerTelemetryV0,
     pub strict_policy: TransformStrictPolicySummaryV0,
+    pub closed_world_admission: TransformClosedWorldAdmissionSummaryV0,
     pub decisions: Vec<TransformDecision>,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,

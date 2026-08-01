@@ -11,7 +11,9 @@ use omena_cascade::StaticSupportsAssumptionV0;
 use omena_cascade_proof::DischargeLedgerLookupStatusV0;
 use omena_evidence_graph::GuaranteeFamilyV0;
 use omena_parser::{
-    ClosedWorldBundleV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, StyleDialect,
+    ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
+    ClosedWorldModuleReachabilityEvidenceV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0,
+    StyleDialect,
 };
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
@@ -45,8 +47,9 @@ use crate::helpers::ir_transaction::{
 };
 use crate::model::{
     RollbackReceiptV0, RollbackScopeV0, TransformBlockedReasonV0,
-    TransformCascadeProofObligationV0, TransformCssModuleComposesResolutionV0, TransformDecision,
-    TransformDesignTokenRouteV0, TransformDischargeEvidenceV0, TransformDischargeLedgerTelemetryV0,
+    TransformCascadeProofObligationV0, TransformClosedWorldAdmissionSummaryV0,
+    TransformCssModuleComposesResolutionV0, TransformDecision, TransformDesignTokenRouteV0,
+    TransformDischargeEvidenceV0, TransformDischargeLedgerTelemetryV0,
     TransformEvaluationProfileV0, TransformExecutionContextV0, TransformExecutionPolicyV0,
     TransformExecutionSummaryV0, TransformImportInlineV0, TransformModuleEvaluationNativeEditV0,
     TransformModuleEvaluationV0, TransformModuleQualifiedExecutionErrorV0,
@@ -55,9 +58,10 @@ use crate::model::{
     TransformPreconditionV0, TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
     TransformSemanticGuaranteeTierV0, TransformSemanticPreservationTelemetryV0,
     TransformSemanticRemovalV0, TransformStrictPolicyReasonV0, TransformStrictPolicySummaryV0,
-    TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
-    TransformWinnerEqualityAxisV0, TransformWinnerEqualityObligationV0,
-    TransformWinnerEqualityObservationV0, transform_structural_decision_policy,
+    TransformStructuralDecisionClassV0, TransformStructuralDecisionPolicyV0,
+    TransformVendorPrefixPolicyV0, TransformWinnerEqualityAxisV0,
+    TransformWinnerEqualityObligationV0, TransformWinnerEqualityObservationV0,
+    transform_structural_decision_policy,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -2323,6 +2327,9 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         .map_or_else(TransformStrictPolicySummaryV0::default, |policy| {
             TransformStrictPolicySummaryV0::for_profile(policy.profile_id)
         });
+    let mut closed_world_admission_summary = TransformClosedWorldAdmissionSummaryV0::default();
+    let planned_module_qualified_ownership_digest =
+        closed_world_bundle.map(ClosedWorldBundleV0::module_qualified_ownership_digest);
 
     for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate() {
         let should_maintain_document_lex_cache =
@@ -2404,6 +2411,23 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .filter(|pass| strict_pass_ids.contains(pass.id()))
             .map(|pass| strict_plan_refusal_reasons(pass, context))
             .unwrap_or_default();
+        let closed_world_admission_reasons = pass
+            .filter(|pass| {
+                matches!(
+                    transform_structural_decision_policy(*pass).map(|policy| policy.class),
+                    Some(TransformStructuralDecisionClassV0::FactConsuming { .. })
+                )
+            })
+            .and_then(|_| {
+                closed_world_bundle.map(|bundle| {
+                    closed_world_admission_o3_reasons(
+                        bundle,
+                        module_qualified_symbols,
+                        planned_module_qualified_ownership_digest.as_deref(),
+                    )
+                })
+            })
+            .unwrap_or_default();
         let strict_refused_before_dispatch = !strict_refusal_reasons.is_empty();
         let mut dispatch_result = if !strict_refusal_reasons.is_empty() {
             strict_policy_summary.record_refusal(*pass_id, strict_refusal_reasons.clone());
@@ -2414,6 +2438,25 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     reasons: strict_refusal_reasons,
                 },
                 "strict verification evidence was unavailable before dispatch",
+            )
+        } else if !closed_world_admission_reasons.is_empty() {
+            let module_instance = closed_world_admission_module_instance(
+                closed_world_bundle,
+                module_qualified_symbols,
+            )
+            .cloned();
+            closed_world_admission_summary.record_refusal(
+                *pass_id,
+                module_instance,
+                closed_world_admission_reasons.clone(),
+            );
+            TransformPassDispatchResultV0::blocked(
+                pass_id,
+                input_byte_len,
+                TransformBlockedReasonV0::ClosedWorldAdmission {
+                    reasons: closed_world_admission_reasons,
+                },
+                "closed-world admission evidence was incomplete before destructive dispatch",
             )
         } else if let Some(reason) = flatten_precondition_failure {
             TransformPassDispatchResultV0::blocked(
@@ -2688,9 +2731,76 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         semantic_preservation_telemetry,
         discharge_ledger_telemetry,
         strict_policy: strict_policy_summary,
+        closed_world_admission: closed_world_admission_summary,
         decisions,
         outcomes,
         pass_plan,
+    }
+}
+
+fn closed_world_admission_module_instance<'a>(
+    closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
+    module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+) -> Option<&'a ModuleInstanceKeyV0> {
+    module_qualified_symbols
+        .map(ModuleQualifiedSymbolSetV0::module_instance)
+        .or_else(|| {
+            closed_world_bundle.and_then(|bundle| match bundle.linked_modules() {
+                [module_instance] => Some(module_instance),
+                _ => None,
+            })
+        })
+}
+
+fn closed_world_admission_o3_reasons(
+    bundle: &ClosedWorldBundleV0,
+    module_qualified_symbols: Option<&ModuleQualifiedSymbolSetV0>,
+    planned_ownership_digest: Option<&str>,
+) -> Vec<TransformStrictPolicyReasonV0> {
+    let module_instance =
+        closed_world_admission_module_instance(Some(bundle), module_qualified_symbols);
+    if module_instance.is_some_and(|module_instance| {
+        !bundle
+            .linked_modules()
+            .iter()
+            .any(|linked| linked == module_instance)
+    }) {
+        return Vec::new();
+    }
+    let mut missing = Vec::new();
+    if let Some(module_instance) = module_instance {
+        let interface_hash_known = bundle.interface_hashes().entries().iter().any(|entry| {
+            &entry.module_instance == module_instance
+                && matches!(
+                    entry.availability,
+                    ClosedWorldInterfaceHashAvailabilityV0::Known { .. }
+                )
+        });
+        if !interface_hash_known {
+            missing.push("interfaceHash".to_string());
+        }
+        if bundle.module_reachability_evidence(module_instance)
+            == ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent
+        {
+            missing.push("moduleReachabilityInputAbsent".to_string());
+        }
+    } else {
+        missing.push("moduleInstance".to_string());
+    }
+    if bundle
+        .source_precision()
+        .is_none_or(|precision| precision.unknown_source_count > 0)
+    {
+        missing.push("sourcePrecision".to_string());
+    }
+    let executed_ownership_digest = bundle.module_qualified_ownership_digest();
+    if planned_ownership_digest != Some(executed_ownership_digest.as_str()) {
+        missing.push("moduleQualifiedOwnershipDigest".to_string());
+    }
+    if missing.is_empty() {
+        Vec::new()
+    } else {
+        vec![TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { missing }]
     }
 }
 

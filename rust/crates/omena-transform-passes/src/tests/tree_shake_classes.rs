@@ -1,4 +1,6 @@
-use super::execute_transform_passes_on_source_with_closed_world_context;
+use super::{
+    execute_transform_passes_on_source_with_closed_world_context, test_closed_world_bundle,
+};
 use crate::{
     TransformBlockedReasonV0, TransformCssModuleComposesResolutionV0, TransformDecision,
     TransformExecutionContextV0, execute_transform_passes_on_source_with_dialect_and_context,
@@ -7,8 +9,7 @@ use crate::{
 };
 use omena_abstract_value::FactPrecision;
 use omena_parser::{
-    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
-    ModuleInstanceKeyV0, StyleDialect,
+    ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, StyleDialect,
 };
 use omena_transform_cst::TransformPassKind;
 
@@ -107,11 +108,10 @@ fn tree_shake_requires_explicit_closed_world_bundle() -> Result<(), String> {
         ModuleIdV0::new("tree-shake-bundle.css"),
         ConfigurationHashV0::none(),
     );
-    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let bundle = test_closed_world_bundle(
         vec![instance.clone()],
         vec![ClosedWorldLinkedModuleV0::new(instance).with_class_name("used")],
-    )
-    .map_err(|err| format!("closed-world bundle should be constructible: {err:?}"))?;
+    );
     let passes = [
         TransformPassKind::TreeShakeClass,
         TransformPassKind::PrintCss,
