@@ -3,11 +3,12 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use super::contract::{
-    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
-    ClosedWorldInterfaceHashEntryV0, ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0,
-    ClosedWorldModuleMetadataV0, ClosedWorldModuleReachabilityEvidenceV0,
-    ClosedWorldReachabilityBitsetParityReportV0, ClosedWorldSourcePrecisionSummaryV0,
-    ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, ReachabilityIndexV0,
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldComposesEdgeV0,
+    ClosedWorldInterfaceHashAvailabilityV0, ClosedWorldInterfaceHashEntryV0,
+    ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0, ClosedWorldModuleMetadataV0,
+    ClosedWorldModuleReachabilityEvidenceV0, ClosedWorldReachabilityBitsetParityReportV0,
+    ClosedWorldSourcePrecisionSummaryV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0,
+    ReachabilityIndexV0,
 };
 
 impl ClosedWorldBundleV0 {
@@ -46,6 +47,7 @@ impl ClosedWorldBundleV0 {
             &linked_modules,
             &metadata_by_instance,
         );
+        let composes_edges = composes_edges_for_reachable_modules(&linked_modules, &by_instance);
         let closure_hash = stable_closure_hash(entrypoints.as_slice(), &by_instance, &reachability);
         #[cfg(feature = "test-support")]
         crate::record_closed_world_bundle_construction_for_test();
@@ -57,9 +59,39 @@ impl ClosedWorldBundleV0 {
             closure_hash,
             interface_hashes,
             source_precision,
+            composes_edges,
             module_reachability_evidence,
         ))
     }
+}
+
+fn composes_edges_for_reachable_modules(
+    reachable: &[ModuleInstanceKeyV0],
+    by_instance: &BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>,
+) -> Vec<ClosedWorldComposesEdgeV0> {
+    let reachable = reachable.iter().collect::<BTreeSet<_>>();
+    let mut edges = by_instance
+        .iter()
+        .filter(|(instance, _)| reachable.contains(instance))
+        .flat_map(|(_, module)| module.composes_edges.iter().cloned())
+        .filter(|edge| reachable.contains(&edge.to_module))
+        .collect::<Vec<_>>();
+    edges.sort_by(|left, right| {
+        (
+            &left.from_module,
+            &left.from_symbol,
+            &left.to_module,
+            &left.to_symbol,
+        )
+            .cmp(&(
+                &right.from_module,
+                &right.from_symbol,
+                &right.to_module,
+                &right.to_symbol,
+            ))
+    });
+    edges.dedup();
+    edges
 }
 
 fn module_reachability_evidence_for_reachable_modules(
@@ -404,6 +436,28 @@ fn stable_closure_hash(
         if let Some(module) = by_instance.get(instance) {
             for dependency in &module.dependencies {
                 hash.instance(dependency);
+            }
+            let mut composes_edges = module.composes_edges.iter().collect::<Vec<_>>();
+            composes_edges.sort_by(|left, right| {
+                (
+                    &left.from_module,
+                    &left.from_symbol,
+                    &left.to_module,
+                    &left.to_symbol,
+                )
+                    .cmp(&(
+                        &right.from_module,
+                        &right.from_symbol,
+                        &right.to_module,
+                        &right.to_symbol,
+                    ))
+            });
+            for edge in composes_edges {
+                hash.piece("composes");
+                hash.instance(&edge.from_module);
+                hash.piece(&edge.from_symbol);
+                hash.instance(&edge.to_module);
+                hash.piece(&edge.to_symbol);
             }
         }
     }

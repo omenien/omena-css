@@ -238,13 +238,42 @@
     {
       "crate": "omena-bundler",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The public cascade-key constructor must accept an ordinal and importance so callers cannot bypass normalized layer ordering.",
+      "reason": "The public cascade-key constructor accepts an ordinal and importance, and linked dependency edges carry the composed local and remote selector names required by closed-world admission.",
       "expectedFailures": [
         {
           "lint": "method_parameter_count_changed",
           "evidenceNeedles": [
             "omena_bundler::LinkedStylesheetRuleV0::cascade_key_with_global_source_order takes 5 parameters",
             "but now takes 6 parameters"
+          ]
+        },
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field LinkerDependencyEdgeV0.local_names",
+            "field LinkerDependencyEdgeV0.remote_names"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "LinkerDependencyEdgeV0.local_names",
+            "LinkerDependencyEdgeV0.remote_names"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-parser",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "Closed-world linked modules carry module-qualified composes adjacency while the sealed bundle exposes additive evidence and adjacency accessors.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field ClosedWorldLinkedModuleV0.composes_edges"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "ClosedWorldLinkedModuleV0.composes_edges"
           ]
         }
       ]
@@ -347,14 +376,56 @@
               ]
             }
           ]
+        },
+        {
+          "id": "closed-world-admission-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "TransformExecutionSummaryV0.closedWorldAdmission and local closed-world interface hashes",
+          "reason": "Destructive pass refusals are reported separately from strict verification and local module interfaces carry deterministic evidence hashes.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+              "needles": [
+                "with_interface_hash(linker_input_interface_hash(",
+                "fn closed_world_bundle_reachability_precision("
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+              "needles": [
+                "pub closed_world_admission: TransformClosedWorldAdmissionSummaryV0"
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-transform-passes",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor aligns static keyframe-name admission with the shared CSS identifier escape boundary.",
-      "expectedFailures": [],
+      "reason": "The next pre-1.0 minor aligns static keyframe-name admission and adds the closed-world admission reason and summary wire.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field TransformExecutionSummaryV0.closed_world_admission"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "TransformExecutionSummaryV0.closed_world_admission"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "TransformBlockedReasonV0:ClosedWorldAdmission",
+            "TransformStrictPolicyReasonV0:ClosedWorldEvidenceIncomplete",
+            "TransformStrictPolicyReasonV0:EvidenceUnavailable",
+            "TransformStrictPolicyReasonV0:LivenessNotClosed",
+            "TransformStrictPolicyReasonV0:OwnershipNotSeparable"
+          ]
+        }
+      ],
       "expectedRuntimeValueChanges": [
         {
           "id": "keyframe-custom-ident-newline-escape-values",
@@ -367,6 +438,27 @@
               "needles": [
                 "css_identifier_escape_sequence_end(value, index)",
                 "fn rejects_newline_escapes_as_static_animation_names()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "closed-world-admission-refusal-values",
+          "kind": "selection-outcome-changing",
+          "surface": "FactConsuming transform dispatch and TransformExecutionSummaryV0.closedWorldAdmission",
+          "reason": "A destructive pass with incomplete closed-world evidence is planned-only and retains its input bytes with a typed named refusal.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+              "needles": [
+                "closed_world_admission_o3_reasons(",
+                "TransformBlockedReasonV0::ClosedWorldAdmission"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+              "needles": [
+                "fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping_bytes()"
               ]
             }
           ]

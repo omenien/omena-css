@@ -25,12 +25,13 @@ use omena_cascade::{
 };
 use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
 use omena_parser::{
-    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
-    ClosedWorldModuleMetadataV0, ClosedWorldModuleReachabilityEvidenceV0, ConfigurationHashV0,
-    ModuleIdV0, ModuleInstanceKeyV0, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
-    ParsedCssModuleValueFactKind, ParsedEmissionSelectorFactsV0, ParsedSassModuleEdgeFactKind,
-    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, StyleDialect,
-    collect_style_fact_collection, collect_style_facts,
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldComposesEdgeV0,
+    ClosedWorldLinkedModuleV0, ClosedWorldModuleMetadataV0,
+    ClosedWorldModuleReachabilityEvidenceV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
+    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
+    ParsedEmissionSelectorFactsV0, ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind,
+    ParsedStyleFacts, ParsedVariableFactKind, StyleDialect, collect_style_fact_collection,
+    collect_style_facts,
 };
 use omena_transform_cst::{
     IrNodeKindV0, TransformPassKind, lower_transform_ir_from_source, transform_pass_sort_ordinal,
@@ -345,6 +346,8 @@ pub struct LinkerDependencyEdgeV0 {
     pub kind: TransformBundleEdgeKind,
     pub import_source: String,
     pub import_ordinal: Option<u32>,
+    pub local_names: Vec<String>,
+    pub remote_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1608,6 +1611,8 @@ fn linker_input_from_module_facts(
                         kind: edge.kind,
                         import_source: import_source.clone(),
                         import_ordinal: edge.import_ordinal,
+                        local_names: edge.local_names.clone(),
+                        remote_names: edge.remote_names.clone(),
                     })
             })
             .collect(),
@@ -1804,6 +1809,17 @@ fn collect_closed_world_linked_modules_from_projection(
                     source_path: input.source_path.clone(),
                     import_source: edge.import_source.clone(),
                 })?;
+                if edge.kind == TransformBundleEdgeKind::CssModuleComposesExternal {
+                    for (local_name, remote_name) in edge.local_names.iter().zip(&edge.remote_names)
+                    {
+                        linked = linked.with_composes_edge(ClosedWorldComposesEdgeV0 {
+                            from_module: input.instance.clone(),
+                            from_symbol: local_name.clone(),
+                            to_module: dependency.clone(),
+                            to_symbol: remote_name.clone(),
+                        });
+                    }
+                }
                 linked = linked.with_dependency(dependency);
             }
             for name in dedupe_names(input.class_names.iter().cloned()) {
@@ -1820,6 +1836,21 @@ fn collect_closed_world_linked_modules_from_projection(
             }
             linked.dependencies.sort();
             linked.dependencies.dedup();
+            linked.composes_edges.sort_by(|left, right| {
+                (
+                    &left.from_module,
+                    &left.from_symbol,
+                    &left.to_module,
+                    &left.to_symbol,
+                )
+                    .cmp(&(
+                        &right.from_module,
+                        &right.from_symbol,
+                        &right.to_module,
+                        &right.to_symbol,
+                    ))
+            });
+            linked.composes_edges.dedup();
             Ok(linked)
         })
         .collect()
@@ -3202,6 +3233,8 @@ mod tests {
                 kind: TransformBundleEdgeKind::CssImport,
                 import_source: import_source.to_string(),
                 import_ordinal: Some(0),
+                local_names: Vec::new(),
+                remote_names: Vec::new(),
             }],
             class_names: vec![selector.to_string()],
             keyframe_names: Vec::new(),
@@ -3243,6 +3276,8 @@ mod tests {
                     kind: TransformBundleEdgeKind::CssModuleComposesLocal,
                     import_source: import_source.to_string(),
                     import_ordinal: Some(0),
+                    local_names: Vec::new(),
+                    remote_names: Vec::new(),
                 }],
                 class_names: Vec::new(),
                 keyframe_names: Vec::new(),
@@ -3630,6 +3665,32 @@ mod tests {
     }
 
     #[test]
+    fn external_composes_names_reach_the_sealed_closed_world_bundle() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "entry.module.css",
+                ".card { composes: base from \"./base.module.css\"; color: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "base.module.css",
+                ".base { padding: 8px; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let linked = link_omena_transform_bundle_modules(&["entry.module.css"], &modules)
+            .map_err(|error| format!("composes fixture should link: {error:?}"))?;
+
+        let edges = linked.closed_world_bundle.composes_edges();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].from_module.module().as_str(), "entry.module.css");
+        assert_eq!(edges[0].from_symbol, "card");
+        assert_eq!(edges[0].to_module.module().as_str(), "base.module.css");
+        assert_eq!(edges[0].to_symbol, "base");
+        Ok(())
+    }
+
+    #[test]
     fn projection_linker_core_links_without_module_sources() -> Result<(), String> {
         let app = ModuleInstanceKeyV0::new(
             ModuleIdV0::new("src/app.module.css"),
@@ -3649,6 +3710,8 @@ mod tests {
                         kind: TransformBundleEdgeKind::CssImport,
                         import_source: "./theme.css".to_string(),
                         import_ordinal: Some(0),
+                        local_names: Vec::new(),
+                        remote_names: Vec::new(),
                     }],
                     class_names: vec!["app".to_string()],
                     keyframe_names: Vec::new(),

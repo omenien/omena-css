@@ -85,9 +85,19 @@ impl ModuleInstanceKeyV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ClosedWorldComposesEdgeV0 {
+    pub from_module: ModuleInstanceKeyV0,
+    pub from_symbol: String,
+    pub to_module: ModuleInstanceKeyV0,
+    pub to_symbol: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClosedWorldLinkedModuleV0 {
     pub instance: ModuleInstanceKeyV0,
     pub dependencies: Vec<ModuleInstanceKeyV0>,
+    pub composes_edges: Vec<ClosedWorldComposesEdgeV0>,
     pub class_names: Vec<String>,
     pub keyframe_names: Vec<String>,
     pub value_names: Vec<String>,
@@ -99,6 +109,7 @@ impl ClosedWorldLinkedModuleV0 {
         Self {
             instance,
             dependencies: Vec::new(),
+            composes_edges: Vec::new(),
             class_names: Vec::new(),
             keyframe_names: Vec::new(),
             value_names: Vec::new(),
@@ -108,6 +119,11 @@ impl ClosedWorldLinkedModuleV0 {
 
     pub fn with_dependency(mut self, dependency: ModuleInstanceKeyV0) -> Self {
         self.dependencies.push(dependency);
+        self
+    }
+
+    pub fn with_composes_edge(mut self, edge: ClosedWorldComposesEdgeV0) -> Self {
+        self.composes_edges.push(edge);
         self
     }
 
@@ -419,6 +435,8 @@ pub struct ClosedWorldBundleV0 {
     interface_hashes: ClosedWorldInterfaceHashSetV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    composes_edges: Vec<ClosedWorldComposesEdgeV0>,
     #[serde(skip)]
     module_reachability_evidence:
         BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
@@ -432,6 +450,7 @@ impl ClosedWorldBundleV0 {
         closure_hash: String,
         interface_hashes: ClosedWorldInterfaceHashSetV0,
         source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+        composes_edges: Vec<ClosedWorldComposesEdgeV0>,
         module_reachability_evidence: BTreeMap<
             ModuleInstanceKeyV0,
             ClosedWorldModuleReachabilityEvidenceV0,
@@ -444,6 +463,7 @@ impl ClosedWorldBundleV0 {
             closure_hash,
             interface_hashes,
             source_precision,
+            composes_edges,
             module_reachability_evidence,
         }
     }
@@ -491,6 +511,10 @@ impl ClosedWorldBundleV0 {
 
     pub fn source_precision(&self) -> Option<ClosedWorldSourcePrecisionSummaryV0> {
         self.source_precision
+    }
+
+    pub fn composes_edges(&self) -> &[ClosedWorldComposesEdgeV0] {
+        self.composes_edges.as_slice()
     }
 
     pub fn module_reachability_evidence(

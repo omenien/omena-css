@@ -1938,6 +1938,11 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "hashing must run after composed class expansion",
         },
         TransformDagEdgeV0 {
+            from: "composes-resolution",
+            to: "tree-shake-class",
+            reason: "class liveness admission consumes composed selector adjacency",
+        },
+        TransformDagEdgeV0 {
             from: "nesting-unwrap",
             to: "css-modules-class-hashing",
             reason: "hashing must run after nested selectors are expanded into final selector branches",
@@ -2198,6 +2203,11 @@ mod tests {
     #[test]
     fn default_transform_dag_edges_are_independently_acyclic() -> Result<(), String> {
         let edges = default_transform_dag_edges();
+        assert!(
+            edges.iter().any(|edge| {
+                edge.from == "composes-resolution" && edge.to == "tree-shake-class"
+            })
+        );
         let mut nodes = BTreeSet::new();
         let mut incoming = BTreeMap::<&str, usize>::new();
         for edge in &edges {

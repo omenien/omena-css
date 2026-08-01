@@ -227,6 +227,8 @@ pub struct omena_bundler::LinkerDependencyEdgeV0
 pub omena_bundler::LinkerDependencyEdgeV0::import_ordinal: core::option::Option<u32>
 pub omena_bundler::LinkerDependencyEdgeV0::import_source: alloc::string::String
 pub omena_bundler::LinkerDependencyEdgeV0::kind: omena_bundler::TransformBundleEdgeKind
+pub omena_bundler::LinkerDependencyEdgeV0::local_names: alloc::vec::Vec<alloc::string::String>
+pub omena_bundler::LinkerDependencyEdgeV0::remote_names: alloc::vec::Vec<alloc::string::String>
 pub struct omena_bundler::LinkerInputV0
 pub omena_bundler::LinkerInputV0::class_names: alloc::vec::Vec<alloc::string::String>
 pub omena_bundler::LinkerInputV0::custom_property_names: alloc::vec::Vec<alloc::string::String>
@@ -305,6 +307,7 @@ pub fn omena_bundler::TransformBundleLinkProjectionSetV0::linker_projection(&sel
 #[non_exhaustive] pub struct omena_bundler::TransformBundleLinkerProjectionV0
 impl omena_bundler::TransformBundleLinkerProjectionV0
 pub fn omena_bundler::TransformBundleLinkerProjectionV0::inputs(&self) -> &[omena_bundler::LinkerInputV0]
+pub fn omena_bundler::TransformBundleLinkerProjectionV0::module_reachability_evidence(&self, &omena_parser::closed_world::contract::ModuleInstanceKeyV0) -> omena_parser::closed_world::contract::ClosedWorldModuleReachabilityEvidenceV0
 pub struct omena_bundler::TransformBundleModuleInputV0
 pub omena_bundler::TransformBundleModuleInputV0::configuration_hash: omena_parser::closed_world::contract::ConfigurationHashV0
 pub omena_bundler::TransformBundleModuleInputV0::dialect: omena_syntax::StyleDialect
