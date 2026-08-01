@@ -4096,6 +4096,11 @@ fn bundle_execution_field_scopes() -> Vec<OmenaQueryExecutionFieldScopeV0> {
             Entry,
             "retained entry strict-policy summary",
         ),
+        execution_field_scope(
+            "closedWorldAdmission",
+            Entry,
+            "retained entry closed-world admission summary",
+        ),
         execution_field_scope("decisions", Entry, "retained entry transform decisions"),
         execution_field_scope("outcomes", Entry, "retained entry pass outcomes"),
         execution_field_scope("passPlan", Entry, "retained entry transform pass plan"),
@@ -4594,7 +4599,7 @@ mod linked_source_map_tests {
             .find(|module| &module.module_instance == target_instance)
             .ok_or_else(|| "entry execution should be retained".to_string())?;
         let scope_evidence = summarize_linked_bundle_execution_scope(&execution)?;
-        assert_eq!(scope_evidence.field_scopes.len(), 27);
+        assert_eq!(scope_evidence.field_scopes.len(), 28);
         assert_eq!(scope_evidence.module_executions.len(), 3);
         assert_eq!(
             scope_evidence.bundle_composite.module_count,

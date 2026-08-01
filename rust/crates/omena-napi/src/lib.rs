@@ -1620,11 +1620,21 @@ mod tests {
                 "rollbackReasons": []
             })
         );
-        let verification_extension =
-            serde_json::to_string(&output_value["execution"]["strictPolicy"])
-                .map_err(|error| napi::Error::from_reason(error.to_string()))?;
-        let extension_segment = format!(",\"strictPolicy\":{verification_extension}");
-        let compatibility_output = output.replacen(extension_segment.as_str(), "", 1);
+        assert_eq!(
+            output_value["execution"]["closedWorldAdmission"],
+            serde_json::json!({
+                "refusedCount": 0,
+                "refusalReasons": []
+            })
+        );
+        let mut compatibility_output = output.clone();
+        for extension_name in ["strictPolicy", "closedWorldAdmission"] {
+            let verification_extension =
+                serde_json::to_string(&output_value["execution"][extension_name])
+                    .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+            let extension_segment = format!(",\"{extension_name}\":{verification_extension}");
+            compatibility_output = compatibility_output.replacen(extension_segment.as_str(), "", 1);
+        }
         assert_ne!(compatibility_output, output);
         let golden =
             include_str!("../tests/golden/ffi-boundary/build-style-source-with-context.txt")

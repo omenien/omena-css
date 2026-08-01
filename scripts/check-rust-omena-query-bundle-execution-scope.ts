@@ -18,6 +18,7 @@ const adapterTestPath = "test/unit/css-build-adapter/css-build-adapter.test.ts";
 const publicApiPath = "rust/crates/omena-query/tests/snapshots/public-api.txt";
 const TRANSFORM_EXECUTION_SUMMARY_UNDECLARED_WIRE_KEYS = [
   "cascadeProofObligations",
+  "closedWorldAdmission",
   "cssImportInlines",
   "cssModuleComposesExports",
   "cssModuleEvaluation",
