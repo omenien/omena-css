@@ -888,8 +888,13 @@ pub struct TransformLexCacheSpliceTelemetryV0 {
 /// retirement.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct TransformStructuralIrTransactionTelemetryV0 {
     pub transaction_commit_count: u64,
+    pub ir_metadata_refresh_count: u64,
+    pub ir_transaction_commit_count: u64,
+    pub ir_materialization_count: u64,
+    pub ir_mutation_count: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

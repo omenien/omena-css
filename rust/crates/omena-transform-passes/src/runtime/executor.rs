@@ -4077,6 +4077,23 @@ mod dispatch_table_tests {
                 .transaction_commit_count,
             2
         );
+        let ir_telemetry = execution.structural_ir_transaction_telemetry;
+        assert_eq!(ir_telemetry.ir_transaction_commit_count, 2);
+        assert_eq!(ir_telemetry.ir_materialization_count, 2);
+        assert_eq!(ir_telemetry.ir_metadata_refresh_count, 4);
+        assert_eq!(ir_telemetry.ir_mutation_count, 2);
+        assert_eq!(
+            ir_telemetry.ir_metadata_refresh_count,
+            ir_telemetry.ir_transaction_commit_count + ir_telemetry.ir_materialization_count,
+            "each metadata refresh must be attributed to one successful commit or materialization"
+        );
+        assert_eq!(
+            ir_telemetry.ir_transaction_commit_count,
+            execution
+                .structural_ir_transaction_telemetry
+                .transaction_commit_count,
+            "this helper-only fixture pins the corollary without conflating the two commit domains"
+        );
         assert_eq!(execution.mutation_count, 2);
         assert_eq!(mutation_spans.len(), 2);
         assert!(mutation_spans.iter().all(|span| {

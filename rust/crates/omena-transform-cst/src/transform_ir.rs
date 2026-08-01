@@ -6,7 +6,80 @@ use omena_parser::{
 };
 use omena_syntax::{SyntaxKind, SyntaxNode};
 use serde::Serialize;
-use std::collections::BTreeSet;
+use std::{cell::Cell, collections::BTreeSet};
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct TransformIrMetadataTelemetryV0 {
+    pub ir_metadata_refresh_count: u64,
+    pub ir_transaction_commit_count: u64,
+    pub ir_materialization_count: u64,
+    pub ir_mutation_count: u64,
+}
+
+impl TransformIrMetadataTelemetryV0 {
+    pub const fn refresh_conservation_holds(self) -> bool {
+        self.ir_metadata_refresh_count
+            == self
+                .ir_transaction_commit_count
+                .saturating_add(self.ir_materialization_count)
+    }
+}
+
+thread_local! {
+    static TRANSFORM_IR_METADATA_TELEMETRY:
+        Cell<TransformIrMetadataTelemetryV0> =
+            const { Cell::new(TransformIrMetadataTelemetryV0 {
+                ir_metadata_refresh_count: 0,
+                ir_transaction_commit_count: 0,
+                ir_materialization_count: 0,
+                ir_mutation_count: 0,
+            }) };
+}
+
+pub fn reset_transform_ir_metadata_telemetry() {
+    TRANSFORM_IR_METADATA_TELEMETRY.with(|telemetry| {
+        telemetry.set(TransformIrMetadataTelemetryV0::default());
+    });
+}
+
+pub fn transform_ir_metadata_telemetry_snapshot() -> TransformIrMetadataTelemetryV0 {
+    TRANSFORM_IR_METADATA_TELEMETRY.with(Cell::get)
+}
+
+fn record_transform_ir_metadata_refresh() {
+    TRANSFORM_IR_METADATA_TELEMETRY.with(|telemetry| {
+        let mut snapshot = telemetry.get();
+        snapshot.ir_metadata_refresh_count = snapshot.ir_metadata_refresh_count.saturating_add(1);
+        telemetry.set(snapshot);
+    });
+}
+
+fn record_transform_ir_transaction_commit() {
+    TRANSFORM_IR_METADATA_TELEMETRY.with(|telemetry| {
+        let mut snapshot = telemetry.get();
+        snapshot.ir_transaction_commit_count =
+            snapshot.ir_transaction_commit_count.saturating_add(1);
+        telemetry.set(snapshot);
+    });
+}
+
+fn record_transform_ir_materialization() {
+    TRANSFORM_IR_METADATA_TELEMETRY.with(|telemetry| {
+        let mut snapshot = telemetry.get();
+        snapshot.ir_materialization_count = snapshot.ir_materialization_count.saturating_add(1);
+        telemetry.set(snapshot);
+    });
+}
+
+fn record_transform_ir_mutation() {
+    TRANSFORM_IR_METADATA_TELEMETRY.with(|telemetry| {
+        let mut snapshot = telemetry.get();
+        snapshot.ir_mutation_count = snapshot.ir_mutation_count.saturating_add(1);
+        telemetry.set(snapshot);
+    });
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(transparent)]
@@ -822,6 +895,7 @@ impl<'ir> IrTransactionV0<'ir> {
         self.working.nodes.push(node);
         self.insert_node_in_parent(anchor_id, node_id);
         self.changed_node_ids.push(node_id);
+        record_transform_ir_mutation();
         Ok(node_id)
     }
 
@@ -876,6 +950,7 @@ impl<'ir> IrTransactionV0<'ir> {
             self.insert_node_in_parent(anchor_id, *copied_root);
         }
         self.changed_node_ids.extend(copied_nodes);
+        record_transform_ir_mutation();
         Ok(copied_roots)
     }
 
@@ -917,6 +992,7 @@ impl<'ir> IrTransactionV0<'ir> {
         node.deleted = deleted;
         node.canonical_text = Some(canonical_text);
         self.changed_node_ids.push(node_id);
+        record_transform_ir_mutation();
         Ok(())
     }
 
@@ -1299,6 +1375,7 @@ mod sealed_metadata_refresh {
     use super::*;
 
     fn refresh_transform_ir_metadata(ir: &mut TransformIrV0) {
+        record_transform_ir_metadata_refresh();
         ir.indexes = build_indexes(&ir.nodes);
         ir.original_node_count = ir
             .nodes
@@ -1328,19 +1405,21 @@ mod sealed_metadata_refresh {
         ir: &mut TransformIrV0,
     ) -> Result<String, TransformIrPrintErrorV0> {
         let printed = materialize_transform_ir_printed_source_without_metadata_refresh(ir)?;
+        record_transform_ir_materialization();
         refresh_transform_ir_metadata(ir);
         Ok(printed)
     }
 
     impl IrTransactionV0<'_> {
         pub fn commit(mut self) -> Result<(), IrTransactionErrorV0> {
-            refresh_transform_ir_metadata(&mut self.working);
             validate_transaction_commit(
                 &self.working,
                 &self.changed_node_ids,
                 self.declared_region,
             )
             .map_err(IrTransactionErrorV0::Validation)?;
+            record_transform_ir_transaction_commit();
+            refresh_transform_ir_metadata(&mut self.working);
             self.working.ir_epoch = self.ir.ir_epoch.saturating_add(1);
             *self.ir = self.working;
             Ok(())
@@ -1363,6 +1442,53 @@ mod sealed_metadata_refresh {
                 ir.original_node_count + ir.synthesized_node_count,
                 ir.nodes.len()
             );
+        }
+
+        #[test]
+        fn metadata_refreshes_are_conserved_across_commit_and_materialization() {
+            let mut ir = lower_transform_ir_from_source(
+                ".control { color: red; }",
+                StyleDialect::Css,
+                "control.css",
+            );
+            reset_transform_ir_metadata_telemetry();
+            let value = ir
+                .nodes
+                .iter()
+                .find(|node| node.kind == IrNodeKindV0::Value)
+                .map(|node| node.node_id)
+                .expect("fixture must contain a value");
+            let source_byte_len = ir.source_byte_len;
+            let mut transaction =
+                IrTransactionV0::new(&mut ir, "control", IrEditRegionV0::full(source_byte_len));
+            transaction
+                .rewrite_value(value, "blue")
+                .expect("fixture mutation must succeed");
+            transaction.commit().expect("fixture commit must succeed");
+
+            assert_eq!(
+                transform_ir_metadata_telemetry_snapshot(),
+                TransformIrMetadataTelemetryV0 {
+                    ir_metadata_refresh_count: 1,
+                    ir_transaction_commit_count: 1,
+                    ir_materialization_count: 0,
+                    ir_mutation_count: 1,
+                }
+            );
+
+            materialize_transform_ir_printed_source(&mut ir)
+                .expect("fixture materialization must succeed");
+            let telemetry = transform_ir_metadata_telemetry_snapshot();
+            assert_eq!(
+                telemetry,
+                TransformIrMetadataTelemetryV0 {
+                    ir_metadata_refresh_count: 2,
+                    ir_transaction_commit_count: 1,
+                    ir_materialization_count: 1,
+                    ir_mutation_count: 1,
+                }
+            );
+            assert!(telemetry.refresh_conservation_holds());
         }
     }
 }
