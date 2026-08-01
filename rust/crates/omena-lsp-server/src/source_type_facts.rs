@@ -63,6 +63,8 @@ const SOURCE_TYPE_FACT_REASON_UNSAFE_CSS_IDENTIFIER: &str = "unsafeCssIdentifier
 const SOURCE_TYPE_FACT_CLOSURE_INDEX_BUDGET: &str = "indexBudgetExhausted";
 const SOURCE_TYPE_FACT_CLOSURE_MODULE_SPECIFIER: &str = "unindexedModuleSpecifier";
 const SOURCE_TYPE_FACT_CLOSURE_PACKAGE_EXTENDS: &str = "packageFormExtends";
+const SOURCE_TYPE_FACT_CLOSURE_TSCONFIG_PARSE_FAILED: &str = "tsconfigParseFailed";
+const SOURCE_TYPE_FACT_CLOSURE_TSCONFIG_EXTENDS_ARRAY: &str = "tsconfigExtendsArrayUnsupported";
 const SOURCE_TYPE_FACT_CLOSURE_WATCHED_FILES: &str = "watchedFilesUnobserved";
 const SOURCE_TYPE_FACT_CLOSURE_WORKSPACE_FOLDER: &str = "workspaceFolderUnknown";
 
@@ -399,7 +401,7 @@ fn source_type_fact_cache_context(
     document: &LspTextDocumentState,
     request: &TsgoTypeFactRequestV0,
 ) -> SourceTypeFactCacheContextV0 {
-    let (environment_fingerprint, package_form_extends) = source_type_fact_environment_fingerprint(
+    let (environment_fingerprint, mut reasons) = source_type_fact_environment_fingerprint(
         request.workspace_root.as_str(),
         request.config_path.as_str(),
     );
@@ -432,15 +434,11 @@ fn source_type_fact_cache_context(
         "disclosure": "provider-owned snapshot handle is released after collection and is not a validity input",
     });
 
-    let mut closure_incomplete_reasons = BTreeSet::new();
     if state.source_type_fact_workspace_index_incomplete {
-        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_INDEX_BUDGET);
+        reasons.insert(SOURCE_TYPE_FACT_CLOSURE_INDEX_BUDGET);
     }
     if !state.source_type_fact_watched_files_observed {
-        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_WATCHED_FILES);
-    }
-    if package_form_extends {
-        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_PACKAGE_EXTENDS);
+        reasons.insert(SOURCE_TYPE_FACT_CLOSURE_WATCHED_FILES);
     }
     if document.workspace_folder_uri.is_none()
         || state.documents.values().any(|candidate| {
@@ -448,13 +446,13 @@ fn source_type_fact_cache_context(
                 && candidate.workspace_folder_uri.is_none()
         })
     {
-        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_WORKSPACE_FOLDER);
+        reasons.insert(SOURCE_TYPE_FACT_CLOSURE_WORKSPACE_FOLDER);
     }
     if !source_type_fact_module_specifiers_are_indexed(
         state,
         document.workspace_folder_uri.as_deref(),
     ) {
-        closure_incomplete_reasons.insert(SOURCE_TYPE_FACT_CLOSURE_MODULE_SPECIFIER);
+        reasons.insert(SOURCE_TYPE_FACT_CLOSURE_MODULE_SPECIFIER);
     }
 
     SourceTypeFactCacheContextV0 {
@@ -463,15 +461,15 @@ fn source_type_fact_cache_context(
             tsgo_binary_fingerprint,
             collection_provenance,
         },
-        closure_incomplete_reasons,
+        closure_incomplete_reasons: reasons,
     }
 }
 
 fn source_type_fact_environment_fingerprint(
     workspace_root: &str,
     config_path: &str,
-) -> (String, bool) {
-    let (config_chain, package_form_extends) = source_type_fact_tsconfig_chain(config_path);
+) -> (String, BTreeSet<&'static str>) {
+    let (config_chain, closure_incomplete_reasons) = source_type_fact_tsconfig_chain(config_path);
     let environment = json!({
         "schemaVersion": "0",
         "product": "omena-lsp-server.source-type-fact-environment",
@@ -487,27 +485,22 @@ fn source_type_fact_environment_fingerprint(
                 .to_string()
         })
         .unwrap_or_else(|| "unavailable:environment".to_string());
-    (fingerprint, package_form_extends)
+    (fingerprint, closure_incomplete_reasons)
 }
 
-fn source_type_fact_tsconfig_chain(config_path: &str) -> (Vec<Value>, bool) {
+fn source_type_fact_tsconfig_chain(config_path: &str) -> (Vec<Value>, BTreeSet<&'static str>) {
     let mut rows = Vec::new();
     let mut seen = BTreeSet::new();
-    let mut package_form_extends = false;
-    collect_source_type_fact_tsconfig_chain(
-        Path::new(config_path),
-        &mut seen,
-        &mut rows,
-        &mut package_form_extends,
-    );
-    (rows, package_form_extends)
+    let mut reasons = BTreeSet::new();
+    collect_tsconfig_chain(Path::new(config_path), &mut seen, &mut rows, &mut reasons);
+    (rows, reasons)
 }
 
-fn collect_source_type_fact_tsconfig_chain(
+fn collect_tsconfig_chain(
     config_path: &Path,
     seen: &mut BTreeSet<PathBuf>,
     rows: &mut Vec<Value>,
-    package_form_extends: &mut bool,
+    reasons: &mut BTreeSet<&'static str>,
 ) {
     let normalized = fs::canonicalize(config_path).unwrap_or_else(|_| config_path.to_path_buf());
     if !seen.insert(normalized.clone()) {
@@ -525,13 +518,20 @@ fn collect_source_type_fact_tsconfig_chain(
         "digest": compute_omena_sif_leaf_hash_v1(bytes.as_slice()).as_str(),
     }));
     let Ok(config) = serde_json::from_slice::<Value>(bytes.as_slice()) else {
+        reasons.insert(SOURCE_TYPE_FACT_CLOSURE_TSCONFIG_PARSE_FAILED);
         return;
     };
-    let Some(extends) = config.get("extends").and_then(Value::as_str) else {
+    let Some(extends_value) = config.get("extends") else {
+        return;
+    };
+    let Some(extends) = extends_value.as_str() else {
+        if extends_value.is_array() {
+            reasons.insert(SOURCE_TYPE_FACT_CLOSURE_TSCONFIG_EXTENDS_ARRAY);
+        }
         return;
     };
     if !extends.starts_with('.') {
-        *package_form_extends = true;
+        reasons.insert(SOURCE_TYPE_FACT_CLOSURE_PACKAGE_EXTENDS);
         return;
     }
     let Some(config_dir) = config_path.parent() else {
@@ -549,7 +549,7 @@ fn collect_source_type_fact_tsconfig_chain(
         .find(|candidate| candidate.exists())
     };
     if let Some(next) = next {
-        collect_source_type_fact_tsconfig_chain(next.as_path(), seen, rows, package_form_extends);
+        collect_tsconfig_chain(next.as_path(), seen, rows, reasons);
     }
 }
 
@@ -1728,11 +1728,12 @@ mod tests {
             "export const value = 1;".to_string(),
             &OmenaQueryStyleResolutionInputsV0::default(),
         );
-        let (environment_before, package_extends) = source_type_fact_environment_fingerprint(
-            workspace_root.to_string_lossy().as_ref(),
-            config.to_string_lossy().as_ref(),
-        );
-        assert!(!package_extends);
+        let (environment_before, closure_incomplete_reasons) =
+            source_type_fact_environment_fingerprint(
+                workspace_root.to_string_lossy().as_ref(),
+                config.to_string_lossy().as_ref(),
+            );
+        assert!(!closure_incomplete_reasons.contains(SOURCE_TYPE_FACT_CLOSURE_PACKAGE_EXTENDS));
         let freshness_before = test_sidecar_freshness(environment_before, "binary:stable");
         let entries = vec![test_type_fact_entry(document_path.as_path())];
         assert!(store_source_type_fact_sidecar_with_freshness(
@@ -1926,6 +1927,85 @@ mod tests {
     }
 
     #[test]
+    fn jsonc_tsconfig_extends_incompleteness_skips_sidecar_but_keeps_memory_answer() -> TestResult {
+        assert_unresolved_tsconfig_extends_fails_soft(
+            "jsonc-comment",
+            "{\n  // TypeScript accepts comments in tsconfig files.\n  \"extends\": \"./tsconfig.base.json\"\n}\n",
+            SOURCE_TYPE_FACT_CLOSURE_TSCONFIG_PARSE_FAILED,
+        )
+    }
+
+    #[test]
+    fn array_tsconfig_extends_incompleteness_skips_sidecar_but_keeps_memory_answer() -> TestResult {
+        assert_unresolved_tsconfig_extends_fails_soft(
+            "array-extends",
+            "{\n  \"extends\": [\"./tsconfig.base.json\"]\n}\n",
+            SOURCE_TYPE_FACT_CLOSURE_TSCONFIG_EXTENDS_ARRAY,
+        )
+    }
+
+    #[test]
+    fn source_type_fact_sidecar_refuses_schema_zero_shard() -> TestResult {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-source-type-fact-schema-zero-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&workspace_root);
+        fs::create_dir_all(&workspace_root)?;
+        let document_path = workspace_root.join("App.tsx");
+        fs::write(&document_path, "export const value = 1;")?;
+        let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        let document_uri = path_to_file_uri(document_path.as_path());
+        let mut state = initialized_source_type_fact_test_state(workspace_uri.as_str());
+        let document = crate::lsp_text_document_state(
+            document_uri.clone(),
+            Some(workspace_uri.clone()),
+            "typescriptreact".to_string(),
+            1,
+            "export const value = 1;".to_string(),
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        let freshness = test_sidecar_freshness("environment:stable", "binary:stable");
+        let entries = vec![test_type_fact_entry(document_path.as_path())];
+        assert!(store_source_type_fact_sidecar_with_freshness(
+            &state,
+            Some(workspace_uri.as_str()),
+            document_uri.as_str(),
+            "schema-key",
+            entries.as_slice(),
+            &freshness,
+        ));
+        let path = crate::source_type_fact_cache::source_type_fact_sidecar_file_path_for_test(
+            &state,
+            Some(workspace_uri.as_str()),
+            document_uri.as_str(),
+        )
+        .ok_or_else(|| std::io::Error::other("sidecar path should resolve"))?;
+        let mut shard = serde_json::from_slice::<Value>(fs::read(path.as_path())?.as_slice())?;
+        assert_eq!(
+            shard["schemaVersion"], "1",
+            "new source type fact sidecars must use schema version 1"
+        );
+        shard["schemaVersion"] = Value::String("0".to_string());
+        fs::write(path.as_path(), serde_json::to_vec(&shard)?)?;
+
+        assert!(
+            cached_source_type_fact_entries(&mut state, &document, Some("schema-key"), &freshness,)
+                .is_none()
+        );
+        assert_eq!(
+            state
+                .source_type_fact_cache_telemetry
+                .sidecar_refused_by_reason
+                .get("schema"),
+            Some(&1)
+        );
+        eprintln!("schemaVersion=1 oldShardVersion=0 refusalReason=schema");
+        fs::remove_dir_all(&workspace_root)?;
+        Ok(())
+    }
+
+    #[test]
     fn source_type_fact_cache_evicts_least_recently_used_entry() {
         let mut state = LspShellState::default();
         for index in 0..=SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES {
@@ -1948,6 +2028,100 @@ mod tests {
             state.source_type_fact_cache.len(),
             SOURCE_TYPE_FACT_CACHE_MAX_ENTRIES
         );
+    }
+
+    fn assert_unresolved_tsconfig_extends_fails_soft(
+        fixture_id: &str,
+        config_source: &str,
+        expected_reason: &'static str,
+    ) -> TestResult {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-source-type-fact-{fixture_id}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&workspace_root);
+        fs::create_dir_all(workspace_root.join("src"))?;
+        let parent_config = workspace_root.join("tsconfig.base.json");
+        let config = workspace_root.join("tsconfig.json");
+        fs::write(&parent_config, r#"{"compilerOptions":{"strict":true}}"#)?;
+        fs::write(&config, config_source)?;
+        let document_path = workspace_root.join("src/App.tsx");
+        fs::write(&document_path, "export const value = 1;")?;
+        let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        let document_uri = path_to_file_uri(document_path.as_path());
+        let mut state = initialized_source_type_fact_test_state(workspace_uri.as_str());
+        state.source_type_fact_watched_files_observed = true;
+        let document = crate::lsp_text_document_state(
+            document_uri.clone(),
+            Some(workspace_uri.clone()),
+            "typescriptreact".to_string(),
+            1,
+            "export const value = 1;".to_string(),
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        let request = TsgoTypeFactRequestV0 {
+            workspace_root: workspace_root.to_string_lossy().to_string(),
+            config_path: config.to_string_lossy().to_string(),
+            targets: Vec::new(),
+        };
+        let context_before = source_type_fact_cache_context(&state, &document, &request);
+        record_source_type_fact_closure_incomplete(
+            &mut state,
+            &context_before.closure_incomplete_reasons,
+        );
+        let entries = vec![test_type_fact_entry(document_path.as_path())];
+        cache_source_type_fact_results(
+            &mut state,
+            &document,
+            fixture_id,
+            entries.as_slice(),
+            &context_before,
+        );
+        let path = crate::source_type_fact_cache::source_type_fact_sidecar_file_path_for_test(
+            &state,
+            Some(workspace_uri.as_str()),
+            document_uri.as_str(),
+        )
+        .ok_or_else(|| std::io::Error::other("sidecar path should resolve"))?;
+
+        fs::write(&parent_config, r#"{"compilerOptions":{"strict":false}}"#)?;
+        let context_after = source_type_fact_cache_context(&state, &document, &request);
+        assert_eq!(
+            context_after.freshness.environment_fingerprint,
+            context_before.freshness.environment_fingerprint,
+            "an unresolved extends edge cannot fingerprint the edited parent"
+        );
+        let memory_answer = cached_source_type_fact_entries(
+            &mut state,
+            &document,
+            Some(fixture_id),
+            &context_after.freshness,
+        );
+        let recorded_reason = state
+            .source_type_fact_cache_telemetry
+            .closure_incomplete_by_reason
+            .get(expected_reason)
+            .copied();
+        assert!(
+            !path.exists()
+                && context_before
+                    .closure_incomplete_reasons
+                    .contains(expected_reason)
+                && memory_answer == Some(entries)
+                && recorded_reason == Some(1),
+            "unresolved tsconfig extends must fail soft: sidecar_exists={}, reasons={:?}, memory_answer={memory_answer:?}, recorded_reason={recorded_reason:?}",
+            path.exists(),
+            context_before.closure_incomplete_reasons,
+        );
+        eprintln!(
+            "closureReason={expected_reason} sidecarExists={} memoryAnswer={} parentEditFingerprintChanged={}",
+            path.exists(),
+            memory_answer.is_some(),
+            context_after.freshness.environment_fingerprint
+                != context_before.freshness.environment_fingerprint,
+        );
+        fs::remove_dir_all(&workspace_root)?;
+        Ok(())
     }
 
     fn initialized_source_type_fact_test_state(workspace_uri: &str) -> LspShellState {

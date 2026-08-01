@@ -58,7 +58,7 @@ pub(crate) fn load_source_type_fact_sidecar_with_freshness(
     let Ok(shard) = serde_json::from_slice::<Value>(bytes.as_slice()) else {
         return SourceTypeFactSidecarLoadV0::Refused(SourceTypeFactSidecarRefusalReasonV0::Schema);
     };
-    if shard.pointer("/schemaVersion").and_then(Value::as_str) != Some("0")
+    if shard.pointer("/schemaVersion").and_then(Value::as_str) != Some("1")
         || shard.pointer("/product").and_then(Value::as_str)
             != Some(SOURCE_TYPE_FACT_SIDECAR_PRODUCT)
         || shard.pointer("/workspaceFolderUri").and_then(Value::as_str) != workspace_folder_uri
@@ -126,7 +126,7 @@ pub(crate) fn store_source_type_fact_sidecar_with_freshness(
         return false;
     };
     let shard = json!({
-        "schemaVersion": "0",
+        "schemaVersion": "1",
         "product": SOURCE_TYPE_FACT_SIDECAR_PRODUCT,
         "key": key,
         "workspaceFolderUri": workspace_folder_uri,
