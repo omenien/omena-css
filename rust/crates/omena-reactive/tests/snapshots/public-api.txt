@@ -1,92 +1,51 @@
-pub mod omena_reactive
-pub enum omena_reactive::DeltaFoldParityErrorV0
-pub omena_reactive::DeltaFoldParityErrorV0::Diverged
-pub omena_reactive::DeltaFoldParityErrorV0::Diverged::incremental_digest: [u8; 32]
-pub omena_reactive::DeltaFoldParityErrorV0::Diverged::node: omena_reactive::ReactiveNodeIdV0
-pub omena_reactive::DeltaFoldParityErrorV0::Diverged::rebuilt_digest: [u8; 32]
-pub omena_reactive::DeltaFoldParityErrorV0::InvalidNode
-pub omena_reactive::DeltaFoldParityErrorV0::InvalidNode::node_index: usize
-pub omena_reactive::DeltaFoldParityErrorV0::NotDeltaFold
-pub omena_reactive::DeltaFoldParityErrorV0::NotDeltaFold::node: omena_reactive::ReactiveNodeIdV0
+#[non_exhaustive] pub enum omena_reactive::DeltaFoldParityErrorV0
+#[non_exhaustive] pub enum omena_reactive::ReactiveDivergenceClassV0
+#[non_exhaustive] pub enum omena_reactive::ReactiveDivergenceDispositionV0
+#[non_exhaustive] pub enum omena_reactive::ReactiveEngineErrorV0
+#[non_exhaustive] pub enum omena_reactive::ReactiveGraphBuildErrorV0
+#[non_exhaustive] pub enum omena_reactive::ReactiveNodeKindV0
+#[non_exhaustive] pub enum omena_reactive::ReactiveObservationPhaseV0
+#[non_exhaustive] pub enum omena_reactive::ReactiveStateV0
+#[non_exhaustive] pub enum omena_reactive::ReactiveValueV0
+#[non_exhaustive] pub enum omena_reactive::StabilizeStatusV0
+#[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::Diverged
+#[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::InvalidNode
+#[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::NotDeltaFold
+#[non_exhaustive] pub omena_reactive::ReactiveEngineErrorV0::InvalidNode
+#[non_exhaustive] pub omena_reactive::ReactiveEngineErrorV0::NodeDoesNotAcceptDeposits
+#[non_exhaustive] pub omena_reactive::ReactiveGraphBuildErrorV0::DuplicateDeltaKey
+#[non_exhaustive] pub omena_reactive::ReactiveGraphBuildErrorV0::EmptyChangePolicyName
+#[non_exhaustive] pub omena_reactive::ReactiveGraphBuildErrorV0::ForeignNodeId
+#[non_exhaustive] pub omena_reactive::StabilizeStatusV0::Pending
+#[non_exhaustive] pub omena_reactive::StabilizeStatusV0::Settled
+#[non_exhaustive] pub struct omena_reactive::EffectReceiptV0
+#[non_exhaustive] pub struct omena_reactive::ReactiveUnavailableV0
+impl core::default::Default for omena_reactive::ReactiveGraphBuilderV0
 impl core::error::Error for omena_reactive::DeltaFoldParityErrorV0
-impl core::fmt::Display for omena_reactive::DeltaFoldParityErrorV0
-pub fn omena_reactive::DeltaFoldParityErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub enum omena_reactive::ReactiveDivergenceClassV0
-pub omena_reactive::ReactiveDivergenceClassV0::FlushConeClosureTiming
-pub omena_reactive::ReactiveDivergenceClassV0::MidWaveReadTiming
-impl omena_reactive::ReactiveDivergenceClassV0
-pub const fn omena_reactive::ReactiveDivergenceClassV0::all() -> [Self; 2]
-pub const fn omena_reactive::ReactiveDivergenceClassV0::disposition(self, omena_reactive::ReactiveObservationPhaseV0) -> omena_reactive::ReactiveDivergenceDispositionV0
-pub fn omena_reactive::ReactiveDivergenceClassV0::from_id(&str) -> core::option::Option<Self>
-pub const fn omena_reactive::ReactiveDivergenceClassV0::id(self) -> &'static str
-pub enum omena_reactive::ReactiveDivergenceDispositionV0
-pub omena_reactive::ReactiveDivergenceDispositionV0::BenignUntilFlush
-pub omena_reactive::ReactiveDivergenceDispositionV0::Blocker
-pub enum omena_reactive::ReactiveEngineErrorV0
-pub omena_reactive::ReactiveEngineErrorV0::InvalidNode
-pub omena_reactive::ReactiveEngineErrorV0::InvalidNode::node_index: usize
-pub omena_reactive::ReactiveEngineErrorV0::NodeDoesNotAcceptDeposits
-pub omena_reactive::ReactiveEngineErrorV0::NodeDoesNotAcceptDeposits::node_index: usize
-pub omena_reactive::ReactiveEngineErrorV0::ObserverMutationDuringWave
-pub omena_reactive::ReactiveEngineErrorV0::ZeroStepBudget
 impl core::error::Error for omena_reactive::ReactiveEngineErrorV0
-impl core::fmt::Display for omena_reactive::ReactiveEngineErrorV0
-pub fn omena_reactive::ReactiveEngineErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub enum omena_reactive::ReactiveGraphBuildErrorV0
-pub omena_reactive::ReactiveGraphBuildErrorV0::DuplicateDeltaKey
-pub omena_reactive::ReactiveGraphBuildErrorV0::DuplicateDeltaKey::key: alloc::string::String
-pub omena_reactive::ReactiveGraphBuildErrorV0::EmptyChangePolicyName
-pub omena_reactive::ReactiveGraphBuildErrorV0::EmptyChangePolicyName::node_index: usize
 impl core::error::Error for omena_reactive::ReactiveGraphBuildErrorV0
-impl core::fmt::Display for omena_reactive::ReactiveGraphBuildErrorV0
-pub fn omena_reactive::ReactiveGraphBuildErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub enum omena_reactive::ReactiveNodeKindV0
-pub omena_reactive::ReactiveNodeKindV0::AsyncResult
-pub omena_reactive::ReactiveNodeKindV0::DeltaFold
-pub omena_reactive::ReactiveNodeKindV0::EffectBoundary
-pub omena_reactive::ReactiveNodeKindV0::Input
-pub omena_reactive::ReactiveNodeKindV0::Map
-pub omena_reactive::ReactiveNodeKindV0::Switch
-pub omena_reactive::ReactiveNodeKindV0::Zip
-pub enum omena_reactive::ReactiveObservationPhaseV0
-pub omena_reactive::ReactiveObservationPhaseV0::DuringWave
-pub omena_reactive::ReactiveObservationPhaseV0::Flush
-pub enum omena_reactive::ReactiveStateV0
-pub omena_reactive::ReactiveStateV0::Available(omena_reactive::ReactiveValueV0)
-pub omena_reactive::ReactiveStateV0::Unavailable(omena_reactive::ReactiveUnavailableV0)
-impl omena_reactive::ReactiveStateV0
-pub fn omena_reactive::ReactiveStateV0::available(omena_reactive::ReactiveValueV0) -> Self
-pub fn omena_reactive::ReactiveStateV0::unavailable(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> Self
-pub enum omena_reactive::ReactiveValueV0
-pub omena_reactive::ReactiveValueV0::Bool(bool)
-pub omena_reactive::ReactiveValueV0::Counter(u64)
-pub omena_reactive::ReactiveValueV0::Digest([u8; 32])
-pub omena_reactive::ReactiveValueV0::StringSet(alloc::collections::btree::set::BTreeSet<alloc::string::String>)
-pub omena_reactive::ReactiveValueV0::Text(alloc::string::String)
-pub omena_reactive::ReactiveValueV0::TextMap(alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
-pub omena_reactive::ReactiveValueV0::Tuple(alloc::vec::Vec<Self>)
-pub omena_reactive::ReactiveValueV0::Unit
-pub enum omena_reactive::StabilizeStatusV0
-pub omena_reactive::StabilizeStatusV0::Pending
-pub omena_reactive::StabilizeStatusV0::Pending::recomputed_node_count: usize
-pub omena_reactive::StabilizeStatusV0::Pending::wave: u64
-pub omena_reactive::StabilizeStatusV0::Settled
-pub omena_reactive::StabilizeStatusV0::Settled::recomputed_node_count: usize
-pub omena_reactive::StabilizeStatusV0::Settled::wave: u64
-pub struct omena_reactive::ChangePolicyV0
-impl omena_reactive::ChangePolicyV0
-pub const fn omena_reactive::ChangePolicyV0::custom(&'static str, fn(&omena_reactive::ReactiveStateV0, &omena_reactive::ReactiveStateV0) -> bool) -> Self
-pub fn omena_reactive::ChangePolicyV0::equivalent(self, &omena_reactive::ReactiveStateV0, &omena_reactive::ReactiveStateV0) -> bool
-pub const fn omena_reactive::ChangePolicyV0::exact(&'static str) -> Self
-pub fn omena_reactive::ChangePolicyV0::name(self) -> &'static str
 impl core::fmt::Debug for omena_reactive::ChangePolicyV0
-pub fn omena_reactive::ChangePolicyV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-pub struct omena_reactive::EffectReceiptV0
-pub omena_reactive::EffectReceiptV0::channel: alloc::string::String
-pub omena_reactive::EffectReceiptV0::state: omena_reactive::ReactiveStateV0
-pub omena_reactive::EffectReceiptV0::wave: u64
-pub struct omena_reactive::ReactiveEngineV0
+impl core::fmt::Display for omena_reactive::DeltaFoldParityErrorV0
+impl core::fmt::Display for omena_reactive::ReactiveEngineErrorV0
+impl core::fmt::Display for omena_reactive::ReactiveGraphBuildErrorV0
+impl omena_reactive::ChangePolicyV0
+impl omena_reactive::ReactiveDivergenceClassV0
 impl omena_reactive::ReactiveEngineV0
+impl omena_reactive::ReactiveGraphBuilderV0
+impl omena_reactive::ReactiveNodeIdV0
+impl omena_reactive::ReactiveStateV0
+impl omena_reactive::ReactiveUnavailableV0
+pub const fn omena_reactive::ChangePolicyV0::custom(&'static str, fn(&omena_reactive::ReactiveStateV0, &omena_reactive::ReactiveStateV0) -> bool) -> Self
+pub const fn omena_reactive::ChangePolicyV0::exact(&'static str) -> Self
+pub const fn omena_reactive::ReactiveDivergenceClassV0::all() -> &'static [Self]
+pub const fn omena_reactive::ReactiveDivergenceClassV0::disposition(self, omena_reactive::ReactiveObservationPhaseV0) -> omena_reactive::ReactiveDivergenceDispositionV0
+pub const fn omena_reactive::ReactiveDivergenceClassV0::id(self) -> &'static str
+pub fn omena_reactive::ChangePolicyV0::equivalent(self, &omena_reactive::ReactiveStateV0, &omena_reactive::ReactiveStateV0) -> bool
+pub fn omena_reactive::ChangePolicyV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn omena_reactive::ChangePolicyV0::name(self) -> &'static str
+pub fn omena_reactive::DeltaFoldParityErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub fn omena_reactive::ReactiveDivergenceClassV0::from_id(&str) -> core::option::Option<Self>
+pub fn omena_reactive::ReactiveEngineErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn omena_reactive::ReactiveEngineV0::current_wave(&self) -> u64
 pub fn omena_reactive::ReactiveEngineV0::delta_update_count(&self, omena_reactive::ReactiveNodeIdV0) -> core::result::Result<usize, omena_reactive::ReactiveEngineErrorV0>
 pub fn omena_reactive::ReactiveEngineV0::deposit(&mut self, omena_reactive::ReactiveNodeIdV0, omena_reactive::ReactiveStateV0) -> core::result::Result<(), omena_reactive::ReactiveEngineErrorV0>
@@ -104,8 +63,7 @@ pub fn omena_reactive::ReactiveEngineV0::stabilize_until_settled(&mut self, usiz
 pub fn omena_reactive::ReactiveEngineV0::state(&self, omena_reactive::ReactiveNodeIdV0) -> core::result::Result<&omena_reactive::ReactiveStateV0, omena_reactive::ReactiveEngineErrorV0>
 pub fn omena_reactive::ReactiveEngineV0::unobserve(&mut self, omena_reactive::ReactiveNodeIdV0) -> core::result::Result<(), omena_reactive::ReactiveEngineErrorV0>
 pub fn omena_reactive::ReactiveEngineV0::verify_delta_fold(&self, omena_reactive::ReactiveNodeIdV0) -> core::result::Result<(), omena_reactive::DeltaFoldParityErrorV0>
-pub struct omena_reactive::ReactiveGraphBuilderV0
-impl omena_reactive::ReactiveGraphBuilderV0
+pub fn omena_reactive::ReactiveGraphBuildErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub fn omena_reactive::ReactiveGraphBuilderV0::add_async_result(&mut self, omena_reactive::ReactiveStateV0, omena_reactive::ChangePolicyV0) -> omena_reactive::ReactiveNodeIdV0
 pub fn omena_reactive::ReactiveGraphBuilderV0::add_delta_fold(&mut self, alloc::vec::Vec<(alloc::string::String, omena_reactive::ReactiveNodeIdV0)>, omena_reactive::ChangePolicyV0) -> core::result::Result<omena_reactive::ReactiveNodeIdV0, omena_reactive::ReactiveGraphBuildErrorV0>
 pub fn omena_reactive::ReactiveGraphBuilderV0::add_effect_boundary(&mut self, omena_reactive::ReactiveNodeIdV0, impl core::convert::Into<alloc::string::String>, omena_reactive::ChangePolicyV0) -> omena_reactive::ReactiveNodeIdV0
@@ -114,14 +72,62 @@ pub fn omena_reactive::ReactiveGraphBuilderV0::add_map(&mut self, omena_reactive
 pub fn omena_reactive::ReactiveGraphBuilderV0::add_switch(&mut self, omena_reactive::ReactiveNodeIdV0, omena_reactive::ReactiveNodeIdV0, omena_reactive::ReactiveNodeIdV0, omena_reactive::ChangePolicyV0) -> omena_reactive::ReactiveNodeIdV0
 pub fn omena_reactive::ReactiveGraphBuilderV0::add_zip(&mut self, omena_reactive::ReactiveNodeIdV0, omena_reactive::ReactiveNodeIdV0, omena_reactive::ZipOperationV0, omena_reactive::ChangePolicyV0) -> omena_reactive::ReactiveNodeIdV0
 pub fn omena_reactive::ReactiveGraphBuilderV0::build(self) -> core::result::Result<omena_reactive::ReactiveEngineV0, omena_reactive::ReactiveGraphBuildErrorV0>
+pub fn omena_reactive::ReactiveGraphBuilderV0::default() -> Self
 pub fn omena_reactive::ReactiveGraphBuilderV0::new() -> Self
-pub struct omena_reactive::ReactiveNodeIdV0(_)
-impl omena_reactive::ReactiveNodeIdV0
 pub fn omena_reactive::ReactiveNodeIdV0::index(self) -> usize
-pub struct omena_reactive::ReactiveUnavailableV0
+pub fn omena_reactive::ReactiveStateV0::available(omena_reactive::ReactiveValueV0) -> Self
+pub fn omena_reactive::ReactiveStateV0::unavailable(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> Self
+pub fn omena_reactive::ReactiveUnavailableV0::new(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> Self
+pub mod omena_reactive
+pub omena_reactive::DeltaFoldParityErrorV0::Diverged::incremental_digest: [u8; 32]
+pub omena_reactive::DeltaFoldParityErrorV0::Diverged::node: omena_reactive::ReactiveNodeIdV0
+pub omena_reactive::DeltaFoldParityErrorV0::Diverged::rebuilt_digest: [u8; 32]
+pub omena_reactive::DeltaFoldParityErrorV0::InvalidNode::node_index: usize
+pub omena_reactive::DeltaFoldParityErrorV0::NotDeltaFold::node: omena_reactive::ReactiveNodeIdV0
+pub omena_reactive::EffectReceiptV0::channel: alloc::string::String
+pub omena_reactive::EffectReceiptV0::state: omena_reactive::ReactiveStateV0
+pub omena_reactive::EffectReceiptV0::wave: u64
+pub omena_reactive::ReactiveDivergenceClassV0::FlushConeClosureTiming
+pub omena_reactive::ReactiveDivergenceClassV0::MidWaveReadTiming
+pub omena_reactive::ReactiveDivergenceDispositionV0::BenignUntilFlush
+pub omena_reactive::ReactiveDivergenceDispositionV0::Blocker
+pub omena_reactive::ReactiveEngineErrorV0::InvalidNode::node_index: usize
+pub omena_reactive::ReactiveEngineErrorV0::NodeDoesNotAcceptDeposits::node_index: usize
+pub omena_reactive::ReactiveEngineErrorV0::ObserverMutationDuringWave
+pub omena_reactive::ReactiveEngineErrorV0::ZeroStepBudget
+pub omena_reactive::ReactiveGraphBuildErrorV0::DuplicateDeltaKey::key: alloc::string::String
+pub omena_reactive::ReactiveGraphBuildErrorV0::EmptyChangePolicyName::node_index: usize
+pub omena_reactive::ReactiveGraphBuildErrorV0::ForeignNodeId::actual_graph: u64
+pub omena_reactive::ReactiveGraphBuildErrorV0::ForeignNodeId::expected_graph: u64
+pub omena_reactive::ReactiveGraphBuildErrorV0::ForeignNodeId::node_index: usize
+pub omena_reactive::ReactiveNodeKindV0::AsyncResult
+pub omena_reactive::ReactiveNodeKindV0::DeltaFold
+pub omena_reactive::ReactiveNodeKindV0::EffectBoundary
+pub omena_reactive::ReactiveNodeKindV0::Input
+pub omena_reactive::ReactiveNodeKindV0::Map
+pub omena_reactive::ReactiveNodeKindV0::Switch
+pub omena_reactive::ReactiveNodeKindV0::Zip
+pub omena_reactive::ReactiveObservationPhaseV0::DuringWave
+pub omena_reactive::ReactiveObservationPhaseV0::Flush
+pub omena_reactive::ReactiveStateV0::Available(omena_reactive::ReactiveValueV0)
+pub omena_reactive::ReactiveStateV0::Unavailable(omena_reactive::ReactiveUnavailableV0)
 pub omena_reactive::ReactiveUnavailableV0::code: alloc::string::String
 pub omena_reactive::ReactiveUnavailableV0::detail: alloc::string::String
-impl omena_reactive::ReactiveUnavailableV0
-pub fn omena_reactive::ReactiveUnavailableV0::new(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>) -> Self
+pub omena_reactive::ReactiveValueV0::Bool(bool)
+pub omena_reactive::ReactiveValueV0::Counter(u64)
+pub omena_reactive::ReactiveValueV0::Digest([u8; 32])
+pub omena_reactive::ReactiveValueV0::StringSet(alloc::collections::btree::set::BTreeSet<alloc::string::String>)
+pub omena_reactive::ReactiveValueV0::Text(alloc::string::String)
+pub omena_reactive::ReactiveValueV0::TextMap(alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>)
+pub omena_reactive::ReactiveValueV0::Tuple(alloc::vec::Vec<Self>)
+pub omena_reactive::ReactiveValueV0::Unit
+pub omena_reactive::StabilizeStatusV0::Pending::recomputed_node_count: usize
+pub omena_reactive::StabilizeStatusV0::Pending::wave: u64
+pub omena_reactive::StabilizeStatusV0::Settled::recomputed_node_count: usize
+pub omena_reactive::StabilizeStatusV0::Settled::wave: u64
+pub struct omena_reactive::ChangePolicyV0
+pub struct omena_reactive::ReactiveEngineV0
+pub struct omena_reactive::ReactiveGraphBuilderV0
+pub struct omena_reactive::ReactiveNodeIdV0
 pub type omena_reactive::MapOperationV0 = fn(&omena_reactive::ReactiveStateV0) -> omena_reactive::ReactiveStateV0
 pub type omena_reactive::ZipOperationV0 = fn(&omena_reactive::ReactiveStateV0, &omena_reactive::ReactiveStateV0) -> omena_reactive::ReactiveStateV0

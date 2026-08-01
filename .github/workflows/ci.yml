@@ -194,6 +194,8 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/omena-reactive/contract
+      - run: pnpm omena-check run rust/omena-reactive/public-surface
+      - run: pnpm omena-check run rust/omena-reactive/public-surface:update && git diff --exit-code -- rust/crates/omena-reactive/tests/snapshots/public-api.txt
       - run: pnpm omena-check run rust/omena-lsp-server/tide-sole-authority
       - run: pnpm omena-check run rust/omena-lsp-server/reactive-shadow-parity
       - run: pnpm omena-check run rust/omena-cascade/property-metadata

@@ -976,6 +976,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    id: "rust/omena-reactive/public-surface",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-reactive/public-surface",
+    tags: ["rust-workspace", "public-api", "reactive", "publish"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-reactive/performance",
     kind: "gate",
     scope: "rust",
@@ -1327,6 +1336,15 @@ export const DECLARED_CHECK_GATES = [
     ciTier: "manual",
     ciGroup: "rust",
     ciReason: "Snapshot refresh command is invoked deliberately when accepting public API drift.",
+  },
+  {
+    id: "rust/omena-reactive/public-surface:update",
+    kind: "command",
+    scope: "rust",
+    packageTarget: "rust/omena-reactive/public-surface:update",
+    tags: ["public-api", "reactive"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
   },
   {
     id: "rust/product-test-coverage-classguard",
