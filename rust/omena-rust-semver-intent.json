@@ -395,6 +395,54 @@
           ]
         }
       ]
+    },
+    {
+      "crate": "omena-evidence-graph",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds an honestly earned sampled-fixture family and removes the evidence-free typed-invariant token constructor.",
+      "expectedFailures": [
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": ["GuaranteeFamilyV0:SampledFixtureCorpus"]
+        },
+        {
+          "lint": "inherent_method_missing",
+          "evidenceNeedles": ["TypedInvariantWitnessTokenV0::from_incremental_layer_evidence"]
+        }
+      ]
+    },
+    {
+      "crate": "omena-incremental",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes incremental fixture evidence report the family actually earned by each producer.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "incremental-evidence-earned-family-wire-values",
+          "kind": "wire-value-order-preserving",
+          "surface": "EvidenceNodeV0 earnedVia values produced by incremental evidence graphs",
+          "reason": "The shadow differential earns sampledFixtureCorpus only from nonempty recomputed agreement; the four non-differential producers disclose floorAssumption.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-incremental/src/lib.rs",
+              "needles": [
+                "fn shadow_delta_family_stamp(",
+                "FamilyStampV0::sampled_fixture_corpus(&token)",
+                "None => FamilyStampV0::floor_assumption()",
+                "fn shadow_delta_fixture_stamp_refuses_mismatch_and_flag_disagreement()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
+              "needles": [
+                "SampledFixtureCorpus",
+                "SampledFixtureCorpusTokenV0::from_matching_string_vectors",
+                "fixture_witness_family_matches"
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

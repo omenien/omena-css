@@ -61,6 +61,20 @@ function listRustFiles(relativeDir: string): string[] {
     .sort();
 }
 
+function listFiles(relativeDir: string): string[] {
+  const absoluteDir = path.join(repoRoot, relativeDir);
+  return readdirSync(absoluteDir)
+    .flatMap((entry) => {
+      const relativePath = path.join(relativeDir, entry);
+      const absolutePath = path.join(repoRoot, relativePath);
+      if (statSync(absolutePath).isDirectory()) {
+        return listFiles(relativePath);
+      }
+      return [relativePath];
+    })
+    .sort();
+}
+
 function assertIncludes(source: string, needle: string, context: string): void {
   assert.ok(source.includes(needle), `${context} must include ${needle}`);
 }
@@ -205,14 +219,19 @@ const stampRequirements: readonly StampRequirement[] = [
     forbiddenSymbols: ["EvidenceNodeSeedV0::new("],
   },
   {
-    family: "incremental typed invariant evidence",
+    family: "incremental sampled fixture and floor evidence",
     file: "rust/crates/omena-incremental/src/lib.rs",
     requiredSymbols: [
-      "TypedInvariantWitnessTokenV0::from_incremental_layer_evidence",
-      "FamilyStampV0::typed_invariant_witness",
+      "SampledFixtureCorpusTokenV0::from_matching_string_vectors",
+      "FamilyStampV0::sampled_fixture_corpus",
+      "FamilyStampV0::floor_assumption",
       "EvidenceNodeSeedV0::with_family(",
     ],
-    forbiddenSymbols: ["EvidenceNodeSeedV0::new("],
+    forbiddenSymbols: [
+      "EvidenceNodeSeedV0::new(",
+      "TypedInvariantWitnessTokenV0::from_incremental_layer_evidence",
+      "FamilyStampV0::typed_invariant_witness",
+    ],
   },
   {
     family: "diff-test property corpus witness evidence",
@@ -246,6 +265,7 @@ const guaranteeFamilies = [
   "ProseObligationDischarged",
   "FloorAssumption",
   "LedgerBackedObligationDischarge",
+  "SampledFixtureCorpus",
 ] as const;
 const expectedGuaranteeFamilies =
   process.env.OMENA_EVIDENCE_GRAPH_TEST_DROP_EXTERNAL_TOOL_FAMILY === "1"
@@ -291,7 +311,7 @@ const classifiedStampSites: readonly ClassifiedStampSite[] = [
   {
     file: "rust/crates/omena-incremental/src/lib.rs",
     ordinal: 0,
-    family: "TypedInvariantWitness",
+    family: "SampledFixtureCorpus",
   },
   {
     file: "rust/crates/omena-cli/src/minify_backend.rs",
@@ -370,6 +390,8 @@ for (const symbol of [
   "ByteIdentityOracle",
   "ExternalReplicaDifferential",
   "PropertyCorpusWitness",
+  "SampledFixtureCorpus",
+  "SampledFixtureCorpusTokenV0::from_matching_string_vectors",
   "TypedInvariantWitness",
   "ProseObligationDischarged",
   "FloorAssumption",
@@ -377,6 +399,7 @@ for (const symbol of [
   "pub struct EvidenceGraphV0",
   "build_salsa_demand_evidence_graph_v0",
   "build_evidence_graph_from_edges_v0",
+  "fixture_witness_family_matches",
   "salsa_demand_graph_keys_on_edges_not_the_full_node_list",
   "salsa_demand_graph_rejects_fabricated_edges",
 ]) {
@@ -610,6 +633,60 @@ assert.deepEqual(
   "external-tool witness must contain invocation facts only",
 );
 
+const incrementalEvidenceDefinitionFile = "rust/crates/omena-incremental/src/lib.rs";
+const incrementalEvidenceControlFile = "scripts/check-rust-evidence-graph-single-authority.ts";
+const incrementalEvidenceTypeNames = [
+  "IncrementalAlphaEquivalenceHashV0",
+  "IncrementalShadowDeltaOracleV0",
+  "IncrementalEditDistancePriorityInputV0",
+  "IncrementalInvalidationPriorityPlanV0",
+  "IncrementalLayerEvidenceV0",
+] as const;
+const incrementalEvidenceReachFiles = ["rust/crates", "scripts", "packages"]
+  .flatMap((directory) => listFiles(directory))
+  .filter((file) => /\.(?:md|rs|ts|tsx)$/u.test(file))
+  .filter(
+    (file) => file !== incrementalEvidenceDefinitionFile && file !== incrementalEvidenceControlFile,
+  );
+const incrementalEvidenceExternalReferences = incrementalEvidenceReachFiles.flatMap((file) => {
+  const source = read(file);
+  return [...source.matchAll(/summarize_incremental_layer_evidence_v0/gu)].map((match) => ({
+    file,
+    line: lineNumberAt(source, match.index ?? 0),
+    symbol: match[0],
+  }));
+});
+assert.deepEqual(
+  incrementalEvidenceExternalReferences.map((hit) => hit.file),
+  ["rust/crates/omena-incremental/README.md"],
+  `incremental evidence external reference set drifted: ${JSON.stringify(incrementalEvidenceExternalReferences)}`,
+);
+
+const incrementalEvidenceNonTestCallers = incrementalEvidenceReachFiles.flatMap((file) => {
+  const source = read(file);
+  const candidates = [
+    ...source.matchAll(/summarize_incremental_layer_evidence_v0\s*\(/gu),
+    ...(incrementalEvidenceTypeNames.some((typeName) => source.includes(typeName))
+      ? source.matchAll(/(?:\.|::)evidence_(?:node_seed|graph)\s*\(/gu)
+      : []),
+  ];
+  return [...candidates]
+    .filter((match) => {
+      const index = match.index ?? 0;
+      return !file.includes("/tests/") && !isInsideCfgTestModule(source, index);
+    })
+    .map((match) => ({
+      file,
+      line: lineNumberAt(source, match.index ?? 0),
+      call: match[0].trim(),
+    }));
+});
+assert.deepEqual(
+  incrementalEvidenceNonTestCallers,
+  [],
+  `incremental fixture evidence gained a non-test workspace caller: ${JSON.stringify(incrementalEvidenceNonTestCallers)}`,
+);
+
 process.stdout.write(
   `${JSON.stringify(
     {
@@ -623,12 +700,16 @@ process.stdout.write(
       ledgerStampCallerCount,
       externalToolFamilySiteCount,
       externalToolStampCallerCount,
+      incrementalEvidenceExternalReferenceCount: incrementalEvidenceExternalReferences.length,
+      incrementalEvidenceNonTestCallerCount: incrementalEvidenceNonTestCallers.length,
       outOfMigrationSurvivorCount: survivors.length,
       queryDiagnosticSeedSiteCount,
       migratedFamilies: migratedFamilies.map((family) => family.family),
       guaranteeFamilies,
       productionStampSites,
       classifiedStampSites,
+      incrementalEvidenceExternalReferences,
+      incrementalEvidenceNonTestCallers,
       outOfMigrationSurvivors: survivors.map((survivor) => survivor.family),
       violations: 0,
     },
