@@ -6,7 +6,11 @@ use omena_parser::{
 };
 use omena_syntax::{SyntaxKind, SyntaxNode};
 use serde::Serialize;
-use std::{cell::Cell, collections::BTreeSet};
+use std::{
+    cell::Cell,
+    collections::{BTreeMap, BTreeSet},
+    sync::OnceLock,
+};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -248,7 +252,7 @@ impl IrEditRegionV0 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformIrV0 {
     pub schema_version: &'static str,
@@ -261,7 +265,10 @@ pub struct TransformIrV0 {
     pub root_nodes: Vec<IrNodeIdV0>,
     pub nodes: Vec<IrNodeV0>,
     pub origins: Vec<NodeTextOriginV0>,
-    pub indexes: TransformIrIndexesV0,
+    /// Retained for compatibility, but read by no product code, absent from
+    /// the wire, excluded from equality, and scheduled for removal in 6.0.0.
+    #[serde(skip_serializing)]
+    pub indexes: OnceLock<TransformIrIndexesV0>,
     pub original_node_count: usize,
     pub synthesized_node_count: usize,
     #[serde(skip_serializing)]
@@ -271,9 +278,35 @@ pub struct TransformIrV0 {
     source_text: String,
 }
 
+impl PartialEq for TransformIrV0 {
+    fn eq(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.product == other.product
+            && self.source_id == other.source_id
+            && self.dialect == other.dialect
+            && self.source_byte_len == other.source_byte_len
+            && self.parser_error_count == other.parser_error_count
+            && self.parse_error_spans == other.parse_error_spans
+            && self.root_nodes == other.root_nodes
+            && self.nodes == other.nodes
+            && self.origins == other.origins
+            && self.original_node_count == other.original_node_count
+            && self.synthesized_node_count == other.synthesized_node_count
+            && self.ir_epoch == other.ir_epoch
+            && self.structural_block_spans == other.structural_block_spans
+            && self.source_text == other.source_text
+    }
+}
+
+impl Eq for TransformIrV0 {}
+
 impl TransformIrV0 {
     pub const fn ir_epoch(&self) -> u64 {
         self.ir_epoch
+    }
+
+    pub fn indexes(&self) -> &TransformIrIndexesV0 {
+        self.indexes.get_or_init(|| build_indexes(&self.nodes))
     }
 
     pub fn all_nodes_original(&self) -> bool {
@@ -514,7 +547,6 @@ pub fn lower_transform_ir_from_source(
         .filter(|node| node.parent.is_none())
         .map(|node| node.node_id)
         .collect::<Vec<_>>();
-    let indexes = build_indexes(&nodes);
     let original_node_count = origins.iter().filter(|origin| origin.is_original()).count();
 
     TransformIrV0 {
@@ -535,7 +567,7 @@ pub fn lower_transform_ir_from_source(
         root_nodes,
         nodes,
         origins,
-        indexes,
+        indexes: OnceLock::new(),
         original_node_count,
         synthesized_node_count: 0,
         ir_epoch: 0,
@@ -895,6 +927,7 @@ impl<'ir> IrTransactionV0<'ir> {
         self.working.nodes.push(node);
         self.insert_node_in_parent(anchor_id, node_id);
         self.changed_node_ids.push(node_id);
+        self.working.indexes.take();
         record_transform_ir_mutation();
         Ok(node_id)
     }
@@ -950,6 +983,7 @@ impl<'ir> IrTransactionV0<'ir> {
             self.insert_node_in_parent(anchor_id, *copied_root);
         }
         self.changed_node_ids.extend(copied_nodes);
+        self.working.indexes.take();
         record_transform_ir_mutation();
         Ok(copied_roots)
     }
@@ -992,6 +1026,7 @@ impl<'ir> IrTransactionV0<'ir> {
         node.deleted = deleted;
         node.canonical_text = Some(canonical_text);
         self.changed_node_ids.push(node_id);
+        self.working.indexes.take();
         record_transform_ir_mutation();
         Ok(())
     }
@@ -1376,7 +1411,7 @@ mod sealed_metadata_refresh {
 
     fn refresh_transform_ir_metadata(ir: &mut TransformIrV0) {
         record_transform_ir_metadata_refresh();
-        ir.indexes = build_indexes(&ir.nodes);
+        ir.indexes.take();
         ir.original_node_count = ir
             .nodes
             .iter()
@@ -1445,7 +1480,8 @@ mod sealed_metadata_refresh {
         }
 
         #[test]
-        fn metadata_refreshes_are_conserved_across_commit_and_materialization() {
+        fn metadata_refreshes_are_conserved_across_commit_and_materialization() -> Result<(), String>
+        {
             let mut ir = lower_transform_ir_from_source(
                 ".control { color: red; }",
                 StyleDialect::Css,
@@ -1457,14 +1493,16 @@ mod sealed_metadata_refresh {
                 .iter()
                 .find(|node| node.kind == IrNodeKindV0::Value)
                 .map(|node| node.node_id)
-                .expect("fixture must contain a value");
+                .ok_or_else(|| "fixture must contain a value".to_string())?;
             let source_byte_len = ir.source_byte_len;
             let mut transaction =
                 IrTransactionV0::new(&mut ir, "control", IrEditRegionV0::full(source_byte_len));
             transaction
                 .rewrite_value(value, "blue")
-                .expect("fixture mutation must succeed");
-            transaction.commit().expect("fixture commit must succeed");
+                .map_err(|error| format!("fixture mutation must succeed: {error:?}"))?;
+            transaction
+                .commit()
+                .map_err(|error| format!("fixture commit must succeed: {error:?}"))?;
 
             assert_eq!(
                 transform_ir_metadata_telemetry_snapshot(),
@@ -1477,7 +1515,7 @@ mod sealed_metadata_refresh {
             );
 
             materialize_transform_ir_printed_source(&mut ir)
-                .expect("fixture materialization must succeed");
+                .map_err(|error| format!("fixture materialization must succeed: {error:?}"))?;
             let telemetry = transform_ir_metadata_telemetry_snapshot();
             assert_eq!(
                 telemetry,
@@ -1489,6 +1527,7 @@ mod sealed_metadata_refresh {
                 }
             );
             assert!(telemetry.refresh_conservation_holds());
+            Ok(())
         }
     }
 }
@@ -3248,19 +3287,16 @@ fn build_indexes(nodes: &[IrNodeV0]) -> TransformIrIndexesV0 {
         });
     }
 
-    let mut parents = nodes.iter().map(|node| node.parent).collect::<Vec<_>>();
-    parents.sort();
-    parents.dedup();
-    let by_parent = parents
+    let mut nodes_by_parent = BTreeMap::<Option<IrNodeIdV0>, Vec<IrNodeIdV0>>::new();
+    for node in nodes {
+        nodes_by_parent
+            .entry(node.parent)
+            .or_default()
+            .push(node.node_id);
+    }
+    let by_parent = nodes_by_parent
         .into_iter()
-        .map(|parent| TransformIrParentIndexV0 {
-            parent,
-            node_ids: nodes
-                .iter()
-                .filter(|node| node.parent == parent)
-                .map(|node| node.node_id)
-                .collect(),
-        })
+        .map(|(parent, node_ids)| TransformIrParentIndexV0 { parent, node_ids })
         .collect();
 
     TransformIrIndexesV0 { by_kind, by_parent }
@@ -3327,9 +3363,10 @@ mod tests {
     use super::{
         IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionErrorV0, IrTransactionV0,
         IrTransactionValidationErrorV0, NodeTextOriginV0, TransformIrParseErrorSpanV0,
-        TransformIrPrintErrorV0, has_less_mixin_declaration_owner, lower_transform_ir_from_source,
-        materialize_transform_ir_printed_source, print_transform_ir_css,
-        summarize_transform_ir_identity_round_trip, validate_transaction_commit,
+        TransformIrPrintErrorV0, build_indexes, has_less_mixin_declaration_owner,
+        lower_transform_ir_from_source, materialize_transform_ir_printed_source,
+        print_transform_ir_css, summarize_transform_ir_identity_round_trip,
+        validate_transaction_commit,
     };
     use omena_parser::StyleDialect;
 
@@ -3430,7 +3467,7 @@ mod tests {
             })
             .ok_or_else(|| "URL value should lower to a typed IR node".to_string())?;
 
-        assert!(ir.indexes.by_kind.iter().any(|index| {
+        assert!(ir.indexes().by_kind.iter().any(|index| {
             index.kind == IrNodeKindV0::UrlValue && index.node_ids.contains(&url_node.node_id)
         }));
         assert_eq!(
@@ -3455,10 +3492,68 @@ mod tests {
             ir.nodes[node_id.index()].kind == IrNodeKindV0::StyleRule
                 || ir.nodes[node_id.index()].kind == IrNodeKindV0::AtRule
         }));
-        assert!(ir.indexes.by_kind.iter().any(|index| {
+        assert!(ir.indexes().by_kind.iter().any(|index| {
             index.kind == IrNodeKindV0::Declaration && !index.node_ids.is_empty()
         }));
         assert!(ir.origins.iter().all(NodeTextOriginV0::is_original));
+    }
+
+    #[test]
+    fn lazy_transform_ir_indexes_match_eager_indexes_and_ignore_force_state_in_equality() {
+        for (fixture_id, source) in [
+            ("plain", ".card { color: red; }"),
+            (
+                "nested",
+                "@supports (display: grid) { .grid { display: grid; gap: 1rem; } }",
+            ),
+            (
+                "multi-root",
+                ".a { color: red; }\n.b { background: blue; }\n@media print { .c { color: black; } }",
+            ),
+        ] {
+            let ir = lower_transform_ir_from_source(
+                source,
+                StyleDialect::Css,
+                format!("index:{fixture_id}"),
+            );
+            let unforced_clone = ir.clone();
+            assert_eq!(ir.indexes(), &build_indexes(&ir.nodes));
+            assert_eq!(
+                ir, unforced_clone,
+                "forcing a derived index must not affect TransformIrV0 equality"
+            );
+        }
+    }
+
+    #[test]
+    fn transform_ir_mutation_invalidates_forced_lazy_indexes() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".first { color: red; }\n.second { color: blue; }",
+            StyleDialect::Css,
+            "index-invalidation",
+        );
+        let _ = ir.indexes();
+        let anchor = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let source_byte_len = ir.source_byte_len;
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "index-invalidation",
+            IrEditRegionV0::full(source_byte_len),
+        );
+        transaction
+            .insert_before(
+                anchor,
+                IrNodeKindV0::StyleRule,
+                ".inserted { color: green; }\n",
+            )
+            .map_err(|error| format!("insert should succeed: {error:?}"))?;
+
+        assert_eq!(
+            transaction.working.indexes(),
+            &build_indexes(&transaction.working.nodes),
+            "the first read after mutation must rebuild the invalidated index"
+        );
+        Ok(())
     }
 
     #[test]
@@ -3525,6 +3620,7 @@ mod tests {
             .map_err(|err| format!("transaction should commit: {err:?}"))?;
 
         assert_eq!(ir.ir_epoch(), 1);
+        let _ = ir.indexes();
         let serialized = serde_json::to_string(&ir)
             .map_err(|err| format!("IR serialization should succeed: {err:?}"))?;
         assert!(!serialized.contains("irEpoch"));
@@ -3532,6 +3628,7 @@ mod tests {
         assert!(!serialized.contains("blockSpan"));
         assert!(!serialized.contains("ownerBlockSpan"));
         assert!(!serialized.contains("structuralBlockSpans"));
+        assert!(!serialized.contains("\"indexes\""));
 
         let source_byte_len = ir.source_byte_len;
         let mut followup = IrTransactionV0::new(

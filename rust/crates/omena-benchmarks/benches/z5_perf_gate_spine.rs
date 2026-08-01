@@ -421,13 +421,17 @@ fn measure_transform_ir_mutation_density(mut fixture: TransformIrMutationFixture
         IrEditRegionV0::full(source_byte_len),
     );
     for (ordinal, node_id) in fixture.value_ids.iter().copied().enumerate() {
-        transaction
-            .rewrite_value(node_id, format!("rgb({ordinal} 0 0)"))
-            .expect("fixed-N transform mutation must succeed");
+        assert!(
+            transaction
+                .rewrite_value(node_id, format!("rgb({ordinal} 0 0)"))
+                .is_ok(),
+            "fixed-N transform mutation must succeed"
+        );
     }
-    transaction
-        .commit()
-        .expect("fixed-N transform transaction must commit");
+    assert!(
+        transaction.commit().is_ok(),
+        "fixed-N transform transaction must commit"
+    );
     let telemetry = transform_ir_metadata_telemetry_snapshot();
     assert!(telemetry.refresh_conservation_holds());
     assert_eq!(
@@ -444,7 +448,7 @@ fn measure_transform_ir_lowering(source: String) -> usize {
         StyleDialect::Css,
         "z5-transform-ir-lowering.css",
     );
-    black_box(ir.nodes.len())
+    black_box(ir.indexes().by_parent.len())
 }
 
 fn transform_ir_corpus(rule_count: usize) -> String {
