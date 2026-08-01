@@ -437,7 +437,9 @@
               "needles": [
                 "SampledFixtureCorpus",
                 "SampledFixtureCorpusTokenV0::from_matching_string_vectors",
-                "fixture_witness_family_matches"
+                "fixture_witness_family_matches",
+                "Self::FloorAssumption => \"floorAssumption\"",
+                "Self::SampledFixtureCorpus => \"sampledFixtureCorpus\""
               ]
             }
           ]
@@ -478,6 +480,30 @@
                 "\"summarize_omena_abstract_value_flow_analysis\"",
                 "\"analyze_class_value_control_flow_graph\"",
                 "\"analyze_k_limited_call_site_flows\""
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-engine-input-producers",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor re-emits the supplied-graph context label through the serialized expression-domain flow summary.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "expression-domain-supplied-graph-context-wire-value",
+          "kind": "wire-value-order-preserving",
+          "surface": "ExpressionDomainFlowAnalysisV0 analyses[].analysis.contextSensitivity",
+          "reason": "The embedded abstract-value analysis now reports perSuppliedGraph instead of 1-cfa when no call-site partition is supplied.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/expression_domain.rs",
+              "needles": [
+                "fn summarizes_expression_domain_flow_analysis()",
+                "wire[\"analyses\"][0][\"analysis\"][\"contextSensitivity\"]",
+                "\"perSuppliedGraph\""
               ]
             }
           ]

@@ -4,17 +4,28 @@ use omena_reactive::{
 
 use crate::reactive_shadow::ReactiveShadowFlushReportV0;
 
-/// Comparison dimensions require two independently sourced values or a real
-/// oracle. Snapshot stamps are deliberately excluded: their projected value
-/// is only an encode/decode round trip, while corpus revision stability is
-/// checked by [`evaluate_proposed_authority_reduction`]. Adding a second
-/// reactive projection node solely to increase this denominator would add
-/// observer work without adding an independent source of truth.
+/// Parity dimensions require two independently sourced values. The one-sided
+/// delta-fold rebuild oracle is tracked separately. Snapshot stamps are
+/// deliberately excluded: their projected value is only an encode/decode
+/// round trip, while corpus revision stability is checked by
+/// [`evaluate_proposed_authority_reduction`]. Adding a second reactive
+/// projection node solely to increase this denominator would add observer work
+/// without adding an independent source of truth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ReactiveShadowParityDimensionV0 {
     TargetSet,
-    DeltaFoldRebuild,
     DeliveryDecision,
+}
+
+impl ReactiveShadowParityDimensionV0 {
+    pub(crate) const fn all() -> &'static [Self] {
+        &[Self::TargetSet, Self::DeliveryDecision]
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum ReactiveShadowOracleCheckV0 {
+    DeltaFoldRebuild,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +40,8 @@ pub(crate) struct ReactiveShadowParitySummaryV0 {
     pub(crate) optimizing_digest_observation_count: usize,
     pub(crate) suppressed_delivery_observation_count: usize,
     pub(crate) unclassified_divergences: Vec<ReactiveShadowParityDimensionV0>,
+    /// One-sided oracle failures, separate from the flush-pipeline parity denominator.
+    pub(crate) oracle_failures: Vec<ReactiveShadowOracleCheckV0>,
 }
 
 pub(crate) fn evaluate_reactive_shadow_parity(
@@ -44,6 +57,7 @@ pub(crate) fn evaluate_reactive_shadow_parity(
         optimizing_digest_observation_count: 0,
         suppressed_delivery_observation_count: 0,
         unclassified_divergences: Vec::new(),
+        oracle_failures: Vec::new(),
     };
 
     for report in reports {
@@ -58,8 +72,8 @@ pub(crate) fn evaluate_reactive_shadow_parity(
             summary.delta_fold_rebuild_count += 1;
         } else {
             summary
-                .unclassified_divergences
-                .push(ReactiveShadowParityDimensionV0::DeltaFoldRebuild);
+                .oracle_failures
+                .push(ReactiveShadowOracleCheckV0::DeltaFoldRebuild);
         }
         if report.expected_delivery_decisions == report.projected_delivery_decisions {
             summary.delivery_decision_equality_count += 1;

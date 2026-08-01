@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const cargoArguments = [
   "test",
@@ -25,7 +26,34 @@ const requiredTests = [
   "stamp_state_round_trip_preserves_all_fields",
   "target_projection_rejects_an_unplanned_reported_uri",
   "taxonomy_allows_only_reviewed_transient_timing_differences",
+  "wiring_check_routes_each_report_check_to_its_summary_field",
 ] as const;
+
+const reactiveShadowTestSource = readFileSync(
+  "rust/crates/omena-lsp-server/src/reactive_shadow_tests.rs",
+  "utf8",
+);
+const pipelineFalsifierTable = reactiveShadowTestSource.match(
+  /const PARITY_PIPELINE_FALSIFIERS:[\s\S]*?= \[(?<body>[\s\S]*?)\n\];/u,
+);
+assert.ok(
+  pipelineFalsifierTable?.groups?.body,
+  "reactive shadow parity gate could not locate the pipeline-falsifier table",
+);
+const mappedPipelineFalsifiers = [
+  ...pipelineFalsifierTable.groups.body.matchAll(/"([^"]+)"/gu),
+].map((match) => match[1]);
+assert.equal(
+  new Set(mappedPipelineFalsifiers).size,
+  mappedPipelineFalsifiers.length,
+  "reactive shadow parity dimensions must map to distinct test names",
+);
+for (const testName of mappedPipelineFalsifiers) {
+  assert.ok(
+    (requiredTests as readonly string[]).includes(testName),
+    `pipeline-falsifier table names a test outside the required set: ${testName}`,
+  );
+}
 
 const listedTests = execFileSync("cargo", [...cargoArguments, "--", "--list"], {
   cwd: process.cwd(),
@@ -36,6 +64,13 @@ for (const testName of requiredTests) {
     listedTests,
     new RegExp(`^reactive_shadow_tests::${testName}: test$`, "mu"),
     `reactive shadow parity gate did not discover ${testName}`,
+  );
+}
+for (const testName of mappedPipelineFalsifiers) {
+  assert.match(
+    listedTests,
+    new RegExp(`^reactive_shadow_tests::${testName}: test$`, "mu"),
+    `pipeline-falsifier table names an undiscoverable test: ${testName}`,
   );
 }
 const discoveredTests = [...listedTests.matchAll(/^reactive_shadow_tests::([^:]+): test$/gmu)].map(

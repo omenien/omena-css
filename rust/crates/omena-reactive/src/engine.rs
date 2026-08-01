@@ -41,6 +41,12 @@ pub enum ReactiveEngineErrorV0 {
         node_index: usize,
     },
     #[non_exhaustive]
+    ForeignNodeId {
+        node_index: usize,
+        expected_graph: u64,
+        actual_graph: u64,
+    },
+    #[non_exhaustive]
     NodeDoesNotAcceptDeposits {
         node_index: usize,
     },
@@ -54,6 +60,14 @@ impl fmt::Display for ReactiveEngineErrorV0 {
             Self::InvalidNode { node_index } => {
                 write!(formatter, "reactive node {node_index} does not exist")
             }
+            Self::ForeignNodeId {
+                node_index,
+                expected_graph,
+                actual_graph,
+            } => write!(
+                formatter,
+                "reactive node {node_index} belongs to reactive graph {actual_graph}, not {expected_graph}"
+            ),
             Self::NodeDoesNotAcceptDeposits { node_index } => {
                 write!(
                     formatter,
@@ -131,6 +145,7 @@ struct RuntimeNodeV0 {
 }
 
 pub struct ReactiveEngineV0 {
+    graph_id: ReactiveGraphIdV0,
     nodes: Vec<RuntimeNodeV0>,
     deferred_deposits: BTreeMap<ReactiveNodeIdV0, ReactiveStateV0>,
     activation_nodes: BTreeSet<ReactiveNodeIdV0>,
@@ -184,6 +199,7 @@ impl ReactiveEngineV0 {
         }
 
         Self {
+            graph_id,
             nodes,
             deferred_deposits: BTreeMap::new(),
             activation_nodes: BTreeSet::new(),
@@ -607,6 +623,13 @@ impl ReactiveEngineV0 {
     }
 
     fn node(&self, node: ReactiveNodeIdV0) -> Result<&RuntimeNodeV0, ReactiveEngineErrorV0> {
+        if node.graph != self.graph_id {
+            return Err(ReactiveEngineErrorV0::ForeignNodeId {
+                node_index: node.index(),
+                expected_graph: self.graph_id.value(),
+                actual_graph: node.graph.value(),
+            });
+        }
         self.nodes
             .get(node.index())
             .ok_or(ReactiveEngineErrorV0::InvalidNode {
@@ -854,6 +877,58 @@ mod tests {
                 ReactiveNodeKindV0::AsyncResult,
                 ReactiveNodeKindV0::EffectBoundary,
             ])
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_entry_points_reject_foreign_graph_node_ids() -> Result<(), Box<dyn Error>> {
+        let mut first_graph = ReactiveGraphBuilderV0::new();
+        let first_input = first_graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(1)),
+            exact_policy(),
+        );
+        let first_second_input = first_graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(2)),
+            exact_policy(),
+        );
+        let mut first_engine = first_graph.build()?;
+
+        let mut second_graph = ReactiveGraphBuilderV0::new();
+        let _second_input = second_graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(100)),
+            exact_policy(),
+        );
+        let second_second_input = second_graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(200)),
+            exact_policy(),
+        );
+        let _second_engine = second_graph.build()?;
+
+        for result in [
+            first_engine.state(second_second_input).map(|_| ()),
+            first_engine.observe(second_second_input),
+            first_engine.deposit(
+                second_second_input,
+                ReactiveStateV0::available(ReactiveValueV0::Counter(777)),
+            ),
+        ] {
+            assert!(matches!(
+                result,
+                Err(ReactiveEngineErrorV0::ForeignNodeId {
+                    node_index: 1,
+                    expected_graph,
+                    actual_graph,
+                }) if expected_graph != actual_graph
+            ));
+        }
+        assert_eq!(
+            first_engine.state(first_second_input)?,
+            &ReactiveStateV0::available(ReactiveValueV0::Counter(2))
+        );
+        assert_eq!(
+            first_engine.state(first_input)?,
+            &ReactiveStateV0::available(ReactiveValueV0::Counter(1))
         );
         Ok(())
     }

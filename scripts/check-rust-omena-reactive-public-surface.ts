@@ -12,6 +12,9 @@ const snapshotPath = path.join(
 );
 const writeSnapshot = process.argv.includes("--write");
 const workspaceVersion = readWorkspaceVersion();
+// Before first publication there is no registry baseline to resolve. Keep the enum-closure
+// registration commit fixed here; the first-publication operator checklist owns the registry
+// re-point.
 const registrationBaselineRev = "475594f67c2c97184efd8ca6ff9c90f708c69602";
 const baselineRev =
   process.env.OMENA_REACTIVE_PUBLIC_SURFACE_BASELINE_REV ?? registrationBaselineRev;
@@ -68,6 +71,7 @@ if (semverResult.policy !== "steady-state-patch") {
     `omena-reactive public surface requires steady-state patch checking, got ${semverResult.policy}`,
   );
 }
+const semverPolicy = semverResult.policy.replace(/-patch$/u, "");
 
 process.stdout.write(
   `${JSON.stringify(
@@ -76,7 +80,7 @@ process.stdout.write(
       product: "rust.omena-reactive.public-surface",
       snapshot: path.relative(repoRoot, snapshotPath),
       workspaceVersion,
-      semverPolicy: "steady-state",
+      semverPolicy,
       semverCheckPolicy: semverResult.policy,
       baselineKind: "gitRevision",
       baselineRev,

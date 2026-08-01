@@ -754,7 +754,7 @@ mod tests {
     }
 
     #[test]
-    fn summarizes_expression_domain_flow_analysis() {
+    fn summarizes_expression_domain_flow_analysis() -> Result<(), serde_json::Error> {
         let mut input = sample_input();
         input.type_facts = vec![
             exact_type_fact("expr-branch-a", "btn-primary"),
@@ -773,6 +773,11 @@ mod tests {
         assert_eq!(summary.analyses[0].file_path, "/tmp/App.tsx");
         assert_eq!(
             summary.analyses[0].analysis.context_sensitivity,
+            "perSuppliedGraph"
+        );
+        let wire = serde_json::to_value(&summary)?;
+        assert_eq!(
+            wire["analyses"][0]["analysis"]["contextSensitivity"],
             "perSuppliedGraph"
         );
         assert!(
@@ -802,6 +807,7 @@ mod tests {
                 .iter()
                 .all(|node| node.id != "file-merge")
         }));
+        Ok(())
     }
 
     #[test]

@@ -25,7 +25,7 @@ impl ReactiveGraphIdV0 {
         Self(id)
     }
 
-    fn value(self) -> u64 {
+    pub(crate) fn value(self) -> u64 {
         self.0
     }
 }

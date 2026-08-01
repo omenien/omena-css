@@ -1008,6 +1008,11 @@ pub fn build_evidence_graph_from_edges_v0(
         let Some(seed) = all_nodes.get(&key) else {
             return Err(EvidenceGraphBuildErrorV0::MissingDemandNode(key));
         };
+        // STRUCTURAL ENTAILMENT: current workspace producers can emit fixture-witness guarantees
+        // only with sampled-corpus or floor-assumption families; re-enter this assertion when a
+        // fixture producer or a typed-invariant token constructor is added. Panic is deliberate:
+        // returning this internal producer bug would require a breaking variant on the published,
+        // exhaustive EvidenceGraphBuildErrorV0 surface.
         assert!(
             fixture_witness_family_matches(seed.guarantee, seed.earned_via),
             "evidence node {:?} pairs fixture-witness guarantee {:?} with earned family {:?}",

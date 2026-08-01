@@ -10,29 +10,39 @@ use crate::{
     diagnostics_scheduler::set_reactive_shadow_target_perturbation_for_test,
     lsp_output::set_reactive_shadow_delivery_perturbation_for_test,
     reactive_shadow::{
-        ReactiveShadowObserverV0, ReactiveShadowPublishTierV0, ReactiveShadowStampsV0,
-        set_reactive_shadow_delta_fold_target_perturbation_for_test, stamps_from_state,
+        ReactiveShadowFlushReportV0, ReactiveShadowObserverV0, ReactiveShadowPublishTierV0,
+        ReactiveShadowStampsV0, set_reactive_shadow_delta_fold_target_perturbation_for_test,
+        stamps_from_state,
     },
     reactive_shadow_contract::{
-        ProposedAuthorityViolationV0, ReactiveShadowParityDimensionV0, divergence_disposition,
-        evaluate_proposed_authority_reduction, evaluate_reactive_shadow_parity,
+        ProposedAuthorityViolationV0, ReactiveShadowOracleCheckV0, ReactiveShadowParityDimensionV0,
+        divergence_disposition, evaluate_proposed_authority_reduction,
+        evaluate_reactive_shadow_parity,
     },
 };
 
-const PARITY_PIPELINE_FALSIFIERS: [(ReactiveShadowParityDimensionV0, &str); 3] = [
+const PARITY_PIPELINE_FALSIFIERS: [(ReactiveShadowParityDimensionV0, &str); 2] = [
     (
         ReactiveShadowParityDimensionV0::TargetSet,
         "target_projection_rejects_an_unplanned_reported_uri",
-    ),
-    (
-        ReactiveShadowParityDimensionV0::DeltaFoldRebuild,
-        "delta_fold_rebuild_rejects_a_non_fold_verification_target",
     ),
     (
         ReactiveShadowParityDimensionV0::DeliveryDecision,
         "delivery_projection_rejects_an_inverted_writer_decision",
     ),
 ];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReactiveShadowReportWiringCheckV0 {
+    TargetSet,
+    DeltaFoldRebuild,
+    DeliveryDecision,
+}
+
+type ReactiveShadowReportWiringMutationV0 = (
+    ReactiveShadowReportWiringCheckV0,
+    fn(&mut ReactiveShadowFlushReportV0),
+);
 
 #[test]
 fn four_projection_arena_settles_without_external_effects() -> Result<(), Box<dyn std::error::Error>>
@@ -167,9 +177,10 @@ fn delta_fold_rebuild_rejects_a_non_fold_verification_target()
         .unwrap_or_default();
     let parity = evaluate_reactive_shadow_parity(reports.as_slice());
     assert_eq!(
-        parity.unclassified_divergences,
-        vec![ReactiveShadowParityDimensionV0::DeltaFoldRebuild]
+        parity.oracle_failures,
+        vec![ReactiveShadowOracleCheckV0::DeltaFoldRebuild]
     );
+    assert!(parity.unclassified_divergences.is_empty());
     Ok(())
 }
 
@@ -461,11 +472,10 @@ fn every_parity_dimension_has_a_flush_pipeline_falsifier() {
             .iter()
             .map(|(dimension, _)| *dimension)
             .collect::<BTreeSet<_>>(),
-        BTreeSet::from([
-            ReactiveShadowParityDimensionV0::TargetSet,
-            ReactiveShadowParityDimensionV0::DeltaFoldRebuild,
-            ReactiveShadowParityDimensionV0::DeliveryDecision,
-        ])
+        ReactiveShadowParityDimensionV0::all()
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
     );
     assert_eq!(
         PARITY_PIPELINE_FALSIFIERS
@@ -475,6 +485,48 @@ fn every_parity_dimension_has_a_flush_pipeline_falsifier() {
             .len(),
         PARITY_PIPELINE_FALSIFIERS.len()
     );
+}
+
+#[test]
+fn wiring_check_routes_each_report_check_to_its_summary_field() {
+    // WIRING CHECK: these post-hoc mutations test report-field-to-summary routing only.
+    // They are not pipeline falsifiers and do not enter the two-dimension denominator.
+    let baseline = synthetic_report();
+    let mutations: [ReactiveShadowReportWiringMutationV0; 3] = [
+        (ReactiveShadowReportWiringCheckV0::TargetSet, |report| {
+            report
+                .projected_target_uris
+                .insert("file:///drift.scss".to_string());
+        }),
+        (
+            ReactiveShadowReportWiringCheckV0::DeltaFoldRebuild,
+            |report| report.delta_fold_matches_full_rebuild = false,
+        ),
+        (
+            ReactiveShadowReportWiringCheckV0::DeliveryDecision,
+            |report| report.projected_delivery_decisions.clear(),
+        ),
+    ];
+
+    for (expected_check, mutate) in mutations {
+        let mut report = baseline.clone();
+        mutate(&mut report);
+        let parity = evaluate_reactive_shadow_parity(&[report]);
+        match expected_check {
+            ReactiveShadowReportWiringCheckV0::TargetSet => assert_eq!(
+                parity.unclassified_divergences,
+                vec![ReactiveShadowParityDimensionV0::TargetSet]
+            ),
+            ReactiveShadowReportWiringCheckV0::DeltaFoldRebuild => assert_eq!(
+                parity.oracle_failures,
+                vec![ReactiveShadowOracleCheckV0::DeltaFoldRebuild]
+            ),
+            ReactiveShadowReportWiringCheckV0::DeliveryDecision => assert_eq!(
+                parity.unclassified_divergences,
+                vec![ReactiveShadowParityDimensionV0::DeliveryDecision]
+            ),
+        }
+    }
 }
 
 #[test]
@@ -616,6 +668,36 @@ fn observer_flush_with_final_stamps(
     let target_uris = BTreeSet::from(["file:///fixture.scss".to_string()]);
     observer.complete_flush(flush_id, target_uris.clone(), target_uris, final_stamps);
     Ok((observer, flush_id, receipt))
+}
+
+fn synthetic_report() -> ReactiveShadowFlushReportV0 {
+    let stamps = ReactiveShadowStampsV0 {
+        corpus_revision: 7,
+        style_snapshot_revision: 11,
+        demand_generation: 3,
+    };
+    let mut report = ReactiveShadowFlushReportV0::new(1, stamps);
+    report.expected_target_uris = BTreeSet::from(["file:///fixture.scss".to_string()]);
+    report.projected_target_uris = report.expected_target_uris.clone();
+    report.projected_stamps = Some(stamps);
+    report
+        .expected_baseline_digests
+        .insert("file:///fixture.scss".to_string(), "digest".to_string());
+    report.projected_baseline_digests = report.expected_baseline_digests.clone();
+    report.projected_optimizing_digests = report.expected_optimizing_digests.clone();
+    report.expected_delivery_decisions =
+        vec![crate::reactive_shadow::ReactiveShadowDeliveryDecisionV0 {
+            candidate_id: 1,
+            uri: "file:///fixture.scss".to_string(),
+            tier: Some(ReactiveShadowPublishTierV0::Baseline),
+            should_deliver: true,
+        }];
+    report.projected_delivery_decisions = report.expected_delivery_decisions.clone();
+    report.delta_fold_matches_full_rebuild = true;
+    report.settled_without_pending_work = true;
+    report.corpus_revision_reads.push(stamps.corpus_revision);
+    report.observer_liveness_grounded = true;
+    report
 }
 
 fn run_message_stream(state: &mut LspShellState, messages: &[Value]) -> Vec<Value> {

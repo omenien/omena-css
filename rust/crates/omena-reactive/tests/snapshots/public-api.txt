@@ -11,6 +11,7 @@
 #[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::Diverged
 #[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::InvalidNode
 #[non_exhaustive] pub omena_reactive::DeltaFoldParityErrorV0::NotDeltaFold
+#[non_exhaustive] pub omena_reactive::ReactiveEngineErrorV0::ForeignNodeId
 #[non_exhaustive] pub omena_reactive::ReactiveEngineErrorV0::InvalidNode
 #[non_exhaustive] pub omena_reactive::ReactiveEngineErrorV0::NodeDoesNotAcceptDeposits
 #[non_exhaustive] pub omena_reactive::ReactiveGraphBuildErrorV0::DuplicateDeltaKey
@@ -91,6 +92,9 @@ pub omena_reactive::ReactiveDivergenceClassV0::FlushConeClosureTiming
 pub omena_reactive::ReactiveDivergenceClassV0::MidWaveReadTiming
 pub omena_reactive::ReactiveDivergenceDispositionV0::BenignUntilFlush
 pub omena_reactive::ReactiveDivergenceDispositionV0::Blocker
+pub omena_reactive::ReactiveEngineErrorV0::ForeignNodeId::actual_graph: u64
+pub omena_reactive::ReactiveEngineErrorV0::ForeignNodeId::expected_graph: u64
+pub omena_reactive::ReactiveEngineErrorV0::ForeignNodeId::node_index: usize
 pub omena_reactive::ReactiveEngineErrorV0::InvalidNode::node_index: usize
 pub omena_reactive::ReactiveEngineErrorV0::NodeDoesNotAcceptDeposits::node_index: usize
 pub omena_reactive::ReactiveEngineErrorV0::ObserverMutationDuringWave
