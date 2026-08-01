@@ -339,7 +339,7 @@
     "check:rust-omena-js-bundler-host-parity": "node --import tsx ./scripts/check-js-bundler-host-parity.ts",
     "check:rust-omena-js-bundler-host-no-regex-classmap": "node --import tsx ./scripts/check-js-bundler-host-no-regex-classmap.ts",
     "check:rust-omena-js-bundler-host-plugin-kind": "node --import tsx ./scripts/check-js-bundler-host-plugin-kind.ts",
-    "check:rust-omena-bundler-closed-world-authority": "node --import tsx ./scripts/check-rust-omena-bundler-closed-world-authority.ts",
+    "check:rust-omena-bundler-closed-world-authority": "node --import tsx ./scripts/check-rust-omena-bundler-closed-world-authority.ts && node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts",
     "check:rust-omena-bundler-emission-order-contract": "node --import tsx ./scripts/check-rust-omena-bundler-emission-order-contract.ts",
     "check:rust-omenad-substrate-inventory": "node --import tsx ./scripts/check-rust-omenad-substrate-inventory.ts",
     "check:rust-omenad-protocol": "cargo test --manifest-path rust/Cargo.toml -p omena-cli --test omenad_protocol -- --nocapture",
