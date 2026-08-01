@@ -8,6 +8,11 @@
   ],
   "firedSitesByPerturbation": [
     {
+      "perturbation": "--inject-admission-reference-callgraph-indirection",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-admission-reference-callgraph-indirection",
+      "firedSiteIds": ["closed-world-admission-reference-callgraph"]
+    },
+    {
       "perturbation": "--inject-ambiguous-match-count",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-fallback.ts --inject-ambiguous-match-count",
       "firedSiteIds": ["linked-source-map-ambiguous-window"]
@@ -28,9 +33,24 @@
       "firedSiteIds": ["linked-emission-product-run-status"]
     },
     {
+      "perturbation": "--inject-composes-admission-matrix-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-composes-admission-matrix-loss",
+      "firedSiteIds": ["closed-world-admission-composes-matrix"]
+    },
+    {
+      "perturbation": "--inject-composes-depth-two-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-composes-depth-two-loss",
+      "firedSiteIds": ["closed-world-admission-composes-depth-two"]
+    },
+    {
       "perturbation": "--inject-composes-liveness-loss",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-composes-liveness-loss",
       "firedSiteIds": ["linked-emission-product-run-status"]
+    },
+    {
+      "perturbation": "--inject-composes-product-path-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-composes-product-path-loss",
+      "firedSiteIds": ["closed-world-admission-composes-product-path"]
     },
     {
       "perturbation": "--inject-cross-module-declaration-loss",

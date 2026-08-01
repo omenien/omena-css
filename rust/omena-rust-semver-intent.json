@@ -259,6 +259,23 @@
             "LinkerDependencyEdgeV0.remote_names"
           ]
         }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "module-qualified-composes-reachability-closure",
+          "kind": "selection-outcome-changing",
+          "surface": "ClosedWorldBundleV0 module-qualified class reachability",
+          "reason": "A reachable composed selector is propagated to its owning dependency module before destructive class shaking, while unrelated selectors remain removable.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+              "needles": [
+                "semantic_reachability_inputs_closed_over_composes(",
+                "fn composes_closure_expands_module_qualified_semantic_reachability()"
+              ]
+            }
+          ]
+        }
       ]
     },
     {
@@ -269,11 +286,13 @@
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
-            "field ClosedWorldLinkedModuleV0.composes_edges"
+            "field ClosedWorldLinkedModuleV0.composes_edges",
+            "field ClosedWorldLinkedModuleV0.composes_edge_observation_count"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
-            "ClosedWorldLinkedModuleV0.composes_edges"
+            "ClosedWorldLinkedModuleV0.composes_edges",
+            "ClosedWorldLinkedModuleV0.composes_edge_observation_count"
           ]
         }
       ]
@@ -387,14 +406,13 @@
               "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
               "needles": [
                 "with_interface_hash(linker_input_interface_hash(",
-                "fn closed_world_bundle_reachability_precision("
+                "fn closed_world_bundle_reachability_precision(",
+                "populate_workspace_bundle_edges_for_admission_witness("
               ]
             },
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
-              "needles": [
-                "pub closed_world_admission: TransformClosedWorldAdmissionSummaryV0"
-              ]
+              "needles": ["pub closed_world_admission: TransformClosedWorldAdmissionSummaryV0"]
             }
           ]
         }
@@ -407,13 +425,9 @@
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
-          "evidenceNeedles": [
-            "field TransformExecutionSummaryV0.closed_world_admission"
-          ],
+          "evidenceNeedles": ["field TransformExecutionSummaryV0.closed_world_admission"],
           "witnessLinePrefix": "  field ",
-          "expectedWitnesses": [
-            "TransformExecutionSummaryV0.closed_world_admission"
-          ]
+          "expectedWitnesses": ["TransformExecutionSummaryV0.closed_world_admission"]
         },
         {
           "lint": "enum_variant_added",
@@ -424,6 +438,10 @@
             "TransformStrictPolicyReasonV0:LivenessNotClosed",
             "TransformStrictPolicyReasonV0:OwnershipNotSeparable"
           ]
+        },
+        {
+          "lint": "struct_marked_non_exhaustive",
+          "evidenceNeedles": ["struct TransformStructuralIrTransactionTelemetryV0"]
         }
       ],
       "expectedRuntimeValueChanges": [
@@ -446,19 +464,21 @@
           "id": "closed-world-admission-refusal-values",
           "kind": "selection-outcome-changing",
           "surface": "FactConsuming transform dispatch and TransformExecutionSummaryV0.closedWorldAdmission",
-          "reason": "A destructive pass with incomplete closed-world evidence is planned-only and retains its input bytes with a typed named refusal.",
+          "reason": "A destructive pass with incomplete closed-world evidence or non-closed composes liveness is planned-only and retains its input bytes with a typed named refusal.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
               "needles": [
                 "closed_world_admission_o3_reasons(",
+                "closed_world_admission_o2_reasons(",
                 "TransformBlockedReasonV0::ClosedWorldAdmission"
               ]
             },
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
               "needles": [
-                "fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping_bytes()"
+                "fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping_bytes()",
+                "fn closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix()"
               ]
             }
           ]

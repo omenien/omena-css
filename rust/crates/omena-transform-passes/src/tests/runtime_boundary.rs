@@ -22,8 +22,10 @@ use crate::{
 use omena_abstract_value::FactPrecision;
 use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::{
-    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
-    ModuleInstanceKeyV0, StyleDialect,
+    ClosedWorldBundleV0, ClosedWorldComposesEdgeV0, ClosedWorldComposesScanStateV0,
+    ClosedWorldLinkedModuleV0, ClosedWorldModuleMetadataV0,
+    ClosedWorldModuleReachabilityEvidenceV0, ClosedWorldSourcePrecisionSummaryV0,
+    ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, StyleDialect,
 };
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformPassClassV0, TransformPassKind,
@@ -67,6 +69,305 @@ fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping
                 "sourcePrecision".to_string(),
             ]
     ));
+    Ok(())
+}
+
+#[test]
+fn closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix()
+-> Result<(), String> {
+    fn emit_cell(
+        state: &str,
+        producer: &str,
+        fixture: &str,
+        execution: &crate::TransformExecutionSummaryV0,
+        observed_bundle_edge_count: usize,
+    ) {
+        let reason_kind = execution
+            .closed_world_admission
+            .refusal_reasons
+            .first()
+            .and_then(|entry| entry.reasons.first())
+            .map(|reason| match reason {
+                TransformStrictPolicyReasonV0::LivenessNotClosed { .. } => "livenessNotClosed",
+                TransformStrictPolicyReasonV0::EvidenceUnavailable => "evidenceUnavailable",
+                _ => "other",
+            });
+        eprintln!(
+            "G111_S4_CELL={}",
+            serde_json::json!({
+                "command": "cargo test -p omena-transform-passes tests::runtime_boundary::closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix -- --exact --nocapture",
+                "state": state,
+                "producer": producer,
+                "fixture": fixture,
+                "rc": 0,
+                "refusedCount": execution.closed_world_admission.refused_count,
+                "reasonKind": reason_kind,
+                "evidenceScope": execution.closed_world_admission.evidence_scope,
+                "outputCss": execution.output_css.as_str(),
+                "observedBundleEdgeCount": observed_bundle_edge_count,
+            })
+        );
+    }
+
+    fn bundle(
+        target_retained: bool,
+        edge_observed: bool,
+        carrier_neutered: bool,
+        scan_state: ClosedWorldComposesScanStateV0,
+    ) -> Result<(ClosedWorldBundleV0, ModuleInstanceKeyV0), String> {
+        let entry = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.module.css"));
+        let base = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("base.module.css"));
+        let mut entry_module = ClosedWorldLinkedModuleV0::new(entry.clone())
+            .with_dependency(base.clone())
+            .with_class_name("card");
+        if edge_observed {
+            entry_module = entry_module.with_composes_edge(ClosedWorldComposesEdgeV0 {
+                from_module: entry.clone(),
+                from_symbol: "card".to_string(),
+                to_module: base.clone(),
+                to_symbol: "base".to_string(),
+            });
+        }
+        if carrier_neutered {
+            entry_module.composes_edges.clear();
+        }
+        let mut base_module = ClosedWorldLinkedModuleV0::new(base.clone());
+        if target_retained {
+            base_module = base_module.with_class_name("base");
+        }
+        let metadata = [&entry, &base]
+            .into_iter()
+            .map(|instance| {
+                ClosedWorldModuleMetadataV0::new(instance.clone())
+                    .with_interface_hash("test-interface")
+                    .with_source_precision(ClosedWorldSourcePrecisionSummaryV0 {
+                        conservative_source_count: 1,
+                        ..ClosedWorldSourcePrecisionSummaryV0::default()
+                    })
+                    .with_reachability_evidence(ClosedWorldModuleReachabilityEvidenceV0::Supplied)
+                    .with_composes_scan_state(scan_state)
+            })
+            .collect();
+        let bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
+            vec![entry],
+            vec![entry_module, base_module],
+            metadata,
+        )
+        .map_err(|error| format!("admission matrix bundle should construct: {error:?}"))?;
+        Ok((bundle, base))
+    }
+
+    fn execute(
+        bundle: &ClosedWorldBundleV0,
+        base: &ModuleInstanceKeyV0,
+    ) -> Result<crate::TransformExecutionSummaryV0, String> {
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            "body { display: block; } .base { padding: 8px; } .dead { color: gray; }",
+            StyleDialect::Css,
+            &[TransformPassKind::TreeShakeClass],
+            &TransformExecutionContextV0::default(),
+            bundle,
+            base,
+        )
+        .map_err(|error| format!("matrix module should be known: {error:?}"))
+    }
+
+    let (shape, base) = bundle(
+        false,
+        true,
+        false,
+        ClosedWorldComposesScanStateV0::ScannedClosed,
+    )?;
+    let shape = execute(&shape, &base)?;
+    assert!(matches!(
+        shape.closed_world_admission.refusal_reasons[0].reasons.as_slice(),
+        [TransformStrictPolicyReasonV0::LivenessNotClosed {
+            symbol,
+            via_edge: "composes",
+            ..
+        }] if symbol == "base"
+    ));
+    assert!(shape.output_css.contains(".base"));
+    emit_cell("inboundNonempty", "intact", "shape", &shape, 1);
+
+    let (shape, base) = bundle(
+        false,
+        true,
+        false,
+        ClosedWorldComposesScanStateV0::ScannedClosed,
+    )?;
+    let keyframes =
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            "@keyframes spin { from { opacity: 0; } }",
+            StyleDialect::Css,
+            &[TransformPassKind::TreeShakeKeyframes],
+            &TransformExecutionContextV0::default(),
+            &shape,
+            &base,
+        )
+        .map_err(|error| format!("matrix keyframes module should be known: {error:?}"))?;
+    assert_eq!(
+        keyframes.closed_world_admission.refused_count, 0,
+        "a class-only composes gap must not block another FactConsuming domain"
+    );
+
+    let (clean, base) = bundle(
+        true,
+        true,
+        false,
+        ClosedWorldComposesScanStateV0::ScannedClosed,
+    )?;
+    let clean = execute(&clean, &base)?;
+    assert_eq!(clean.closed_world_admission.refused_count, 0);
+    assert!(clean.output_css.contains(".base"));
+    assert!(!clean.output_css.contains(".dead"));
+    emit_cell("inboundNonempty", "intact", "clean", &clean, 1);
+
+    for target_retained in [false, true] {
+        let (neutered, base) = bundle(
+            target_retained,
+            true,
+            true,
+            ClosedWorldComposesScanStateV0::ScannedClosed,
+        )?;
+        let neutered = execute(&neutered, &base)?;
+        assert!(matches!(
+            neutered.closed_world_admission.refusal_reasons[0]
+                .reasons
+                .as_slice(),
+            [TransformStrictPolicyReasonV0::EvidenceUnavailable]
+        ));
+        assert!(neutered.output_css.contains(".base"));
+        emit_cell(
+            "inboundNonempty",
+            "neutered",
+            if target_retained { "clean" } else { "shape" },
+            &neutered,
+            1,
+        );
+    }
+
+    let (scanned_empty, base) = bundle(
+        false,
+        false,
+        false,
+        ClosedWorldComposesScanStateV0::ScannedClosed,
+    )?;
+    let scanned_empty = execute(&scanned_empty, &base)?;
+    assert_eq!(scanned_empty.closed_world_admission.refused_count, 0);
+    assert_eq!(scanned_empty.closed_world_admission.evidence_scope, None);
+    emit_cell("scannedEmpty", "intact", "empty", &scanned_empty, 0);
+
+    let (source_open, base) = bundle(
+        false,
+        false,
+        false,
+        ClosedWorldComposesScanStateV0::SourceSetOpen,
+    )?;
+    let source_open = execute(&source_open, &base)?;
+    assert_eq!(source_open.closed_world_admission.refused_count, 0);
+    assert_eq!(
+        source_open.closed_world_admission.evidence_scope,
+        Some("sourceSetOpen")
+    );
+    emit_cell("sourceSetOpen", "intact", "shape", &source_open, 0);
+
+    let (source_open_inbound, base) = bundle(
+        false,
+        true,
+        false,
+        ClosedWorldComposesScanStateV0::SourceSetOpen,
+    )?;
+    let source_open_inbound = execute(&source_open_inbound, &base)?;
+    assert!(matches!(
+        source_open_inbound.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::LivenessNotClosed {
+            symbol,
+            via_edge: "composes",
+            ..
+        }] if symbol == "base"
+    ));
+    assert_eq!(
+        source_open_inbound.closed_world_admission.evidence_scope,
+        Some("sourceSetOpen")
+    );
+    emit_cell(
+        "inboundNonempty",
+        "intact",
+        "source-open-shape",
+        &source_open_inbound,
+        1,
+    );
+    Ok(())
+}
+
+#[test]
+fn closed_world_composes_admission_checks_depth_two_target() -> Result<(), String> {
+    let entry = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("a.module.css"));
+    let middle = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("b.module.css"));
+    let target = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("c.module.css"));
+    let entry_module = ClosedWorldLinkedModuleV0::new(entry.clone())
+        .with_dependency(middle.clone())
+        .with_class_name("a")
+        .with_composes_edge(ClosedWorldComposesEdgeV0 {
+            from_module: entry.clone(),
+            from_symbol: "a".to_string(),
+            to_module: middle.clone(),
+            to_symbol: "b".to_string(),
+        });
+    let middle_module = ClosedWorldLinkedModuleV0::new(middle.clone())
+        .with_dependency(target.clone())
+        .with_class_name("b")
+        .with_composes_edge(ClosedWorldComposesEdgeV0 {
+            from_module: middle.clone(),
+            from_symbol: "b".to_string(),
+            to_module: target.clone(),
+            to_symbol: "c".to_string(),
+        });
+    let target_module = ClosedWorldLinkedModuleV0::new(target.clone());
+    let metadata = [&entry, &middle, &target]
+        .into_iter()
+        .map(|instance| {
+            ClosedWorldModuleMetadataV0::new(instance.clone())
+                .with_interface_hash("test-interface")
+                .with_source_precision(ClosedWorldSourcePrecisionSummaryV0 {
+                    conservative_source_count: 1,
+                    ..ClosedWorldSourcePrecisionSummaryV0::default()
+                })
+                .with_reachability_evidence(ClosedWorldModuleReachabilityEvidenceV0::Supplied)
+                .with_composes_scan_state(ClosedWorldComposesScanStateV0::ScannedClosed)
+        })
+        .collect();
+    let bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
+        vec![entry],
+        vec![entry_module, middle_module, target_module],
+        metadata,
+    )
+    .map_err(|error| format!("depth-two bundle should construct: {error:?}"))?;
+    let execution =
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            ".c { color: red; }",
+            StyleDialect::Css,
+            &[TransformPassKind::TreeShakeClass],
+            &TransformExecutionContextV0::default(),
+            &bundle,
+            &target,
+        )
+        .map_err(|error| format!("depth-two target should be known: {error:?}"))?;
+
+    assert!(matches!(
+        execution.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::LivenessNotClosed {
+            symbol,
+            from_module,
+            via_edge: "composes",
+        }] if symbol == "c" && from_module == &middle
+    ));
+    assert_eq!(execution.output_css, ".c { color: red; }");
     Ok(())
 }
 

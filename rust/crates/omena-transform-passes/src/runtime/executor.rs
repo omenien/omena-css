@@ -11,7 +11,7 @@ use omena_cascade::StaticSupportsAssumptionV0;
 use omena_cascade_proof::DischargeLedgerLookupStatusV0;
 use omena_evidence_graph::GuaranteeFamilyV0;
 use omena_parser::{
-    ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
+    ClosedWorldBundleV0, ClosedWorldComposesScanStateV0, ClosedWorldInterfaceHashAvailabilityV0,
     ClosedWorldModuleReachabilityEvidenceV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0,
     StyleDialect,
 };
@@ -2411,23 +2411,38 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .filter(|pass| strict_pass_ids.contains(pass.id()))
             .map(|pass| strict_plan_refusal_reasons(pass, context))
             .unwrap_or_default();
+        let fact_consuming_pass = pass.is_some_and(|pass| {
+            matches!(
+                transform_structural_decision_policy(pass).map(|policy| policy.class),
+                Some(TransformStructuralDecisionClassV0::FactConsuming { .. })
+            )
+        });
         let closed_world_admission_reasons = pass
-            .filter(|pass| {
-                matches!(
-                    transform_structural_decision_policy(*pass).map(|policy| policy.class),
-                    Some(TransformStructuralDecisionClassV0::FactConsuming { .. })
-                )
-            })
-            .and_then(|_| {
+            .filter(|_| fact_consuming_pass)
+            .and_then(|pass_kind| {
                 closed_world_bundle.map(|bundle| {
-                    closed_world_admission_o3_reasons(
+                    let mut reasons = closed_world_admission_o3_reasons(
                         bundle,
                         module_qualified_symbols,
                         planned_module_qualified_ownership_digest.as_deref(),
-                    )
+                    );
+                    reasons.extend(closed_world_admission_o2_reasons(
+                        bundle,
+                        module_qualified_symbols,
+                        module_reachable_class_names.as_deref(),
+                        pass_kind,
+                    ));
+                    reasons
                 })
             })
             .unwrap_or_default();
+        if fact_consuming_pass
+            && closed_world_bundle.is_some_and(|bundle| {
+                bundle.composes_scan_state() == ClosedWorldComposesScanStateV0::SourceSetOpen
+            })
+        {
+            closed_world_admission_summary.evidence_scope = Some("sourceSetOpen");
+        }
         let strict_refused_before_dispatch = !strict_refusal_reasons.is_empty();
         let mut dispatch_result = if !strict_refusal_reasons.is_empty() {
             strict_policy_summary.record_refusal(*pass_id, strict_refusal_reasons.clone());
@@ -2768,24 +2783,29 @@ fn closed_world_admission_o3_reasons(
         return Vec::new();
     }
     let mut missing = Vec::new();
-    if let Some(module_instance) = module_instance {
-        let interface_hash_known = bundle.interface_hashes().entries().iter().any(|entry| {
+    let checked_modules = module_instance.map_or_else(
+        || bundle.linked_modules(),
+        |module_instance| std::slice::from_ref(module_instance),
+    );
+    if checked_modules.is_empty() {
+        missing.push("moduleInstance".to_string());
+    }
+    if checked_modules.iter().any(|module_instance| {
+        !bundle.interface_hashes().entries().iter().any(|entry| {
             &entry.module_instance == module_instance
                 && matches!(
                     entry.availability,
                     ClosedWorldInterfaceHashAvailabilityV0::Known { .. }
                 )
-        });
-        if !interface_hash_known {
-            missing.push("interfaceHash".to_string());
-        }
-        if bundle.module_reachability_evidence(module_instance)
+        })
+    }) {
+        missing.push("interfaceHash".to_string());
+    }
+    if checked_modules.iter().any(|module_instance| {
+        bundle.module_reachability_evidence(module_instance)
             == ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent
-        {
-            missing.push("moduleReachabilityInputAbsent".to_string());
-        }
-    } else {
-        missing.push("moduleInstance".to_string());
+    }) {
+        missing.push("moduleReachabilityInputAbsent".to_string());
     }
     if bundle
         .source_precision()
@@ -2802,6 +2822,56 @@ fn closed_world_admission_o3_reasons(
     } else {
         vec![TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { missing }]
     }
+}
+
+fn closed_world_admission_o2_reasons(
+    bundle: &ClosedWorldBundleV0,
+    module_qualified_symbols: Option<&ModuleQualifiedSymbolSetV0>,
+    module_reachable_class_names: Option<&[String]>,
+    pass_kind: TransformPassKind,
+) -> Vec<TransformStrictPolicyReasonV0> {
+    if pass_kind != TransformPassKind::TreeShakeClass {
+        return Vec::new();
+    }
+    if bundle.composes_edge_observation_count() > bundle.composes_edges().len() {
+        return vec![TransformStrictPolicyReasonV0::EvidenceUnavailable];
+    }
+    let module_instance =
+        closed_world_admission_module_instance(Some(bundle), module_qualified_symbols);
+    let target_modules = module_instance.map_or_else(
+        || bundle.linked_modules(),
+        |module_instance| std::slice::from_ref(module_instance),
+    );
+    let checked = module_reachable_class_names
+        .unwrap_or_else(|| bundle.reachability().class_names())
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let inbound = bundle
+        .composes_edges()
+        .iter()
+        .filter(|edge| target_modules.contains(&edge.to_module))
+        .collect::<Vec<_>>();
+    if inbound.iter().any(|edge| {
+        bundle
+            .composes_origin_symbol_is_reachable(&edge.from_module, edge.from_symbol.as_str())
+            .is_none()
+    }) {
+        return vec![TransformStrictPolicyReasonV0::EvidenceUnavailable];
+    }
+    inbound
+        .into_iter()
+        .filter(|edge| {
+            bundle.composes_origin_symbol_is_reachable(&edge.from_module, edge.from_symbol.as_str())
+                == Some(true)
+        })
+        .filter(|edge| !checked.contains(edge.to_symbol.as_str()))
+        .map(|edge| TransformStrictPolicyReasonV0::LivenessNotClosed {
+            symbol: edge.to_symbol.clone(),
+            from_module: edge.from_module.clone(),
+            via_edge: "composes",
+        })
+        .collect()
 }
 
 fn summarize_discharge_ledger_telemetry(

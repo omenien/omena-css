@@ -1,8 +1,8 @@
 use super::*;
 use omena_cascade::SupportsTargetCapabilityV0;
 use omena_parser::{
-    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldModuleMetadataV0,
-    ClosedWorldSourcePrecisionSummaryV0, OpenWorldSnapshotV0,
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldComposesScanStateV0,
+    ClosedWorldModuleMetadataV0, ClosedWorldSourcePrecisionSummaryV0, OpenWorldSnapshotV0,
 };
 use omena_query_transform_runner::{
     EmissionOrderingPolicyV0, LinkedEmissionArtifactV0, LinkedStylesheetWithEmissionItemsV0,
@@ -498,11 +498,14 @@ fn run_omena_query_bundle_with_optional_module_reachability(
                 )
             })
             .transpose()?;
-    let bundle = summarize_omena_transform_bundle_from_source(
+    let mut bundle = summarize_omena_transform_bundle_from_source(
         target_style_path,
         target_source,
         omena_parser_dialect_for_style_path(target_style_path),
     );
+    if style_sources.len() > 1 {
+        populate_workspace_bundle_edges_for_admission_witness(&mut bundle, style_sources);
+    }
     let source_map_sources = if source_map_sources.is_empty() {
         style_sources
     } else {
@@ -533,6 +536,7 @@ fn run_omena_query_bundle_with_optional_module_reachability(
             attribution_report,
             resolution_inputs,
             external_sifs,
+            source_set_closed: true,
         },
         link_options,
     )
@@ -643,6 +647,26 @@ fn run_omena_query_bundle_with_optional_module_reachability(
         },
         execution_scope,
     })
+}
+
+fn populate_workspace_bundle_edges_for_admission_witness(
+    bundle: &mut TransformBundleSourceSummaryV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) {
+    let mut edges = Vec::new();
+    for source in style_sources {
+        let summary = summarize_omena_transform_bundle_from_source(
+            source.style_path.as_str(),
+            source.style_source.as_str(),
+            omena_parser_dialect_for_style_path(source.style_path.as_str()),
+        );
+        for edge in summary.bundle_edges {
+            if !edges.contains(&edge) {
+                edges.push(edge);
+            }
+        }
+    }
+    bundle.bundle_edges = edges;
 }
 
 pub fn run_omena_query_bundle_for_style_sources_with_context(
@@ -1290,6 +1314,7 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_resolution_
                 attribution_report: None,
                 resolution_inputs,
                 external_sifs: &[],
+                source_set_closed: false,
             })
         });
     let mut summary = if let Some(closed_world_bundle) = closed_world_outcome
@@ -1302,7 +1327,7 @@ pub fn execute_omena_query_consumer_build_style_sources_with_context_resolution_
             &pass_set,
             &context,
             closed_world_bundle,
-            closed_world_bundle_reachability_precision(&context, &closed_world_bundle),
+            closed_world_bundle_reachability_precision(&context, closed_world_bundle),
             options,
         )
     } else {
@@ -3350,6 +3375,7 @@ struct ClosedWorldStylesheetRequestV0<'a> {
     attribution_report: Option<&'a OmenaQueryModuleReachabilityAttributionReportV0>,
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
     external_sifs: &'a [OmenaQueryExternalSifInputV0],
+    source_set_closed: bool,
 }
 
 fn build_closed_world_outcome_for_style_sources(
@@ -3395,6 +3421,7 @@ fn link_closed_world_stylesheet_for_style_sources(
         &prepared.projection,
         request.context,
         request.external_sifs,
+        request.source_set_closed,
     );
     evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options(
         &[request.target_style_path],
@@ -4140,7 +4167,7 @@ fn build_closed_world_outcome_for_single_style_source_context(
         TransformResolutionContext::from_resolution_inputs(&resolution_inputs),
     );
     let module_metadata =
-        style_sources_to_closed_world_metadata(&prepared.projection, context, &[]);
+        style_sources_to_closed_world_metadata(&prepared.projection, context, &[], false);
     if reachability_input.is_none() {
         if requested_pass_ids_include_tree_shake(requested_pass_ids) {
             return OmenaQueryClosedWorldOutcomeV0::Open {
@@ -4201,6 +4228,7 @@ fn style_sources_to_closed_world_metadata(
     projection: &TransformBundleLinkerProjectionV0,
     context: &TransformExecutionContextV0,
     external_sifs: &[OmenaQueryExternalSifInputV0],
+    source_set_closed: bool,
 ) -> Vec<ClosedWorldModuleMetadataV0> {
     let source_precision = closed_world_source_precision_summary(context);
     projection
@@ -4217,7 +4245,12 @@ fn style_sources_to_closed_world_metadata(
                         input.custom_property_names.as_slice(),
                     ],
                 ))
-                .with_source_precision(source_precision);
+                .with_source_precision(source_precision)
+                .with_composes_scan_state(if source_set_closed {
+                    ClosedWorldComposesScanStateV0::ScannedClosed
+                } else {
+                    ClosedWorldComposesScanStateV0::SourceSetOpen
+                });
             if let Some(interface_hash) = external_sifs.iter().find_map(|external_sif| {
                 sif_matches_style_path(external_sif, input.source_path.as_str()).then(|| {
                     external_sif
@@ -4519,6 +4552,7 @@ mod linked_source_map_tests {
                 attribution_report: None,
                 resolution_inputs: &resolution_inputs,
                 external_sifs: &[],
+                source_set_closed: true,
             },
             link_options,
         );

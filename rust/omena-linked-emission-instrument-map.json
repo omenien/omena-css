@@ -11,11 +11,11 @@
     "scripts/check-rust-omena-closed-world-admission-tier.ts"
   ],
   "domainWideningCondition": "A new assertion participates in linked-emission correctness, liveness attribution, placement, collision accounting, or its product-path reachability.",
-  "assertionSiteCount": 188,
+  "assertionSiteCount": 192,
   "excludedAssertionCount": 86,
   "structuralEntailmentCount": 3,
   "limitations": [
-    "Firing is observed only as the first-failure site of each executable perturbation (currently 10 of 185 non-structural sites); the remaining rows are disclosures whose producerReachability: can-fail is not verified by this mechanism.",
+    "Firing is observed only as the first-failure site of each executable perturbation (currently 14 of 189 non-structural sites); the remaining rows are disclosures whose producerReachability: can-fail is not verified by this mechanism.",
     "Unannotated assertion forms are accepted only through exact, owner-bound per-file counts.",
     "The mechanism cannot prove that a selected defect class is semantically correct."
   ],
@@ -2279,12 +2279,60 @@
       "id": "closed-world-admission-reachability-absence",
       "file": "scripts/check-rust-omena-closed-world-admission-tier.ts",
       "symbol": "<module>",
-      "lineHint": 22,
+      "lineHint": 49,
       "syntax": "assert.equal",
       "defectClass": "liveness",
       "falsifiers": ["--inject-recorded-module-reachability-absence-loss"],
       "producerReachability": "can-fail",
       "entryState": "silent-full-module-retention",
+      "owner": "closed-world-admission-tier"
+    },
+    {
+      "id": "closed-world-admission-composes-matrix",
+      "file": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "symbol": "<module>",
+      "lineHint": 108,
+      "syntax": "assert.equal",
+      "defectClass": "liveness",
+      "falsifiers": ["--inject-composes-admission-matrix-loss"],
+      "producerReachability": "can-fail",
+      "entryState": "tri-state-and-independent-producer-matrix",
+      "owner": "closed-world-admission-tier"
+    },
+    {
+      "id": "closed-world-admission-composes-depth-two",
+      "file": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "symbol": "<module>",
+      "lineHint": 124,
+      "syntax": "assert.equal",
+      "defectClass": "liveness",
+      "falsifiers": ["--inject-composes-depth-two-loss"],
+      "producerReachability": "can-fail",
+      "entryState": "depth-two-target-retention",
+      "owner": "closed-world-admission-tier"
+    },
+    {
+      "id": "closed-world-admission-composes-product-path",
+      "file": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "symbol": "<module>",
+      "lineHint": 349,
+      "syntax": "assert.equal",
+      "defectClass": "liveness",
+      "falsifiers": ["--inject-composes-product-path-loss"],
+      "producerReachability": "can-fail",
+      "entryState": "bundle-and-plain-composes-closure",
+      "owner": "closed-world-admission-tier"
+    },
+    {
+      "id": "closed-world-admission-reference-callgraph",
+      "file": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "symbol": "extractFunctions",
+      "lineHint": 439,
+      "syntax": "assert.equal",
+      "defectClass": "liveness",
+      "falsifiers": ["--inject-admission-reference-callgraph-indirection"],
+      "producerReachability": "can-fail",
+      "entryState": "disjoint-reference-producer",
       "owner": "closed-world-admission-tier"
     }
   ]

@@ -1059,21 +1059,22 @@ fn bundle_evidence_consumes_sif_hashes_and_precision_deterministically() -> Resu
     let entries = bundle.interface_hashes().entries();
 
     assert_eq!(entries.len(), 2);
-    assert!(entries.iter().any(|entry| matches!(
-        entry.availability,
-        ClosedWorldInterfaceHashAvailabilityV0::Known { .. }
-    )));
-    assert!(entries.iter().any(|entry| matches!(
-        entry.availability,
-        ClosedWorldInterfaceHashAvailabilityV0::Absent
-    )));
     assert_eq!(
-        bundle
-            .source_precision()
-            .ok_or_else(|| "bundle should carry source precision".to_string())?
-            .conservative_source_count,
-        2
+        entries
+            .iter()
+            .filter(|entry| matches!(
+                entry.availability,
+                ClosedWorldInterfaceHashAvailabilityV0::Known { .. }
+            ))
+            .count(),
+        2,
+        "every local module now carries a deterministic interface hash"
     );
+    let source_precision = bundle
+        .source_precision()
+        .ok_or_else(|| "bundle should carry source precision".to_string())?;
+    assert_eq!(source_precision.unknown_source_count, 2);
+    assert_eq!(source_precision.conservative_source_count, 0);
 
     let evidence = summarize_omena_query_bundle_evidence(&result);
     let first = serde_json::to_vec_pretty(&evidence).map_err(|error| error.to_string())?;

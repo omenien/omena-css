@@ -8,9 +8,10 @@ use std::{
 use omena_cascade::StaticSupportsAssumptionV0;
 use omena_incremental::IncrementalRevisionV0;
 use omena_parser::{
-    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
-    ModuleInstanceKeyV0, StyleDialect, parse, summarize_omena_parser_parity_lite,
-    summarize_omena_parser_style_facts,
+    ClosedWorldBundleV0, ClosedWorldComposesScanStateV0, ClosedWorldLinkedModuleV0,
+    ClosedWorldModuleMetadataV0, ClosedWorldModuleReachabilityEvidenceV0,
+    ClosedWorldSourcePrecisionSummaryV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
+    StyleDialect, parse, summarize_omena_parser_parity_lite, summarize_omena_parser_style_facts,
 };
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
@@ -1423,8 +1424,20 @@ fn closed_world_bundle_for_shadow_fixture(
         module = module.with_custom_property_name(name.clone());
     }
 
-    ClosedWorldBundleV0::try_from_linked_modules(vec![instance], vec![module])
-        .map_err(|err| format!("closed-world bundle construction failed: {err:?}"))
+    let metadata = ClosedWorldModuleMetadataV0::new(instance.clone())
+        .with_interface_hash(format!("structural-shadow:{fixture_name}"))
+        .with_source_precision(ClosedWorldSourcePrecisionSummaryV0 {
+            conservative_source_count: 1,
+            ..ClosedWorldSourcePrecisionSummaryV0::default()
+        })
+        .with_reachability_evidence(ClosedWorldModuleReachabilityEvidenceV0::Supplied)
+        .with_composes_scan_state(ClosedWorldComposesScanStateV0::ScannedClosed);
+    ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
+        vec![instance],
+        vec![module],
+        vec![metadata],
+    )
+    .map_err(|err| format!("closed-world bundle construction failed: {err:?}"))
 }
 
 fn structural_pipeline_passes() -> Vec<TransformPassKind> {

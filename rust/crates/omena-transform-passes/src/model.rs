@@ -267,10 +267,10 @@ pub enum TransformBlockedReasonV0 {
     StrictVerification {
         reasons: Vec<TransformStrictPolicyReasonV0>,
     },
+    PassImplementation,
     ClosedWorldAdmission {
         reasons: Vec<TransformStrictPolicyReasonV0>,
     },
-    PassImplementation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

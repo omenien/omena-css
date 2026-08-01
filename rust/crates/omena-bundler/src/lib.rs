@@ -1676,6 +1676,8 @@ fn apply_semantic_reachability_to_linker_inputs(
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
 ) -> BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0> {
     let instances_by_path = module_instances_by_linker_path(inputs);
+    let reachability_inputs =
+        semantic_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
     let module_index_by_instance = inputs
         .iter()
         .enumerate()
@@ -1691,10 +1693,7 @@ fn apply_semantic_reachability_to_linker_inputs(
         })
         .collect::<BTreeMap<_, _>>();
 
-    for input in reachability_inputs {
-        if !input.has_reachable_symbols() {
-            continue;
-        }
+    for input in reachability_inputs.values() {
         let normalized_path = normalize_bundle_path(PathBuf::from(&input.source_path));
         let Some(instances) = instances_by_path.get(&normalized_path) else {
             continue;
@@ -1715,6 +1714,88 @@ fn apply_semantic_reachability_to_linker_inputs(
         }
     }
     evidence_by_instance
+}
+
+fn semantic_reachability_inputs_closed_over_composes(
+    inputs: &[LinkerInputV0],
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) -> BTreeMap<String, TransformBundleSemanticReachabilityInputV0> {
+    let instances_by_path = module_instances_by_linker_path(inputs);
+    let mut by_path = BTreeMap::<String, TransformBundleSemanticReachabilityInputV0>::new();
+    for input in reachability_inputs
+        .iter()
+        .filter(|input| input.has_reachable_symbols())
+    {
+        let normalized_path = normalize_bundle_path(PathBuf::from(&input.source_path));
+        let merged = by_path
+            .entry(normalized_path.clone())
+            .or_insert_with(|| TransformBundleSemanticReachabilityInputV0::new(normalized_path));
+        merged.class_names.extend(input.class_names.iter().cloned());
+        merged
+            .keyframe_names
+            .extend(input.keyframe_names.iter().cloned());
+        merged.value_names.extend(input.value_names.iter().cloned());
+        merged
+            .custom_property_names
+            .extend(input.custom_property_names.iter().cloned());
+        merged.class_names = dedupe_names(merged.class_names.drain(..));
+        merged.keyframe_names = dedupe_names(merged.keyframe_names.drain(..));
+        merged.value_names = dedupe_names(merged.value_names.drain(..));
+        merged.custom_property_names = dedupe_names(merged.custom_property_names.drain(..));
+    }
+
+    loop {
+        let snapshot = by_path.clone();
+        let mut additions = BTreeMap::<String, Vec<String>>::new();
+        for input in inputs {
+            let source_path = normalize_bundle_path(PathBuf::from(&input.source_path));
+            let Some(source_reachability) = snapshot.get(&source_path) else {
+                continue;
+            };
+            for edge in input
+                .dependency_edges
+                .iter()
+                .filter(|edge| edge.kind == TransformBundleEdgeKind::CssModuleComposesExternal)
+            {
+                let target_path =
+                    import_path_candidates(input.source_path.as_str(), edge.import_source.as_str())
+                        .into_iter()
+                        .find(|candidate| instances_by_path.contains_key(candidate));
+                let Some(target_path) = target_path else {
+                    continue;
+                };
+                for local_name in &edge.local_names {
+                    if !source_reachability
+                        .class_names
+                        .iter()
+                        .any(|reachable| reachable == local_name)
+                    {
+                        continue;
+                    }
+                    for remote_name in &edge.remote_names {
+                        additions
+                            .entry(target_path.clone())
+                            .or_default()
+                            .push(remote_name.clone());
+                    }
+                }
+            }
+        }
+        let mut changed = false;
+        for (target_path, class_names) in additions {
+            let target = by_path
+                .entry(target_path.clone())
+                .or_insert_with(|| TransformBundleSemanticReachabilityInputV0::new(target_path));
+            let before = target.class_names.len();
+            target.class_names.extend(class_names);
+            target.class_names = dedupe_names(target.class_names.drain(..));
+            changed |= target.class_names.len() != before;
+        }
+        if !changed {
+            break;
+        }
+    }
+    by_path
 }
 
 fn module_metadata_with_reachability_evidence(
@@ -1810,14 +1891,15 @@ fn collect_closed_world_linked_modules_from_projection(
                     import_source: edge.import_source.clone(),
                 })?;
                 if edge.kind == TransformBundleEdgeKind::CssModuleComposesExternal {
-                    for (local_name, remote_name) in edge.local_names.iter().zip(&edge.remote_names)
-                    {
-                        linked = linked.with_composes_edge(ClosedWorldComposesEdgeV0 {
-                            from_module: input.instance.clone(),
-                            from_symbol: local_name.clone(),
-                            to_module: dependency.clone(),
-                            to_symbol: remote_name.clone(),
-                        });
+                    for local_name in &edge.local_names {
+                        for remote_name in &edge.remote_names {
+                            linked = linked.with_composes_edge(ClosedWorldComposesEdgeV0 {
+                                from_module: input.instance.clone(),
+                                from_symbol: local_name.clone(),
+                                to_module: dependency.clone(),
+                                to_symbol: remote_name.clone(),
+                            });
+                        }
                     }
                 }
                 linked = linked.with_dependency(dependency);
@@ -1851,6 +1933,7 @@ fn collect_closed_world_linked_modules_from_projection(
                     ))
             });
             linked.composes_edges.dedup();
+            linked.composes_edge_observation_count = linked.composes_edges.len();
             Ok(linked)
         })
         .collect()
@@ -3687,6 +3770,59 @@ mod tests {
         assert_eq!(edges[0].from_symbol, "card");
         assert_eq!(edges[0].to_module.module().as_str(), "base.module.css");
         assert_eq!(edges[0].to_symbol, "base");
+        Ok(())
+    }
+
+    #[test]
+    fn composes_closure_expands_module_qualified_semantic_reachability() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "entry.module.css",
+                ".card { composes: base from \"./base.module.css\"; color: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "base.module.css",
+                ".base { padding: 8px; } .other { color: green; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let mut entry_reachability =
+            TransformBundleSemanticReachabilityInputV0::new("entry.module.css");
+        entry_reachability.class_names.push("card".to_string());
+        let mut base_reachability =
+            TransformBundleSemanticReachabilityInputV0::new("base.module.css");
+        base_reachability.class_names.push("other".to_string());
+
+        let linked = link_omena_transform_bundle_modules_with_semantic_reachability(
+            &["base.module.css"],
+            &modules,
+            &[entry_reachability, base_reachability],
+        )
+        .map_err(|error| format!("composes reachability fixture should link: {error:?}"))?;
+        let entry = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.module.css"));
+        let base = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("base.module.css"));
+
+        assert_eq!(
+            linked.closed_world_bundle.linked_modules(),
+            std::slice::from_ref(&base),
+            "workspace scan evidence must not widen the emission module set"
+        );
+        assert_eq!(
+            linked
+                .closed_world_bundle
+                .reachability()
+                .symbols_for_module(&base)
+                .map(|symbols| symbols.class_names()),
+            Some(&["base".to_string(), "other".to_string()][..])
+        );
+        assert_eq!(linked.closed_world_bundle.composes_edges().len(), 1);
+        assert_eq!(
+            linked
+                .closed_world_bundle
+                .composes_origin_symbol_is_reachable(&entry, "card"),
+            Some(true)
+        );
         Ok(())
     }
 
