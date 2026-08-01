@@ -75,12 +75,13 @@ fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping
 #[test]
 fn closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix()
 -> Result<(), String> {
+    // This register-bound legacy name now covers the executor plane only. Producer independence
+    // is exercised by the gate's detached-worktree linker-hop probe.
     fn emit_cell(
         state: &str,
-        producer: &str,
         fixture: &str,
+        bundle: &ClosedWorldBundleV0,
         execution: &crate::TransformExecutionSummaryV0,
-        observed_bundle_edge_count: usize,
     ) {
         let reason_kind = execution
             .closed_world_admission
@@ -95,16 +96,14 @@ fn closed_world_composes_admission_covers_tri_state_and_independent_producer_mat
         eprintln!(
             "CLOSED_WORLD_COMPOSES_ADMISSION_CELL={}",
             serde_json::json!({
-                "command": "cargo test -p omena-transform-passes tests::runtime_boundary::closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix -- --exact --nocapture",
+                "plane": "executor",
                 "state": state,
-                "producer": producer,
                 "fixture": fixture,
-                "rc": 0,
                 "refusedCount": execution.closed_world_admission.refused_count,
                 "reasonKind": reason_kind,
                 "evidenceScope": execution.closed_world_admission.evidence_scope,
                 "outputCss": execution.output_css.as_str(),
-                "observedBundleEdgeCount": observed_bundle_edge_count,
+                "observedBundleEdgeCount": bundle.composes_edges().len(),
             })
         );
     }
@@ -112,7 +111,6 @@ fn closed_world_composes_admission_covers_tri_state_and_independent_producer_mat
     fn bundle(
         target_retained: bool,
         edge_observed: bool,
-        carrier_neutered: bool,
         scan_state: ClosedWorldComposesScanStateV0,
     ) -> Result<(ClosedWorldBundleV0, ModuleInstanceKeyV0), String> {
         let entry = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.module.css"));
@@ -127,9 +125,6 @@ fn closed_world_composes_admission_covers_tri_state_and_independent_producer_mat
                 to_module: base.clone(),
                 to_symbol: "base".to_string(),
             });
-        }
-        if carrier_neutered {
-            entry_module.composes_edges.clear();
         }
         let mut base_module = ClosedWorldLinkedModuleV0::new(base.clone());
         if target_retained {
@@ -172,30 +167,22 @@ fn closed_world_composes_admission_covers_tri_state_and_independent_producer_mat
         .map_err(|error| format!("matrix module should be known: {error:?}"))
     }
 
-    let (shape, base) = bundle(
-        false,
-        true,
-        false,
-        ClosedWorldComposesScanStateV0::ScannedClosed,
-    )?;
-    let shape = execute(&shape, &base)?;
+    let (shape, base) = bundle(false, true, ClosedWorldComposesScanStateV0::ScannedClosed)?;
+    let shape_execution = execute(&shape, &base)?;
     assert!(matches!(
-        shape.closed_world_admission.refusal_reasons[0].reasons.as_slice(),
+        shape_execution.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
         [TransformStrictPolicyReasonV0::LivenessNotClosed {
             symbol,
             via_edge: "composes",
             ..
         }] if symbol == "base"
     ));
-    assert!(shape.output_css.contains(".base"));
-    emit_cell("inboundNonempty", "intact", "shape", &shape, 1);
+    assert!(shape_execution.output_css.contains(".base"));
+    emit_cell("inboundNonempty", "shape", &shape, &shape_execution);
 
-    let (shape, base) = bundle(
-        false,
-        true,
-        false,
-        ClosedWorldComposesScanStateV0::ScannedClosed,
-    )?;
+    let (shape, base) = bundle(false, true, ClosedWorldComposesScanStateV0::ScannedClosed)?;
     let keyframes =
         execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
             "@keyframes spin { from { opacity: 0; } }",
@@ -211,76 +198,57 @@ fn closed_world_composes_admission_covers_tri_state_and_independent_producer_mat
         "a class-only composes gap must not block another FactConsuming domain"
     );
 
-    let (clean, base) = bundle(
-        true,
-        true,
-        false,
-        ClosedWorldComposesScanStateV0::ScannedClosed,
-    )?;
-    let clean = execute(&clean, &base)?;
-    assert_eq!(clean.closed_world_admission.refused_count, 0);
-    assert!(clean.output_css.contains(".base"));
-    assert!(!clean.output_css.contains(".dead"));
-    emit_cell("inboundNonempty", "intact", "clean", &clean, 1);
+    let (clean, base) = bundle(true, true, ClosedWorldComposesScanStateV0::ScannedClosed)?;
+    let clean_execution = execute(&clean, &base)?;
+    assert_eq!(clean_execution.closed_world_admission.refused_count, 0);
+    assert!(clean_execution.output_css.contains(".base"));
+    assert!(!clean_execution.output_css.contains(".dead"));
+    emit_cell("inboundNonempty", "clean", &clean, &clean_execution);
 
-    for target_retained in [false, true] {
-        let (neutered, base) = bundle(
-            target_retained,
-            true,
-            true,
-            ClosedWorldComposesScanStateV0::ScannedClosed,
-        )?;
-        let neutered = execute(&neutered, &base)?;
-        assert!(matches!(
-            neutered.closed_world_admission.refusal_reasons[0]
-                .reasons
-                .as_slice(),
-            [TransformStrictPolicyReasonV0::EvidenceUnavailable]
-        ));
-        assert!(neutered.output_css.contains(".base"));
-        emit_cell(
-            "inboundNonempty",
-            "neutered",
-            if target_retained { "clean" } else { "shape" },
-            &neutered,
-            1,
-        );
-    }
-
-    let (scanned_empty, base) = bundle(
-        false,
-        false,
-        false,
-        ClosedWorldComposesScanStateV0::ScannedClosed,
-    )?;
-    let scanned_empty = execute(&scanned_empty, &base)?;
-    assert_eq!(scanned_empty.closed_world_admission.refused_count, 0);
-    assert_eq!(scanned_empty.closed_world_admission.evidence_scope, None);
-    emit_cell("scannedEmpty", "intact", "empty", &scanned_empty, 0);
-
-    let (source_open, base) = bundle(
-        false,
-        false,
-        false,
-        ClosedWorldComposesScanStateV0::SourceSetOpen,
-    )?;
-    let source_open = execute(&source_open, &base)?;
-    assert_eq!(source_open.closed_world_admission.refused_count, 0);
+    let (scanned_empty, base) =
+        bundle(false, false, ClosedWorldComposesScanStateV0::ScannedClosed)?;
+    let scanned_empty_execution = execute(&scanned_empty, &base)?;
     assert_eq!(
-        source_open.closed_world_admission.evidence_scope,
+        scanned_empty_execution.closed_world_admission.refused_count,
+        0
+    );
+    assert_eq!(
+        scanned_empty_execution
+            .closed_world_admission
+            .evidence_scope,
+        None
+    );
+    emit_cell(
+        "scannedEmpty",
+        "empty",
+        &scanned_empty,
+        &scanned_empty_execution,
+    );
+
+    let (source_open, base) = bundle(false, false, ClosedWorldComposesScanStateV0::SourceSetOpen)?;
+    let source_open_execution = execute(&source_open, &base)?;
+    assert_eq!(
+        source_open_execution.closed_world_admission.refused_count,
+        0
+    );
+    assert_eq!(
+        source_open_execution.closed_world_admission.evidence_scope,
         Some("sourceSetOpen")
     );
-    emit_cell("sourceSetOpen", "intact", "shape", &source_open, 0);
+    emit_cell(
+        "sourceSetOpen",
+        "shape",
+        &source_open,
+        &source_open_execution,
+    );
 
-    let (source_open_inbound, base) = bundle(
-        false,
-        true,
-        false,
-        ClosedWorldComposesScanStateV0::SourceSetOpen,
-    )?;
-    let source_open_inbound = execute(&source_open_inbound, &base)?;
+    let (source_open_inbound, base) =
+        bundle(false, true, ClosedWorldComposesScanStateV0::SourceSetOpen)?;
+    let source_open_inbound_execution = execute(&source_open_inbound, &base)?;
     assert!(matches!(
-        source_open_inbound.closed_world_admission.refusal_reasons[0]
+        source_open_inbound_execution
+            .closed_world_admission
+            .refusal_reasons[0]
             .reasons
             .as_slice(),
         [TransformStrictPolicyReasonV0::LivenessNotClosed {
@@ -290,15 +258,16 @@ fn closed_world_composes_admission_covers_tri_state_and_independent_producer_mat
         }] if symbol == "base"
     ));
     assert_eq!(
-        source_open_inbound.closed_world_admission.evidence_scope,
+        source_open_inbound_execution
+            .closed_world_admission
+            .evidence_scope,
         Some("sourceSetOpen")
     );
     emit_cell(
         "inboundNonempty",
-        "intact",
         "source-open-shape",
         &source_open_inbound,
-        1,
+        &source_open_inbound_execution,
     );
     Ok(())
 }

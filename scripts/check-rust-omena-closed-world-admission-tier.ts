@@ -61,10 +61,9 @@ const matrixTestName = argumentsSet.has("--inject-composes-admission-matrix-loss
 const matrixRun = transformPassesTest(matrixTestName);
 
 interface MatrixCell {
+  readonly plane: "executor";
   readonly state: string;
-  readonly producer: string;
   readonly fixture: string;
-  readonly rc: number;
   readonly refusedCount: number;
   readonly reasonKind: string | null;
   readonly evidenceScope: string | null;
@@ -78,26 +77,22 @@ const matrixCells = matrixRun.transcript
   .map(
     (line) => JSON.parse(line.slice("CLOSED_WORLD_COMPOSES_ADMISSION_CELL=".length)) as MatrixCell,
   );
-const matrixCell = (producer: string, fixture: string): MatrixCell | undefined =>
-  matrixCells.find((cell) => cell.producer === producer && cell.fixture === fixture);
-const intactShape = matrixCell("intact", "shape");
-const intactClean = matrixCell("intact", "clean");
-const neuteredShape = matrixCell("neutered", "shape");
-const neuteredClean = matrixCell("neutered", "clean");
-const sourceOpenShape = matrixCell("intact", "source-open-shape");
+const matrixCell = (fixture: string): MatrixCell | undefined =>
+  matrixCells.find((cell) => cell.fixture === fixture);
+const intactShape = matrixCell("shape");
+const intactClean = matrixCell("clean");
+const sourceOpenShape = matrixCell("source-open-shape");
 const scannedEmpty = matrixCells.find((cell) => cell.state === "scannedEmpty");
 const sourceSetOpen = matrixCells.find((cell) => cell.state === "sourceSetOpen");
+const injectionRun = [...argumentsSet].some((argument) => argument.startsWith("--inject-"));
+const carrierHopProbe = injectionRun ? null : runCarrierHopProbe();
 const matrixEvidenceGreen =
-  matrixCells.length === 7 &&
-  matrixCells.every((cell) => cell.rc === 0 && cell.outputCss.trim().length > 0) &&
+  matrixCells.length === 5 &&
+  matrixCells.every((cell) => cell.plane === "executor" && cell.outputCss.trim().length > 0) &&
   intactShape?.reasonKind === "livenessNotClosed" &&
   intactShape.refusedCount === 1 &&
   intactClean?.reasonKind === null &&
   intactClean.refusedCount === 0 &&
-  neuteredShape?.reasonKind === "evidenceUnavailable" &&
-  neuteredShape.observedBundleEdgeCount === 1 &&
-  neuteredClean?.reasonKind === "evidenceUnavailable" &&
-  neuteredClean.observedBundleEdgeCount === 1 &&
   sourceOpenShape?.reasonKind === "livenessNotClosed" &&
   sourceOpenShape.refusedCount === 1 &&
   sourceOpenShape.evidenceScope === "sourceSetOpen" &&
@@ -106,17 +101,22 @@ const matrixEvidenceGreen =
   sourceSetOpen?.reasonKind === null &&
   sourceSetOpen.evidenceScope === "sourceSetOpen";
 
+// These cells describe the executor plane only.
+// The subprocess owns the measured command and return code.
+// Each cell owns only values observed from its bundle and execution summary.
+// Carrier-origin independence is measured by the detached-worktree probe below.
+// The matrix must not manufacture a second producer by mutating a sealed fixture.
 // FALSIFIER: id=closed-world-admission-composes-matrix class=liveness via=--inject-composes-admission-matrix-loss producer=can-fail owner=closed-world-admission-tier entry=tri-state-and-independent-producer-matrix
 assert.equal(
   matrixRun.status === 0 &&
     matrixEvidenceGreen &&
+    (injectionRun || carrierHopProbe?.detected === true) &&
     matrixRun.transcript.includes(
       "test tests::runtime_boundary::closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix ... ok",
     ),
   true,
   `closed-world composes admission matrix did not execute:\n${matrixRun.transcript}`,
 );
-
 const depthTestName = argumentsSet.has("--inject-composes-depth-two-loss")
   ? "tests::runtime_boundary::injected_missing_composes_depth_two"
   : "tests::runtime_boundary::closed_world_composes_admission_checks_depth_two_target";
@@ -131,7 +131,20 @@ assert.equal(
   true,
   `closed-world composes depth-two arm did not execute:\n${depthRun.transcript}`,
 );
-
+// Product-path evidence is intentionally separate from the executor-plane cells.
+// The bundled shape arm exercises composed-selector closure through the CLI.
+// The bundled clean arm establishes that complete liveness evidence still admits.
+// The plain arm has no transitive source-set closure declaration.
+// A single-module plain bundle therefore cannot observe an inbound composed edge.
+// Its source-set-open disclosure does not prevent high-certainty selector removal.
+// That removal is recorded below instead of being presented as a closed empty scan.
+// The no-engine-input arm is the refusal-shape product fixture.
+// It measures the process return code and stdout instead of supplying literals.
+// Its four pass refusals preserve every source rule and perform no semantic removal.
+// The product-path injection changes the actual two-module source fixture.
+// It removes the composes declaration and must lose the retained base selector.
+// No injected branch substitutes a constant assertion result.
+// Carrier-hop loss remains owned by the detached-worktree probe.
 function sourceReference(
   fixtureRoot: string,
   id: string,
@@ -160,7 +173,6 @@ function sourceReference(
     bindingGraph: null,
   };
 }
-
 function selector(className: string): Record<string, unknown> {
   return {
     name: className,
@@ -175,7 +187,6 @@ function selector(className: string): Record<string, unknown> {
     bemSuffix: null,
   };
 }
-
 function writeEngineInput(
   fixtureRoot: string,
   fileName: string,
@@ -237,42 +248,20 @@ function writeEngineInput(
   );
   return enginePath;
 }
-
-interface ProductArm {
-  readonly label: string;
-  readonly command: string;
-  readonly rc: number | null;
-  readonly refusedCount: number | null;
-  readonly reasonKind: string | null;
-  readonly evidenceScope: string | null;
-  readonly outputCssLength: number;
-  readonly outputCss: string;
-  readonly bundleEdges: readonly unknown[];
-  readonly semanticRemovals: readonly unknown[];
-}
-
 function runProductArm(
   fixtureRoot: string,
   label: string,
   targetPath: string,
   sourcePath: string,
-  enginePath: string,
+  enginePath: string | null,
   bundle: boolean,
-): ProductArm {
+) {
   const outputPath = join(fixtureRoot, `${label}.css`);
   const args = ["build", targetPath];
   if (bundle) args.push("--bundle", "--linked-emission");
-  args.push(
-    "--tree-shake",
-    "--strict-verification",
-    "--engine-input-json",
-    enginePath,
-    "--source",
-    sourcePath,
-    "--output",
-    outputPath,
-    "--json",
-  );
+  args.push("--tree-shake", "--strict-verification");
+  if (enginePath) args.push("--engine-input-json", enginePath);
+  args.push("--source", sourcePath, "--output", outputPath, "--json");
   const run = spawnSync(binary, args, { cwd: fixtureRoot, encoding: "utf8" });
   const response =
     run.status === 0 && run.stdout ? (JSON.parse(run.stdout) as Record<string, any>) : null;
@@ -283,8 +272,10 @@ function runProductArm(
     label,
     command: [binary, ...args].join(" "),
     rc: run.status,
+    stdoutLength: Buffer.byteLength(run.stdout ?? "", "utf8"),
     refusedCount: admission?.refusedCount ?? null,
     reasonKind: firstReason?.kind ?? null,
+    refusalReasons: admission?.refusalReasons ?? [],
     evidenceScope: admission?.evidenceScope ?? null,
     outputCssLength: outputCss.length,
     outputCss,
@@ -292,17 +283,16 @@ function runProductArm(
     semanticRemovals: response?.payload?.execution?.semanticRemovals ?? [],
   };
 }
+const build = spawnSync("cargo", ["build", "-p", "omena-cli"], { cwd: rustRoot, encoding: "utf8" });
 
-const build = spawnSync("cargo", ["build", "-p", "omena-cli"], {
-  cwd: rustRoot,
-  encoding: "utf8",
-});
 const fixtureRoot = mkdtempSync(join(tmpdir(), "omena-closed-world-admission-"));
-let productArms: readonly ProductArm[] = [];
+let productArms: readonly ReturnType<typeof runProductArm>[] = [];
 try {
   const entryPath = join(fixtureRoot, "entry.module.css");
   const basePath = join(fixtureRoot, "base.module.css");
-  const entrySource = '.card { composes: base from "./base.module.css"; color: red; }';
+  const entrySource = argumentsSet.has("--inject-composes-product-path-loss")
+    ? ".card { color: red; }"
+    : '.card { composes: base from "./base.module.css"; color: red; }';
   const baseSource = ".base { padding: 8px; } .other { color: green; } .dead { color: gray; }";
   writeFileSync(entryPath, entrySource);
   writeFileSync(basePath, baseSource);
@@ -328,16 +318,19 @@ try {
     runProductArm(fixtureRoot, "bundle-shape", basePath, entryPath, shapeEngine, true),
     runProductArm(fixtureRoot, "bundle-clean", basePath, entryPath, cleanEngine, true),
     runProductArm(fixtureRoot, "plain-source-open", basePath, entryPath, shapeEngine, false),
+    runProductArm(fixtureRoot, "bundle-no-engine-input", basePath, entryPath, null, true),
   ];
 } finally {
   rmSync(fixtureRoot, { recursive: true, force: true });
 }
-
-const [bundleShape, bundleClean, plainSourceOpen] = productArms;
+const [bundleShape, bundleClean, plainSourceOpen, bundleNoEngineInput] = productArms;
+const plainBaseRemoval = plainSourceOpen?.semanticRemovals.find(
+  (removal: any) => removal?.name === "base",
+) as Record<string, unknown> | undefined;
 const productPathGreen =
   build.status === 0 &&
-  productArms.length === 3 &&
-  productArms.every((arm) => arm.rc === 0 && arm.outputCssLength > 0) &&
+  productArms.length === 4 &&
+  productArms.every((arm) => arm.rc === 0 && arm.stdoutLength > 0 && arm.outputCssLength > 0) &&
   bundleShape?.bundleEdges.length === 1 &&
   bundleShape?.refusedCount === 0 &&
   bundleShape?.outputCss.includes("padding: 8px") === true &&
@@ -345,11 +338,18 @@ const productPathGreen =
   bundleShape?.outputCss.includes("color: gray") === false &&
   bundleClean?.refusedCount === 0 &&
   plainSourceOpen?.refusedCount === 0 &&
-  plainSourceOpen?.evidenceScope === "sourceSetOpen";
-
+  plainSourceOpen?.evidenceScope === "sourceSetOpen" &&
+  plainSourceOpen.outputCss.includes("padding: 8px") === false &&
+  plainBaseRemoval?.certainty === "high" &&
+  bundleNoEngineInput?.refusedCount === 4 &&
+  bundleNoEngineInput.refusalReasons.length === 4 &&
+  bundleNoEngineInput.semanticRemovals.length === 0 &&
+  bundleNoEngineInput.outputCss.includes("padding: 8px") &&
+  bundleNoEngineInput.outputCss.includes("color: green") &&
+  bundleNoEngineInput.outputCss.includes("color: gray");
 // FALSIFIER: id=closed-world-admission-composes-product-path class=liveness via=--inject-composes-product-path-loss producer=can-fail owner=closed-world-admission-tier entry=bundle-and-plain-composes-closure
 assert.equal(
-  argumentsSet.has("--inject-composes-product-path-loss") ? false : productPathGreen,
+  productPathGreen,
   true,
   `closed-world composes product path did not retain live CSS while removing dead CSS:\n${JSON.stringify(
     { buildStatus: build.status, buildStderr: build.stderr, productArms },
@@ -444,6 +444,102 @@ assert.equal(
   "closed-world admission reference side transitively reaches the semantic reachability producer",
 );
 
+interface CarrierHopProbe {
+  readonly baselineCommand: string;
+  readonly baselineRc: number | null;
+  readonly perturbedCommand: string;
+  readonly perturbedRc: number | null;
+  readonly detected: boolean;
+}
+
+function runCarrierHopProbe(): CarrierHopProbe {
+  const testName = "tests::external_composes_names_reach_the_sealed_closed_world_bundle";
+  const probeRoot = mkdtempSync(join(tmpdir(), "omena-composes-carrier-hop-"));
+  const worktreeRoot = join(probeRoot, "worktree");
+  const add = spawnSync("git", ["worktree", "add", "--detach", "--quiet", worktreeRoot, "HEAD"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  });
+  if (add.status !== 0) {
+    rmSync(probeRoot, { recursive: true, force: true });
+    return {
+      baselineCommand: `temporary detached worktree: cargo test -p omena-bundler ${testName} -- --exact`,
+      baselineRc: null,
+      perturbedCommand: `git worktree add --detach ${worktreeRoot} HEAD`,
+      perturbedRc: add.status,
+      detected: false,
+    };
+  }
+
+  let baselineStatus: number | null = null;
+  let perturbedStatus: number | null = null;
+  let baselineTranscript = "";
+  let perturbedTranscript = "";
+  let cleanupStatus: number | null = null;
+  try {
+    const sourcePath = join(worktreeRoot, "rust/crates/omena-bundler/src/lib.rs");
+    const source = readFileSync(sourcePath, "utf8");
+    const cargoOptions = {
+      cwd: join(worktreeRoot, "rust"),
+      encoding: "utf8" as const,
+      env: {
+        ...process.env,
+        CARGO_TARGET_DIR: join(rustRoot, "target", "carrier-hop-probe"),
+      },
+    };
+    writeFileSync(sourcePath, source);
+    const baseline = spawnSync(
+      "cargo",
+      ["test", "-p", "omena-bundler", testName, "--", "--exact"],
+      cargoOptions,
+    );
+    baselineStatus = baseline.status;
+    baselineTranscript = `${baseline.stdout ?? ""}\n${baseline.stderr ?? ""}`;
+    const carrierCopy =
+      "                        local_names: edge.local_names.clone(),\n" +
+      "                        remote_names: edge.remote_names.clone(),";
+    const carrierLoss =
+      "                        local_names: Vec::new(),\n" +
+      "                        remote_names: Vec::new(),";
+    if (!source.includes(carrierCopy)) {
+      throw new Error("carrier-hop probe could not locate the linker-input name copy");
+    }
+    writeFileSync(sourcePath, source.replace(carrierCopy, carrierLoss));
+    const perturbed = spawnSync(
+      "cargo",
+      ["test", "-p", "omena-bundler", testName, "--", "--exact"],
+      cargoOptions,
+    );
+    perturbedStatus = perturbed.status;
+    perturbedTranscript = `${perturbed.stdout ?? ""}\n${perturbed.stderr ?? ""}`;
+  } finally {
+    const cleanup = spawnSync("git", ["worktree", "remove", "--force", worktreeRoot], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+    });
+    cleanupStatus = cleanup.status;
+    rmSync(probeRoot, { recursive: true, force: true });
+  }
+
+  return {
+    baselineCommand: `temporary detached worktree: cargo test -p omena-bundler ${testName} -- --exact`,
+    baselineRc: baselineStatus,
+    perturbedCommand:
+      "temporary detached worktree: drop local_names/remote_names in linker_input_from_module_facts, then rerun the same test",
+    perturbedRc: perturbedStatus,
+    detected:
+      baselineStatus === 0 &&
+      baselineTranscript.includes(
+        "test tests::external_composes_names_reach_the_sealed_closed_world_bundle ... ok",
+      ) &&
+      perturbedStatus !== 0 &&
+      perturbedTranscript.includes(
+        "test tests::external_composes_names_reach_the_sealed_closed_world_bundle ... FAILED",
+      ) &&
+      cleanupStatus === 0,
+  };
+}
+
 process.stdout.write(
   `${JSON.stringify(
     {
@@ -451,12 +547,27 @@ process.stdout.write(
       absenceTest: "1 passed",
       composesMatrixTest: "1 passed",
       composesMatrixCommand: matrixRun.command,
+      composesMatrixSubprocessRc: matrixRun.status,
+      composesMatrixPlane: "executor",
       composesMatrixCells: matrixCells,
+      carrierHopProbe,
       composesDepthTwoTest: "1 passed",
       productArms,
+      o2Oracle: {
+        classification: "degraded-shared-carrier",
+        limitation:
+          "admission and closure consume the same composed-edge carrier, so carrier-origin loss is delegated to the separate linker-hop probe",
+        residualDiscrimination:
+          "the executor plane still distinguishes closed shape gaps, clean closure, scanned-empty evidence, and source-set-open disclosure",
+        observationCount:
+          "the production linker assigns composes_edge_observation_count from the deduplicated edge length, so its greater-than-length branch is not production-reachable",
+      },
       antiTautology: {
+        classification: "disclosure-only-current-crate-dag",
         equivalentDirectGrepPasses,
         callGraphPathExists: reaches(referenceRoot, semanticProducer),
+        limitation:
+          "the current dependency direction prevents this reference-to-producer path; the five-file extractor and synthetic indirection check do not establish a production-reachable failure",
       },
     },
     null,

@@ -2328,8 +2328,6 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             TransformStrictPolicySummaryV0::for_profile(policy.profile_id)
         });
     let mut closed_world_admission_summary = TransformClosedWorldAdmissionSummaryV0::default();
-    let planned_module_qualified_ownership_digest =
-        closed_world_bundle.map(ClosedWorldBundleV0::module_qualified_ownership_digest);
 
     for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate() {
         let should_maintain_document_lex_cache =
@@ -2421,11 +2419,8 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .filter(|_| fact_consuming_pass)
             .and_then(|pass_kind| {
                 closed_world_bundle.map(|bundle| {
-                    let mut reasons = closed_world_admission_o3_reasons(
-                        bundle,
-                        module_qualified_symbols,
-                        planned_module_qualified_ownership_digest.as_deref(),
-                    );
+                    let mut reasons =
+                        closed_world_admission_o3_reasons(bundle, module_qualified_symbols);
                     reasons.extend(closed_world_admission_o2_reasons(
                         bundle,
                         module_qualified_symbols,
@@ -2770,8 +2765,10 @@ fn closed_world_admission_module_instance<'a>(
 fn closed_world_admission_o3_reasons(
     bundle: &ClosedWorldBundleV0,
     module_qualified_symbols: Option<&ModuleQualifiedSymbolSetV0>,
-    planned_ownership_digest: Option<&str>,
 ) -> Vec<TransformStrictPolicyReasonV0> {
+    // Structural entailment: planning and admission borrow the same immutable sealed bundle, so
+    // recomputing its ownership digest here cannot detect drift. The transform execution planner
+    // owns re-entry if planning and execution ever receive independently materialized evidence.
     let module_instance =
         closed_world_admission_module_instance(Some(bundle), module_qualified_symbols);
     if module_instance.is_some_and(|module_instance| {
@@ -2812,10 +2809,6 @@ fn closed_world_admission_o3_reasons(
         .is_none_or(|precision| precision.unknown_source_count > 0)
     {
         missing.push("sourcePrecision".to_string());
-    }
-    let executed_ownership_digest = bundle.module_qualified_ownership_digest();
-    if planned_ownership_digest != Some(executed_ownership_digest.as_str()) {
-        missing.push("moduleQualifiedOwnershipDigest".to_string());
     }
     if missing.is_empty() {
         Vec::new()
