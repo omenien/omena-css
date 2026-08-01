@@ -5,9 +5,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use super::contract::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
     ClosedWorldInterfaceHashEntryV0, ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0,
-    ClosedWorldModuleMetadataV0, ClosedWorldReachabilityBitsetParityReportV0,
-    ClosedWorldSourcePrecisionSummaryV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0,
-    ReachabilityIndexV0,
+    ClosedWorldModuleMetadataV0, ClosedWorldModuleReachabilityEvidenceV0,
+    ClosedWorldReachabilityBitsetParityReportV0, ClosedWorldSourcePrecisionSummaryV0,
+    ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, ReachabilityIndexV0,
 };
 
 impl ClosedWorldBundleV0 {
@@ -42,6 +42,10 @@ impl ClosedWorldBundleV0 {
             interface_hashes_for_reachable_modules(&linked_modules, &metadata_by_instance);
         let source_precision =
             source_precision_for_reachable_modules(&linked_modules, &metadata_by_instance);
+        let module_reachability_evidence = module_reachability_evidence_for_reachable_modules(
+            &linked_modules,
+            &metadata_by_instance,
+        );
         let closure_hash = stable_closure_hash(entrypoints.as_slice(), &by_instance, &reachability);
         #[cfg(feature = "test-support")]
         crate::record_closed_world_bundle_construction_for_test();
@@ -53,8 +57,26 @@ impl ClosedWorldBundleV0 {
             closure_hash,
             interface_hashes,
             source_precision,
+            module_reachability_evidence,
         ))
     }
+}
+
+fn module_reachability_evidence_for_reachable_modules(
+    reachable: &[ModuleInstanceKeyV0],
+    metadata_by_instance: &BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleMetadataV0>,
+) -> BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0> {
+    reachable
+        .iter()
+        .cloned()
+        .map(|instance| {
+            let evidence = metadata_by_instance
+                .get(&instance)
+                .map(ClosedWorldModuleMetadataV0::reachability_evidence)
+                .unwrap_or_default();
+            (instance, evidence)
+        })
+        .collect()
 }
 
 fn interface_hashes_for_reachable_modules(

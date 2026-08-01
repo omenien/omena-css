@@ -7,14 +7,15 @@
     "rust/crates/omena-cli/tests/linked_emission_order.rs",
     "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
     "scripts/check-rust-omena-module-qualified-product-path.ts",
-    "scripts/check-rust-omena-query-module-reachability-hoist.ts"
+    "scripts/check-rust-omena-query-module-reachability-hoist.ts",
+    "scripts/check-rust-omena-closed-world-admission-tier.ts"
   ],
   "domainWideningCondition": "A new assertion participates in linked-emission correctness, liveness attribution, placement, collision accounting, or its product-path reachability.",
-  "assertionSiteCount": 187,
+  "assertionSiteCount": 188,
   "excludedAssertionCount": 86,
   "structuralEntailmentCount": 3,
   "limitations": [
-    "Firing is observed only as the first-failure site of each executable perturbation (currently 9 of 184 non-structural sites); the remaining rows are disclosures whose producerReachability: can-fail is not verified by this mechanism.",
+    "Firing is observed only as the first-failure site of each executable perturbation (currently 10 of 185 non-structural sites); the remaining rows are disclosures whose producerReachability: can-fail is not verified by this mechanism.",
     "Unannotated assertion forms are accepted only through exact, owner-bound per-file counts.",
     "The mechanism cannot prove that a selected defect class is semantically correct."
   ],
@@ -2273,6 +2274,18 @@
       "producerReachability": "can-fail",
       "entryState": "committed-corpus-green",
       "owner": "linked-emission-instrument"
+    },
+    {
+      "id": "closed-world-admission-reachability-absence",
+      "file": "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "symbol": "<module>",
+      "lineHint": 22,
+      "syntax": "assert.equal",
+      "defectClass": "liveness",
+      "falsifiers": ["--inject-recorded-module-reachability-absence-loss"],
+      "producerReachability": "can-fail",
+      "entryState": "silent-full-module-retention",
+      "owner": "closed-world-admission-tier"
     }
   ]
 }

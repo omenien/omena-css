@@ -68,6 +68,11 @@
       "firedSiteIds": ["linked-emission-product-run-status"]
     },
     {
+      "perturbation": "--inject-recorded-module-reachability-absence-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-recorded-module-reachability-absence-loss",
+      "firedSiteIds": ["closed-world-admission-reachability-absence"]
+    },
+    {
       "perturbation": "--inject-unattributed-reference",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-unattributed-reference",
       "firedSiteIds": ["linked-emission-census-baseline-equality"]

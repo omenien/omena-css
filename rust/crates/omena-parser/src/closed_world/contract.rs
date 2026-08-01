@@ -1,6 +1,8 @@
 //! Closed-world contract types: module identity, instance keys, linked-module
 //! facts, reachability, and the sealed bundle exposed to consumers.
 
+use std::collections::BTreeMap;
+
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -156,11 +158,21 @@ impl ClosedWorldSourcePrecisionSummaryV0 {
     }
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClosedWorldModuleReachabilityEvidenceV0 {
+    Supplied,
+    #[default]
+    ModuleReachabilityInputAbsent,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosedWorldModuleMetadataV0 {
     module_instance: ModuleInstanceKeyV0,
     interface_hash: Option<String>,
     source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+    reachability_evidence: ClosedWorldModuleReachabilityEvidenceV0,
 }
 
 impl ClosedWorldModuleMetadataV0 {
@@ -169,6 +181,8 @@ impl ClosedWorldModuleMetadataV0 {
             module_instance,
             interface_hash: None,
             source_precision: None,
+            reachability_evidence:
+                ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent,
         }
     }
 
@@ -195,6 +209,18 @@ impl ClosedWorldModuleMetadataV0 {
 
     pub fn source_precision(&self) -> Option<ClosedWorldSourcePrecisionSummaryV0> {
         self.source_precision
+    }
+
+    pub fn with_reachability_evidence(
+        mut self,
+        reachability_evidence: ClosedWorldModuleReachabilityEvidenceV0,
+    ) -> Self {
+        self.reachability_evidence = reachability_evidence;
+        self
+    }
+
+    pub fn reachability_evidence(&self) -> ClosedWorldModuleReachabilityEvidenceV0 {
+        self.reachability_evidence
     }
 }
 
@@ -393,6 +419,9 @@ pub struct ClosedWorldBundleV0 {
     interface_hashes: ClosedWorldInterfaceHashSetV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+    #[serde(skip)]
+    module_reachability_evidence:
+        BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
 }
 
 impl ClosedWorldBundleV0 {
@@ -403,6 +432,10 @@ impl ClosedWorldBundleV0 {
         closure_hash: String,
         interface_hashes: ClosedWorldInterfaceHashSetV0,
         source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+        module_reachability_evidence: BTreeMap<
+            ModuleInstanceKeyV0,
+            ClosedWorldModuleReachabilityEvidenceV0,
+        >,
     ) -> Self {
         Self {
             entrypoints,
@@ -411,6 +444,7 @@ impl ClosedWorldBundleV0 {
             closure_hash,
             interface_hashes,
             source_precision,
+            module_reachability_evidence,
         }
     }
 
@@ -457,6 +491,16 @@ impl ClosedWorldBundleV0 {
 
     pub fn source_precision(&self) -> Option<ClosedWorldSourcePrecisionSummaryV0> {
         self.source_precision
+    }
+
+    pub fn module_reachability_evidence(
+        &self,
+        module_instance: &ModuleInstanceKeyV0,
+    ) -> ClosedWorldModuleReachabilityEvidenceV0 {
+        self.module_reachability_evidence
+            .get(module_instance)
+            .copied()
+            .unwrap_or_default()
     }
 }
 

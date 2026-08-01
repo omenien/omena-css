@@ -26,11 +26,11 @@ use omena_cascade::{
 use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
 use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
-    ClosedWorldModuleMetadataV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
-    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
-    ParsedEmissionSelectorFactsV0, ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind,
-    ParsedStyleFacts, ParsedVariableFactKind, StyleDialect, collect_style_fact_collection,
-    collect_style_facts,
+    ClosedWorldModuleMetadataV0, ClosedWorldModuleReachabilityEvidenceV0, ConfigurationHashV0,
+    ModuleIdV0, ModuleInstanceKeyV0, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
+    ParsedCssModuleValueFactKind, ParsedEmissionSelectorFactsV0, ParsedSassModuleEdgeFactKind,
+    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, StyleDialect,
+    collect_style_fact_collection, collect_style_facts,
 };
 use omena_transform_cst::{
     IrNodeKindV0, TransformPassKind, lower_transform_ir_from_source, transform_pass_sort_ordinal,
@@ -374,6 +374,8 @@ pub struct LinkerInputV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransformBundleLinkerProjectionV0 {
     inputs: Vec<LinkerInputV0>,
+    module_reachability_evidence:
+        BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
 }
 
 #[non_exhaustive]
@@ -396,6 +398,16 @@ impl TransformBundleLinkProjectionSetV0 {
 impl TransformBundleLinkerProjectionV0 {
     pub fn inputs(&self) -> &[LinkerInputV0] {
         &self.inputs
+    }
+
+    pub fn module_reachability_evidence(
+        &self,
+        module_instance: &ModuleInstanceKeyV0,
+    ) -> ClosedWorldModuleReachabilityEvidenceV0 {
+        self.module_reachability_evidence
+            .get(module_instance)
+            .copied()
+            .unwrap_or_default()
     }
 }
 
@@ -863,8 +875,12 @@ pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules(
             ));
         }
     }
-    apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
-    TransformBundleLinkerProjectionV0 { inputs }
+    let module_reachability_evidence =
+        apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
+    TransformBundleLinkerProjectionV0 {
+        inputs,
+        module_reachability_evidence,
+    }
 }
 
 pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(
@@ -915,6 +931,7 @@ pub fn link_omena_transform_bundle_projection_with_resolved_dependencies_and_opt
         projection.inputs(),
         resolved_dependencies,
         module_metadata,
+        &projection.module_reachability_evidence,
         options,
     )
 }
@@ -940,6 +957,7 @@ pub fn link_omena_transform_bundle_projection_with_emission_items_and_resolved_d
         emission_item_projection.inputs(),
         resolved_dependencies,
         module_metadata,
+        &linker_projection.module_reachability_evidence,
         options,
     )
 }
@@ -966,6 +984,7 @@ pub fn evaluate_omena_transform_bundle_projection_emission_admission_with_resolv
         emission_item_projection.inputs(),
         resolved_dependencies,
         module_metadata,
+        &linker_projection.module_reachability_evidence,
         options,
     )
 }
@@ -1282,6 +1301,7 @@ pub fn link_stylesheet_from_projection_with_resolved_dependencies_and_options(
         inputs,
         resolved_dependencies,
         &[],
+        &BTreeMap::new(),
         options,
     )
 }
@@ -1291,6 +1311,10 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
     inputs: &[LinkerInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let prepared = prepare_linked_stylesheet_context(
@@ -1298,6 +1322,7 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
         inputs,
         resolved_dependencies,
         module_metadata,
+        module_reachability_evidence,
     )?;
     link_stylesheet_from_prepared_context(prepared, inputs, resolved_dependencies, options)
 }
@@ -1353,6 +1378,10 @@ fn prepare_linked_stylesheet_context(
     inputs: &[LinkerInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
 ) -> Result<PreparedLinkedStylesheetContextV0, TransformBundleLinkErrorV0> {
     let instances_by_path = module_instances_by_linker_path(inputs);
     let entrypoints = entrypoint_paths
@@ -1370,10 +1399,12 @@ fn prepare_linked_stylesheet_context(
         resolved_dependencies,
         &instances_by_path,
     )?;
+    let module_metadata =
+        module_metadata_with_reachability_evidence(module_metadata, module_reachability_evidence);
     let closed_world_bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
         entrypoints.clone(),
         linked_modules,
-        module_metadata.to_vec(),
+        module_metadata,
     )
     .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
     Ok(PreparedLinkedStylesheetContextV0 {
@@ -1388,6 +1419,10 @@ fn link_stylesheet_from_projection_with_emission_items_and_metadata_and_options(
     emission_item_inputs: &[EmissionItemInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
     let prepared = prepare_linked_stylesheet_context(
@@ -1395,6 +1430,7 @@ fn link_stylesheet_from_projection_with_emission_items_and_metadata_and_options(
         linker_inputs,
         resolved_dependencies,
         module_metadata,
+        module_reachability_evidence,
     )?;
     link_stylesheet_from_prepared_context_with_emission_items(
         prepared,
@@ -1411,6 +1447,10 @@ fn evaluate_stylesheet_emission_admission_from_projection(
     emission_item_inputs: &[EmissionItemInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
     options: TransformBundleLinkOptionsV0,
 ) -> TransformBundleEmissionAdmissionV0 {
     let prepared = match prepare_linked_stylesheet_context(
@@ -1418,6 +1458,7 @@ fn evaluate_stylesheet_emission_admission_from_projection(
         linker_inputs,
         resolved_dependencies,
         module_metadata,
+        module_reachability_evidence,
     ) {
         Ok(prepared) => prepared,
         Err(error) => {
@@ -1628,16 +1669,21 @@ fn collect_ordered_linker_rules(facts: &ParsedStyleFacts) -> Vec<LinkerRuleV0> {
 fn apply_semantic_reachability_to_linker_inputs(
     inputs: &mut [LinkerInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
-) {
-    if reachability_inputs.is_empty() {
-        return;
-    }
-
+) -> BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0> {
     let instances_by_path = module_instances_by_linker_path(inputs);
     let module_index_by_instance = inputs
         .iter()
         .enumerate()
         .map(|(index, input)| (input.instance.clone(), index))
+        .collect::<BTreeMap<_, _>>();
+    let mut evidence_by_instance = inputs
+        .iter()
+        .map(|input| {
+            (
+                input.instance.clone(),
+                ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent,
+            )
+        })
         .collect::<BTreeMap<_, _>>();
 
     for input in reachability_inputs {
@@ -1649,6 +1695,10 @@ fn apply_semantic_reachability_to_linker_inputs(
             continue;
         };
         for instance in instances {
+            evidence_by_instance.insert(
+                instance.clone(),
+                ClosedWorldModuleReachabilityEvidenceV0::Supplied,
+            );
             let Some(index) = module_index_by_instance.get(instance).copied() else {
                 continue;
             };
@@ -1659,6 +1709,35 @@ fn apply_semantic_reachability_to_linker_inputs(
                 dedupe_names(input.custom_property_names.iter().cloned());
         }
     }
+    evidence_by_instance
+}
+
+fn module_metadata_with_reachability_evidence(
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
+) -> Vec<ClosedWorldModuleMetadataV0> {
+    let mut metadata_by_instance = module_metadata
+        .iter()
+        .cloned()
+        .map(|metadata| (metadata.module_instance().clone(), metadata))
+        .collect::<BTreeMap<_, _>>();
+    for (module_instance, reachability_evidence) in module_reachability_evidence {
+        metadata_by_instance
+            .entry(module_instance.clone())
+            .and_modify(|metadata| {
+                *metadata = metadata
+                    .clone()
+                    .with_reachability_evidence(*reachability_evidence);
+            })
+            .or_insert_with(|| {
+                ClosedWorldModuleMetadataV0::new(module_instance.clone())
+                    .with_reachability_evidence(*reachability_evidence)
+            });
+    }
+    metadata_by_instance.into_values().collect()
 }
 
 pub(crate) fn module_instances_by_linker_path(
@@ -2385,7 +2464,8 @@ mod tests {
     };
     use omena_cross_file_summary::EdgeOrderRelevanceV0;
     use omena_parser::{
-        ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedSelectorFactKind, StyleDialect,
+        ClosedWorldModuleReachabilityEvidenceV0, ConfigurationHashV0, ModuleIdV0,
+        ModuleInstanceKeyV0, ParsedSelectorFactKind, StyleDialect,
     };
 
     #[test]
@@ -3506,6 +3586,45 @@ mod tests {
         assert_eq!(
             linked.closed_world_bundle.reachability().class_names(),
             &["used".to_string()]
+        );
+        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("Button.module.css"));
+        assert_eq!(
+            linked
+                .closed_world_bundle
+                .module_reachability_evidence(&instance),
+            ClosedWorldModuleReachabilityEvidenceV0::Supplied
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn empty_semantic_reachability_records_module_input_absence_without_narrowing()
+    -> Result<(), String> {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "Button.module.css",
+            ".used { color: blue; } .dead { color: red; }",
+            StyleDialect::Css,
+        )];
+        let reachability = TransformBundleSemanticReachabilityInputV0::new("Button.module.css");
+
+        let linked = link_omena_transform_bundle_modules_with_semantic_reachability(
+            &["Button.module.css"],
+            &modules,
+            &[reachability],
+        )
+        .map_err(|err| format!("semantic reachability bundle should link: {err:?}"))?;
+        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("Button.module.css"));
+
+        assert_eq!(
+            linked.closed_world_bundle.reachability().class_names(),
+            &["dead".to_string(), "used".to_string()],
+            "recording absent evidence must preserve the prior fail-open byte behavior"
+        );
+        assert_eq!(
+            linked
+                .closed_world_bundle
+                .module_reachability_evidence(&instance),
+            ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent
         );
         Ok(())
     }
