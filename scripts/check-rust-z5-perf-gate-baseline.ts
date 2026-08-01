@@ -205,9 +205,9 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
     comparisonLane: "transform-ir-lowering-slope",
     numeratorLane: "transform-ir-lowering-4n",
     denominatorLane: "transform-ir-lowering-n",
-    threshold: 20,
+    threshold: 7.9,
     thresholdPolicy:
-      "the separate lowering family remains bounded near its existing quadratic N-axis work and cannot satisfy the fixed-N mutation-density contract",
+      "the separate lowering family keeps deterministic headroom above the measured lazy group-by path while rejecting the measured eager quadratic rebuild",
     enforceComplexitySlope: true,
     enforceNoRegression: false,
     resultLanes: [
