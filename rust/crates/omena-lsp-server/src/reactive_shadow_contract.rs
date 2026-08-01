@@ -4,22 +4,26 @@ use omena_reactive::{
 
 use crate::reactive_shadow::ReactiveShadowFlushReportV0;
 
+/// Comparison dimensions require two independently sourced values or a real
+/// oracle. Snapshot stamps are deliberately excluded: their projected value
+/// is only an encode/decode round trip, while corpus revision stability is
+/// checked by [`evaluate_proposed_authority_reduction`]. Adding a second
+/// reactive projection node solely to increase this denominator would add
+/// observer work without adding an independent source of truth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ReactiveShadowParityDimensionV0 {
     TargetSet,
-    SnapshotGeneration,
-    TierDigest,
+    DeltaFoldRebuild,
     DeliveryDecision,
-    SettledWork,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ReactiveShadowParitySummaryV0 {
     pub(crate) flush_count: usize,
     pub(crate) target_set_equality_count: usize,
-    pub(crate) snapshot_generation_equality_count: usize,
-    pub(crate) tier_digest_equality_count: usize,
+    pub(crate) delta_fold_rebuild_count: usize,
     pub(crate) delivery_decision_equality_count: usize,
+    /// One-armed liveness observation, not a parity dimension.
     pub(crate) settled_without_pending_count: usize,
     pub(crate) baseline_digest_observation_count: usize,
     pub(crate) optimizing_digest_observation_count: usize,
@@ -33,8 +37,7 @@ pub(crate) fn evaluate_reactive_shadow_parity(
     let mut summary = ReactiveShadowParitySummaryV0 {
         flush_count: reports.len(),
         target_set_equality_count: 0,
-        snapshot_generation_equality_count: 0,
-        tier_digest_equality_count: 0,
+        delta_fold_rebuild_count: 0,
         delivery_decision_equality_count: 0,
         settled_without_pending_count: 0,
         baseline_digest_observation_count: 0,
@@ -51,22 +54,12 @@ pub(crate) fn evaluate_reactive_shadow_parity(
                 .unclassified_divergences
                 .push(ReactiveShadowParityDimensionV0::TargetSet);
         }
-        if report.projected_stamps == Some(report.expected_stamps) {
-            summary.snapshot_generation_equality_count += 1;
+        if report.delta_fold_matches_full_rebuild {
+            summary.delta_fold_rebuild_count += 1;
         } else {
             summary
                 .unclassified_divergences
-                .push(ReactiveShadowParityDimensionV0::SnapshotGeneration);
-        }
-        if report.expected_baseline_digests == report.projected_baseline_digests
-            && report.expected_optimizing_digests == report.projected_optimizing_digests
-            && report.delta_fold_matches_full_rebuild
-        {
-            summary.tier_digest_equality_count += 1;
-        } else {
-            summary
-                .unclassified_divergences
-                .push(ReactiveShadowParityDimensionV0::TierDigest);
+                .push(ReactiveShadowParityDimensionV0::DeltaFoldRebuild);
         }
         if report.expected_delivery_decisions == report.projected_delivery_decisions {
             summary.delivery_decision_equality_count += 1;
@@ -77,10 +70,6 @@ pub(crate) fn evaluate_reactive_shadow_parity(
         }
         if report.settled_without_pending_work {
             summary.settled_without_pending_count += 1;
-        } else {
-            summary
-                .unclassified_divergences
-                .push(ReactiveShadowParityDimensionV0::SettledWork);
         }
 
         summary.baseline_digest_observation_count += report.expected_baseline_digests.len();

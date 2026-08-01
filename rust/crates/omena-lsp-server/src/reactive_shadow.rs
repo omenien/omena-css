@@ -1,3 +1,5 @@
+#[cfg(test)]
+use std::cell::Cell;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
@@ -14,6 +16,17 @@ const MODULE_INTERFACE_MEMO_ENTRY_LIMIT: usize = 2_048;
 const DELIVERY_EFFECT_CHANNEL: &str = "lspDiagnosticsDeliveryDecision";
 pub const REACTIVE_SHADOW_ENV: &str = "OMENA_LSP_REACTIVE_SHADOW";
 
+#[cfg(test)]
+thread_local! {
+    static REACTIVE_SHADOW_DELTA_FOLD_TARGET_PERTURBATION: Cell<bool> =
+        const { Cell::new(false) };
+}
+
+#[cfg(test)]
+pub(crate) fn set_reactive_shadow_delta_fold_target_perturbation_for_test(enabled: bool) {
+    REACTIVE_SHADOW_DELTA_FOLD_TARGET_PERTURBATION.with(|cell| cell.set(enabled));
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ReactiveShadowPublishTierV0 {
     Baseline,
@@ -28,7 +41,7 @@ pub(crate) struct ReactiveShadowStampsV0 {
 }
 
 impl ReactiveShadowStampsV0 {
-    fn as_state(self) -> ReactiveStateV0 {
+    pub(crate) fn as_state(self) -> ReactiveStateV0 {
         ReactiveStateV0::available(ReactiveValueV0::Tuple(vec![
             ReactiveValueV0::Counter(self.corpus_revision),
             ReactiveValueV0::Counter(self.style_snapshot_revision),
@@ -58,7 +71,9 @@ pub(crate) struct ReactiveShadowFlushReportV0 {
     pub(crate) projected_optimizing_digests: BTreeMap<String, String>,
     pub(crate) expected_delivery_decisions: Vec<ReactiveShadowDeliveryDecisionV0>,
     pub(crate) projected_delivery_decisions: Vec<ReactiveShadowDeliveryDecisionV0>,
+    /// Result of the dependency-sourced delta-fold oracle.
     pub(crate) delta_fold_matches_full_rebuild: bool,
+    /// One-armed liveness observation. This is not a comparison dimension.
     pub(crate) settled_without_pending_work: bool,
     pub(crate) corpus_revision_reads: Vec<u64>,
     pub(crate) snapshot_read_side_effect_count: u64,
@@ -508,8 +523,7 @@ impl ReactiveShadowDriverV0 {
             text_map_from_state(self.engine.state(self.baseline_digest_projection).ok());
         let projected_optimizing_digests =
             text_map_from_state(self.engine.state(self.optimizing_digest_projection).ok());
-        let delta_fold_matches_full_rebuild =
-            self.engine.verify_delta_fold(self.digest_fold).is_ok();
+        let delta_fold_matches_full_rebuild = self.delta_fold_matches_full_rebuild();
         let settled_without_pending_work = !self.engine.has_pending_work();
         let observer_liveness_grounded = [
             self.target_set_projection,
@@ -678,8 +692,7 @@ impl ReactiveShadowDriverV0 {
             text_map_from_state(self.engine.state(self.baseline_digest_projection).ok());
         let projected_optimizing_digests =
             text_map_from_state(self.engine.state(self.optimizing_digest_projection).ok());
-        let delta_fold_matches_full_rebuild =
-            self.engine.verify_delta_fold(self.digest_fold).is_ok();
+        let delta_fold_matches_full_rebuild = self.delta_fold_matches_full_rebuild();
         if let Some(flush) = self.flushes.get_mut(&flush_id) {
             flush.expected_baseline_digests = self.baseline_digests.clone();
             flush.projected_baseline_digests = projected_baseline_digests;
@@ -694,6 +707,18 @@ impl ReactiveShadowDriverV0 {
         if let Err(error) = self.engine.deposit(node, state) {
             self.failures.push(error.to_string());
         }
+    }
+
+    fn delta_fold_matches_full_rebuild(&self) -> bool {
+        #[cfg(test)]
+        let node = if REACTIVE_SHADOW_DELTA_FOLD_TARGET_PERTURBATION.with(Cell::get) {
+            self.baseline_digest_projection
+        } else {
+            self.digest_fold
+        };
+        #[cfg(not(test))]
+        let node = self.digest_fold;
+        self.engine.verify_delta_fold(node).is_ok()
     }
 
     fn settle(&mut self) {
@@ -755,7 +780,7 @@ fn text_map_from_state(state: Option<&ReactiveStateV0>) -> BTreeMap<String, Stri
     }
 }
 
-fn stamps_from_state(state: Option<&ReactiveStateV0>) -> Option<ReactiveShadowStampsV0> {
+pub(crate) fn stamps_from_state(state: Option<&ReactiveStateV0>) -> Option<ReactiveShadowStampsV0> {
     let Some(ReactiveStateV0::Available(ReactiveValueV0::Tuple(values))) = state else {
         return None;
     };

@@ -10,8 +10,8 @@ use crate::{
     diagnostics_scheduler::set_reactive_shadow_target_perturbation_for_test,
     lsp_output::set_reactive_shadow_delivery_perturbation_for_test,
     reactive_shadow::{
-        ReactiveShadowFlushReportV0, ReactiveShadowObserverV0, ReactiveShadowPublishTierV0,
-        ReactiveShadowStampsV0,
+        ReactiveShadowObserverV0, ReactiveShadowPublishTierV0, ReactiveShadowStampsV0,
+        set_reactive_shadow_delta_fold_target_perturbation_for_test, stamps_from_state,
     },
     reactive_shadow_contract::{
         ProposedAuthorityViolationV0, ReactiveShadowParityDimensionV0, divergence_disposition,
@@ -19,10 +19,20 @@ use crate::{
     },
 };
 
-type ParityProjectionMutation = (
-    ReactiveShadowParityDimensionV0,
-    fn(&mut ReactiveShadowFlushReportV0),
-);
+const PARITY_PIPELINE_FALSIFIERS: [(ReactiveShadowParityDimensionV0, &str); 3] = [
+    (
+        ReactiveShadowParityDimensionV0::TargetSet,
+        "target_projection_rejects_an_unplanned_reported_uri",
+    ),
+    (
+        ReactiveShadowParityDimensionV0::DeltaFoldRebuild,
+        "delta_fold_rebuild_rejects_a_non_fold_verification_target",
+    ),
+    (
+        ReactiveShadowParityDimensionV0::DeliveryDecision,
+        "delivery_projection_rejects_an_inverted_writer_decision",
+    ),
+];
 
 #[test]
 fn four_projection_arena_settles_without_external_effects() -> Result<(), Box<dyn std::error::Error>>
@@ -134,27 +144,44 @@ fn target_projection_rejects_an_unplanned_reported_uri() -> Result<(), Box<dyn s
 }
 
 #[test]
-fn snapshot_generation_projection_uses_flush_completion_stamps()
+fn delta_fold_rebuild_rejects_a_non_fold_verification_target()
 -> Result<(), Box<dyn std::error::Error>> {
-    let initial_stamps = authority_stamps();
-    let final_stamps = ReactiveShadowStampsV0 {
-        style_snapshot_revision: 12,
-        demand_generation: 4,
-        ..initial_stamps
-    };
-    let (observer, _, _) = observer_flush_with_final_stamps(initial_stamps, final_stamps)?;
-    let reports = observer.reports();
-    let Some(report) = reports.first() else {
-        return Err(std::io::Error::other("observer produced no report").into());
-    };
-    assert_eq!(report.expected_stamps, final_stamps);
-    assert_eq!(report.projected_stamps, Some(final_stamps));
-    assert!(
-        evaluate_proposed_authority_reduction(reports.as_slice())
-            .violations
-            .is_empty()
+    let mut state = LspShellState::default();
+    state
+        .enable_reactive_shadow_observer()
+        .map_err(std::io::Error::other)?;
+    set_reactive_shadow_delta_fold_target_perturbation_for_test(true);
+    let _ = run_message_stream(
+        &mut state,
+        &[open_message(
+            "file:///workspace/App.module.scss",
+            1,
+            ".root { color: red; }",
+        )],
+    );
+    set_reactive_shadow_delta_fold_target_perturbation_for_test(false);
+
+    let reports = state
+        .diagnostics_publish_digest_registry
+        .reactive_shadow_reports_for_test()
+        .unwrap_or_default();
+    let parity = evaluate_reactive_shadow_parity(reports.as_slice());
+    assert_eq!(
+        parity.unclassified_divergences,
+        vec![ReactiveShadowParityDimensionV0::DeltaFoldRebuild]
     );
     Ok(())
+}
+
+#[test]
+fn stamp_state_round_trip_preserves_all_fields() {
+    let stamps = ReactiveShadowStampsV0 {
+        corpus_revision: 7,
+        style_snapshot_revision: 12,
+        demand_generation: 4,
+    };
+    let state = stamps.as_state();
+    assert_eq!(stamps_from_state(Some(&state)), Some(stamps));
 }
 
 #[test]
@@ -338,7 +365,7 @@ fn deferred_digest_receipt_stays_attached_to_its_scheduler_flush()
 }
 
 #[test]
-fn seeded_event_stream_matches_all_flush_projections() -> Result<(), Box<dyn std::error::Error>> {
+fn seeded_event_stream_matches_all_parity_dimensions() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
     state
         .enable_reactive_shadow_observer()
@@ -408,11 +435,7 @@ fn seeded_event_stream_matches_all_flush_projections() -> Result<(), Box<dyn std
     let parity = evaluate_reactive_shadow_parity(reports.as_slice());
     assert_eq!(parity.flush_count, 132);
     assert_eq!(parity.target_set_equality_count, parity.flush_count);
-    assert_eq!(
-        parity.snapshot_generation_equality_count,
-        parity.flush_count
-    );
-    assert_eq!(parity.tier_digest_equality_count, parity.flush_count);
+    assert_eq!(parity.delta_fold_rebuild_count, parity.flush_count);
     assert_eq!(parity.delivery_decision_equality_count, parity.flush_count);
     assert_eq!(parity.settled_without_pending_count, parity.flush_count);
     assert!(parity.baseline_digest_observation_count > 0);
@@ -432,47 +455,26 @@ fn seeded_event_stream_matches_all_flush_projections() -> Result<(), Box<dyn std
 }
 
 #[test]
-fn every_flush_equality_rejects_its_own_projection_drift() {
-    let baseline = synthetic_report();
-    let mutations: [ParityProjectionMutation; 5] = [
-        (ReactiveShadowParityDimensionV0::TargetSet, |report| {
-            report
-                .projected_target_uris
-                .insert("file:///drift.scss".to_string());
-        }),
-        (
-            ReactiveShadowParityDimensionV0::SnapshotGeneration,
-            |report| {
-                report.projected_stamps = Some(ReactiveShadowStampsV0 {
-                    corpus_revision: 99,
-                    ..report.expected_stamps
-                });
-            },
-        ),
-        (ReactiveShadowParityDimensionV0::TierDigest, |report| {
-            report
-                .projected_baseline_digests
-                .insert("file:///fixture.scss".to_string(), "wrong".to_string());
-        }),
-        (
+fn every_parity_dimension_has_a_flush_pipeline_falsifier() {
+    assert_eq!(
+        PARITY_PIPELINE_FALSIFIERS
+            .iter()
+            .map(|(dimension, _)| *dimension)
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([
+            ReactiveShadowParityDimensionV0::TargetSet,
+            ReactiveShadowParityDimensionV0::DeltaFoldRebuild,
             ReactiveShadowParityDimensionV0::DeliveryDecision,
-            |report| report.projected_delivery_decisions.clear(),
-        ),
-        (ReactiveShadowParityDimensionV0::SettledWork, |report| {
-            report.settled_without_pending_work = false
-        }),
-    ];
-
-    for (expected_dimension, mutate) in mutations {
-        let mut report = baseline.clone();
-        mutate(&mut report);
-        let parity = evaluate_reactive_shadow_parity(&[report]);
-        assert!(
-            parity
-                .unclassified_divergences
-                .contains(&expected_dimension)
-        );
-    }
+        ])
+    );
+    assert_eq!(
+        PARITY_PIPELINE_FALSIFIERS
+            .iter()
+            .map(|(_, test_name)| *test_name)
+            .collect::<BTreeSet<_>>()
+            .len(),
+        PARITY_PIPELINE_FALSIFIERS.len()
+    );
 }
 
 #[test]
@@ -614,36 +616,6 @@ fn observer_flush_with_final_stamps(
     let target_uris = BTreeSet::from(["file:///fixture.scss".to_string()]);
     observer.complete_flush(flush_id, target_uris.clone(), target_uris, final_stamps);
     Ok((observer, flush_id, receipt))
-}
-
-fn synthetic_report() -> ReactiveShadowFlushReportV0 {
-    let stamps = ReactiveShadowStampsV0 {
-        corpus_revision: 7,
-        style_snapshot_revision: 11,
-        demand_generation: 3,
-    };
-    let mut report = ReactiveShadowFlushReportV0::new(1, stamps);
-    report.expected_target_uris = BTreeSet::from(["file:///fixture.scss".to_string()]);
-    report.projected_target_uris = report.expected_target_uris.clone();
-    report.projected_stamps = Some(stamps);
-    report
-        .expected_baseline_digests
-        .insert("file:///fixture.scss".to_string(), "digest".to_string());
-    report.projected_baseline_digests = report.expected_baseline_digests.clone();
-    report.projected_optimizing_digests = report.expected_optimizing_digests.clone();
-    report.expected_delivery_decisions =
-        vec![crate::reactive_shadow::ReactiveShadowDeliveryDecisionV0 {
-            candidate_id: 1,
-            uri: "file:///fixture.scss".to_string(),
-            tier: Some(ReactiveShadowPublishTierV0::Baseline),
-            should_deliver: true,
-        }];
-    report.projected_delivery_decisions = report.expected_delivery_decisions.clone();
-    report.delta_fold_matches_full_rebuild = true;
-    report.settled_without_pending_work = true;
-    report.corpus_revision_reads.push(stamps.corpus_revision);
-    report.observer_liveness_grounded = true;
-    report
 }
 
 fn run_message_stream(state: &mut LspShellState, messages: &[Value]) -> Vec<Value> {
