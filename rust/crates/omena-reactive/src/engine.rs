@@ -7,7 +7,7 @@ use std::{
 use crate::{
     ChangePolicyV0, ReactiveNodeIdV0, ReactiveNodeKindV0, ReactiveStateV0, ReactiveUnavailableV0,
     ReactiveValueV0,
-    graph::{NodeBlueprintV0, NodeOperationV0},
+    graph::{NodeBlueprintV0, NodeOperationV0, ReactiveGraphIdV0},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,7 +131,10 @@ pub struct ReactiveEngineV0 {
 }
 
 impl ReactiveEngineV0 {
-    pub(crate) fn from_blueprints(blueprints: Vec<NodeBlueprintV0>) -> Self {
+    pub(crate) fn from_blueprints(
+        graph_id: ReactiveGraphIdV0,
+        blueprints: Vec<NodeBlueprintV0>,
+    ) -> Self {
         let mut nodes: Vec<_> = blueprints
             .into_iter()
             .map(|blueprint| {
@@ -160,7 +163,10 @@ impl ReactiveEngineV0 {
             .collect();
 
         for node_index in 0..nodes.len() {
-            let parent = ReactiveNodeIdV0(node_index);
+            let parent = ReactiveNodeIdV0 {
+                index: node_index,
+                graph: graph_id,
+            };
             for dependency in nodes[node_index].dependencies.clone() {
                 nodes[dependency.index()].parents.push(parent);
             }
