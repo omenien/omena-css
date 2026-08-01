@@ -331,7 +331,7 @@
     },
     {
       "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 3686,
+      "line": 3946,
       "idiom": "source-substring-gate",
       "family": "transform-ir-ownership",
       "disposition": "migration-target",
@@ -1284,7 +1284,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
-      "line": 1223,
+      "line": 1235,
       "idiom": "brace-find",
       "family": "transform-helper",
       "disposition": "named-exempt",
@@ -1293,7 +1293,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
-      "line": 1270,
+      "line": 1282,
       "idiom": "brace-find",
       "family": "transform-helper",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
-      "line": 1310,
+      "line": 1322,
       "idiom": "brace-find",
       "family": "transform-helper",
       "disposition": "named-exempt",
@@ -1364,7 +1364,7 @@
       "reason": "Transform runtime scanning outside the preservation observer remains a named follow-up."
     }
   ],
-  "siteDigest": "sha256:41262444c98e261e0239c1fafc5276f43590fac47395c42c0c59d62d1fc17a86",
+  "siteDigest": "sha256:ce5c80a5e3a4cd9c0ad0c3dc286dc55e67d5a82c7ff74b228197e1a0606bddee",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,

@@ -388,7 +388,7 @@
       },
       {
         "path": "rust/crates/omena-lsp-server/src/source_type_facts.rs",
-        "line": 905,
+        "line": 1255,
         "function": "take_type_fact_prefix_references",
         "operation": "str-eq",
         "evidence": "&& reference.selector_name.as_deref() == Some(prefix)",
@@ -738,7 +738,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:5874cba66f7f8046842485f9222882b9de405ec6715e3999c1eae1f54f0e3a88"
+    "siteDigest": "sha256:0deaca4586a480e6676f9247ca2b0f7f166371fea690775857cd6760eacc8997"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -840,7 +840,7 @@
       },
       {
         "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-        "line": 1575,
+        "line": 1777,
         "function": "is_parse_error_context_byte",
         "operation": "character-predicate-copy",
         "evidence": "fn is_parse_error_context_byte(byte: u8) -> bool { byte.is_ascii_alphanumeric() || matches!( byte, b'-' | b'_' | b'.' | b'$' | b'#' | b'%' | b'@' | b'/' | b'\\\\' ) }",
@@ -848,6 +848,6 @@
         "reason": "omena-transform-cst owns diagnostic context extraction, whose punctuation set is intentionally broader than a CSS identifier."
       }
     ],
-    "siteDigest": "sha256:43fcf0e87e49576da11addc7f1385808a096948655a7bec485e6b84ccd0c23e1"
+    "siteDigest": "sha256:b05a911580bd00f282661fcad12c5424104a5a425354eaa606e2f2240e8c0f14"
   }
 }
