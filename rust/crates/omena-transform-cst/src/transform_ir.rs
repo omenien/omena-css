@@ -3268,27 +3268,26 @@ fn nearest_parent_index(index: usize, nodes: &[IrNodeV0]) -> Option<usize> {
 }
 
 fn build_indexes(nodes: &[IrNodeV0]) -> TransformIrIndexesV0 {
-    let mut by_kind = Vec::new();
-    for kind in [
-        IrNodeKindV0::StyleRule,
-        IrNodeKindV0::AtRule,
-        IrNodeKindV0::Declaration,
-        IrNodeKindV0::Selector,
-        IrNodeKindV0::Value,
-        IrNodeKindV0::UrlValue,
-    ] {
-        by_kind.push(TransformIrKindIndexV0 {
-            kind,
-            node_ids: nodes
-                .iter()
-                .filter(|node| node.kind == kind)
-                .map(|node| node.node_id)
-                .collect(),
-        });
+    let mut nodes_by_kind = BTreeMap::<IrNodeKindV0, Vec<IrNodeIdV0>>::new();
+    for node in nodes.iter().filter(|node| !node.deleted) {
+        nodes_by_kind
+            .entry(node.kind)
+            .or_default()
+            .push(node.node_id);
     }
+    let by_kind = nodes_by_kind
+        .into_iter()
+        .map(|(kind, node_ids)| TransformIrKindIndexV0 { kind, node_ids })
+        .collect();
 
+    // Both indexes are partitions of the same active-node domain.
+    // Building each map from the node stream makes group keys emerge from
+    // observed values, omits empty groups, and prevents deleted nodes from
+    // surviving in either projection. Tests independently reconstruct the
+    // expected key sets and memberships instead of calling this function.
+    //
     let mut nodes_by_parent = BTreeMap::<Option<IrNodeIdV0>, Vec<IrNodeIdV0>>::new();
-    for node in nodes {
+    for node in nodes.iter().filter(|node| !node.deleted) {
         nodes_by_parent
             .entry(node.parent)
             .or_default()
@@ -3369,6 +3368,7 @@ mod tests {
         validate_transaction_commit,
     };
     use omena_parser::StyleDialect;
+    use std::collections::{BTreeMap, BTreeSet};
 
     #[test]
     fn transform_ir_identity_round_trip_keeps_original_origins() -> Result<(), String> {
@@ -3517,7 +3517,7 @@ mod tests {
                 format!("index:{fixture_id}"),
             );
             let unforced_clone = ir.clone();
-            assert_eq!(ir.indexes(), &build_indexes(&ir.nodes));
+            assert_transform_ir_indexes_partition_active_nodes(&ir);
             assert_eq!(
                 ir, unforced_clone,
                 "forcing a derived index must not affect TransformIrV0 equality"
@@ -4615,6 +4615,170 @@ mod tests {
                 source_byte_len: 21,
             }
         );
+        Ok(())
+    }
+
+    fn assert_transform_ir_indexes_partition_active_nodes(ir: &super::TransformIrV0) {
+        let indexes = ir.indexes();
+        let active_nodes = ir
+            .nodes
+            .iter()
+            .filter(|node| !node.deleted)
+            .collect::<Vec<_>>();
+        eprintln!(
+            "activeNodes={} parentGroups={} kindGroups={}",
+            active_nodes.len(),
+            indexes.by_parent.len(),
+            indexes.by_kind.len(),
+        );
+
+        let expected_parent_keys = active_nodes
+            .iter()
+            .map(|node| node.parent)
+            .collect::<BTreeSet<_>>();
+        let actual_parent_keys = indexes
+            .by_parent
+            .iter()
+            .map(|group| group.parent)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            actual_parent_keys, expected_parent_keys,
+            "parent index keys must equal the distinct active-node parents"
+        );
+        let parent_occurrences = indexes
+            .by_parent
+            .iter()
+            .flat_map(|group| group.node_ids.iter().copied())
+            .fold(
+                BTreeMap::<IrNodeIdV0, usize>::new(),
+                |mut counts, node_id| {
+                    *counts.entry(node_id).or_default() += 1;
+                    counts
+                },
+            );
+        assert_eq!(
+            parent_occurrences.len(),
+            active_nodes.len(),
+            "every active node must appear in the parent partition"
+        );
+        for node in &active_nodes {
+            assert_eq!(
+                parent_occurrences.get(&node.node_id),
+                Some(&1),
+                "each active node must appear exactly once in the parent partition"
+            );
+        }
+        for group in &indexes.by_parent {
+            let expected = active_nodes
+                .iter()
+                .filter(|node| node.parent == group.parent)
+                .map(|node| node.node_id)
+                .collect::<BTreeSet<_>>();
+            let actual = group.node_ids.iter().copied().collect::<BTreeSet<_>>();
+            assert_eq!(
+                actual, expected,
+                "parent partition membership must match a direct node scan"
+            );
+        }
+
+        let expected_kind_keys = active_nodes
+            .iter()
+            .map(|node| node.kind)
+            .collect::<BTreeSet<_>>();
+        let actual_kind_keys = indexes
+            .by_kind
+            .iter()
+            .map(|group| group.kind)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            actual_kind_keys, expected_kind_keys,
+            "kind index keys must equal the distinct active-node kinds"
+        );
+        let kind_occurrences = indexes
+            .by_kind
+            .iter()
+            .flat_map(|group| group.node_ids.iter().copied())
+            .fold(
+                BTreeMap::<IrNodeIdV0, usize>::new(),
+                |mut counts, node_id| {
+                    *counts.entry(node_id).or_default() += 1;
+                    counts
+                },
+            );
+        assert_eq!(
+            kind_occurrences.len(),
+            active_nodes.len(),
+            "every active node must appear in the kind partition"
+        );
+        for node in &active_nodes {
+            assert_eq!(
+                kind_occurrences.get(&node.node_id),
+                Some(&1),
+                "each active node must appear exactly once in the kind partition"
+            );
+        }
+        for group in &indexes.by_kind {
+            let expected = active_nodes
+                .iter()
+                .filter(|node| node.kind == group.kind)
+                .map(|node| node.node_id)
+                .collect::<BTreeSet<_>>();
+            let actual = group.node_ids.iter().copied().collect::<BTreeSet<_>>();
+            assert_eq!(
+                actual, expected,
+                "kind partition membership must match a direct node scan"
+            );
+        }
+    }
+
+    #[test]
+    fn transform_ir_mark_node_synthesized_invalidates_forced_lazy_indexes() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".card { color: red; background: blue; }",
+            StyleDialect::Css,
+            "index-mark-node-synthesized-invalidation",
+        );
+        let _ = ir.indexes();
+        let value_id = first_node_id(&ir, IrNodeKindV0::Value)?;
+        let source_byte_len = ir.source_byte_len;
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "index-mark-node-synthesized-invalidation",
+            IrEditRegionV0::full(source_byte_len),
+        );
+        transaction
+            .delete_node(value_id)
+            .map_err(|error| format!("delete should succeed: {error:?}"))?;
+
+        assert_transform_ir_indexes_partition_active_nodes(&transaction.working);
+        Ok(())
+    }
+
+    #[test]
+    fn transform_ir_insert_ir_roots_before_invalidates_forced_lazy_indexes() -> Result<(), String> {
+        let mut ir = lower_transform_ir_from_source(
+            ".anchor { color: red; }",
+            StyleDialect::Css,
+            "index-insert-ir-roots-invalidation",
+        );
+        let inserted_ir = lower_transform_ir_from_source(
+            ".inserted { color: green; }",
+            StyleDialect::Css,
+            "index-insert-ir-roots-source",
+        );
+        let _ = ir.indexes();
+        let anchor = first_node_id(&ir, IrNodeKindV0::StyleRule)?;
+        let source_byte_len = ir.source_byte_len;
+        let mut transaction = IrTransactionV0::new(
+            &mut ir,
+            "index-insert-ir-roots-invalidation",
+            IrEditRegionV0::full(source_byte_len),
+        );
+        transaction
+            .insert_ir_roots_before(anchor, &inserted_ir)
+            .map_err(|error| format!("IR-root insertion should succeed: {error:?}"))?;
+
+        assert_transform_ir_indexes_partition_active_nodes(&transaction.working);
         Ok(())
     }
 
