@@ -443,6 +443,46 @@
           ]
         }
       ]
+    },
+    {
+      "crate": "omena-abstract-value",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state and stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels.",
+      "expectedFailures": [
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": ["CssValueValidationReasonV0:UnvalidatedStandardFunction"]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "abstract-value-supplied-graph-context-wire-values",
+          "kind": "wire-value-order-preserving",
+          "surface": "AbstractValueFlowAnalysisSummaryV0, ClassValueFlowAnalysisV0, and ClassValueControlFlowAnalysisV0 contextSensitivity",
+          "reason": "Analyses that receive no call site now report perSuppliedGraph; the caller-supplied one-CFA and k-limited products retain their compatibility labels with explicit scope disclosure.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/flow.rs",
+              "needles": [
+                "Summarizes analyses over caller-supplied graphs.",
+                "context_sensitivity: \"perSuppliedGraph\"",
+                "Partitions caller-supplied graphs by caller-supplied call-site identifiers.",
+                "context_sensitivity: \"1-cfa\"",
+                "context_sensitivity: format!(\"{max_context_depth}-cfa\")"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
+              "needles": [
+                "fn cfa_context_sensitivity_labels_match_supplied_inputs()",
+                "\"summarize_omena_abstract_value_flow_analysis\"",
+                "\"analyze_class_value_control_flow_graph\"",
+                "\"analyze_k_limited_call_site_flows\""
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

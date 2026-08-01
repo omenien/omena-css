@@ -129,7 +129,20 @@ Criterion currently measures six product boundaries:
 - `z5/parser-product-legacy`: the legacy CSS Modules intermediate producer.
 - `z5/parser-product-omena`: the native CSS Modules intermediate producer.
 - `z5/semantic`: `omena-semantic::summarize_style_semantic_boundary`.
-- `z5/abstract-value`: 1-CFA flow analysis, call-site batching, and reduced-product intersection.
+- `z5/abstract-value`: per-supplied-graph flow analysis, caller-supplied
+  call-site batching, and reduced-product intersection.
+
+The abstract-value context labels distinguish supplied-graph work from the
+two call-site-partitioned products. The latter consume call-site identifiers
+or stacks supplied by their caller; they do not derive a call graph.
+
+| Producer                                       | Wire literal              | Disposition            | Reason                                                                                           | Re-executed by                                                                                                            |
+| ---------------------------------------------- | ------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `summarize_omena_abstract_value_flow_analysis` | `perSuppliedGraph`        | changed                | The generic summary covers graph-local and separately labelled call-site scopes.                 | `cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value cfa_context_sensitivity_labels_match_supplied_inputs` |
+| `analyze_class_value_flow`                     | `perSuppliedGraph`        | changed                | The bounded worklist receives one graph and no call site.                                        | `cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value cfa_context_sensitivity_labels_match_supplied_inputs` |
+| `analyze_class_value_control_flow_graph`       | `perSuppliedGraph`        | changed                | Reachability and transfer evaluation stay within one supplied CFG.                               | `cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value cfa_context_sensitivity_labels_match_supplied_inputs` |
+| `analyze_one_cfa_call_site_flows`              | `1-cfa`                   | deliberately unchanged | It partitions supplied graphs by a supplied call-site identifier, without deriving a call graph. | `cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value cfa_context_sensitivity_labels_match_supplied_inputs` |
+| `analyze_k_limited_call_site_flows`            | `{max_context_depth}-cfa` | deliberately unchanged | It partitions by a supplied stack and adds one join pass, not an interprocedural fixed point.    | `cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value cfa_context_sensitivity_labels_match_supplied_inputs` |
 
 The LSP macro-benchmark measures source hover, source definition, source
 completion, style references, and event-loop probe latency while requests are

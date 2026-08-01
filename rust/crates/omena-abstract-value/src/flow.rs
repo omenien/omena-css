@@ -7,11 +7,15 @@ use omena_incremental::{
 
 use crate::*;
 
+/// Summarizes analyses over caller-supplied graphs.
+///
+/// Call-site-aware entry points are listed as separate scopes and retain their
+/// own context labels.
 pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalysisSummaryV0 {
     AbstractValueFlowAnalysisSummaryV0 {
         schema_version: "0",
         product: "omena-abstract-value.flow-analysis",
-        context_sensitivity: "1-cfa",
+        context_sensitivity: "perSuppliedGraph",
         incremental_engine: "omena-incremental",
         analysis_scopes: vec![
             "singleContext",
@@ -145,6 +149,8 @@ where
     }
 }
 
+/// Runs a bounded worklist over one supplied graph without deriving a call
+/// graph or call-site context.
 pub fn analyze_class_value_flow(graph: &ClassValueFlowGraphV0) -> ClassValueFlowAnalysisV0 {
     let mut values = graph
         .nodes
@@ -184,7 +190,7 @@ pub fn analyze_class_value_flow(graph: &ClassValueFlowGraphV0) -> ClassValueFlow
     ClassValueFlowAnalysisV0 {
         schema_version: "0",
         product: "omena-abstract-value.flow-analysis",
-        context_sensitivity: "1-cfa",
+        context_sensitivity: "perSuppliedGraph",
         context_key: graph.context_key.clone(),
         converged,
         iteration_count,
@@ -208,6 +214,8 @@ pub fn analyze_class_value_flow(graph: &ClassValueFlowGraphV0) -> ClassValueFlow
     }
 }
 
+/// Prunes and evaluates one supplied control-flow graph without deriving a
+/// call graph or call-site context.
 pub fn analyze_class_value_control_flow_graph(
     graph: &ClassValueControlFlowGraphV0,
 ) -> ClassValueControlFlowAnalysisV0 {
@@ -289,7 +297,7 @@ pub fn analyze_class_value_control_flow_graph(
     ClassValueControlFlowAnalysisV0 {
         schema_version: "0",
         product: "omena-abstract-value.control-flow-analysis",
-        context_sensitivity: "1-cfa",
+        context_sensitivity: "perSuppliedGraph",
         context_key: graph.context_key.clone(),
         block_count: graph.blocks.len(),
         edge_count: graph
@@ -400,6 +408,9 @@ pub fn analyze_class_value_flow_incremental_batch_with_reuse(
     }
 }
 
+/// Partitions caller-supplied graphs by caller-supplied call-site identifiers.
+///
+/// This does not derive a call graph or run an interprocedural fixed point.
 pub fn analyze_one_cfa_call_site_flows(
     inputs: &[OneCfaCallSiteFlowInputV0],
 ) -> OneCfaCallSiteFlowAnalysisV0 {
@@ -440,6 +451,10 @@ pub fn analyze_one_cfa_call_site_flows(
     }
 }
 
+/// Partitions caller-supplied graphs by bounded caller-supplied call-site
+/// stacks, then performs one join pass per retained context.
+///
+/// This does not derive a call graph or run an interprocedural fixed point.
 pub fn analyze_k_limited_call_site_flows(
     inputs: &[KLimitedCallSiteFlowInputV0],
     max_context_depth: usize,

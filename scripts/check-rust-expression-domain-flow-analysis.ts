@@ -77,7 +77,7 @@ void (async () => {
   assertEqual(summary.product, "engine-input-producers.expression-domain-flow-analysis", "product");
   assertEqual(summary.analyses.length, INPUT.typeFacts.length, "per-expression graph count");
   assertEqual(
-    summary.analyses.every((entry) => entry.analysis.contextSensitivity === "1-cfa"),
+    summary.analyses.every((entry) => entry.analysis.contextSensitivity === "perSuppliedGraph"),
     true,
     "context sensitivity",
   );

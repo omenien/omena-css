@@ -245,7 +245,7 @@
     "check:rust-omena-css-h1-readiness": "pnpm omena-check bundle rust/omena-css/h1-readiness",
     "check:rust-omena-abstract-value-domain": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value",
     "check:rust-omena-abstract-value-incremental-flow": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value flow",
-    "check:rust-omena-abstract-value-one-cfa": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value cfa",
+    "check:rust-omena-abstract-value-one-cfa": "node --import tsx ./scripts/check-rust-omena-abstract-value-one-cfa.ts",
     "check:rust-omena-abstract-value-split-boundary": "pnpm omena-check run rust/omena-abstract-value/domain && pnpm omena-check run rust/omena-abstract-value/incremental-flow && pnpm omena-check run rust/omena-abstract-value/one-cfa",
     "check:rust-omena-incremental-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-incremental && pnpm omena-check run rust/omena-incremental/shadow-delta && pnpm omena-check run rust/omena-incremental/edit-distance-priority",
     "check:rust-omena-incremental-edit-distance-priority": "node --import tsx ./scripts/check-rust-omena-incremental-edit-distance-priority.ts",

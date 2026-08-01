@@ -153,7 +153,7 @@ fn summarizes_domain_boundary_contract() {
     let flow_summary = summarize_omena_abstract_value_flow_analysis();
     assert_eq!(flow_summary.schema_version, "0");
     assert_eq!(flow_summary.product, "omena-abstract-value.flow-analysis");
-    assert_eq!(flow_summary.context_sensitivity, "1-cfa");
+    assert_eq!(flow_summary.context_sensitivity, "perSuppliedGraph");
     assert_eq!(flow_summary.incremental_engine, "omena-incremental");
     assert!(flow_summary.analysis_scopes.contains(&"multiContextBatch"));
     assert!(flow_summary.analysis_scopes.contains(&"callSiteBatch"));
@@ -1996,6 +1996,72 @@ fn analyzes_flow_concat_facts_before_refinement() {
 }
 
 #[test]
+fn cfa_context_sensitivity_labels_match_supplied_inputs() {
+    let flow_graph = flow_exit_graph("btn-primary");
+    let flow_analysis = analyze_class_value_flow(&flow_graph);
+    let control_flow_analysis =
+        analyze_class_value_control_flow_graph(&ClassValueControlFlowGraphV0 {
+            context_key: Some("Button.tsx:render@cfg".to_string()),
+            entry_block_id: "entry".to_string(),
+            blocks: vec![ClassValueControlFlowBlockV0 {
+                id: "entry".to_string(),
+                nodes: flow_graph.nodes.clone(),
+                successor_block_ids: Vec::new(),
+            }],
+        });
+    let one_cfa = analyze_one_cfa_call_site_flows(&[OneCfaCallSiteFlowInputV0 {
+        callee_key: "classForVariant".to_string(),
+        call_site_id: "Button.tsx:10:className".to_string(),
+        graph: flow_graph.clone(),
+        exit_node_id: "exit".to_string(),
+    }]);
+    let k_limited = analyze_k_limited_call_site_flows(
+        &[KLimitedCallSiteFlowInputV0 {
+            callee_key: "classForVariant".to_string(),
+            call_site_stack: vec![
+                "Route.tsx:render".to_string(),
+                "Button.tsx:className".to_string(),
+            ],
+            graph: flow_graph,
+            exit_node_id: "exit".to_string(),
+        }],
+        2,
+    );
+
+    for (site, actual, expected) in [
+        (
+            "summarize_omena_abstract_value_flow_analysis",
+            summarize_omena_abstract_value_flow_analysis()
+                .context_sensitivity
+                .to_string(),
+            "perSuppliedGraph",
+        ),
+        (
+            "analyze_class_value_flow",
+            flow_analysis.context_sensitivity.to_string(),
+            "perSuppliedGraph",
+        ),
+        (
+            "analyze_class_value_control_flow_graph",
+            control_flow_analysis.context_sensitivity.to_string(),
+            "perSuppliedGraph",
+        ),
+        (
+            "analyze_one_cfa_call_site_flows",
+            one_cfa.context_sensitivity.to_string(),
+            "1-cfa",
+        ),
+        (
+            "analyze_k_limited_call_site_flows",
+            k_limited.context_sensitivity,
+            "2-cfa",
+        ),
+    ] {
+        assert_eq!(actual, expected, "{site} context-sensitivity wire value");
+    }
+}
+
+#[test]
 fn analyzes_one_cfa_class_value_flow_with_branch_merge_and_refinement() {
     let graph = ClassValueFlowGraphV0 {
         context_key: Some("Button.tsx:render@primary".to_string()),
@@ -2031,7 +2097,7 @@ fn analyzes_one_cfa_class_value_flow_with_branch_merge_and_refinement() {
 
     assert_eq!(analysis.schema_version, "0");
     assert_eq!(analysis.product, "omena-abstract-value.flow-analysis");
-    assert_eq!(analysis.context_sensitivity, "1-cfa");
+    assert_eq!(analysis.context_sensitivity, "perSuppliedGraph");
     assert_eq!(
         analysis.context_key.as_deref(),
         Some("Button.tsx:render@primary")
