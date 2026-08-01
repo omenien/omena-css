@@ -186,16 +186,16 @@
     ],
     "primitiveIds": ["str-eq", "contains", "insert", "map-get", "cmp"],
     "unlabelledBindingBlindSpot": "Bindings without a class or selector label are intentionally invisible; typed carriers and API egresses are the backstops.",
-    "currentSiteCount": 60,
+    "currentSiteCount": 62,
     "primitiveCounts": {
-      "str-eq": 23,
+      "str-eq": 25,
       "contains": 17,
       "insert": 12,
       "map-get": 6,
       "cmp": 2
     },
-    "sanctionedSiteCount": 42,
-    "namedExemptSiteCount": 18,
+    "sanctionedSiteCount": 43,
+    "namedExemptSiteCount": 19,
     "sites": [
       {
         "path": "rust/crates/engine-style-parser/src/lib.rs",
@@ -277,6 +277,15 @@
         "evidence": ".any(|candidate| candidate == class_name)",
         "disposition": "sanctioned",
         "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-bundler/src/lib.rs",
+        "line": 1792,
+        "function": "semantic_reachability_inputs_closed_over_composes",
+        "operation": "str-eq",
+        "evidence": "changed |= target.class_names.len() != before;",
+        "disposition": "named-exempt",
+        "reason": "This compares set cardinalities to detect fixed-point convergence, not identifiers."
       },
       {
         "path": "rust/crates/omena-cascade/src/selector.rs",
@@ -403,6 +412,15 @@
         "evidence": "&& reference.name == selector_name,",
         "disposition": "sanctioned",
         "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/closed_world/contract.rs",
+        "line": 590,
+        "function": "composes_origin_symbol_is_reachable",
+        "operation": "str-eq",
+        "evidence": ".is_some_and(|class_names| class_names.iter().any(|name| name == symbol)),",
+        "disposition": "sanctioned",
+        "reason": "Both operands come from the shared parser class-name extraction."
       },
       {
         "path": "rust/crates/omena-parser/src/facts/selectors.rs",
@@ -586,7 +604,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/transform.rs",
-        "line": 1189,
+        "line": 1213,
         "function": "closed_world_bound_reachability_precision",
         "operation": "contains",
         "evidence": ".any(|name| !closed_world_class_names.contains(name.as_str()))",
@@ -703,7 +721,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
-        "line": 1808,
+        "line": 1812,
         "function": "run_hash_css_module_class_names_structural",
         "operation": "str-eq",
         "evidence": "if mutation_count == 0 && class_name_rewrites.is_empty() {",
@@ -712,7 +730,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/structural_shadow.rs",
-        "line": 1842,
+        "line": 1855,
         "function": "css_module_composes_resolutions_for_fixture",
         "operation": "str-eq",
         "evidence": ".find(|existing| existing.local_class_name == resolution.local_class_name)",
@@ -721,7 +739,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/structural_shadow.rs",
-        "line": 1851,
+        "line": 1864,
         "function": "css_module_composes_resolutions_for_fixture",
         "operation": "str-eq",
         "evidence": ".any(|existing| existing == exported_class_name)",
@@ -730,7 +748,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/structural_shadow.rs",
-        "line": 1859,
+        "line": 1872,
         "function": "css_module_composes_resolutions_for_fixture",
         "operation": "cmp",
         "evidence": "merged.sort_by(|left, right| left.local_class_name.cmp(&right.local_class_name));",
@@ -738,7 +756,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:0deaca4586a480e6676f9247ca2b0f7f166371fea690775857cd6760eacc8997"
+    "siteDigest": "sha256:8837c4d32ad06ccfb7df9ae0387908eb4d5d66fb066ec46695d2599a9b57d050"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",

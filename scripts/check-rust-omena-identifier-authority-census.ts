@@ -187,6 +187,13 @@ const egressExemptions: readonly ExemptionRule[] = [
 
 const idiomExemptions: readonly ExemptionRule[] = [
   {
+    path: "rust/crates/omena-bundler/src/lib.rs",
+    function: "semantic_reachability_inputs_closed_over_composes",
+    operation: "str-eq",
+    evidence: "changed |= target.class_names.len() != before;",
+    reason: "This compares set cardinalities to detect fixed-point convergence, not identifiers.",
+  },
+  {
     path: "rust/crates/omena-parser/src/facts/selectors.rs",
     function: "resolve_selector_group",
     operation: "str-eq",
@@ -290,6 +297,14 @@ const idiomExemptions: readonly ExemptionRule[] = [
     operation: "str-eq",
     evidence: "&& reference.selector_name.as_deref() == Some(prefix)",
     reason: "This consumes an exact prefix reference rather than joining complete class names.",
+  },
+  {
+    path: "rust/crates/omena-parser/src/closed_world/contract.rs",
+    function: "composes_origin_symbol_is_reachable",
+    operation: "str-eq",
+    evidence: ".is_some_and(|class_names| class_names.iter().any(|name| name == symbol)),",
+    reason: "Both operands come from the shared parser class-name extraction.",
+    disposition: "sanctioned",
   },
   {
     path: "rust/crates/omena-parser/src/public_product.rs",

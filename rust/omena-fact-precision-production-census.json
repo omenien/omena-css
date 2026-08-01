@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena.fact-precision-production-census",
-  "rawReferenceCount": 119,
+  "rawReferenceCount": 125,
   "productionSiteCount": 20,
   "productionOverrideCount": 14,
   "classifiedSites": [
@@ -622,7 +622,7 @@
     },
     {
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "owner": "fn closed_world_source_precision_summary",
+      "owner": "fn closed_world_bundle_reachability_precision",
       "lexicalContext": "code",
       "testOnly": false,
       "variantCounts": {
@@ -632,6 +632,21 @@
         "Unknown": 1
       },
       "occurrenceCount": 4,
+      "disposition": "consumer",
+      "authority": "the closed-world bundle adapter folds carried source-rank counts into the execution precision ceiling"
+    },
+    {
+      "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+      "owner": "fn closed_world_source_precision_summary",
+      "lexicalContext": "code",
+      "testOnly": false,
+      "variantCounts": {
+        "Exact": 1,
+        "Conservative": 2,
+        "Heuristic": 1,
+        "Unknown": 2
+      },
+      "occurrenceCount": 6,
       "disposition": "consumer",
       "authority": "the source-precision summary exhaustively counts an already-derived rank"
     },

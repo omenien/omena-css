@@ -5,6 +5,7 @@
   "changeClasses": ["additive-optional", "additive-required", "removal", "narrowing"],
   "executionSummaryWireResidual": [
     "cascadeProofObligations",
+    "closedWorldAdmission",
     "cssImportInlines",
     "cssModuleComposesExports",
     "cssModuleEvaluation",
