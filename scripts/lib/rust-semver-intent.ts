@@ -5,6 +5,7 @@ import path from "node:path";
 
 interface ExpectedCargoSemverDiagnostic {
   readonly lint: string;
+  readonly level?: "major" | "minor";
   readonly evidenceNeedles: readonly string[];
   readonly witnessLinePrefix?: string;
   readonly expectedWitnesses?: readonly string[];
@@ -232,12 +233,22 @@ export function runDeclaredRustSemverCheck(
       summary,
       `${options.crate} cargo-semver-checks output is missing the failure summary`,
     );
+    const expectedMajorFailureCount = intent.expectedFailures.filter(
+      (failure) => (failure.level ?? "major") === "major",
+    ).length;
+    const expectedMinorFailureCount = intent.expectedFailures.filter(
+      (failure) => failure.level === "minor",
+    ).length;
     assert.equal(
       Number(summary[1]),
-      intent.expectedFailures.length,
+      expectedMajorFailureCount,
       `${options.crate} major failure count drifted`,
     );
-    assert.equal(Number(summary[2]), 0, `${options.crate} has undeclared minor semver failures`);
+    assert.equal(
+      Number(summary[2]),
+      expectedMinorFailureCount,
+      `${options.crate} minor failure count drifted`,
+    );
   } else {
     assert.equal(
       summary,

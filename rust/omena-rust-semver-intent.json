@@ -238,7 +238,7 @@
     {
       "crate": "omena-bundler",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The public cascade-key constructor accepts an ordinal and importance, and linked dependency edges carry the composed local and remote selector names required by closed-world admission.",
+      "reason": "The public cascade-key constructor accepts an ordinal and importance, linked dependency edges carry composed selector names, reachability is keyed by module instance, and dependency resolution now has an explicit authority mode with consumer-visible disclosures.",
       "expectedFailures": [
         {
           "lint": "method_parameter_count_changed",
@@ -258,6 +258,33 @@
             "LinkerDependencyEdgeV0.local_names",
             "LinkerDependencyEdgeV0.remote_names"
           ]
+        },
+        {
+          "lint": "enum_no_repr_variant_discriminant_changed",
+          "evidenceNeedles": [
+            "variant TransformBundleLinkErrorV0::ClosedWorldBundle 3 -> 4",
+            "variant TransformBundleLinkErrorV0::InvalidEmissionPlan 4 -> 5",
+            "variant TransformBundleLinkErrorV0::UnsupportedEmissionCycle 5 -> 6"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "variant TransformBundleLinkErrorV0:UnresolvedDependencyEdge"
+          ]
+        },
+        {
+          "lint": "struct_marked_non_exhaustive",
+          "evidenceNeedles": [
+            "struct TransformBundleLinkOptionsV0"
+          ]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "Struct TransformBundleSemanticReachabilityInputV0"
+          ]
         }
       ],
       "expectedRuntimeValueChanges": [
@@ -270,7 +297,7 @@
             {
               "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
               "needles": [
-                "semantic_reachability_inputs_closed_over_composes(",
+                "instance_reachability_inputs_closed_over_composes(",
                 "fn composes_closure_expands_module_qualified_semantic_reachability()"
               ]
             }

@@ -538,10 +538,51 @@ impl TransformBundleResolvedDependencyV0 {
     }
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BundleResolutionAuthorityV0 {
+    /// Every dependency edge must have a supplied resolved record.
+    Resolved,
+    /// Unmatched edges fall back to importer-relative path candidates.
+    #[default]
+    LegacyPathInferred,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleDependencyResolutionDisclosureV0 {
+    pub source_instance: ModuleInstanceKeyV0,
+    pub import_source: String,
+    pub import_ordinal: Option<u32>,
+    pub authority: BundleResolutionAuthorityV0,
+}
+
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformBundleLinkOptionsV0 {
     pub emission_ordering_policy: EmissionOrderingPolicyV0,
+    pub dependency_resolution_authority: BundleResolutionAuthorityV0,
+}
+
+impl TransformBundleLinkOptionsV0 {
+    pub const fn with_emission_ordering_policy(
+        mut self,
+        emission_ordering_policy: EmissionOrderingPolicyV0,
+    ) -> Self {
+        self.emission_ordering_policy = emission_ordering_policy;
+        self
+    }
+
+    pub const fn with_dependency_resolution_authority(
+        mut self,
+        dependency_resolution_authority: BundleResolutionAuthorityV0,
+    ) -> Self {
+        self.dependency_resolution_authority = dependency_resolution_authority;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -603,6 +644,7 @@ pub struct LinkedStylesheetWithEmissionItemsV0 {
     pub emission_item_plan: EmissionItemPlanV0,
     pub emission_item_order: LinkedEmissionItemOrderV0,
     pub projection_disclosures: Vec<EmissionItemProjectionDisclosureV0>,
+    pub dependency_resolution_disclosures: Vec<BundleDependencyResolutionDisclosureV0>,
 }
 
 /// Couples legacy admission evidence with a requested emission-policy result from one prepared graph.
@@ -754,6 +796,11 @@ pub enum TransformBundleLinkErrorV0 {
     MissingDependency {
         source_path: String,
         import_source: String,
+    },
+    UnresolvedDependencyEdge {
+        source_path: String,
+        import_source: String,
+        import_ordinal: Option<u32>,
     },
     ClosedWorldBundle {
         error: ClosedWorldBundleBuildErrorV0,
@@ -1055,6 +1102,49 @@ pub fn link_omena_transform_bundle_projection_with_emission_items_and_resolved_d
     )
 }
 
+pub fn link_resolved_bundle<P: AsRef<str>>(
+    entrypoint_paths: &[P],
+    linker_projection: &TransformBundleLinkerProjectionV0,
+    emission_item_projection: &TransformBundleEmissionItemProjectionV0,
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    emission_ordering_policy: EmissionOrderingPolicyV0,
+) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+    link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+        entrypoint_paths,
+        linker_projection,
+        emission_item_projection,
+        resolved_dependencies,
+        module_metadata,
+        TransformBundleLinkOptionsV0::default()
+            .with_emission_ordering_policy(emission_ordering_policy)
+            .with_dependency_resolution_authority(BundleResolutionAuthorityV0::Resolved),
+    )
+}
+
+#[deprecated(
+    note = "supply resolved dependencies and use link_resolved_bundle when dependency authority must be complete"
+)]
+pub fn link_legacy_path_inferred_bundle<P: AsRef<str>>(
+    entrypoint_paths: &[P],
+    linker_projection: &TransformBundleLinkerProjectionV0,
+    emission_item_projection: &TransformBundleEmissionItemProjectionV0,
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    emission_ordering_policy: EmissionOrderingPolicyV0,
+) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+    link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+        entrypoint_paths,
+        linker_projection,
+        emission_item_projection,
+        resolved_dependencies,
+        module_metadata,
+        TransformBundleLinkOptionsV0::default()
+            .with_emission_ordering_policy(emission_ordering_policy)
+            .with_dependency_resolution_authority(BundleResolutionAuthorityV0::LegacyPathInferred),
+    )
+}
+
 /// Evaluates legacy admission and the requested emission policy from one closed-world preparation.
 pub fn evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options<
     P: AsRef<str>,
@@ -1093,6 +1183,7 @@ pub fn compare_omena_transform_bundle_emission_policies<P: AsRef<str>>(
         &[],
         TransformBundleLinkOptionsV0 {
             emission_ordering_policy: EmissionOrderingPolicyV0::ModuleIdLegacy,
+            ..TransformBundleLinkOptionsV0::default()
         },
     )?;
     let import_order = link_omena_transform_bundle_modules_with_options(
@@ -1102,6 +1193,7 @@ pub fn compare_omena_transform_bundle_emission_policies<P: AsRef<str>>(
         &[],
         TransformBundleLinkOptionsV0 {
             emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
+            ..TransformBundleLinkOptionsV0::default()
         },
     )?;
     let module_id_legacy_rules = &module_id_legacy.global_rule_order.rules;
@@ -1416,6 +1508,7 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
         resolved_dependencies,
         module_metadata,
         module_reachability_evidence,
+        options.dependency_resolution_authority,
     )?;
     link_stylesheet_from_prepared_context(prepared, inputs, resolved_dependencies, options)
 }
@@ -1455,6 +1548,7 @@ fn build_linked_stylesheet_order_from_prepared_context(
         &prepared.entrypoints,
         resolved_dependencies,
         options.emission_ordering_policy,
+        options.dependency_resolution_authority,
     )?;
     let global_rule_order =
         emission_order::build_global_rule_order_from_plan(inputs, &emission_plan)?;
@@ -1464,6 +1558,7 @@ fn build_linked_stylesheet_order_from_prepared_context(
 struct PreparedLinkedStylesheetContextV0 {
     entrypoints: Vec<ModuleInstanceKeyV0>,
     closed_world_bundle: ClosedWorldBundleV0,
+    dependency_resolution_disclosures: Vec<BundleDependencyResolutionDisclosureV0>,
 }
 
 fn prepare_linked_stylesheet_context(
@@ -1475,6 +1570,7 @@ fn prepare_linked_stylesheet_context(
         ModuleInstanceKeyV0,
         ClosedWorldModuleReachabilityEvidenceV0,
     >,
+    resolution_authority: BundleResolutionAuthorityV0,
 ) -> Result<PreparedLinkedStylesheetContextV0, TransformBundleLinkErrorV0> {
     let instances_by_path = module_instances_by_linker_path(inputs);
     let entrypoints = entrypoint_paths
@@ -1487,11 +1583,13 @@ fn prepare_linked_stylesheet_context(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let linked_modules = collect_closed_world_linked_modules_from_projection(
-        inputs,
-        resolved_dependencies,
-        &instances_by_path,
-    )?;
+    let (linked_modules, dependency_resolution_disclosures) =
+        collect_closed_world_linked_modules_from_projection(
+            inputs,
+            resolved_dependencies,
+            &instances_by_path,
+            resolution_authority,
+        )?;
     let module_metadata =
         module_metadata_with_reachability_evidence(module_metadata, module_reachability_evidence);
     let closed_world_bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
@@ -1503,6 +1601,7 @@ fn prepare_linked_stylesheet_context(
     Ok(PreparedLinkedStylesheetContextV0 {
         entrypoints,
         closed_world_bundle,
+        dependency_resolution_disclosures,
     })
 }
 
@@ -1524,6 +1623,7 @@ fn link_stylesheet_from_projection_with_emission_items_and_metadata_and_options(
         resolved_dependencies,
         module_metadata,
         module_reachability_evidence,
+        options.dependency_resolution_authority,
     )?;
     link_stylesheet_from_prepared_context_with_emission_items(
         prepared,
@@ -1552,6 +1652,7 @@ fn evaluate_stylesheet_emission_admission_from_projection(
         resolved_dependencies,
         module_metadata,
         module_reachability_evidence,
+        options.dependency_resolution_authority,
     ) {
         Ok(prepared) => prepared,
         Err(error) => {
@@ -1565,7 +1666,8 @@ fn evaluate_stylesheet_emission_admission_from_projection(
         &prepared,
         linker_inputs,
         resolved_dependencies,
-        TransformBundleLinkOptionsV0::default(),
+        TransformBundleLinkOptionsV0::default()
+            .with_dependency_resolution_authority(options.dependency_resolution_authority),
     )
     .is_err();
     let requested_policy_result = link_stylesheet_from_prepared_context_with_emission_items(
@@ -1594,6 +1696,7 @@ fn link_stylesheet_from_prepared_context_with_emission_items(
         &prepared.entrypoints,
         resolved_dependencies,
         options.emission_ordering_policy,
+        options.dependency_resolution_authority,
     )?;
     let emission_plan =
         emission_order::build_emission_plan_from_module_plan(linker_inputs, &module_plan)?;
@@ -1638,6 +1741,7 @@ fn link_stylesheet_from_prepared_context_with_emission_items(
         emission_item_plan,
         emission_item_order,
         projection_disclosures,
+        dependency_resolution_disclosures: prepared.dependency_resolution_disclosures,
     })
 }
 
@@ -2074,22 +2178,39 @@ fn collect_closed_world_linked_modules_from_projection(
     inputs: &[LinkerInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
-) -> Result<Vec<ClosedWorldLinkedModuleV0>, TransformBundleLinkErrorV0> {
-    inputs
+    resolution_authority: BundleResolutionAuthorityV0,
+) -> Result<
+    (
+        Vec<ClosedWorldLinkedModuleV0>,
+        Vec<BundleDependencyResolutionDisclosureV0>,
+    ),
+    TransformBundleLinkErrorV0,
+> {
+    let linked_with_disclosures = inputs
         .iter()
         .map(|input| {
             let mut linked = ClosedWorldLinkedModuleV0::new(input.instance.clone());
+            let mut disclosures = Vec::new();
             for edge in &input.dependency_edges {
-                let dependency = resolve_imported_module_instance_for_edge(
+                let resolution = resolve_imported_module_instance_for_edge(
                     input,
                     edge,
                     resolved_dependencies,
                     instances_by_path,
-                )?
-                .ok_or_else(|| TransformBundleLinkErrorV0::MissingDependency {
-                    source_path: input.source_path.clone(),
-                    import_source: edge.import_source.clone(),
+                    resolution_authority,
+                )?;
+                let dependency = resolution.target_instance.clone().ok_or_else(|| {
+                    TransformBundleLinkErrorV0::MissingDependency {
+                        source_path: input.source_path.clone(),
+                        import_source: edge.import_source.clone(),
+                    }
                 })?;
+                disclosures.push(BundleDependencyResolutionDisclosureV0 {
+                    source_instance: input.instance.clone(),
+                    import_source: edge.import_source.clone(),
+                    import_ordinal: edge.import_ordinal,
+                    authority: resolution.authority,
+                });
                 if edge.kind == TransformBundleEdgeKind::CssModuleComposesExternal {
                     for local_name in &edge.local_names {
                         for remote_name in &edge.remote_names {
@@ -2134,9 +2255,15 @@ fn collect_closed_world_linked_modules_from_projection(
             });
             linked.composes_edges.dedup();
             linked.composes_edge_observation_count = linked.composes_edges.len();
-            Ok(linked)
+            Ok((linked, disclosures))
         })
-        .collect()
+        .collect::<Result<Vec<_>, TransformBundleLinkErrorV0>>()?;
+    let (linked_modules, disclosure_groups): (Vec<_>, Vec<_>) =
+        linked_with_disclosures.into_iter().unzip();
+    let mut disclosures = disclosure_groups.into_iter().flatten().collect::<Vec<_>>();
+    disclosures.sort();
+    disclosures.dedup();
+    Ok((linked_modules, disclosures))
 }
 
 const fn bundle_edge_module_dependency_reason(
@@ -2183,12 +2310,18 @@ pub(crate) fn resolve_imported_module_instance(
     Ok(None)
 }
 
+pub(crate) struct DependencyResolutionOutcomeV0 {
+    pub(crate) target_instance: Option<ModuleInstanceKeyV0>,
+    pub(crate) authority: BundleResolutionAuthorityV0,
+}
+
 pub(crate) fn resolve_imported_module_instance_for_edge(
     input: &LinkerInputV0,
     edge: &LinkerDependencyEdgeV0,
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
-) -> Result<Option<ModuleInstanceKeyV0>, TransformBundleLinkErrorV0> {
+    resolution_authority: BundleResolutionAuthorityV0,
+) -> Result<DependencyResolutionOutcomeV0, TransformBundleLinkErrorV0> {
     let mut matches = resolved_dependencies.iter().filter(|dependency| {
         dependency.source_instance == input.instance
             && dependency.edge_kind == edge.kind
@@ -2205,22 +2338,35 @@ pub(crate) fn resolve_imported_module_instance_for_edge(
                 ),
             });
         }
-        return Ok(resolved
-            .resolution
-            .target_instance
-            .as_ref()
-            .and_then(|target| {
-                instances_by_path
-                    .get(target.module().as_str())
-                    .filter(|instances| instances.contains(target))
-                    .map(|_| target.clone())
-            }));
+        return Ok(DependencyResolutionOutcomeV0 {
+            target_instance: resolved
+                .resolution
+                .target_instance
+                .as_ref()
+                .and_then(|target| {
+                    instances_by_path
+                        .get(target.module().as_str())
+                        .filter(|instances| instances.contains(target))
+                        .map(|_| target.clone())
+                }),
+            authority: BundleResolutionAuthorityV0::Resolved,
+        });
     }
-    resolve_imported_module_instance(
-        input.source_path.as_str(),
-        edge.import_source.as_str(),
-        instances_by_path,
-    )
+    if resolution_authority == BundleResolutionAuthorityV0::Resolved {
+        return Err(TransformBundleLinkErrorV0::UnresolvedDependencyEdge {
+            source_path: input.source_path.clone(),
+            import_source: edge.import_source.clone(),
+            import_ordinal: edge.import_ordinal,
+        });
+    }
+    Ok(DependencyResolutionOutcomeV0 {
+        target_instance: resolve_imported_module_instance(
+            input.source_path.as_str(),
+            edge.import_source.as_str(),
+            instances_by_path,
+        )?,
+        authority: BundleResolutionAuthorityV0::LegacyPathInferred,
+    })
 }
 
 fn import_path_candidates(source_path: &str, import_source: &str) -> Vec<String> {
@@ -3223,6 +3369,7 @@ mod tests {
             &[first],
             &[],
             super::EmissionOrderingPolicyV0::ModuleIdLegacy,
+            super::BundleResolutionAuthorityV0::LegacyPathInferred,
         )
         .map_err(|error| format!("{error:?}"))?;
         let original = super::emission_order::build_global_rule_order_from_plan(&inputs, &plan)
@@ -3307,6 +3454,7 @@ mod tests {
             &[],
             TransformBundleLinkOptionsV0 {
                 emission_ordering_policy: super::EmissionOrderingPolicyV0::ModuleIdLegacy,
+                ..TransformBundleLinkOptionsV0::default()
             },
         )
         .map_err(|error| format!("{error:?}"))?;
@@ -3348,6 +3496,7 @@ mod tests {
             &[],
             TransformBundleLinkOptionsV0 {
                 emission_ordering_policy: super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                ..TransformBundleLinkOptionsV0::default()
             },
         )
         .map_err(|error| format!("{error:?}"))?;
@@ -3396,6 +3545,7 @@ mod tests {
                 &[],
                 TransformBundleLinkOptionsV0 {
                     emission_ordering_policy: policy,
+                    ..TransformBundleLinkOptionsV0::default()
                 },
             )
             .map_err(|error| format!("{error:?}"))
@@ -4353,6 +4503,114 @@ mod tests {
     }
 
     #[test]
+    fn resolution_authority_is_enforced_per_dependency_edge() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                r#"@import "./tokens.css"; @import "./theme"; .app { color: green; }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/tokens.css",
+                ".token { color: rebeccapurple; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/theme.scss",
+                ".theme { color: purple; }",
+                StyleDialect::Scss,
+            ),
+        ];
+        let projections =
+            super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
+        let resolved_tokens = TransformBundleResolvedDependencyV0::new(
+            modules[0].module_instance_key(),
+            TransformBundleEdgeKind::CssImport,
+            "./tokens.css",
+            Some(0),
+            TransformBundleDependencyResolutionV0::attempted(
+                vec!["fileRelativeOrAbsolute"],
+                "fileRelative",
+                1,
+                Some(modules[1].module_instance_key()),
+            ),
+        );
+        let resolved_theme = TransformBundleResolvedDependencyV0::new(
+            modules[0].module_instance_key(),
+            TransformBundleEdgeKind::CssImport,
+            "./theme",
+            Some(1),
+            TransformBundleDependencyResolutionV0::attempted(
+                vec!["fileRelativeOrAbsolute"],
+                "fileRelative",
+                1,
+                Some(modules[2].module_instance_key()),
+            ),
+        );
+
+        let strict_error = super::link_resolved_bundle(
+            &["src/app.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            std::slice::from_ref(&resolved_tokens),
+            &[],
+            super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+        );
+        // Removing one record from a partially supplied edge set must name that exact edge.
+        assert_eq!(
+            strict_error,
+            Err(TransformBundleLinkErrorV0::UnresolvedDependencyEdge {
+                source_path: "src/app.css".to_string(),
+                import_source: "./theme".to_string(),
+                import_ordinal: Some(1),
+            })
+        );
+
+        let legacy = super::link_legacy_path_inferred_bundle(
+            &["src/app.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            std::slice::from_ref(&resolved_tokens),
+            &[],
+            super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+        )
+        .map_err(|error| format!("legacy fallback should link: {error:?}"))?;
+        let inferred = legacy
+            .dependency_resolution_disclosures
+            .iter()
+            .filter(|disclosure| {
+                disclosure.authority == super::BundleResolutionAuthorityV0::LegacyPathInferred
+            })
+            .collect::<Vec<_>>();
+        // Falling back at one edge must not relabel the supplied sibling edge.
+        assert_eq!(inferred.len(), 1);
+        // The consumer-end disclosure identifies the unmatched edge, not merely the call mode.
+        assert_eq!(inferred[0].import_source, "./theme");
+        assert_eq!(inferred[0].import_ordinal, Some(1));
+
+        let strict = super::link_resolved_bundle(
+            &["src/app.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            &[resolved_tokens, resolved_theme],
+            &[],
+            super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+        )
+        .map_err(|error| format!("complete resolved edge set should link: {error:?}"))?;
+        // A complete strict link discloses resolved authority for every dependency edge.
+        assert_eq!(strict.dependency_resolution_disclosures.len(), 2);
+        assert!(
+            strict
+                .dependency_resolution_disclosures
+                .iter()
+                .all(|disclosure| {
+                    disclosure.authority == super::BundleResolutionAuthorityV0::Resolved
+                })
+        );
+        Ok(())
+    }
+
+    #[test]
     fn emission_item_projection_preserves_the_legacy_selector_order() -> Result<(), String> {
         let modules = vec![TransformBundleModuleInputV0::new(
             "src/theme.css",
@@ -4525,6 +4783,7 @@ mod tests {
                 TransformBundleLinkOptionsV0 {
                     emission_ordering_policy:
                         super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                    ..TransformBundleLinkOptionsV0::default()
                 },
             )
             .map_err(|error| format!("emission-item link failed: {error:?}"))?;
@@ -4730,6 +4989,7 @@ mod tests {
                 TransformBundleLinkOptionsV0 {
                     emission_ordering_policy:
                         super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                    ..TransformBundleLinkOptionsV0::default()
                 },
             )
             .map_err(|error| format!("emission-item link failed: {error:?}"))?;
@@ -4793,6 +5053,7 @@ mod tests {
                 TransformBundleLinkOptionsV0 {
                     emission_ordering_policy:
                         super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                    ..TransformBundleLinkOptionsV0::default()
                 },
             )
             .map_err(|error| format!("emission-item link failed: {error:?}"))?;

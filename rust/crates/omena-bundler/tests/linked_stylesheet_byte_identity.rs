@@ -50,9 +50,8 @@ fn emission_item_order_covers_non_class_rules_without_widening_legacy_order() ->
             projections.emission_item_projection(),
             &[],
             &[],
-            TransformBundleLinkOptionsV0 {
-                emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
-            },
+            TransformBundleLinkOptionsV0::default()
+                .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving),
         )
         .map_err(|error| format!("{error:?}"))?;
 

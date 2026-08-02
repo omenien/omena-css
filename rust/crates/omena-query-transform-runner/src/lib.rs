@@ -15,7 +15,8 @@ pub use plugins::{built_in_omena_plugins, execute_built_in_omena_plugin};
 
 #[allow(deprecated)]
 pub use omena_bundler::{
-    EmissionOrderingPolicyV0, InstanceReachabilityDerivationV0, LinkedEmissionArtifactV0,
+    BundleDependencyResolutionDisclosureV0, BundleResolutionAuthorityV0, EmissionOrderingPolicyV0,
+    InstanceReachabilityDerivationV0, LinkedEmissionArtifactV0,
     LinkedEmissionItemMaterializationErrorV0, LinkedEmissionMaterializationErrorV0,
     LinkedStylesheetV0, LinkedStylesheetWithEmissionItemsV0,
     TransformBundleAssetUrlRewriteSummaryV0, TransformBundleDependencyResolutionV0,
@@ -27,12 +28,13 @@ pub use omena_bundler::{
     TransformBundleSemanticReachabilityInputV0, TransformBundleSourceSummaryV0,
     TransformBundleTransformedModuleV0, bundle_edge_is_module_dependency,
     evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options,
-    link_omena_transform_bundle_modules, link_omena_transform_bundle_modules_with_options,
+    link_legacy_path_inferred_bundle, link_omena_transform_bundle_modules,
+    link_omena_transform_bundle_modules_with_options,
     link_omena_transform_bundle_modules_with_semantic_reachability,
     link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
     link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
     link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
-    materialize_omena_transform_bundle_linked_stylesheet,
+    link_resolved_bundle, materialize_omena_transform_bundle_linked_stylesheet,
     materialize_omena_transform_bundle_linked_stylesheet_with_emission_items,
     normalize_omena_transform_bundle_path,
     project_omena_transform_bundle_linker_and_emission_items,

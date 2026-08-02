@@ -1372,9 +1372,8 @@ fn analyze_linked_emission_fixture_v0(
             projections.emission_item_projection(),
             &[],
             &[],
-            TransformBundleLinkOptionsV0 {
-                emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
-            },
+            TransformBundleLinkOptionsV0::default()
+                .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving),
         )
         .map_err(|error| format!("fixture {} could not be linked: {error:?}", fixture.id))?;
     let emission_plan_module_order = emission_item_module_order_v0(&linked_order);

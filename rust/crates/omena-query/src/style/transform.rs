@@ -525,9 +525,8 @@ fn run_omena_query_bundle_with_optional_module_reachability(
         OmenaQueryBundleEmissionPathV0::ImportInlineLegacy => {
             TransformBundleLinkOptionsV0::default()
         }
-        OmenaQueryBundleEmissionPathV0::LinkedOrder => TransformBundleLinkOptionsV0 {
-            emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
-        },
+        OmenaQueryBundleEmissionPathV0::LinkedOrder => TransformBundleLinkOptionsV0::default()
+            .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving),
     };
     let (legacy_open_decision, linked_result) = link_closed_world_stylesheet_for_style_sources(
         ClosedWorldStylesheetRequestV0 {
@@ -4476,6 +4475,11 @@ fn closed_world_blocker_from_link_error(
         TransformBundleLinkErrorV0::MissingDependency {
             source_path,
             import_source,
+        }
+        | TransformBundleLinkErrorV0::UnresolvedDependencyEdge {
+            source_path,
+            import_source,
+            ..
         } => OmenaQueryClosedWorldBlockerV0::MissingDependency {
             source_path,
             import_source,
@@ -4639,9 +4643,8 @@ mod linked_source_map_tests {
         let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
         let context = OmenaQueryTransformExecutionContextV0::default();
         let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
-        let link_options = TransformBundleLinkOptionsV0 {
-            emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
-        };
+        let link_options = TransformBundleLinkOptionsV0::default()
+            .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving);
         let admission = link_closed_world_stylesheet_for_style_sources(
             ClosedWorldStylesheetRequestV0 {
                 target_style_path: "src/app.css",
