@@ -44,6 +44,12 @@
       "configuration": "with:none"
     },
     "moduleExecutions": [],
+    "emissionExecution": {
+      "moduleRegions": [],
+      "orderEntryRegions": [],
+      "emittedModuleCount": 0,
+      "globalOrderEntryCount": 0
+    },
     "aggregateMutationCount": 0,
     "aggregateExecutedPassIds": [],
     "aggregateSemanticRemovalCount": 0,

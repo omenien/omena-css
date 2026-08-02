@@ -4020,6 +4020,12 @@ fn summarize_bundle_execution(linked: &LinkedBundleExecutionV0) -> BundleExecuti
                 execution: module.execution.clone(),
             })
             .collect(),
+        emission_execution: BundleEmissionExecutionV0 {
+            module_regions: linked.materialization.module_regions.clone(),
+            order_entry_regions: linked.materialization.order_entry_regions.clone(),
+            emitted_module_count: linked.materialization.emitted_module_count,
+            global_order_entry_count: linked.materialization.global_order_entry_count,
+        },
         aggregate_mutation_count: linked
             .module_executions
             .iter()
@@ -4815,9 +4821,23 @@ mod linked_source_map_tests {
                 0,
             )
         );
-        // FALSIFIER: dropping a retained module execution makes the aggregate's
-        // product-run module denominator disagree with the linked graph.
-        assert_eq!(scope_evidence.bundle_execution.module_executions.len(), 3);
+        // FALSIFIER: dropping a retained module execution or a materialized
+        // region makes the independently produced cardinalities disagree.
+        assert_eq!(
+            (
+                scope_evidence.bundle_execution.module_executions.len(),
+                scope_evidence
+                    .bundle_execution
+                    .emission_execution
+                    .module_regions
+                    .len(),
+                scope_evidence
+                    .bundle_execution
+                    .emission_execution
+                    .emitted_module_count,
+            ),
+            (3, 3, 3)
+        );
         assert_eq!(scope_evidence.field_scopes.len(), 28);
         assert_eq!(scope_evidence.module_executions.len(), 3);
         assert_eq!(
@@ -5050,7 +5070,7 @@ mod linked_source_map_tests {
     }
 
     #[test]
-    fn bundle_execution_scope_rejects_missing_materialized_region() -> Result<(), String> {
+    fn bundle_execution_scope_closes_materializer_regions_and_separators() -> Result<(), String> {
         let style_sources = vec![
             OmenaQueryStyleSourceInputV0 {
                 style_path: "src/app.css".to_string(),
@@ -5094,10 +5114,88 @@ mod linked_source_map_tests {
                 ..OmenaQueryConsumerBuildOptionsV0::default()
             },
         )?;
+        let baseline_scope = summarize_linked_bundle_execution_scope(&execution)?;
+        let baseline_module_output_byte_lens = baseline_scope
+            .bundle_execution
+            .module_executions
+            .iter()
+            .map(|module| module.execution.output_byte_len)
+            .collect::<Vec<_>>();
+        let insertion_offset = execution
+            .materialization
+            .module_regions
+            .first()
+            .ok_or_else(|| "separator fixture should have a first module region".to_string())?
+            .generated_end;
+        let baseline_second_region_start = execution
+            .materialization
+            .module_regions
+            .get(1)
+            .ok_or_else(|| "separator fixture should have a second module region".to_string())?
+            .generated_start;
+        let mut separator_execution = execution.clone();
+        separator_execution
+            .materialization
+            .output_css
+            .insert(insertion_offset, ' ');
+        for region in separator_execution
+            .materialization
+            .module_regions
+            .iter_mut()
+            .skip(1)
+        {
+            region.generated_start += 1;
+            region.generated_end += 1;
+        }
+        for region in &mut separator_execution.materialization.order_entry_regions {
+            if region.generated_start >= insertion_offset {
+                region.generated_start += 1;
+                region.generated_end += 1;
+            }
+        }
+        let separator_scope = summarize_linked_bundle_execution_scope(&separator_execution)?;
+        let separator_module_output_byte_lens = separator_scope
+            .bundle_execution
+            .module_executions
+            .iter()
+            .map(|module| module.execution.output_byte_len)
+            .collect::<Vec<_>>();
+        // FALSIFIER: seating a materializer-only separator on a module execution
+        // changes the right-hand module byte vector instead of only bundle
+        // accounting and downstream region offsets.
+        assert_eq!(
+            (
+                separator_scope
+                    .bundle_composite
+                    .inter_module_separator_byte_len,
+                separator_scope
+                    .bundle_composite
+                    .materialized_output_byte_len,
+                separator_module_output_byte_lens,
+                separator_scope
+                    .bundle_execution
+                    .emission_execution
+                    .module_regions[1]
+                    .generated_start,
+            ),
+            (
+                baseline_scope
+                    .bundle_composite
+                    .inter_module_separator_byte_len
+                    + 1,
+                baseline_scope.bundle_composite.materialized_output_byte_len + 1,
+                baseline_module_output_byte_lens,
+                baseline_second_region_start + 1,
+            )
+        );
         execution.materialization.module_regions.pop();
 
-        let error = summarize_linked_bundle_execution_scope(&execution)
-            .expect_err("a retained execution without a region must be rejected");
+        let error = match summarize_linked_bundle_execution_scope(&execution) {
+            Err(error) => error,
+            Ok(_) => {
+                return Err("a retained execution without a region must be rejected".to_string());
+            }
+        };
         // FALSIFIER: removing the region/execution closure checks makes this
         // malformed product evidence serialize as if the bundle were complete.
         assert!(
@@ -5147,6 +5245,12 @@ mod linked_source_map_tests {
                 product: "omena-query.bundle-execution",
                 entry_module_instance: module_instance.clone(),
                 module_executions: Vec::new(),
+                emission_execution: BundleEmissionExecutionV0 {
+                    module_regions: Vec::new(),
+                    order_entry_regions: Vec::new(),
+                    emitted_module_count: 0,
+                    global_order_entry_count: 0,
+                },
                 aggregate_mutation_count: 0,
                 aggregate_executed_pass_ids: Vec::new(),
                 aggregate_semantic_removal_count: 0,

@@ -871,6 +871,22 @@ pub struct BundleModuleExecutionV0 {
     pub execution: TransformExecutionSummaryV0,
 }
 
+/// Region and count evidence owned by linked bundle materialization.
+///
+/// This type deliberately carries neither CSS text nor a byte total. The
+/// materialized CSS remains on the bundle artifact, and
+/// `OmenaQueryBundleCompositeExecutionByteFactsV0` remains the sole byte
+/// accounting authority.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct BundleEmissionExecutionV0 {
+    pub module_regions: Vec<LinkedEmissionModuleRegionV0>,
+    pub order_entry_regions: Vec<LinkedEmissionOrderEntryRegionV0>,
+    pub emitted_module_count: usize,
+    pub global_order_entry_count: usize,
+}
+
 /// Bundle-level transform execution for the linked emission path.
 ///
 /// The aggregate fields are intentionally narrower than
@@ -886,6 +902,7 @@ pub struct BundleExecutionSummaryV0 {
     pub product: &'static str,
     pub entry_module_instance: omena_parser::ModuleInstanceKeyV0,
     pub module_executions: Vec<BundleModuleExecutionV0>,
+    pub emission_execution: BundleEmissionExecutionV0,
     /// Fold: `sum` over each module execution's mutation count.
     pub aggregate_mutation_count: usize,
     /// Fold: `orderedUnion` over executed pass identifiers in module order.
