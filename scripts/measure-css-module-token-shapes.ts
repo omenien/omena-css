@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
+import { formatGeneratedJson } from "./generated-json";
 
 interface Definition {
   readonly modulePath: string;
@@ -38,7 +39,32 @@ type ShapeName =
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = path.join(repoRoot, "rust/omena-css-module-token-shape-measurement.json");
 const args = parseArgs(process.argv.slice(2));
+const emitterSourceRevision = run("git", ["rev-parse", "HEAD"]).trim();
+const emitterSourceStatus = run("git", [
+  "status",
+  "--porcelain",
+  "--",
+  "rust/Cargo.toml",
+  "rust/Cargo.lock",
+  "rust/crates",
+]).trim();
+assert.equal(
+  emitterSourceStatus,
+  "",
+  `the measured Rust emitter must be clean: ${emitterSourceStatus}`,
+);
+const measurementCommand = [
+  "node",
+  "--import",
+  "tsx",
+  "scripts/measure-css-module-token-shapes.ts",
+  ...process.argv.slice(2),
+].join(" ");
 const corpusPin = run("git", ["-C", args.corpusRoot, "rev-parse", "HEAD"]).trim();
+const corpusRepository = run("git", ["-C", args.corpusRoot, "remote", "get-url", "origin"]).trim();
+const identityCorpora = args.identityManifests.map(({ label, manifestPath }) =>
+  measureManifestProvenance(label, manifestPath),
+);
 const corpusFiles = run("git", ["-C", args.corpusRoot, "ls-files", "-z", "*.module.css"])
   .split("\0")
   .filter(Boolean)
@@ -142,12 +168,20 @@ const result = {
   product: "omena-css-module-token-shape-measurement",
   method: {
     corpus: "facebook/docusaurus",
+    corpusRepository,
     corpusPin,
     moduleFileCount: corpusFiles.length,
     emitter: "rust/target/debug/omena bundle, one tracked module per invocation",
+    emitterSourceRevision,
+    emitterSourceDirtyPathCount: 0,
     gzipLevel: 9,
     hash: "sha256-base64url-prefix",
     hashWidth,
+    identityCorpora,
+    reproduction: {
+      cwd: "repository-root",
+      command: measurementCommand,
+    },
   },
   baseline: baselineBytes,
   size: {
@@ -189,10 +223,13 @@ const result = {
   },
 };
 
-if (args.write) {
-  writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`);
+void emitResult();
+
+async function emitResult(): Promise<void> {
+  const serializedResult = await formatGeneratedJson(outputPath, result);
+  if (args.write) writeFileSync(outputPath, serializedResult);
+  process.stdout.write(serializedResult);
 }
-process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 
 function bundleModule(relativePath: string): BundledModule {
   const css = run(omenaBinary, ["bundle", relativePath], args.corpusRoot);
@@ -371,6 +408,39 @@ function collectManifestDefinitions(label: string, manifestPath: string): Defini
   return definitions;
 }
 
+function measureManifestProvenance(label: string, manifestPath: string) {
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as InterfaceManifest;
+  assert.equal(manifest.modules.length, manifest.moduleCount);
+  const repositoryRoot = manifestRepositoryRoot(label, manifest);
+  return {
+    label,
+    repository: run("git", ["-C", repositoryRoot, "remote", "get-url", "origin"]).trim(),
+    pin: run("git", ["-C", repositoryRoot, "rev-parse", "HEAD"]).trim(),
+    moduleCount: manifest.moduleCount,
+    definitionCount: manifest.classExportCount,
+    manifestGeneration: {
+      cwd: "repository-root",
+      command: `rust/target/debug/omena modules emit --interface-file ${manifestPath} ${repositoryRoot}`,
+    },
+  };
+}
+
+function manifestRepositoryRoot(label: string, manifest: InterfaceManifest): string {
+  const firstModule = manifest.modules[0];
+  assert.ok(firstModule, `${label} manifest is empty`);
+  const normalizedPath = firstModule.stylePath.replaceAll("\\", "/");
+  const marker = normalizedPath.lastIndexOf(`/${label}/`);
+  assert.ok(marker >= 0, `${label} is absent from manifest module paths`);
+  const repositoryRoot = normalizedPath.slice(0, marker + label.length + 1);
+  assert.ok(
+    manifest.modules.every((module) =>
+      module.stylePath.replaceAll("\\", "/").startsWith(`${repositoryRoot}/`),
+    ),
+    `${label} manifest spans more than one repository root`,
+  );
+  return repositoryRoot;
+}
+
 function collectManifestModulePaths(label: string, manifestPath: string): string[] {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as InterfaceManifest;
   assert.equal(manifest.modules.length, manifest.moduleCount);
@@ -474,28 +544,44 @@ function measureRootInputs() {
       status: "available",
     },
     {
-      surface: "napiWorkspace",
-      source: "rust/crates/omena-napi/src/lib.rs",
-      requiredNeedle: "OmenaNapiExpressionDomainFlowRuntimeV0",
-      status: "missing-required-root",
+      surface: "napiWorkspaceWorkflow",
+      source: "rust/crates/omena-napi/src/sdk_workspace.rs",
+      requiredNeedle: "pub fn new(workspace_root: String",
+      status: "available",
     },
     {
-      surface: "wasmWorkspace",
-      source: "rust/crates/omena-wasm/src/lib.rs",
-      requiredNeedle: "OmenaWasmExpressionDomainFlowRuntimeV0",
+      surface: "wasmWorkspaceWorkflow",
+      source: "rust/crates/omena-wasm/src/sdk_workspace.rs",
+      requiredNeedle: "pub fn new(workspace_root: String",
+      status: "available",
+    },
+    {
+      surface: "napiDirectBundleApi",
+      source: "rust/crates/omena-napi/src/lib.rs",
+      requiredNeedle: "pub fn bundle_style_sources_with_context_json(",
       status: "missing-required-root",
+      absenceScope: "signature",
+    },
+    {
+      surface: "wasmDirectBundleApi",
+      source: "rust/crates/omena-wasm/src/lib.rs",
+      requiredNeedle: "pub fn bundle_style_sources_with_context(",
+      status: "missing-required-root",
+      absenceScope: "signature",
     },
     {
       surface: "rawBundleApi",
       source: "rust/crates/omena-query/src/style/transform.rs",
       requiredNeedle: "pub struct OmenaQueryBundlePlanInputV0",
       status: "missing-required-root",
+      absenceScope: "brace-body",
     },
     {
       surface: "syntheticHarness",
       source: "rust/crates/omena-query/src/tests/transform_facade.rs",
-      requiredNeedle: "OmenaQueryBundlePlanInputV0",
+      requiredNeedle: "OmenaQueryBundlePlanInputV0 {",
       status: "missing-required-root",
+      absenceScope: "brace-body",
     },
   ] as const;
   for (const surface of surfaces) {
@@ -505,8 +591,43 @@ function measureRootInputs() {
       source.includes(surface.requiredNeedle),
       `${surface.surface} evidence needle ${surface.requiredNeedle} is missing`,
     );
+    if (surface.status === "missing-required-root") {
+      assert.ok("absenceScope" in surface);
+      const scope = rustRootInputScope(source, surface.requiredNeedle, surface.absenceScope);
+      assert.doesNotMatch(
+        scope,
+        /\bworkspace_?root\b|\bworkspaceRoot\b/u,
+        `${surface.surface} unexpectedly gained a workspace-root input`,
+      );
+    }
   }
-  return surfaces.map(({ surface, status }) => ({ surface, status }));
+  return surfaces.map(({ surface, source, requiredNeedle, status }) => ({
+    surface,
+    status,
+    evidence: {
+      source,
+      needle: requiredNeedle,
+    },
+  }));
+}
+
+function rustRootInputScope(
+  source: string,
+  anchor: string,
+  scopeKind: "signature" | "brace-body",
+): string {
+  const start = source.indexOf(anchor);
+  assert.ok(start >= 0, `missing Rust root-input scope anchor ${anchor}`);
+  const openingBrace = source.indexOf("{", start);
+  assert.ok(openingBrace >= 0, `missing Rust scope body after ${anchor}`);
+  if (scopeKind === "signature") return source.slice(start, openingBrace);
+  let depth = 0;
+  for (let offset = openingBrace; offset < source.length; offset += 1) {
+    if (source[offset] === "{") depth += 1;
+    if (source[offset] === "}") depth -= 1;
+    if (depth === 0) return source.slice(start, offset + 1);
+  }
+  throw new Error(`unterminated Rust scope after ${anchor}`);
 }
 
 function measureNormalizer() {

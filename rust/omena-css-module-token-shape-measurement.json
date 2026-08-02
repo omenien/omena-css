@@ -3,12 +3,54 @@
   "product": "omena-css-module-token-shape-measurement",
   "method": {
     "corpus": "facebook/docusaurus",
+    "corpusRepository": "https://github.com/facebook/docusaurus",
     "corpusPin": "16f537309e357226dafd3b0137cdd711b68bece8",
     "moduleFileCount": 151,
     "emitter": "rust/target/debug/omena bundle, one tracked module per invocation",
+    "emitterSourceRevision": "caa16095286027498499a42bc123b3cd04bb2fca",
+    "emitterSourceDirtyPathCount": 0,
     "gzipLevel": 9,
     "hash": "sha256-base64url-prefix",
-    "hashWidth": 6
+    "hashWidth": 6,
+    "identityCorpora": [
+      {
+        "label": "react-ts-css",
+        "repository": "https://github.com/Viijay-Kr/react-ts-css",
+        "pin": "8bf4e2091a6ca1fe28e8517d1c059691337ece74",
+        "moduleCount": 29,
+        "definitionCount": 119,
+        "manifestGeneration": {
+          "cwd": "repository-root",
+          "command": "rust/target/debug/omena modules emit --interface-file /tmp/omena-token-corpus.B9dCxi/out/react.json /private/tmp/omena-token-corpus.B9dCxi/react-ts-css"
+        }
+      },
+      {
+        "label": "mkn",
+        "repository": "https://github.com/SolidZORO/mkn",
+        "pin": "b51ee2faa4e9b23862ebd532759f8ef860b9fb15",
+        "moduleCount": 19,
+        "definitionCount": 62,
+        "manifestGeneration": {
+          "cwd": "repository-root",
+          "command": "rust/target/debug/omena modules emit --interface-file /tmp/omena-token-corpus.B9dCxi/out/mkn.json /private/tmp/omena-token-corpus.B9dCxi/mkn"
+        }
+      },
+      {
+        "label": "docusaurus",
+        "repository": "https://github.com/facebook/docusaurus",
+        "pin": "16f537309e357226dafd3b0137cdd711b68bece8",
+        "moduleCount": 151,
+        "definitionCount": 369,
+        "manifestGeneration": {
+          "cwd": "repository-root",
+          "command": "rust/target/debug/omena modules emit --interface-file /tmp/omena-token-corpus.B9dCxi/out/docusaurus.json /private/tmp/omena-token-corpus.B9dCxi/docusaurus"
+        }
+      }
+    ],
+    "reproduction": {
+      "cwd": "repository-root",
+      "command": "node --import tsx scripts/measure-css-module-token-shapes.ts --corpus-root /tmp/omena-token-corpus.B9dCxi/docusaurus --identity-manifest react-ts-css=/tmp/omena-token-corpus.B9dCxi/out/react.json --identity-manifest mkn=/tmp/omena-token-corpus.B9dCxi/out/mkn.json --identity-manifest docusaurus=/tmp/omena-token-corpus.B9dCxi/out/docusaurus.json --write"
+    }
   },
   "baseline": {
     "rawBytes": 84540,
@@ -118,27 +160,67 @@
     "rootInputs": [
       {
         "surface": "cliModules",
-        "status": "available"
+        "status": "available",
+        "evidence": {
+          "source": "rust/crates/omena-cli/src/modules.rs",
+          "needle": "workspace_root"
+        }
       },
       {
         "surface": "lspWorkspaceWorkflow",
-        "status": "available"
+        "status": "available",
+        "evidence": {
+          "source": "rust/crates/omena-lsp-server/src",
+          "needle": "workspace_root"
+        }
       },
       {
-        "surface": "napiWorkspace",
-        "status": "missing-required-root"
+        "surface": "napiWorkspaceWorkflow",
+        "status": "available",
+        "evidence": {
+          "source": "rust/crates/omena-napi/src/sdk_workspace.rs",
+          "needle": "pub fn new(workspace_root: String"
+        }
       },
       {
-        "surface": "wasmWorkspace",
-        "status": "missing-required-root"
+        "surface": "wasmWorkspaceWorkflow",
+        "status": "available",
+        "evidence": {
+          "source": "rust/crates/omena-wasm/src/sdk_workspace.rs",
+          "needle": "pub fn new(workspace_root: String"
+        }
+      },
+      {
+        "surface": "napiDirectBundleApi",
+        "status": "missing-required-root",
+        "evidence": {
+          "source": "rust/crates/omena-napi/src/lib.rs",
+          "needle": "pub fn bundle_style_sources_with_context_json("
+        }
+      },
+      {
+        "surface": "wasmDirectBundleApi",
+        "status": "missing-required-root",
+        "evidence": {
+          "source": "rust/crates/omena-wasm/src/lib.rs",
+          "needle": "pub fn bundle_style_sources_with_context("
+        }
       },
       {
         "surface": "rawBundleApi",
-        "status": "missing-required-root"
+        "status": "missing-required-root",
+        "evidence": {
+          "source": "rust/crates/omena-query/src/style/transform.rs",
+          "needle": "pub struct OmenaQueryBundlePlanInputV0"
+        }
       },
       {
         "surface": "syntheticHarness",
-        "status": "missing-required-root"
+        "status": "missing-required-root",
+        "evidence": {
+          "source": "rust/crates/omena-query/src/tests/transform_facade.rs",
+          "needle": "OmenaQueryBundlePlanInputV0 {"
+        }
       }
     ],
     "normalizer": {
