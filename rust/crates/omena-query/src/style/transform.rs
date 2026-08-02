@@ -4876,12 +4876,17 @@ mod linked_source_map_tests {
         let style_sources = vec![
             OmenaQueryStyleSourceInputV0 {
                 style_path: "src/app.css".to_string(),
-                style_source: "@import \"./tokens.css\";\n.linked-map-app-a { color: red; }\n.linked-map-app-b { color: green; }"
+                style_source: "@import \"./tokens.css\";\n@import \"./width.css\";\n.linked-map-app-a { color: red; }\n.linked-map-app-b { color: green; }"
                     .to_string(),
             },
             OmenaQueryStyleSourceInputV0 {
                 style_path: "src/tokens.css".to_string(),
                 style_source: ".linked-map-token-a { color: blue; }\n.linked-map-token-b { color: cyan; }\n.linked-map-token-c { color: navy; }"
+                    .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/width.css".to_string(),
+                style_source: ".componentAlphaLongerState, .componentBetaLongerState, .componentGammaLongerState,\n.componentDeltaLongerState, .componentEpsilonLongerState {\n  color: red;\n}\n"
                     .to_string(),
             },
         ];
