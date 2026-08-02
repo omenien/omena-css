@@ -13,13 +13,15 @@ mod plugins;
 pub use plugin_api::*;
 pub use plugins::{built_in_omena_plugins, execute_built_in_omena_plugin};
 
+#[allow(deprecated)]
 pub use omena_bundler::{
-    EmissionOrderingPolicyV0, LinkedEmissionArtifactV0, LinkedEmissionItemMaterializationErrorV0,
-    LinkedEmissionMaterializationErrorV0, LinkedStylesheetV0, LinkedStylesheetWithEmissionItemsV0,
+    EmissionOrderingPolicyV0, InstanceReachabilityDerivationV0, LinkedEmissionArtifactV0,
+    LinkedEmissionItemMaterializationErrorV0, LinkedEmissionMaterializationErrorV0,
+    LinkedStylesheetV0, LinkedStylesheetWithEmissionItemsV0,
     TransformBundleAssetUrlRewriteSummaryV0, TransformBundleDependencyResolutionV0,
     TransformBundleEdgeKind, TransformBundleEmissionAdmissionV0,
-    TransformBundleEmissionItemProjectionV0, TransformBundleLinkErrorV0,
-    TransformBundleLinkOptionsV0, TransformBundleLinkProjectionSetV0,
+    TransformBundleEmissionItemProjectionV0, TransformBundleInstanceReachabilityInputV0,
+    TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleLinkProjectionSetV0,
     TransformBundleLinkerProjectionV0, TransformBundleModuleInputV0,
     TransformBundleParsedModuleInputV0, TransformBundleResolvedDependencyV0,
     TransformBundleSemanticReachabilityInputV0, TransformBundleSourceSummaryV0,
@@ -35,6 +37,7 @@ pub use omena_bundler::{
     normalize_omena_transform_bundle_path,
     project_omena_transform_bundle_linker_and_emission_items,
     project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules,
+    project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability,
     project_omena_transform_bundle_linker_inputs,
     project_omena_transform_bundle_linker_inputs_from_parsed_modules,
     rewrite_omena_transform_bundle_asset_urls_in_source,

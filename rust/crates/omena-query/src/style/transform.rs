@@ -4,10 +4,12 @@ use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldComposesScanStateV0,
     ClosedWorldModuleMetadataV0, ClosedWorldSourcePrecisionSummaryV0, OpenWorldSnapshotV0,
 };
+#[allow(deprecated)]
 use omena_query_transform_runner::{
-    EmissionOrderingPolicyV0, LinkedEmissionArtifactV0, LinkedStylesheetWithEmissionItemsV0,
-    TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
-    TransformBundleEmissionAdmissionV0, TransformBundleEmissionItemProjectionV0,
+    EmissionOrderingPolicyV0, InstanceReachabilityDerivationV0, LinkedEmissionArtifactV0,
+    LinkedStylesheetWithEmissionItemsV0, TransformBundleDependencyResolutionV0,
+    TransformBundleEdgeKind, TransformBundleEmissionAdmissionV0,
+    TransformBundleEmissionItemProjectionV0, TransformBundleInstanceReachabilityInputV0,
     TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleLinkerProjectionV0,
     TransformBundleParsedModuleInputV0, TransformBundleResolvedDependencyV0,
     TransformBundleSemanticReachabilityInputV0, TransformBundleTransformedModuleV0,
@@ -17,7 +19,8 @@ use omena_query_transform_runner::{
     execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names,
     link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
     materialize_omena_transform_bundle_linked_stylesheet_with_emission_items,
-    project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules,
+    normalize_omena_transform_bundle_path,
+    project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability,
     project_omena_transform_bundle_linker_inputs_from_parsed_modules,
 };
 #[cfg(test)]
@@ -3437,6 +3440,10 @@ struct PreparedTransformBundleLinkerProjectionV0 {
     projection: TransformBundleLinkerProjectionV0,
     emission_item_projection: TransformBundleEmissionItemProjectionV0,
     resolved_dependencies: Vec<TransformBundleResolvedDependencyV0>,
+    #[cfg(test)]
+    expected_instance_reachability_count: usize,
+    #[cfg(test)]
+    emitted_instance_reachability_count: usize,
 }
 
 struct TransformBundleDependencyResolutionTemplateV0 {
@@ -3451,6 +3458,79 @@ struct TransformBundleDependencyResolutionTemplateV0 {
     target_configuration: omena_parser::ConfigurationHashV0,
 }
 
+#[allow(deprecated)]
+fn fan_out_reachability_to_instances(
+    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+    configurations_by_source_path: &BTreeMap<String, BTreeSet<omena_parser::ConfigurationHashV0>>,
+) -> (Vec<TransformBundleInstanceReachabilityInputV0>, usize) {
+    let mut reachability_by_path =
+        BTreeMap::<String, TransformBundleSemanticReachabilityInputV0>::new();
+    for input in reachability_inputs
+        .iter()
+        .filter(|input| input.has_reachable_symbols())
+    {
+        let source_path = normalize_omena_transform_bundle_path(&input.source_path);
+        let merged = reachability_by_path
+            .entry(source_path.clone())
+            .or_insert_with(|| TransformBundleSemanticReachabilityInputV0::new(source_path));
+        merged.class_names.extend(input.class_names.iter().cloned());
+        merged
+            .keyframe_names
+            .extend(input.keyframe_names.iter().cloned());
+        merged.value_names.extend(input.value_names.iter().cloned());
+        merged
+            .custom_property_names
+            .extend(input.custom_property_names.iter().cloned());
+        merged.class_names.sort();
+        merged.class_names.dedup();
+        merged.keyframe_names.sort();
+        merged.keyframe_names.dedup();
+        merged.value_names.sort();
+        merged.value_names.dedup();
+        merged.custom_property_names.sort();
+        merged.custom_property_names.dedup();
+    }
+
+    let expected_instance_reachability_count = reachability_by_path
+        .keys()
+        .filter_map(|source_path| configurations_by_source_path.get(source_path))
+        .map(BTreeSet::len)
+        .sum();
+    let instance_reachability_inputs = reachability_by_path
+        .into_iter()
+        .flat_map(|(source_path, reachability)| {
+            configurations_by_source_path
+                .get(&source_path)
+                .into_iter()
+                .flatten()
+                .map(move |configuration| {
+                    let mut input = TransformBundleInstanceReachabilityInputV0::new(
+                        omena_parser::ModuleInstanceKeyV0::new(
+                            omena_parser::ModuleIdV0::new(source_path.clone()),
+                            configuration.clone(),
+                        ),
+                        InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+                    );
+                    input.class_names.clone_from(&reachability.class_names);
+                    input
+                        .keyframe_names
+                        .clone_from(&reachability.keyframe_names);
+                    input.value_names.clone_from(&reachability.value_names);
+                    input
+                        .custom_property_names
+                        .clone_from(&reachability.custom_property_names);
+                    input
+                })
+        })
+        .collect::<Vec<_>>();
+
+    (
+        instance_reachability_inputs,
+        expected_instance_reachability_count,
+    )
+}
+
+#[allow(deprecated)]
 fn prepare_transform_bundle_linker_projection(
     entrypoint_paths: &[&str],
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -3482,6 +3562,14 @@ fn prepare_transform_bundle_linker_projection(
             configurations.insert(omena_parser::ConfigurationHashV0::none());
         }
     }
+    let (instance_reachability_inputs, expected_instance_reachability_count) =
+        fan_out_reachability_to_instances(reachability_inputs, &configurations_by_source_path);
+    let emitted_instance_reachability_count = instance_reachability_inputs.len();
+    #[cfg(not(test))]
+    let _ = (
+        expected_instance_reachability_count,
+        emitted_instance_reachability_count,
+    );
 
     modules = modules
         .into_iter()
@@ -3501,10 +3589,11 @@ fn prepare_transform_bundle_linker_projection(
         })
         .collect();
 
-    let projections = project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(
-        modules.as_slice(),
-        reachability_inputs,
-    );
+    let projections =
+        project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability(
+            modules.as_slice(),
+            instance_reachability_inputs.as_slice(),
+        );
     let projection = projections.linker_projection().clone();
     let resolved_dependencies =
         materialize_transform_bundle_resolved_dependencies(&projection, templates);
@@ -3512,6 +3601,10 @@ fn prepare_transform_bundle_linker_projection(
         projection,
         emission_item_projection: projections.emission_item_projection().clone(),
         resolved_dependencies,
+        #[cfg(test)]
+        expected_instance_reachability_count,
+        #[cfg(test)]
+        emitted_instance_reachability_count,
     }
 }
 
@@ -4407,6 +4500,7 @@ fn closed_world_blocker_from_link_error(
     }
 }
 
+#[allow(deprecated)]
 fn transform_bundle_semantic_reachability_input_from_context(
     style_path: &str,
     context: &TransformExecutionContextV0,
@@ -4416,6 +4510,7 @@ fn transform_bundle_semantic_reachability_input_from_context(
     )
 }
 
+#[allow(deprecated)]
 fn transform_bundle_semantic_reachability_input_from_context_and_attribution(
     style_path: &str,
     context: &TransformExecutionContextV0,
@@ -5302,6 +5397,7 @@ mod dependency_resolution_tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn configured_sass_edges_select_distinct_instances_without_reparsing() -> Result<(), String> {
         let sources = configured_sass_sources();
         let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
@@ -5324,7 +5420,17 @@ mod dependency_resolution_tests {
             .iter()
             .filter(|input| input.source_path == "src/theme.scss")
             .collect::<Vec<_>>();
-        assert_eq!(theme_inputs.len(), 2);
+        eprintln!(
+            "instance reachability fan-out: expectedConfigurations={} emittedRows={}",
+            prepared.expected_instance_reachability_count,
+            prepared.emitted_instance_reachability_count
+        );
+        // FALSIFIER: dropping a finalized configuration from the fan-out must change only the
+        // emitted side of this linker-owned count comparison.
+        assert_eq!(
+            prepared.emitted_instance_reachability_count,
+            prepared.expected_instance_reachability_count
+        );
         assert_eq!(
             theme_inputs
                 .iter()
@@ -5335,6 +5441,10 @@ mod dependency_resolution_tests {
         assert!(theme_inputs.iter().all(|input| {
             input.class_names == ["kept".to_string()]
                 && !input.class_names.contains(&"dead".to_string())
+                && prepared
+                    .projection
+                    .module_reachability_derivation(&input.instance)
+                    == Some(InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator)
         }));
 
         let target_by_source = prepared

@@ -425,6 +425,8 @@ pub struct TransformBundleLinkerProjectionV0 {
     inputs: Vec<LinkerInputV0>,
     module_reachability_evidence:
         BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
+    module_reachability_derivations:
+        BTreeMap<ModuleInstanceKeyV0, InstanceReachabilityDerivationV0>,
 }
 
 #[non_exhaustive]
@@ -457,6 +459,15 @@ impl TransformBundleLinkerProjectionV0 {
             .get(module_instance)
             .copied()
             .unwrap_or_default()
+    }
+
+    pub fn module_reachability_derivation(
+        &self,
+        module_instance: &ModuleInstanceKeyV0,
+    ) -> Option<InstanceReachabilityDerivationV0> {
+        self.module_reachability_derivations
+            .get(module_instance)
+            .copied()
     }
 }
 
@@ -942,11 +953,12 @@ pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_ins
             ));
         }
     }
-    let module_reachability_evidence =
+    let (module_reachability_evidence, module_reachability_derivations) =
         apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
     TransformBundleLinkerProjectionV0 {
         inputs,
         module_reachability_evidence,
+        module_reachability_derivations,
     }
 }
 
@@ -1817,7 +1829,10 @@ fn fan_out_path_reachability_to_instances(
 fn apply_semantic_reachability_to_linker_inputs(
     inputs: &mut [LinkerInputV0],
     reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
-) -> BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0> {
+) -> (
+    BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
+    BTreeMap<ModuleInstanceKeyV0, InstanceReachabilityDerivationV0>,
+) {
     let reachability_inputs =
         instance_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
     let module_index_by_instance = inputs
@@ -1834,6 +1849,7 @@ fn apply_semantic_reachability_to_linker_inputs(
             )
         })
         .collect::<BTreeMap<_, _>>();
+    let mut derivation_by_instance = BTreeMap::new();
 
     for input in reachability_inputs.values() {
         let Some(index) = module_index_by_instance
@@ -1842,6 +1858,7 @@ fn apply_semantic_reachability_to_linker_inputs(
         else {
             continue;
         };
+        derivation_by_instance.insert(input.module_instance.clone(), input.derivation);
         if inputs[index]
             .dependency_edges
             .iter()
@@ -1878,7 +1895,7 @@ fn apply_semantic_reachability_to_linker_inputs(
         inputs[index].custom_property_names =
             dedupe_names(inputs[index].custom_property_names.drain(..));
     }
-    evidence_by_instance
+    (evidence_by_instance, derivation_by_instance)
 }
 
 fn instance_reachability_inputs_closed_over_composes(
@@ -3976,7 +3993,7 @@ mod tests {
         );
         blue_reachability.class_names.push("beta".to_string());
 
-        let evidence = apply_semantic_reachability_to_linker_inputs(
+        let (evidence, _) = apply_semantic_reachability_to_linker_inputs(
             inputs.as_mut_slice(),
             &[red_reachability, blue_reachability],
         );
@@ -4091,7 +4108,7 @@ mod tests {
         );
         reachability.class_names.push("card".to_string());
 
-        let evidence =
+        let (evidence, _) =
             apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), &[reachability]);
 
         // Treating the incomplete carrier as supplied narrows this fail-open declaration set.
