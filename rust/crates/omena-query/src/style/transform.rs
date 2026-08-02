@@ -3892,6 +3892,7 @@ fn execute_linked_bundle_modules(
             "linked entrypoint {target_style_path:?} was not transformed"
         ));
     };
+    #[allow(deprecated)]
     let execution =
         project_linked_bundle_execution(entry_execution, materialized.output_css.as_str());
     Ok(LinkedBundleExecutionV0 {
@@ -3902,6 +3903,9 @@ fn execute_linked_bundle_modules(
     })
 }
 
+#[deprecated(
+    note = "use BundleExecutionSummaryV0 from linked bundle execution-scope evidence; the compatibility projection remains wire-stable until a future major release"
+)]
 fn project_linked_bundle_execution(
     mut execution: TransformExecutionSummaryV0,
     materialized_output_css: &str,
@@ -3911,6 +3915,7 @@ fn project_linked_bundle_execution(
     execution
 }
 
+#[derive(Clone)]
 struct LinkedModuleExecutionV0 {
     module_instance: omena_parser::ModuleInstanceKeyV0,
     execution: TransformExecutionSummaryV0,
@@ -3982,11 +3987,56 @@ fn retained_class_names_for_live_linked_emission_tokens(
         .collect()
 }
 
+#[derive(Clone)]
 struct LinkedBundleExecutionV0 {
     execution: TransformExecutionSummaryV0,
     entry_module_instance: omena_parser::ModuleInstanceKeyV0,
     module_executions: Vec<LinkedModuleExecutionV0>,
     materialization: LinkedEmissionArtifactV0,
+}
+
+fn summarize_bundle_execution(linked: &LinkedBundleExecutionV0) -> BundleExecutionSummaryV0 {
+    let mut aggregate_executed_pass_ids = Vec::new();
+    let mut seen_executed_pass_ids = BTreeSet::new();
+    for pass_id in linked
+        .module_executions
+        .iter()
+        .flat_map(|module| module.execution.executed_pass_ids.iter().copied())
+    {
+        if seen_executed_pass_ids.insert(pass_id) {
+            aggregate_executed_pass_ids.push(pass_id);
+        }
+    }
+
+    BundleExecutionSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.bundle-execution",
+        entry_module_instance: linked.entry_module_instance.clone(),
+        module_executions: linked
+            .module_executions
+            .iter()
+            .map(|module| BundleModuleExecutionV0 {
+                module_instance: module.module_instance.clone(),
+                execution: module.execution.clone(),
+            })
+            .collect(),
+        aggregate_mutation_count: linked
+            .module_executions
+            .iter()
+            .map(|module| module.execution.mutation_count)
+            .sum(),
+        aggregate_executed_pass_ids,
+        aggregate_semantic_removal_count: linked
+            .module_executions
+            .iter()
+            .map(|module| module.execution.semantic_removals.len())
+            .sum(),
+        aggregate_closed_world_refusal_count: linked
+            .module_executions
+            .iter()
+            .map(|module| module.execution.closed_world_admission.refused_count)
+            .sum(),
+    }
 }
 
 fn summarize_linked_bundle_execution_scope(
@@ -4059,6 +4109,7 @@ fn summarize_linked_bundle_execution_scope(
             inter_module_separator_byte_len,
             materialized_output_byte_len,
         },
+        bundle_execution: summarize_bundle_execution(linked),
         module_executions,
         source_map_dispositions: Vec::new(),
     })
@@ -4741,6 +4792,32 @@ mod linked_source_map_tests {
             ".base { color: red; }\n\n.token { color: blue; }\n\n.app { composes: token from \"./tokens.module.css\"; color: green; }\n"
         );
         let scope_evidence = summarize_linked_bundle_execution_scope(&execution)?;
+        // FALSIFIER: replacing bundle folds with the retained entry values makes
+        // the mutation, executed-pass, and removal observations below diverge.
+        assert_eq!(
+            (
+                scope_evidence.bundle_execution.aggregate_mutation_count,
+                scope_evidence
+                    .bundle_execution
+                    .aggregate_executed_pass_ids
+                    .as_slice(),
+                scope_evidence
+                    .bundle_execution
+                    .aggregate_semantic_removal_count,
+                scope_evidence
+                    .bundle_execution
+                    .aggregate_closed_world_refusal_count,
+            ),
+            (
+                2,
+                ["tree-shake-class", "print-css", "import-inline"].as_slice(),
+                1,
+                0,
+            )
+        );
+        // FALSIFIER: dropping a retained module execution makes the aggregate's
+        // product-run module denominator disagree with the linked graph.
+        assert_eq!(scope_evidence.bundle_execution.module_executions.len(), 3);
         assert_eq!(scope_evidence.field_scopes.len(), 28);
         assert_eq!(scope_evidence.module_executions.len(), 3);
         assert_eq!(
@@ -4845,6 +4922,188 @@ mod linked_source_map_tests {
             serde_json::json!(execution.materialization.output_css),
         );
         assert_eq!(expected_projected_json, projected_json);
+
+        let retained_bundle_module = scope_evidence
+            .bundle_execution
+            .module_executions
+            .first()
+            .ok_or_else(|| "bundle execution should retain a module sample".to_string())?;
+        let serialized_bundle_module = serde_json::to_value(retained_bundle_module)
+            .map_err(|error| format!("bundle module execution should serialize: {error}"))?;
+        let serialized_object = serialized_bundle_module
+            .as_object()
+            .ok_or_else(|| "bundle module execution should serialize as an object".to_string())?;
+        let mut serialized_keys = serialized_object.keys().cloned().collect::<Vec<_>>();
+        serialized_keys.sort();
+        let serialized_wire_types = serialized_keys
+            .iter()
+            .map(|key| {
+                let wire_type = match serialized_object.get(key) {
+                    Some(serde_json::Value::Object(_)) => "object",
+                    Some(value) => {
+                        return Err(format!(
+                            "bundle module execution field {key} has unexpected value {value:?}"
+                        ));
+                    }
+                    None => return Err(format!("bundle module execution is missing {key}")),
+                };
+                Ok((key.clone(), wire_type))
+            })
+            .collect::<Result<BTreeMap<_, _>, String>>()?;
+        let actual_wire_key_sample = serde_json::json!({
+            "interfaceName": "OmenaBundleModuleExecutionV0",
+            "keys": serialized_keys,
+            "product": "omena-query.bundle-execution-wire-key-sample",
+            "sampleName": "product-run",
+            "schemaVersion": "0",
+            "wireTypes": serialized_wire_types,
+        });
+        let expected_wire_key_sample: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/bundle-module-execution-wire-keys.json"
+        ))
+        .map_err(|error| error.to_string())?;
+        // FALSIFIER: a serde rename or field addition changes the product
+        // serializer key set without changing this independently authored file.
+        assert_eq!(actual_wire_key_sample, expected_wire_key_sample);
+        Ok(())
+    }
+
+    #[test]
+    fn linked_bundle_retains_module_admission_refusals_before_bundle_projection()
+    -> Result<(), String> {
+        let style_sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/app.module.css".to_string(),
+                style_source:
+                    ".app { composes: token from \"./tokens.module.css\"; color: green; }\n"
+                        .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/tokens.module.css".to_string(),
+                style_source:
+                    "@import \"./base.css\";\n.token { color: blue; }\n.dead { color: black; }\n"
+                        .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/base.css".to_string(),
+                style_source: ".base { color: red; }\n".to_string(),
+            },
+        ];
+        let pass_ids = vec![
+            "import-inline".to_string(),
+            "tree-shake-class".to_string(),
+            "print-css".to_string(),
+        ];
+        let context = OmenaQueryTransformExecutionContextV0::default();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let link_options = TransformBundleLinkOptionsV0::default()
+            .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving);
+        let admission = link_closed_world_stylesheet_for_style_sources(
+            ClosedWorldStylesheetRequestV0 {
+                target_style_path: "src/app.module.css",
+                style_sources: &style_sources,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                reachability_context: &context,
+                attribution_report: None,
+                resolution_inputs: &resolution_inputs,
+                external_sifs: &[],
+                source_set_closed: true,
+            },
+            link_options,
+        );
+        let linked = admission
+            .into_requested_policy_result()
+            .map_err(|error| format!("refusal fixture should link: {error:?}"))?;
+        let execution = execute_linked_bundle_modules(
+            &linked,
+            "src/app.module.css",
+            &style_sources,
+            &pass_ids,
+            &context,
+            &resolution_inputs,
+            &OmenaQueryConsumerBuildOptionsV0 {
+                bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+                ..OmenaQueryConsumerBuildOptionsV0::default()
+            },
+        )?;
+        let entry = execution
+            .module_executions
+            .iter()
+            .find(|module| module.module_instance == execution.entry_module_instance)
+            .ok_or_else(|| "refusal fixture should retain the entry execution".to_string())?;
+        let scope_evidence = summarize_linked_bundle_execution_scope(&execution)?;
+
+        // FALSIFIER: using the entry refusal count as the bundle total reports
+        // one even though this product run emits one refusal per linked module.
+        assert_eq!(
+            (
+                entry.execution.closed_world_admission.refused_count,
+                execution.execution.closed_world_admission.refused_count,
+                scope_evidence
+                    .bundle_execution
+                    .aggregate_closed_world_refusal_count,
+            ),
+            (1, 1, 3)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bundle_execution_scope_rejects_missing_materialized_region() -> Result<(), String> {
+        let style_sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/app.css".to_string(),
+                style_source: "@import \"./tokens.css\";\n.app { color: green; }\n".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "src/tokens.css".to_string(),
+                style_source: ".token { color: blue; }\n".to_string(),
+            },
+        ];
+        let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
+        let context = OmenaQueryTransformExecutionContextV0::default();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let admission = link_closed_world_stylesheet_for_style_sources(
+            ClosedWorldStylesheetRequestV0 {
+                target_style_path: "src/app.css",
+                style_sources: &style_sources,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                reachability_context: &context,
+                attribution_report: None,
+                resolution_inputs: &resolution_inputs,
+                external_sifs: &[],
+                source_set_closed: true,
+            },
+            TransformBundleLinkOptionsV0::default()
+                .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving),
+        );
+        let linked = admission
+            .into_requested_policy_result()
+            .map_err(|error| format!("missing-region fixture should link: {error:?}"))?;
+        let mut execution = execute_linked_bundle_modules(
+            &linked,
+            "src/app.css",
+            &style_sources,
+            &pass_ids,
+            &context,
+            &resolution_inputs,
+            &OmenaQueryConsumerBuildOptionsV0 {
+                bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+                ..OmenaQueryConsumerBuildOptionsV0::default()
+            },
+        )?;
+        execution.materialization.module_regions.pop();
+
+        let error = summarize_linked_bundle_execution_scope(&execution)
+            .expect_err("a retained execution without a region must be rejected");
+        // FALSIFIER: removing the region/execution closure checks makes this
+        // malformed product evidence serialize as if the bundle were complete.
+        assert!(
+            error.contains("has no materialized region") || error.contains("cardinality mismatch"),
+            "unexpected missing-region error: {error}"
+        );
         Ok(())
     }
 
@@ -4882,6 +5141,16 @@ mod linked_source_map_tests {
                 summed_module_output_byte_len: 17,
                 inter_module_separator_byte_len: 2,
                 materialized_output_byte_len: 19,
+            },
+            bundle_execution: BundleExecutionSummaryV0 {
+                schema_version: "0",
+                product: "omena-query.bundle-execution",
+                entry_module_instance: module_instance.clone(),
+                module_executions: Vec::new(),
+                aggregate_mutation_count: 0,
+                aggregate_executed_pass_ids: Vec::new(),
+                aggregate_semantic_removal_count: 0,
+                aggregate_closed_world_refusal_count: 0,
             },
             source_map_dispositions: vec![
                 OmenaQueryLinkedSourceMapDispositionV0 {
@@ -5194,6 +5463,7 @@ mod linked_source_map_tests {
         assert_eq!(segments[0].original_start_point.byte_offset, 3);
         assert_eq!(segments[0].original_start_point.line, 1);
         assert_eq!(segments[0].original_start_point.utf8_column, 2);
+        #[allow(deprecated)]
         let bundle_execution = project_linked_bundle_execution(
             module_executions[0].execution.clone(),
             materialization.output_css.as_str(),

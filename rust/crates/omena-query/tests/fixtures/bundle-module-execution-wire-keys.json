@@ -1,0 +1,11 @@
+{
+  "interfaceName": "OmenaBundleModuleExecutionV0",
+  "keys": ["execution", "moduleInstance"],
+  "product": "omena-query.bundle-execution-wire-key-sample",
+  "sampleName": "product-run",
+  "schemaVersion": "0",
+  "wireTypes": {
+    "execution": "object",
+    "moduleInstance": "object"
+  }
+}

@@ -783,6 +783,12 @@ pub struct OmenaQueryBundleArtifactV0 {
     pub code_split_outputs: Vec<OmenaQueryBundleCodeSplitWorkspacePlanOutputV0>,
     pub asset_rewrites: Vec<TransformBundleAssetUrlRewriteSummaryV0>,
     pub per_pass_provenance: Vec<TransformPassExecutionOutcomeV0>,
+    /// Compatibility projection that retains entry-scoped execution fields.
+    ///
+    /// Linked consumers should read `BundleExecutionSummaryV0` from
+    /// `OmenaQueryBundleExecutionScopeEvidenceV0::bundle_execution`. This field
+    /// remains serialized unchanged; deprecation does not alter the wire shape,
+    /// and removal is reserved for a future major release.
     pub execution: TransformExecutionSummaryV0,
     pub ready_surfaces: Vec<&'static str>,
 }
@@ -853,6 +859,43 @@ pub struct OmenaQueryLinkedSourceMapDispositionV0 {
     pub segment_count: usize,
 }
 
+/// One linked module's complete transform execution.
+///
+/// Per-module truth remains available because most transform execution fields
+/// have no defensible bundle-level fold.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct BundleModuleExecutionV0 {
+    pub module_instance: omena_parser::ModuleInstanceKeyV0,
+    pub execution: TransformExecutionSummaryV0,
+}
+
+/// Bundle-level transform execution for the linked emission path.
+///
+/// The aggregate fields are intentionally narrower than
+/// `TransformExecutionSummaryV0`: each one has an authored fold and a product
+/// run where the folded value differs from the entry module. This summary says
+/// nothing about the legacy emission path, and fields without a defensible fold
+/// remain available only through `module_executions`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct BundleExecutionSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub entry_module_instance: omena_parser::ModuleInstanceKeyV0,
+    pub module_executions: Vec<BundleModuleExecutionV0>,
+    /// Fold: `sum` over each module execution's mutation count.
+    pub aggregate_mutation_count: usize,
+    /// Fold: `orderedUnion` over executed pass identifiers in module order.
+    pub aggregate_executed_pass_ids: Vec<&'static str>,
+    /// Fold: `sum` over each module execution's semantic removal count.
+    pub aggregate_semantic_removal_count: usize,
+    /// Fold: `sum` over each module execution's closed-world refusal count.
+    pub aggregate_closed_world_refusal_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -863,6 +906,7 @@ pub struct OmenaQueryBundleExecutionScopeEvidenceV0 {
     pub field_scopes: Vec<OmenaQueryExecutionFieldScopeV0>,
     pub module_executions: Vec<OmenaQueryBundleModuleExecutionByteFactsV0>,
     pub bundle_composite: OmenaQueryBundleCompositeExecutionByteFactsV0,
+    pub bundle_execution: BundleExecutionSummaryV0,
     pub source_map_dispositions: Vec<OmenaQueryLinkedSourceMapDispositionV0>,
 }
 
