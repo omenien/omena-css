@@ -1,0 +1,178 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-css-module-token-shape-measurement",
+  "method": {
+    "corpus": "facebook/docusaurus",
+    "corpusPin": "16f537309e357226dafd3b0137cdd711b68bece8",
+    "moduleFileCount": 151,
+    "emitter": "rust/target/debug/omena bundle, one tracked module per invocation",
+    "gzipLevel": 9,
+    "hash": "sha256-base64url-prefix",
+    "hashWidth": 6
+  },
+  "baseline": {
+    "rawBytes": 84540,
+    "gzipBytes": 12131
+  },
+  "size": {
+    "preStatedExpectation": "Per-definition hashes are expected to cost more gzip bytes than per-module hashes and both measured reference shapes because they remove within-module prefix sharing.",
+    "expectationHeld": true,
+    "shapes": {
+      "moduleAndClassHash": {
+        "rawBytes": 87403,
+        "gzipBytes": 14445,
+        "rawPercent": 3.39,
+        "gzipPercent": 19.08
+      },
+      "modulePathHash": {
+        "rawBytes": 87403,
+        "gzipBytes": 13271,
+        "rawPercent": 3.39,
+        "gzipPercent": 9.4
+      },
+      "modulePathHashWithOrdinal": {
+        "rawBytes": 88600,
+        "gzipBytes": 13616,
+        "rawPercent": 4.8,
+        "gzipPercent": 12.24
+      },
+      "escapeFaithfulModuleHash": {
+        "rawBytes": 87403,
+        "gzipBytes": 13271,
+        "rawPercent": 3.39,
+        "gzipPercent": 9.4
+      }
+    },
+    "hashLengthCurve": [
+      {
+        "width": 4,
+        "moduleAndClassHash": {
+          "rawBytes": 86243,
+          "gzipBytes": 13775,
+          "rawPercent": 2.01,
+          "gzipPercent": 13.55
+        },
+        "modulePathHash": {
+          "rawBytes": 86243,
+          "gzipBytes": 12955,
+          "rawPercent": 2.01,
+          "gzipPercent": 6.79
+        }
+      },
+      {
+        "width": 6,
+        "moduleAndClassHash": {
+          "rawBytes": 87403,
+          "gzipBytes": 14445,
+          "rawPercent": 3.39,
+          "gzipPercent": 19.08
+        },
+        "modulePathHash": {
+          "rawBytes": 87403,
+          "gzipBytes": 13271,
+          "rawPercent": 3.39,
+          "gzipPercent": 9.4
+        }
+      },
+      {
+        "width": 8,
+        "moduleAndClassHash": {
+          "rawBytes": 88563,
+          "gzipBytes": 15110,
+          "rawPercent": 4.76,
+          "gzipPercent": 24.56
+        },
+        "modulePathHash": {
+          "rawBytes": 88563,
+          "gzipBytes": 13570,
+          "rawPercent": 4.76,
+          "gzipPercent": 11.86
+        }
+      }
+    ]
+  },
+  "stability": {
+    "preStatedExpectation": "Both ordinal-free shapes are expected to preserve existing tokens after front insertion and sibling-module addition, while file rename and a changed workspace-root boundary rotate path-derived identities.",
+    "shapes": {
+      "moduleAndClassHash": {
+        "measuredModule": "examples/classic-typescript/src/components/HomepageFeatures/styles.module.css",
+        "measuredDefinitionCount": 2,
+        "inFileFrontInsertionChangedExistingTokenCount": 0,
+        "siblingModuleAdditionChangedExistingTokenCount": 0,
+        "fileMoveRenameChangedTokenCount": 2,
+        "workspaceRootBoundaryChangeChangedTokenCount": 2,
+        "repeatedRunChangedTokenCount": 0
+      },
+      "modulePathHash": {
+        "measuredModule": "examples/classic-typescript/src/components/HomepageFeatures/styles.module.css",
+        "measuredDefinitionCount": 2,
+        "inFileFrontInsertionChangedExistingTokenCount": 0,
+        "siblingModuleAdditionChangedExistingTokenCount": 0,
+        "fileMoveRenameChangedTokenCount": 2,
+        "workspaceRootBoundaryChangeChangedTokenCount": 2,
+        "repeatedRunChangedTokenCount": 0
+      }
+    }
+  },
+  "identityInputs": {
+    "rootInputs": [
+      {
+        "surface": "cliModules",
+        "status": "available"
+      },
+      {
+        "surface": "lspWorkspaceWorkflow",
+        "status": "available"
+      },
+      {
+        "surface": "napiWorkspace",
+        "status": "missing-required-root"
+      },
+      {
+        "surface": "wasmWorkspace",
+        "status": "missing-required-root"
+      },
+      {
+        "surface": "rawBundleApi",
+        "status": "missing-required-root"
+      },
+      {
+        "surface": "syntheticHarness",
+        "status": "missing-required-root"
+      }
+    ],
+    "normalizer": {
+      "source": "normalize_omena_query_style_path",
+      "visibility": "pub(crate)",
+      "separatorAndComponentNormalization": true,
+      "callerRootRelativization": false
+    },
+    "configurationHashExcluded": true,
+    "filesystemDiscoveryAllowed": false,
+    "outsideRootDisposition": "error"
+  },
+  "collisionDetection": {
+    "collisionWidth": 2,
+    "engineeredPairs": {
+      "moduleAndClassHash": ["engineered/module-10.module.css", "engineered/module-94.module.css"],
+      "modulePathHash": ["engineered/module-17.module.css", "engineered/module-82.module.css"]
+    },
+    "engineeredFailures": {
+      "moduleAndClassHash": "moduleAndClassHash collision at width 2: {\"modulePath\":\"engineered/module-10.module.css\",\"rawName\":\"shared\"} and {\"modulePath\":\"engineered/module-94.module.css\",\"rawName\":\"shared\"} map to \"_Ve_shared\"",
+      "modulePathHash": "modulePathHash collision at width 2: {\"modulePath\":\"engineered/module-17.module.css\",\"rawName\":\"shared\"} and {\"modulePath\":\"engineered/module-82.module.css\",\"rawName\":\"shared\"} map to \"_Zh_shared\""
+    },
+    "selectedWidth": 6,
+    "selectedWidthPopulation": {
+      "moduleCount": 371,
+      "definitionCount": 885,
+      "moduleAndClassHashCollisionCount": 0,
+      "modulePathHashCollisionCount": 0,
+      "modulePathHashPrefixCollisionCount": 0
+    }
+  },
+  "prerequisites": {
+    "trailingHexEscape": "Moot for both measured shapes because their sanitized local segment cannot contain a backslash; it reactivates for an escape-faithful local segment.",
+    "encoderDecoder": "No encoder or decoder plane is introduced by either measured shape.",
+    "fourSymbolGeneralization": "The selected identity must not structurally preclude later keyframe, value, or custom-property use; none is implemented by this measurement."
+  }
+}
