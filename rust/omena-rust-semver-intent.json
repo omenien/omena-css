@@ -269,22 +269,16 @@
         },
         {
           "lint": "enum_variant_added",
-          "evidenceNeedles": [
-            "variant TransformBundleLinkErrorV0:UnresolvedDependencyEdge"
-          ]
+          "evidenceNeedles": ["variant TransformBundleLinkErrorV0:UnresolvedDependencyEdge"]
         },
         {
           "lint": "struct_marked_non_exhaustive",
-          "evidenceNeedles": [
-            "struct TransformBundleLinkOptionsV0"
-          ]
+          "evidenceNeedles": ["struct TransformBundleLinkOptionsV0"]
         },
         {
           "lint": "type_marked_deprecated",
           "level": "minor",
-          "evidenceNeedles": [
-            "Struct TransformBundleSemanticReachabilityInputV0"
-          ]
+          "evidenceNeedles": ["Struct TransformBundleSemanticReachabilityInputV0"]
         }
       ],
       "expectedRuntimeValueChanges": [
