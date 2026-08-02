@@ -893,7 +893,12 @@ pub struct BundleEmissionExecutionV0 {
 /// `TransformExecutionSummaryV0`: each one has an authored fold and a product
 /// run where the folded value differs from the entry module. This summary says
 /// nothing about the legacy emission path, and fields without a defensible fold
-/// remain available only through `module_executions`.
+/// remain available only through `module_executions`. The current product
+/// corpus bounds which `aggregate_*` fields have witnesses; it is not a claim
+/// that the set is exhaustive. Fold tokens document the intended operation,
+/// but witnesses remain load-bearing: the current corpus distinguishes the
+/// refusal-count sum, while mutation and semantic-removal values happen to make
+/// `sum` and `max` agree.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

@@ -33,6 +33,11 @@
       "firedSiteIds": ["bundle-execution-carrier-totality"]
     },
     {
+      "perturbation": "--inject-bundle-carrier-partition-overlap",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-carrier-partition-overlap",
+      "firedSiteIds": ["bundle-execution-carrier-partition"]
+    },
+    {
       "perturbation": "--inject-bundle-compat-byte-change",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-compat-byte-change",
       "firedSiteIds": ["bundle-execution-additive-wire-values"]
@@ -223,6 +228,26 @@
       "siteId": "bundle-execution-nullable-number-wire-shape",
       "owner": "bundle-execution-contract",
       "reentry": "nullable-number-wire-representation-changes"
+    },
+    {
+      "siteId": "adapter-batch-accepted-member-count",
+      "owner": "contract-shape-census",
+      "reentry": "adapter-acceptance-protocol-change"
+    },
+    {
+      "siteId": "adapter-batch-accepted-class-count",
+      "owner": "contract-shape-census",
+      "reentry": "adapter-acceptance-protocol-change"
+    },
+    {
+      "siteId": "adapter-batch-member-order",
+      "owner": "contract-shape-census",
+      "reentry": "adapter-acceptance-ordering-change"
+    },
+    {
+      "siteId": "adapter-batch-class-order",
+      "owner": "contract-shape-census",
+      "reentry": "adapter-acceptance-ordering-change"
     }
   ],
   "deadTestAudit": [

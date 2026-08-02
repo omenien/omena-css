@@ -186,22 +186,26 @@ if (initializeAdapter) {
   // optional member is backward-compatible without an explicit acceptance.
   const blocking = changes.filter((change) => change.class !== "additive-optional");
   if (writeAdapter) {
+    // FALSIFIER: id=adapter-batch-accepted-member-count class=structuralEntailment via=STRUCTURAL producer=entailed owner=contract-shape-census entry=explicit-batch-cardinality reentry=adapter-acceptance-protocol-change
     assert.equal(
       changes.length,
       acceptedMembers.length,
       "adapter snapshot update must explicitly accept every member change",
     );
+    // FALSIFIER: id=adapter-batch-accepted-class-count class=structuralEntailment via=STRUCTURAL producer=entailed owner=contract-shape-census entry=paired-batch-cardinality reentry=adapter-acceptance-protocol-change
     assert.equal(
       acceptedClasses.length,
       acceptedMembers.length,
       "every accepted adapter member must carry a change class",
     );
     for (const [index, change] of changes.entries()) {
+      // FALSIFIER: id=adapter-batch-member-order class=structuralEntailment via=STRUCTURAL producer=entailed owner=contract-shape-census entry=diff-order-pairing reentry=adapter-acceptance-ordering-change
       assert.equal(
         change.key,
         acceptedMembers[index],
         "accepted adapter member does not match the diff",
       );
+      // FALSIFIER: id=adapter-batch-class-order class=structuralEntailment via=STRUCTURAL producer=entailed owner=contract-shape-census entry=class-order-pairing reentry=adapter-acceptance-ordering-change
       assert.equal(
         change.class,
         acceptedClasses[index],

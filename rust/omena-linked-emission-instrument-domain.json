@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena.linked-emission-instrument-domain",
-  "minimumFileCount": 12,
+  "minimumFileCount": 13,
   "files": [
     "rust/crates/omena-diff-test/src/linked_emission.rs",
     "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
@@ -14,6 +14,7 @@
     "scripts/check-rust-omena-module-qualified-product-path.ts",
     "scripts/check-rust-omena-query-module-reachability-hoist.ts",
     "scripts/check-rust-omena-closed-world-admission-tier.ts",
+    "scripts/check-rust-contract-shape-census.ts",
     "scripts/check-rust-omena-query-bundle-execution-scope.ts"
   ],
   "excludedAssertionForms": [
@@ -44,6 +45,20 @@
       "expectedCount": 1,
       "owner": "module-qualified product-path gate",
       "reentry": "a not-equal assertion is added or removed without a falsifier disclosure"
+    },
+    {
+      "file": "scripts/check-rust-contract-shape-census.ts",
+      "syntax": "assert.deepEqual",
+      "expectedCount": 2,
+      "owner": "contract shape census",
+      "reentry": "an unannotated deep-equality assertion is added or removed from the contract census"
+    },
+    {
+      "file": "scripts/check-rust-contract-shape-census.ts",
+      "syntax": "assert.equal",
+      "expectedCount": 4,
+      "owner": "contract shape census",
+      "reentry": "an unannotated equality assertion is added or removed from the contract census"
     },
     {
       "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",

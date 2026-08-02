@@ -5211,6 +5211,15 @@ mod linked_source_map_tests {
         let module_instance = omena_parser::ModuleInstanceKeyV0::unconfigured(
             omena_parser::ModuleIdV0::new("src/app.css"),
         );
+        let module_source = ".appss { color: red; }\n";
+        let execution = execute_omena_query_transform_passes_from_source(
+            "src/app.css",
+            module_source,
+            &["whitespace-strip".to_string()],
+        )
+        .execution;
+        assert_eq!(execution.input_byte_len, 23);
+        assert_eq!(execution.output_byte_len, 17);
         let evidence = OmenaQueryBundleExecutionScopeEvidenceV0 {
             schema_version: "0",
             product: "omena-query.bundle-execution-scope",
@@ -5229,15 +5238,15 @@ mod linked_source_map_tests {
             ],
             module_executions: vec![OmenaQueryBundleModuleExecutionByteFactsV0 {
                 module_instance: module_instance.clone(),
-                input_byte_len: 23,
-                output_byte_len: 17,
+                input_byte_len: execution.input_byte_len,
+                output_byte_len: execution.output_byte_len,
                 generated_start: 2,
                 generated_end: 19,
             }],
             bundle_composite: OmenaQueryBundleCompositeExecutionByteFactsV0 {
                 module_count: 1,
-                summed_module_input_byte_len: 23,
-                summed_module_output_byte_len: 17,
+                summed_module_input_byte_len: execution.input_byte_len,
+                summed_module_output_byte_len: execution.output_byte_len,
                 inter_module_separator_byte_len: 2,
                 materialized_output_byte_len: 19,
             },
@@ -5245,27 +5254,32 @@ mod linked_source_map_tests {
                 schema_version: "0",
                 product: "omena-query.bundle-execution",
                 entry_module_instance: module_instance.clone(),
-                module_executions: Vec::new(),
+                module_executions: vec![BundleModuleExecutionV0 {
+                    module_instance: module_instance.clone(),
+                    execution: execution.clone(),
+                }],
                 emission_execution: BundleEmissionExecutionV0 {
                     module_regions: vec![LinkedEmissionModuleRegionV0 {
                         module_instance: module_instance.clone(),
                         first_global_order_index: Some(0),
                         generated_start: 0,
-                        generated_end: 17,
+                        generated_end: execution.output_byte_len,
                     }],
                     order_entry_regions: vec![LinkedEmissionOrderEntryRegionV0 {
                         global_order_index: 0,
                         module_instance: module_instance.clone(),
                         generated_start: 0,
-                        generated_end: 17,
+                        generated_end: execution.output_byte_len,
                     }],
                     emitted_module_count: 1,
                     global_order_entry_count: 1,
                 },
-                aggregate_mutation_count: 0,
-                aggregate_executed_pass_ids: Vec::new(),
-                aggregate_semantic_removal_count: 0,
-                aggregate_closed_world_refusal_count: 0,
+                aggregate_mutation_count: execution.mutation_count,
+                aggregate_executed_pass_ids: execution.executed_pass_ids.clone(),
+                aggregate_semantic_removal_count: execution.semantic_removals.len(),
+                aggregate_closed_world_refusal_count: execution
+                    .closed_world_admission
+                    .refused_count,
             },
             source_map_dispositions: vec![
                 OmenaQueryLinkedSourceMapDispositionV0 {

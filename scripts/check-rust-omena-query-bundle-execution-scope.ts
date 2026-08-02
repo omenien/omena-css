@@ -120,6 +120,9 @@ const injectBundleWitnessMissing = process.argv.includes("--inject-bundle-witnes
 const injectBundleCarrierAccountingDrop = process.argv.includes(
   "--inject-bundle-carrier-accounting-drop",
 );
+const injectBundleCarrierPartitionOverlap = process.argv.includes(
+  "--inject-bundle-carrier-partition-overlap",
+);
 const injectBundleDuplicateByteAuthority = process.argv.includes(
   "--inject-bundle-duplicate-byte-authority",
 );
@@ -240,6 +243,9 @@ if (injectBundleWitnessMissing && foldRows[0]) {
   foldRows[0].divergenceWitnessFixture = "missing_bundle_execution_divergence_witness";
 }
 if (injectBundleCarrierAccountingDrop) absentRows.pop();
+if (injectBundleCarrierPartitionOverlap) {
+  absentRows.push({ field: "mutationCount", reason: "reListingNotFold" });
+}
 const rustBundleSummaryFields = extractRustStructFields(
   queryTypesSource,
   "BundleExecutionSummaryV0",
@@ -295,6 +301,24 @@ for (const row of foldRows) {
 const directFoldSourceFields = foldRows
   .map((row) => String(row.sourceField))
   .filter((field) => !field.includes("."));
+const carrierClassificationCounts = new Map<string, number>();
+for (const field of [
+  ...summaryOwnedFields,
+  ...directFoldSourceFields,
+  ...absentRows.map((row) => String(row.field)),
+]) {
+  carrierClassificationCounts.set(field, (carrierClassificationCounts.get(field) ?? 0) + 1);
+}
+const multiplyClassifiedCarrierFields = [...carrierClassificationCounts]
+  .filter(([, count]) => count > 1)
+  .map(([field]) => field)
+  .toSorted();
+// FALSIFIER: id=bundle-execution-carrier-partition class=accounting via=--inject-bundle-carrier-partition-overlap producer=can-fail owner=bundle-execution-contract entry=exclusive-carrier-classification
+assert.deepEqual(
+  multiplyClassifiedCarrierFields,
+  [],
+  `execution carrier fields must have exactly one classification: ${multiplyClassifiedCarrierFields.join(",")}`,
+);
 const accountedCarrierFields = new Set([
   ...summaryOwnedFields,
   ...directFoldSourceFields,
