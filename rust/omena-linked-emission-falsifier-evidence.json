@@ -23,6 +23,46 @@
       "firedSiteIds": ["linked-emission-product-run-status"]
     },
     {
+      "perturbation": "--inject-bundle-aggregate-field-add",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-aggregate-field-add",
+      "firedSiteIds": ["bundle-execution-aggregate-without-row"]
+    },
+    {
+      "perturbation": "--inject-bundle-carrier-accounting-drop",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-carrier-accounting-drop",
+      "firedSiteIds": ["bundle-execution-carrier-totality"]
+    },
+    {
+      "perturbation": "--inject-bundle-compat-byte-change",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-compat-byte-change",
+      "firedSiteIds": ["bundle-execution-additive-wire-values"]
+    },
+    {
+      "perturbation": "--inject-bundle-duplicate-byte-authority",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-duplicate-byte-authority",
+      "firedSiteIds": ["bundle-execution-single-byte-authority"]
+    },
+    {
+      "perturbation": "--inject-bundle-fold-row-drop",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-fold-row-drop",
+      "firedSiteIds": ["bundle-execution-aggregate-without-row"]
+    },
+    {
+      "perturbation": "--inject-bundle-legacy-empty",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-legacy-empty",
+      "firedSiteIds": ["bundle-execution-legacy-absence"]
+    },
+    {
+      "perturbation": "--inject-bundle-wire-sample-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-wire-sample-loss",
+      "firedSiteIds": ["bundle-execution-reachable-sample-closure"]
+    },
+    {
+      "perturbation": "--inject-bundle-witness-missing",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-witness-missing",
+      "firedSiteIds": ["bundle-execution-fold-witness-resolution"]
+    },
+    {
       "perturbation": "--inject-collision-expectation-flip",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-collision-expectation-flip",
       "firedSiteIds": ["linked-emission-collision-authored-equality"]
@@ -133,6 +173,56 @@
       "siteId": "resolution-authority-product-fallback-structural",
       "owner": "resolution-authority-honesty",
       "reentry": "first-product-producer-under-supplies-a-resolved-edge"
+    },
+    {
+      "siteId": "bundle-execution-fold-row-shape",
+      "owner": "bundle-execution-contract",
+      "reentry": "fold-contract-schema-change"
+    },
+    {
+      "siteId": "bundle-execution-fold-doc-token",
+      "owner": "bundle-execution-contract",
+      "reentry": "aggregate-field-doc-changes"
+    },
+    {
+      "siteId": "bundle-execution-absent-reason-vocabulary",
+      "owner": "bundle-execution-contract",
+      "reentry": "absent-reason-schema-change"
+    },
+    {
+      "siteId": "bundle-execution-no-meaning-fields",
+      "owner": "bundle-execution-contract",
+      "reentry": "producer-gains-bundle-level-meaning"
+    },
+    {
+      "siteId": "bundle-execution-measured-absence-policy",
+      "owner": "bundle-execution-contract",
+      "reentry": "product-divergence-corpus-change"
+    },
+    {
+      "siteId": "bundle-execution-additive-wire-key",
+      "owner": "bundle-execution-contract",
+      "reentry": "scope-evidence-wire-expands"
+    },
+    {
+      "siteId": "bundle-execution-wire-sample-nonempty",
+      "owner": "bundle-execution-contract",
+      "reentry": "sample-registration-representation-changes"
+    },
+    {
+      "siteId": "bundle-execution-wire-sample-product",
+      "owner": "bundle-execution-contract",
+      "reentry": "wire-key-sample-product-expands"
+    },
+    {
+      "siteId": "bundle-execution-client-reachability",
+      "owner": "bundle-execution-contract",
+      "reentry": "public-client-test-shape-changes"
+    },
+    {
+      "siteId": "bundle-execution-nullable-number-wire-shape",
+      "owner": "bundle-execution-contract",
+      "reentry": "nullable-number-wire-representation-changes"
     }
   ],
   "deadTestAudit": [

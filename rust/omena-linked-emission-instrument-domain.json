@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena.linked-emission-instrument-domain",
-  "minimumFileCount": 11,
+  "minimumFileCount": 12,
   "files": [
     "rust/crates/omena-diff-test/src/linked_emission.rs",
     "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
@@ -13,7 +13,8 @@
     "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
     "scripts/check-rust-omena-module-qualified-product-path.ts",
     "scripts/check-rust-omena-query-module-reachability-hoist.ts",
-    "scripts/check-rust-omena-closed-world-admission-tier.ts"
+    "scripts/check-rust-omena-closed-world-admission-tier.ts",
+    "scripts/check-rust-omena-query-bundle-execution-scope.ts"
   ],
   "excludedAssertionForms": [
     {
@@ -43,6 +44,41 @@
       "expectedCount": 1,
       "owner": "module-qualified product-path gate",
       "reentry": "a not-equal assertion is added or removed without a falsifier disclosure"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.deepEqual",
+      "expectedCount": 12,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated deep-equality assertion is added or removed from the widened gate"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.equal",
+      "expectedCount": 20,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated equality assertion is added or removed from the widened gate"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.match",
+      "expectedCount": 11,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated match assertion is added or removed from the widened gate"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.notEqual",
+      "expectedCount": 12,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated not-equal assertion is added or removed from the widened gate"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.ok",
+      "expectedCount": 14,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated truth assertion is added or removed from the widened gate"
     },
     {
       "file": "scripts/check-rust-omena-query-module-reachability-hoist.ts",

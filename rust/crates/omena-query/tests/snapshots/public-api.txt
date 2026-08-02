@@ -632,6 +632,24 @@ pub omena_query::AnalyzedGraphV0::product: &'static str
 pub omena_query::AnalyzedGraphV0::schema_version: &'static str
 pub omena_query::AnalyzedGraphV0::style_path: alloc::string::String
 pub omena_query::AnalyzedGraphV0::tier: &'static str
+#[non_exhaustive] pub struct omena_query::BundleEmissionExecutionV0
+pub omena_query::BundleEmissionExecutionV0::emitted_module_count: usize
+pub omena_query::BundleEmissionExecutionV0::global_order_entry_count: usize
+pub omena_query::BundleEmissionExecutionV0::module_regions: alloc::vec::Vec<omena_bundler::LinkedEmissionModuleRegionV0>
+pub omena_query::BundleEmissionExecutionV0::order_entry_regions: alloc::vec::Vec<omena_bundler::LinkedEmissionOrderEntryRegionV0>
+#[non_exhaustive] pub struct omena_query::BundleExecutionSummaryV0
+pub omena_query::BundleExecutionSummaryV0::aggregate_closed_world_refusal_count: usize
+pub omena_query::BundleExecutionSummaryV0::aggregate_executed_pass_ids: alloc::vec::Vec<&'static str>
+pub omena_query::BundleExecutionSummaryV0::aggregate_mutation_count: usize
+pub omena_query::BundleExecutionSummaryV0::aggregate_semantic_removal_count: usize
+pub omena_query::BundleExecutionSummaryV0::emission_execution: omena_query::BundleEmissionExecutionV0
+pub omena_query::BundleExecutionSummaryV0::entry_module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_query::BundleExecutionSummaryV0::module_executions: alloc::vec::Vec<omena_query::BundleModuleExecutionV0>
+pub omena_query::BundleExecutionSummaryV0::product: &'static str
+pub omena_query::BundleExecutionSummaryV0::schema_version: &'static str
+#[non_exhaustive] pub struct omena_query::BundleModuleExecutionV0
+pub omena_query::BundleModuleExecutionV0::execution: omena_transform_passes::model::TransformExecutionSummaryV0
+pub omena_query::BundleModuleExecutionV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub struct omena_query::CanonicalFormV0
 pub omena_query::CanonicalFormV0::ast_size_bits: f64
 pub omena_query::CanonicalFormV0::before: alloc::string::String
@@ -806,6 +824,7 @@ pub omena_query::OmenaQueryBundleEvidenceManifestV0::source_precision: core::opt
 pub omena_query::OmenaQueryBundleEvidenceManifestV0::style_path: alloc::string::String
 #[non_exhaustive] pub struct omena_query::OmenaQueryBundleExecutionScopeEvidenceV0
 pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::bundle_composite: omena_query::OmenaQueryBundleCompositeExecutionByteFactsV0
+pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::bundle_execution: omena_query::BundleExecutionSummaryV0
 pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::entry_module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::field_scopes: alloc::vec::Vec<omena_query::OmenaQueryExecutionFieldScopeV0>
 pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::module_executions: alloc::vec::Vec<omena_query::OmenaQueryBundleModuleExecutionByteFactsV0>

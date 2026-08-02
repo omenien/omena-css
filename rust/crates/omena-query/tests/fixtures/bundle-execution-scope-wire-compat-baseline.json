@@ -36,45 +36,6 @@
     "interModuleSeparatorByteLen": 2,
     "materializedOutputByteLen": 19
   },
-  "bundleExecution": {
-    "schemaVersion": "0",
-    "product": "omena-query.bundle-execution",
-    "entryModuleInstance": {
-      "module": "src/app.css",
-      "configuration": "with:none"
-    },
-    "moduleExecutions": [],
-    "emissionExecution": {
-      "moduleRegions": [
-        {
-          "moduleInstance": {
-            "module": "src/app.css",
-            "configuration": "with:none"
-          },
-          "firstGlobalOrderIndex": 0,
-          "generatedStart": 0,
-          "generatedEnd": 17
-        }
-      ],
-      "orderEntryRegions": [
-        {
-          "globalOrderIndex": 0,
-          "moduleInstance": {
-            "module": "src/app.css",
-            "configuration": "with:none"
-          },
-          "generatedStart": 0,
-          "generatedEnd": 17
-        }
-      ],
-      "emittedModuleCount": 1,
-      "globalOrderEntryCount": 1
-    },
-    "aggregateMutationCount": 0,
-    "aggregateExecutedPassIds": [],
-    "aggregateSemanticRemovalCount": 0,
-    "aggregateClosedWorldRefusalCount": 0
-  },
   "sourceMapDispositions": [
     {
       "moduleInstance": {

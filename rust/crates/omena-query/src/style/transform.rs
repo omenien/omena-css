@@ -6,8 +6,9 @@ use omena_parser::{
 };
 #[cfg(test)]
 use omena_query_transform_runner::{
-    BundleResolutionAuthorityV0, TransformBundleModuleInputV0, link_omena_transform_bundle_modules,
-    link_resolved_bundle, materialize_omena_transform_bundle_linked_stylesheet,
+    BundleResolutionAuthorityV0, LinkedEmissionModuleRegionV0, LinkedEmissionOrderEntryRegionV0,
+    TransformBundleModuleInputV0, link_omena_transform_bundle_modules, link_resolved_bundle,
+    materialize_omena_transform_bundle_linked_stylesheet,
 };
 #[allow(deprecated)]
 use omena_query_transform_runner::{
@@ -5246,10 +5247,20 @@ mod linked_source_map_tests {
                 entry_module_instance: module_instance.clone(),
                 module_executions: Vec::new(),
                 emission_execution: BundleEmissionExecutionV0 {
-                    module_regions: Vec::new(),
-                    order_entry_regions: Vec::new(),
-                    emitted_module_count: 0,
-                    global_order_entry_count: 0,
+                    module_regions: vec![LinkedEmissionModuleRegionV0 {
+                        module_instance: module_instance.clone(),
+                        first_global_order_index: Some(0),
+                        generated_start: 0,
+                        generated_end: 17,
+                    }],
+                    order_entry_regions: vec![LinkedEmissionOrderEntryRegionV0 {
+                        global_order_index: 0,
+                        module_instance: module_instance.clone(),
+                        generated_start: 0,
+                        generated_end: 17,
+                    }],
+                    emitted_module_count: 1,
+                    global_order_entry_count: 1,
                 },
                 aggregate_mutation_count: 0,
                 aggregate_executed_pass_ids: Vec::new(),

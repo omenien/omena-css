@@ -255,6 +255,7 @@ function knownFalsifierSource(): string {
       "scripts/check-rust-omena-bundler-resolution-authority-honesty.ts",
       "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
       "scripts/check-rust-omena-closed-world-admission-tier.ts",
+      "scripts/check-rust-omena-query-bundle-execution-scope.ts",
     ].map((file) => readFileSync(resolve(repositoryRoot, file), "utf8")),
     [...trackedRustTestNames()].join("\n"),
   ].join("\n");
