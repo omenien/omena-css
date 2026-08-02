@@ -1942,7 +1942,7 @@ fn apply_semantic_reachability_to_linker_inputs(
     BTreeMap<ModuleInstanceKeyV0, InstanceReachabilityDerivationV0>,
 ) {
     let reachability_inputs =
-        instance_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
+        semantic_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
     let module_index_by_instance = inputs
         .iter()
         .enumerate()
@@ -2006,7 +2006,7 @@ fn apply_semantic_reachability_to_linker_inputs(
     (evidence_by_instance, derivation_by_instance)
 }
 
-fn instance_reachability_inputs_closed_over_composes(
+fn semantic_reachability_inputs_closed_over_composes(
     inputs: &[LinkerInputV0],
     reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
 ) -> BTreeMap<ModuleInstanceKeyV0, TransformBundleInstanceReachabilityInputV0> {

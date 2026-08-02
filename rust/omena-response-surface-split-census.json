@@ -47,7 +47,7 @@
   "internalTypeCountByCrate": {
     "omena-abstract-value": 130,
     "omena-bridge": 102,
-    "omena-bundler": 54,
+    "omena-bundler": 59,
     "omena-cascade": 124,
     "omena-cascade-proof": 26,
     "omena-checker": 61,
@@ -1475,6 +1475,24 @@
     },
     {
       "crate": "omena-bundler",
+      "typeName": "BundleDependencyResolutionDisclosureV0",
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "line": 558
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "BundleResolutionAuthorityV0",
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "line": 547
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "DependencyResolutionOutcomeV0",
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "line": 2317
+    },
+    {
+      "crate": "omena-bundler",
       "typeName": "EmissionCycleClassV0",
       "sourcePath": "rust/crates/omena-bundler/src/emission_order.rs",
       "line": 37
@@ -1579,25 +1597,31 @@
       "crate": "omena-bundler",
       "typeName": "EmissionPolicyDifferenceV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 668
+      "line": 770
     },
     {
       "crate": "omena-bundler",
       "typeName": "EmissionPolicyDifferentialReportV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 678
+      "line": 780
     },
     {
       "crate": "omena-bundler",
       "typeName": "GlobalRuleOrderV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 524
+      "line": 625
+    },
+    {
+      "crate": "omena-bundler",
+      "typeName": "InstanceReachabilityDerivationV0",
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "line": 333
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedEmissionArtifactV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 634
+      "line": 736
     },
     {
       "crate": "omena-bundler",
@@ -1621,61 +1645,61 @@
       "crate": "omena-bundler",
       "typeName": "LinkedEmissionMaterializationErrorV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 646
+      "line": 748
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedEmissionModuleRegionV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 616
+      "line": 718
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedEmissionOrderEntryRegionV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 625
+      "line": 727
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedStylesheetRuleV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 492
+      "line": 593
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedStylesheetV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 530
+      "line": 631
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkedStylesheetWithEmissionItemsV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 544
+      "line": 645
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkerDependencyEdgeV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 345
+      "line": 394
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkerInputV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 365
+      "line": 414
     },
     {
       "crate": "omena-bundler",
       "typeName": "LinkerRuleV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 355
+      "line": 404
     },
     {
       "crate": "omena-bundler",
       "typeName": "PreparedLinkedStylesheetContextV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 1374
+      "line": 1562
     },
     {
       "crate": "omena-bundler",
@@ -1711,7 +1735,7 @@
       "crate": "omena-bundler",
       "typeName": "TransformBundleDependencyResolutionV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 420
+      "line": 480
     },
     {
       "crate": "omena-bundler",
@@ -1729,7 +1753,7 @@
       "crate": "omena-bundler",
       "typeName": "TransformBundleEmissionAdmissionV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 554
+      "line": 656
     },
     {
       "crate": "omena-bundler",
@@ -1739,27 +1763,33 @@
     },
     {
       "crate": "omena-bundler",
+      "typeName": "TransformBundleInstanceReachabilityInputV0",
+      "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+      "line": 343
+    },
+    {
+      "crate": "omena-bundler",
       "typeName": "TransformBundleLinkerProjectionV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 378
+      "line": 427
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleLinkErrorV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 690
+      "line": 792
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleLinkOptionsV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 486
+      "line": 568
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleLinkProjectionSetV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 386
+      "line": 437
     },
     {
       "crate": "omena-bundler",
@@ -1777,13 +1807,13 @@
       "crate": "omena-bundler",
       "typeName": "TransformBundleResolvedDependencyV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 458
+      "line": 518
     },
     {
       "crate": "omena-bundler",
       "typeName": "TransformBundleSemanticReachabilityInputV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 319
+      "line": 322
     },
     {
       "crate": "omena-bundler",
@@ -1795,7 +1825,7 @@
       "crate": "omena-bundler",
       "typeName": "TransformBundleTransformedModuleV0",
       "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
-      "line": 593
+      "line": 695
     },
     {
       "crate": "omena-cascade-proof",
@@ -5821,7 +5851,7 @@
       "crate": "omena-query-transform-runner",
       "typeName": "OmenaQueryTransformRunnerBoundaryV0",
       "sourcePath": "rust/crates/omena-query-transform-runner/src/lib.rs",
-      "line": 155
+      "line": 160
     },
     {
       "crate": "omena-query-transform-runner",
@@ -5929,13 +5959,13 @@
       "crate": "omena-query",
       "typeName": "ClosedWorldStylesheetRequestV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3369
+      "line": 3371
     },
     {
       "crate": "omena-query",
       "typeName": "ConsumerBuildPassSetV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 971
+      "line": 973
     },
     {
       "crate": "omena-query",
@@ -5959,7 +5989,7 @@
       "crate": "omena-query",
       "typeName": "DecodedSourceMapSegment",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 4453
+      "line": 4552
     },
     {
       "crate": "omena-query",
@@ -6007,7 +6037,7 @@
       "crate": "omena-query",
       "typeName": "ImportGraphSourceMapSegmentContext",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 2536
+      "line": 2538
     },
     {
       "crate": "omena-query",
@@ -6025,25 +6055,25 @@
       "crate": "omena-query",
       "typeName": "LinkedBundleExecutionV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3891
+      "line": 3983
     },
     {
       "crate": "omena-query",
       "typeName": "LinkedFallbackSourceTokenRangeV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 2176
+      "line": 2178
     },
     {
       "crate": "omena-query",
       "typeName": "LinkedModuleExecutionInputV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3825
+      "line": 3917
     },
     {
       "crate": "omena-query",
       "typeName": "LinkedModuleExecutionV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3820
+      "line": 3912
     },
     {
       "crate": "omena-query",
@@ -6061,7 +6091,7 @@
       "crate": "omena-query",
       "typeName": "ModuleQualifiedExecutionInputsV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 1101
+      "line": 1103
     },
     {
       "crate": "omena-query",
@@ -6169,7 +6199,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryBundleExecutionRunV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 441
+      "line": 444
     },
     {
       "crate": "omena-query",
@@ -6193,7 +6223,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryBundlePlanInputV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 239
+      "line": 242
     },
     {
       "crate": "omena-query",
@@ -7351,7 +7381,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryTargetConsumerBuildInputsV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 1563
+      "line": 1565
     },
     {
       "crate": "omena-query",
@@ -7483,7 +7513,7 @@
       "crate": "omena-query",
       "typeName": "PreparedTransformBundleLinkerProjectionV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3436
+      "line": 3438
     },
     {
       "crate": "omena-query",
@@ -7651,7 +7681,7 @@
       "crate": "omena-query",
       "typeName": "StaticScssModuleResolutionConfigurationEvidence",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 59
+      "line": 62
     },
     {
       "crate": "omena-query",
@@ -7687,13 +7717,13 @@
       "crate": "omena-query",
       "typeName": "TransformBundleDependencyResolutionTemplateV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 3442
+      "line": 3448
     },
     {
       "crate": "omena-query",
       "typeName": "TransformPlanPartsV0",
       "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
-      "line": 228
+      "line": 231
     },
     {
       "crate": "omena-query",

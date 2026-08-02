@@ -280,7 +280,7 @@
       },
       {
         "path": "rust/crates/omena-bundler/src/lib.rs",
-        "line": 1792,
+        "line": 2100,
         "function": "semantic_reachability_inputs_closed_over_composes",
         "operation": "str-eq",
         "evidence": "changed |= target.class_names.len() != before;",
@@ -325,7 +325,7 @@
       },
       {
         "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
-        "line": 2473,
+        "line": 2501,
         "function": "validate_authored_liveness_expectations_v0",
         "operation": "contains",
         "evidence": ".contains(expectation.class_name);",
@@ -334,7 +334,7 @@
       },
       {
         "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
-        "line": 2483,
+        "line": 2511,
         "function": "validate_authored_liveness_expectations_v0",
         "operation": "contains",
         "evidence": ".is_some_and(|names| names.contains(expectation.class_name));",
@@ -343,7 +343,7 @@
       },
       {
         "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
-        "line": 2560,
+        "line": 2588,
         "function": "rule_declaration_counts_for_class_v0",
         "operation": "str-eq",
         "evidence": "&& selector.name == class_name",
@@ -604,7 +604,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/transform.rs",
-        "line": 1213,
+        "line": 1215,
         "function": "closed_world_bound_reachability_precision",
         "operation": "contains",
         "evidence": ".any(|name| !closed_world_class_names.contains(name.as_str()))",
@@ -756,7 +756,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:8837c4d32ad06ccfb7df9ae0387908eb4d5d66fb066ec46695d2599a9b57d050"
+    "siteDigest": "sha256:809d8518b6a3cdb9059cf2f0a1d9dc415dda4acb89c2bb38d6169a037eb1289c"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
