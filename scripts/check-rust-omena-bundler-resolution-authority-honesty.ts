@@ -15,16 +15,18 @@ const instanceAttributionLimit =
 const censusFalsifierToken = "ResolutionAuthorityCensusDrift";
 const actualBundlerSource = readFileSync(bundlerSourcePath, "utf8");
 const bundlerSource = injectClosureClaim
-  ? actualBundlerSource.replace(
+  ? actualBundlerSource.replaceAll(
       legacyEntryPointLimit,
       "All LinkedStylesheetV0 entry points expose dependency resolution provenance.",
     )
   : actualBundlerSource;
+const legacyEntryPointDisclosureCount = bundlerSource.split(legacyEntryPointLimit).length - 1;
 
 // FALSIFIER: id=resolution-authority-legacy-api-honesty class=accounting via=--inject-resolution-closure-claim producer=can-fail owner=resolution-authority-honesty entry=legacy-api-asymmetry-disclosed
-assert.ok(
-  bundlerSource.includes(legacyEntryPointLimit),
-  "legacy entry-point provenance asymmetry is not disclosed",
+assert.equal(
+  legacyEntryPointDisclosureCount,
+  8,
+  "all eight legacy entry points must disclose their provenance asymmetry",
 );
 // FALSIFIER: id=resolution-authority-instance-hole-honesty class=accounting via=--inject-resolution-closure-claim producer=can-fail owner=resolution-authority-honesty entry=instance-attribution-hole-disclosed
 assert.ok(
@@ -71,7 +73,10 @@ console.log(
     expectedEdges,
     disclosedEdges,
     legacyEdges,
-    legacyEntryPointProvenanceVisible: false,
-    instanceAttributedProduced: false,
+    disclosures: {
+      legacyEntryPointCount: legacyEntryPointDisclosureCount,
+      legacyEntryPointProvenanceVisible: false,
+      instanceAttributedProduced: false,
+    },
   }),
 );

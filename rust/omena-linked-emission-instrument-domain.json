@@ -1,12 +1,13 @@
 {
   "schemaVersion": "0",
   "product": "omena.linked-emission-instrument-domain",
-  "minimumFileCount": 10,
+  "minimumFileCount": 11,
   "files": [
     "rust/crates/omena-diff-test/src/linked_emission.rs",
     "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
     "rust/crates/omena-bundler/tests/linked_stylesheet_byte_identity.rs",
     "scripts/check-rust-omena-bundler-resolution-authority-honesty.ts",
+    "rust/crates/omena-bundler/src/carrier_hygiene_assertions.rs",
     "rust/crates/omena-query/src/style/transform/carrier_hygiene_assertions.rs",
     "rust/crates/omena-cli/tests/linked_emission_order.rs",
     "scripts/check-rust-omena-query-linked-source-map-fallback.ts",

@@ -6,6 +6,8 @@
 //!
 //! The public types intentionally keep their `V0` suffix during the 0.x line.
 
+#[cfg(test)]
+mod carrier_hygiene_assertions;
 mod emission_items;
 mod emission_order;
 
@@ -877,6 +879,7 @@ pub fn link_omena_transform_bundle_modules<P: AsRef<str>>(
     link_omena_transform_bundle_modules_with_semantic_reachability(entrypoint_paths, modules, &[])
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 #[allow(deprecated)]
 pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<str>>(
     entrypoint_paths: &[P],
@@ -891,6 +894,7 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<s
     )
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 #[allow(deprecated)]
 pub fn link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata<
     P: AsRef<str>,
@@ -909,6 +913,7 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability_and_metada
     )
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 #[allow(deprecated)]
 pub fn link_omena_transform_bundle_modules_with_options<P: AsRef<str>>(
     entrypoint_paths: &[P],
@@ -1056,6 +1061,7 @@ pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modu
     }
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_omena_transform_bundle_projection_with_resolved_dependencies_and_options<
     P: AsRef<str>,
 >(
@@ -1455,6 +1461,7 @@ fn materialize_linked_stylesheet_in_module_order(
     })
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_stylesheet_from_projection(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
@@ -1466,6 +1473,7 @@ pub fn link_stylesheet_from_projection(
     )
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_stylesheet_from_projection_with_options(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
@@ -1479,6 +1487,7 @@ pub fn link_stylesheet_from_projection_with_options(
     )
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_stylesheet_from_projection_with_resolved_dependencies_and_options(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
@@ -1941,8 +1950,8 @@ fn apply_semantic_reachability_to_linker_inputs(
     BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
     BTreeMap<ModuleInstanceKeyV0, InstanceReachabilityDerivationV0>,
 ) {
-    let reachability_inputs =
-        semantic_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
+    let (reachability_inputs, incomplete_composes_target_instances) =
+        instance_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
     let module_index_by_instance = inputs
         .iter()
         .enumerate()
@@ -1967,14 +1976,9 @@ fn apply_semantic_reachability_to_linker_inputs(
             continue;
         };
         derivation_by_instance.insert(input.module_instance.clone(), input.derivation);
-        if inputs[index]
-            .dependency_edges
-            .iter()
-            .filter(|edge| edge.kind == TransformBundleEdgeKind::CssModuleComposesExternal)
-            .any(|edge| edge.local_names.is_empty() || edge.remote_names.is_empty())
-        {
-            // A composed-name carrier with a missing side cannot justify destructive filtering.
-            // Leaving the typed evidence as ModuleReachabilityInputAbsent makes admission fail-soft.
+        if incomplete_composes_target_instances.contains(&input.module_instance) {
+            // A composed-name carrier with a missing side cannot justify filtering its closure
+            // target. Typed absence is attached to the module whose declarations could be lost.
             continue;
         }
         evidence_by_instance.insert(
@@ -2006,13 +2010,17 @@ fn apply_semantic_reachability_to_linker_inputs(
     (evidence_by_instance, derivation_by_instance)
 }
 
-fn semantic_reachability_inputs_closed_over_composes(
+fn instance_reachability_inputs_closed_over_composes(
     inputs: &[LinkerInputV0],
     reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
-) -> BTreeMap<ModuleInstanceKeyV0, TransformBundleInstanceReachabilityInputV0> {
+) -> (
+    BTreeMap<ModuleInstanceKeyV0, TransformBundleInstanceReachabilityInputV0>,
+    BTreeSet<ModuleInstanceKeyV0>,
+) {
     let instances_by_path = module_instances_by_linker_path(inputs);
     let mut by_instance =
         BTreeMap::<ModuleInstanceKeyV0, TransformBundleInstanceReachabilityInputV0>::new();
+    let mut incomplete_composes_target_instances = BTreeSet::new();
     for input in reachability_inputs
         .iter()
         .filter(|input| input.has_reachable_symbols())
@@ -2064,6 +2072,10 @@ fn semantic_reachability_inputs_closed_over_composes(
                 let Some(target_instances) = instances_by_path.get(&target_path) else {
                     continue;
                 };
+                if edge.local_names.is_empty() || edge.remote_names.is_empty() {
+                    incomplete_composes_target_instances.extend(target_instances.iter().cloned());
+                    continue;
+                }
                 for local_name in &edge.local_names {
                     if !source_reachability
                         .class_names
@@ -2103,7 +2115,7 @@ fn semantic_reachability_inputs_closed_over_composes(
             break;
         }
     }
-    by_instance
+    (by_instance, incomplete_composes_target_instances)
 }
 
 fn module_metadata_with_reachability_evidence(
@@ -2908,7 +2920,7 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 #[cfg(test)]
 #[allow(deprecated)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use super::{
         InstanceReachabilityDerivationV0, LinkedStylesheetRuleV0, LinkerDependencyEdgeV0,
@@ -2920,8 +2932,9 @@ mod tests {
         TransformBundleResolvedDependencyV0, TransformBundleSemanticReachabilityInputV0,
         TransformBundleTransformedModuleV0, apply_semantic_reachability_to_linker_inputs,
         bundle_edge_is_module_dependency, bundle_edge_module_dependency_reason,
-        collect_transform_ir_bundle_asset_urls, compare_omena_transform_bundle_emission_policies,
-        link_omena_transform_bundle_modules, link_omena_transform_bundle_modules_with_options,
+        carrier_hygiene_assertions, collect_transform_ir_bundle_asset_urls,
+        compare_omena_transform_bundle_emission_policies, link_omena_transform_bundle_modules,
+        link_omena_transform_bundle_modules_with_options,
         link_omena_transform_bundle_modules_with_semantic_reachability,
         link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
         link_stylesheet_from_projection, materialize_omena_transform_bundle_linked_stylesheet,
@@ -4152,19 +4165,12 @@ mod tests {
             &[red_reachability, blue_reachability],
         );
 
-        // Dropping the instance-key lookup makes the two configured consumers share a live set.
-        assert_eq!(inputs[0].class_names, ["alpha"]);
-        // The producer can emit this distinct configuration and its disjoint reachable symbol.
-        assert_eq!(inputs[1].class_names, ["beta"]);
-        // Omitting the red row leaves its typed admission evidence absent.
-        assert_eq!(
-            evidence.get(&red),
-            Some(&ClosedWorldModuleReachabilityEvidenceV0::Supplied)
-        );
-        // Omitting the blue row leaves its typed admission evidence absent.
-        assert_eq!(
-            evidence.get(&blue),
-            Some(&ClosedWorldModuleReachabilityEvidenceV0::Supplied)
+        carrier_hygiene_assertions::assert_configured_instance_reachability(
+            inputs[0].class_names.as_slice(),
+            inputs[1].class_names.as_slice(),
+            &evidence,
+            &red,
+            &blue,
         );
     }
 
@@ -4194,8 +4200,9 @@ mod tests {
 
         apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), &[alpha, beta]);
 
-        // Replacing the row merge with assignment drops one producer-emitted live symbol.
-        assert_eq!(inputs[0].class_names, ["alpha", "beta"]);
+        carrier_hygiene_assertions::assert_duplicate_instance_reachability(
+            inputs[0].class_names.as_slice(),
+        );
     }
 
     #[test]
@@ -4227,50 +4234,77 @@ mod tests {
         let projection = project_omena_transform_bundle_linker_inputs(&modules, &[first, second]);
         let input = &projection.inputs()[0];
 
-        // Replacing normalized-row union with assignment loses a public caller's live class.
-        assert_eq!(input.class_names, ["alpha", "beta"]);
-        // The same regression can independently discard a reachable animation declaration.
-        assert_eq!(input.keyframe_names, ["enter", "leave"]);
-        // Value reachability uses the same carrier and must retain both producer rows.
-        assert_eq!(input.value_names, ["primary", "secondary"]);
-        // Custom-property reachability must not be clobbered by normalized path aliases.
-        assert_eq!(input.custom_property_names, ["--primary", "--secondary"]);
+        carrier_hygiene_assertions::assert_legacy_path_union(input);
+    }
+
+    fn incomplete_composes_carrier_fixture() -> (
+        Vec<LinkerInputV0>,
+        BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
+        ModuleInstanceKeyV0,
+        ModuleInstanceKeyV0,
+    ) {
+        let source = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.module.css"));
+        let target = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("base.module.css"));
+        let mut inputs = vec![
+            LinkerInputV0 {
+                source_path: "entry.module.css".to_string(),
+                instance: source.clone(),
+                dependency_edges: vec![LinkerDependencyEdgeV0 {
+                    kind: TransformBundleEdgeKind::CssModuleComposesExternal,
+                    import_source: "./base.module.css".to_string(),
+                    import_ordinal: Some(0),
+                    local_names: Vec::new(),
+                    remote_names: vec!["base".to_string()],
+                }],
+                class_names: vec!["card".to_string(), "other".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: Vec::new(),
+            },
+            LinkerInputV0 {
+                source_path: "base.module.css".to_string(),
+                instance: target.clone(),
+                dependency_edges: Vec::new(),
+                class_names: vec!["base".to_string(), "other".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: Vec::new(),
+            },
+        ];
+        let mut source_reachability = TransformBundleInstanceReachabilityInputV0::new(
+            source.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        source_reachability.class_names.push("card".to_string());
+        let mut target_reachability = TransformBundleInstanceReachabilityInputV0::new(
+            target.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        target_reachability.class_names.push("base".to_string());
+
+        let (evidence, _) = apply_semantic_reachability_to_linker_inputs(
+            inputs.as_mut_slice(),
+            &[source_reachability, target_reachability],
+        );
+        (inputs, evidence, source, target)
     }
 
     #[test]
-    fn incomplete_composes_carrier_keeps_typed_absence_and_fail_open_symbols() {
-        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.module.css"));
-        let mut inputs = vec![LinkerInputV0 {
-            source_path: "entry.module.css".to_string(),
-            instance: instance.clone(),
-            dependency_edges: vec![LinkerDependencyEdgeV0 {
-                kind: TransformBundleEdgeKind::CssModuleComposesExternal,
-                import_source: "./base.module.css".to_string(),
-                import_ordinal: Some(0),
-                local_names: Vec::new(),
-                remote_names: vec!["base".to_string()],
-            }],
-            class_names: vec!["card".to_string(), "other".to_string()],
-            keyframe_names: Vec::new(),
-            value_names: Vec::new(),
-            custom_property_names: Vec::new(),
-            ordered_rules: Vec::new(),
-        }];
-        let mut reachability = TransformBundleInstanceReachabilityInputV0::new(
-            instance.clone(),
-            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+    fn incomplete_composes_carrier_marks_closure_target_evidence_absent() {
+        let (_, evidence, source, target) = incomplete_composes_carrier_fixture();
+        carrier_hygiene_assertions::assert_incomplete_composes_target_evidence(
+            &evidence, &source, &target,
         );
-        reachability.class_names.push("card".to_string());
+    }
 
-        let (evidence, _) =
-            apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), &[reachability]);
-
-        // Treating the incomplete carrier as supplied narrows this fail-open declaration set.
-        assert_eq!(inputs[0].class_names, ["card", "other"]);
-        // The linker producer can lose either composed-name side before admission observes it.
-        assert_eq!(
-            evidence.get(&instance),
-            Some(&ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent)
+    #[test]
+    fn incomplete_composes_carrier_keeps_closure_target_symbols_fail_open() {
+        let (inputs, _, _, _) = incomplete_composes_carrier_fixture();
+        carrier_hygiene_assertions::assert_incomplete_composes_target_symbols(
+            inputs[0].class_names.as_slice(),
+            inputs[1].class_names.as_slice(),
         );
     }
 
@@ -4560,16 +4594,6 @@ mod tests {
             &[],
             super::EmissionOrderingPolicyV0::ImportOrderPreserving,
         );
-        // Removing one record from a partially supplied edge set must name that exact edge.
-        assert_eq!(
-            strict_error,
-            Err(TransformBundleLinkErrorV0::UnresolvedDependencyEdge {
-                source_path: "src/app.css".to_string(),
-                import_source: "./theme".to_string(),
-                import_ordinal: Some(1),
-            })
-        );
-
         let legacy = super::link_legacy_path_inferred_bundle(
             &["src/app.css"],
             projections.linker_projection(),
@@ -4586,12 +4610,6 @@ mod tests {
                 disclosure.authority == super::BundleResolutionAuthorityV0::LegacyPathInferred
             })
             .collect::<Vec<_>>();
-        // Falling back at one edge must not relabel the supplied sibling edge.
-        assert_eq!(inferred.len(), 1);
-        // The consumer-end disclosure identifies the unmatched edge, not merely the call mode.
-        assert_eq!(inferred[0].import_source, "./theme");
-        assert_eq!(inferred[0].import_ordinal, Some(1));
-
         let strict = super::link_resolved_bundle(
             &["src/app.css"],
             projections.linker_projection(),
@@ -4601,15 +4619,10 @@ mod tests {
             super::EmissionOrderingPolicyV0::ImportOrderPreserving,
         )
         .map_err(|error| format!("complete resolved edge set should link: {error:?}"))?;
-        // A complete strict link discloses resolved authority for every dependency edge.
-        assert_eq!(strict.dependency_resolution_disclosures.len(), 2);
-        assert!(
-            strict
-                .dependency_resolution_disclosures
-                .iter()
-                .all(|disclosure| {
-                    disclosure.authority == super::BundleResolutionAuthorityV0::Resolved
-                })
+        carrier_hygiene_assertions::assert_resolution_authority(
+            &strict_error,
+            inferred.as_slice(),
+            strict.dependency_resolution_disclosures.as_slice(),
         );
         Ok(())
     }

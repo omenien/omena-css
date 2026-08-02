@@ -15,10 +15,12 @@ use omena_bundler::{
     link_resolved_bundle, project_omena_transform_bundle_linker_and_emission_items,
 };
 use omena_parser::StyleDialect;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 const LINKED_STYLESHEET_BYTE_IDENTITY_SNAPSHOT: &str =
     include_str!("snapshots/linked-stylesheet-byte-identity.json");
+const LINKED_STYLESHEET_EMISSION_ITEM_EXISTING_FIELDS_SNAPSHOT: &str =
+    include_str!("snapshots/linked-stylesheet-emission-item-existing-fields.json");
 
 #[test]
 fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
@@ -142,7 +144,8 @@ fn emission_item_provenance_is_additive_to_the_existing_json_shape() -> Result<(
         &[],
         EmissionOrderingPolicyV0::ImportOrderPreserving,
     )?;
-    assert_emission_item_json_preserves_existing_keys(&linked)
+    assert_emission_item_json_preserves_existing_keys(&linked)?;
+    assert_emission_item_existing_fields_match_committed_baseline(&linked)
 }
 
 #[test]
@@ -407,49 +410,67 @@ fn assert_emission_item_json_preserves_existing_keys(
     let actual = actual_value
         .as_object()
         .ok_or_else(|| "emission-item artifact is not a JSON object".to_string())?;
-    let expected_existing = BTreeMap::from([
-        (
-            "linkedStylesheet",
-            serde_json::to_value(&linked.linked_stylesheet)
-                .map_err(|error| format!("{error:?}"))?,
-        ),
-        (
-            "emissionItemPlan",
-            serde_json::to_value(&linked.emission_item_plan)
-                .map_err(|error| format!("{error:?}"))?,
-        ),
-        (
-            "emissionItemOrder",
-            serde_json::to_value(&linked.emission_item_order)
-                .map_err(|error| format!("{error:?}"))?,
-        ),
-        (
-            "projectionDisclosures",
-            serde_json::to_value(&linked.projection_disclosures)
-                .map_err(|error| format!("{error:?}"))?,
-        ),
-    ]);
     let actual_keys = actual.keys().map(String::as_str).collect::<BTreeSet<_>>();
-    let expected_keys = expected_existing.keys().copied().collect::<BTreeSet<_>>();
+    let expected_keys = BTreeSet::from([
+        "linkedStylesheet",
+        "emissionItemPlan",
+        "emissionItemOrder",
+        "projectionDisclosures",
+    ]);
 
-    // F16-b owns only additive JSON shape: an always-empty new disclosure array still passes this
-    // arm, so the independent F16-c population assertions below are mandatory.
+    // The shape arm remains additive; cardinality is owned by the committed baseline below.
     // FALSIFIER: id=linked-stylesheet-emission-item-key-superset class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=existing-json-keys-remain
     assert!(expected_keys.is_subset(&actual_keys));
-    for (key, expected_value) in expected_existing {
-        // FALSIFIER: id=linked-stylesheet-emission-item-existing-values class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=existing-json-values-retain-type-and-value
-        assert_eq!(
-            actual.get(key),
-            Some(&expected_value),
-            "existing emission-item JSON member changed: {key}"
-        );
-    }
     // FALSIFIER: id=linked-stylesheet-disclosure-array-shape class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=new-provenance-member-is-additive-array
     assert!(
         actual
             .get("dependencyResolutionDisclosures")
             .is_some_and(Value::is_array)
     );
+    Ok(())
+}
+
+fn assert_emission_item_existing_fields_match_committed_baseline(
+    linked: &LinkedStylesheetWithEmissionItemsV0,
+) -> Result<(), String> {
+    let actual = serde_json::to_value(linked).map_err(|error| format!("{error:?}"))?;
+    let actual_summary = json!({
+        "schemaVersion": "0",
+        "product": "omena-bundler.linked-stylesheet.emission-item-existing-fields",
+        "linkedStylesheet": {
+            "entrypointCount": actual["linkedStylesheet"]["entrypoints"]
+                .as_array()
+                .map_or(0, Vec::len),
+            "moduleInstanceCount": actual["linkedStylesheet"]["moduleInstances"]
+                .as_array()
+                .map_or(0, Vec::len),
+            "globalRuleCount": actual["linkedStylesheet"]["globalRuleOrder"]["rules"]
+                .as_array()
+                .map_or(0, Vec::len),
+        },
+        "emissionItemPlan": {
+            "policy": actual["emissionItemPlan"]["policy"].clone(),
+            "entryCount": actual["emissionItemPlan"]["entries"]
+                .as_array()
+                .map_or(0, Vec::len),
+        },
+        "emissionItemOrder": {
+            "itemCount": actual["emissionItemOrder"]["items"]
+                .as_array()
+                .map_or(0, Vec::len),
+        },
+        "projectionDisclosures": {
+            "itemCount": actual["projectionDisclosures"]
+                .as_array()
+                .map_or(0, Vec::len),
+        },
+    });
+    let expected =
+        serde_json::from_str::<Value>(LINKED_STYLESHEET_EMISSION_ITEM_EXISTING_FIELDS_SNAPSHOT)
+            .map_err(|error| format!("{error:?}"))?;
+    // F16-b uses a committed expected side; truncating the prior eighteen-row public array is RED.
+    // FALSIFIER: id=linked-stylesheet-emission-item-existing-values class=accounting via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=existing-json-cardinality-matches-committed-baseline
+    assert_eq!(actual_summary, expected);
     Ok(())
 }
 

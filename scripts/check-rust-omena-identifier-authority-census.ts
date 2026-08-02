@@ -188,7 +188,7 @@ const egressExemptions: readonly ExemptionRule[] = [
 const idiomExemptions: readonly ExemptionRule[] = [
   {
     path: "rust/crates/omena-bundler/src/lib.rs",
-    function: "semantic_reachability_inputs_closed_over_composes",
+    function: "instance_reachability_inputs_closed_over_composes",
     operation: "str-eq",
     evidence: "changed |= target.class_names.len() != before;",
     reason: "This compares set cardinalities to detect fixed-point convergence, not identifiers.",

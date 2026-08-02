@@ -291,7 +291,7 @@
             {
               "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
               "needles": [
-                "semantic_reachability_inputs_closed_over_composes(",
+                "instance_reachability_inputs_closed_over_composes(",
                 "fn composes_closure_expands_module_qualified_semantic_reachability()"
               ]
             }
