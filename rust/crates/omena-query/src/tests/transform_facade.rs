@@ -919,6 +919,95 @@ fn bundle_emission_path_selects_linked_order_without_changing_the_default() -> R
 }
 
 #[test]
+fn strict_css_module_token_integrity_uses_real_bytes_and_path_specific_preimages()
+-> Result<(), String> {
+    let pass_ids = Vec::<String>::new();
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let run = |sources: &[OmenaQueryStyleSourceInputV0],
+               emission_path: OmenaQueryBundleEmissionPathV0| {
+        run_omena_query_bundle_with_semantic_inputs_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: "src/app.module.css",
+                style_sources: sources,
+                source_map_sources: sources,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            &OmenaQueryConsumerBuildOptionsV0 {
+                verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Strict,
+                bundle_emission_path: emission_path,
+            },
+        )
+    };
+
+    let clean = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "src/app.module.css".to_string(),
+        style_source: ".card { color: green; }".to_string(),
+    }];
+    for emission_path in [
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+        OmenaQueryBundleEmissionPathV0::LinkedOrder,
+    ] {
+        run(&clean, emission_path)?;
+    }
+
+    let same_ordinal = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.module.css".to_string(),
+            style_source: "@import './dependency.module.css'; .shared { color: green; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/dependency.module.css".to_string(),
+            style_source: ".shared { color: blue; }".to_string(),
+        },
+    ];
+    for emission_path in [
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+        OmenaQueryBundleEmissionPathV0::LinkedOrder,
+    ] {
+        let error = run(&same_ordinal, emission_path)
+            .expect_err("same-name, same-ordinal modules must fail closed");
+        assert!(error.contains("pathScope=bothPaths"), "{error}");
+        assert!(error.contains("src/app.module.css"), "{error}");
+        assert!(error.contains("src/dependency.module.css"), "{error}");
+        assert!(error.contains("shared"), "{error}");
+        assert!(error.contains("_shared_0"), "{error}");
+    }
+
+    let different_ordinals = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.module.css".to_string(),
+            style_source: "@import './dependency.module.css'; .lead {} .shared { color: green; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/dependency.module.css".to_string(),
+            style_source: ".shared { color: blue; }".to_string(),
+        },
+    ];
+    let legacy_error = run(
+        &different_ordinals,
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+    )
+    .expect_err("the default name-only predicate must detect the wider collision");
+    assert!(
+        legacy_error.contains("pathScope=importInlineLegacyOnly"),
+        "{legacy_error}"
+    );
+    run(
+        &different_ordinals,
+        OmenaQueryBundleEmissionPathV0::LinkedOrder,
+    )?;
+    Ok(())
+}
+
+#[test]
 fn bundle_paths_consume_package_export_resolution() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {

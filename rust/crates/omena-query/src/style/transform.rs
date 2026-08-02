@@ -30,7 +30,8 @@ use omena_query_transform_runner::{
     project_omena_transform_bundle_linker_inputs_from_parsed_modules,
 };
 use omena_query_transform_runner::{
-    transform_pass_requires_closed_world_bundle, transform_pass_sort_ordinal,
+    TransformClassNameRewriteV0, transform_pass_requires_closed_world_bundle,
+    transform_pass_sort_ordinal,
 };
 use std::path::{Path, PathBuf};
 
@@ -43,6 +44,7 @@ use super::parser_facade::{
 mod carrier_hygiene_assertions;
 mod context;
 mod css_modules;
+mod token_integrity;
 pub(super) use css_modules::derive_class_name_rewrites_for_transform_context;
 mod design_tokens;
 mod imports;
@@ -478,12 +480,14 @@ fn run_omena_query_bundle_with_optional_module_reachability(
         merge_transform_context(supplied_context.clone(), reachability.context())
     });
     let base_context = attributed_context.as_ref().unwrap_or(supplied_context);
-    let context = merge_workspace_transform_context(
+    let workspace_context = merge_workspace_transform_context_with_fact_entries(
         target_style_path,
         style_sources,
         base_context,
         TransformResolutionContext::from_resolution_inputs(resolution_inputs),
     );
+    let context = workspace_context.context;
+    let style_fact_entries = workspace_context.style_fact_entries;
     let reachability_context = if module_reachability.is_some() {
         supplied_context
     } else {
@@ -622,6 +626,23 @@ fn run_omena_query_bundle_with_optional_module_reachability(
             resolution_inputs,
         )
     };
+
+    if options.verification_profile == OmenaQueryBuildVerificationProfileV0::Strict {
+        let linked = linked_result.as_ref().map_err(|error| {
+            format!(
+                "CSS Modules emitted-token integrity could not attribute the emission plan: {error:?}"
+            )
+        })?;
+        token_integrity::validate_css_module_token_integrity(
+            target_style_path,
+            style_fact_entries.as_slice(),
+            linked,
+            &context,
+            linked_module_executions.as_deref(),
+            emission_path,
+            execution.output_css.as_str(),
+        )?;
+    }
 
     let artifact = OmenaQueryBundleArtifactV0 {
         schema_version: "0",
@@ -2860,6 +2881,33 @@ fn merge_workspace_transform_context(
     merge_transform_context(derived, context)
 }
 
+struct MergedWorkspaceTransformContextV0 {
+    context: TransformExecutionContextV0,
+    style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
+}
+
+fn merge_workspace_transform_context_with_fact_entries(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    context: &TransformExecutionContextV0,
+    resolution_context: TransformResolutionContext<'_>,
+) -> MergedWorkspaceTransformContextV0 {
+    let style_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let derived =
+        context::derive_omena_query_transform_context_from_sources_with_resolution_context(
+            target_style_path,
+            style_refs,
+            resolution_context,
+        );
+    MergedWorkspaceTransformContextV0 {
+        context: merge_transform_context(derived.summary.context, context),
+        style_fact_entries: derived.style_fact_entries,
+    }
+}
+
 pub fn list_omena_query_transform_pass_summaries() -> Vec<OmenaQueryTransformPassSummaryV0> {
     all_transform_pass_kinds()
         .into_iter()
@@ -3839,6 +3887,7 @@ fn execute_linked_bundle_modules(
     for module_input in module_inputs {
         let module_instance = module_input.module_instance;
         let style_path = module_instance.module().as_str();
+        let class_name_rewrites = module_input.context.class_name_rewrites.clone();
         let retained_class_names = retained_class_names_by_module
             .get(module_instance)
             .map(Vec::as_slice)
@@ -3876,6 +3925,7 @@ fn execute_linked_bundle_modules(
         module_executions.push(LinkedModuleExecutionV0 {
             module_instance: module_instance.clone(),
             execution,
+            class_name_rewrites,
         });
     }
 
@@ -3920,6 +3970,7 @@ fn project_linked_bundle_execution(
 struct LinkedModuleExecutionV0 {
     module_instance: omena_parser::ModuleInstanceKeyV0,
     execution: TransformExecutionSummaryV0,
+    class_name_rewrites: Vec<TransformClassNameRewriteV0>,
 }
 
 struct LinkedModuleExecutionInputV0<'a> {
@@ -5377,6 +5428,7 @@ mod linked_source_map_tests {
                 Ok(LinkedModuleExecutionV0 {
                     module_instance: module_instance.clone(),
                     execution: summary.execution,
+                    class_name_rewrites: Vec::new(),
                 })
             })
             .collect::<Result<Vec<_>, String>>()?;
@@ -5569,6 +5621,7 @@ mod linked_source_map_tests {
         let module_executions = vec![LinkedModuleExecutionV0 {
             module_instance,
             execution,
+            class_name_rewrites: Vec::new(),
         }];
         let (segments, dispositions) = linked_bundle_source_map_segments(
             &style_sources,
@@ -5742,6 +5795,7 @@ mod linked_source_map_tests {
         let module_executions = vec![LinkedModuleExecutionV0 {
             module_instance,
             execution,
+            class_name_rewrites: Vec::new(),
         }];
         let (segments, dispositions) = linked_bundle_source_map_segments(
             &style_sources,

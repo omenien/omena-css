@@ -296,6 +296,7 @@
     "check:rust-omena-query-linked-source-map-boundary": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-boundary.ts && node --import tsx ./scripts/check-rust-omena-query-linked-source-map-fallback.ts",
     "check:rust-omena-query-bundle-execution-scope": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts",
     "check:rust-omena-query-module-qualified-product-path": "node --import tsx ./scripts/check-rust-omena-module-qualified-product-path.ts",
+    "check:rust-omena-query-css-module-token-integrity": "node --import tsx ./scripts/check-rust-omena-query-css-module-token-integrity.ts",
     "check:rust-omena-query-module-reachability-hoist": "node --import tsx ./scripts/check-rust-omena-query-module-reachability-hoist.ts",
     "update:rust-omena-module-qualified-product-path-census": "node --import tsx ./scripts/check-rust-omena-module-qualified-product-path.ts --write",
     "check:rust-omena-bundler-emission-item-contract": "node --import tsx ./scripts/check-rust-omena-bundler-emission-item-contract.ts",

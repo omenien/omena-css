@@ -231,6 +231,24 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
     styles: impl IntoIterator<Item = (&'a str, &'a str)>,
     resolution_context: TransformResolutionContext<'_>,
 ) -> OmenaQueryTransformContextFromSourcesSummaryV0 {
+    derive_omena_query_transform_context_from_sources_with_resolution_context(
+        target_style_path,
+        styles,
+        resolution_context,
+    )
+    .summary
+}
+
+pub(super) struct OmenaQueryTransformContextFromSourcesDerivationV0 {
+    pub(super) summary: OmenaQueryTransformContextFromSourcesSummaryV0,
+    pub(super) style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
+}
+
+pub(super) fn derive_omena_query_transform_context_from_sources_with_resolution_context<'a>(
+    target_style_path: &str,
+    styles: impl IntoIterator<Item = (&'a str, &'a str)>,
+    resolution_context: TransformResolutionContext<'_>,
+) -> OmenaQueryTransformContextFromSourcesDerivationV0 {
     let style_sources = styles.into_iter().collect::<Vec<_>>();
     let style_count = style_sources.len();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_sources.as_slice());
@@ -314,7 +332,7 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
         );
     }
 
-    OmenaQueryTransformContextFromSourcesSummaryV0 {
+    let summary = OmenaQueryTransformContextFromSourcesSummaryV0 {
         schema_version: "0",
         product: "omena-query.transform-context",
         target_style_path: target_style_path.to_string(),
@@ -338,6 +356,10 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
             "designTokenRouteProducer",
             "transitiveImportInlineProducer",
         ],
+    };
+    OmenaQueryTransformContextFromSourcesDerivationV0 {
+        summary,
+        style_fact_entries,
     }
 }
 
