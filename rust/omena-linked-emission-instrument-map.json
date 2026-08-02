@@ -6,6 +6,7 @@
     "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
     "rust/crates/omena-bundler/tests/linked_stylesheet_byte_identity.rs",
     "scripts/check-rust-omena-bundler-resolution-authority-honesty.ts",
+    "rust/crates/omena-query/src/style/transform/carrier_hygiene_assertions.rs",
     "rust/crates/omena-cli/tests/linked_emission_order.rs",
     "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
     "scripts/check-rust-omena-module-qualified-product-path.ts",
@@ -13,11 +14,11 @@
     "scripts/check-rust-omena-closed-world-admission-tier.ts"
   ],
   "domainWideningCondition": "A new assertion participates in linked-emission correctness, liveness attribution, placement, collision accounting, or its product-path reachability.",
-  "assertionSiteCount": 222,
+  "assertionSiteCount": 227,
   "excludedAssertionCount": 86,
   "structuralEntailmentCount": 4,
   "limitations": [
-    "Firing is observed only as the first-failure site of each executable perturbation (currently 15 of 218 non-structural sites); the remaining rows are disclosures whose producerReachability: can-fail is not verified by this mechanism.",
+    "Firing is observed only as the first-failure site of each executable perturbation (currently 15 of 223 non-structural sites); the remaining rows are disclosures whose producerReachability: can-fail is not verified by this mechanism.",
     "Unannotated assertion forms are accepted only through exact, owner-bound per-file counts.",
     "The mechanism cannot prove that a selected defect class is semantically correct."
   ],
@@ -2313,6 +2314,66 @@
       "entryState": "query-producer-fully-supplies-resolved-edges",
       "owner": "resolution-authority-honesty",
       "reentry": "first-product-producer-under-supplies-a-resolved-edge"
+    },
+    {
+      "id": "query-instance-reachability-fan-out-count",
+      "file": "rust/crates/omena-query/src/style/transform/carrier_hygiene_assertions.rs",
+      "symbol": "assert_instance_reachability_fan_out",
+      "lineHint": 11,
+      "syntax": "assert_eq!",
+      "defectClass": "accounting",
+      "falsifiers": ["configured_sass_edges_select_distinct_instances_without_reparsing"],
+      "producerReachability": "can-fail",
+      "entryState": "one-row-per-finalized-configuration",
+      "owner": "query-carrier-contract"
+    },
+    {
+      "id": "query-instance-reachability-derivation",
+      "file": "rust/crates/omena-query/src/style/transform/carrier_hygiene_assertions.rs",
+      "symbol": "assert_instance_reachability_fan_out",
+      "lineHint": 13,
+      "syntax": "assert!",
+      "defectClass": "accounting",
+      "falsifiers": ["configured_sass_edges_select_distinct_instances_without_reparsing"],
+      "producerReachability": "can-fail",
+      "entryState": "path-union-derivation-visible",
+      "owner": "query-carrier-contract"
+    },
+    {
+      "id": "query-resolution-authority-edge-census",
+      "file": "rust/crates/omena-query/src/style/transform/carrier_hygiene_assertions.rs",
+      "symbol": "assert_resolution_authority_census",
+      "lineHint": 24,
+      "syntax": "assert_eq!",
+      "defectClass": "accounting",
+      "falsifiers": ["configured_sass_edges_select_distinct_instances_without_reparsing"],
+      "producerReachability": "can-fail",
+      "entryState": "one-disclosure-per-product-edge",
+      "owner": "query-carrier-contract"
+    },
+    {
+      "id": "query-resolution-authority-legacy-census",
+      "file": "rust/crates/omena-query/src/style/transform/carrier_hygiene_assertions.rs",
+      "symbol": "assert_resolution_authority_census",
+      "lineHint": 26,
+      "syntax": "assert_eq!",
+      "defectClass": "accounting",
+      "falsifiers": ["configured_sass_edges_select_distinct_instances_without_reparsing"],
+      "producerReachability": "can-fail",
+      "entryState": "product-producer-fully-resolved",
+      "owner": "query-carrier-contract"
+    },
+    {
+      "id": "query-linked-source-map-pretty-measurement",
+      "file": "rust/crates/omena-query/src/style/transform/carrier_hygiene_assertions.rs",
+      "symbol": "assert_pretty_render_measurement",
+      "lineHint": 36,
+      "syntax": "assert_eq!",
+      "defectClass": "placement",
+      "falsifiers": ["linked_bundle_source_map_uses_materialized_module_offsets"],
+      "producerReachability": "can-fail",
+      "entryState": "pretty-width-measurement-pinned",
+      "owner": "query-carrier-contract"
     },
     {
       "id": "linked-emission-cli-001",

@@ -38,6 +38,8 @@ use super::parser_facade::{
     parse_omena_query_omena_parser_style_source,
 };
 
+#[cfg(test)]
+mod carrier_hygiene_assertions;
 mod context;
 mod css_modules;
 pub(super) use css_modules::derive_class_name_rewrites_for_transform_context;
@@ -4993,14 +4995,7 @@ mod linked_source_map_tests {
         );
         // This pins measurement only. It does not choose whether linked source maps should keep
         // identity rendering or move to the pretty-rendered route.
-        assert_eq!(
-            pretty_render_equality,
-            BTreeMap::from([
-                ("src/app.css".to_string(), false),
-                ("src/tokens.css".to_string(), false),
-                ("src/width.css".to_string(), true),
-            ])
-        );
+        carrier_hygiene_assertions::assert_pretty_render_measurement(&pretty_render_equality);
 
         assert!(
             segments.len() > transformed.len(),
@@ -5487,11 +5482,18 @@ mod dependency_resolution_tests {
             prepared.expected_instance_reachability_count,
             prepared.emitted_instance_reachability_count
         );
-        // FALSIFIER: dropping a finalized configuration from the fan-out must change only the
-        // emitted side of this linker-owned count comparison.
-        assert_eq!(
+        let reachability_derivations = theme_inputs
+            .iter()
+            .map(|input| {
+                prepared
+                    .projection
+                    .module_reachability_derivation(&input.instance)
+            })
+            .collect::<Vec<_>>();
+        carrier_hygiene_assertions::assert_instance_reachability_fan_out(
+            prepared.expected_instance_reachability_count,
             prepared.emitted_instance_reachability_count,
-            prepared.expected_instance_reachability_count
+            reachability_derivations.as_slice(),
         );
         assert_eq!(
             theme_inputs
@@ -5503,10 +5505,6 @@ mod dependency_resolution_tests {
         assert!(theme_inputs.iter().all(|input| {
             input.class_names == ["kept".to_string()]
                 && !input.class_names.contains(&"dead".to_string())
-                && prepared
-                    .projection
-                    .module_reachability_derivation(&input.instance)
-                    == Some(InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator)
         }));
 
         let target_by_source = prepared
@@ -5560,11 +5558,11 @@ mod dependency_resolution_tests {
             strict.dependency_resolution_disclosures.len(),
             legacy_resolution_count
         );
-        assert_eq!(
+        carrier_hygiene_assertions::assert_resolution_authority_census(
+            expected_resolution_count,
             strict.dependency_resolution_disclosures.len(),
-            expected_resolution_count
+            legacy_resolution_count,
         );
-        assert_eq!(legacy_resolution_count, 0);
 
         let linked = link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
             &["src/blue.scss", "src/red.scss"],

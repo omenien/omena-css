@@ -248,15 +248,16 @@ function enumerateSites(file: string): {
 
 function knownFalsifierSource(): string {
   return [
-    "rust/crates/omena-diff-test/src/linked_emission.rs",
-    "rust/crates/omena-diff-test/src/bin/omena-linked-emission-byte-differential.rs",
-    "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
-    "scripts/check-rust-omena-bundler-resolution-authority-honesty.ts",
-    "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
-    "scripts/check-rust-omena-closed-world-admission-tier.ts",
-  ]
-    .map((file) => readFileSync(resolve(repositoryRoot, file), "utf8"))
-    .join("\n");
+    ...[
+      "rust/crates/omena-diff-test/src/linked_emission.rs",
+      "rust/crates/omena-diff-test/src/bin/omena-linked-emission-byte-differential.rs",
+      "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+      "scripts/check-rust-omena-bundler-resolution-authority-honesty.ts",
+      "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
+      "scripts/check-rust-omena-closed-world-admission-tier.ts",
+    ].map((file) => readFileSync(resolve(repositoryRoot, file), "utf8")),
+    [...trackedRustTestNames()].join("\n"),
+  ].join("\n");
 }
 
 function buildMap(domain: InstrumentDomainV0): InstrumentMapV0 {
