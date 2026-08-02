@@ -315,6 +315,9 @@ impl TransformBundleParsedModuleInputV0 {
     }
 }
 
+#[deprecated(
+    note = "use TransformBundleInstanceReachabilityInputV0 so the module instance and derivation are explicit"
+)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TransformBundleSemanticReachabilityInputV0 {
     pub source_path: String,
@@ -324,6 +327,49 @@ pub struct TransformBundleSemanticReachabilityInputV0 {
     pub custom_property_names: Vec<String>,
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InstanceReachabilityDerivationV0 {
+    InstanceAttributed,
+    PathUnionNoInstanceDiscriminator,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformBundleInstanceReachabilityInputV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub class_names: Vec<String>,
+    pub keyframe_names: Vec<String>,
+    pub value_names: Vec<String>,
+    pub custom_property_names: Vec<String>,
+    pub derivation: InstanceReachabilityDerivationV0,
+}
+
+impl TransformBundleInstanceReachabilityInputV0 {
+    pub fn new(
+        module_instance: ModuleInstanceKeyV0,
+        derivation: InstanceReachabilityDerivationV0,
+    ) -> Self {
+        Self {
+            module_instance,
+            class_names: Vec::new(),
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+            derivation,
+        }
+    }
+
+    pub fn has_reachable_symbols(&self) -> bool {
+        !self.class_names.is_empty()
+            || !self.keyframe_names.is_empty()
+            || !self.value_names.is_empty()
+            || !self.custom_property_names.is_empty()
+    }
+}
+
+#[allow(deprecated)]
 impl TransformBundleSemanticReachabilityInputV0 {
     pub fn new(source_path: impl Into<String>) -> Self {
         Self {
@@ -769,6 +815,7 @@ pub fn link_omena_transform_bundle_modules<P: AsRef<str>>(
     link_omena_transform_bundle_modules_with_semantic_reachability(entrypoint_paths, modules, &[])
 }
 
+#[allow(deprecated)]
 pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<str>>(
     entrypoint_paths: &[P],
     modules: &[TransformBundleModuleInputV0],
@@ -782,6 +829,7 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<s
     )
 }
 
+#[allow(deprecated)]
 pub fn link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata<
     P: AsRef<str>,
 >(
@@ -799,6 +847,7 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability_and_metada
     )
 }
 
+#[allow(deprecated)]
 pub fn link_omena_transform_bundle_modules_with_options<P: AsRef<str>>(
     entrypoint_paths: &[P],
     modules: &[TransformBundleModuleInputV0],
@@ -816,6 +865,7 @@ pub fn link_omena_transform_bundle_modules_with_options<P: AsRef<str>>(
     )
 }
 
+#[allow(deprecated)]
 pub fn project_omena_transform_bundle_linker_inputs(
     modules: &[TransformBundleModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
@@ -837,6 +887,7 @@ pub fn project_omena_transform_bundle_linker_inputs(
     )
 }
 
+#[allow(deprecated)]
 pub fn project_omena_transform_bundle_linker_and_emission_items(
     modules: &[TransformBundleModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
@@ -860,9 +911,22 @@ pub fn project_omena_transform_bundle_linker_and_emission_items(
     )
 }
 
+#[allow(deprecated)]
 pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules(
     modules: &[TransformBundleParsedModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) -> TransformBundleLinkerProjectionV0 {
+    let instance_reachability_inputs =
+        fan_out_path_reachability_to_instances(modules, reachability_inputs);
+    project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_instance_reachability(
+        modules,
+        instance_reachability_inputs.as_slice(),
+    )
+}
+
+pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_instance_reachability(
+    modules: &[TransformBundleParsedModuleInputV0],
+    reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
 ) -> TransformBundleLinkerProjectionV0 {
     let mut inputs = Vec::new();
     for module in modules {
@@ -886,14 +950,28 @@ pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules(
     }
 }
 
+#[allow(deprecated)]
 pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(
     modules: &[TransformBundleParsedModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
 ) -> TransformBundleLinkProjectionSetV0 {
-    let linker_projection = project_omena_transform_bundle_linker_inputs_from_parsed_modules(
+    let instance_reachability_inputs =
+        fan_out_path_reachability_to_instances(modules, reachability_inputs);
+    project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability(
         modules,
-        reachability_inputs,
-    );
+        instance_reachability_inputs.as_slice(),
+    )
+}
+
+pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability(
+    modules: &[TransformBundleParsedModuleInputV0],
+    reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
+) -> TransformBundleLinkProjectionSetV0 {
+    let linker_projection =
+        project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_instance_reachability(
+            modules,
+            reachability_inputs,
+        );
     let mut emission_item_inputs = Vec::new();
     for module in modules {
         let items =
@@ -1671,63 +1749,29 @@ fn collect_ordered_linker_rules(facts: &ParsedStyleFacts) -> Vec<LinkerRuleV0> {
         .collect()
 }
 
-fn apply_semantic_reachability_to_linker_inputs(
-    inputs: &mut [LinkerInputV0],
+#[allow(deprecated)]
+fn fan_out_path_reachability_to_instances(
+    modules: &[TransformBundleParsedModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
-) -> BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0> {
-    let instances_by_path = module_instances_by_linker_path(inputs);
-    let reachability_inputs =
-        semantic_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
-    let module_index_by_instance = inputs
-        .iter()
-        .enumerate()
-        .map(|(index, input)| (input.instance.clone(), index))
-        .collect::<BTreeMap<_, _>>();
-    let mut evidence_by_instance = inputs
-        .iter()
-        .map(|input| {
-            (
-                input.instance.clone(),
-                ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent,
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
-
-    for input in reachability_inputs.values() {
-        let normalized_path = normalize_bundle_path(PathBuf::from(&input.source_path));
-        let Some(instances) = instances_by_path.get(&normalized_path) else {
-            continue;
-        };
-        for instance in instances {
-            evidence_by_instance.insert(
-                instance.clone(),
-                ClosedWorldModuleReachabilityEvidenceV0::Supplied,
-            );
-            let Some(index) = module_index_by_instance.get(instance).copied() else {
-                continue;
-            };
-            inputs[index].class_names = dedupe_names(input.class_names.iter().cloned());
-            inputs[index].keyframe_names = dedupe_names(input.keyframe_names.iter().cloned());
-            inputs[index].value_names = dedupe_names(input.value_names.iter().cloned());
-            inputs[index].custom_property_names =
-                dedupe_names(input.custom_property_names.iter().cloned());
-        }
-    }
-    evidence_by_instance
-}
-
-fn semantic_reachability_inputs_closed_over_composes(
-    inputs: &[LinkerInputV0],
-    reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
-) -> BTreeMap<String, TransformBundleSemanticReachabilityInputV0> {
-    let instances_by_path = module_instances_by_linker_path(inputs);
-    let mut by_path = BTreeMap::<String, TransformBundleSemanticReachabilityInputV0>::new();
+) -> Vec<TransformBundleInstanceReachabilityInputV0> {
+    let instances_by_path = modules.iter().fold(
+        BTreeMap::<String, Vec<ModuleInstanceKeyV0>>::new(),
+        |mut by_path, module| {
+            by_path
+                .entry(normalize_bundle_path(PathBuf::from(module.source_path())))
+                .or_default()
+                .extend(module.module_instance_keys());
+            by_path
+        },
+    );
+    let mut reachability_by_path =
+        BTreeMap::<String, TransformBundleSemanticReachabilityInputV0>::new();
     for input in reachability_inputs
         .iter()
         .filter(|input| input.has_reachable_symbols())
     {
         let normalized_path = normalize_bundle_path(PathBuf::from(&input.source_path));
-        let merged = by_path
+        let merged = reachability_by_path
             .entry(normalized_path.clone())
             .or_insert_with(|| TransformBundleSemanticReachabilityInputV0::new(normalized_path));
         merged.class_names.extend(input.class_names.iter().cloned());
@@ -1744,12 +1788,140 @@ fn semantic_reachability_inputs_closed_over_composes(
         merged.custom_property_names = dedupe_names(merged.custom_property_names.drain(..));
     }
 
+    reachability_by_path
+        .into_iter()
+        .flat_map(|(path, reachability)| {
+            instances_by_path
+                .get(path.as_str())
+                .into_iter()
+                .flatten()
+                .map(move |instance| {
+                    let mut input = TransformBundleInstanceReachabilityInputV0::new(
+                        instance.clone(),
+                        InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+                    );
+                    input.class_names.clone_from(&reachability.class_names);
+                    input
+                        .keyframe_names
+                        .clone_from(&reachability.keyframe_names);
+                    input.value_names.clone_from(&reachability.value_names);
+                    input
+                        .custom_property_names
+                        .clone_from(&reachability.custom_property_names);
+                    input
+                })
+        })
+        .collect()
+}
+
+fn apply_semantic_reachability_to_linker_inputs(
+    inputs: &mut [LinkerInputV0],
+    reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
+) -> BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0> {
+    let reachability_inputs =
+        instance_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
+    let module_index_by_instance = inputs
+        .iter()
+        .enumerate()
+        .map(|(index, input)| (input.instance.clone(), index))
+        .collect::<BTreeMap<_, _>>();
+    let mut evidence_by_instance = inputs
+        .iter()
+        .map(|input| {
+            (
+                input.instance.clone(),
+                ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    for input in reachability_inputs.values() {
+        let Some(index) = module_index_by_instance
+            .get(&input.module_instance)
+            .copied()
+        else {
+            continue;
+        };
+        if inputs[index]
+            .dependency_edges
+            .iter()
+            .filter(|edge| edge.kind == TransformBundleEdgeKind::CssModuleComposesExternal)
+            .any(|edge| edge.local_names.is_empty() || edge.remote_names.is_empty())
+        {
+            // A composed-name carrier with a missing side cannot justify destructive filtering.
+            // Leaving the typed evidence as ModuleReachabilityInputAbsent makes admission fail-soft.
+            continue;
+        }
+        evidence_by_instance.insert(
+            input.module_instance.clone(),
+            ClosedWorldModuleReachabilityEvidenceV0::Supplied,
+        );
+        inputs[index].class_names.clear();
+        inputs[index]
+            .class_names
+            .extend(input.class_names.iter().cloned());
+        inputs[index].class_names = dedupe_names(inputs[index].class_names.drain(..));
+        inputs[index].keyframe_names.clear();
+        inputs[index]
+            .keyframe_names
+            .extend(input.keyframe_names.iter().cloned());
+        inputs[index].keyframe_names = dedupe_names(inputs[index].keyframe_names.drain(..));
+        inputs[index].value_names.clear();
+        inputs[index]
+            .value_names
+            .extend(input.value_names.iter().cloned());
+        inputs[index].value_names = dedupe_names(inputs[index].value_names.drain(..));
+        inputs[index].custom_property_names.clear();
+        inputs[index]
+            .custom_property_names
+            .extend(input.custom_property_names.iter().cloned());
+        inputs[index].custom_property_names =
+            dedupe_names(inputs[index].custom_property_names.drain(..));
+    }
+    evidence_by_instance
+}
+
+fn instance_reachability_inputs_closed_over_composes(
+    inputs: &[LinkerInputV0],
+    reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
+) -> BTreeMap<ModuleInstanceKeyV0, TransformBundleInstanceReachabilityInputV0> {
+    let instances_by_path = module_instances_by_linker_path(inputs);
+    let mut by_instance =
+        BTreeMap::<ModuleInstanceKeyV0, TransformBundleInstanceReachabilityInputV0>::new();
+    for input in reachability_inputs
+        .iter()
+        .filter(|input| input.has_reachable_symbols())
+    {
+        let merged = by_instance
+            .entry(input.module_instance.clone())
+            .or_insert_with(|| {
+                TransformBundleInstanceReachabilityInputV0::new(
+                    input.module_instance.clone(),
+                    input.derivation,
+                )
+            });
+        if input.derivation == InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator {
+            merged.derivation = InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator;
+        }
+        merged.class_names.extend(input.class_names.iter().cloned());
+        merged
+            .keyframe_names
+            .extend(input.keyframe_names.iter().cloned());
+        merged.value_names.extend(input.value_names.iter().cloned());
+        merged
+            .custom_property_names
+            .extend(input.custom_property_names.iter().cloned());
+        merged.class_names = dedupe_names(merged.class_names.drain(..));
+        merged.keyframe_names = dedupe_names(merged.keyframe_names.drain(..));
+        merged.value_names = dedupe_names(merged.value_names.drain(..));
+        merged.custom_property_names = dedupe_names(merged.custom_property_names.drain(..));
+    }
+
     loop {
-        let snapshot = by_path.clone();
-        let mut additions = BTreeMap::<String, Vec<String>>::new();
+        let snapshot = by_instance.clone();
+        let mut additions = BTreeMap::<ModuleInstanceKeyV0, Vec<String>>::new();
         for input in inputs {
-            let source_path = normalize_bundle_path(PathBuf::from(&input.source_path));
-            let Some(source_reachability) = snapshot.get(&source_path) else {
+            let Some(source_reachability) = snapshot.get(&input.instance) else {
                 continue;
             };
             for edge in input
@@ -1764,6 +1936,9 @@ fn semantic_reachability_inputs_closed_over_composes(
                 let Some(target_path) = target_path else {
                     continue;
                 };
+                let Some(target_instances) = instances_by_path.get(&target_path) else {
+                    continue;
+                };
                 for local_name in &edge.local_names {
                     if !source_reachability
                         .class_names
@@ -1773,19 +1948,27 @@ fn semantic_reachability_inputs_closed_over_composes(
                         continue;
                     }
                     for remote_name in &edge.remote_names {
-                        additions
-                            .entry(target_path.clone())
-                            .or_default()
-                            .push(remote_name.clone());
+                        for target_instance in target_instances {
+                            additions
+                                .entry(target_instance.clone())
+                                .or_default()
+                                .push(remote_name.clone());
+                        }
                     }
                 }
             }
         }
         let mut changed = false;
-        for (target_path, class_names) in additions {
-            let target = by_path
-                .entry(target_path.clone())
-                .or_insert_with(|| TransformBundleSemanticReachabilityInputV0::new(target_path));
+        for (target_instance, class_names) in additions {
+            let target = by_instance
+                .entry(target_instance.clone())
+                .or_insert_with(|| {
+                    TransformBundleInstanceReachabilityInputV0::new(
+                        target_instance,
+                        InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+                    )
+                });
+            target.derivation = InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator;
             let before = target.class_names.len();
             target.class_names.extend(class_names);
             target.class_names = dedupe_names(target.class_names.drain(..));
@@ -1795,7 +1978,7 @@ fn semantic_reachability_inputs_closed_over_composes(
             break;
         }
     }
-    by_path
+    by_instance
 }
 
 fn module_metadata_with_reachability_evidence(
@@ -2556,19 +2739,22 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use std::collections::BTreeSet;
 
     use super::{
-        LinkedStylesheetRuleV0, LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0,
-        TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0, TransformBundleAssetUrlKind,
-        TransformBundleChunkKind, TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
-        TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+        InstanceReachabilityDerivationV0, LinkedStylesheetRuleV0, LinkerDependencyEdgeV0,
+        LinkerInputV0, LinkerRuleV0, TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0,
+        TransformBundleAssetUrlKind, TransformBundleChunkKind,
+        TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
+        TransformBundleInstanceReachabilityInputV0, TransformBundleLinkErrorV0,
+        TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
         TransformBundleResolvedDependencyV0, TransformBundleSemanticReachabilityInputV0,
-        TransformBundleTransformedModuleV0, bundle_edge_is_module_dependency,
-        bundle_edge_module_dependency_reason, collect_transform_ir_bundle_asset_urls,
-        compare_omena_transform_bundle_emission_policies, link_omena_transform_bundle_modules,
-        link_omena_transform_bundle_modules_with_options,
+        TransformBundleTransformedModuleV0, apply_semantic_reachability_to_linker_inputs,
+        bundle_edge_is_module_dependency, bundle_edge_module_dependency_reason,
+        collect_transform_ir_bundle_asset_urls, compare_omena_transform_bundle_emission_policies,
+        link_omena_transform_bundle_modules, link_omena_transform_bundle_modules_with_options,
         link_omena_transform_bundle_modules_with_semantic_reachability,
         link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
         link_stylesheet_from_projection, materialize_omena_transform_bundle_linked_stylesheet,
@@ -3745,6 +3931,176 @@ mod tests {
             ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent
         );
         Ok(())
+    }
+
+    #[test]
+    fn instance_reachability_keeps_configured_consumers_distinct() {
+        let red = ModuleInstanceKeyV0::new(
+            ModuleIdV0::new("shared.module.css"),
+            ConfigurationHashV0::new("with:red"),
+        );
+        let blue = ModuleInstanceKeyV0::new(
+            ModuleIdV0::new("shared.module.css"),
+            ConfigurationHashV0::new("with:blue"),
+        );
+        let mut inputs = vec![
+            LinkerInputV0 {
+                source_path: "shared.module.css".to_string(),
+                instance: red.clone(),
+                dependency_edges: Vec::new(),
+                class_names: vec!["alpha".to_string(), "beta".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: Vec::new(),
+            },
+            LinkerInputV0 {
+                source_path: "shared.module.css".to_string(),
+                instance: blue.clone(),
+                dependency_edges: Vec::new(),
+                class_names: vec!["alpha".to_string(), "beta".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: Vec::new(),
+            },
+        ];
+        let mut red_reachability = TransformBundleInstanceReachabilityInputV0::new(
+            red.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        red_reachability.class_names.push("alpha".to_string());
+        let mut blue_reachability = TransformBundleInstanceReachabilityInputV0::new(
+            blue.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        blue_reachability.class_names.push("beta".to_string());
+
+        let evidence = apply_semantic_reachability_to_linker_inputs(
+            inputs.as_mut_slice(),
+            &[red_reachability, blue_reachability],
+        );
+
+        // Dropping the instance-key lookup makes the two configured consumers share a live set.
+        assert_eq!(inputs[0].class_names, ["alpha"]);
+        // The producer can emit this distinct configuration and its disjoint reachable symbol.
+        assert_eq!(inputs[1].class_names, ["beta"]);
+        // Omitting the red row leaves its typed admission evidence absent.
+        assert_eq!(
+            evidence.get(&red),
+            Some(&ClosedWorldModuleReachabilityEvidenceV0::Supplied)
+        );
+        // Omitting the blue row leaves its typed admission evidence absent.
+        assert_eq!(
+            evidence.get(&blue),
+            Some(&ClosedWorldModuleReachabilityEvidenceV0::Supplied)
+        );
+    }
+
+    #[test]
+    fn instance_reachability_unions_duplicate_rows() {
+        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("shared.module.css"));
+        let mut inputs = vec![LinkerInputV0 {
+            source_path: "shared.module.css".to_string(),
+            instance: instance.clone(),
+            dependency_edges: Vec::new(),
+            class_names: vec!["alpha".to_string(), "beta".to_string()],
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+            ordered_rules: Vec::new(),
+        }];
+        let mut alpha = TransformBundleInstanceReachabilityInputV0::new(
+            instance.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        alpha.class_names.push("alpha".to_string());
+        let mut beta = TransformBundleInstanceReachabilityInputV0::new(
+            instance,
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        beta.class_names.push("beta".to_string());
+
+        apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), &[alpha, beta]);
+
+        // Replacing the row merge with assignment drops one producer-emitted live symbol.
+        assert_eq!(inputs[0].class_names, ["alpha", "beta"]);
+    }
+
+    #[test]
+    fn legacy_path_reachability_unions_normalized_rows_across_symbol_sets() {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "shared.module.css",
+            r#"
+@value primary: red;
+@value secondary: blue;
+@keyframes enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes leave { from { opacity: 1; } to { opacity: 0; } }
+:root { --primary: red; --secondary: blue; }
+.alpha { animation: enter 1s; }
+.beta { animation: leave 1s; }
+"#,
+            StyleDialect::Css,
+        )];
+        let mut first = TransformBundleSemanticReachabilityInputV0::new("./shared.module.css");
+        first.class_names.push("alpha".to_string());
+        first.keyframe_names.push("enter".to_string());
+        first.value_names.push("primary".to_string());
+        first.custom_property_names.push("--primary".to_string());
+        let mut second = TransformBundleSemanticReachabilityInputV0::new("shared.module.css");
+        second.class_names.push("beta".to_string());
+        second.keyframe_names.push("leave".to_string());
+        second.value_names.push("secondary".to_string());
+        second.custom_property_names.push("--secondary".to_string());
+
+        let projection = project_omena_transform_bundle_linker_inputs(&modules, &[first, second]);
+        let input = &projection.inputs()[0];
+
+        // Replacing normalized-row union with assignment loses a public caller's live class.
+        assert_eq!(input.class_names, ["alpha", "beta"]);
+        // The same regression can independently discard a reachable animation declaration.
+        assert_eq!(input.keyframe_names, ["enter", "leave"]);
+        // Value reachability uses the same carrier and must retain both producer rows.
+        assert_eq!(input.value_names, ["primary", "secondary"]);
+        // Custom-property reachability must not be clobbered by normalized path aliases.
+        assert_eq!(input.custom_property_names, ["--primary", "--secondary"]);
+    }
+
+    #[test]
+    fn incomplete_composes_carrier_keeps_typed_absence_and_fail_open_symbols() {
+        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.module.css"));
+        let mut inputs = vec![LinkerInputV0 {
+            source_path: "entry.module.css".to_string(),
+            instance: instance.clone(),
+            dependency_edges: vec![LinkerDependencyEdgeV0 {
+                kind: TransformBundleEdgeKind::CssModuleComposesExternal,
+                import_source: "./base.module.css".to_string(),
+                import_ordinal: Some(0),
+                local_names: Vec::new(),
+                remote_names: vec!["base".to_string()],
+            }],
+            class_names: vec!["card".to_string(), "other".to_string()],
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+            ordered_rules: Vec::new(),
+        }];
+        let mut reachability = TransformBundleInstanceReachabilityInputV0::new(
+            instance.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        reachability.class_names.push("card".to_string());
+
+        let evidence =
+            apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), &[reachability]);
+
+        // Treating the incomplete carrier as supplied narrows this fail-open declaration set.
+        assert_eq!(inputs[0].class_names, ["card", "other"]);
+        // The linker producer can lose either composed-name side before admission observes it.
+        assert_eq!(
+            evidence.get(&instance),
+            Some(&ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent)
+        );
     }
 
     #[test]
