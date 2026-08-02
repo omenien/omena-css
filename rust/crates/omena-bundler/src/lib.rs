@@ -331,6 +331,9 @@ pub struct TransformBundleSemanticReachabilityInputV0 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum InstanceReachabilityDerivationV0 {
+    /// Reserved for a producer that can distinguish configured module instances.
+    ///
+    /// InstanceAttributed remains unproduced; path-union reachability is a disclosed over-approximation.
     InstanceAttributed,
     PathUnionNoInstanceDiscriminator,
 }
@@ -866,6 +869,7 @@ pub fn summarize_omena_transform_bundle_from_source(
     }
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_omena_transform_bundle_modules<P: AsRef<str>>(
     entrypoint_paths: &[P],
     modules: &[TransformBundleModuleInputV0],

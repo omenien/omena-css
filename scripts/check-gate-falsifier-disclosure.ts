@@ -251,6 +251,7 @@ function knownFalsifierSource(): string {
     "rust/crates/omena-diff-test/src/linked_emission.rs",
     "rust/crates/omena-diff-test/src/bin/omena-linked-emission-byte-differential.rs",
     "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+    "scripts/check-rust-omena-bundler-resolution-authority-honesty.ts",
     "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
     "scripts/check-rust-omena-closed-world-admission-tier.ts",
   ]
@@ -579,6 +580,14 @@ assert.equal(
   new Set(domain.files).size,
   domain.files.length,
   "instrument domain files must be unique",
+);
+execFileSync(
+  process.execPath,
+  ["--import", "tsx", "./scripts/check-rust-omena-bundler-resolution-authority-honesty.ts"],
+  {
+    cwd: repositoryRoot,
+    stdio: "inherit",
+  },
 );
 const instrumentMapWithoutFiringCounts = buildMap(domain);
 const falsifierEvidence = JSON.parse(readFileSync(evidencePath, "utf8")) as FalsifierEvidenceV0;

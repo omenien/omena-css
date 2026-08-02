@@ -4,6 +4,11 @@ use omena_parser::{
     ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldComposesScanStateV0,
     ClosedWorldModuleMetadataV0, ClosedWorldSourcePrecisionSummaryV0, OpenWorldSnapshotV0,
 };
+#[cfg(test)]
+use omena_query_transform_runner::{
+    BundleResolutionAuthorityV0, TransformBundleModuleInputV0, link_omena_transform_bundle_modules,
+    link_resolved_bundle, materialize_omena_transform_bundle_linked_stylesheet,
+};
 #[allow(deprecated)]
 use omena_query_transform_runner::{
     EmissionOrderingPolicyV0, InstanceReachabilityDerivationV0, LinkedEmissionArtifactV0,
@@ -22,11 +27,6 @@ use omena_query_transform_runner::{
     normalize_omena_transform_bundle_path,
     project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability,
     project_omena_transform_bundle_linker_inputs_from_parsed_modules,
-};
-#[cfg(test)]
-use omena_query_transform_runner::{
-    TransformBundleModuleInputV0, link_omena_transform_bundle_modules,
-    materialize_omena_transform_bundle_linked_stylesheet,
 };
 use omena_query_transform_runner::{
     transform_pass_requires_closed_world_bundle, transform_pass_sort_ordinal,
@@ -2095,37 +2095,45 @@ fn linked_bundle_source_map_segments(
                 generated_css.len()
             ));
         }
-        let (mut module_segments, granularity, fallback_reason) =
-            if source == module_execution.output_css {
-                let artifact = print_omena_query_transform_source_with_pretty_options(
-                    source_path,
-                    source,
-                    transform_print_dialect_for_style_path(source_path),
-                    format!("linked-module-source-map:{source_path}"),
-                    &[],
-                    default_omena_query_transform_print_options(),
-                    OmenaQueryPrettyFormatOptionsV0 {
-                        line_width: 100,
-                        indent_width: 2,
-                    },
-                );
-                (
-                    artifact.source_map_segments,
-                    OmenaQueryLinkedSourceMapGranularityV0::CstAnchors,
-                    None,
-                )
-            } else {
-                let (segment, fallback_reason) = linked_whole_module_fallback_segment(
-                    source_path,
-                    source,
-                    module_execution.output_css.as_str(),
-                );
-                (
-                    vec![segment],
-                    OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
-                    Some(fallback_reason),
-                )
-            };
+        let (mut module_segments, granularity, fallback_reason) = if source
+            == module_execution.output_css
+        {
+            let artifact = print_omena_query_transform_source_with_pretty_options(
+                source_path,
+                source,
+                transform_print_dialect_for_style_path(source_path),
+                format!("linked-module-source-map:{source_path}"),
+                &[],
+                default_omena_query_transform_print_options(),
+                OmenaQueryPrettyFormatOptionsV0 {
+                    line_width: 100,
+                    indent_width: 2,
+                },
+            );
+            if artifact.css != module_execution.output_css {
+                return Err(format!(
+                    "linked source-map CstAnchors render changed bytes for {source_path:?}: rendered={} execution={}",
+                    artifact.css.len(),
+                    module_execution.output_css.len()
+                ));
+            }
+            (
+                artifact.source_map_segments,
+                OmenaQueryLinkedSourceMapGranularityV0::CstAnchors,
+                None,
+            )
+        } else {
+            let (segment, fallback_reason) = linked_whole_module_fallback_segment(
+                source_path,
+                source,
+                module_execution.output_css.as_str(),
+            );
+            (
+                vec![segment],
+                OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
+                Some(fallback_reason),
+            )
+        };
         for segment in &module_segments {
             validate_linked_source_map_original_segment(
                 source_path,
@@ -4942,6 +4950,16 @@ mod linked_source_map_tests {
             &materialization,
             &module_executions,
         )?;
+        let cst_anchor_count = dispositions
+            .iter()
+            .filter(|disposition| {
+                disposition.granularity == OmenaQueryLinkedSourceMapGranularityV0::CstAnchors
+            })
+            .count();
+        eprintln!(
+            "linked source-map render census: fixtureCount=1 cstAnchors={} renderedEqual={}",
+            cst_anchor_count, cst_anchor_count
+        );
 
         assert!(
             segments.len() > transformed.len(),
@@ -5472,6 +5490,40 @@ mod dependency_resolution_tests {
             target_by_source.get("src/red.scss").copied().flatten(),
             Some("with|5:brand=3:red")
         );
+
+        let expected_resolution_count = prepared
+            .projection
+            .inputs()
+            .iter()
+            .map(|input| input.dependency_edges.len())
+            .sum::<usize>();
+        let strict = link_resolved_bundle(
+            &["src/blue.scss", "src/red.scss"],
+            &prepared.projection,
+            &prepared.emission_item_projection,
+            prepared.resolved_dependencies.as_slice(),
+            &[],
+            EmissionOrderingPolicyV0::ModuleIdLegacy,
+        )
+        .map_err(|error| format!("configured Sass producer should close every edge: {error:?}"))?;
+        let legacy_resolution_count = strict
+            .dependency_resolution_disclosures
+            .iter()
+            .filter(|disclosure| {
+                disclosure.authority == BundleResolutionAuthorityV0::LegacyPathInferred
+            })
+            .count();
+        eprintln!(
+            "resolution authority census: expectedEdges={} disclosedEdges={} legacyEdges={}",
+            expected_resolution_count,
+            strict.dependency_resolution_disclosures.len(),
+            legacy_resolution_count
+        );
+        assert_eq!(
+            strict.dependency_resolution_disclosures.len(),
+            expected_resolution_count
+        );
+        assert_eq!(legacy_resolution_count, 0);
 
         let linked = link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
             &["src/blue.scss", "src/red.scss"],

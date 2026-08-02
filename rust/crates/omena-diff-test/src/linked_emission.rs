@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_benchmarks::bundler_productization_corpus;
 use omena_bundler::{
-    EmissionItemKindV0, EmissionOrderingPolicyV0, LinkedStylesheetWithEmissionItemsV0,
-    LinkerInputV0, TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+    BundleResolutionAuthorityV0, EmissionItemKindV0, EmissionOrderingPolicyV0,
+    LinkedStylesheetWithEmissionItemsV0, LinkerInputV0, TransformBundleLinkOptionsV0,
+    TransformBundleModuleInputV0,
     link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
     project_omena_transform_bundle_linker_and_emission_items,
 };
@@ -100,6 +101,9 @@ pub struct LinkedEmissionByteDifferentialCaseV0 {
 pub struct LinkedEmissionByteDifferentialReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub resolution_authority_population_scope: &'static str,
+    pub resolved_resolution_count: usize,
+    pub legacy_path_inferred_resolution_count: usize,
     pub fixture_count: usize,
     pub equivalent_count: usize,
     pub expected_divergence_count: usize,
@@ -557,6 +561,28 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let census = summarize_linked_emission_coverage_census_v0(&fixtures, &analyses)?;
+    let resolved_resolution_count = analyses
+        .iter()
+        .flat_map(|analysis| {
+            analysis
+                .linked_order
+                .dependency_resolution_disclosures
+                .iter()
+        })
+        .filter(|disclosure| disclosure.authority == BundleResolutionAuthorityV0::Resolved)
+        .count();
+    let legacy_path_inferred_resolution_count = analyses
+        .iter()
+        .flat_map(|analysis| {
+            analysis
+                .linked_order
+                .dependency_resolution_disclosures
+                .iter()
+        })
+        .filter(|disclosure| {
+            disclosure.authority == BundleResolutionAuthorityV0::LegacyPathInferred
+        })
+        .count();
     let cases = analyses
         .into_iter()
         .map(|analysis| analysis.case)
@@ -577,6 +603,9 @@ pub fn summarize_linked_emission_byte_differential_envelope_v0(
     let report = LinkedEmissionByteDifferentialReportV0 {
         schema_version: "0",
         product: "omena-diff-test.linked-emission-byte-differential",
+        resolution_authority_population_scope: "repository-owned linked-emission fixtures; excludes crates.io consumers",
+        resolved_resolution_count,
+        legacy_path_inferred_resolution_count,
         fixture_count: cases.len(),
         equivalent_count,
         expected_divergence_count,

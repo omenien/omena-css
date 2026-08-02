@@ -41,6 +41,9 @@ interface LinkedEmissionByteDifferentialCaseV0 {
 interface LinkedEmissionByteDifferentialReportV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-diff-test.linked-emission-byte-differential";
+  readonly resolutionAuthorityPopulationScope: string;
+  readonly resolvedResolutionCount: number;
+  readonly legacyPathInferredResolutionCount: number;
   readonly fixtureCount: number;
   readonly equivalentCount: number;
   readonly expectedDivergenceCount: number;
