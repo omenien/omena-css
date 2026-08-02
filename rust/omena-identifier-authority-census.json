@@ -604,7 +604,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/transform.rs",
-        "line": 1217,
+        "line": 1218,
         "function": "closed_world_bound_reachability_precision",
         "operation": "contains",
         "evidence": ".any(|name| !closed_world_class_names.contains(name.as_str()))",
@@ -756,7 +756,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:8fa75c9afc74e2e7a29b30ecf8e346764fff265a6fdd3cd142fc17f77ca1fc45"
+    "siteDigest": "sha256:00fa895489d4995ca24d8a75587a0f81585121e870e0009a9c7d020be44a9fac"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
