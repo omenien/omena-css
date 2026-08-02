@@ -30,6 +30,7 @@ fn linked_stylesheet_output_matches_committed_contract() -> Result<(), String> {
         serde_json::to_string_pretty(&snapshot).map_err(|err| format!("{err:?}"))?
     );
 
+    // FALSIFIER: id=linked-stylesheet-legacy-byte-contract class=placement via=--inject-unexpected-divergence producer=can-fail owner=linked-stylesheet-byte-contract entry=committed-legacy-entry-bytes
     assert_eq!(current, LINKED_STYLESHEET_BYTE_IDENTITY_SNAPSHOT);
     Ok(())
 }
@@ -53,7 +54,9 @@ fn emission_item_order_covers_non_class_rules_without_widening_legacy_order() ->
         )
         .map_err(|error| format!("{error:?}"))?;
 
+    // FALSIFIER: id=linked-stylesheet-legacy-rule-count class=placement via=--inject-linked-rule-misattribution producer=can-fail owner=linked-stylesheet-byte-contract entry=legacy-rule-order-complete
     assert_eq!(linked.linked_stylesheet.global_rule_order.rules.len(), 5);
+    // FALSIFIER: id=linked-stylesheet-legacy-rule-kinds class=placement via=--inject-linked-rule-misattribution producer=can-fail owner=linked-stylesheet-byte-contract entry=legacy-rule-order-class-only
     assert!(
         linked
             .linked_stylesheet
@@ -68,9 +71,11 @@ fn emission_item_order_covers_non_class_rules_without_widening_legacy_order() ->
         .iter()
         .filter(|item| item.module_instance.module().as_str() == "src/theme.css")
         .collect::<Vec<_>>();
+    // FALSIFIER: id=linked-stylesheet-theme-pseudo-class class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-stylesheet-byte-contract entry=theme-pseudo-class-emitted
     assert!(theme_items.iter().any(|item| {
         item.kind == EmissionItemKindV0::SelectorPseudoClass && item.name == ":root"
     }));
+    // FALSIFIER: id=linked-stylesheet-theme-keyframes class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-stylesheet-byte-contract entry=theme-keyframes-emitted
     assert!(theme_items.iter().any(|item| {
         item.kind == EmissionItemKindV0::KeyframesDeclaration && item.name == "pulse"
     }));
@@ -133,9 +138,12 @@ fn assert_linked_stylesheet_fixture_is_non_vacuous(
         .iter()
         .map(|rule| rule.module_instance.clone())
         .collect::<BTreeSet<_>>();
+    // FALSIFIER: id=linked-stylesheet-nonempty-rule-order class=placement via=--inject-live-declaration-loss producer=can-fail owner=linked-stylesheet-byte-contract entry=multi-rule-linked-output
     assert!(linked.global_rule_order.rules.len() >= 2);
+    // FALSIFIER: id=linked-stylesheet-multi-module-rule-order class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-stylesheet-byte-contract entry=multi-module-linked-output
     assert!(rule_modules.len() >= 2);
 
+    // FALSIFIER: id=linked-stylesheet-dead-module-excluded class=liveness via=--inject-authored-liveness-flip producer=can-fail owner=linked-stylesheet-byte-contract entry=unreachable-module-not-emitted
     assert!(
         !linked
             .module_instances
@@ -144,7 +152,9 @@ fn assert_linked_stylesheet_fixture_is_non_vacuous(
     );
 
     let reachable_classes = linked.closed_world_bundle.reachability().class_names();
+    // FALSIFIER: id=linked-stylesheet-live-class-retained class=shaking via=--inject-live-declaration-loss producer=can-fail owner=linked-stylesheet-byte-contract entry=authored-live-class-retained
     assert!(reachable_classes.contains(&"app-live".to_string()));
+    // FALSIFIER: id=linked-stylesheet-dead-class-excluded class=liveness via=--inject-authored-liveness-flip producer=can-fail owner=linked-stylesheet-byte-contract entry=authored-dead-class-excluded
     assert!(!reachable_classes.contains(&"appAlt".to_string()));
     let dead_instance = linked
         .closed_world_bundle
@@ -155,7 +165,9 @@ fn assert_linked_stylesheet_fixture_is_non_vacuous(
         .ok_or_else(|| {
             "the known dead module should remain part of the qualified symbol universe".to_string()
         })?;
+    // FALSIFIER: id=linked-stylesheet-dead-instance-unreachable class=liveness via=--inject-authored-liveness-flip producer=can-fail owner=linked-stylesheet-byte-contract entry=dead-instance-marked-unreachable
     assert!(!dead_instance.is_reachable());
+    // FALSIFIER: id=linked-stylesheet-dead-instance-symbols-empty class=liveness via=--inject-authored-liveness-flip producer=can-fail owner=linked-stylesheet-byte-contract entry=dead-instance-symbol-set-empty
     assert!(dead_instance.class_names().is_empty());
     Ok(())
 }
