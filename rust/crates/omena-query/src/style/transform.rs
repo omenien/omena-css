@@ -2095,45 +2095,37 @@ fn linked_bundle_source_map_segments(
                 generated_css.len()
             ));
         }
-        let (mut module_segments, granularity, fallback_reason) = if source
-            == module_execution.output_css
-        {
-            let artifact = print_omena_query_transform_source_with_pretty_options(
-                source_path,
-                source,
-                transform_print_dialect_for_style_path(source_path),
-                format!("linked-module-source-map:{source_path}"),
-                &[],
-                default_omena_query_transform_print_options(),
-                OmenaQueryPrettyFormatOptionsV0 {
-                    line_width: 100,
-                    indent_width: 2,
-                },
-            );
-            if artifact.css != module_execution.output_css {
-                return Err(format!(
-                    "linked source-map CstAnchors render changed bytes for {source_path:?}: rendered={} execution={}",
-                    artifact.css.len(),
-                    module_execution.output_css.len()
-                ));
-            }
-            (
-                artifact.source_map_segments,
-                OmenaQueryLinkedSourceMapGranularityV0::CstAnchors,
-                None,
-            )
-        } else {
-            let (segment, fallback_reason) = linked_whole_module_fallback_segment(
-                source_path,
-                source,
-                module_execution.output_css.as_str(),
-            );
-            (
-                vec![segment],
-                OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
-                Some(fallback_reason),
-            )
-        };
+        let (mut module_segments, granularity, fallback_reason) =
+            if source == module_execution.output_css {
+                let artifact = print_omena_query_transform_source_with_pretty_options(
+                    source_path,
+                    source,
+                    transform_print_dialect_for_style_path(source_path),
+                    format!("linked-module-source-map:{source_path}"),
+                    &[],
+                    default_omena_query_transform_print_options(),
+                    OmenaQueryPrettyFormatOptionsV0 {
+                        line_width: 100,
+                        indent_width: 2,
+                    },
+                );
+                (
+                    artifact.source_map_segments,
+                    OmenaQueryLinkedSourceMapGranularityV0::CstAnchors,
+                    None,
+                )
+            } else {
+                let (segment, fallback_reason) = linked_whole_module_fallback_segment(
+                    source_path,
+                    source,
+                    module_execution.output_css.as_str(),
+                );
+                (
+                    vec![segment],
+                    OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback,
+                    Some(fallback_reason),
+                )
+            };
         for segment in &module_segments {
             validate_linked_source_map_original_segment(
                 source_path,
@@ -4961,9 +4953,53 @@ mod linked_source_map_tests {
                 disposition.granularity == OmenaQueryLinkedSourceMapGranularityV0::CstAnchors
             })
             .count();
+        let pretty_render_equality = module_executions
+            .iter()
+            .filter_map(|module| {
+                let source_path = module.module_instance.module().as_str();
+                let source = style_sources
+                    .iter()
+                    .find(|source| source.style_path == source_path)?;
+                (source.style_source == module.execution.output_css).then(|| {
+                    let artifact = print_omena_query_transform_source_with_pretty_options(
+                        source_path,
+                        source.style_source.as_str(),
+                        transform_print_dialect_for_style_path(source_path),
+                        format!("linked-module-source-map-measurement:{source_path}"),
+                        &[],
+                        OmenaQueryTransformPrintOptionsV0 {
+                            mode: OmenaQueryTransformPrintMode::Pretty,
+                            include_source_map: false,
+                        },
+                        OmenaQueryPrettyFormatOptionsV0 {
+                            line_width: 100,
+                            indent_width: 2,
+                        },
+                    );
+                    (
+                        source_path.to_string(),
+                        artifact.css == module.execution.output_css,
+                    )
+                })
+            })
+            .collect::<BTreeMap<_, _>>();
+        let pretty_render_equal_count = pretty_render_equality
+            .values()
+            .filter(|equal| **equal)
+            .count();
         eprintln!(
             "linked source-map render census: fixtureCount=1 cstAnchors={} renderedEqual={}",
-            cst_anchor_count, cst_anchor_count
+            cst_anchor_count, pretty_render_equal_count
+        );
+        // This pins measurement only. It does not choose whether linked source maps should keep
+        // identity rendering or move to the pretty-rendered route.
+        assert_eq!(
+            pretty_render_equality,
+            BTreeMap::from([
+                ("src/app.css".to_string(), false),
+                ("src/tokens.css".to_string(), false),
+                ("src/width.css".to_string(), true),
+            ])
         );
 
         assert!(
