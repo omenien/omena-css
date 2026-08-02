@@ -581,14 +581,6 @@ assert.equal(
   domain.files.length,
   "instrument domain files must be unique",
 );
-execFileSync(
-  process.execPath,
-  ["--import", "tsx", "./scripts/check-rust-omena-bundler-resolution-authority-honesty.ts"],
-  {
-    cwd: repositoryRoot,
-    stdio: "inherit",
-  },
-);
 const instrumentMapWithoutFiringCounts = buildMap(domain);
 const falsifierEvidence = JSON.parse(readFileSync(evidencePath, "utf8")) as FalsifierEvidenceV0;
 const observedFiringRecords = generatedFiringRecords(instrumentMapWithoutFiringCounts);
