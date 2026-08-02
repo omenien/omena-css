@@ -15,6 +15,10 @@ omena-css exposes the same snapshot-bound workflows through NAPI, WASM, the
 `contracts/engine-sdk-workflow/main.tsp` owns request, response, partition, and
 typed error envelopes.
 
+For CSS Modules, the emitted token is not a contract; `classMap`, `namedExports`,
+and the generated `.d.ts` are. Hand-writing an emitted token into markup, tests,
+or CSS is unsupported.
+
 ## Registry Availability
 
 The repository and npm registry do not currently expose identical NAPI

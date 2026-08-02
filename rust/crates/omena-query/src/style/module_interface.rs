@@ -201,7 +201,10 @@ fn canonical_class_reference_key(
 pub fn render_omena_query_css_module_typescript_declaration(
     module: &OmenaQueryCssModuleInterfaceV0,
 ) -> String {
-    let mut output = String::from("declare const styles: {\n");
+    let mut output = String::from(
+        "// Emitted CSS Modules tokens are implementation details; class keys in this declaration are the contract.\n\
+         declare const styles: {\n",
+    );
     let export_names = module
         .class_exports
         .iter()
@@ -457,6 +460,18 @@ mod tests {
         let second_declaration =
             render_omena_query_css_module_typescript_declaration(&reversed_bundle.modules[1]);
         assert_eq!(first_declaration, second_declaration);
+        assert!(first_declaration.starts_with(
+            "// Emitted CSS Modules tokens are implementation details; class keys in this declaration are the contract.\n"
+        ));
+        let mut token_changed_module = bundle.modules[1].clone();
+        for export in &mut token_changed_module.class_exports {
+            export.emitted_classes = vec!["opaque-token-change".to_string()];
+        }
+        assert_eq!(
+            first_declaration,
+            render_omena_query_css_module_typescript_declaration(&token_changed_module),
+            "the declaration header and public keys must not depend on opaque emitted tokens"
+        );
         let alpha_offset = first_declaration
             .find("alpha")
             .ok_or_else(|| "missing alpha declaration".to_string())?;

@@ -40,6 +40,21 @@ interface PersonaManifest {
   }[];
 }
 
+interface CssModuleTokenLiteralPolicy {
+  readonly schemaVersion: "0";
+  readonly product: "omena-css-module-token-literal-policy";
+  readonly scope: "internal-test-inventory-only";
+  readonly regex: string;
+  readonly expectedSiteCount: number;
+  readonly expectedFileCount: number;
+  readonly wholeFileTestInternal: readonly string[];
+  readonly cfgTestRegions: readonly {
+    readonly path: string;
+    readonly marker: string;
+  }[];
+  readonly roleJustifications: Readonly<Record<string, string>>;
+}
+
 interface LspBoundarySummary {
   readonly capabilities: Readonly<Record<string, unknown>>;
 }
@@ -291,6 +306,7 @@ verifyReadmeBudget();
 const readmeLinks = verifyReadmeLinkMap();
 verifyCheckScriptReachability();
 verifyExecutableTomlExamples();
+const cssModuleTokenLiterals = verifyCssModuleTokenLiteralPolicy();
 
 process.stdout.write(
   `${JSON.stringify(
@@ -309,6 +325,7 @@ process.stdout.write(
       architectureCitations,
       operationalGuideLines,
       readmeLinks,
+      cssModuleTokenLiterals,
       generatedFragments: 2,
       mode: writeMode ? "write" : "check",
     },
@@ -583,6 +600,10 @@ sourceOfTruth: generated
 ${generatedNotice}
 
 # CLI reference
+
+For CSS Modules, the emitted token is not a contract; \`classMap\`, \`namedExports\`,
+and the generated \`.d.ts\` are. Hand-writing an emitted token into markup, tests,
+or CSS is unsupported.
 
 ## Product verbs
 
@@ -926,6 +947,106 @@ function verifyExecutableTomlExamples(): void {
   const examples = markdownFiles.flatMap((file) => extractTomlFences(file));
   assert.ok(examples.length > 0, "the public docs must retain executable omena.toml examples");
   for (const example of examples) verifyTomlExample(example);
+}
+
+function verifyCssModuleTokenLiteralPolicy(): {
+  readonly regex: string;
+  readonly siteCount: number;
+  readonly fileCount: number;
+  readonly testInternalCount: number;
+  readonly shippedSurfaceCount: number;
+} {
+  const policyPath = "rust/omena-css-module-token-literal-policy.json";
+  const policy = JSON.parse(read(policyPath)) as CssModuleTokenLiteralPolicy;
+  assert.equal(policy.schemaVersion, "0");
+  assert.equal(policy.product, "omena-css-module-token-literal-policy");
+  assert.equal(policy.scope, "internal-test-inventory-only");
+
+  const listed = spawnSync(
+    "git",
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(listed.status, 0, listed.stderr);
+  const repositoryFiles = listed.stdout.split("\0").filter(Boolean);
+  const wholeFileTestInternal = new Set(policy.wholeFileTestInternal);
+  const cfgTestRegions = new Map(
+    policy.cfgTestRegions.map((region) => [region.path, region.marker] as const),
+  );
+  const tokenPattern = new RegExp(policy.regex, "gu");
+  const matchedFiles = new Set<string>();
+  const testInternalSites: string[] = [];
+  const shippedSurfaceSites: string[] = [];
+
+  for (const relativePath of repositoryFiles) {
+    const absolutePath = path.join(repoRoot, relativePath);
+    let source: string;
+    try {
+      source = readFileSync(absolutePath, "utf8");
+    } catch {
+      continue;
+    }
+    tokenPattern.lastIndex = 0;
+    for (const match of source.matchAll(tokenPattern)) {
+      const offset = match.index;
+      const line = source.slice(0, offset).split("\n").length;
+      const site = `${relativePath}:${line}:${match[0]}`;
+      matchedFiles.add(relativePath);
+      const regionMarker = cfgTestRegions.get(relativePath);
+      const regionOffset = regionMarker === undefined ? -1 : source.indexOf(regionMarker);
+      assert.notEqual(
+        regionMarker === undefined ? 0 : regionOffset,
+        -1,
+        `${relativePath} is missing configured test-region marker ${JSON.stringify(regionMarker)}`,
+      );
+      if (
+        wholeFileTestInternal.has(relativePath) ||
+        (regionOffset >= 0 && offset >= regionOffset)
+      ) {
+        testInternalSites.push(site);
+      } else {
+        shippedSurfaceSites.push(site);
+      }
+    }
+  }
+
+  const classifiedFiles = new Set([...wholeFileTestInternal, ...cfgTestRegions.keys()]);
+  assert.deepEqual(
+    [...classifiedFiles].toSorted(),
+    [...matchedFiles].toSorted(),
+    "the committed token-literal partition must classify every and only matching file",
+  );
+  assert.equal(
+    testInternalSites.length + shippedSurfaceSites.length,
+    policy.expectedSiteCount,
+    `token-literal site count drifted under ${policy.regex}`,
+  );
+  assert.equal(matchedFiles.size, policy.expectedFileCount, "token-literal file count drifted");
+  for (const requiredRoleJustification of [
+    "rust/crates/omena-napi/src/lib.rs",
+    "rust/crates/omena-wasm/src/lib.rs",
+  ]) {
+    assert.ok(
+      policy.roleJustifications[requiredRoleJustification]?.trim(),
+      `${requiredRoleJustification} needs a test-internal role justification`,
+    );
+  }
+  assert.deepEqual(
+    shippedSurfaceSites,
+    [],
+    `emitted token-shaped literals are unsupported on shipped surfaces: ${shippedSurfaceSites.join(", ")}`,
+  );
+
+  return {
+    regex: policy.regex,
+    siteCount: policy.expectedSiteCount,
+    fileCount: policy.expectedFileCount,
+    testInternalCount: testInternalSites.length,
+    shippedSurfaceCount: shippedSurfaceSites.length,
+  };
 }
 
 function verifyTomlExample(example: {

@@ -8,6 +8,7 @@ use omena_syntax::ident::ClassNameV0;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0: &str = "0";
+const CSS_MODULE_CLASS_NAME_WHITESPACE_DIAGNOSTIC_V0: &str = "unsupportedClassNameWhitespace";
 
 pub fn current_omena_bundler_host_capabilities_v0() -> OmenaBundlerHostCapabilitiesV0 {
     OmenaBundlerHostCapabilitiesV0 {
@@ -83,6 +84,22 @@ pub fn resolve_omena_bundler_host_module_v0(
     }
 
     for export in module.class_exports {
+        let decoded_name = ClassNameV0::new(&export.name);
+        if decoded_name
+            .decoded()
+            .chars()
+            .any(|ch| ch.is_ascii_whitespace())
+        {
+            has_blocking_diagnostic = true;
+            diagnostics.push(OmenaBundlerHostDiagnosticV0 {
+                code: CSS_MODULE_CLASS_NAME_WHITESPACE_DIAGNOSTIC_V0.to_string(),
+                message: format!(
+                    "CSS Module '{}' exports class name '{}' which decodes to ASCII whitespace and cannot be represented as one DOM class token.",
+                    module.style_path, export.name
+                ),
+            });
+            continue;
+        }
         if export.emitted_classes.len() != export.resolved_classes.len() {
             has_blocking_diagnostic = true;
             diagnostics.push(OmenaBundlerHostDiagnosticV0 {
@@ -194,6 +211,39 @@ mod tests {
         assert!(response.class_map.contains_key("class"));
         assert!(!response.named_exports.contains_key("foo-bar"));
         assert!(!response.named_exports.contains_key("class"));
+    }
+
+    #[test]
+    fn rejects_decoded_ascii_whitespace_but_not_non_ascii_class_names() {
+        let whitespace = resolve_omena_bundler_host_module_v0(request(
+            "/src/whitespace.module.css",
+            vec![OmenaQueryStyleSourceInputV0 {
+                style_path: "/src/whitespace.module.css".to_string(),
+                style_source: r".a\20 b { color: red; }".to_string(),
+            }],
+        ));
+        assert!(!whitespace.ready);
+        let diagnostic = whitespace
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == CSS_MODULE_CLASS_NAME_WHITESPACE_DIAGNOSTIC_V0)
+            .expect("the build boundary must report decoded ASCII whitespace");
+        assert!(diagnostic.message.contains("/src/whitespace.module.css"));
+        assert!(diagnostic.message.contains(r"a\20 b"));
+
+        let non_ascii = resolve_omena_bundler_host_module_v0(request(
+            "/src/korean.module.css",
+            vec![OmenaQueryStyleSourceInputV0 {
+                style_path: "/src/korean.module.css".to_string(),
+                style_source: ".카드 { color: red; }".to_string(),
+            }],
+        ));
+        assert!(
+            non_ascii.diagnostics.iter().all(|diagnostic| diagnostic.code
+                != CSS_MODULE_CLASS_NAME_WHITESPACE_DIAGNOSTIC_V0),
+            "non-ASCII class names are not whitespace diagnostics: {:?}",
+            non_ascii.diagnostics
+        );
     }
 
     #[test]

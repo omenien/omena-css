@@ -66,6 +66,10 @@ committed output byte-for-byte). `omena explain` answers "why" questions —
 evidence behind it; other subcommands explain diagnostics, transform
 decisions, precision, and tree-shaking retention.
 
+For CSS Modules, the emitted token is not a contract; `classMap`, `namedExports`, and
+the generated `.d.ts` are. Hand-writing an emitted token into markup, tests, or
+CSS is unsupported.
+
 ## 5. Where To Go Next
 
 - [Browser playground](playground.mdx) — run the Rust engine without installing a package.

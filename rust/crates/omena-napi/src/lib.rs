@@ -2154,6 +2154,7 @@ export function Card({ active }: { active: boolean }) {
                 .executed_pass_ids
                 .contains(&"scss-module-evaluate")
         );
+        // Test-only per rust/omena-css-module-token-literal-policy.json; emitted names are not a public contract.
         assert!(summary.execution.output_css.contains("._card_0"));
     }
 
