@@ -3,7 +3,7 @@
   "product": "omena-css-module-token-literal-policy",
   "scope": "internal-test-inventory-only",
   "regex": "(?<![A-Za-z0-9_])_[A-Za-z][A-Za-z0-9-]*_[0-9]+(?![A-Za-z0-9_])",
-  "expectedSiteCount": 130,
+  "expectedSiteCount": 131,
   "expectedFileCount": 23,
   "wholeFileTestInternal": [
     "rust/crates/omena-abstract-value/src/tests.rs",

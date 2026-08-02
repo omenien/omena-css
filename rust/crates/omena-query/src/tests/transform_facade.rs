@@ -1008,6 +1008,51 @@ fn strict_css_module_token_integrity_uses_real_bytes_and_path_specific_preimages
 }
 
 #[test]
+fn strict_css_module_token_integrity_rejects_interface_byte_mismatch() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.module.css".to_string(),
+            style_source: "@import './dependency.module.css'; .entry { color: green; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/dependency.module.css".to_string(),
+            style_source: ".dependency { color: blue; }".to_string(),
+        },
+    ];
+    let pass_ids = Vec::<String>::new();
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let run = |emission_path| {
+        run_omena_query_bundle_with_semantic_inputs_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: "src/app.module.css",
+                style_sources: &sources,
+                source_map_sources: &sources,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            &OmenaQueryConsumerBuildOptionsV0 {
+                verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Strict,
+                bundle_emission_path: emission_path,
+            },
+        )
+    };
+
+    let error = run(OmenaQueryBundleEmissionPathV0::ImportInlineLegacy)
+        .expect_err("the default path must reject an interface/byte mismatch");
+    assert!(error.contains("interface/byte mismatch"), "{error}");
+    assert!(error.contains("src/dependency.module.css"), "{error}");
+    assert!(error.contains("dependency"), "{error}");
+    assert!(error.contains("_dependency_0"), "{error}");
+    run(OmenaQueryBundleEmissionPathV0::LinkedOrder)?;
+    Ok(())
+}
+
+#[test]
 fn bundle_paths_consume_package_export_resolution() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
