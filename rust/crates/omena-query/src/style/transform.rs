@@ -4630,26 +4630,37 @@ mod linked_source_map_tests {
     {
         let style_sources = vec![
             OmenaQueryStyleSourceInputV0 {
-                style_path: "src/app.css".to_string(),
-                style_source: "@import \"./tokens.css\";\n.app { color: green; }\n".to_string(),
+                style_path: "src/app.module.css".to_string(),
+                style_source:
+                    ".app { composes: token from \"./tokens.module.css\"; color: green; }\n"
+                        .to_string(),
             },
             OmenaQueryStyleSourceInputV0 {
-                style_path: "src/tokens.css".to_string(),
-                style_source: "@import \"./base.css\";\n.token { color: blue; }\n".to_string(),
+                style_path: "src/tokens.module.css".to_string(),
+                style_source:
+                    "@import \"./base.css\";\n.token { color: blue; }\n.dead { color: black; }\n"
+                        .to_string(),
             },
             OmenaQueryStyleSourceInputV0 {
                 style_path: "src/base.css".to_string(),
                 style_source: ".base { color: red; }\n".to_string(),
             },
         ];
-        let pass_ids = vec!["import-inline".to_string(), "print-css".to_string()];
-        let context = OmenaQueryTransformExecutionContextV0::default();
+        let pass_ids = vec![
+            "import-inline".to_string(),
+            "tree-shake-class".to_string(),
+            "print-css".to_string(),
+        ];
+        let context = OmenaQueryTransformExecutionContextV0 {
+            reachable_class_names: vec!["app".to_string(), "base".to_string(), "token".to_string()],
+            ..OmenaQueryTransformExecutionContextV0::default()
+        };
         let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
         let link_options = TransformBundleLinkOptionsV0::default()
             .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving);
         let admission = link_closed_world_stylesheet_for_style_sources(
             ClosedWorldStylesheetRequestV0 {
-                target_style_path: "src/app.css",
+                target_style_path: "src/app.module.css",
                 style_sources: &style_sources,
                 requested_pass_ids: &pass_ids,
                 context: &context,
@@ -4666,7 +4677,7 @@ mod linked_source_map_tests {
             .map_err(|error| format!("retention fixture should link: {error:?}"))?;
         let execution = execute_linked_bundle_modules(
             &linked,
-            "src/app.css",
+            "src/app.module.css",
             &style_sources,
             &pass_ids,
             &context,
@@ -4698,6 +4709,37 @@ mod linked_source_map_tests {
             .iter()
             .find(|module| &module.module_instance == target_instance)
             .ok_or_else(|| "entry execution should be retained".to_string())?;
+        let mutating_dependency = execution
+            .module_executions
+            .iter()
+            .find(|module| module.module_instance.module().as_str() == "src/tokens.module.css")
+            .ok_or_else(|| "mutating dependency execution should be retained".to_string())?;
+        // FALSIFIER: making the entry mutate destroys the entry/dependency asymmetry that
+        // distinguishes the compatibility projection from a bundle aggregate.
+        assert_eq!(
+            (
+                retained_entry.execution.mutation_count,
+                retained_entry.execution.semantic_removals.len(),
+                retained_entry
+                    .execution
+                    .executed_pass_ids
+                    .contains(&"import-inline"),
+                mutating_dependency.execution.mutation_count,
+                mutating_dependency.execution.semantic_removals.len(),
+                mutating_dependency
+                    .execution
+                    .executed_pass_ids
+                    .contains(&"import-inline"),
+                execution.execution.mutation_count,
+            ),
+            (0, 0, false, 2, 1, true, 0)
+        );
+        // FALSIFIER: retaining the dead dependency rule or changing module order changes
+        // the exact linked product bytes while the entry-only projection still reports zero.
+        assert_eq!(
+            execution.materialization.output_css,
+            ".base { color: red; }\n\n.token { color: blue; }\n\n.app { composes: token from \"./tokens.module.css\"; color: green; }\n"
+        );
         let scope_evidence = summarize_linked_bundle_execution_scope(&execution)?;
         assert_eq!(scope_evidence.field_scopes.len(), 28);
         assert_eq!(scope_evidence.module_executions.len(), 3);
