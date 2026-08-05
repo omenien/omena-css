@@ -272,7 +272,7 @@ jobs:
           key: rust-api-tools-${{ runner.os }}-${{ runner.arch }}-public-api-0.52.0-semver-checks-0.48.0
       - name: Install Rust API tools
         if: matrix.contract-shard == 'api-surface' && steps.rust-api-tools-cache.outputs.cache-hit != 'true'
-        uses: taiki-e/install-action@41049aa56687c35e0afa74eed4f09cec4f9afabf # v2.85.2
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
         with:
           tool: cargo-public-api@0.52.0,cargo-semver-checks@0.48.0
       - run: pnpm omena-check bundle rust/product-test-contracts --summary --shard=${{ matrix.contract-shard }}
