@@ -912,7 +912,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/transform_facade.rs",
-      "line": 1450,
+      "line": 1492,
       "function": "token_integrity_default_path_removes_resolved_dependency_composes_declarations",
       "idiom": "contains",
       "keyword": "composes",
@@ -2066,7 +2066,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:2e1f439a172f36e67562a1e14467328b08da00ca405b67d8f2ef04c85b6a0561",
+  "siteDigest": "sha256:bd1c87fbc55d57eb0e43e000fe0ce7759ae000d40adb805f2bfcf10e6550e43b",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
