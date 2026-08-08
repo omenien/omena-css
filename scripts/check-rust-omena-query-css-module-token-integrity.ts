@@ -21,6 +21,17 @@ const transformFacadeSource = readFileSync(
   path.join(repoRoot, "rust/crates/omena-query/src/style/transform.rs"),
   "utf8",
 );
+const requiredTests = [
+  "scanner_scope_follows_the_shared_identifier_predicate",
+  "caller_supplied_module_identity_controls_token_deterministically",
+  "strict_css_module_token_integrity_uses_module_qualified_preimages",
+  "strict_css_module_token_integrity_rejects_injected_interface_byte_mismatch",
+  "token_integrity_selected_shape_is_injective_on_import_inline_bytes",
+  "token_integrity_default_path_scopes_every_declared_dependency_class",
+  "token_integrity_default_path_tree_shakes_media_nested_dependency_classes",
+  "token_integrity_default_path_removes_resolved_dependency_composes_declarations",
+  "token_integrity_default_path_scopes_non_ascii_dependency_classes",
+] as const;
 const instrumentSource = readFileSync(
   path.join(repoRoot, "rust/crates/omena-diff-test/src/linked_emission.rs"),
   "utf8",
@@ -101,11 +112,15 @@ assert.equal(
     .join("\n"),
 );
 const transcript = `${result.stdout}\n${result.stderr}`;
+for (const test of requiredTests) {
+  assert.match(transcript, new RegExp(`test [^\\n]*${test} \\.\\.\\. ok`, "u"));
+}
 const passed = [...transcript.matchAll(/test result: ok\. (\d+) passed/gu)].reduce(
   (total, match) => total + Number(match[1]),
   0,
 );
 assert.ok(passed >= 3, `expected at least three token-integrity tests, observed ${passed}`);
+assert.equal(passed, requiredTests.length);
 
 process.stdout.write(
   `${JSON.stringify(
@@ -118,6 +133,7 @@ process.stdout.write(
       pathScopeAuthority: "omena-diff-test::LinkedEmissionModuleTokenCollisionPathScopeV0",
       pathScopeVocabulary: pathScopeVocabulary.map(([, wireLabel]) => wireLabel),
       productTestCount: passed,
+      requiredTests,
       verificationProfile: "strict",
       emissionPaths: ["importInlineLegacy", "linkedOrder"],
       tierReachable: true,
