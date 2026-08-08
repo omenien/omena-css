@@ -36,6 +36,7 @@ use omena_query::{
     OmenaQueryTransformBundleSourceSummaryV0 as OmenaWasmTransformBundleSourceSummaryV0,
     OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaWasmTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaWasmTransformExecutionContextV0,
+    OmenaQueryTransformModuleCssModuleContextV0 as OmenaWasmTransformModuleCssModuleContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaWasmPassSummaryV0, ParserPositionV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources,
     conservative_omena_query_target_options, current_omena_bundler_host_capabilities_v0,
@@ -53,6 +54,7 @@ use omena_query::{
     resolve_omena_bundler_host_module_v0, run_omena_query_bundle_for_style_sources_with_context,
     run_omena_query_bundle_with_evidence_for_style_sources_with_context,
     run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options,
+    run_omena_query_bundle_with_module_css_module_contexts_for_style_sources_with_context_and_options,
     semantic_omena_query_minify_build_profile, summarize_omena_query_bundle_evidence,
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -280,6 +282,58 @@ pub fn bundle_style_sources_with_context_execution_scope_js(
         linked_emission,
     )?;
     to_js_value(&artifact)
+}
+
+#[wasm_bindgen(js_name = bundleStyleSourcesWithModuleCssContexts)]
+#[allow(clippy::too_many_arguments)]
+pub fn bundle_style_sources_with_module_css_contexts(
+    workspace_root: &str,
+    target_path: &str,
+    sources: JsValue,
+    pass_ids: JsValue,
+    context: JsValue,
+    package_manifests: JsValue,
+    bundle_entry_style_paths: JsValue,
+    module_css_contexts: JsValue,
+    linked_emission: bool,
+) -> Result<JsValue, JsValue> {
+    let sources = parse_style_sources_value(sources)?;
+    let pass_ids = parse_pass_ids_value(pass_ids)?;
+    let context = parse_context_value(context)?;
+    let package_manifests = parse_package_manifests_value(package_manifests)?;
+    let bundle_entry_style_paths =
+        parse_string_array_value(bundle_entry_style_paths, "bundleEntryStylePaths")?;
+    let module_css_contexts = serde_wasm_bindgen::from_value::<
+        Vec<OmenaWasmTransformModuleCssModuleContextV0>,
+    >(module_css_contexts)
+    .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let mut options = OmenaQueryConsumerBuildOptionsV0::default();
+    if linked_emission {
+        options.bundle_emission_path = OmenaQueryBundleEmissionPathV0::LinkedOrder;
+    }
+    let result = run_omena_query_bundle_with_module_css_module_contexts_for_style_sources_with_context_and_options(
+        workspace_root,
+        target_path,
+        &sources,
+        &pass_ids,
+        &context,
+        &package_manifests,
+        &bundle_entry_style_paths,
+        &module_css_contexts,
+        &options,
+    )
+    .map_err(|error| JsValue::from_str(&error))?;
+    let evidence = summarize_omena_query_bundle_evidence(&result.bundle_result);
+    let bundle_result = result.bundle_result;
+    to_js_value(&OmenaWasmBundleExecutionScopeResultV0 {
+        bundle: OmenaWasmBundleWithEvidenceV0 {
+            artifact: bundle_result.artifact,
+            closed_world_outcome: bundle_result.closed_world_outcome,
+            closed_world_decision_parity: bundle_result.closed_world_decision_parity,
+            evidence,
+        },
+        execution_scope: result.execution_scope,
+    })
 }
 
 #[wasm_bindgen(js_name = buildStyleSourcesMinifiedWithContext)]
@@ -1912,7 +1966,7 @@ export const app = <div className={styles.card} />;"#,
                 .contains(&"scss-module-evaluate")
         );
         // Test-only per rust/omena-css-module-token-literal-policy.json; emitted names are not a public contract.
-        assert!(summary.execution.output_css.contains("._card_0"));
+        assert!(summary.execution.output_css.contains("_card"));
     }
 
     #[test]

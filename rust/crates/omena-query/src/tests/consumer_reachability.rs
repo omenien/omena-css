@@ -634,19 +634,16 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     );
     assert_eq!(dependency_shared.reachable(), Some(false));
     assert!(dependency_shared.flat_reachable());
-    assert!(dependency_shared.emission_guard_retained());
+    assert!(!dependency_shared.emission_guard_retained());
     assert_eq!(
         dependency_shared.ownership_digest(),
         bundle.module_qualified_ownership_digest()
     );
     assert_eq!(
         dependency_shared.provenance_labels(),
-        &[
-            "moduleQualifiedOwnershipObserved",
-            "emissionTokenCollisionGuardApplied"
-        ]
+        &["moduleQualifiedOwnershipObserved"]
     );
-    assert!(output_css.contains("padding: 8px"));
+    assert!(!output_css.contains("padding: 8px"));
 
     let dependency_owned = explain_omena_query_tree_shake_for_module(
         bundle,

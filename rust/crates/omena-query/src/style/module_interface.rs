@@ -7,7 +7,7 @@ use omena_syntax::ident::{CanonicalClassKeyV0, ClassNameV0};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(super) type EmittedClassNameIndexV0 = BTreeMap<(String, CanonicalClassKeyV0), String>;
+pub(super) type EmittedClassNameIndexV0 = BTreeMap<(String, String), String>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -147,10 +147,17 @@ fn module_interface_from_projection(
                 .iter()
                 .filter_map(|class| {
                     emitted_class_names
-                        .get(&(
-                            class.module_id.as_str().to_string(),
-                            ClassNameV0::new(&class.name).canonical_key(),
-                        ))
+                        .get(&(class.module_id.as_str().to_string(), class.name.clone()))
+                        .or_else(|| {
+                            emitted_class_names.iter().find_map(
+                                |((module_id, raw_name), emitted_name)| {
+                                    (module_id == class.module_id.as_str()
+                                        && ClassNameV0::new(raw_name)
+                                            .same_as(&ClassNameV0::new(&class.name)))
+                                    .then_some(emitted_name)
+                                },
+                            )
+                        })
                         .cloned()
                 })
                 .collect();

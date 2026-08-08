@@ -1590,6 +1590,49 @@ pub struct TransformClassNameRewriteV0 {
     pub rewritten_name: String,
 }
 
+/// Module-qualified CSS Modules rewrite input.
+///
+/// Consumers that need different rewrites for identical class spellings in
+/// different modules use this carrier instead of flattening those rewrites
+/// into [`TransformExecutionContextV0::class_name_rewrites`]. The module key is
+/// compared before the canonical class-name key. Under an equal compound key,
+/// the consumer-supplied record is the first witness and wins independently of
+/// raw spelling or later presentation sorting.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct TransformModuleCssModuleContextV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub class_name_rewrites: Vec<TransformClassNameRewriteV0>,
+    pub composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
+}
+
+impl TransformModuleCssModuleContextV0 {
+    pub fn new(module_instance: ModuleInstanceKeyV0) -> Self {
+        Self {
+            module_instance,
+            class_name_rewrites: Vec::new(),
+            composes_resolutions: Vec::new(),
+        }
+    }
+
+    pub fn with_class_name_rewrites(
+        mut self,
+        class_name_rewrites: Vec<TransformClassNameRewriteV0>,
+    ) -> Self {
+        self.class_name_rewrites = class_name_rewrites;
+        self
+    }
+
+    pub fn with_composes_resolutions(
+        mut self,
+        composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
+    ) -> Self {
+        self.composes_resolutions = composes_resolutions;
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformCssModuleComposesResolutionV0 {

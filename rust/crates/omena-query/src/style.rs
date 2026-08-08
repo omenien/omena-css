@@ -1499,10 +1499,7 @@ pub fn summarize_omena_query_css_modules_interface_bundle(
                 .into_iter()
                 .map(|rewrite| {
                     (
-                        (
-                            entry.style_path.clone(),
-                            canonical_class_key(&rewrite.original_name),
-                        ),
+                        (entry.style_path.clone(), rewrite.original_name.clone()),
                         rewrite.rewritten_name,
                     )
                 })

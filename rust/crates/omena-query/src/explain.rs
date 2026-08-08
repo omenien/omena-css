@@ -329,8 +329,10 @@ impl OmenaQueryModuleTreeShakeExplanationV0 {
         self.flat_reachable
     }
 
-    /// Reports whether conservative emitted-token handling retained bytes even
-    /// though module-qualified liveness is false.
+    /// Reports whether supplied emitted-token evidence proves that conservative
+    /// collision handling retained bytes despite module-qualified deadness.
+    /// The module-only explain input cannot establish that fact and reports
+    /// `false`.
     pub const fn emission_guard_retained(&self) -> bool {
         self.emission_guard_retained
     }
@@ -474,9 +476,7 @@ pub fn explain_omena_query_tree_shake_for_module(
         symbols.is_reachable() && module_symbol_is_reachable(symbols, symbol_kind, symbol_name)
     });
     let flat_reachable = flat_symbol_is_reachable(bundle, symbol_kind, symbol_name);
-    let emission_guard_retained = symbol_kind == OmenaQueryExplainSymbolKindV0::Class
-        && reachable == Some(false)
-        && flat_reachable;
+    let emission_guard_retained = false;
     let mut provenance_labels = vec!["moduleQualifiedOwnershipObserved"];
     if emission_guard_retained {
         provenance_labels.push("emissionTokenCollisionGuardApplied");

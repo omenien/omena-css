@@ -43,6 +43,7 @@ use omena_query::{
     OmenaQueryTransformBundleSourceSummaryV0 as OmenaNapiTransformBundleSourceSummaryV0,
     OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaNapiTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
+    OmenaQueryTransformModuleCssModuleContextV0 as OmenaNapiTransformModuleCssModuleContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0, ParserPositionV0,
     attach_omena_query_consumer_build_source_map_v3_with_sources,
     conservative_omena_query_target_options, current_omena_bundler_host_capabilities_v0,
@@ -60,6 +61,7 @@ use omena_query::{
     resolve_omena_bundler_host_module_v0, run_omena_query_bundle_for_style_sources_with_context,
     run_omena_query_bundle_with_evidence_for_style_sources_with_context,
     run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options,
+    run_omena_query_bundle_with_module_css_module_contexts_for_style_sources_with_context_and_options,
     semantic_omena_query_minify_build_profile, summarize_omena_query_bundle_evidence,
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -279,6 +281,56 @@ pub fn bundle_style_sources_with_context_execution_scope_json(
         &bundle_entry_style_paths,
         linked_emission,
     )?)
+}
+
+#[napi(js_name = "bundleStyleSourcesWithModuleCssContextsJson")]
+#[allow(clippy::too_many_arguments)]
+pub fn bundle_style_sources_with_module_css_contexts_json(
+    workspace_root: String,
+    target_path: String,
+    sources_json: String,
+    pass_ids: Vec<String>,
+    context_json: String,
+    package_manifests_json: String,
+    bundle_entry_style_paths: Vec<String>,
+    module_css_contexts_json: String,
+    linked_emission: bool,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let context = parse_context_json(&context_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    let module_css_contexts =
+        serde_json::from_str::<Vec<OmenaNapiTransformModuleCssModuleContextV0>>(
+            &module_css_contexts_json,
+        )
+        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+    let mut options = OmenaQueryConsumerBuildOptionsV0::default();
+    if linked_emission {
+        options.bundle_emission_path = OmenaQueryBundleEmissionPathV0::LinkedOrder;
+    }
+    let result = run_omena_query_bundle_with_module_css_module_contexts_for_style_sources_with_context_and_options(
+        &workspace_root,
+        &target_path,
+        &sources,
+        &pass_ids,
+        &context,
+        &package_manifests,
+        &bundle_entry_style_paths,
+        &module_css_contexts,
+        &options,
+    )
+    .map_err(napi::Error::from_reason)?;
+    let evidence = summarize_omena_query_bundle_evidence(&result.bundle_result);
+    let bundle_result = result.bundle_result;
+    to_json_string(&OmenaNapiBundleExecutionScopeResultV0 {
+        bundle: OmenaNapiBundleWithEvidenceV0 {
+            artifact: bundle_result.artifact,
+            closed_world_outcome: bundle_result.closed_world_outcome,
+            closed_world_decision_parity: bundle_result.closed_world_decision_parity,
+            evidence,
+        },
+        execution_scope: result.execution_scope,
+    })
 }
 
 #[napi(js_name = "buildStyleSourcesMinifiedWithContextJson")]
@@ -2155,7 +2207,7 @@ export function Card({ active }: { active: boolean }) {
                 .contains(&"scss-module-evaluate")
         );
         // Test-only per rust/omena-css-module-token-literal-policy.json; emitted names are not a public contract.
-        assert!(summary.execution.output_css.contains("._card_0"));
+        assert!(summary.execution.output_css.contains("_card"));
     }
 
     #[test]
@@ -2197,6 +2249,62 @@ export function Card({ active }: { active: boolean }) {
         assert!(summary.source_map_v3.is_some());
         assert!(!summary.execution.output_css.contains("@import"));
         assert!(!summary.execution.output_css.contains("composes:"));
+    }
+
+    #[test]
+    fn module_css_context_boundary_rekeys_absolute_inputs_per_workspace() -> napi::Result<()> {
+        let serialized = bundle_style_sources_with_module_css_contexts_json(
+            "/workspace".to_string(),
+            "/workspace/src/entry.module.css".to_string(),
+            serde_json::json!([
+                {
+                    "stylePath": "/workspace/src/entry.module.css",
+                    "styleSource": "@import './dependency.module.css'; .entry { composes: dependency from './dependency.module.css'; color: green; }"
+                },
+                {
+                    "stylePath": "/workspace/src/dependency.module.css",
+                    "styleSource": ".dependency { color: blue; }"
+                }
+            ])
+            .to_string(),
+            Vec::new(),
+            "{}".to_string(),
+            "[]".to_string(),
+            vec!["/workspace/src/entry.module.css".to_string()],
+            serde_json::json!([
+                {
+                    "moduleInstance": {
+                        "module": "/workspace/src/entry.module.css",
+                        "configuration": "with:none"
+                    },
+                    "classNameRewrites": [
+                        { "originalName": "entry", "rewrittenName": "_entry_override" }
+                    ],
+                    "composesResolutions": []
+                },
+                {
+                    "moduleInstance": {
+                        "module": "/workspace/src/dependency.module.css",
+                        "configuration": "with:none"
+                    },
+                    "classNameRewrites": [
+                        { "originalName": "dependency", "rewrittenName": "_dependency_override" }
+                    ],
+                    "composesResolutions": []
+                }
+            ])
+            .to_string(),
+            false,
+        )?;
+        let result = serde_json::from_str::<serde_json::Value>(&serialized)
+            .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        let output = result["outputCss"]
+            .as_str()
+            .ok_or_else(|| napi::Error::from_reason("bundle output is absent"))?;
+
+        assert!(output.contains("._entry_override"), "{output}");
+        assert!(output.contains("._dependency_override"), "{output}");
+        Ok(())
     }
 
     #[test]

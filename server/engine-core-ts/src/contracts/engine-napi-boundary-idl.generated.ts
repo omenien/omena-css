@@ -10,6 +10,7 @@ export type EngineNapiBoundaryErrorKindV0Json =
 
 export interface EngineNapiBoundarySurfaceV0Json {
   readonly context: EngineNapiTransformExecutionContextV0Json;
+  readonly moduleCssModuleContexts: readonly EngineNapiModuleCssModuleContextV0Json[];
   readonly targetOptions: EngineNapiTargetTransformOptionsV0Json;
   readonly input: EngineNapiEngineInputV2Json;
   readonly sources: readonly EngineNapiStyleSourceInputV0Json[];
@@ -77,6 +78,15 @@ export interface EngineNapiCascadeEnvironmentDeclarationV0Json {
   readonly layerRank?: number;
   readonly scopeProximity?: number;
   readonly sourceOrder: number;
+}
+export interface EngineNapiModuleCssModuleContextV0Json {
+  readonly moduleInstance: EngineNapiModuleInstanceKeyV0Json;
+  readonly classNameRewrites: readonly EngineNapiClassNameRewriteV0Json[];
+  readonly composesResolutions: readonly EngineNapiCssModuleComposesResolutionV0Json[];
+}
+export interface EngineNapiModuleInstanceKeyV0Json {
+  readonly module: string;
+  readonly configuration: string;
 }
 export interface EngineNapiTargetTransformOptionsV0Json {
   readonly allowLogicalToPhysical?: boolean;

@@ -33,6 +33,17 @@ model EngineNapiClassNameRewriteV0 {
   rewrittenName: string;
 }
 
+model EngineNapiModuleInstanceKeyV0 {
+  module: string;
+  configuration: string;
+}
+
+model EngineNapiModuleCssModuleContextV0 {
+  moduleInstance: EngineNapiModuleInstanceKeyV0;
+  classNameRewrites: EngineNapiClassNameRewriteV0[];
+  composesResolutions: EngineNapiCssModuleComposesResolutionV0[];
+}
+
 model EngineNapiCssModuleComposesResolutionV0 {
   localClassName: string;
   exportedClassNames: string[];
@@ -165,6 +176,7 @@ model EngineNapiConsumerBuildSummaryV0 {
 
 model EngineNapiBoundarySurfaceV0 {
   context: EngineNapiTransformExecutionContextV0;
+  moduleCssModuleContexts: EngineNapiModuleCssModuleContextV0[];
   targetOptions: EngineNapiTargetTransformOptionsV0;
   input: EngineNapiEngineInputV2;
   sources: EngineNapiStyleSourceInputV0[];

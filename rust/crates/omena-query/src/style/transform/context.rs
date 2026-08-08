@@ -654,17 +654,67 @@ where
     // An explicit record replaces a derived record under the same canonical class key;
     // raw spelling order never selects a winner. A future module-qualified compound key
     // adds module identity to this normalized name component rather than decoding it again.
-    for item in overrides {
+    let mut merged = Vec::with_capacity(target.len() + overrides.len());
+    append_class_context_records_first_witness(&mut merged, overrides, &key);
+    append_class_context_records_first_witness(&mut merged, target, &key);
+    *target = merged;
+}
+
+fn append_class_context_records_first_witness<T, F>(target: &mut Vec<T>, candidates: &[T], key: &F)
+where
+    T: Clone,
+    F: Fn(&T) -> &str,
+{
+    let occupied_canonical_keys = target
+        .iter()
+        .map(|existing| ClassNameV0::new(key(existing)).canonical_key())
+        .collect::<BTreeSet<_>>();
+    let mut admitted_raw_keys = target
+        .iter()
+        .map(|existing| key(existing).to_string())
+        .collect::<BTreeSet<_>>();
+    for item in candidates {
         let item_key = ClassNameV0::new(key(item));
-        if let Some(existing) = target
-            .iter_mut()
-            .find(|existing| ClassNameV0::new(key(existing)).same_as(&item_key))
+        if !occupied_canonical_keys.contains(&item_key.canonical_key())
+            && admitted_raw_keys.insert(key(item).to_string())
         {
-            *existing = item.clone();
-        } else {
             target.push(item.clone());
         }
     }
+}
+
+pub(super) fn merge_module_css_module_contexts_first_witness(
+    left: &[TransformModuleCssModuleContextV0],
+    right: &[TransformModuleCssModuleContextV0],
+) -> Vec<TransformModuleCssModuleContextV0> {
+    let mut merged = Vec::<TransformModuleCssModuleContextV0>::new();
+    for context in left.iter().chain(right) {
+        let target = if let Some(index) = merged
+            .iter()
+            .position(|candidate| candidate.module_instance == context.module_instance)
+        {
+            &mut merged[index]
+        } else {
+            let index = merged.len();
+            merged.push(TransformModuleCssModuleContextV0::new(
+                context.module_instance.clone(),
+            ));
+            &mut merged[index]
+        };
+        append_class_context_records_first_witness(
+            &mut target.class_name_rewrites,
+            context.class_name_rewrites.as_slice(),
+            &|rewrite: &TransformClassNameRewriteV0| rewrite.original_name.as_str(),
+        );
+        append_class_context_records_first_witness(
+            &mut target.composes_resolutions,
+            context.composes_resolutions.as_slice(),
+            &|resolution: &TransformCssModuleComposesResolutionV0| {
+                resolution.local_class_name.as_str()
+            },
+        );
+    }
+    merged
 }
 
 #[cfg(test)]
@@ -756,5 +806,63 @@ mod tests {
         assert_eq!(merged.import_inlines.len(), 2);
         assert_eq!(merged.css_module_value_resolutions.len(), 2);
         assert_eq!(merged.design_token_routes.len(), 2);
+    }
+
+    fn module_context(
+        module: &str,
+        original_name: &str,
+        rewritten_name: &str,
+    ) -> TransformModuleCssModuleContextV0 {
+        TransformModuleCssModuleContextV0::new(omena_parser::ModuleInstanceKeyV0::unconfigured(
+            omena_parser::ModuleIdV0::new(module),
+        ))
+        .with_class_name_rewrites(vec![class_rewrite(original_name, rewritten_name)])
+    }
+
+    fn merge_module_css_module_contexts_last_witness(
+        left: &[TransformModuleCssModuleContextV0],
+        right: &[TransformModuleCssModuleContextV0],
+    ) -> Vec<TransformModuleCssModuleContextV0> {
+        merge_module_css_module_contexts_first_witness(right, left)
+    }
+
+    #[test]
+    fn module_context_first_witness_merge_obeys_left_regular_band_laws() {
+        let u = vec![
+            module_context("src/a.module.css", "shared", "_u"),
+            module_context("src/b.module.css", "own", "_b"),
+        ];
+        let v = vec![
+            module_context("src/a.module.css", "shared", "_v"),
+            module_context("src/c.module.css", "own", "_c"),
+        ];
+        let w = vec![module_context("src/a.module.css", "third", "_w")];
+
+        let uv = merge_module_css_module_contexts_first_witness(&u, &v);
+        assert_eq!(
+            merge_module_css_module_contexts_first_witness(&uv, &w),
+            merge_module_css_module_contexts_first_witness(
+                &u,
+                &merge_module_css_module_contexts_first_witness(&v, &w),
+            ),
+            "associativity"
+        );
+        assert_eq!(
+            merge_module_css_module_contexts_first_witness(&u, &u),
+            u,
+            "idempotence"
+        );
+        assert_eq!(
+            merge_module_css_module_contexts_first_witness(&uv, &u),
+            uv,
+            "left-regular-band absorption"
+        );
+
+        let last_wins_uv = merge_module_css_module_contexts_last_witness(&u, &v);
+        let last_wins_uv_then_u = merge_module_css_module_contexts_last_witness(&last_wins_uv, &u);
+        assert_ne!(
+            last_wins_uv_then_u, last_wins_uv,
+            "a last-wins variant must fail the absorption control"
+        );
     }
 }

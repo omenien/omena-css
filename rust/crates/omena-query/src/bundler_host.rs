@@ -73,7 +73,7 @@ pub fn resolve_omena_bundler_host_module_v0(
         diagnostics.push(OmenaBundlerHostDiagnosticV0 {
             code: "decodeEquivalentClassNames".to_string(),
             message: format!(
-                "CSS Module class spellings {} decode to one identifier and share an emitted name.",
+                "CSS Module class spellings {} decode to one identifier but retain distinct raw-spelling emitted names.",
                 spellings
                     .iter()
                     .map(|name| format!("'{name}'"))
@@ -167,7 +167,8 @@ mod tests {
     }
 
     #[test]
-    fn resolves_scoped_classes_named_exports_and_composes_from_one_interface_view() {
+    fn resolves_scoped_classes_named_exports_and_composes_from_one_interface_view()
+    -> Result<(), String> {
         let response = resolve_omena_bundler_host_module_v0(request(
             "/src/button.module.css",
             vec![
@@ -184,16 +185,23 @@ mod tests {
         ));
 
         assert!(response.ready, "{:?}", response.diagnostics);
-        assert_eq!(
-            response.class_map.get("button"),
-            Some(&"_button_0 _base_0".to_string())
-        );
+        let emitted = response
+            .class_map
+            .get("button")
+            .ok_or_else(|| "the local export must remain public".to_string())?
+            .split_ascii_whitespace()
+            .collect::<Vec<_>>();
+        assert_eq!(emitted.len(), 2);
+        assert!(emitted[0].ends_with("_button"), "{emitted:?}");
+        assert!(emitted[1].ends_with("_base"), "{emitted:?}");
+        assert_ne!(emitted[0], emitted[1]);
         assert_eq!(
             response.named_exports.get("button"),
             response.class_map.get("button")
         );
         assert_eq!(response.composes_edges.len(), 1);
         assert_eq!(response.composes_edges[0].class_name, "base");
+        Ok(())
     }
 
     #[test]
@@ -293,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn decode_equivalent_exports_share_one_emitted_token() {
+    fn decode_equivalent_exports_keep_distinct_raw_identity_tokens() {
         let response = resolve_omena_bundler_host_module_v0(request(
             "/src/card.module.css",
             vec![OmenaQueryStyleSourceInputV0 {
@@ -322,14 +330,14 @@ mod tests {
             "both raw export keys must remain public"
         );
         if let (Some(plain), Some(escaped)) = (plain, escaped) {
-            assert_eq!(plain, escaped);
+            assert_ne!(plain, escaped);
             assert_eq!(
                 [plain, escaped]
                     .into_iter()
                     .flat_map(|value| value.split_ascii_whitespace())
                     .collect::<BTreeSet<_>>()
                     .len(),
-                1
+                2
             );
         }
     }
@@ -358,7 +366,7 @@ mod tests {
             assert!(
                 emitted
                     .split_ascii_whitespace()
-                    .any(|name| name == "_card_0"),
+                    .any(|name| name.ends_with("_card")),
                 "cross-module canonical identity did not resolve the target token: {emitted:?}"
             );
         }

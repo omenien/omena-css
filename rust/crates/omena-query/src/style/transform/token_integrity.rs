@@ -1,7 +1,7 @@
 use super::{LinkedModuleExecutionV0, css_identifier_names_match};
 use crate::style::{
     OmenaQueryStyleFactEntry, collect_omena_query_style_fact_entry,
-    transform::derive_class_name_rewrites_for_transform_context,
+    transform::derive_class_name_rewrites_for_module_instance,
 };
 use crate::types::normalize_omena_query_style_path;
 use crate::{OmenaQueryBundleEmissionPathV0, OmenaQueryTransformExecutionContextV0};
@@ -23,12 +23,14 @@ struct CssModuleTokenPreimageV0 {
     interface_token: String,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn summarize_css_module_token_ownership(
     target_style_path: &str,
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     linked: &LinkedStylesheetWithEmissionItemsV0,
     default_context: &OmenaQueryTransformExecutionContextV0,
     linked_module_executions: Option<&[LinkedModuleExecutionV0]>,
+    module_identity_root: Option<&str>,
     emission_path: OmenaQueryBundleEmissionPathV0,
     emitted_css: &str,
 ) -> Result<CssModuleTokenOwnershipCensusV0, String> {
@@ -38,6 +40,7 @@ pub(super) fn summarize_css_module_token_ownership(
         linked,
         default_context,
         linked_module_executions,
+        module_identity_root,
     )?;
     let emitted_names = emitted_class_names(emitted_css);
     let default_collisions =
@@ -183,6 +186,7 @@ fn collect_token_preimages(
     linked: &LinkedStylesheetWithEmissionItemsV0,
     default_context: &OmenaQueryTransformExecutionContextV0,
     linked_module_executions: Option<&[LinkedModuleExecutionV0]>,
+    module_identity_root: Option<&str>,
 ) -> Result<Vec<CssModuleTokenPreimageV0>, String> {
     let target_path = normalize_omena_query_style_path(target_style_path);
     let default_rewrites = default_context.class_name_rewrites.as_slice();
@@ -205,6 +209,10 @@ fn collect_token_preimages(
         .map(|item| item.module_instance.clone())
         .collect::<BTreeSet<_>>();
     for module_instance in planned_modules {
+        let token_module_instance = module_identity_root.map_or_else(
+            || Ok(module_instance.clone()),
+            |root| super::css_modules::module_instance_key_relative_to_root(&module_instance, root),
+        )?;
         let module_path = normalize_omena_query_style_path(module_instance.module().as_str());
         let Some(entry) = entries_by_path.get(module_path.as_str()).copied() else {
             return Err(format!(
@@ -212,10 +220,10 @@ fn collect_token_preimages(
                 module_path
             ));
         };
-        let interface_rewrites = derive_class_name_rewrites_for_transform_context(entry);
+        let interface_rewrites =
+            derive_class_name_rewrites_for_module_instance(entry, &token_module_instance);
         for raw_name in &entry.facts.class_selector_names {
-            let canonical_raw_name = canonical_name(raw_name.as_str());
-            let linked_rewrites = linked_module_executions
+            let module_rewrites = linked_module_executions
                 .and_then(|executions| {
                     executions
                         .iter()
@@ -224,19 +232,24 @@ fn collect_token_preimages(
                 .map_or(interface_rewrites.as_slice(), |execution| {
                     execution.class_name_rewrites.as_slice()
                 });
+            let default_rewrites = if linked_module_executions.is_some() {
+                module_rewrites
+            } else {
+                default_rewrites
+            };
             let default_token = rewritten_name(default_rewrites, raw_name.as_str())
                 .unwrap_or(raw_name.as_str())
                 .to_string();
-            let linked_token = rewritten_name(linked_rewrites, raw_name.as_str())
+            let linked_token = rewritten_name(module_rewrites, raw_name.as_str())
                 .unwrap_or(raw_name.as_str())
                 .to_string();
             let interface_token = rewritten_name(interface_rewrites.as_slice(), raw_name.as_str())
                 .unwrap_or(raw_name.as_str())
                 .to_string();
             preimages
-                .entry((module_instance.clone(), canonical_raw_name))
+                .entry((token_module_instance.clone(), raw_name.clone()))
                 .or_insert(CssModuleTokenPreimageV0 {
-                    module_instance: module_instance.clone(),
+                    module_instance: token_module_instance.clone(),
                     module_path: module_path.clone(),
                     raw_name: raw_name.clone(),
                     default_token,
@@ -261,7 +274,12 @@ fn rewritten_name<'a>(
 ) -> Option<&'a str> {
     rewrites
         .iter()
-        .find(|rewrite| css_identifier_names_match(rewrite.original_name.as_str(), raw_name))
+        .find(|rewrite| rewrite.original_name == raw_name)
+        .or_else(|| {
+            rewrites.iter().find(|rewrite| {
+                css_identifier_names_match(rewrite.original_name.as_str(), raw_name)
+            })
+        })
         .map(|rewrite| rewrite.rewritten_name.as_str())
 }
 
@@ -377,16 +395,36 @@ mod tests {
     }
 
     #[test]
-    fn filesystem_and_memory_labels_are_vacuously_equal_before_path_identity_lands() {
-        // Token generation is currently path-independent. The CSS Modules identity
-        // maintainer owns this declared vacuity and must replace it when a
-        // caller-supplied workspace root becomes a token input.
+    fn caller_supplied_module_identity_controls_token_deterministically() -> Result<(), String> {
         let entry_a =
             collect_omena_query_style_fact_entry("/filesystem/card.module.css", ".card {}");
         let entry_b = collect_omena_query_style_fact_entry("memory/card.module.css", ".card {}");
+        let module_instance_a = super::super::css_modules::module_instance_key_relative_to_root(
+            &omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                "/workspace-a/src/card.module.css",
+            )),
+            "/workspace-a",
+        )?;
+        let module_instance_b = super::super::css_modules::module_instance_key_relative_to_root(
+            &omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                "/workspace-b/src/card.module.css",
+            )),
+            "/workspace-b",
+        )?;
+        assert_eq!(module_instance_a, module_instance_b);
         assert_eq!(
-            derive_class_name_rewrites_for_transform_context(&entry_a),
-            derive_class_name_rewrites_for_transform_context(&entry_b)
+            derive_class_name_rewrites_for_module_instance(&entry_a, &module_instance_a),
+            derive_class_name_rewrites_for_module_instance(&entry_b, &module_instance_b)
         );
+        assert!(
+            super::super::css_modules::module_instance_key_relative_to_root(
+                &omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                    "/outside/card.module.css"
+                ),),
+                "/workspace-a",
+            )
+            .is_err()
+        );
+        Ok(())
     }
 }

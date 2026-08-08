@@ -1870,24 +1870,36 @@ fn derives_unique_class_rewrites_for_repeated_escaped_selectors() {
         &[],
     );
 
-    assert_eq!(summary.class_name_rewrite_count, 2);
+    assert_eq!(summary.class_name_rewrite_count, 3);
+    let rewrites = &summary.context.class_name_rewrites;
     assert_eq!(
-        summary
-            .context
-            .class_name_rewrites
+        rewrites
             .iter()
-            .map(|rewrite| {
-                (
-                    rewrite.original_name.as_str(),
-                    rewrite.rewritten_name.as_str(),
-                )
-            })
-            .collect::<Vec<_>>(),
-        vec![
-            (r#"foo\:bar"#, "_foo_bar_0"),
-            (r#"hex\3A bar"#, "_hex_bar_1")
-        ]
+            .map(|rewrite| rewrite.original_name.as_str())
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([r#"foo\:bar"#, r#"hex\3A bar"#, r#"hex\:bar"#])
     );
+    assert_eq!(
+        rewrites
+            .iter()
+            .map(|rewrite| rewrite.rewritten_name.as_str())
+            .collect::<BTreeSet<_>>()
+            .len(),
+        3,
+        "distinct raw spellings must retain distinct emitted tokens"
+    );
+    for rewrite in rewrites {
+        let expected_suffix = if rewrite.original_name.starts_with("foo") {
+            "_foo_bar"
+        } else {
+            "_hex_bar"
+        };
+        assert!(
+            rewrite.rewritten_name.ends_with(expected_suffix),
+            "{:?}",
+            rewrite
+        );
+    }
 }
 
 #[test]
