@@ -40,13 +40,32 @@ pub(in crate::style) fn module_instance_key_relative_to_root(
             .get(1)
             .is_some_and(|separator| *separator == b':');
     let relative_module = if module_is_absolute {
-        let canonical_root = canonicalize_path_allowing_missing_tail(&normalized_root)?;
-        let canonical_module = canonicalize_path_allowing_missing_tail(&normalized_module)?;
-        let relative = canonical_module.strip_prefix(&canonical_root).map_err(|_| {
-            format!(
-                "CSS Modules token identity module {normalized_module:?} is outside caller workspace root {normalized_root:?}"
-            )
-        })?;
+        let module_path = Path::new(&normalized_module);
+        let relative = module_path
+            .strip_prefix(Path::new(&normalized_root))
+            .ok()
+            .map(Path::to_path_buf)
+            .or_else(|| {
+                workspace_root_link_target(&normalized_root).and_then(|link_target| {
+                    module_path
+                        .strip_prefix(link_target)
+                        .ok()
+                        .map(Path::to_path_buf)
+                })
+            });
+        let relative = if let Some(relative) = relative {
+            relative
+        } else {
+            let canonical_root = canonicalize_path_allowing_missing_tail(&normalized_root)?;
+            module_path
+                .strip_prefix(&canonical_root)
+                .map(Path::to_path_buf)
+                .map_err(|_| {
+                    format!(
+                        "CSS Modules token identity module {normalized_module:?} is outside caller workspace root {normalized_root:?}"
+                    )
+                })?
+        };
         crate::types::normalize_omena_query_style_path(relative.to_string_lossy().as_ref())
     } else {
         if normalized_module == ".." || normalized_module.starts_with("../") {
@@ -64,6 +83,18 @@ pub(in crate::style) fn module_instance_key_relative_to_root(
     }
     Ok(omena_parser::ModuleInstanceKeyV0::unconfigured(
         omena_parser::ModuleIdV0::new(relative_module),
+    ))
+}
+
+fn workspace_root_link_target(path: &str) -> Option<PathBuf> {
+    let target = std::fs::read_link(path).ok()?;
+    let target = if target.is_absolute() {
+        target
+    } else {
+        Path::new(path).parent()?.join(target)
+    };
+    Some(PathBuf::from(
+        crate::types::normalize_omena_query_style_path(target.to_string_lossy().as_ref()),
     ))
 }
 
@@ -481,6 +512,35 @@ mod tests {
             symlink_root.to_string_lossy().as_ref(),
         )?;
         assert_eq!(result.module().as_str(), "src/card.module.css");
+
+        fs::remove_dir_all(&fixture_root).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn token_integrity_root_internal_symlink_preserves_caller_visible_identity()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+        let fixture_root = std::env::temp_dir().join(format!(
+            "omena-query-module-identity-internal-link-{}-{unique}",
+            std::process::id()
+        ));
+        let workspace_root = fixture_root.join("workspace");
+        let external_root = fixture_root.join("external");
+        let linked_root = workspace_root.join("linked");
+        let module_path = linked_root.join("pkg.module.css");
+        fs::create_dir_all(&workspace_root)?;
+        fs::create_dir_all(&external_root)?;
+        fs::write(external_root.join("pkg.module.css"), ".pkg {}")?;
+        unix_fs::symlink(&external_root, &linked_root)?;
+
+        let result = module_instance_key_relative_to_root(
+            &omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                module_path.to_string_lossy(),
+            )),
+            workspace_root.to_string_lossy().as_ref(),
+        )?;
+        assert_eq!(result.module().as_str(), "linked/pkg.module.css");
 
         fs::remove_dir_all(&fixture_root).ok();
         Ok(())

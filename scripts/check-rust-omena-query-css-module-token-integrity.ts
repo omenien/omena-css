@@ -30,6 +30,7 @@ const requiredTests = [
   "ownership_census_incomplete_attribution_path_names_the_unowned_token",
   "equivalent_workspace_relative_identity_produces_equal_tokens",
   "token_integrity_symlinked_workspace_root_accepts_the_canonical_module_path",
+  "token_integrity_root_internal_symlink_preserves_caller_visible_identity",
   "strict_css_module_token_integrity_uses_module_qualified_preimages",
   "strict_css_module_token_integrity_accepts_the_selected_module_context",
   "token_integrity_selected_shape_is_injective_on_import_inline_bytes",

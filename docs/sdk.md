@@ -123,6 +123,12 @@ from the earlier request shape must add it explicitly and keep the value stable
 across workspace relocation; Omena uses that boundary to derive portable CSS
 Module identity and rejects modules outside it.
 
+CSS Module token-integrity enforcement is opt-in. `Strict` mode rejects output
+when selected interface tokens and emitted bytes disagree or ownership analysis
+is incomplete. `Descriptive` mode reports the same census and reasons without
+rejecting output, so callers that do not select `Strict` are not guaranteed to
+fail closed on an incomplete carrier.
+
 ## LSP
 
 After `initialize`, send `omena/sdkWorkflow` with `workspaceRoot`, `operation`,
