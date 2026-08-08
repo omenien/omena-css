@@ -60,7 +60,7 @@
     "omena-lawvere": 13,
     "omena-parser": 161,
     "omena-product-hints": 44,
-    "omena-query": 308,
+    "omena-query": 309,
     "omena-query-checker-orchestrator": 10,
     "omena-query-core": 9,
     "omena-query-transform-runner": 14,
@@ -7550,6 +7550,12 @@
       "typeName": "OmenaWorkspaceOccurrenceV0",
       "sourcePath": "rust/crates/omena-query/src/types.rs",
       "line": 2701
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "PathShape",
+      "sourcePath": "rust/crates/omena-query/src/style/transform/css_modules.rs",
+      "line": 497
     },
     {
       "crate": "omena-query",
