@@ -765,6 +765,10 @@ mod tests {
                     exported_class_names: vec!["explicit".to_string()],
                 }]
             );
+            println!(
+                "canonical-merge derived={derived_name:?} explicit={explicit_name:?} winner={:?}",
+                merged.class_name_rewrites
+            );
         }
     }
 

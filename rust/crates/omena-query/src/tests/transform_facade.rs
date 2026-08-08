@@ -1039,6 +1039,52 @@ fn strict_css_module_token_integrity_uses_module_qualified_preimages() -> Result
     );
     assert_eq!(serialized_census["moduleTokenCollisionCount"], 0);
 
+    let distinct_contexts = [
+        ("src/app.module.css", "_entry_override"),
+        ("src/dependency.module.css", "_dependency_override"),
+    ]
+    .into_iter()
+    .map(|(style_path, rewritten_name)| {
+        OmenaQueryTransformModuleCssModuleContextV0::new(
+            omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                format!("/workspace/{style_path}"),
+            )),
+        )
+        .with_class_name_rewrites(vec![OmenaQueryTransformClassNameRewriteV0 {
+            original_name: "shared".to_string(),
+            rewritten_name: rewritten_name.to_string(),
+        }])
+    })
+    .collect::<Vec<_>>();
+    for emission_path in [
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+        OmenaQueryBundleEmissionPathV0::LinkedOrder,
+    ] {
+        let result = run_omena_query_bundle_with_module_css_module_contexts_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: "src/app.module.css",
+                style_sources: &same_ordinal,
+                source_map_sources: &same_ordinal,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            &OmenaQueryConsumerBuildOptionsV0 {
+                verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Descriptive,
+                bundle_emission_path: emission_path,
+            },
+            "/workspace",
+            &distinct_contexts,
+        )?;
+        let output = result.bundle_result.artifact.output_css.as_str();
+        assert!(output.contains("._entry_override"), "{output}");
+        assert!(output.contains("._dependency_override"), "{output}");
+        println!("per-module-token-bytes path={emission_path:?} output={output:?}");
+    }
+
     let forced_contexts = same_ordinal
         .iter()
         .map(|source| {
@@ -1084,6 +1130,7 @@ fn strict_css_module_token_integrity_uses_module_qualified_preimages() -> Result
         assert!(error.contains("src/dependency.module.css"), "{error}");
         assert!(error.contains("shared"), "{error}");
         assert!(error.contains("_forced_shared"), "{error}");
+        println!("forced-collision path={emission_path:?} error={error:?}");
     }
 
     let different_ordinals = vec![
@@ -1256,6 +1303,10 @@ fn token_integrity_selected_shape_is_injective_on_import_inline_bytes() -> Resul
         .iter()
         .map(|ownership| ownership.emitted_token.as_str())
         .collect::<BTreeSet<_>>();
+    println!(
+        "selected-shape-bytes output={:?} emitted_tokens={emitted_tokens:?}",
+        result.bundle_result.artifact.output_css
+    );
     assert_eq!(emitted_tokens.len(), 4);
     assert_eq!(
         result
@@ -1320,6 +1371,7 @@ fn token_integrity_default_path_scopes_every_declared_dependency_class() -> Resu
     assert_eq!(census.module_token_collision_count, 0);
     assert!(census.interface_mismatches.is_empty());
     let output = result.bundle_result.artifact.output_css.as_str();
+    println!("dependency-scope-bytes output={output:?}");
     for raw_name in [".entry", ".a", ".dead", ".m"] {
         assert!(
             !output.contains(raw_name),
@@ -1359,6 +1411,7 @@ fn token_integrity_default_path_tree_shakes_media_nested_dependency_classes() ->
         &context,
     )?;
     let output = result.bundle_result.artifact.output_css.as_str();
+    println!("media-tree-shake-bytes output={output:?}");
     assert!(output.contains("@media"), "{output}");
     assert!(output.contains("color: red"), "{output}");
     assert!(!output.contains("color: black"), "{output}");
@@ -1391,6 +1444,7 @@ fn token_integrity_default_path_removes_resolved_dependency_composes_declaration
         &OmenaQueryTransformExecutionContextV0::default(),
     )?;
     let output = result.bundle_result.artifact.output_css.as_str();
+    println!("resolved-composes-bytes output={output:?}");
     assert!(!output.contains("composes"), "{output}");
     assert!(result.ownership_census.interface_mismatches.is_empty());
     Ok(())
@@ -1414,6 +1468,7 @@ fn token_integrity_default_path_scopes_non_ascii_dependency_classes() -> Result<
         &OmenaQueryTransformExecutionContextV0::default(),
     )?;
     let output = result.bundle_result.artifact.output_css.as_str();
+    println!("non-ascii-scope-bytes output={output:?}");
     assert!(!output.contains(".카드"), "{output}");
     assert!(result.ownership_census.interface_mismatches.is_empty());
     assert!(

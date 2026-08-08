@@ -3,6 +3,21 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+interface CssModuleTokenRotationContractV1 {
+  readonly schemaVersion: "1";
+  readonly product: "omena.css-modules-token-rotation";
+  readonly previousRotationIdentity: null;
+  readonly rotationIdentity: string;
+  readonly coordinatedRelease: {
+    readonly extension: "5.4.0";
+    readonly rustCrateTrain: "0.4.0";
+  };
+  readonly breakClasses: ReadonlyArray<{
+    readonly id: string;
+    readonly warningChannel: "none" | "build-time";
+  }>;
+}
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const docsRoot = path.join(repoRoot, "docs");
 const requiredFields = [
@@ -23,6 +38,15 @@ const forbiddenPublicTerms = [
   /\bstage-\d+\b/iu,
   /\bslice-[a-z0-9]+\b/iu,
 ];
+const tokenRotationIdentity = "omena.css-modules.module-and-class-hash.v1";
+const tokenRotationBreakClassIds = [
+  "persisted-emitted-token",
+  "global-to-scoped-dependency-class",
+  "handwritten-emitted-token-selector",
+  "stale-interface-manifest",
+  "mixed-token-identity-versions",
+  "collision-retained-declaration-removal",
+] as const;
 
 const pagePaths = collectPages(docsRoot);
 assert.ok(pagePaths.length >= 35, "the public documentation surface unexpectedly shrank");
@@ -176,6 +200,66 @@ for (const cssModulesConsumerGuide of ["docs/getting-started.md", "docs/sdk.md"]
     `${cssModulesConsumerGuide} must declare emitted CSS Modules tokens unsupported as a consumer contract`,
   );
 }
+const tokenRotation = readCssModuleTokenRotationContract();
+// FALSIFIER: delete or rename the identity, reuse a release version, or give the
+// legacy unnamed format the same value. The authored release block can emit each
+// state, so these are contract checks rather than structural declarations.
+assert.equal(tokenRotation.schemaVersion, "1");
+assert.equal(tokenRotation.product, "omena.css-modules-token-rotation");
+assert.equal(tokenRotation.previousRotationIdentity, null);
+assert.equal(
+  process.argv.includes("--inject-missing-token-rotation-identity")
+    ? undefined
+    : tokenRotation.rotationIdentity,
+  tokenRotationIdentity,
+  "the CSS Modules token rotation must have a stable identity independent of release versions",
+);
+assert.notEqual(
+  tokenRotation.rotationIdentity,
+  tokenRotation.previousRotationIdentity,
+  "the CSS Modules token rotation identity must differ from the previous release",
+);
+assert.doesNotMatch(
+  tokenRotation.rotationIdentity,
+  /\b\d+\.\d+\.\d+\b/u,
+  "the CSS Modules token rotation identity must not embed a release version",
+);
+assert.ok(
+  !Object.values(tokenRotation.coordinatedRelease).includes(tokenRotation.rotationIdentity),
+  "the CSS Modules token rotation identity must not be derived from a release version",
+);
+assert.deepEqual(tokenRotation.coordinatedRelease, {
+  extension: "5.4.0",
+  rustCrateTrain: "0.4.0",
+});
+const observedTokenRotationBreakClassIds = tokenRotation.breakClasses
+  .map((entry) => entry.id)
+  .filter(
+    (id) =>
+      !(
+        process.argv.includes("--inject-missing-token-rotation-break-class") &&
+        id === tokenRotationBreakClassIds.at(-1)
+      ),
+  )
+  .toSorted();
+// FALSIFIER: remove, rename, duplicate, or substitute any class. The authored
+// release block is the producer and can emit each malformed membership set.
+assert.deepEqual(
+  observedTokenRotationBreakClassIds,
+  [...tokenRotationBreakClassIds].toSorted(),
+  "the CSS Modules token rotation must enumerate the exact silent-break class membership",
+);
+assert.equal(
+  tokenRotation.breakClasses.length,
+  tokenRotationBreakClassIds.length,
+  "the CSS Modules token rotation break-class count is a redundant membership cross-check",
+);
+assert.equal(
+  tokenRotation.breakClasses.find((entry) => entry.id === "persisted-emitted-token")
+    ?.warningChannel,
+  "none",
+  "persisted emitted tokens have no warning channel",
+);
 assertFileIncludes(
   "docs/reference/cli.md",
   "Cargo feature `zk-audit`",
@@ -219,6 +303,13 @@ process.stdout.write(
       unlistedNavigationPageCount: 0,
       stalePublicContractCount: 0,
       forbiddenPlanningTermCount: 0,
+      cssModuleTokenRotationIdentity: tokenRotation.rotationIdentity,
+      cssModuleTokenRotationPreviousIdentity: tokenRotation.previousRotationIdentity,
+      cssModuleTokenRotationBreakClassCount: tokenRotation.breakClasses.length,
+      cssModuleTokenRotationBreakClassIds: tokenRotation.breakClasses
+        .map((entry) => entry.id)
+        .toSorted(),
+      cssModuleTokenRotationRelease: tokenRotation.coordinatedRelease,
     },
     null,
     2,
@@ -336,6 +427,18 @@ function verifyNavigationMetadata(metaPath: string) {
 
 function readFile(relativePath: string): string {
   return readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function readCssModuleTokenRotationContract(): CssModuleTokenRotationContractV1 {
+  const source = readFile("docs/releases/css-modules-token-rotation.md");
+  const match =
+    /<!-- omena-css-module-token-rotation-contract:start -->\s*```json\s*([\s\S]*?)\s*```\s*<!-- omena-css-module-token-rotation-contract:end -->/u.exec(
+      source,
+    );
+  // FALSIFIER: delete either marker or the JSON fence. The authored page can
+  // emit that shape, and the site contract must reject it before publication.
+  assert.ok(match, "the CSS Modules token rotation contract block is missing");
+  return JSON.parse(match[1]) as CssModuleTokenRotationContractV1;
 }
 
 function assertFileIncludes(relativePath: string, expected: string, message: string) {
