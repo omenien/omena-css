@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0",
   "product": "omena.fact-precision-production-census",
-  "rawReferenceCount": 125,
+  "rawReferenceCount": 127,
   "productionSiteCount": 20,
   "productionOverrideCount": 14,
   "classifiedSites": [
@@ -797,6 +797,36 @@
         "Unknown": 0
       },
       "occurrenceCount": 2,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
+    },
+    {
+      "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+      "owner": "fn ownership_census_admission_matrix_distinguishes_incomplete_and_empty_states",
+      "lexicalContext": "code",
+      "testOnly": true,
+      "variantCounts": {
+        "Exact": 1,
+        "Conservative": 0,
+        "Heuristic": 0,
+        "Unknown": 0
+      },
+      "occurrenceCount": 1,
+      "disposition": "test",
+      "authority": "test-only precision expectation or mutation fixture"
+    },
+    {
+      "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+      "owner": "fn ownership_census_controls_module_qualified_destructive_admission",
+      "lexicalContext": "code",
+      "testOnly": true,
+      "variantCounts": {
+        "Exact": 1,
+        "Conservative": 0,
+        "Heuristic": 0,
+        "Unknown": 0
+      },
+      "occurrenceCount": 1,
       "disposition": "test",
       "authority": "test-only precision expectation or mutation fixture"
     },

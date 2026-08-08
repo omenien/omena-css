@@ -613,7 +613,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/transform.rs",
-        "line": 1363,
+        "line": 1366,
         "function": "closed_world_bound_reachability_precision",
         "operation": "contains",
         "evidence": ".any(|name| !closed_world_class_names.contains(name.as_str()))",
@@ -748,7 +748,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
-        "line": 1812,
+        "line": 1875,
         "function": "run_hash_css_module_class_names_structural",
         "operation": "str-eq",
         "evidence": "if mutation_count == 0 && class_name_rewrites.is_empty() {",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:27d13184bea77d1dcaf7f9fc51dc157d4d381e78b2a7ae4f5699925d18d9d13e"
+    "siteDigest": "sha256:6b097f4f791cf5f48b2afbda4ecca3db491d2196cfa58ffd04d909df930d5a79"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
