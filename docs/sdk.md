@@ -118,6 +118,11 @@ The request contains `workspaceRoot`, `styleSources`, `operation`, and the typed
 `request` payload. JSON output wraps the workflow response in
 `omena-cli.sdk-workflow` metadata.
 
+`workspaceRoot` is required on bundler-host resolve requests. Clients upgrading
+from the earlier request shape must add it explicitly and keep the value stable
+across workspace relocation; Omena uses that boundary to derive portable CSS
+Module identity and rejects modules outside it.
+
 ## LSP
 
 After `initialize`, send `omena/sdkWorkflow` with `workspaceRoot`, `operation`,

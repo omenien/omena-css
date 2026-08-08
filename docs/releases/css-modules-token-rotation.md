@@ -52,6 +52,10 @@ switch.
     {
       "id": "collision-retained-declaration-removal",
       "warningChannel": "none"
+    },
+    {
+      "id": "required-workspace-root",
+      "warningChannel": "build-time"
     }
   ]
 }
@@ -71,8 +75,8 @@ persisting or constructing emitted names.
 
 ## Compatibility classes
 
-The six entries in the contract block are separate compatibility classes, not
-six names for one symptom:
+The seven entries in the contract block are separate compatibility classes,
+not seven names for one symptom:
 
 - `persisted-emitted-token`: downstream snapshots, visual baselines, and E2E
   selectors that stored old emitted tokens change. Omena has no warning channel
@@ -92,6 +96,16 @@ six names for one symptom:
   two modules previously produced the same token is now removed when normal
   reachability is applied. This is a second-order byte change alongside the
   token rotation.
+- `required-workspace-root`: bundler-host resolve requests now require
+  `workspaceRoot`. Older request payloads that omit it fail deserialization;
+  callers must send the same stable workspace boundary used to derive module
+  identity.
+
+Caller-supplied per-module class maps are part of the selected module context.
+Strict verification, when explicitly enabled, validates emitted bytes against
+that selected context. The default `Descriptive` profile continues to report
+the census without turning it into an admission failure; Strict coverage is
+therefore opt-in rather than evidence about every default build.
 
 The number of consumers in each class is not measured.
 
@@ -111,3 +125,6 @@ The number of consumers in each class is not measured.
    carry `omena.css-modules.module-and-class-hash.v1`.
 7. Review byte snapshots for declarations that disappear after collision-free
    reachability, then run the application's visual and E2E suites.
+8. Add `workspaceRoot` to every bundler-host resolve request. Use a stable,
+   canonical workspace boundary and keep it identical across relocated builds;
+   do not derive it from a temporary output directory.

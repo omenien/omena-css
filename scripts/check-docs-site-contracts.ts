@@ -46,6 +46,7 @@ const tokenRotationBreakClassIds = [
   "stale-interface-manifest",
   "mixed-token-identity-versions",
   "collision-retained-declaration-removal",
+  "required-workspace-root",
 ] as const;
 
 const pagePaths = collectPages(docsRoot);
@@ -263,6 +264,21 @@ assert.equal(
     ?.warningChannel,
   "none",
   "persisted emitted tokens have no warning channel",
+);
+assertFileIncludes(
+  "docs/releases/css-modules-token-rotation.md",
+  "Add `workspaceRoot` to every bundler-host resolve request",
+  "the token rotation runbook must include the required workspace-root migration",
+);
+assertFileIncludes(
+  "docs/releases/css-modules-token-rotation.md",
+  "Strict verification, when explicitly enabled",
+  "the release note must disclose the selected-carrier Strict boundary",
+);
+assertFileIncludes(
+  "docs/sdk.md",
+  "`workspaceRoot` is required on bundler-host resolve requests",
+  "the public SDK guide must disclose the required bundler-host workspace root",
 );
 assertFileIncludes(
   "docs/reference/cli.md",
