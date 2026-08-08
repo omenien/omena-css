@@ -1156,6 +1156,43 @@ fn strict_css_module_token_integrity_uses_module_qualified_preimages() -> Result
 }
 
 #[test]
+fn legacy_css_module_emission_preserves_dependency_before_entry_source_order()
+-> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.module.css".to_string(),
+            style_source: "@import './z-base.module.css'; .entry { color: blue; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/z-base.module.css".to_string(),
+            style_source: ".base { color: red; }".to_string(),
+        },
+    ];
+    let result = run_default_css_module_token_census(
+        &sources,
+        &[],
+        &OmenaQueryTransformExecutionContextV0::default(),
+    )?;
+    let output = result.bundle_result.artifact.output_css;
+    let compact_output = output.split_ascii_whitespace().collect::<String>();
+    let dependency_rule = compact_output
+        .find("color:red")
+        .ok_or_else(|| format!("dependency order probe is absent from {output:?}"))?;
+    let entry_rule = compact_output
+        .find("color:#00f")
+        .ok_or_else(|| format!("entry order probe is absent from {output:?}"))?;
+
+    // The default compatibility path owns source-order semantics: imported
+    // modules are emitted before the importing entry, independently of path sort.
+    assert!(
+        dependency_rule < entry_rule,
+        "legacy CSS module emission reordered entry before dependency: {output:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn strict_css_module_token_integrity_rejects_injected_interface_byte_mismatch() -> Result<(), String>
 {
     let sources = vec![

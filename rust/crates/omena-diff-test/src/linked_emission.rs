@@ -3879,6 +3879,40 @@ mod tests {
     }
 
     #[test]
+    fn legacy_emission_order_matches_the_independent_import_graph() -> Result<(), String> {
+        let fixture = module_qualified_reachability_fixture_v0();
+        let analysis = analyze_linked_emission_fixture_v0(
+            &fixture,
+            LinkedEmissionByteDifferentialPerturbationV0::None,
+        )?;
+        let linker_modules = fixture
+            .modules
+            .iter()
+            .map(|module| {
+                TransformBundleModuleInputV0::new(
+                    module.path.clone(),
+                    module.source.clone(),
+                    module.dialect,
+                )
+            })
+            .collect::<Vec<_>>();
+        let projections =
+            project_omena_transform_bundle_linker_and_emission_items(&linker_modules, &[]);
+        let import_graph_order = independent_import_graph_module_order_v0(
+            &fixture,
+            projections.linker_projection().inputs(),
+        )?;
+
+        // This oracle derives order from authored imports, not either product
+        // path's emission plan. Path sorting therefore cannot satisfy it.
+        assert_eq!(
+            output_module_order_v0(&fixture, &analysis.legacy_css)?,
+            observable_module_order_v0(&fixture, &import_graph_order)
+        );
+        Ok(())
+    }
+
+    #[test]
     fn module_qualified_reachability_converges_across_both_paths() -> Result<(), String> {
         let fixture = module_qualified_reachability_fixture_v0();
         let analysis = analyze_linked_emission_fixture_v0(
