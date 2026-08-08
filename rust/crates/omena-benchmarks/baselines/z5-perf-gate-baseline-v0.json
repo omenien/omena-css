@@ -2,12 +2,12 @@
   "schemaVersion": "0",
   "product": "omena-benchmarks.z5-perf-gate-baseline",
   "benchmarkFamily": "z5-performance-baseline",
-  "generatedAtUtc": "2026-07-17T02:22:12.215Z",
-  "omenaGitSha": "99285eb305dfcc868824475d75a09a757ce45cb8",
+  "generatedAtUtc": "2026-08-08T20:13:47.077Z",
+  "omenaGitSha": "4a8e44a27b7a15a8a13952191d2bd86330451939",
   "machine": {
-    "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
     "cores": 4,
-    "ramBytes": 16765382656,
+    "ramBytes": 16766414848,
     "os": "Linux",
     "kernel": "6.17.0-1020-azure",
     "arch": "x64"
@@ -15,9 +15,9 @@
   "toolchain": {
     "rustcVersion": "rustc 1.96.0 (ac68faa20 2026-05-25)",
     "rustcCommitHash": "ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96",
-    "cargoLockSha256": "d0151bd85b410325523bc80362a728ddf43c34c125d3ef10550fc4b54d381e10",
-    "nodeVersion": "v24.18.0",
-    "lightningcssVersion": "1.32.0",
+    "cargoLockSha256": "e3a1e1e41f3cf3da0119e34a243634ab0a8da4886d0cddb74a3708c004cd4533",
+    "nodeVersion": "v26.7.0",
+    "lightningcssVersion": "1.33.0",
     "iaiCallgrindVersion": "0.16.1",
     "valgrindVersion": "valgrind-3.22.0"
   },
@@ -37,7 +37,7 @@
       "--separate-targets"
     ],
     "tool": "iai-callgrind",
-    "measuredOperation": "query-cold-open-memoized-recheck-committed-graph-edit-and-property-metadata-lookup"
+    "measuredOperation": "query-and-transform-runtime-substrate"
   },
   "results": [
     {
@@ -45,7 +45,7 @@
       "benchmarkFunction": "cold_open_query_corpus_2n",
       "corpusScale": "2N",
       "metric": "instructions",
-      "value": 1110267542,
+      "value": 1137899053,
       "unit": "Ir"
     },
     {
@@ -53,7 +53,7 @@
       "benchmarkFunction": "cold_open_query_corpus_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 866470161,
+      "value": 893516872,
       "unit": "Ir"
     },
     {
@@ -61,7 +61,7 @@
       "benchmarkFunction": "committed_graph_edit_query_corpus_2n",
       "corpusScale": "2N",
       "metric": "instructions",
-      "value": 2158814128,
+      "value": 2308340864,
       "unit": "Ir"
     },
     {
@@ -69,7 +69,7 @@
       "benchmarkFunction": "committed_graph_edit_query_corpus_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 1191971647,
+      "value": 1266804753,
       "unit": "Ir"
     },
     {
@@ -77,7 +77,7 @@
       "benchmarkFunction": "memoized_recheck_query_corpus_2n",
       "corpusScale": "2N",
       "metric": "instructions",
-      "value": 696051913,
+      "value": 715959315,
       "unit": "Ir"
     },
     {
@@ -85,7 +85,7 @@
       "benchmarkFunction": "memoized_recheck_query_corpus_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 667917437,
+      "value": 687617485,
       "unit": "Ir"
     },
     {
@@ -93,7 +93,7 @@
       "benchmarkFunction": "property_metadata_lookup_registry_full",
       "corpusScale": "FULL",
       "metric": "instructions",
-      "value": 2150425,
+      "value": 2240537,
       "unit": "Ir"
     },
     {
@@ -101,7 +101,7 @@
       "benchmarkFunction": "property_metadata_lookup_registry_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 1445913,
+      "value": 1474585,
       "unit": "Ir"
     }
   ],
@@ -110,7 +110,7 @@
       "lane": "memoized-recheck-slope",
       "numeratorLane": "memoized-recheck-2n",
       "denominatorLane": "memoized-recheck-n",
-      "multiplier": 1.042123,
+      "multiplier": 1.041217,
       "threshold": 1.1,
       "thresholdPolicy": "memoized recheck should remain near-flat across N and 2N because only the edited file fact re-runs",
       "fit": "ratio"
@@ -119,7 +119,7 @@
       "lane": "cold-open-slope",
       "numeratorLane": "cold-open-2n",
       "denominatorLane": "cold-open-n",
-      "multiplier": 1.281368,
+      "multiplier": 1.273506,
       "threshold": 2.2,
       "thresholdPolicy": "cold open may scale with corpus size; 2.2 leaves deterministic headroom over the ideal 2x slope",
       "fit": "ratio"
@@ -128,7 +128,7 @@
       "lane": "committed-graph-edit-rebuild-slope",
       "numeratorLane": "committed-graph-edit-rebuild-2n",
       "denominatorLane": "committed-graph-edit-rebuild-n",
-      "multiplier": 1.811129,
+      "multiplier": 1.822176,
       "threshold": 99,
       "thresholdPolicy": "committed graph edit rebuild is recorded as an instruction-count baseline; flatness is a future contract once the edit path is fully settled",
       "fit": "ratio"
@@ -137,7 +137,7 @@
       "lane": "property-metadata-lookup-registry-size",
       "numeratorLane": "property-metadata-lookup-full",
       "denominatorLane": "property-metadata-lookup-n",
-      "multiplier": 1.487244,
+      "multiplier": 1.519436,
       "threshold": 2,
       "thresholdPolicy": "binary-search property metadata lookup should remain sublinear from the 64-row sample to the full generated registry",
       "fit": "ratio"
