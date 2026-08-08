@@ -75,28 +75,12 @@ pub(super) fn summarize_css_module_token_ownership(
         if !emitted_names.contains_key(&canonical_name(token)) {
             continue;
         }
-        let signature = collision_signature(collision);
-        let on_default = default_collisions
-            .values()
-            .any(|candidate| collision_signature(candidate) == signature);
-        let on_linked = linked_collisions
-            .values()
-            .any(|candidate| collision_signature(candidate) == signature);
-        let path_scope = match (on_default, on_linked) {
-            (true, true) => CssModuleTokenCollisionPathScopeV0::BothPaths,
-            (true, false) => CssModuleTokenCollisionPathScopeV0::ImportInlineLegacyOnly,
-            (false, true) => CssModuleTokenCollisionPathScopeV0::LinkedOrderOnly,
-            (false, false) => {
-                return Err(
-                    "CSS Modules emitted-token collision lost both emission-path owners"
-                        .to_string(),
-                );
-            }
-        };
+        let (path_scope, observed_emission_paths) =
+            collision_path_observation(token, collision, &default_collisions, &linked_collisions)?;
         let ownership = ownership_record(token.as_str(), collision);
         module_token_collisions.push(CssModuleTokenCollisionV0::new(
             ownership,
-            vec![emission_path.as_wire_label()],
+            observed_emission_paths,
             path_scope,
         ));
     }
@@ -324,6 +308,40 @@ fn collision_signature(
         .collect()
 }
 
+fn collision_path_observation(
+    token: &str,
+    collision: &[&CssModuleTokenPreimageV0],
+    default_collisions: &BTreeMap<String, Vec<&CssModuleTokenPreimageV0>>,
+    linked_collisions: &BTreeMap<String, Vec<&CssModuleTokenPreimageV0>>,
+) -> Result<(CssModuleTokenCollisionPathScopeV0, Vec<&'static str>), String> {
+    let signature = collision_signature(collision);
+    let on_default = default_collisions
+        .get(token)
+        .is_some_and(|candidate| collision_signature(candidate) == signature);
+    let on_linked = linked_collisions
+        .get(token)
+        .is_some_and(|candidate| collision_signature(candidate) == signature);
+    let path_scope = match (on_default, on_linked) {
+        (true, true) => CssModuleTokenCollisionPathScopeV0::BothPaths,
+        (true, false) => CssModuleTokenCollisionPathScopeV0::ImportInlineLegacyOnly,
+        (false, true) => CssModuleTokenCollisionPathScopeV0::LinkedOrderOnly,
+        (false, false) => {
+            return Err(
+                "CSS Modules emitted-token collision lost both emission-path owners".to_string(),
+            );
+        }
+    };
+    let mut observed_emission_paths = Vec::with_capacity(2);
+    if on_default {
+        observed_emission_paths
+            .push(OmenaQueryBundleEmissionPathV0::ImportInlineLegacy.as_wire_label());
+    }
+    if on_linked {
+        observed_emission_paths.push(OmenaQueryBundleEmissionPathV0::LinkedOrder.as_wire_label());
+    }
+    Ok((path_scope, observed_emission_paths))
+}
+
 fn group_preimages_by_token(
     preimages: &[CssModuleTokenPreimageV0],
     token: impl Fn(&CssModuleTokenPreimageV0) -> &str,
@@ -395,6 +413,57 @@ fn scanner_can_rewrite(raw_name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn collision_preimage(
+        module_path: &str,
+        default_token: &str,
+        linked_token: &str,
+    ) -> CssModuleTokenPreimageV0 {
+        let module_instance = omena_parser::ModuleInstanceKeyV0::unconfigured(
+            omena_parser::ModuleIdV0::new(module_path),
+        );
+        CssModuleTokenPreimageV0 {
+            module_instance,
+            module_path: module_path.to_string(),
+            raw_name: "shared".to_string(),
+            default_token: default_token.to_string(),
+            linked_token: linked_token.to_string(),
+            interface_token: default_token.to_string(),
+        }
+    }
+
+    #[test]
+    fn collision_path_scope_tracks_the_same_token_on_each_emission_path() -> Result<(), String> {
+        let preimages = vec![
+            collision_preimage("src/a.module.css", "_default", "_linked"),
+            collision_preimage("src/b.module.css", "_default", "_linked"),
+        ];
+        let default_collisions =
+            collision_groups(&preimages, |preimage| preimage.default_token.as_str());
+        let linked_collisions =
+            collision_groups(&preimages, |preimage| preimage.linked_token.as_str());
+        let default_collision = default_collisions
+            .get("_default")
+            .ok_or_else(|| "missing default-path collision".to_string())?;
+
+        // FALSIFIER: STRUCTURAL owner=CSS-Modules-token-integrity;
+        // current CSS Modules execution converges both rewrite paths. Re-enter
+        // when a path-specific producer can emit equal owners under distinct tokens.
+        // At that boundary, an owner-only comparison would mislabel this as bothPaths.
+        assert_eq!(
+            collision_path_observation(
+                "_default",
+                default_collision,
+                &default_collisions,
+                &linked_collisions,
+            )?,
+            (
+                CssModuleTokenCollisionPathScopeV0::ImportInlineLegacyOnly,
+                vec![OmenaQueryBundleEmissionPathV0::ImportInlineLegacy.as_wire_label()],
+            )
+        );
+        Ok(())
+    }
 
     #[test]
     fn scanner_scope_follows_the_shared_identifier_predicate() {

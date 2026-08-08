@@ -41,7 +41,7 @@ interface PersonaManifest {
 }
 
 interface CssModuleTokenLiteralPolicy {
-  readonly schemaVersion: "0";
+  readonly schemaVersion: "1";
   readonly product: "omena-css-module-token-literal-policy";
   readonly scope: "internal-test-inventory-only";
   readonly regex: string;
@@ -51,6 +51,12 @@ interface CssModuleTokenLiteralPolicy {
   readonly cfgTestRegions: readonly {
     readonly path: string;
     readonly marker: string;
+    readonly endMarker?: string;
+  }[];
+  readonly internalRegions: readonly {
+    readonly path: string;
+    readonly startMarker: string;
+    readonly endMarker: string;
   }[];
   readonly roleJustifications: Readonly<Record<string, string>>;
 }
@@ -958,7 +964,7 @@ function verifyCssModuleTokenLiteralPolicy(): {
 } {
   const policyPath = "rust/omena-css-module-token-literal-policy.json";
   const policy = JSON.parse(read(policyPath)) as CssModuleTokenLiteralPolicy;
-  assert.equal(policy.schemaVersion, "0");
+  assert.equal(policy.schemaVersion, "1");
   assert.equal(policy.product, "omena-css-module-token-literal-policy");
   assert.equal(policy.scope, "internal-test-inventory-only");
 
@@ -973,9 +979,11 @@ function verifyCssModuleTokenLiteralPolicy(): {
   assert.equal(listed.status, 0, listed.stderr);
   const repositoryFiles = listed.stdout.split("\0").filter(Boolean);
   const wholeFileTestInternal = new Set(policy.wholeFileTestInternal);
-  const cfgTestRegions = new Map(
-    policy.cfgTestRegions.map((region) => [region.path, region.marker] as const),
-  );
+  const cfgTestRegions = new Map(policy.cfgTestRegions.map((region) => [region.path, region]));
+  const internalRegions = new Map<string, CssModuleTokenLiteralPolicy["internalRegions"]>();
+  for (const region of policy.internalRegions) {
+    internalRegions.set(region.path, [...(internalRegions.get(region.path) ?? []), region]);
+  }
   const tokenPattern = new RegExp(policy.regex, "gu");
   const matchedFiles = new Set<string>();
   const testInternalSites: string[] = [];
@@ -995,16 +1003,38 @@ function verifyCssModuleTokenLiteralPolicy(): {
       const line = source.slice(0, offset).split("\n").length;
       const site = `${relativePath}:${line}:${match[0]}`;
       matchedFiles.add(relativePath);
-      const regionMarker = cfgTestRegions.get(relativePath);
-      const regionOffset = regionMarker === undefined ? -1 : source.indexOf(regionMarker);
+      const cfgTestRegion = cfgTestRegions.get(relativePath);
+      const regionOffset = cfgTestRegion === undefined ? -1 : source.indexOf(cfgTestRegion.marker);
       assert.notEqual(
-        regionMarker === undefined ? 0 : regionOffset,
+        cfgTestRegion === undefined ? 0 : regionOffset,
         -1,
-        `${relativePath} is missing configured test-region marker ${JSON.stringify(regionMarker)}`,
+        `${relativePath} is missing configured test-region marker ${JSON.stringify(cfgTestRegion?.marker)}`,
       );
+      const regionEndOffset =
+        cfgTestRegion?.endMarker === undefined
+          ? source.length
+          : source.indexOf(cfgTestRegion.endMarker, regionOffset + cfgTestRegion.marker.length);
+      // FALSIFIER: the policy producer can name a missing or preceding end
+      // marker; owner=docs-reference-surface, re-entry=test-region-boundary-change.
+      assert.ok(
+        cfgTestRegion === undefined || regionEndOffset > regionOffset,
+        `${relativePath} is missing configured test-region end marker ${JSON.stringify(cfgTestRegion?.endMarker)}`,
+      );
+      const insideInternalRegion = (internalRegions.get(relativePath) ?? []).some((region) => {
+        const start = source.indexOf(region.startMarker);
+        const end = source.indexOf(region.endMarker, start + region.startMarker.length);
+        // FALSIFIER: the policy producer can name absent, reversed, or stale
+        // markers; owner=docs-reference-surface, re-entry=fixture-region-boundary-change.
+        assert.ok(
+          start >= 0 && end > start,
+          `${relativePath} is missing configured internal region ${JSON.stringify(region)}`,
+        );
+        return offset >= start && offset < end;
+      });
       if (
         wholeFileTestInternal.has(relativePath) ||
-        (regionOffset >= 0 && offset >= regionOffset)
+        (regionOffset >= 0 && offset >= regionOffset && offset < regionEndOffset) ||
+        insideInternalRegion
       ) {
         testInternalSites.push(site);
       } else {
@@ -1013,7 +1043,11 @@ function verifyCssModuleTokenLiteralPolicy(): {
     }
   }
 
-  const classifiedFiles = new Set([...wholeFileTestInternal, ...cfgTestRegions.keys()]);
+  const classifiedFiles = new Set([
+    ...wholeFileTestInternal,
+    ...cfgTestRegions.keys(),
+    ...internalRegions.keys(),
+  ]);
   assert.deepEqual(
     [...classifiedFiles].toSorted(),
     [...matchedFiles].toSorted(),

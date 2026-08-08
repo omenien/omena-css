@@ -22,6 +22,7 @@ const transformFacadeSource = readFileSync(
   "utf8",
 );
 const requiredTests = [
+  "collision_path_scope_tracks_the_same_token_on_each_emission_path",
   "scanner_scope_follows_the_shared_identifier_predicate",
   "caller_supplied_module_identity_controls_token_deterministically",
   "strict_css_module_token_integrity_uses_module_qualified_preimages",

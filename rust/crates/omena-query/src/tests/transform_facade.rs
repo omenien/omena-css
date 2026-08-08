@@ -1445,7 +1445,19 @@ fn token_integrity_default_path_removes_resolved_dependency_composes_declaration
     )?;
     let output = result.bundle_result.artifact.output_css.as_str();
     println!("resolved-composes-bytes output={output:?}");
+    // FALSIFIER: deleting the dependency rules together with `composes` must
+    // not satisfy this arm; both producer-authored declarations remain live.
     assert!(!output.contains("composes"), "{output}");
+    assert!(output.contains("color:red"), "{output}");
+    assert!(output.contains("color:#00f"), "{output}");
+    let owned_names = result
+        .ownership_census
+        .token_ownerships
+        .iter()
+        .flat_map(|ownership| ownership.original_names.iter().map(String::as_str))
+        .collect::<BTreeSet<_>>();
+    assert!(owned_names.contains("base"), "{owned_names:?}");
+    assert!(owned_names.contains("child"), "{owned_names:?}");
     assert!(result.ownership_census.interface_mismatches.is_empty());
     Ok(())
 }

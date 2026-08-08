@@ -193,10 +193,14 @@ assertFileIncludes(
   "Cargo feature `mdl`",
   "the CLI reference must expose the compress feature gate",
 );
-for (const cssModulesConsumerGuide of ["docs/getting-started.md", "docs/sdk.md"]) {
+for (const cssModulesConsumerGuide of [
+  "docs/getting-started.md",
+  "docs/sdk.md",
+  "docs/releases/css-modules-token-rotation.md",
+]) {
   assert.match(
     readFile(cssModulesConsumerGuide),
-    /For CSS Modules, the emitted token is not a contract; `classMap`, `namedExports`,\s+and\s+the generated `\.d\.ts` are\. Hand-writing an emitted token into markup, tests,\s+or\s+CSS is unsupported\./u,
+    /(?:For CSS Modules, the|The) emitted token is not a contract; `classMap`, `namedExports`,\s+and\s+the\s+generated `\.d\.ts` are\. Hand-writing an emitted token into markup, tests,\s+or\s+CSS\s+is unsupported\./u,
     `${cssModulesConsumerGuide} must declare emitted CSS Modules tokens unsupported as a consumer contract`,
   );
 }

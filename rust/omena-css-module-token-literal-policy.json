@@ -1,28 +1,55 @@
 {
-  "schemaVersion": "0",
+  "schemaVersion": "1",
   "product": "omena-css-module-token-literal-policy",
   "scope": "internal-test-inventory-only",
-  "regex": "(?<![A-Za-z0-9_])_[A-Za-z][A-Za-z0-9-]*_[0-9]+(?![A-Za-z0-9_])",
-  "expectedSiteCount": 50,
-  "expectedFileCount": 10,
+  "regex": "(?:(?<![A-Za-z0-9_])_[A-Za-z][A-Za-z0-9-]*_[0-9]+(?![A-Za-z0-9_])|(?<=[.\"'`])_[A-Za-z0-9_-]{6}_[A-Za-z0-9_-]+(?![A-Za-z0-9_]))",
+  "expectedSiteCount": 133,
+  "expectedFileCount": 20,
   "wholeFileTestInternal": [
     "rust/crates/omena-abstract-value/src/tests.rs",
+    "rust/crates/omena-cli/src/tests.rs",
+    "rust/crates/omena-query/src/tests/transform_facade.rs",
+    "rust/crates/omena-transform-passes/data/string-authority-structural-golden-v0.json",
     "rust/crates/omena-transform-passes/src/tests/class_hashing.rs",
     "scripts/check-rust-omena-bundler-adapter-pass-authority.ts",
+    "scripts/check-rust-omena-query-transform-execute.ts",
+    "scripts/check-rust-omena-query-transform-plan.ts",
     "scripts/check-vite-plugin-hmr.mjs",
     "scripts/check-vite-plugin-smoke.mjs",
     "scripts/fixtures/css-module-host-parity/cases.json",
     "test/unit/css-build-adapter/css-build-adapter.test.ts",
+    "test/unit/scss/classname-transform.test.ts",
     "test/unit/vite-plugin/vite-plugin.test.ts"
   ],
   "cfgTestRegions": [
     {
+      "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
+      "marker": "#[cfg(test)]\nmod tests {"
+    },
+    {
       "path": "rust/crates/omena-query/src/style/transform.rs",
-      "marker": "mod linked_source_map_tests {"
+      "marker": "mod linked_source_map_tests {",
+      "endMarker": "#[cfg(test)]\nmod dependency_resolution_tests {"
     },
     {
       "path": "rust/crates/omena-transform-passes/src/domains/reachability.rs",
       "marker": "mod tests {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
+      "marker": "mod tests {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+      "marker": "mod dispatch_table_tests {",
+      "endMarker": "#[cfg(test)]\nmod module_evaluation_materialization_tests {"
+    }
+  ],
+  "internalRegions": [
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/structural_shadow.rs",
+      "startMarker": "fn module_context_for_fixture(",
+      "endMarker": "fn css_module_composes_resolutions_for_fixture("
     }
   ],
   "roleJustifications": {
