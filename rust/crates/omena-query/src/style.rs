@@ -1479,8 +1479,14 @@ pub fn summarize_omena_query_css_modules_interface_bundle(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCssModulesInterfaceBundleV0 {
-    summarize_omena_query_css_modules_interface_bundle_inner(None, style_sources, package_manifests)
-        .expect("CSS Module interface derivation without a workspace root cannot reject a path")
+    match summarize_omena_query_css_modules_interface_bundle_inner(
+        |module_instance| Ok::<_, std::convert::Infallible>(module_instance.clone()),
+        style_sources,
+        package_manifests,
+    ) {
+        Ok(bundle) => bundle,
+        Err(unreachable) => match unreachable {},
+    }
 }
 
 pub fn summarize_omena_query_css_modules_interface_bundle_with_module_identity_root(
@@ -1489,17 +1495,21 @@ pub fn summarize_omena_query_css_modules_interface_bundle_with_module_identity_r
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Result<OmenaQueryCssModulesInterfaceBundleV0, String> {
     summarize_omena_query_css_modules_interface_bundle_inner(
-        Some(workspace_root),
+        |module_instance| {
+            transform::module_instance_key_relative_to_root(module_instance, workspace_root)
+        },
         style_sources,
         package_manifests,
     )
 }
 
-fn summarize_omena_query_css_modules_interface_bundle_inner(
-    workspace_root: Option<&str>,
+fn summarize_omena_query_css_modules_interface_bundle_inner<E>(
+    mut token_module_instance: impl FnMut(
+        &omena_parser::ModuleInstanceKeyV0,
+    ) -> Result<omena_parser::ModuleInstanceKeyV0, E>,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> Result<OmenaQueryCssModulesInterfaceBundleV0, String> {
+) -> Result<OmenaQueryCssModulesInterfaceBundleV0, E> {
     let style_source_refs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
@@ -1519,10 +1529,7 @@ fn summarize_omena_query_css_modules_interface_bundle_inner(
             omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
                 crate::types::normalize_omena_query_style_path(entry.style_path.as_str()),
             ));
-        let token_module_instance = workspace_root.map_or_else(
-            || Ok(module_instance.clone()),
-            |root| transform::module_instance_key_relative_to_root(&module_instance, root),
-        )?;
+        let token_module_instance = token_module_instance(&module_instance)?;
         for rewrite in
             transform::derive_class_name_rewrites_for_module_instance(entry, &token_module_instance)
         {
