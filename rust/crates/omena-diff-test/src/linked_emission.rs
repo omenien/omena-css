@@ -898,8 +898,8 @@ fn summarize_linked_emission_coverage_census_v0(
         ordinal_skew_shared_model_collision_count,
         ordinal_skew_path_split_collision_count,
         token_model_by_emission_path: BTreeMap::from([
-            ("importInlineLegacy", "entryRewriteTable"),
-            ("linkedOrder", "moduleLocalRewriteTable"),
+            ("importInlineLegacy", "moduleQualifiedRewriteTable"),
+            ("linkedOrder", "moduleQualifiedRewriteTable"),
         ]),
         unmodeled_declarations,
         reachability_input_fixture_ids,
@@ -1333,7 +1333,7 @@ fn analyze_linked_emission_fixture_v0(
             linked_css.clone_from(&legacy_css);
         }
         LinkedEmissionByteDifferentialPerturbationV0::DropReachableCrossModuleDeclaration => {
-            remove_linked_declaration_for_fault_v0(&mut linked_css, "padding: 8px;")?;
+            remove_linked_declaration_for_fault_v0(&mut linked_css, "color: blue;")?;
         }
         LinkedEmissionByteDifferentialPerturbationV0::DropComposedDeclaration => {
             remove_linked_declaration_for_fault_v0(&mut linked_css, "padding: 2px;")?;
@@ -1447,6 +1447,15 @@ fn analyze_linked_emission_fixture_v0(
         linked_output_module_order == authoritative_module_order;
     let legacy_marker_order = output_marker_order_v0(&legacy_css, &marker_names);
     let linked_marker_order = output_marker_order_v0(&linked_css, &marker_names);
+    if perturbation == LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes
+        && linked_marker_order != authoritative_marker_order
+    {
+        // FALSIFIER: id=linked-emission-collapse-marker-order class=accounting via=CollapseToLegacyBytes producer=can-fail owner=linked-emission-instrument entry=linked-marker-order-matches-authority
+        return Err(format!(
+            "linked emission collapsed to non-authoritative marker order in fixture {}: {:?} != {:?}",
+            fixture.id, linked_marker_order, authoritative_marker_order
+        ));
+    }
     let linked_modules_emitted_once = marker_names.iter().all(|marker| {
         linked_marker_order
             .iter()
@@ -1702,7 +1711,7 @@ fn module_reachability_for_fixture_v0(
 }
 
 #[cfg(test)]
-fn module_qualified_reachability_delta_is_expected_v0(
+fn module_qualified_reachability_converges_v0(
     fixture: &LinkedEmissionFixtureV0,
     legacy_css: &str,
     linked_css: &str,
@@ -1734,12 +1743,10 @@ fn module_qualified_reachability_delta_is_expected_v0(
             && linked_css.contains("color:red")
             && !linked_css.contains("color:gray");
     }
-    legacy_css.contains("padding:8px")
+    legacy_css.contains("color:blue")
         && legacy_css.contains("color:red")
-        && !legacy_css.contains("color:blue")
         && !legacy_css.contains("color:tan")
         && !legacy_css.contains("color:gray")
-        && linked_css.contains("padding:8px")
         && linked_css.contains("color:blue")
         && linked_css.contains("color:red")
         && !linked_css.contains("color:tan")
@@ -3872,8 +3879,7 @@ mod tests {
     }
 
     #[test]
-    fn module_qualified_reachability_delta_requires_both_ownership_corrections()
-    -> Result<(), String> {
+    fn module_qualified_reachability_converges_across_both_paths() -> Result<(), String> {
         let fixture = module_qualified_reachability_fixture_v0();
         let analysis = analyze_linked_emission_fixture_v0(
             &fixture,
@@ -3886,20 +3892,22 @@ mod tests {
             LinkedEmissionByteDifferenceClassV0::Expected
         );
         // FALSIFIER: id=linked-emission-rust-020 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(analysis.case.semantic_mismatch_count, 1);
+        assert_eq!(analysis.case.semantic_mismatch_count, 0);
         // FALSIFIER: id=linked-emission-rust-021 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(module_qualified_reachability_delta_is_expected_v0(
+        assert!(module_qualified_reachability_converges_v0(
             &fixture,
             &analysis.legacy_css,
             &analysis.linked_css
         ));
         // FALSIFIER: id=linked-emission-rust-022 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(!module_qualified_reachability_delta_is_expected_v0(
+        assert!(!module_qualified_reachability_converges_v0(
             &fixture,
             &analysis.legacy_css,
             &analysis.linked_css.replace("blue", "black")
         ));
         // FALSIFIER: id=linked-emission-rust-023 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
+        assert!(remove_ascii_whitespace_v0(&analysis.legacy_css).contains("color:blue"));
+        // FALSIFIER: id=linked-emission-rust-023b class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(remove_ascii_whitespace_v0(&analysis.linked_css).contains("color:blue"));
         // FALSIFIER: id=linked-emission-rust-024 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(!analysis.legacy_css.contains("workspace-only"));
@@ -3909,16 +3917,21 @@ mod tests {
     }
 
     #[test]
-    fn non_live_cross_module_declaration_is_outside_the_shaking_arm() -> Result<(), String> {
+    fn live_cross_module_declaration_loss_is_rejected() {
         let fixture = module_qualified_reachability_fixture_v0();
         let analysis = analyze_linked_emission_fixture_v0(
             &fixture,
             LinkedEmissionByteDifferentialPerturbationV0::DropReachableCrossModuleDeclaration,
-        )?;
+        );
 
-        // FALSIFIER: id=linked-emission-rust-026 class=liveness via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=shaking-arm-silent-for-nonlive-declaration
-        assert!(!remove_ascii_whitespace_v0(&analysis.linked_css).contains("padding:8px"));
-        Ok(())
+        // FALSIFIER: id=linked-emission-rust-026 class=liveness via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=live-cross-module-declaration-preserved
+        assert!(matches!(
+            analysis,
+            Err(error)
+                if error.contains("linked emission lost live declaration")
+                    && error.contains("dependency-own")
+                    && error.contains("color:blue")
+        ));
     }
 
     #[test]
@@ -4029,14 +4042,19 @@ mod tests {
         )?;
         let linked = remove_ascii_whitespace_v0(&analysis.linked_css);
 
+        let media_live_token = emitted_class_name_v0(
+            &analysis.class_name_rewrites_by_module,
+            "linked-byte/module-qualified-at-rule/media.module.css",
+            "media-live",
+        );
         // FALSIFIER: id=linked-emission-at-rule-live-token class=shaking via=DropLiveDeclaration producer=can-fail owner=linked-emission-instrument entry=media-live-linked-token-preserved
-        assert!(linked.contains("._media-live_2{padding:4px;}"));
+        assert!(linked.contains(&format!(".{media_live_token}{{padding:4px;}}")));
         // FALSIFIER: id=linked-emission-at-rule-dead-token class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=media-dead-removed
         assert!(!linked.contains("media-dead"));
-        // FALSIFIER: id=linked-emission-at-rule-legacy-oracle class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=default-path-retains-dead-declaration
-        assert!(
-            analysis.legacy_css.contains("base-dead") || analysis.legacy_css.contains("media-dead")
-        );
+        // FALSIFIER: id=linked-emission-at-rule-legacy-oracle class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=both-paths-remove-dead-declarations
+        assert!(!analysis.legacy_css.contains("base-dead"));
+        // FALSIFIER: id=linked-emission-at-rule-legacy-media-dead class=liveness via=DropComposesReachability producer=can-fail owner=linked-emission-instrument entry=both-paths-remove-dead-declarations
+        assert!(!analysis.legacy_css.contains("media-dead"));
         let live_names = analysis
             .live_declared_names_by_module
             .get("linked-byte/module-qualified-at-rule/media.module.css")
@@ -4096,14 +4114,14 @@ mod tests {
             "boundedFixtureRegressionTripwire"
         );
         // FALSIFIER: id=linked-emission-rust-038 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(census.module_token_collision_count > 0);
+        assert_eq!(census.module_token_collision_count, 0);
         // FALSIFIER: id=linked-emission-rust-039 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert!(census.unmodeled_declarations.is_empty());
         Ok(())
     }
 
     #[test]
-    fn token_collision_census_consumes_emitted_class_rewrites() -> Result<(), String> {
+    fn module_qualified_token_census_consumes_emitted_class_rewrites() -> Result<(), String> {
         let fixture = module_qualified_reachability_fixture_v0();
         let analysis = analyze_linked_emission_fixture_v0(
             &fixture,
@@ -4112,55 +4130,59 @@ mod tests {
         let summary = summarize_module_token_collisions_v0(&fixture, &analysis);
 
         // FALSIFIER: id=linked-emission-rust-040 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(summary.collisions.len(), 1);
-        let collision = &summary.collisions[0];
-        // FALSIFIER: id=linked-emission-rust-041 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(collision.module_paths.len(), 2);
-        assert_ne!(collision.emitted_token, "shared");
-        for module in &fixture.modules {
-            // FALSIFIER: id=linked-emission-rust-042 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-            assert_eq!(
+        assert!(summary.collisions.is_empty());
+        let emitted_tokens = fixture
+            .modules
+            .iter()
+            .map(|module| {
                 analysis
                     .class_name_rewrites_by_module
                     .get(module.path.as_str())
-                    .and_then(|rewrites| rewrites.get("shared")),
-                Some(&collision.emitted_token)
-            );
-        }
+                    .and_then(|rewrites| rewrites.get("shared"))
+                    .cloned()
+                    .ok_or_else(|| format!("shared rewrite is absent for {}", module.path))
+            })
+            .collect::<Result<BTreeSet<_>, String>>()?;
+        // FALSIFIER: id=linked-emission-rust-041 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
+        assert_eq!(emitted_tokens.len(), fixture.modules.len());
+        let entry_token =
+            analysis.class_name_rewrites_by_module[fixture.entry_path.as_str()]["shared"].as_str();
+        let dependency_path = fixture
+            .modules
+            .iter()
+            .find(|module| module.path != fixture.entry_path)
+            .map(|module| module.path.as_str())
+            .ok_or_else(|| "dependency module is absent".to_string())?;
+        let dependency_token =
+            analysis.class_name_rewrites_by_module[dependency_path]["shared"].as_str();
+        assert_ne!(entry_token, dependency_token);
         for output in [&analysis.legacy_css, &analysis.linked_css] {
-            let emitted_count = output_class_selector_counts_v0(output)
-                .get(collision.emitted_token.as_str())
-                .copied()
-                .unwrap_or_default();
+            let selector_counts = output_class_selector_counts_v0(output);
             // FALSIFIER: id=linked-emission-rust-043 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-            assert_eq!(
-                emitted_count, 2,
-                "emitted token {} was not observed twice in {output}",
-                collision.emitted_token
-            );
+            assert_eq!(selector_counts.get(entry_token), Some(&1));
+            // FALSIFIER: id=linked-emission-module-token-dead-owner class=liveness via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=dead-owner-token-absent
+            assert_eq!(selector_counts.get(dependency_token), None);
         }
         Ok(())
     }
 
     #[test]
     fn token_collision_path_gate_rejects_path_specific_selector_loss() -> Result<(), String> {
-        let fixture = entry_ordinal_skew_fixture_v0();
-        let analysis = analyze_linked_emission_fixture_v0(
-            &fixture,
-            LinkedEmissionByteDifferentialPerturbationV0::None,
-        )?;
-        let mut summary = summarize_module_token_collisions_v0(&fixture, &analysis);
+        let collision = LinkedEmissionModuleTokenCollisionV0 {
+            fixture_id: "path-scope-control".to_string(),
+            emitted_token: "_forced_shared".to_string(),
+            module_paths: vec![
+                "src/a.module.css".to_string(),
+                "src/b.module.css".to_string(),
+            ],
+            original_names: vec!["shared".to_string()],
+            observed_emission_paths: vec!["importInlineLegacy"],
+            path_scope: LinkedEmissionModuleTokenCollisionPathScopeV0::BothPaths,
+            reason: "falsifier-only path-scope mismatch".to_string(),
+        };
 
         // FALSIFIER: id=linked-emission-rust-044 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(summary.collisions.len(), 1);
-        // FALSIFIER: id=linked-emission-rust-045 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert_eq!(
-            summary.collisions[0].observed_emission_paths,
-            vec!["importInlineLegacy"]
-        );
-        summary.collisions[0].path_scope = LinkedEmissionModuleTokenCollisionPathScopeV0::BothPaths;
-        // FALSIFIER: id=linked-emission-rust-046 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
-        assert!(validate_module_token_collision_paths_v0(&summary.collisions).is_err());
+        assert!(validate_module_token_collision_paths_v0(&[collision]).is_err());
         Ok(())
     }
 
@@ -4384,7 +4406,7 @@ mod tests {
     }
 
     #[test]
-    fn collapsed_linked_output_is_rejected_by_token_universe() {
+    fn collapsed_linked_output_is_rejected_by_marker_order_authority() {
         let result = summarize_linked_emission_byte_differential_v0(
             LinkedEmissionByteDifferentialPerturbationV0::CollapseToLegacyBytes,
         );
@@ -4393,8 +4415,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(error)
-                if error.contains("linked-emission live token universe is not closed")
-                    && error.contains("unclaimed")
+                if error.contains("linked emission collapsed to non-authoritative marker order")
         ));
     }
 }

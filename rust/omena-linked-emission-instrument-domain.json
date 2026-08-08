@@ -28,7 +28,7 @@
     {
       "file": "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
       "syntax": "assert.equal",
-      "expectedCount": 73,
+      "expectedCount": 63,
       "owner": "linked-emission byte differential",
       "reentry": "an equality assertion is added or removed without a falsifier disclosure"
     },

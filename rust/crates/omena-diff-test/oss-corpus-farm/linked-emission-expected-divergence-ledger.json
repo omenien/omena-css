@@ -7,21 +7,21 @@
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
       "witnessDigest": "8b865a6bcf57182d3fc6ae05d61d759f249adcbd9b774778784d3d37fd63ac3a",
-      "justification": "Dependency-first linked emission groups each CSS module and places imported modules before the entry without changing parsed semantics."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "dialect-scss-import-order",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
       "witnessDigest": "df3f166fce73577cc606548b2509b01565945f4d6286cae23303480daba126c7",
-      "justification": "Dependency-first linked emission groups each SCSS module and places imported modules before the entry without changing parsed semantics."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "dialect-less-import-order",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
       "witnessDigest": "e6f27d588eccdcd20cc2be5d644d7eabc82554f4ed71cb0a32278accb6a0ba3a",
-      "justification": "Dependency-first linked emission groups each Less module and places imported modules before the entry without changing parsed semantics."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "shared-import-diamond",
@@ -33,105 +33,84 @@
         "sharedImportSingleEmission"
       ],
       "witnessDigest": "f8e606334531e6a22cb2a1043438d0e9d0f1bff9fed8ca9d0a314a37dfa978d5",
-      "justification": "The linked path emits the shared dependency once, groups modules, and preserves dependency-first order while the legacy path repeats the shared import."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
+    },
+    {
+      "fixtureId": "module-qualified-reachability",
+      "classificationArm": "semanticPreservingKnownDifference",
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "404232890264314802d6d00e7e11273d06d7b78620ca5e37a616058443983acb",
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "entry-ordinal-skew",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "5f454c4450336390f2622804a807b6c83616292e1f3c33ba5f73baed29a49d79",
-      "justification": "The legacy path applies the entry rewrite table across imported declarations while linked emission retains module-local rewrite ordinals and import-graph order."
-    },
-    {
-      "fixtureId": "module-qualified-reachability",
-      "classificationArm": "moduleAttributedReachabilityCorrection",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "cafd77b0a65d4683bb4af780efb7099f03c33f17e434a78b8af27f1ac3c546c2",
-      "justification": "The linked path restores the dependency-owned selector selected by its own source reference, preserves declarations sharing a live emitted selector token, and removes unrelated dead selectors."
-    },
-    {
-      "fixtureId": "module-qualified-composes-reachability",
-      "classificationArm": "moduleAttributedReachabilityCorrection",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "73a56878218184a00006d219eaf4e21e74dbef3ff53eb03fc97ac149a716636e",
-      "justification": "The linked path retains the dependency declaration reached through composes, keeps the dependency-owned live selector, and removes the unrelated dead selector."
+      "witnessDigest": "c3acff4d0e9bd174bd77ee046bbb3048c96f3f117133b74b0f9e23fd081df9ac",
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "module-qualified-at-rule-reachability",
-      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "06ae4a456a571148048e86d1f83d507e37bb5568a0eea0db1cac755d959b6f04",
-      "justification": "The linked path retains the class reached through composes and the live class nested in an at-rule while removing both unrelated dead selectors."
+      "witnessDigest": "03c5ad5126f723b488455d8861f6e87dc51b12f7596838a7509752dd4a88f93a",
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "two-hop-composes-liveness",
-      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "28688f7115720561e176b68ac4620ea83c8d9acebfb140f9ba10505c0b3a6ec5",
-      "justification": "The authored liveness table keeps both hops of the composed class chain while unrelated declarations remain dead."
+      "witnessDigest": "186666fddd75b13779c3289de3d4724e22f7f1ca2e6e09ef0a55c9e3e6d54f34",
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "package-path-composes-liveness",
-      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "0702cbb2561cea9c881bcbf7285f5d2afb69685789d7c86af42b3fc29689dbb4",
-      "justification": "The linked path retains the declaration reached through a package-shaped module path and removes its unrelated peer."
+      "witnessDigest": "4da22778fc7e5d6b432d5442a65dc1616b1c332193d926911f9fe8556dd1a429",
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "global-at-rule-liveness",
-      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "89137b769892d5ee28932aad4c924d5348db28af7bb810993a7ce7947fe762cc",
-      "justification": "The linked path preserves directly referenced declarations nested under media, supports, and layer rules while retaining global escapes outside local liveness."
+      "witnessDigest": "bf02e8d66fbc676b08b24d7d1a8e9fd22f408f021233c690c86c0116c58b7aa4",
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "combinator-companion-liveness",
-      "classificationArm": "moduleAttributedReachabilityCorrection",
+      "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "92447b20a0f3a0d55750699f57ffea8e612048959d8ada30f98e16cc26c2fc22",
-      "justification": "A direct reference keeps every rule carrying the live class while companion names remain outside the per-name liveness set."
-    },
-    {
-      "fixtureId": "workspace-only-referrer-liveness",
-      "classificationArm": "moduleAttributedReachabilityCorrection",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "c3fdd505e2215ce1eb8e64d34a6f65034d0ac710d6d01b5e3d6d008e40ae383a",
-      "justification": "A workspace-only stylesheet reference keeps the composed build-module declaration without admitting its unrelated peer."
-    },
-    {
-      "fixtureId": "shaken-referrer-liveness",
-      "classificationArm": "moduleAttributedReachabilityCorrection",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "5c18f4dd7e5003503d314fae9175fd6686d8cb9588e1e06673b01a4b6c2550b6",
-      "justification": "The authored table records that declarations reachable only through an unreferenced referrer remain dead while the entry declaration stays live."
+      "witnessDigest": "ee9919b46b9ced531bbc585a7ab96523266a6490832a5685e858c038e280396b",
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "element-only-reset-module",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
       "witnessDigest": "e5450284c568c672ad89ce75d4377b881e1b2dc4a2db7f0c1a851b3090c16b8f",
-      "justification": "The element-only dependency is emitted before its importer according to the declared import order; the remaining byte difference is ASCII whitespace."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "bare-layer-statement-module",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
       "witnessDigest": "2eb69b3c6a6885a0725145b4e517e8dd9814123cf960bda731bf60900d8f8c3e",
-      "justification": "The bare layer statement is emitted before its importer according to the declared import order; the remaining byte difference is ASCII whitespace."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "comment-only-module-boundary",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
       "witnessDigest": "8636e18c2f777a8608ae58708dbfdac09b25d2919cbd868f9c7004083f0baaee",
-      "justification": "The comment-only dependency retains an explicit module boundary and is emitted before its importer; the remaining byte difference is ASCII whitespace."
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
       "fixtureId": "bundler-productization-corpus",
       "classificationArm": "semanticPreservingKnownDifference",
-      "derivedReasons": ["globalModuleOrder", "entryInterleaveCollapse", "perModuleGrouping"],
-      "witnessDigest": "63557d11e746d2051cdbf9df205c794aa5e7653d6611675dbbdd775aff2ef4c5",
-      "justification": "The bounded product corpus follows dependency-first module grouping while retaining the same parsed semantics as legacy import inlining."
+      "derivedReasons": ["globalModuleOrder"],
+      "witnessDigest": "0f1f1db1fe4406b3fc93ba5e6a3ca34862e9c55c250d4fedf4fc282fd16a0216",
+      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     }
   ]
 }
