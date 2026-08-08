@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -595,13 +595,13 @@ for (const needle of mechanismACollectorNeedles) {
   }
 }
 const forbiddenArmClaim = ["mechanismAArm", "Covered\\s*[:=]\\s*true"].join("");
-const armClaimScan = spawnSync("rg", ["-n", forbiddenArmClaim, "rust", "scripts"], {
-  cwd: repositoryRoot,
-  encoding: "utf8",
-});
-if (armClaimScan.status !== 1) {
+const armClaimMatches = scanArmClaims(forbiddenArmClaim);
+if (argumentsSet.has("--inject-mechanism-a-arm-claim")) {
+  armClaimMatches.push(`injected:1:${["mechanismAArm", "Covered: true"].join("")}`);
+}
+if (armClaimMatches.length !== 0) {
   throw new Error(
-    `mechanism (a) is reading-only but an arm-covered claim exists:\n${armClaimScan.stdout ?? ""}`,
+    `mechanism (a) is reading-only but an arm-covered claim exists:\n${armClaimMatches.join("\n")}`,
   );
 }
 const capturedDigestNeedle = ["captured_module_qualified_", "ownership_digest"].join("");
@@ -645,7 +645,7 @@ process.stdout.write(
         collectorCount: mechanismACollectorNeedles.length,
         closingMeasurement:
           "a product fixture where a keyframe, CSS Modules value, or custom property is live only through a cross-module edge and the ignored-source-range comparator is observed",
-        overclaimScanRc: armClaimScan.status,
+        overclaimScanRc: armClaimMatches.length === 0 ? 1 : 0,
       },
       digestReentryTripwire: {
         accessorReadCount: digestAccessorReadCount,
@@ -664,3 +664,27 @@ process.stdout.write(
     2,
   )}\n`,
 );
+
+function scanArmClaims(pattern: string): string[] {
+  const matches: string[] = [];
+  const forbiddenPattern = new RegExp(pattern, "u");
+  const scanDirectory = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (entry.name !== "target") scanDirectory(join(directory, entry.name));
+      } else if (entry.isFile()) {
+        const path = join(directory, entry.name);
+        readFileSync(path, "utf8")
+          .split("\n")
+          .forEach((line, index) => {
+            if (forbiddenPattern.test(line)) {
+              matches.push(`${path.slice(repositoryRoot.length + 1)}:${index + 1}:${line}`);
+            }
+          });
+      }
+    }
+  };
+  scanDirectory(join(repositoryRoot, "rust"));
+  scanDirectory(join(repositoryRoot, "scripts"));
+  return matches;
+}
