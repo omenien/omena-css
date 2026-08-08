@@ -36,6 +36,7 @@ const requiredTests = [
   "token_integrity_workspace_path_shape_matrix_is_explicit",
   "strict_css_module_token_integrity_uses_module_qualified_preimages",
   "strict_css_module_token_integrity_accepts_the_selected_module_context",
+  "token_integrity_workspace_root_keeps_ownership_admission_in_census_key_space",
   "token_integrity_selected_shape_is_injective_on_import_inline_bytes",
   "token_integrity_default_path_scopes_every_declared_dependency_class",
   "token_integrity_default_path_tree_shakes_media_nested_dependency_classes",
@@ -136,9 +137,15 @@ assert.ok(
   ),
   "the product census must own the explicit module-execution admission boundary",
 );
+assert.ok(
+  transformExecutorSource.includes(
+    "pub fn execute_module_transform_passes_with_ownership_admission_for_identity(",
+  ),
+  "the product census must accept the producer-authored ownership identity",
+);
 const tierReachable =
   transformFacadeSource.includes(
-    "token_ownership_census.execute_module_transform_passes_with_ownership_admission(",
+    ".execute_module_transform_passes_with_ownership_admission_for_identity(",
   ) &&
   transformFacadeSource.includes("token_integrity::summarize_css_module_token_ownership(") &&
   transformFacadeSource.includes("pass_id_is_fact_consuming(pass_id)");

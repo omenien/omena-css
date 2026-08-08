@@ -1253,6 +1253,7 @@ fn execute_omena_query_consumer_build_style_source_with_context_and_closed_world
 struct ModuleQualifiedExecutionInputsV0<'a> {
     closed_world_bundle: &'a ClosedWorldBundleV0,
     module_instance: &'a omena_parser::ModuleInstanceKeyV0,
+    ownership_module_instance: &'a omena_parser::ModuleInstanceKeyV0,
     reachability_precision: FactPrecision,
     retained_class_names: &'a [String],
     token_ownership_census: Option<&'a CssModuleTokenOwnershipCensusV0>,
@@ -3199,17 +3200,19 @@ fn execute_omena_query_transform_passes_from_module_with_context_and_closed_worl
     let mut execution = if let Some(token_ownership_census) =
         execution_inputs.token_ownership_census
     {
-        token_ownership_census.execute_module_transform_passes_with_ownership_admission(
-            style_source,
-            dialect,
-            &admitted_passes,
-            context,
-            execution_inputs.closed_world_bundle,
-            execution_inputs.module_instance,
-            execution_inputs.reachability_precision,
-            execution_policy,
-            execution_inputs.retained_class_names,
-        )?
+        token_ownership_census
+            .execute_module_transform_passes_with_ownership_admission_for_identity(
+                style_source,
+                dialect,
+                &admitted_passes,
+                context,
+                execution_inputs.closed_world_bundle,
+                execution_inputs.module_instance,
+                execution_inputs.ownership_module_instance,
+                execution_inputs.reachability_precision,
+                execution_policy,
+                execution_inputs.retained_class_names,
+            )?
     } else {
         execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names(
             style_source,
@@ -4016,6 +4019,7 @@ fn execute_linked_bundle_modules(
         let execution_inputs = ModuleQualifiedExecutionInputsV0 {
             closed_world_bundle: &linked_stylesheet.closed_world_bundle,
             module_instance,
+            ownership_module_instance: &module_input.ownership_module_instance,
             reachability_precision: closed_world_bundle_reachability_precision(
                 &module_input.context,
                 &linked_stylesheet.closed_world_bundle,
@@ -4150,6 +4154,7 @@ fn execute_linked_bundle_modules_with_ownership_reference(
         }
         module_inputs.push(LinkedModuleExecutionInputV0 {
             module_instance,
+            ownership_module_instance: token_module_instance,
             style_source,
             context: module_context,
         });
@@ -4248,6 +4253,7 @@ struct LinkedModuleExecutionV0 {
 
 struct LinkedModuleExecutionInputV0<'a> {
     module_instance: &'a omena_parser::ModuleInstanceKeyV0,
+    ownership_module_instance: omena_parser::ModuleInstanceKeyV0,
     style_source: &'a str,
     context: TransformExecutionContextV0,
 }
@@ -4989,11 +4995,13 @@ mod linked_source_map_tests {
         let inputs = vec![
             LinkedModuleExecutionInputV0 {
                 module_instance: &entry,
+                ownership_module_instance: entry.clone(),
                 style_source: ".entry { color: red; }",
                 context: entry_context,
             },
             LinkedModuleExecutionInputV0 {
                 module_instance: &dependency,
+                ownership_module_instance: dependency.clone(),
                 style_source: ".live { color: blue; } .shared { color: green; }",
                 context: dependency_context,
             },

@@ -1300,6 +1300,120 @@ fn strict_css_module_token_integrity_accepts_the_selected_module_context() -> Re
 }
 
 #[test]
+fn token_integrity_workspace_root_keeps_ownership_admission_in_census_key_space()
+-> Result<(), String> {
+    let run = |workspace_root: Option<&str>| -> Result<crate::OmenaQueryBundleExecutionScopeResultV0, String> {
+        let prefix = workspace_root.map_or("", |_| "/workspace/");
+        let entry_path = format!("{prefix}src/app.module.css");
+        let dependency_path = format!("{prefix}src/dependency.module.css");
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: entry_path.clone(),
+                style_source: "@import './dependency.module.css'; .entry-live { color: green; } .shared { padding: 8px; } .entry-dead { color: tan; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: dependency_path,
+                style_source: ".dependency-live { color: blue; } .shared { margin: 4px; } .dependency-dead { color: gray; }".to_string(),
+            },
+        ];
+        let pass_ids = vec!["tree-shake-class".to_string()];
+        let context = OmenaQueryTransformExecutionContextV0 {
+            reachable_class_names: vec![
+                "entry-live".to_string(),
+                "dependency-live".to_string(),
+            ],
+            ..OmenaQueryTransformExecutionContextV0::default()
+        };
+        let input = OmenaQueryBundlePlanInputV0 {
+            target_style_path: entry_path.as_str(),
+            style_sources: &sources,
+            source_map_sources: &sources,
+            requested_pass_ids: &pass_ids,
+            context: &context,
+            resolution_inputs: &OmenaQueryStyleResolutionInputsV0::default(),
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        };
+        let options = OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        };
+        match workspace_root {
+            Some(root) => run_omena_query_bundle_with_module_css_module_contexts_and_options(
+                input,
+                &[],
+                &options,
+                root,
+                &[],
+            ),
+            None => run_omena_query_bundle_with_execution_scope_evidence_and_options(
+                input,
+                &[],
+                &options,
+            ),
+        }
+    };
+
+    for workspace_root in [None, Some("/workspace")] {
+        let result = run(workspace_root)?;
+        let scope = result
+            .execution_scope
+            .as_ref()
+            .ok_or_else(|| "linked ownership fixture should retain execution scope".to_string())?;
+        let output = result.bundle_result.artifact.output_css.as_str();
+        println!(
+            "ownership-key-space root={workspace_root:?} refused={} shared={} entry_dead={} dependency_dead={}",
+            scope.bundle_execution.aggregate_closed_world_refusal_count,
+            output.contains(".shared"),
+            output.contains(".entry-dead"),
+            output.contains(".dependency-dead"),
+        );
+        assert_eq!(
+            scope.bundle_execution.aggregate_closed_world_refusal_count, 2,
+            "workspace-root normalization lost the ownership refusal: {output:?}"
+        );
+        for module in &scope.bundle_execution.module_executions {
+            assert_eq!(module.execution.closed_world_admission.refused_count, 1);
+            assert!(
+                module
+                    .execution
+                    .closed_world_admission
+                    .refusal_reasons
+                    .iter()
+                    .flat_map(|event| event.reasons.iter())
+                    .any(|reason| match reason {
+                        OmenaQueryTransformStrictPolicyReasonV0::OwnershipNotSeparable {
+                            token,
+                            module_paths,
+                        } => {
+                            let normalized_paths = module_paths
+                                .iter()
+                                .map(|path| {
+                                    path.strip_prefix("/workspace/").unwrap_or(path.as_str())
+                                })
+                                .collect::<BTreeSet<_>>();
+                            token == "shared"
+                                && normalized_paths
+                                    == BTreeSet::from([
+                                        "src/app.module.css",
+                                        "src/dependency.module.css",
+                                    ])
+                        }
+                        _ => false,
+                    })
+            );
+        }
+        for retained in [".shared", ".entry-dead", ".dependency-dead"] {
+            assert!(
+                output.contains(retained),
+                "ownership refusal did not retain {retained}: {output:?}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn token_integrity_selected_shape_is_injective_on_import_inline_bytes() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {

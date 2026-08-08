@@ -171,6 +171,7 @@ struct TransformExecutionRuntimePolicyV0<'a> {
     module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
     retained_class_names: &'a [String],
     token_ownership_census: Option<&'a CssModuleTokenOwnershipCensusV0>,
+    token_ownership_module_instance: Option<&'a ModuleInstanceKeyV0>,
 }
 
 impl TransformDecisionDraftV0 {
@@ -1153,6 +1154,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_and_policy(
                 module_qualified_symbols: None,
                 retained_class_names: &[],
                 token_ownership_census: None,
+                token_ownership_module_instance: None,
             },
         )
     })
@@ -1217,6 +1219,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bund
                 module_qualified_symbols: None,
                 retained_class_names: &[],
                 token_ownership_census: None,
+                token_ownership_module_instance: None,
             },
         )
     })
@@ -1291,6 +1294,7 @@ pub fn execute_transform_passes_on_module_with_dialect_context_policy_and_closed
         execution_policy,
         retained_class_names,
         None,
+        None,
     )
 }
 
@@ -1309,6 +1313,39 @@ impl CssModuleTokenOwnershipCensusV0 {
         execution_policy: &TransformExecutionPolicyV0,
         retained_class_names: &[String],
     ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+        self.execute_module_transform_passes_with_ownership_admission_for_identity(
+            source,
+            dialect,
+            requested,
+            context,
+            closed_world_bundle,
+            module_instance,
+            module_instance,
+            reachability_precision,
+            execution_policy,
+            retained_class_names,
+        )
+    }
+
+    /// Executes one module while comparing ownership evidence in its census identity space.
+    ///
+    /// `module_instance` remains the sealed-bundle lookup and diagnostic identity. The separate
+    /// `ownership_module_instance` is the identity used by the census producer, which can be
+    /// workspace-root relative even when bundle keys are absolute.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_module_transform_passes_with_ownership_admission_for_identity(
+        &self,
+        source: &str,
+        dialect: StyleDialect,
+        requested: &[TransformPassKind],
+        context: &TransformExecutionContextV0,
+        closed_world_bundle: &ClosedWorldBundleV0,
+        module_instance: &ModuleInstanceKeyV0,
+        ownership_module_instance: &ModuleInstanceKeyV0,
+        reachability_precision: FactPrecision,
+        execution_policy: &TransformExecutionPolicyV0,
+        retained_class_names: &[String],
+    ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
         execute_transform_passes_on_module_with_optional_token_ownership_census(
             source,
             dialect,
@@ -1320,6 +1357,7 @@ impl CssModuleTokenOwnershipCensusV0 {
             execution_policy,
             retained_class_names,
             Some(self),
+            Some(ownership_module_instance),
         )
     }
 }
@@ -1336,6 +1374,7 @@ fn execute_transform_passes_on_module_with_optional_token_ownership_census(
     execution_policy: &TransformExecutionPolicyV0,
     retained_class_names: &[String],
     token_ownership_census: Option<&CssModuleTokenOwnershipCensusV0>,
+    token_ownership_module_instance: Option<&ModuleInstanceKeyV0>,
 ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
     let Some(module_qualified_symbols) = closed_world_bundle
         .reachability()
@@ -1362,6 +1401,7 @@ fn execute_transform_passes_on_module_with_optional_token_ownership_census(
                 module_qualified_symbols: Some(module_qualified_symbols),
                 retained_class_names,
                 token_ownership_census,
+                token_ownership_module_instance,
             },
         )
     }))
@@ -1387,6 +1427,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
             module_qualified_symbols: None,
             retained_class_names: &[],
             token_ownership_census: None,
+            token_ownership_module_instance: None,
         },
     )
 }
@@ -1412,6 +1453,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_seman
                 module_qualified_symbols: None,
                 retained_class_names: &[],
                 token_ownership_census: None,
+                token_ownership_module_instance: None,
             },
         )
     })
@@ -2485,7 +2527,9 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     let o3 = closed_world_admission_o3_reasons(bundle, module_qualified_symbols);
                     let mut reasons = closed_world_admission_o1_reasons(
                         runtime_policy.token_ownership_census,
-                        o3.module_instance,
+                        runtime_policy
+                            .token_ownership_module_instance
+                            .or(o3.module_instance),
                         pass_kind,
                     );
                     reasons.extend(o3.reasons);
