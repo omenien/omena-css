@@ -1356,7 +1356,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
-      "line": 4340,
+      "line": 4384,
       "idiom": "brace-find",
       "family": "transform-runtime",
       "disposition": "named-exempt",
@@ -1364,7 +1364,7 @@
       "reason": "Transform runtime scanning outside the preservation observer remains a named follow-up."
     }
   ],
-  "siteDigest": "sha256:68b79cfa3077c6073a0472fd61dee93ec861a418ac90779247f704b6b2b25e23",
+  "siteDigest": "sha256:cf176f17134495ebbada7d3b5945b9697e2f02adbb0465ba8cfa594d62cdb87f",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
