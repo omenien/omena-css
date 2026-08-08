@@ -61,7 +61,6 @@ const matrixTestName = argumentsSet.has("--inject-composes-admission-matrix-loss
 const matrixRun = transformPassesTest(matrixTestName);
 
 interface MatrixCell {
-  readonly plane: "executor";
   readonly state: string;
   readonly fixture: string;
   readonly refusedCount: number;
@@ -88,7 +87,8 @@ const injectionRun = [...argumentsSet].some((argument) => argument.startsWith("-
 const carrierHopProbe = injectionRun ? null : runCarrierHopProbe();
 const matrixEvidenceGreen =
   matrixCells.length === 5 &&
-  matrixCells.every((cell) => cell.plane === "executor" && cell.outputCss.trim().length > 0) &&
+  matrixCells.every((cell) => cell.outputCss.trim().length > 0) &&
+  semanticMatrixEvidenceGreen(matrixCells) &&
   intactShape?.reasonKind === "livenessNotClosed" &&
   intactShape.refusedCount === 1 &&
   intactClean?.reasonKind === null &&
@@ -101,7 +101,7 @@ const matrixEvidenceGreen =
   sourceSetOpen?.reasonKind === null &&
   sourceSetOpen.evidenceScope === "sourceSetOpen";
 
-// These cells describe the executor plane only.
+// These cells describe measured executor values only.
 // The subprocess owns the measured command and return code.
 // Each cell owns only values observed from its bundle and execution summary.
 // Carrier-origin independence is measured by the detached-worktree probe below.
@@ -450,6 +450,9 @@ interface CarrierHopProbe {
   readonly perturbedCommand: string;
   readonly perturbedRc: number | null;
   readonly detected: boolean;
+  readonly scope: string;
+  readonly operationalCost: string;
+  readonly sigkillLeakRisk: string;
 }
 
 function runCarrierHopProbe(): CarrierHopProbe {
@@ -468,6 +471,10 @@ function runCarrierHopProbe(): CarrierHopProbe {
       perturbedCommand: `git worktree add --detach ${worktreeRoot} HEAD`,
       perturbedRc: add.status,
       detected: false,
+      scope: "current HEAD in one detached worktree",
+      operationalCost: "creates a detached worktree and compiles the focused bundler test twice",
+      sigkillLeakRisk:
+        "the finally cleanup covers ordinary exit but SIGKILL can leave the worktree registered",
     };
   }
 
@@ -537,7 +544,78 @@ function runCarrierHopProbe(): CarrierHopProbe {
         "test tests::external_composes_names_reach_the_sealed_closed_world_bundle ... FAILED",
       ) &&
       cleanupStatus === 0,
+    scope: "current HEAD in one detached worktree",
+    operationalCost: "creates a detached worktree and compiles the focused bundler test twice",
+    sigkillLeakRisk:
+      "the finally cleanup covers ordinary exit but SIGKILL can leave the worktree registered",
   };
+}
+
+function semanticMatrixEvidenceGreen(cells: readonly MatrixCell[]): boolean {
+  type SemanticCell = MatrixCell & {
+    readonly semanticObservedPassCount: number;
+    readonly semanticPreservedPassCount: number;
+    readonly semanticBlockedPassCount: number;
+  };
+  const semanticCells = cells as readonly SemanticCell[];
+  const expected = new Map([
+    ["inboundNonempty:shape", [1, 0, 1, 1]],
+    ["inboundNonempty:clean", [1, 1, 0, 1]],
+    ["scannedEmpty:empty", [1, 1, 0, 0]],
+    ["sourceSetOpen:shape", [1, 1, 0, 0]],
+    ["inboundNonempty:source-open-shape", [1, 0, 1, 1]],
+  ]);
+  return semanticCells.every((cell) => {
+    const values = expected.get(`${cell.state}:${cell.fixture}`);
+    return (
+      values?.[0] === cell.semanticObservedPassCount &&
+      values[1] === cell.semanticPreservedPassCount &&
+      values[2] === cell.semanticBlockedPassCount &&
+      values[3] === cell.observedBundleEdgeCount
+    );
+  });
+}
+
+const semanticPreservationSource = readFileSync(
+  join(repositoryRoot, "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs"),
+  "utf8",
+);
+const executorSource = readFileSync(
+  join(repositoryRoot, "rust/crates/omena-transform-passes/src/runtime/executor.rs"),
+  "utf8",
+);
+const mechanismACollectorNeedles = [
+  "collect_tree_shake_css_keyframe_removals_from_ir(",
+  "collect_tree_shake_css_modules_value_removals_from_ir(",
+  "collect_tree_shake_css_custom_property_removals_from_ir(",
+];
+for (const needle of mechanismACollectorNeedles) {
+  if (!semanticPreservationSource.includes(needle)) {
+    throw new Error(`semantic-preservation reading evidence lost collector ${needle}`);
+  }
+}
+const forbiddenArmClaim = ["mechanismAArm", "Covered\\s*[:=]\\s*true"].join("");
+const armClaimScan = spawnSync("rg", ["-n", forbiddenArmClaim, "rust", "scripts"], {
+  cwd: repositoryRoot,
+  encoding: "utf8",
+});
+if (armClaimScan.status !== 1) {
+  throw new Error(
+    `mechanism (a) is reading-only but an arm-covered claim exists:\n${armClaimScan.stdout ?? ""}`,
+  );
+}
+const capturedDigestNeedle = ["captured_module_qualified_", "ownership_digest"].join("");
+const digestComparisonNeedle = `${capturedDigestNeedle} != bundle.module_qualified_ownership_digest()`;
+const digestAccessorNeedle = "bundle.module_qualified_ownership_digest()";
+const digestAccessorReadCount = executorSource.split(digestAccessorNeedle).length - 1;
+if (
+  digestAccessorReadCount !== 0 &&
+  (!executorSource.includes(capturedDigestNeedle) ||
+    !executorSource.includes(digestComparisonNeedle))
+) {
+  throw new Error(
+    "an ownership-digest read re-entered without a captured plan-time carrier comparison",
+  );
 }
 
 process.stdout.write(
@@ -548,7 +626,6 @@ process.stdout.write(
       composesMatrixTest: "1 passed",
       composesMatrixCommand: matrixRun.command,
       composesMatrixSubprocessRc: matrixRun.status,
-      composesMatrixPlane: "executor",
       composesMatrixCells: matrixCells,
       carrierHopProbe,
       composesDepthTwoTest: "1 passed",
@@ -560,7 +637,20 @@ process.stdout.write(
         residualDiscrimination:
           "the executor plane still distinguishes closed shape gaps, clean closure, scanned-empty evidence, and source-set-open disclosure",
         observationCount:
-          "the production linker assigns composes_edge_observation_count from the deduplicated edge length, so its greater-than-length branch is not production-reachable",
+          "the executor matrix emits and asserts the observed count; production admission no longer carries the unreachable greater-than-deduplicated-length branch",
+      },
+      mechanismA: {
+        mechanismAArmCovered: false,
+        evidence: "reading-only shared-collector inspection",
+        collectorCount: mechanismACollectorNeedles.length,
+        closingMeasurement:
+          "a product fixture where a keyframe, CSS Modules value, or custom property is live only through a cross-module edge and the ignored-source-range comparator is observed",
+        overclaimScanRc: armClaimScan.status,
+      },
+      digestReentryTripwire: {
+        accessorReadCount: digestAccessorReadCount,
+        capturedDigestCarrierPresent: executorSource.includes(capturedDigestNeedle),
+        executeComparisonPresent: executorSource.includes(digestComparisonNeedle),
       },
       antiTautology: {
         classification: "disclosure-only-current-crate-dag",

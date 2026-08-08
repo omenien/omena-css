@@ -13,6 +13,10 @@ const transformContractSource = readFileSync(
   path.join(repoRoot, "rust/crates/omena-transform-passes/src/model.rs"),
   "utf8",
 );
+const transformExecutorSource = readFileSync(
+  path.join(repoRoot, "rust/crates/omena-transform-passes/src/runtime/executor.rs"),
+  "utf8",
+);
 const queryTypesSource = readFileSync(
   path.join(repoRoot, "rust/crates/omena-query/src/types.rs"),
   "utf8",
@@ -37,6 +41,9 @@ const requiredTests = [
   "token_integrity_default_path_tree_shakes_media_nested_dependency_classes",
   "token_integrity_default_path_removes_resolved_dependency_composes_declarations",
   "token_integrity_default_path_scopes_non_ascii_dependency_classes",
+  "ownership_census_controls_module_qualified_destructive_admission",
+  "ownership_census_admission_matrix_distinguishes_incomplete_and_empty_states",
+  "module_reachability_preserves_projection_union_without_flattening_ownership",
 ] as const;
 const instrumentSource = readFileSync(
   path.join(repoRoot, "rust/crates/omena-diff-test/src/linked_emission.rs"),
@@ -115,6 +122,31 @@ assert.ok(
   productSource.includes("CssModuleTokenOwnershipCensusV0::unavailable"),
   "the producer must distinguish an unavailable census from a complete empty census",
 );
+assert.ok(
+  transformExecutorSource.includes("closed_world_admission_o1_reasons("),
+  "the destructive executor must consume the ownership census at the admission site",
+);
+assert.ok(
+  transformExecutorSource.includes("runtime_policy.token_ownership_census"),
+  "the ownership census must cross the module-qualified runtime boundary",
+);
+assert.ok(
+  transformExecutorSource.includes(
+    "pub fn execute_module_transform_passes_with_ownership_admission(",
+  ),
+  "the product census must own the explicit module-execution admission boundary",
+);
+const tierReachable =
+  transformFacadeSource.includes(
+    "token_ownership_census.execute_module_transform_passes_with_ownership_admission(",
+  ) &&
+  transformFacadeSource.includes("token_integrity::summarize_css_module_token_ownership(") &&
+  transformFacadeSource.includes("pass_id_is_fact_consuming(pass_id)");
+assert.equal(
+  tierReachable,
+  true,
+  "the query product must produce the ownership reference before fact-consuming dispatch",
+);
 
 const result = spawnSync(
   "cargo",
@@ -142,10 +174,70 @@ assert.equal(
     .join("\n"),
 );
 const transcript = `${result.stdout}\n${result.stderr}`;
+const admissionResult = spawnSync(
+  "cargo",
+  [
+    "test",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-transform-passes",
+    "tests::runtime_boundary::ownership_census",
+    "--",
+    "--nocapture",
+  ],
+  {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  },
+);
+assert.equal(
+  admissionResult.status,
+  0,
+  [
+    "closed-world ownership-admission product tests failed",
+    admissionResult.stdout,
+    admissionResult.stderr,
+  ]
+    .filter(Boolean)
+    .join("\n"),
+);
+const productAdmissionResult = spawnSync(
+  "cargo",
+  [
+    "test",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "omena-query",
+    "tests::consumer_reachability::module_reachability_preserves_projection_union_without_flattening_ownership",
+    "--",
+    "--exact",
+    "--nocapture",
+  ],
+  {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  },
+);
+assert.equal(
+  productAdmissionResult.status,
+  0,
+  [
+    "module-attributed ownership-admission product test failed",
+    productAdmissionResult.stdout,
+    productAdmissionResult.stderr,
+  ]
+    .filter(Boolean)
+    .join("\n"),
+);
+const combinedTranscript = `${transcript}\n${admissionResult.stdout}\n${admissionResult.stderr}\n${productAdmissionResult.stdout}\n${productAdmissionResult.stderr}`;
 for (const test of requiredTests) {
-  assert.match(transcript, new RegExp(`test [^\\n]*${test} \\.\\.\\. ok`, "u"));
+  assert.match(combinedTranscript, new RegExp(`test [^\\n]*${test} \\.\\.\\. ok`, "u"));
 }
-const passed = [...transcript.matchAll(/test result: ok\. (\d+) passed/gu)].reduce(
+const passed = [...combinedTranscript.matchAll(/test result: ok\. (\d+) passed/gu)].reduce(
   (total, match) => total + Number(match[1]),
   0,
 );
@@ -167,7 +259,7 @@ process.stdout.write(
       requiredTests,
       verificationProfile: "strict",
       emissionPaths: ["importInlineLegacy", "linkedOrder"],
-      tierReachable: true,
+      tierReachable,
     },
     null,
     2,
