@@ -107,6 +107,12 @@ that selected context. The default `Descriptive` profile continues to report
 the census without turning it into an admission failure; Strict coverage is
 therefore opt-in rather than evidence about every default build.
 
+Module identity preserves a caller-visible path that is already inside
+`workspaceRoot`. Referencing the same physical file through two different
+root-internal paths therefore creates two module identities and two token sets.
+The collision gate cannot detect this aliasing; consumers should resolve each
+file through one stable workspace-relative path.
+
 The number of consumers in each class is not measured.
 
 ## Migration runbook

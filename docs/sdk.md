@@ -121,7 +121,10 @@ The request contains `workspaceRoot`, `styleSources`, `operation`, and the typed
 `workspaceRoot` is required on bundler-host resolve requests. Clients upgrading
 from the earlier request shape must add it explicitly and keep the value stable
 across workspace relocation; Omena uses that boundary to derive portable CSS
-Module identity and rejects modules outside it.
+Module identity. A component-bounded path inside the root keeps its
+caller-visible spelling even when it traverses a link; a path outside that
+lexical boundary is accepted only when its canonical target is inside the
+canonical root.
 
 CSS Module token-integrity enforcement is opt-in. `Strict` mode rejects output
 when selected interface tokens and emitted bytes disagree or ownership analysis

@@ -57,7 +57,8 @@ pub(in crate::style) fn module_instance_key_relative_to_root(
             relative
         } else {
             let canonical_root = canonicalize_path_allowing_missing_tail(&normalized_root)?;
-            module_path
+            let canonical_module = canonicalize_path_allowing_missing_tail(&normalized_module)?;
+            canonical_module
                 .strip_prefix(&canonical_root)
                 .map(Path::to_path_buf)
                 .map_err(|_| {
@@ -491,11 +492,18 @@ mod tests {
     };
 
     #[test]
-    fn token_integrity_symlinked_workspace_root_accepts_the_canonical_module_path()
+    fn token_integrity_workspace_path_shape_matrix_is_explicit()
     -> Result<(), Box<dyn std::error::Error>> {
+        struct PathShape {
+            name: &'static str,
+            root: PathBuf,
+            module: PathBuf,
+            expected: Result<&'static str, &'static str>,
+        }
+
         let unique = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
         let fixture_root = std::env::temp_dir().join(format!(
-            "omena-query-module-identity-root-{}-{unique}",
+            "omena-query-module-identity-matrix-{}-{unique}",
             std::process::id()
         ));
         let real_root = fixture_root.join("real-workspace");
@@ -505,44 +513,146 @@ mod tests {
         fs::write(&module_path, ".card {}")?;
         unix_fs::symlink(&real_root, &symlink_root)?;
 
-        let result = module_instance_key_relative_to_root(
-            &omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
-                module_path.to_string_lossy(),
-            )),
-            symlink_root.to_string_lossy().as_ref(),
-        )?;
-        assert_eq!(result.module().as_str(), "src/card.module.css");
-
-        fs::remove_dir_all(&fixture_root).ok();
-        Ok(())
-    }
-
-    #[test]
-    fn token_integrity_root_internal_symlink_preserves_caller_visible_identity()
-    -> Result<(), Box<dyn std::error::Error>> {
-        let unique = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-        let fixture_root = std::env::temp_dir().join(format!(
-            "omena-query-module-identity-internal-link-{}-{unique}",
-            std::process::id()
-        ));
-        let workspace_root = fixture_root.join("workspace");
         let external_root = fixture_root.join("external");
-        let linked_root = workspace_root.join("linked");
-        let module_path = linked_root.join("pkg.module.css");
-        fs::create_dir_all(&workspace_root)?;
         fs::create_dir_all(&external_root)?;
-        fs::write(external_root.join("pkg.module.css"), ".pkg {}")?;
-        unix_fs::symlink(&external_root, &linked_root)?;
+        let external_module = external_root.join("pkg.module.css");
+        fs::write(&external_module, ".pkg {}")?;
+        let external_link = real_root.join("linked-external");
+        unix_fs::symlink(&external_root, &external_link)?;
 
-        let result = module_instance_key_relative_to_root(
-            &omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
-                module_path.to_string_lossy(),
-            )),
-            workspace_root.to_string_lossy().as_ref(),
+        let canonical_alias_module = fixture_root.join("canonical-alias.module.css");
+        unix_fs::symlink(&module_path, &canonical_alias_module)?;
+        let double_path_alias = real_root.join("double-path.module.css");
+        unix_fs::symlink(&module_path, &double_path_alias)?;
+
+        let internal_directory = real_root.join("components");
+        fs::create_dir_all(&internal_directory)?;
+        let internal_module = internal_directory.join("button.module.css");
+        fs::write(&internal_module, ".button {}")?;
+        let internal_alias = real_root.join("components-alias");
+        unix_fs::symlink(&internal_directory, &internal_alias)?;
+
+        let private_root = fixture_root.join("private");
+        let private_workspace = private_root.join("workspace");
+        let private_module = private_workspace.join("src/macos.module.css");
+        fs::create_dir_all(
+            private_module
+                .parent()
+                .ok_or("private module parent is absent")?,
         )?;
-        assert_eq!(result.module().as_str(), "linked/pkg.module.css");
+        fs::write(&private_module, ".macos {}")?;
+        let var_alias = fixture_root.join("var");
+        unix_fs::symlink(&private_root, &var_alias)?;
+
+        let canonical_real_root = fs::canonicalize(&real_root)?;
+        let canonical_private_workspace = fs::canonicalize(&private_workspace)?;
+        // Extend this table for new path shapes instead of adding one-off tests.
+        let cases = [
+            PathShape {
+                name: "A symlink root",
+                root: symlink_root,
+                module: module_path.clone(),
+                expected: Ok("src/card.module.css"),
+            },
+            PathShape {
+                name: "B root-internal link to outside",
+                root: real_root.clone(),
+                module: external_link.join("pkg.module.css"),
+                expected: Ok("linked-external/pkg.module.css"),
+            },
+            PathShape {
+                name: "C canonical root with alias module",
+                root: canonical_real_root,
+                module: canonical_alias_module,
+                expected: Ok("src/card.module.css"),
+            },
+            PathShape {
+                name: "D1 same file through root-internal alias",
+                root: real_root.clone(),
+                module: double_path_alias.clone(),
+                expected: Ok("double-path.module.css"),
+            },
+            PathShape {
+                name: "D2 same file through real path",
+                root: real_root.clone(),
+                module: module_path.clone(),
+                expected: Ok("src/card.module.css"),
+            },
+            PathShape {
+                name: "F root-internal directory alias",
+                root: real_root,
+                module: internal_alias.join("button.module.css"),
+                expected: Ok("components-alias/button.module.css"),
+            },
+            PathShape {
+                name: "G canonical macOS root with var alias module",
+                root: canonical_private_workspace,
+                module: var_alias.join("workspace/src/macos.module.css"),
+                expected: Ok("src/macos.module.css"),
+            },
+        ];
+
+        assert_eq!(
+            fs::canonicalize(&double_path_alias)?,
+            fs::canonicalize(&module_path)?
+        );
+
+        let mut failures = Vec::<String>::new();
+        let mut observed = BTreeMap::<&str, String>::new();
+        for case in cases {
+            let actual = module_instance_key_relative_to_root(
+                &omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                    case.module.to_string_lossy(),
+                )),
+                case.root.to_string_lossy().as_ref(),
+            )
+            .map(|identity| identity.module().as_str().to_string());
+            match (case.expected, actual) {
+                (Ok(expected), Ok(actual)) if actual == expected => {
+                    println!("{} => Ok({actual:?})", case.name);
+                    observed.insert(case.name, actual);
+                }
+                (Err(expected), Err(actual)) if actual.contains(expected) => {
+                    println!("{} => Err({actual:?})", case.name);
+                }
+                (expected, actual) => failures.push(format!(
+                    "{}: expected {expected:?}, got {actual:?}",
+                    case.name
+                )),
+            }
+        }
+
+        match (
+            observed.get("D1 same file through root-internal alias"),
+            observed.get("D2 same file through real path"),
+        ) {
+            (Some(d1), Some(d2)) if d1 != d2 => {
+                let d1 = omena_parser::ModuleInstanceKeyV0::unconfigured(
+                    omena_parser::ModuleIdV0::new(d1),
+                );
+                let d2 = omena_parser::ModuleInstanceKeyV0::unconfigured(
+                    omena_parser::ModuleIdV0::new(d2),
+                );
+                let d1_token = stable_transform_context_class_rewrite(&d1, "card");
+                let d2_token = stable_transform_context_class_rewrite(&d2, "card");
+                println!("D1/D2 same-canonical-file tokens => {d1_token:?} / {d2_token:?}");
+                if d1_token == d2_token {
+                    failures
+                        .push("D1/D2 distinct identities must produce distinct tokens".to_string());
+                }
+            }
+            (Some(_), Some(_)) => {
+                failures.push("D1/D2 must pin distinct caller-visible identities".to_string());
+            }
+            _ => {}
+        }
 
         fs::remove_dir_all(&fixture_root).ok();
+        assert!(
+            failures.is_empty(),
+            "workspace path-shape matrix failures:\n{}",
+            failures.join("\n")
+        );
         Ok(())
     }
 }
