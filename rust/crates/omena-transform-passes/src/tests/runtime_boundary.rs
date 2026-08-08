@@ -48,9 +48,9 @@ fn ownership_census_controls_module_qualified_destructive_admission() -> Result<
             ClosedWorldLinkedModuleV0::new(second.clone()),
         ],
     );
-    let source = "._shared_0 { color: red; } .dead { color: gray; }";
+    let source = ".shared-token { color: red; } .dead { color: gray; }";
     let collision_ownership = CssModuleTokenOwnershipV0::new(
-        "_shared_0",
+        "shared-token",
         vec![first.clone(), second.clone()],
         vec![
             "src/first.module.css".to_string(),
@@ -96,7 +96,7 @@ fn ownership_census_controls_module_qualified_destructive_admission() -> Result<
         [TransformStrictPolicyReasonV0::OwnershipNotSeparable {
             token,
             module_paths,
-        }] if token == "_shared_0" && module_paths == &[
+        }] if token == "shared-token" && module_paths == &[
             "src/first.module.css".to_string(),
             "src/second.module.css".to_string(),
         ]
@@ -127,7 +127,7 @@ fn ownership_census_controls_module_qualified_destructive_admission() -> Result<
     );
     let admitted = execute(&complete_empty)?;
     assert_eq!(admitted.closed_world_admission.refused_count, 0);
-    assert!(!admitted.output_css.contains("_shared_0"));
+    assert!(!admitted.output_css.contains("shared-token"));
     assert!(!admitted.output_css.contains("dead"));
     Ok(())
 }
@@ -152,7 +152,7 @@ fn ownership_census_admission_matrix_distinguishes_incomplete_and_empty_states()
         ],
     );
     let ownership = CssModuleTokenOwnershipV0::new(
-        "_shared_0",
+        "shared-token",
         vec![first.clone(), second],
         vec![
             "src/first.module.css".to_string(),
