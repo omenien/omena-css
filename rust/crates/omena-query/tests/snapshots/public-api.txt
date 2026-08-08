@@ -859,6 +859,9 @@ pub struct omena_query::OmenaQueryBundleResultV0
 pub omena_query::OmenaQueryBundleResultV0::artifact: omena_query::OmenaQueryBundleArtifactV0
 pub omena_query::OmenaQueryBundleResultV0::closed_world_decision_parity: omena_query::OmenaQueryClosedWorldDecisionParityV0
 pub omena_query::OmenaQueryBundleResultV0::closed_world_outcome: omena_query::OmenaQueryClosedWorldOutcomeV0
+#[non_exhaustive] pub struct omena_query::OmenaQueryBundleTokenOwnershipResultV0
+pub omena_query::OmenaQueryBundleTokenOwnershipResultV0::bundle_result: omena_query::OmenaQueryBundleResultV0
+pub omena_query::OmenaQueryBundleTokenOwnershipResultV0::ownership_census: omena_transform_passes::model::CssModuleTokenOwnershipCensusV0
 pub struct omena_query::OmenaQueryBundleWithEvidenceV0
 pub omena_query::OmenaQueryBundleWithEvidenceV0::artifact: omena_query::OmenaQueryBundleArtifactV0
 pub omena_query::OmenaQueryBundleWithEvidenceV0::closed_world_decision_parity: omena_query::OmenaQueryClosedWorldDecisionParityV0
@@ -2509,6 +2512,7 @@ pub fn omena_query::run_omena_query_bundle_with_module_reachability_and_executio
 pub fn omena_query::run_omena_query_bundle_with_module_reachability_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0, &omena_query::OmenaQueryEngineInputModuleReachabilityV0) -> core::result::Result<omena_query::OmenaQueryModuleAttributedBundleResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_semantic_inputs(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0]) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_semantic_inputs_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_token_ownership_census_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleTokenOwnershipResultV0, alloc::string::String>
 pub fn omena_query::summarize_html_standard_user_agent_sample_v0() -> omena_query::OmenaQueryCascadeOriginStylesheetV0
 pub fn omena_query::summarize_omena_query_analyzed_graph(&str, &str) -> omena_query::AnalyzedGraphV0
 pub fn omena_query::summarize_omena_query_boundary(&engine_input_producers::EngineInputV2) -> omena_query::OmenaQueryBoundarySummaryV0

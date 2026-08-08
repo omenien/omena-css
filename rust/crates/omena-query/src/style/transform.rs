@@ -10,6 +10,10 @@ use omena_query_transform_runner::{
     TransformBundleModuleInputV0, link_omena_transform_bundle_modules, link_resolved_bundle,
     materialize_omena_transform_bundle_linked_stylesheet,
 };
+use omena_query_transform_runner::{
+    CssModuleTokenOwnershipCensusV0, TransformClassNameRewriteV0,
+    transform_pass_requires_closed_world_bundle, transform_pass_sort_ordinal,
+};
 #[allow(deprecated)]
 use omena_query_transform_runner::{
     EmissionOrderingPolicyV0, InstanceReachabilityDerivationV0, LinkedEmissionArtifactV0,
@@ -28,10 +32,6 @@ use omena_query_transform_runner::{
     normalize_omena_transform_bundle_path,
     project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability,
     project_omena_transform_bundle_linker_inputs_from_parsed_modules,
-};
-use omena_query_transform_runner::{
-    TransformClassNameRewriteV0, transform_pass_requires_closed_world_bundle,
-    transform_pass_sort_ordinal,
 };
 use std::path::{Path, PathBuf};
 
@@ -360,6 +360,23 @@ pub fn run_omena_query_bundle_with_semantic_inputs_and_options(
         .map(|result| result.bundle_result)
 }
 
+pub fn run_omena_query_bundle_with_token_ownership_census_and_options(
+    input: OmenaQueryBundlePlanInputV0<'_>,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<OmenaQueryBundleTokenOwnershipResultV0, String> {
+    let run = run_omena_query_bundle_with_optional_module_reachability(
+        input,
+        external_sifs,
+        options,
+        None,
+    )?;
+    Ok(OmenaQueryBundleTokenOwnershipResultV0::new(
+        run.bundle_result,
+        run.css_module_token_ownership_census,
+    ))
+}
+
 pub fn run_omena_query_bundle_with_execution_scope_evidence_and_options(
     input: OmenaQueryBundlePlanInputV0<'_>,
     external_sifs: &[OmenaQueryExternalSifInputV0],
@@ -449,6 +466,7 @@ pub fn run_omena_query_bundle_with_module_reachability_and_execution_scope_evide
 struct OmenaQueryBundleExecutionRunV0 {
     bundle_result: OmenaQueryBundleResultV0,
     execution_scope: Option<OmenaQueryBundleExecutionScopeEvidenceV0>,
+    css_module_token_ownership_census: CssModuleTokenOwnershipCensusV0,
 }
 
 fn run_omena_query_bundle_with_optional_module_reachability(
@@ -627,13 +645,8 @@ fn run_omena_query_bundle_with_optional_module_reachability(
         )
     };
 
-    if options.verification_profile == OmenaQueryBuildVerificationProfileV0::Strict {
-        let linked = linked_result.as_ref().map_err(|error| {
-            format!(
-                "CSS Modules emitted-token integrity could not attribute the emission plan: {error:?}"
-            )
-        })?;
-        token_integrity::validate_css_module_token_integrity(
+    let css_module_token_ownership_census = match linked_result.as_ref() {
+        Ok(linked) => token_integrity::summarize_css_module_token_ownership(
             target_style_path,
             style_fact_entries.as_slice(),
             linked,
@@ -641,7 +654,19 @@ fn run_omena_query_bundle_with_optional_module_reachability(
             linked_module_executions.as_deref(),
             emission_path,
             execution.output_css.as_str(),
-        )?;
+        )
+        .unwrap_or_else(|error| {
+            token_integrity::unavailable_css_module_token_ownership_census(emission_path, error)
+        }),
+        Err(error) => token_integrity::unavailable_css_module_token_ownership_census(
+            emission_path,
+            format!(
+                "CSS Modules emitted-token integrity could not attribute the emission plan: {error:?}"
+            ),
+        ),
+    };
+    if options.verification_profile == OmenaQueryBuildVerificationProfileV0::Strict {
+        token_integrity::validate_css_module_token_integrity(&css_module_token_ownership_census)?;
     }
 
     let artifact = OmenaQueryBundleArtifactV0 {
@@ -672,6 +697,7 @@ fn run_omena_query_bundle_with_optional_module_reachability(
             closed_world_decision_parity,
         },
         execution_scope,
+        css_module_token_ownership_census,
     })
 }
 

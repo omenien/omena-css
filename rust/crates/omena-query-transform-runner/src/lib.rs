@@ -62,6 +62,8 @@ pub use omena_transform_egg::{
     plan_egg_rewrite_passes_for_source,
 };
 pub use omena_transform_passes::{
+    CssModuleTokenCollisionPathScopeV0, CssModuleTokenCollisionV0,
+    CssModuleTokenInterfaceMismatchV0, CssModuleTokenOwnershipCensusV0, CssModuleTokenOwnershipV0,
     CustomPropertyLeastFixedPointSummaryV0, ExternalCssSemanticChangeClassificationV0,
     ExternalCssSemanticChangeKindV0, ExternalCssSemanticChangeV0, ExternalCssSemanticDiffV0,
     ExternalCssSemanticEntryV0, RollbackReceiptV0, RollbackScopeV0,

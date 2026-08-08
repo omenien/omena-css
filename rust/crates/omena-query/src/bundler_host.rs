@@ -223,11 +223,13 @@ mod tests {
             }],
         ));
         assert!(!whitespace.ready);
-        let diagnostic = whitespace
+        let whitespace_diagnostics = whitespace
             .diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.code == CSS_MODULE_CLASS_NAME_WHITESPACE_DIAGNOSTIC_V0)
-            .expect("the build boundary must report decoded ASCII whitespace");
+            .filter(|diagnostic| diagnostic.code == CSS_MODULE_CLASS_NAME_WHITESPACE_DIAGNOSTIC_V0)
+            .collect::<Vec<_>>();
+        assert_eq!(whitespace_diagnostics.len(), 1);
+        let diagnostic = whitespace_diagnostics[0];
         assert!(diagnostic.message.contains("/src/whitespace.module.css"));
         assert!(diagnostic.message.contains(r"a\20 b"));
 

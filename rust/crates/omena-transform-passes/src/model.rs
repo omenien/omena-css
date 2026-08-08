@@ -631,6 +631,175 @@ pub enum TransformStrictPolicyReasonV0 {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum CssModuleTokenCollisionPathScopeV0 {
+    BothPaths,
+    ImportInlineLegacyOnly,
+    LinkedOrderOnly,
+}
+
+impl CssModuleTokenCollisionPathScopeV0 {
+    pub const fn as_wire_label(self) -> &'static str {
+        match self {
+            Self::BothPaths => "bothPaths",
+            Self::ImportInlineLegacyOnly => "importInlineLegacyOnly",
+            Self::LinkedOrderOnly => "linkedOrderOnly",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CssModuleTokenOwnershipV0 {
+    pub emitted_token: String,
+    pub module_instances: Vec<ModuleInstanceKeyV0>,
+    pub module_paths: Vec<String>,
+    pub original_names: Vec<String>,
+}
+
+impl CssModuleTokenOwnershipV0 {
+    pub fn new(
+        emitted_token: impl Into<String>,
+        module_instances: Vec<ModuleInstanceKeyV0>,
+        module_paths: Vec<String>,
+        original_names: Vec<String>,
+    ) -> Self {
+        Self {
+            emitted_token: emitted_token.into(),
+            module_instances,
+            module_paths,
+            original_names,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CssModuleTokenCollisionV0 {
+    pub emitted_token: String,
+    pub module_instances: Vec<ModuleInstanceKeyV0>,
+    pub module_paths: Vec<String>,
+    pub original_names: Vec<String>,
+    pub observed_emission_paths: Vec<&'static str>,
+    pub path_scope: CssModuleTokenCollisionPathScopeV0,
+}
+
+impl CssModuleTokenCollisionV0 {
+    pub fn new(
+        ownership: CssModuleTokenOwnershipV0,
+        observed_emission_paths: Vec<&'static str>,
+        path_scope: CssModuleTokenCollisionPathScopeV0,
+    ) -> Self {
+        Self {
+            emitted_token: ownership.emitted_token,
+            module_instances: ownership.module_instances,
+            module_paths: ownership.module_paths,
+            original_names: ownership.original_names,
+            observed_emission_paths,
+            path_scope,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CssModuleTokenInterfaceMismatchV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub module_path: String,
+    pub original_name: String,
+    pub promised_token: String,
+    pub emitted_token: String,
+}
+
+impl CssModuleTokenInterfaceMismatchV0 {
+    pub fn new(
+        module_instance: ModuleInstanceKeyV0,
+        module_path: impl Into<String>,
+        original_name: impl Into<String>,
+        promised_token: impl Into<String>,
+        emitted_token: impl Into<String>,
+    ) -> Self {
+        Self {
+            module_instance,
+            module_path: module_path.into(),
+            original_name: original_name.into(),
+            promised_token: promised_token.into(),
+            emitted_token: emitted_token.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CssModuleTokenOwnershipCensusV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub scope: &'static str,
+    pub emission_path: &'static str,
+    pub complete: bool,
+    pub modeled_preimage_count: usize,
+    pub emitted_token_count: usize,
+    pub token_ownerships: Vec<CssModuleTokenOwnershipV0>,
+    pub module_token_collision_count: usize,
+    pub module_token_collisions: Vec<CssModuleTokenCollisionV0>,
+    pub unattributed_emitted_tokens: Vec<String>,
+    pub interface_mismatches: Vec<CssModuleTokenInterfaceMismatchV0>,
+    pub unavailable_reasons: Vec<String>,
+}
+
+impl CssModuleTokenOwnershipCensusV0 {
+    pub fn new(
+        emission_path: &'static str,
+        modeled_preimage_count: usize,
+        token_ownerships: Vec<CssModuleTokenOwnershipV0>,
+        module_token_collisions: Vec<CssModuleTokenCollisionV0>,
+        unattributed_emitted_tokens: Vec<String>,
+        interface_mismatches: Vec<CssModuleTokenInterfaceMismatchV0>,
+    ) -> Self {
+        let module_token_collision_count = module_token_collisions.len();
+        let emitted_token_count = token_ownerships.len() + unattributed_emitted_tokens.len();
+        Self {
+            schema_version: "0",
+            product: "omena-query.css-module-token-ownership-census",
+            scope: "bundleEmission",
+            emission_path,
+            complete: unattributed_emitted_tokens.is_empty(),
+            modeled_preimage_count,
+            emitted_token_count,
+            token_ownerships,
+            module_token_collision_count,
+            module_token_collisions,
+            unattributed_emitted_tokens,
+            interface_mismatches,
+            unavailable_reasons: Vec::new(),
+        }
+    }
+
+    pub fn unavailable(emission_path: &'static str, reason: impl Into<String>) -> Self {
+        Self {
+            schema_version: "0",
+            product: "omena-query.css-module-token-ownership-census",
+            scope: "bundleEmission",
+            emission_path,
+            complete: false,
+            modeled_preimage_count: 0,
+            emitted_token_count: 0,
+            token_ownerships: Vec::new(),
+            module_token_collision_count: 0,
+            module_token_collisions: Vec::new(),
+            unattributed_emitted_tokens: Vec::new(),
+            interface_mismatches: Vec::new(),
+            unavailable_reasons: vec![reason.into()],
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformStrictPolicyEventV0 {

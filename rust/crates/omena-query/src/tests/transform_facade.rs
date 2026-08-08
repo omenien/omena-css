@@ -10,6 +10,7 @@ use crate::{
     run_omena_query_bundle, run_omena_query_bundle_with_execution_scope_evidence_and_options,
     run_omena_query_bundle_with_semantic_inputs,
     run_omena_query_bundle_with_semantic_inputs_and_options,
+    run_omena_query_bundle_with_token_ownership_census_and_options,
     summarize_omena_query_bundle_code_split_source_map_v3,
     summarize_omena_query_bundle_code_split_workspace_plan, summarize_omena_query_bundle_evidence,
     validate_omena_query_closed_world_decision_parity,
@@ -954,6 +955,35 @@ fn strict_css_module_token_integrity_uses_real_bytes_and_path_specific_preimages
         OmenaQueryBundleEmissionPathV0::LinkedOrder,
     ] {
         run(&clean, emission_path)?;
+        let result = run_omena_query_bundle_with_token_ownership_census_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: "src/app.module.css",
+                style_sources: &clean,
+                source_map_sources: &clean,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            &OmenaQueryConsumerBuildOptionsV0 {
+                verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Descriptive,
+                bundle_emission_path: emission_path,
+            },
+        )?;
+        let census = &result.ownership_census;
+        assert!(census.complete);
+        assert_eq!(census.module_token_collision_count, 0);
+        assert_eq!(census.unattributed_emitted_tokens, Vec::<String>::new());
+        assert_eq!(census.token_ownerships.len(), 1);
+        assert_eq!(census.token_ownerships[0].module_instances.len(), 1);
+        assert_eq!(
+            census.token_ownerships[0].module_instances[0]
+                .module()
+                .as_str(),
+            "src/app.module.css"
+        );
     }
 
     let same_ordinal = vec![
@@ -971,14 +1001,72 @@ fn strict_css_module_token_integrity_uses_real_bytes_and_path_specific_preimages
         OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
         OmenaQueryBundleEmissionPathV0::LinkedOrder,
     ] {
-        let error = run(&same_ordinal, emission_path)
-            .expect_err("same-name, same-ordinal modules must fail closed");
+        let error = match run(&same_ordinal, emission_path) {
+            Err(error) => error,
+            Ok(_) => return Err("same-name, same-ordinal modules must fail closed".to_string()),
+        };
         assert!(error.contains("pathScope=bothPaths"), "{error}");
         assert!(error.contains("src/app.module.css"), "{error}");
         assert!(error.contains("src/dependency.module.css"), "{error}");
         assert!(error.contains("shared"), "{error}");
         assert!(error.contains("_shared_0"), "{error}");
     }
+    let descriptive_collision = run_omena_query_bundle_with_token_ownership_census_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: "src/app.module.css",
+            style_sources: &same_ordinal,
+            source_map_sources: &same_ordinal,
+            requested_pass_ids: &pass_ids,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Descriptive,
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+        },
+    )?;
+    let collision_census = &descriptive_collision.ownership_census;
+    assert!(collision_census.complete);
+    assert_eq!(collision_census.module_token_collision_count, 1);
+    assert_eq!(
+        collision_census.module_token_collisions[0].emitted_token,
+        ["_", "shared", "_", "0"].concat()
+    );
+    assert_eq!(
+        collision_census.module_token_collisions[0]
+            .module_instances
+            .len(),
+        2
+    );
+    assert_eq!(
+        collision_census.module_token_collisions[0].module_paths,
+        vec![
+            "src/app.module.css".to_string(),
+            "src/dependency.module.css".to_string()
+        ]
+    );
+    assert_eq!(
+        collision_census.module_token_collisions[0].observed_emission_paths,
+        vec!["linkedOrder"]
+    );
+    assert_eq!(
+        collision_census.module_token_collisions[0].path_scope,
+        omena_query_transform_runner::CssModuleTokenCollisionPathScopeV0::BothPaths
+    );
+    let serialized_census =
+        serde_json::to_value(collision_census).map_err(|error| error.to_string())?;
+    assert_eq!(
+        serialized_census["product"],
+        "omena-query.css-module-token-ownership-census"
+    );
+    assert_eq!(serialized_census["moduleTokenCollisionCount"], 1);
+    assert_eq!(
+        serialized_census["moduleTokenCollisions"][0]["moduleInstances"][0]["module"],
+        "src/app.module.css"
+    );
 
     let different_ordinals = vec![
         OmenaQueryStyleSourceInputV0 {
@@ -991,11 +1079,17 @@ fn strict_css_module_token_integrity_uses_real_bytes_and_path_specific_preimages
             style_source: ".shared { color: blue; }".to_string(),
         },
     ];
-    let legacy_error = run(
+    let legacy_error = match run(
         &different_ordinals,
         OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
-    )
-    .expect_err("the default name-only predicate must detect the wider collision");
+    ) {
+        Err(error) => error,
+        Ok(_) => {
+            return Err(
+                "the default name-only predicate must detect the wider collision".to_string(),
+            );
+        }
+    };
     assert!(
         legacy_error.contains("pathScope=importInlineLegacyOnly"),
         "{legacy_error}"
@@ -1042,12 +1136,38 @@ fn strict_css_module_token_integrity_rejects_interface_byte_mismatch() -> Result
         )
     };
 
-    let error = run(OmenaQueryBundleEmissionPathV0::ImportInlineLegacy)
-        .expect_err("the default path must reject an interface/byte mismatch");
+    let error = match run(OmenaQueryBundleEmissionPathV0::ImportInlineLegacy) {
+        Err(error) => error,
+        Ok(_) => return Err("the default path must reject an interface/byte mismatch".to_string()),
+    };
     assert!(error.contains("interface/byte mismatch"), "{error}");
     assert!(error.contains("src/dependency.module.css"), "{error}");
     assert!(error.contains("dependency"), "{error}");
     assert!(error.contains("_dependency_0"), "{error}");
+    let descriptive_mismatch = run_omena_query_bundle_with_token_ownership_census_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: "src/app.module.css",
+            style_sources: &sources,
+            source_map_sources: &sources,
+            requested_pass_ids: &pass_ids,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Descriptive,
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+        },
+    )?;
+    assert_eq!(
+        descriptive_mismatch
+            .ownership_census
+            .interface_mismatches
+            .len(),
+        1
+    );
     run(OmenaQueryBundleEmissionPathV0::LinkedOrder)?;
     Ok(())
 }

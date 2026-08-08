@@ -801,6 +801,26 @@ pub struct OmenaQueryBundleResultV0 {
     pub closed_world_decision_parity: OmenaQueryClosedWorldDecisionParityV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryBundleTokenOwnershipResultV0 {
+    pub bundle_result: OmenaQueryBundleResultV0,
+    pub ownership_census: omena_query_transform_runner::CssModuleTokenOwnershipCensusV0,
+}
+
+impl OmenaQueryBundleTokenOwnershipResultV0 {
+    pub(crate) fn new(
+        bundle_result: OmenaQueryBundleResultV0,
+        ownership_census: omena_query_transform_runner::CssModuleTokenOwnershipCensusV0,
+    ) -> Self {
+        Self {
+            bundle_result,
+            ownership_census,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]

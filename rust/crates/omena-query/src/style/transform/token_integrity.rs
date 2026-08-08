@@ -6,30 +6,16 @@ use crate::style::{
 use crate::types::normalize_omena_query_style_path;
 use crate::{OmenaQueryBundleEmissionPathV0, OmenaQueryTransformExecutionContextV0};
 use omena_query_transform_runner::{
+    CssModuleTokenCollisionPathScopeV0, CssModuleTokenCollisionV0,
+    CssModuleTokenInterfaceMismatchV0, CssModuleTokenOwnershipCensusV0, CssModuleTokenOwnershipV0,
     LinkedStylesheetWithEmissionItemsV0, TransformClassNameRewriteV0,
 };
 use omena_syntax::ident::{ClassNameV0, is_css_name_continue, is_css_name_start};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CssModuleTokenCollisionPathScopeV0 {
-    BothPaths,
-    ImportInlineLegacyOnly,
-    LinkedOrderOnly,
-}
-
-impl CssModuleTokenCollisionPathScopeV0 {
-    const fn as_wire_label(self) -> &'static str {
-        match self {
-            Self::BothPaths => "bothPaths",
-            Self::ImportInlineLegacyOnly => "importInlineLegacyOnly",
-            Self::LinkedOrderOnly => "linkedOrderOnly",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CssModuleTokenPreimageV0 {
+    module_instance: omena_parser::ModuleInstanceKeyV0,
     module_path: String,
     raw_name: String,
     default_token: String,
@@ -37,7 +23,7 @@ struct CssModuleTokenPreimageV0 {
     interface_token: String,
 }
 
-pub(super) fn validate_css_module_token_integrity(
+pub(super) fn summarize_css_module_token_ownership(
     target_style_path: &str,
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     linked: &LinkedStylesheetWithEmissionItemsV0,
@@ -45,7 +31,7 @@ pub(super) fn validate_css_module_token_integrity(
     linked_module_executions: Option<&[LinkedModuleExecutionV0]>,
     emission_path: OmenaQueryBundleEmissionPathV0,
     emitted_css: &str,
-) -> Result<(), String> {
+) -> Result<CssModuleTokenOwnershipCensusV0, String> {
     let preimages = collect_token_preimages(
         target_style_path,
         style_fact_entries,
@@ -61,7 +47,24 @@ pub(super) fn validate_css_module_token_integrity(
         OmenaQueryBundleEmissionPathV0::ImportInlineLegacy => &default_collisions,
         OmenaQueryBundleEmissionPathV0::LinkedOrder => &linked_collisions,
     };
-
+    let selected_by_token = group_preimages_by_token(&preimages, |preimage| match emission_path {
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy => preimage.default_token.as_str(),
+        OmenaQueryBundleEmissionPathV0::LinkedOrder => preimage.linked_token.as_str(),
+    });
+    let token_ownerships = selected_by_token
+        .iter()
+        .filter(|(token, _)| emitted_names.contains(canonical_name(token).as_str()))
+        .map(|(token, owners)| ownership_record(token.as_str(), owners))
+        .collect::<Vec<_>>();
+    let modeled_emitted_names = selected_by_token
+        .keys()
+        .map(|token| canonical_name(token))
+        .collect::<BTreeSet<_>>();
+    let unattributed_emitted_tokens = emitted_names
+        .difference(&modeled_emitted_names)
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut module_token_collisions = Vec::new();
     for (token, collision) in selected_collisions {
         if !emitted_names.contains(canonical_name(token).as_str()) {
             continue;
@@ -84,27 +87,15 @@ pub(super) fn validate_css_module_token_integrity(
                 );
             }
         };
-        let modules = collision
-            .iter()
-            .map(|preimage| format!("{:?}", preimage.module_path))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        let names = collision
-            .iter()
-            .map(|preimage| format!("{:?}", preimage.raw_name))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        return Err(format!(
-            "CSS Modules emitted-token collision (pathScope={}): modules {} map raw class name(s) {} to emitted token {:?}; build stopped",
-            path_scope.as_wire_label(),
-            modules.join(", "),
-            names.join(", "),
-            token,
+        let ownership = ownership_record(token.as_str(), collision);
+        module_token_collisions.push(CssModuleTokenCollisionV0::new(
+            ownership,
+            vec![emission_path.as_wire_label()],
+            path_scope,
         ));
     }
 
+    let mut interface_mismatches = Vec::new();
     for preimage in &preimages {
         if !scanner_can_rewrite(preimage.raw_name.as_str()) {
             continue;
@@ -119,13 +110,70 @@ pub(super) fn validate_css_module_token_integrity(
         if declaration_is_emitted
             && !emitted_names.contains(canonical_name(preimage.interface_token.as_str()).as_str())
         {
-            return Err(format!(
-                "CSS Modules interface/byte mismatch: module {:?} raw class name {:?} promises token {:?}, but the selected emission model produced {:?}; build stopped",
-                preimage.module_path, preimage.raw_name, preimage.interface_token, selected_token,
+            interface_mismatches.push(CssModuleTokenInterfaceMismatchV0::new(
+                preimage.module_instance.clone(),
+                preimage.module_path.clone(),
+                preimage.raw_name.clone(),
+                preimage.interface_token.clone(),
+                selected_token,
             ));
         }
     }
 
+    Ok(CssModuleTokenOwnershipCensusV0::new(
+        emission_path.as_wire_label(),
+        preimages.len(),
+        token_ownerships,
+        module_token_collisions,
+        unattributed_emitted_tokens,
+        interface_mismatches,
+    ))
+}
+
+pub(super) fn unavailable_css_module_token_ownership_census(
+    emission_path: OmenaQueryBundleEmissionPathV0,
+    reason: impl Into<String>,
+) -> CssModuleTokenOwnershipCensusV0 {
+    CssModuleTokenOwnershipCensusV0::unavailable(emission_path.as_wire_label(), reason)
+}
+
+pub(super) fn validate_css_module_token_integrity(
+    census: &CssModuleTokenOwnershipCensusV0,
+) -> Result<(), String> {
+    if !census.complete {
+        return Err(format!(
+            "CSS Modules emitted-token integrity could not attribute every emitted token: unavailable reasons {:?}, unattributed tokens {:?}; build stopped",
+            census.unavailable_reasons, census.unattributed_emitted_tokens,
+        ));
+    }
+    if let Some(collision) = census.module_token_collisions.first() {
+        let modules = collision
+            .module_paths
+            .iter()
+            .map(|module_path| format!("{module_path:?}"))
+            .collect::<Vec<_>>();
+        let names = collision
+            .original_names
+            .iter()
+            .map(|name| format!("{name:?}"))
+            .collect::<Vec<_>>();
+        return Err(format!(
+            "CSS Modules emitted-token collision (pathScope={}): modules {} map raw class name(s) {} to emitted token {:?}; build stopped",
+            collision.path_scope.as_wire_label(),
+            modules.join(", "),
+            names.join(", "),
+            collision.emitted_token,
+        ));
+    }
+    if let Some(mismatch) = census.interface_mismatches.first() {
+        return Err(format!(
+            "CSS Modules interface/byte mismatch: module {:?} raw class name {:?} promises token {:?}, but the selected emission model produced {:?}; build stopped",
+            mismatch.module_path,
+            mismatch.original_name,
+            mismatch.promised_token,
+            mismatch.emitted_token,
+        ));
+    }
     Ok(())
 }
 
@@ -147,15 +195,17 @@ fn collect_token_preimages(
             )
         })
         .collect::<BTreeMap<_, _>>();
-    let mut preimages = BTreeMap::<(String, String), CssModuleTokenPreimageV0>::new();
+    let mut preimages =
+        BTreeMap::<(omena_parser::ModuleInstanceKeyV0, String), CssModuleTokenPreimageV0>::new();
 
     let planned_modules = linked
         .emission_item_order
         .items
         .iter()
-        .map(|item| normalize_omena_query_style_path(item.module_instance.module().as_str()))
+        .map(|item| item.module_instance.clone())
         .collect::<BTreeSet<_>>();
-    for module_path in planned_modules {
+    for module_instance in planned_modules {
+        let module_path = normalize_omena_query_style_path(module_instance.module().as_str());
         let Some(entry) = entries_by_path.get(module_path.as_str()).copied() else {
             return Err(format!(
                 "CSS Modules emitted-token integrity could not find module {:?} in the existing style-fact set",
@@ -167,11 +217,9 @@ fn collect_token_preimages(
             let canonical_raw_name = canonical_name(raw_name.as_str());
             let linked_rewrites = linked_module_executions
                 .and_then(|executions| {
-                    executions.iter().find(|execution| {
-                        normalize_omena_query_style_path(
-                            execution.module_instance.module().as_str(),
-                        ) == module_path
-                    })
+                    executions
+                        .iter()
+                        .find(|execution| execution.module_instance == module_instance)
                 })
                 .map_or(interface_rewrites.as_slice(), |execution| {
                     execution.class_name_rewrites.as_slice()
@@ -186,8 +234,9 @@ fn collect_token_preimages(
                 .unwrap_or(raw_name.as_str())
                 .to_string();
             preimages
-                .entry((module_path.clone(), canonical_raw_name))
+                .entry((module_instance.clone(), canonical_raw_name))
                 .or_insert(CssModuleTokenPreimageV0 {
+                    module_instance: module_instance.clone(),
                     module_path: module_path.clone(),
                     raw_name: raw_name.clone(),
                     default_token,
@@ -216,21 +265,20 @@ fn rewritten_name<'a>(
         .map(|rewrite| rewrite.rewritten_name.as_str())
 }
 
-fn collision_groups<'a>(
-    preimages: &'a [CssModuleTokenPreimageV0],
+fn collision_groups(
+    preimages: &[CssModuleTokenPreimageV0],
     token: impl Fn(&CssModuleTokenPreimageV0) -> &str,
-) -> BTreeMap<String, Vec<&'a CssModuleTokenPreimageV0>> {
-    let mut by_token = BTreeMap::<String, Vec<&CssModuleTokenPreimageV0>>::new();
-    for preimage in preimages {
-        by_token
-            .entry(token(preimage).to_string())
-            .or_default()
-            .push(preimage);
-    }
+) -> BTreeMap<String, Vec<&CssModuleTokenPreimageV0>> {
+    let mut by_token = group_preimages_by_token(preimages, token);
     by_token.retain(|_, candidates| {
         candidates
             .iter()
-            .map(|preimage| preimage.module_path.as_str())
+            .map(|preimage| {
+                (
+                    &preimage.module_instance,
+                    canonical_name(preimage.raw_name.as_str()),
+                )
+            })
             .collect::<BTreeSet<_>>()
             .len()
             > 1
@@ -243,11 +291,56 @@ fn collision_signature(collision: &[&CssModuleTokenPreimageV0]) -> BTreeSet<(Str
         .iter()
         .map(|preimage| {
             (
-                preimage.module_path.clone(),
+                format!(
+                    "{}#{}",
+                    preimage.module_instance.module().as_str(),
+                    preimage.module_instance.configuration().as_str()
+                ),
                 canonical_name(preimage.raw_name.as_str()),
             )
         })
         .collect()
+}
+
+fn group_preimages_by_token(
+    preimages: &[CssModuleTokenPreimageV0],
+    token: impl Fn(&CssModuleTokenPreimageV0) -> &str,
+) -> BTreeMap<String, Vec<&CssModuleTokenPreimageV0>> {
+    let mut by_token = BTreeMap::<String, Vec<&CssModuleTokenPreimageV0>>::new();
+    for preimage in preimages {
+        by_token
+            .entry(token(preimage).to_string())
+            .or_default()
+            .push(preimage);
+    }
+    by_token
+}
+
+fn ownership_record(
+    token: &str,
+    preimages: &[&CssModuleTokenPreimageV0],
+) -> CssModuleTokenOwnershipV0 {
+    CssModuleTokenOwnershipV0::new(
+        token,
+        preimages
+            .iter()
+            .map(|preimage| preimage.module_instance.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+        preimages
+            .iter()
+            .map(|preimage| preimage.module_path.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+        preimages
+            .iter()
+            .map(|preimage| preimage.raw_name.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+    )
 }
 
 fn emitted_class_names(css: &str) -> BTreeSet<String> {
