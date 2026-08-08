@@ -545,6 +545,7 @@ pub use style::{
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_css_modules_export_usage,
     summarize_omena_query_css_modules_interface_bundle,
+    summarize_omena_query_css_modules_interface_bundle_with_module_identity_root,
     summarize_omena_query_css_modules_interface_summary_view,
     summarize_omena_query_css_modules_local_composes_style_diagnostics,
     summarize_omena_query_css_modules_resolution_style_diagnostics,

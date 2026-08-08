@@ -138,11 +138,23 @@ assertIncludesAll(
   ["button", "base", "button-primary"],
   "class rewrite originals",
 );
-assertIncludesAll(
-  summary.context.classNameRewrites.map((rewrite) => rewrite.rewrittenName),
-  ["_button_0", "_base_1", "_button-primary_2"],
-  "class rewrite outputs",
+const rewriteByOriginal = new Map(
+  summary.context.classNameRewrites.map((rewrite) => [rewrite.originalName, rewrite.rewrittenName]),
 );
+for (const [originalName, sanitizedLocal] of [
+  ["button", "button"],
+  ["base", "base"],
+  ["button-primary", "button-primary"],
+] as const) {
+  const rewrittenName = rewriteByOriginal.get(originalName);
+  assert.ok(rewrittenName, `class rewrite output must include ${originalName}`);
+  assert.match(
+    rewrittenName,
+    new RegExp(`^_[A-Za-z0-9_-]{6}_${sanitizedLocal}$`, "u"),
+    `class rewrite output must carry a module-and-class digest for ${originalName}`,
+  );
+}
+assert.equal(new Set(rewriteByOriginal.values()).size, rewriteByOriginal.size);
 assert.deepEqual(summary.context.designTokenRoutes, [
   {
     tokenName: "--brand",

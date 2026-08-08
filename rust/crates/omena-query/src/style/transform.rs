@@ -47,8 +47,7 @@ mod context;
 mod css_modules;
 mod token_integrity;
 pub(super) use css_modules::{
-    derive_class_name_rewrites_for_module_instance,
-    derive_class_name_rewrites_for_transform_context,
+    derive_class_name_rewrites_for_module_instance, module_instance_key_relative_to_root,
 };
 mod design_tokens;
 mod imports;
@@ -4841,40 +4840,67 @@ mod linked_source_map_tests {
         let dependency = omena_parser::ModuleInstanceKeyV0::unconfigured(
             omena_parser::ModuleIdV0::new("src/dependency.module.css"),
         );
-        let bundle = ClosedWorldBundleV0::try_from_linked_modules(
-            vec![entry.clone()],
-            vec![
-                omena_parser::ClosedWorldLinkedModuleV0::new(entry.clone())
-                    .with_dependency(dependency.clone())
-                    .with_class_name("shared"),
-                omena_parser::ClosedWorldLinkedModuleV0::new(dependency.clone()),
-            ],
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: entry.module().as_str().to_string(),
+                style_source:
+                    ".entry { composes: live from './dependency.module.css'; color: red; }"
+                        .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: dependency.module().as_str().to_string(),
+                style_source: ".live { color: blue; } .shared { color: green; }".to_string(),
+            },
+        ];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let prepared = prepare_transform_bundle_linker_projection(
+            &[entry.module().as_str()],
+            &sources,
+            &[],
+            TransformResolutionContext::from_resolution_inputs(&resolution_inputs),
+        );
+        let linked = link_omena_transform_bundle_projection_with_resolved_dependencies_and_options(
+            &[entry.module().as_str()],
+            &prepared.projection,
+            prepared.resolved_dependencies.as_slice(),
+            &[],
+            TransformBundleLinkOptionsV0::default(),
         )
         .map_err(|error| format!("{error:?}"))?;
+        let bundle = linked.closed_world_bundle;
         let entry_context = TransformExecutionContextV0 {
             class_name_rewrites: vec![TransformClassNameRewriteV0 {
-                original_name: "shared".to_string(),
+                original_name: "entry".to_string(),
                 rewritten_name: "_forced_shared".to_string(),
             }],
             ..TransformExecutionContextV0::default()
         };
-        let dependency_context = entry_context.clone();
+        let dependency_context = TransformExecutionContextV0 {
+            class_name_rewrites: vec![TransformClassNameRewriteV0 {
+                original_name: "injected".to_string(),
+                rewritten_name: "_forced_shared".to_string(),
+            }],
+            ..TransformExecutionContextV0::default()
+        };
         let inputs = vec![
             LinkedModuleExecutionInputV0 {
                 module_instance: &entry,
-                style_source: ".shared { color: red; }",
+                style_source: ".entry { color: red; }",
                 context: entry_context,
             },
             LinkedModuleExecutionInputV0 {
                 module_instance: &dependency,
-                style_source: ".shared { color: blue; }",
+                style_source: ".live { color: blue; } .shared { color: green; }",
                 context: dependency_context,
             },
         ];
 
         let retained = retained_class_names_for_live_linked_emission_tokens(&bundle, &inputs);
         assert_eq!(retained.get(&entry), Some(&Vec::<String>::new()));
-        assert_eq!(retained.get(&dependency), Some(&vec!["shared".to_string()]));
+        assert_eq!(
+            retained.get(&dependency),
+            Some(&vec!["injected".to_string()])
+        );
         Ok(())
     }
 

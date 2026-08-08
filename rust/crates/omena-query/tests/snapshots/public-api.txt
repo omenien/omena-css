@@ -716,6 +716,7 @@ pub omena_query::OmenaBundlerHostResolveModuleRequestV0::package_manifests: allo
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::style_path: alloc::string::String
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::style_sources: alloc::vec::Vec<omena_query::OmenaQueryStyleSourceInputV0>
+pub omena_query::OmenaBundlerHostResolveModuleRequestV0::workspace_root: alloc::string::String
 pub struct omena_query::OmenaBundlerHostResolveModuleResponseV0
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::class_map: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::composes_edges: alloc::vec::Vec<omena_query::OmenaBundlerHostComposesEdgeV0>
@@ -2536,6 +2537,7 @@ pub fn omena_query::summarize_omena_query_consumer_build_source_map_v3_with_reso
 pub fn omena_query::summarize_omena_query_consumer_check_style_source(&str, &str) -> omena_query::OmenaQueryConsumerCheckSummaryV0
 pub fn omena_query::summarize_omena_query_css_modules_export_usage(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQuerySourceDocumentInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], core::option::Option<&str>) -> omena_query::OmenaQueryCssModulesExportUsageReportV0
 pub fn omena_query::summarize_omena_query_css_modules_interface_bundle(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> omena_query::OmenaQueryCssModulesInterfaceBundleV0
+pub fn omena_query::summarize_omena_query_css_modules_interface_bundle_with_module_identity_root(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> core::result::Result<omena_query::OmenaQueryCssModulesInterfaceBundleV0, alloc::string::String>
 pub fn omena_query::summarize_omena_query_css_modules_interface_summary_view(&omena_cross_file_summary::OmenaCrossFileSummaryViewReportV0, &omena_query::OmenaQueryCssModulesInterfaceBundleV0, &omena_query::OmenaQueryCssModulesExportUsageReportV0) -> omena_query::OmenaQueryCssModulesInterfaceSummaryViewV0
 pub fn omena_query::summarize_omena_query_css_modules_local_composes_style_diagnostics(&str, &str) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_css_modules_resolution_style_diagnostics(&str, &str, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>

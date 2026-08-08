@@ -321,16 +321,18 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance instead of reconstructing them from adjacent labels.",
+      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance, while bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
+            "field OmenaBundlerHostResolveModuleRequestV0.workspace_root",
             "field OmenaQueryInlineStyleRuntimeOverrideV0.important",
             "field OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
+            "OmenaBundlerHostResolveModuleRequestV0.workspace_root",
             "OmenaQueryInlineStyleRuntimeOverrideV0.important",
             "OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete"
           ]

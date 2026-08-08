@@ -241,6 +241,7 @@ model OmenaBundlerHostCapabilitiesV0 {
 
 model OmenaBundlerHostResolveModuleRequestV0 {
   snapshotId: OmenaWorkspaceSnapshotIdV0;
+  workspaceRoot: string;
   stylePath: string;
   styleSources: Omena.EngineNapi.EngineNapiStyleSourceInputV0[];
   packageManifests: Omena.EngineNapi.EngineNapiStylePackageManifestV0[];

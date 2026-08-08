@@ -240,6 +240,7 @@ export interface OmenaBundlerHostCapabilitiesV0Json {
 }
 export interface OmenaBundlerHostResolveModuleRequestV0Json {
   readonly snapshotId: OmenaWorkspaceSnapshotIdV0Json;
+  readonly workspaceRoot: string;
   readonly stylePath: string;
   readonly styleSources: readonly EngineNapiStyleSourceInputV0Json[];
   readonly packageManifests: readonly EngineNapiStylePackageManifestV0Json[];

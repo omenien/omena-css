@@ -186,16 +186,16 @@
     ],
     "primitiveIds": ["str-eq", "contains", "insert", "map-get", "cmp"],
     "unlabelledBindingBlindSpot": "Bindings without a class or selector label are intentionally invisible; typed carriers and API egresses are the backstops.",
-    "currentSiteCount": 62,
+    "currentSiteCount": 65,
     "primitiveCounts": {
-      "str-eq": 25,
-      "contains": 17,
-      "insert": 12,
+      "str-eq": 26,
+      "contains": 18,
+      "insert": 13,
       "map-get": 6,
       "cmp": 2
     },
     "sanctionedSiteCount": 43,
-    "namedExemptSiteCount": 19,
+    "namedExemptSiteCount": 22,
     "sites": [
       {
         "path": "rust/crates/engine-style-parser/src/lib.rs",
@@ -325,7 +325,7 @@
       },
       {
         "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
-        "line": 2501,
+        "line": 2508,
         "function": "validate_authored_liveness_expectations_v0",
         "operation": "contains",
         "evidence": ".contains(expectation.class_name);",
@@ -334,7 +334,7 @@
       },
       {
         "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
-        "line": 2511,
+        "line": 2518,
         "function": "validate_authored_liveness_expectations_v0",
         "operation": "contains",
         "evidence": ".is_some_and(|names| names.contains(expectation.class_name));",
@@ -343,7 +343,7 @@
       },
       {
         "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
-        "line": 2588,
+        "line": 2595,
         "function": "rule_declaration_counts_for_class_v0",
         "operation": "str-eq",
         "evidence": "&& selector.name == class_name",
@@ -469,7 +469,16 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3175,
+        "line": 1529,
+        "function": "summarize_omena_query_css_modules_interface_bundle_inner",
+        "operation": "insert",
+        "evidence": "emitted_class_names.insert(",
+        "disposition": "named-exempt",
+        "reason": "The interface bundle indexes each emitted token by module path and exact authored spelling because distinct raw spellings have distinct module-scoped token preimages."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 3199,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "str-eq",
         "evidence": "let target_class_names = if target_style_path == *style_path {",
@@ -478,7 +487,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3190,
+        "line": 3214,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
@@ -487,7 +496,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3196,
+        "line": 3220,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
@@ -496,7 +505,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3533,
+        "line": 3557,
         "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
         "operation": "insert",
         "evidence": "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
@@ -604,7 +613,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/transform.rs",
-        "line": 1218,
+        "line": 1368,
         "function": "closed_world_bound_reachability_precision",
         "operation": "contains",
         "evidence": ".any(|name| !closed_world_class_names.contains(name.as_str()))",
@@ -613,7 +622,16 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/transform/css_modules.rs",
-        "line": 72,
+        "line": 88,
+        "function": "derive_class_name_rewrites_for_module_instance",
+        "operation": "contains",
+        "evidence": "if !unique_class_names.contains(name) {",
+        "disposition": "named-exempt",
+        "reason": "Token preimages preserve exact authored spelling so two spellings that decode alike can still receive distinct module-scoped rewrites."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/transform/css_modules.rs",
+        "line": 134,
         "function": "derive_css_module_composes_resolutions_for_transform_context",
         "operation": "insert",
         "evidence": "exports.insert(target.selector_name);",
@@ -682,6 +700,15 @@
         "evidence": "let Some(edge) = graph.get(&class_name) else {",
         "disposition": "sanctioned",
         "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+        "line": 1524,
+        "function": "rewritten_class_name_for",
+        "operation": "str-eq",
+        "evidence": "(original_name == class_name).then_some(rewritten_name)",
+        "disposition": "named-exempt",
+        "reason": "Exact authored spelling selects its distinct module-scoped rewrite before the canonical CSS identifier fallback is consulted."
       },
       {
         "path": "rust/crates/omena-transform-passes/src/helpers/selectors.rs",
@@ -756,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:00fa895489d4995ca24d8a75587a0f81585121e870e0009a9c7d020be44a9fac"
+    "siteDigest": "sha256:724cc95bfa66a322793e54e04d0c77010806d38931170964ecc890292448594e"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",

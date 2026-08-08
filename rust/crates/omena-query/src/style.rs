@@ -1479,6 +1479,27 @@ pub fn summarize_omena_query_css_modules_interface_bundle(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCssModulesInterfaceBundleV0 {
+    summarize_omena_query_css_modules_interface_bundle_inner(None, style_sources, package_manifests)
+        .expect("CSS Module interface derivation without a workspace root cannot reject a path")
+}
+
+pub fn summarize_omena_query_css_modules_interface_bundle_with_module_identity_root(
+    workspace_root: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Result<OmenaQueryCssModulesInterfaceBundleV0, String> {
+    summarize_omena_query_css_modules_interface_bundle_inner(
+        Some(workspace_root),
+        style_sources,
+        package_manifests,
+    )
+}
+
+fn summarize_omena_query_css_modules_interface_bundle_inner(
+    workspace_root: Option<&str>,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Result<OmenaQueryCssModulesInterfaceBundleV0, String> {
     let style_source_refs = style_sources
         .iter()
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
@@ -1492,26 +1513,32 @@ pub fn summarize_omena_query_css_modules_interface_bundle(
         .iter()
         .map(|entry| (entry.style_path.clone(), entry.icss_export_values.clone()))
         .collect::<BTreeMap<_, _>>();
-    let emitted_class_names = entries
-        .iter()
-        .flat_map(|entry| {
-            transform::derive_class_name_rewrites_for_transform_context(entry)
-                .into_iter()
-                .map(|rewrite| {
-                    (
-                        (entry.style_path.clone(), rewrite.original_name.clone()),
-                        rewrite.rewritten_name,
-                    )
-                })
-        })
-        .collect::<EmittedClassNameIndexV0>();
+    let mut emitted_class_names = EmittedClassNameIndexV0::new();
+    for entry in &entries {
+        let module_instance =
+            omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                crate::types::normalize_omena_query_style_path(entry.style_path.as_str()),
+            ));
+        let token_module_instance = workspace_root.map_or_else(
+            || Ok(module_instance.clone()),
+            |root| transform::module_instance_key_relative_to_root(&module_instance, root),
+        )?;
+        for rewrite in
+            transform::derive_class_name_rewrites_for_module_instance(entry, &token_module_instance)
+        {
+            emitted_class_names.insert(
+                (entry.style_path.clone(), rewrite.original_name),
+                rewrite.rewritten_name,
+            );
+        }
+    }
     let resolution = summarize_css_modules_cross_file_resolution(&entries, package_manifests);
-    summarize_css_modules_interface_bundle_from_projections(
+    Ok(summarize_css_modules_interface_bundle_from_projections(
         &projections,
         &resolution,
         &icss_export_values_by_path,
         &emitted_class_names,
-    )
+    ))
 }
 
 fn module_interface_projection_for_query(

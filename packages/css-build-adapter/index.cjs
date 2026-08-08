@@ -155,6 +155,7 @@ async function resolveCssModuleInterface(engine, filePath, sources, packageManif
   }
   const response = await engine.resolveCssModule({
     snapshotId: { value: state.generations.get(filePath) ?? 0 },
+    workspaceRoot: path.resolve(state.root),
     stylePath: path.resolve(filePath),
     styleSources: sources,
     packageManifests,

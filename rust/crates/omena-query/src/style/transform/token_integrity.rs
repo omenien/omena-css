@@ -10,7 +10,9 @@ use omena_query_transform_runner::{
     CssModuleTokenInterfaceMismatchV0, CssModuleTokenOwnershipCensusV0, CssModuleTokenOwnershipV0,
     LinkedStylesheetWithEmissionItemsV0, TransformClassNameRewriteV0,
 };
-use omena_syntax::ident::{ClassNameV0, is_css_name_continue, is_css_name_start};
+use omena_syntax::ident::{
+    CanonicalClassKeyV0, ClassNameV0, is_css_name_continue, is_css_name_start,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -56,7 +58,7 @@ pub(super) fn summarize_css_module_token_ownership(
     });
     let token_ownerships = selected_by_token
         .iter()
-        .filter(|(token, _)| emitted_names.contains(canonical_name(token).as_str()))
+        .filter(|(token, _)| emitted_names.contains_key(&canonical_name(token)))
         .map(|(token, owners)| ownership_record(token.as_str(), owners))
         .collect::<Vec<_>>();
     let modeled_emitted_names = selected_by_token
@@ -64,12 +66,13 @@ pub(super) fn summarize_css_module_token_ownership(
         .map(|token| canonical_name(token))
         .collect::<BTreeSet<_>>();
     let unattributed_emitted_tokens = emitted_names
-        .difference(&modeled_emitted_names)
-        .cloned()
+        .iter()
+        .filter(|(name, _)| !modeled_emitted_names.contains(*name))
+        .map(|(_, name)| name.clone())
         .collect::<Vec<_>>();
     let mut module_token_collisions = Vec::new();
     for (token, collision) in selected_collisions {
-        if !emitted_names.contains(canonical_name(token).as_str()) {
+        if !emitted_names.contains_key(&canonical_name(token)) {
             continue;
         }
         let signature = collision_signature(collision);
@@ -107,11 +110,10 @@ pub(super) fn summarize_css_module_token_ownership(
             OmenaQueryBundleEmissionPathV0::ImportInlineLegacy => preimage.default_token.as_str(),
             OmenaQueryBundleEmissionPathV0::LinkedOrder => preimage.linked_token.as_str(),
         };
-        let declaration_is_emitted = emitted_names
-            .contains(canonical_name(selected_token).as_str())
-            || emitted_names.contains(canonical_name(preimage.raw_name.as_str()).as_str());
+        let declaration_is_emitted = emitted_names.contains_key(&canonical_name(selected_token))
+            || emitted_names.contains_key(&canonical_name(preimage.raw_name.as_str()));
         if declaration_is_emitted
-            && !emitted_names.contains(canonical_name(preimage.interface_token.as_str()).as_str())
+            && !emitted_names.contains_key(&canonical_name(preimage.interface_token.as_str()))
         {
             interface_mismatches.push(CssModuleTokenInterfaceMismatchV0::new(
                 preimage.module_instance.clone(),
@@ -304,7 +306,9 @@ fn collision_groups(
     by_token
 }
 
-fn collision_signature(collision: &[&CssModuleTokenPreimageV0]) -> BTreeSet<(String, String)> {
+fn collision_signature(
+    collision: &[&CssModuleTokenPreimageV0],
+) -> BTreeSet<(String, CanonicalClassKeyV0)> {
     collision
         .iter()
         .map(|preimage| {
@@ -361,17 +365,22 @@ fn ownership_record(
     )
 }
 
-fn emitted_class_names(css: &str) -> BTreeSet<String> {
+fn emitted_class_names(css: &str) -> BTreeMap<CanonicalClassKeyV0, String> {
     collect_omena_query_style_fact_entry("<emitted>.css", css)
         .facts
         .class_selector_names
         .iter()
-        .map(|name| canonical_name(name))
+        .map(|name| {
+            (
+                canonical_name(name),
+                ClassNameV0::new(name).decoded().to_string(),
+            )
+        })
         .collect()
 }
 
-fn canonical_name(name: &str) -> String {
-    ClassNameV0::new(name).canonical_key().as_str().to_string()
+fn canonical_name(name: &str) -> CanonicalClassKeyV0 {
+    ClassNameV0::new(name).canonical_key()
 }
 
 fn scanner_can_rewrite(raw_name: &str) -> bool {

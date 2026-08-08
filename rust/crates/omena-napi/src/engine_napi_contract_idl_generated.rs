@@ -11,8 +11,6 @@ pub type EngineNapiQueryTransformExecutionContextV0Json =
 pub type EngineNapiTargetTransformOptionsV0Json = omena_query::OmenaQueryTargetTransformOptionsV0;
 pub type EngineNapiStyleSourceInputV0Json = omena_query::OmenaQueryStyleSourceInputV0;
 pub type EngineNapiStylePackageManifestV0Json = omena_query::OmenaQueryStylePackageManifestV0;
-pub type EngineNapiModuleCssModuleContextV0Json =
-    omena_query::OmenaQueryTransformModuleCssModuleContextV0;
 pub type EngineNapiSourceDocumentInputV0Json = omena_query::OmenaQuerySourceDocumentInputV0;
 pub type EngineNapiSourceMissingSelectorDiagnosticCandidateV0Json =
     omena_query::OmenaQuerySourceMissingSelectorDiagnosticCandidateV0;
@@ -200,7 +198,6 @@ pub struct EngineNapiSourceImportedStyleBindingInputV0Json {
 #[serde(rename_all = "camelCase")]
 pub struct EngineNapiBoundarySurfaceV0Json {
     pub context: EngineNapiTransformExecutionContextV0Json,
-    pub module_css_module_contexts: Vec<EngineNapiModuleCssModuleContextV0Json>,
     pub target_options: EngineNapiTargetTransformOptionsV0Json,
     pub input: EngineNapiEngineInputV2Json,
     pub sources: Vec<EngineNapiStyleSourceInputV0Json>,

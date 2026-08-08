@@ -2,7 +2,7 @@ use crate::{
     OmenaBundlerHostCapabilitiesV0, OmenaBundlerHostComposesEdgeV0, OmenaBundlerHostDiagnosticV0,
     OmenaBundlerHostResolveModuleRequestV0, OmenaBundlerHostResolveModuleResponseV0,
     render_omena_query_css_module_typescript_declaration,
-    summarize_omena_query_css_modules_interface_bundle,
+    summarize_omena_query_css_modules_interface_bundle_with_module_identity_root,
 };
 use omena_syntax::ident::ClassNameV0;
 use std::collections::{BTreeMap, BTreeSet};
@@ -24,10 +24,29 @@ pub fn current_omena_bundler_host_capabilities_v0() -> OmenaBundlerHostCapabilit
 pub fn resolve_omena_bundler_host_module_v0(
     request: OmenaBundlerHostResolveModuleRequestV0,
 ) -> OmenaBundlerHostResolveModuleResponseV0 {
-    let bundle = summarize_omena_query_css_modules_interface_bundle(
+    let bundle = match summarize_omena_query_css_modules_interface_bundle_with_module_identity_root(
+        request.workspace_root.as_str(),
         request.style_sources.as_slice(),
         request.package_manifests.as_slice(),
-    );
+    ) {
+        Ok(bundle) => bundle,
+        Err(message) => {
+            return OmenaBundlerHostResolveModuleResponseV0 {
+                snapshot_id: request.snapshot_id,
+                protocol_version: OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0.to_string(),
+                module_id: request.style_path,
+                class_map: BTreeMap::new(),
+                named_exports: BTreeMap::new(),
+                typescript_declaration: String::new(),
+                composes_edges: Vec::new(),
+                diagnostics: vec![OmenaBundlerHostDiagnosticV0 {
+                    code: "invalidModuleIdentityRoot".to_string(),
+                    message,
+                }],
+                ready: false,
+            };
+        }
+    };
     let Some(module) = bundle
         .modules
         .into_iter()
@@ -160,10 +179,60 @@ mod tests {
             snapshot_id: crate::OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 {
                 value: 7,
             }),
+            workspace_root: if style_path.starts_with('/') {
+                "/"
+            } else {
+                "."
+            }
+            .to_string(),
             style_path: style_path.to_string(),
             style_sources,
             package_manifests: Vec::<OmenaQueryStylePackageManifestV0>::new(),
         }
+    }
+
+    #[test]
+    fn caller_workspace_root_makes_module_tokens_relocation_stable() {
+        let source = ".card { color: red; }";
+        let mut first = request(
+            "/workspace-a/src/card.module.css",
+            vec![OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace-a/src/card.module.css".to_string(),
+                style_source: source.to_string(),
+            }],
+        );
+        first.workspace_root = "/workspace-a".to_string();
+        let mut second = request(
+            "/workspace-b/src/card.module.css",
+            vec![OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace-b/src/card.module.css".to_string(),
+                style_source: source.to_string(),
+            }],
+        );
+        second.workspace_root = "/workspace-b".to_string();
+
+        let first = resolve_omena_bundler_host_module_v0(first);
+        let second = resolve_omena_bundler_host_module_v0(second);
+        assert!(first.ready, "{:?}", first.diagnostics);
+        assert!(second.ready, "{:?}", second.diagnostics);
+        assert_eq!(first.class_map, second.class_map);
+    }
+
+    #[test]
+    fn caller_workspace_root_rejects_out_of_root_module_identity() {
+        let mut outside = request(
+            "/outside/card.module.css",
+            vec![OmenaQueryStyleSourceInputV0 {
+                style_path: "/outside/card.module.css".to_string(),
+                style_source: ".card { color: red; }".to_string(),
+            }],
+        );
+        outside.workspace_root = "/workspace".to_string();
+
+        let response = resolve_omena_bundler_host_module_v0(outside);
+        assert!(!response.ready);
+        assert_eq!(response.diagnostics.len(), 1);
+        assert_eq!(response.diagnostics[0].code, "invalidModuleIdentityRoot");
     }
 
     #[test]

@@ -26,7 +26,7 @@
   "classificationCounts": {
     "DEFECT-REACHABLE": 0,
     "PROTECTED-BY-PARSER": 159,
-    "TEST-ONLY": 24,
+    "TEST-ONLY": 25,
     "ORACLE-DEMOTED": 1
   },
   "sites": [
@@ -791,7 +791,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 199,
+      "line": 205,
       "function": "consumer_build_derives_single_source_transform_context",
       "idiom": "contains",
       "keyword": "composes",
@@ -802,7 +802,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 592,
+      "line": 598,
       "function": "chrome_122_target_query_build_preserves_light_dark_supports_guard",
       "idiom": "contains",
       "keyword": "@supports",
@@ -813,7 +813,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 624,
+      "line": 630,
       "function": "chrome_123_target_query_build_strips_light_dark_supports_guard",
       "idiom": "contains",
       "keyword": "@supports",
@@ -824,7 +824,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 673,
+      "line": 679,
       "function": "multi_source_target_query_build_preserves_light_dark_supports_guard",
       "idiom": "contains",
       "keyword": "@supports",
@@ -835,7 +835,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 747,
+      "line": 753,
       "function": "target_query_layer_flatten_uses_constructed_closed_world_bundle",
       "idiom": "contains",
       "keyword": "@layer",
@@ -846,7 +846,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 946,
+      "line": 952,
       "function": "consumer_build_derives_workspace_context_for_import_inline_and_composes",
       "idiom": "contains",
       "keyword": "composes",
@@ -857,7 +857,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/tests/consumer_surfaces.rs",
-      "line": 999,
+      "line": 1005,
       "function": "consumer_build_derives_nested_next_alias_context_for_composes",
       "idiom": "contains",
       "keyword": "composes",
@@ -909,6 +909,17 @@
       "disposition": "retain-test-evidence",
       "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
       "evidence": ".find(|edge| edge.import_kind == \"value\");"
+    },
+    {
+      "path": "rust/crates/omena-query/src/tests/transform_facade.rs",
+      "line": 1394,
+      "function": "token_integrity_default_path_removes_resolved_dependency_composes_declarations",
+      "idiom": "contains",
+      "keyword": "composes",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": "assert!(!output.contains(\"composes\"), \"{output}\");"
     },
     {
       "path": "rust/crates/omena-scss-eval/src/control_flow/loop_values.rs",
@@ -2055,7 +2066,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:20d46469e5576cb1ab72e158fbc6eca5ed28abd6ca302b3d116ddff40e05cbfb",
+  "siteDigest": "sha256:0b7519acaf344870f5e09419c6059691a7b1b2723bda28ea3630ca5ca77d7dd8",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

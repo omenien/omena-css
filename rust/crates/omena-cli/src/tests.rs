@@ -215,9 +215,17 @@ fn bundle_command_rewrites_non_ascii_module_classes() -> Result<(), String> {
         !css.contains(".한글-라벨"),
         "the bundle product path must rewrite non-ASCII module class names"
     );
+    let declaration_offset = css
+        .find("font-weight: 600")
+        .ok_or_else(|| format!("the non-ASCII class declaration was dropped: {css}"))?;
+    let rule_start = css[..declaration_offset]
+        .rfind('{')
+        .ok_or_else(|| format!("the non-ASCII declaration has no containing rule: {css}"))?;
+    let selector_start = css[..rule_start].rfind('}').map_or(0, |offset| offset + 1);
+    let rewritten_selector = css[selector_start..rule_start].trim();
     assert!(
-        css.contains(".___-___2") && css.contains("font-weight: 600"),
-        "the rewritten class must retain its declaration in emitted CSS: {css}"
+        rewritten_selector.starts_with("._") && !rewritten_selector.contains("한글-라벨"),
+        "the retained declaration must belong to a scoped selector: {css}"
     );
     Ok(())
 }

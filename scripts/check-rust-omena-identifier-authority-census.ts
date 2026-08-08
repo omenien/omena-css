@@ -332,6 +332,14 @@ const idiomExemptions: readonly ExemptionRule[] = [
   },
   {
     path: "rust/crates/omena-query/src/style.rs",
+    function: "summarize_omena_query_css_modules_interface_bundle_inner",
+    operation: "insert",
+    evidence: "emitted_class_names.insert(",
+    reason:
+      "The interface bundle indexes each emitted token by module path and exact authored spelling because distinct raw spellings have distinct module-scoped token preimages.",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
     function: "collect_css_modules_composes_adjacency_with_path_mappings",
     operation: "str-eq",
     evidence: "let target_class_names = if target_style_path == *style_path {",
@@ -369,6 +377,14 @@ const idiomExemptions: readonly ExemptionRule[] = [
     disposition: "sanctioned",
   },
   {
+    path: "rust/crates/omena-query/src/style/transform/css_modules.rs",
+    function: "derive_class_name_rewrites_for_module_instance",
+    operation: "contains",
+    evidence: "if !unique_class_names.contains(name) {",
+    reason:
+      "Token preimages preserve exact authored spelling so two spellings that decode alike can still receive distinct module-scoped rewrites.",
+  },
+  {
     path: "rust/crates/omena-query/src/types.rs",
     function: "flat_class_names_for_style_paths",
     operation: "contains",
@@ -395,6 +411,14 @@ const idiomExemptions: readonly ExemptionRule[] = [
     operation: "str-eq",
     evidence: "if mutation_count == 0 && class_name_rewrites.is_empty() {",
     reason: "This checks whether transform outputs are empty rather than comparing identifiers.",
+  },
+  {
+    path: "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+    function: "rewritten_class_name_for",
+    operation: "str-eq",
+    evidence: "(original_name == class_name).then_some(rewritten_name)",
+    reason:
+      "Exact authored spelling selects its distinct module-scoped rewrite before the canonical CSS identifier fallback is consulted.",
   },
 ] as const;
 
