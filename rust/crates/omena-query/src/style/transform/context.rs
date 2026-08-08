@@ -831,6 +831,40 @@ mod tests {
     }
 
     #[test]
+    fn module_context_explicit_precedence_ignores_escape_spelling_order() {
+        for (derived_name, explicit_name) in [(r#"\E9 tat"#, "état"), ("état", r#"\E9 tat"#)] {
+            let explicit = vec![module_context(
+                "src/app.module.css",
+                explicit_name,
+                "_explicit",
+            )];
+            let derived = vec![module_context(
+                "src/app.module.css",
+                derived_name,
+                "_derived",
+            )];
+
+            let merged = merge_module_css_module_contexts_first_witness(&explicit, &derived);
+
+            // FALSIFIER: raw-spelling equality admits both records, or a
+            // derived-first merge selects `_derived`. Both states are emitted
+            // by these two module-context inputs, so the arm is not structural.
+            assert_eq!(
+                merged,
+                vec![module_context(
+                    "src/app.module.css",
+                    explicit_name,
+                    "_explicit",
+                )]
+            );
+            println!(
+                "module-canonical-merge derived={derived_name:?} explicit={explicit_name:?} winner={:?}",
+                merged[0].class_name_rewrites
+            );
+        }
+    }
+
+    #[test]
     fn module_context_first_witness_merge_obeys_left_regular_band_laws() {
         let u = vec![
             module_context("src/a.module.css", "shared", "_u"),
