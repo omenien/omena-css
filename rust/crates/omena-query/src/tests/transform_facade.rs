@@ -1173,6 +1173,56 @@ fn strict_css_module_token_integrity_rejects_interface_byte_mismatch() -> Result
 }
 
 #[test]
+fn token_integrity_selected_shape_is_injective_on_import_inline_bytes() -> Result<(), String> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/app.module.css".to_string(),
+            style_source: "@import './dependency.module.css'; .shared { color: green; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "src/dependency.module.css".to_string(),
+            style_source: ".shared { color: blue; }".to_string(),
+        },
+    ];
+    let pass_ids = Vec::<String>::new();
+    let context = OmenaQueryTransformExecutionContextV0::default();
+    let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+    let result = run_omena_query_bundle_with_token_ownership_census_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: "src/app.module.css",
+            style_sources: &sources,
+            source_map_sources: &sources,
+            requested_pass_ids: &pass_ids,
+            context: &context,
+            resolution_inputs: &resolution_inputs,
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Descriptive,
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+        },
+    )?;
+
+    assert!(result.ownership_census.complete);
+    assert_eq!(result.ownership_census.module_token_collision_count, 0);
+    assert_eq!(
+        result.ownership_census.interface_mismatches,
+        Vec::<omena_query_transform_runner::CssModuleTokenInterfaceMismatchV0>::new()
+    );
+    let emitted_tokens = result
+        .ownership_census
+        .token_ownerships
+        .iter()
+        .map(|ownership| ownership.emitted_token.as_str())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(emitted_tokens.len(), 2);
+    Ok(())
+}
+
+#[test]
 fn bundle_paths_consume_package_export_resolution() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
