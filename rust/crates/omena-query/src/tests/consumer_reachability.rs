@@ -5,15 +5,17 @@ use crate::{
     OmenaQueryExplainFactValueV0, OmenaQueryExplainInputV0, OmenaQueryExplainSymbolKindV0,
     OmenaQueryModuleReachabilityAttributionReportV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2, SourceAnalysisInputV2,
-    SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
-    TypeFactEntryV2, derive_omena_query_module_reachability_from_engine_input,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformStrictPolicyReasonV0, PositionV2,
+    RangeV2, SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
+    StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
+    derive_omena_query_module_reachability_from_engine_input,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context, explain_omena_query,
     explain_omena_query_tree_shake_for_module,
+    run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options,
     run_omena_query_bundle_with_module_reachability_and_options,
     summarize_omena_query_expression_domain_selector_projection_with_precision,
 };
@@ -549,25 +551,29 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     let passes = vec!["tree-shake-class".to_string()];
     let context = OmenaQueryTransformExecutionContextV0::default();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
-    let result = run_omena_query_bundle_with_module_reachability_and_options(
-        OmenaQueryBundlePlanInputV0 {
-            target_style_path: entry_path,
-            style_sources: &style_sources,
-            source_map_sources: &style_sources,
-            requested_pass_ids: &passes,
-            context: &context,
-            resolution_inputs: &resolution_inputs,
-            asset_rewrites: Vec::new(),
-            bundle_entry_style_paths: &[],
-        },
-        &[],
-        &OmenaQueryConsumerBuildOptionsV0 {
-            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
-            ..OmenaQueryConsumerBuildOptionsV0::default()
-        },
-        &reachability,
-    )?;
-    let report = result.reachability_attribution();
+    let result =
+        run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: entry_path,
+                style_sources: &style_sources,
+                source_map_sources: &style_sources,
+                requested_pass_ids: &passes,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            &OmenaQueryConsumerBuildOptionsV0 {
+                bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+                ..OmenaQueryConsumerBuildOptionsV0::default()
+            },
+            &reachability,
+        )?;
+    let report = result
+        .reachability_attribution
+        .as_ref()
+        .ok_or_else(|| "module-attributed run should retain reachability evidence".to_string())?;
     assert_eq!(report.projection_summary_evaluation_count(), 1);
     assert_eq!(
         report.projected_class_names(),
@@ -578,7 +584,7 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     assert!(report.unmatched_target_style_paths().is_empty());
 
     let bundle = result
-        .bundle_result()
+        .bundle_result
         .closed_world_outcome
         .bundle()
         .ok_or_else(|| "module-attributed bundle should close".to_string())?;
@@ -608,7 +614,7 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
         bundle.reachability().class_names(),
         &["dependency-own".to_string(), "shared".to_string()]
     );
-    let output_css = &result.bundle_result().artifact.output_css;
+    let output_css = &result.bundle_result.artifact.output_css;
     let flat_explanation = explain_omena_query(OmenaQueryExplainInputV0::TreeShake {
         bundle,
         symbol_kind: OmenaQueryExplainSymbolKindV0::Class,
@@ -643,7 +649,7 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
         dependency_shared.provenance_labels(),
         &["moduleQualifiedOwnershipObserved"]
     );
-    assert!(!output_css.contains("padding: 8px"));
+    assert!(output_css.contains("padding: 8px"));
 
     let dependency_owned = explain_omena_query_tree_shake_for_module(
         bundle,
@@ -654,8 +660,40 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     assert_eq!(dependency_owned.reachable(), Some(true));
     assert!(!dependency_owned.emission_guard_retained());
     assert!(output_css.contains("color: blue"));
-    assert!(!output_css.contains("color: tan"));
-    assert!(!output_css.contains("color: gray"));
+    assert!(output_css.contains("color: tan"));
+    assert!(output_css.contains("color: gray"));
+
+    let execution_scope = result
+        .execution_scope
+        .as_ref()
+        .ok_or_else(|| "linked-order run should retain bundle execution evidence".to_string())?;
+    assert_eq!(
+        execution_scope
+            .bundle_execution
+            .aggregate_closed_world_refusal_count,
+        2
+    );
+    for module_execution in &execution_scope.bundle_execution.module_executions {
+        assert!(matches!(
+            module_execution
+                .execution
+                .closed_world_admission
+                .refusal_reasons
+                .as_slice(),
+            [event]
+                if event.module_instance.as_ref() == Some(&module_execution.module_instance)
+                    && matches!(
+                        event.reasons.as_slice(),
+                        [OmenaQueryTransformStrictPolicyReasonV0::OwnershipNotSeparable {
+                            token,
+                            module_paths,
+                        }] if token == "shared" && module_paths == &[
+                            dependency_path.to_string(),
+                            entry_path.to_string(),
+                        ]
+                    )
+        ));
+    }
 
     let unknown = explain_omena_query_tree_shake_for_module(
         bundle,

@@ -616,10 +616,11 @@ fn run_omena_query_bundle_with_optional_module_reachability(
     ) = match options.bundle_emission_path {
         OmenaQueryBundleEmissionPathV0::LinkedOrder => match linked_result.as_ref() {
             Ok(linked) => {
-                let linked_execution = execute_linked_bundle_modules(
+                let linked_execution = execute_linked_bundle_modules_with_ownership_reference(
                     linked,
                     target_style_path,
                     style_sources,
+                    style_fact_entries.as_slice(),
                     &effective_pass_ids,
                     base_context,
                     module_css_module_contexts,
@@ -648,10 +649,11 @@ fn run_omena_query_bundle_with_optional_module_reachability(
                         css_modules::style_path_is_css_module_path(instance.module().as_str())
                     }) =>
             {
-                let linked_execution = execute_linked_bundle_modules(
+                let linked_execution = execute_linked_bundle_modules_with_ownership_reference(
                     linked,
                     target_style_path,
                     style_sources,
+                    style_fact_entries.as_slice(),
                     &effective_pass_ids,
                     base_context,
                     module_css_module_contexts,
@@ -1253,6 +1255,7 @@ struct ModuleQualifiedExecutionInputsV0<'a> {
     module_instance: &'a omena_parser::ModuleInstanceKeyV0,
     reachability_precision: FactPrecision,
     retained_class_names: &'a [String],
+    token_ownership_census: Option<&'a CssModuleTokenOwnershipCensusV0>,
 }
 
 fn execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
@@ -3193,7 +3196,21 @@ fn execute_omena_query_transform_passes_from_module_with_context_and_closed_worl
     let expected_decision_count = admitted_passes.len();
 
     let dialect = omena_parser_dialect_for_style_path(style_path);
-    let mut execution =
+    let mut execution = if let Some(token_ownership_census) =
+        execution_inputs.token_ownership_census
+    {
+        token_ownership_census.execute_module_transform_passes_with_ownership_admission(
+            style_source,
+            dialect,
+            &admitted_passes,
+            context,
+            execution_inputs.closed_world_bundle,
+            execution_inputs.module_instance,
+            execution_inputs.reachability_precision,
+            execution_policy,
+            execution_inputs.retained_class_names,
+        )?
+    } else {
         execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names(
             style_source,
             dialect,
@@ -3204,7 +3221,8 @@ fn execute_omena_query_transform_passes_from_module_with_context_and_closed_worl
             execution_inputs.reachability_precision,
             execution_policy,
             execution_inputs.retained_class_names,
-        )?;
+        )?
+    };
     merge_strict_preflight_refusals(&mut execution, preflight_refusals);
     enforce_strict_decision_coverage(&mut execution, execution_policy, expected_decision_count);
     let semantic_removal_count = execution.semantic_removals.len();
@@ -3965,7 +3983,106 @@ fn materialize_transform_bundle_resolved_dependencies(
 fn execute_linked_bundle_modules(
     linked: &LinkedStylesheetWithEmissionItemsV0,
     target_style_path: &str,
+    module_inputs: &[LinkedModuleExecutionInputV0<'_>],
+    retained_class_names_by_module: &BTreeMap<omena_parser::ModuleInstanceKeyV0, Vec<String>>,
+    pass_set: &ConsumerBuildPassSetV0,
+    token_ownership_census: Option<&CssModuleTokenOwnershipCensusV0>,
+    options: &OmenaQueryConsumerBuildOptionsV0,
+) -> Result<LinkedBundleExecutionV0, String> {
+    let linked_stylesheet = &linked.linked_stylesheet;
+    let target_instance = linked_stylesheet
+        .entrypoints
+        .first()
+        .ok_or_else(|| format!("linked bundle has no entrypoint for {target_style_path:?}"))?;
+    let mut transformed_modules = Vec::with_capacity(linked_stylesheet.module_instances.len());
+    let mut module_executions = Vec::with_capacity(linked_stylesheet.module_instances.len());
+
+    for module_input in module_inputs {
+        let module_instance = module_input.module_instance;
+        let style_path = module_instance.module().as_str();
+        let class_name_rewrites = if pass_set
+            .effective
+            .iter()
+            .any(|pass_id| TransformPassKind::HashCssModuleClassNames.id() == pass_id)
+        {
+            module_input.context.class_name_rewrites.clone()
+        } else {
+            Vec::new()
+        };
+        let retained_class_names = retained_class_names_by_module
+            .get(module_instance)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let execution_inputs = ModuleQualifiedExecutionInputsV0 {
+            closed_world_bundle: &linked_stylesheet.closed_world_bundle,
+            module_instance,
+            reachability_precision: closed_world_bundle_reachability_precision(
+                &module_input.context,
+                &linked_stylesheet.closed_world_bundle,
+            ),
+            retained_class_names,
+            token_ownership_census,
+        };
+        let summary =
+            execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
+                style_path,
+                module_input.style_source,
+                pass_set,
+                &module_input.context,
+                execution_inputs,
+                options,
+            )?;
+        let execution = summary.execution;
+        let non_empty_import_replacement_count = execution
+            .css_import_inlines
+            .iter()
+            .filter(|inline| !inline.replacement_css.is_empty())
+            .count();
+        transformed_modules.push(
+            TransformBundleTransformedModuleV0::new(
+                module_instance.clone(),
+                execution.output_css.clone(),
+            )
+            .with_non_empty_import_replacement_count(non_empty_import_replacement_count),
+        );
+        module_executions.push(LinkedModuleExecutionV0 {
+            module_instance: module_instance.clone(),
+            execution,
+            class_name_rewrites,
+        });
+    }
+
+    let materialized = materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(
+        linked,
+        &transformed_modules,
+    )
+    .map_err(|error| format!("linked bundle materialization failed: {error:?}"))?;
+    let Some(entry_execution) = module_executions
+        .iter()
+        .find(|module| &module.module_instance == target_instance)
+        .map(|module| module.execution.clone())
+    else {
+        return Err(format!(
+            "linked entrypoint {target_style_path:?} was not transformed"
+        ));
+    };
+    #[allow(deprecated)]
+    let execution =
+        project_linked_bundle_execution(entry_execution, materialized.output_css.as_str());
+    Ok(LinkedBundleExecutionV0 {
+        execution,
+        entry_module_instance: target_instance.clone(),
+        module_executions,
+        materialization: materialized,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_linked_bundle_modules_with_ownership_reference(
+    linked: &LinkedStylesheetWithEmissionItemsV0,
+    target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
     effective_pass_ids: &[String],
     base_context: &TransformExecutionContextV0,
     module_css_module_contexts: &[TransformModuleCssModuleContextV0],
@@ -3976,12 +4093,6 @@ fn execute_linked_bundle_modules(
     let linked_stylesheet = &linked.linked_stylesheet;
     let pass_set = consumer_build_pass_set(effective_pass_ids);
     let resolution_context = TransformResolutionContext::from_resolution_inputs(resolution_inputs);
-    let target_instance = linked_stylesheet
-        .entrypoints
-        .first()
-        .ok_or_else(|| format!("linked bundle has no entrypoint for {target_style_path:?}"))?;
-    let mut transformed_modules = Vec::with_capacity(linked_stylesheet.module_instances.len());
-    let mut module_executions = Vec::with_capacity(linked_stylesheet.module_instances.len());
     let normalized_module_css_module_contexts = module_css_module_contexts
         .iter()
         .map(|context| {
@@ -4048,74 +4159,72 @@ fn execute_linked_bundle_modules(
         module_inputs.as_slice(),
     );
 
-    for module_input in module_inputs {
-        let module_instance = module_input.module_instance;
-        let style_path = module_instance.module().as_str();
-        let class_name_rewrites = module_input.context.class_name_rewrites.clone();
-        let retained_class_names = retained_class_names_by_module
-            .get(module_instance)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        let summary =
-            execute_omena_query_consumer_build_style_module_with_context_and_closed_world_bundle(
-                style_path,
-                module_input.style_source,
-                &pass_set,
-                &module_input.context,
-                ModuleQualifiedExecutionInputsV0 {
-                    closed_world_bundle: &linked_stylesheet.closed_world_bundle,
-                    module_instance,
-                    reachability_precision: closed_world_bundle_reachability_precision(
-                        &module_input.context,
-                        &linked_stylesheet.closed_world_bundle,
-                    ),
-                    retained_class_names,
-                },
-                options,
-            )?;
-        let execution = summary.execution;
-        let non_empty_import_replacement_count = execution
-            .css_import_inlines
-            .iter()
-            .filter(|inline| !inline.replacement_css.is_empty())
-            .count();
-        transformed_modules.push(
-            TransformBundleTransformedModuleV0::new(
-                module_instance.clone(),
-                execution.output_css.clone(),
-            )
-            .with_non_empty_import_replacement_count(non_empty_import_replacement_count),
-        );
-        module_executions.push(LinkedModuleExecutionV0 {
-            module_instance: module_instance.clone(),
-            execution,
-            class_name_rewrites,
-        });
-    }
-
-    let materialized = materialize_omena_transform_bundle_linked_stylesheet_with_emission_items(
-        linked,
-        &transformed_modules,
-    )
-    .map_err(|error| format!("linked bundle materialization failed: {error:?}"))?;
-    let Some(entry_execution) = module_executions
+    let ownership_reference = if pass_set
+        .effective
         .iter()
-        .find(|module| &module.module_instance == target_instance)
-        .map(|module| module.execution.clone())
-    else {
-        return Err(format!(
-            "linked entrypoint {target_style_path:?} was not transformed"
-        ));
+        .any(|pass_id| pass_id_is_fact_consuming(pass_id))
+    {
+        let reference_pass_ids = pass_set
+            .effective
+            .iter()
+            .filter(|pass_id| !pass_id_is_fact_consuming(pass_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        let reference_pass_set = ConsumerBuildPassSetV0 {
+            requested: reference_pass_ids.clone(),
+            effective: reference_pass_ids,
+        };
+        let reference_execution = execute_linked_bundle_modules(
+            linked,
+            target_style_path,
+            module_inputs.as_slice(),
+            &retained_class_names_by_module,
+            &reference_pass_set,
+            None,
+            options,
+        )?;
+        Some(
+            token_integrity::summarize_css_module_token_ownership(
+                target_style_path,
+                style_fact_entries,
+                linked,
+                base_context,
+                Some(reference_execution.module_executions.as_slice()),
+                module_identity_root,
+                options.bundle_emission_path,
+                reference_execution.execution.output_css.as_str(),
+            )
+            .unwrap_or_else(|error| {
+                token_integrity::unavailable_css_module_token_ownership_census(
+                    options.bundle_emission_path,
+                    error,
+                )
+            }),
+        )
+    } else {
+        None
     };
-    #[allow(deprecated)]
-    let execution =
-        project_linked_bundle_execution(entry_execution, materialized.output_css.as_str());
-    Ok(LinkedBundleExecutionV0 {
-        execution,
-        entry_module_instance: target_instance.clone(),
-        module_executions,
-        materialization: materialized,
-    })
+
+    execute_linked_bundle_modules(
+        linked,
+        target_style_path,
+        module_inputs.as_slice(),
+        &retained_class_names_by_module,
+        &pass_set,
+        ownership_reference.as_ref(),
+        options,
+    )
+}
+
+fn pass_id_is_fact_consuming(pass_id: &str) -> bool {
+    [
+        TransformPassKind::TreeShakeClass,
+        TransformPassKind::TreeShakeKeyframes,
+        TransformPassKind::TreeShakeValue,
+        TransformPassKind::TreeShakeCustomProperty,
+    ]
+    .into_iter()
+    .any(|pass| pass.id() == pass_id)
 }
 
 #[deprecated(
@@ -5024,10 +5133,20 @@ mod linked_source_map_tests {
         let linked = admission
             .into_requested_policy_result()
             .map_err(|error| format!("retention fixture should link: {error:?}"))?;
-        let execution = execute_linked_bundle_modules(
+        let style_fact_entries = style_sources
+            .iter()
+            .map(|source| {
+                collect_omena_query_style_fact_entry(
+                    source.style_path.as_str(),
+                    source.style_source.as_str(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let execution = execute_linked_bundle_modules_with_ownership_reference(
             &linked,
             "src/app.module.css",
             &style_sources,
+            &style_fact_entries,
             &pass_ids,
             &context,
             &[],
@@ -5329,10 +5448,20 @@ mod linked_source_map_tests {
         let linked = admission
             .into_requested_policy_result()
             .map_err(|error| format!("refusal fixture should link: {error:?}"))?;
-        let execution = execute_linked_bundle_modules(
+        let style_fact_entries = style_sources
+            .iter()
+            .map(|source| {
+                collect_omena_query_style_fact_entry(
+                    source.style_path.as_str(),
+                    source.style_source.as_str(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let execution = execute_linked_bundle_modules_with_ownership_reference(
             &linked,
             "src/app.module.css",
             &style_sources,
+            &style_fact_entries,
             &pass_ids,
             &context,
             &[],
@@ -5398,10 +5527,20 @@ mod linked_source_map_tests {
         let linked = admission
             .into_requested_policy_result()
             .map_err(|error| format!("missing-region fixture should link: {error:?}"))?;
-        let mut execution = execute_linked_bundle_modules(
+        let style_fact_entries = style_sources
+            .iter()
+            .map(|source| {
+                collect_omena_query_style_fact_entry(
+                    source.style_path.as_str(),
+                    source.style_source.as_str(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut execution = execute_linked_bundle_modules_with_ownership_reference(
             &linked,
             "src/app.css",
             &style_sources,
+            &style_fact_entries,
             &pass_ids,
             &context,
             &[],

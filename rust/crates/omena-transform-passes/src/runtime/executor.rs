@@ -46,7 +46,7 @@ use crate::helpers::ir_transaction::{
     take_structural_ir_transaction_mutation_span_batches,
 };
 use crate::model::{
-    RollbackReceiptV0, RollbackScopeV0, TransformBlockedReasonV0,
+    CssModuleTokenOwnershipCensusV0, RollbackReceiptV0, RollbackScopeV0, TransformBlockedReasonV0,
     TransformCascadeProofObligationV0, TransformClosedWorldAdmissionSummaryV0,
     TransformCssModuleComposesResolutionV0, TransformDecision, TransformDesignTokenRouteV0,
     TransformDischargeEvidenceV0, TransformDischargeLedgerTelemetryV0,
@@ -170,6 +170,7 @@ struct TransformExecutionRuntimePolicyV0<'a> {
     semantic_trust_recording: TransformSemanticTrustRecordingV0,
     module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
     retained_class_names: &'a [String],
+    token_ownership_census: Option<&'a CssModuleTokenOwnershipCensusV0>,
 }
 
 impl TransformDecisionDraftV0 {
@@ -1151,6 +1152,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_and_policy(
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: None,
                 retained_class_names: &[],
+                token_ownership_census: None,
             },
         )
     })
@@ -1214,6 +1216,7 @@ pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bund
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: None,
                 retained_class_names: &[],
+                token_ownership_census: None,
             },
         )
     })
@@ -1277,6 +1280,63 @@ pub fn execute_transform_passes_on_module_with_dialect_context_policy_and_closed
     execution_policy: &TransformExecutionPolicyV0,
     retained_class_names: &[String],
 ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+    execute_transform_passes_on_module_with_optional_token_ownership_census(
+        source,
+        dialect,
+        requested,
+        context,
+        closed_world_bundle,
+        module_instance,
+        reachability_precision,
+        execution_policy,
+        retained_class_names,
+        None,
+    )
+}
+
+impl CssModuleTokenOwnershipCensusV0 {
+    /// Executes one module while using this product census as ownership admission authority.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_module_transform_passes_with_ownership_admission(
+        &self,
+        source: &str,
+        dialect: StyleDialect,
+        requested: &[TransformPassKind],
+        context: &TransformExecutionContextV0,
+        closed_world_bundle: &ClosedWorldBundleV0,
+        module_instance: &ModuleInstanceKeyV0,
+        reachability_precision: FactPrecision,
+        execution_policy: &TransformExecutionPolicyV0,
+        retained_class_names: &[String],
+    ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+        execute_transform_passes_on_module_with_optional_token_ownership_census(
+            source,
+            dialect,
+            requested,
+            context,
+            closed_world_bundle,
+            module_instance,
+            reachability_precision,
+            execution_policy,
+            retained_class_names,
+            Some(self),
+        )
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_transform_passes_on_module_with_optional_token_ownership_census(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_instance: &ModuleInstanceKeyV0,
+    reachability_precision: FactPrecision,
+    execution_policy: &TransformExecutionPolicyV0,
+    retained_class_names: &[String],
+    token_ownership_census: Option<&CssModuleTokenOwnershipCensusV0>,
+) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
     let Some(module_qualified_symbols) = closed_world_bundle
         .reachability()
         .symbols_for_module(module_instance)
@@ -1301,6 +1361,7 @@ pub fn execute_transform_passes_on_module_with_dialect_context_policy_and_closed
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: Some(module_qualified_symbols),
                 retained_class_names,
+                token_ownership_census,
             },
         )
     }))
@@ -1325,6 +1386,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
             semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
             module_qualified_symbols: None,
             retained_class_names: &[],
+            token_ownership_census: None,
         },
     )
 }
@@ -1349,6 +1411,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_seman
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::OmitForMeasurement,
                 module_qualified_symbols: None,
                 retained_class_names: &[],
+                token_ownership_census: None,
             },
         )
     })
@@ -2419,8 +2482,13 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .filter(|_| fact_consuming_pass)
             .and_then(|pass_kind| {
                 closed_world_bundle.map(|bundle| {
-                    let mut reasons =
-                        closed_world_admission_o3_reasons(bundle, module_qualified_symbols);
+                    let o3 = closed_world_admission_o3_reasons(bundle, module_qualified_symbols);
+                    let mut reasons = closed_world_admission_o1_reasons(
+                        runtime_policy.token_ownership_census,
+                        o3.module_instance,
+                        pass_kind,
+                    );
+                    reasons.extend(o3.reasons);
                     reasons.extend(closed_world_admission_o2_reasons(
                         bundle,
                         module_qualified_symbols,
@@ -2532,7 +2600,16 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
 
         let semantic_mutation_spans = dispatch_result.semantic_mutation_spans();
         let mut winner_equality_tier = None;
+        let blocked_before_semantic_observation = matches!(
+            dispatch_result.decision,
+            TransformDecisionDraftV0::Blocked { .. }
+        );
         if !strict_refused_before_dispatch
+            && blocked_before_semantic_observation
+            && pass.is_some_and(semantic_preservation_applies)
+        {
+            semantic_preservation_telemetry.record_blocked_before_observation();
+        } else if !strict_refused_before_dispatch
             && let (Some(pass_kind), Some(input_ir)) =
                 (pass, semantic_preservation_input_ir.as_ref())
         {
@@ -2762,10 +2839,82 @@ fn closed_world_admission_module_instance<'a>(
         })
 }
 
-fn closed_world_admission_o3_reasons(
-    bundle: &ClosedWorldBundleV0,
-    module_qualified_symbols: Option<&ModuleQualifiedSymbolSetV0>,
+fn closed_world_admission_o1_reasons(
+    census: Option<&CssModuleTokenOwnershipCensusV0>,
+    module_instance: Option<&ModuleInstanceKeyV0>,
+    pass_kind: TransformPassKind,
 ) -> Vec<TransformStrictPolicyReasonV0> {
+    if pass_kind != TransformPassKind::TreeShakeClass {
+        return Vec::new();
+    }
+    let Some(census) = census else {
+        // The compatibility executor does not claim an emitted-token closure. Product bundle
+        // emission supplies an explicit census (including an unavailable census on analysis
+        // failure), so absence here is not silently converted into a complete empty observation.
+        return Vec::new();
+    };
+
+    let collision_reasons = census
+        .module_token_collisions
+        .iter()
+        .filter(|collision| {
+            module_instance
+                .is_none_or(|module_instance| collision.module_instances.contains(module_instance))
+        })
+        .map(
+            |collision| TransformStrictPolicyReasonV0::OwnershipNotSeparable {
+                token: collision.emitted_token.clone(),
+                module_paths: collision.module_paths.clone(),
+            },
+        );
+    let unattributed_reasons = census.unattributed_emitted_tokens.iter().map(|token| {
+        TransformStrictPolicyReasonV0::OwnershipNotSeparable {
+            token: token.clone(),
+            module_paths: Vec::new(),
+        }
+    });
+    let interface_mismatch_reasons = census
+        .interface_mismatches
+        .iter()
+        .filter(|mismatch| {
+            module_instance
+                .is_none_or(|module_instance| &mismatch.module_instance == module_instance)
+        })
+        .map(
+            |mismatch| TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete {
+                missing: vec![format!(
+                    "cssModuleInterfaceToken:{}",
+                    mismatch.promised_token
+                )],
+            },
+        );
+    let mut reasons = collision_reasons
+        .chain(unattributed_reasons)
+        .chain(interface_mismatch_reasons)
+        .collect::<Vec<_>>();
+    if !census.complete && reasons.is_empty() {
+        reasons.push(
+            TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete {
+                missing: if census.unavailable_reasons.is_empty() {
+                    vec!["cssModuleTokenOwnershipCensus".to_string()]
+                } else {
+                    census.unavailable_reasons.clone()
+                },
+            },
+        );
+    }
+    reasons
+}
+
+struct ClosedWorldAdmissionO3V0<'a> {
+    reasons: Vec<TransformStrictPolicyReasonV0>,
+    module_instance: Option<&'a ModuleInstanceKeyV0>,
+}
+
+fn closed_world_admission_o3_reasons<'a>(
+    bundle: &'a ClosedWorldBundleV0,
+    module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+) -> ClosedWorldAdmissionO3V0<'a> {
     // Structural entailment: planning and admission borrow the same immutable sealed bundle, so
     // recomputing its ownership digest here cannot detect drift. The transform execution planner
     // owns re-entry if planning and execution ever receive independently materialized evidence.
@@ -2784,7 +2933,10 @@ fn closed_world_admission_o3_reasons(
             .iter()
             .any(|linked| linked == module_instance)
     }) {
-        return Vec::new();
+        return ClosedWorldAdmissionO3V0 {
+            reasons: Vec::new(),
+            module_instance,
+        };
     }
     let mut missing = Vec::new();
     let checked_modules = module_instance.map_or_else(
@@ -2817,10 +2969,14 @@ fn closed_world_admission_o3_reasons(
     {
         missing.push("sourcePrecision".to_string());
     }
-    if missing.is_empty() {
+    let reasons = if missing.is_empty() {
         Vec::new()
     } else {
         vec![TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { missing }]
+    };
+    ClosedWorldAdmissionO3V0 {
+        reasons,
+        module_instance,
     }
 }
 
@@ -2832,9 +2988,6 @@ fn closed_world_admission_o2_reasons(
 ) -> Vec<TransformStrictPolicyReasonV0> {
     if pass_kind != TransformPassKind::TreeShakeClass {
         return Vec::new();
-    }
-    if bundle.composes_edge_observation_count() > bundle.composes_edges().len() {
-        return vec![TransformStrictPolicyReasonV0::EvidenceUnavailable];
     }
     let module_instance =
         closed_world_admission_module_instance(Some(bundle), module_qualified_symbols);

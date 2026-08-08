@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
 use crate::{
+    CssModuleTokenCollisionPathScopeV0, CssModuleTokenCollisionV0,
+    CssModuleTokenInterfaceMismatchV0, CssModuleTokenOwnershipCensusV0, CssModuleTokenOwnershipV0,
     TransformExecutionContextV0, TransformExecutionPolicyV0,
     TransformModuleQualifiedExecutionErrorV0, TransformPassDispatchKindV0,
     TransformStrictPolicyReasonV0, default_transform_pass_registry,
@@ -34,6 +36,248 @@ use omena_transform_cst::{
 };
 
 use super::test_closed_world_bundle;
+
+#[test]
+fn ownership_census_controls_module_qualified_destructive_admission() -> Result<(), String> {
+    let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/first.module.css"));
+    let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/second.module.css"));
+    let bundle = test_closed_world_bundle(
+        vec![first.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(first.clone()),
+            ClosedWorldLinkedModuleV0::new(second.clone()),
+        ],
+    );
+    let source = "._shared_0 { color: red; } .dead { color: gray; }";
+    let collision_ownership = CssModuleTokenOwnershipV0::new(
+        "_shared_0",
+        vec![first.clone(), second.clone()],
+        vec![
+            "src/first.module.css".to_string(),
+            "src/second.module.css".to_string(),
+        ],
+        vec!["shared".to_string()],
+    );
+    let collision_census = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        2,
+        vec![collision_ownership.clone()],
+        vec![CssModuleTokenCollisionV0::new(
+            collision_ownership,
+            vec!["importInlineLegacy", "linkedOrder"],
+            CssModuleTokenCollisionPathScopeV0::BothPaths,
+        )],
+        Vec::new(),
+        Vec::new(),
+    );
+    let execute = |census: &CssModuleTokenOwnershipCensusV0| {
+        census
+            .execute_module_transform_passes_with_ownership_admission(
+                source,
+                StyleDialect::Css,
+                &[TransformPassKind::TreeShakeClass],
+                &TransformExecutionContextV0::default(),
+                &bundle,
+                &first,
+                FactPrecision::Exact,
+                &TransformExecutionPolicyV0::default(),
+                &[],
+            )
+            .map_err(|error| format!("ownership-census module should be known: {error:?}"))
+    };
+
+    let blocked = execute(&collision_census)?;
+    assert_eq!(blocked.output_css, source);
+    assert_eq!(blocked.closed_world_admission.refused_count, 1);
+    assert!(matches!(
+        blocked.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::OwnershipNotSeparable {
+            token,
+            module_paths,
+        }] if token == "_shared_0" && module_paths == &[
+            "src/first.module.css".to_string(),
+            "src/second.module.css".to_string(),
+        ]
+    ));
+    assert_eq!(
+        blocked.semantic_preservation_telemetry.observed_pass_count,
+        1
+    );
+    assert_eq!(
+        blocked.semantic_preservation_telemetry.preserved_pass_count,
+        0
+    );
+    assert_eq!(
+        blocked.semantic_preservation_telemetry.blocked_pass_count,
+        1
+    );
+
+    // FALSIFIER: replacing the collision producer with a complete empty census must admit the
+    // destructive pass. A refusal derived from a count or from the checked reachability set would
+    // keep this control blocked and make the producer-dependence arm fail.
+    let complete_empty = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        0,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let admitted = execute(&complete_empty)?;
+    assert_eq!(admitted.closed_world_admission.refused_count, 0);
+    assert!(!admitted.output_css.contains("_shared_0"));
+    assert!(!admitted.output_css.contains("dead"));
+    Ok(())
+}
+
+#[test]
+fn ownership_census_admission_matrix_distinguishes_incomplete_and_empty_states()
+-> Result<(), String> {
+    #[derive(Clone, Copy)]
+    enum ExpectedReason {
+        Admit,
+        Ownership,
+        Evidence,
+    }
+
+    let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/first.module.css"));
+    let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/second.module.css"));
+    let bundle = test_closed_world_bundle(
+        vec![first.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(first.clone()),
+            ClosedWorldLinkedModuleV0::new(second.clone()),
+        ],
+    );
+    let ownership = CssModuleTokenOwnershipV0::new(
+        "_shared_0",
+        vec![first.clone(), second],
+        vec![
+            "src/first.module.css".to_string(),
+            "src/second.module.css".to_string(),
+        ],
+        vec!["shared".to_string()],
+    );
+    let cases = vec![
+        (
+            "complete-empty",
+            CssModuleTokenOwnershipCensusV0::new(
+                "linkedOrder",
+                0,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            ),
+            ExpectedReason::Admit,
+        ),
+        (
+            "plural-owner",
+            CssModuleTokenOwnershipCensusV0::new(
+                "linkedOrder",
+                2,
+                vec![ownership.clone()],
+                vec![CssModuleTokenCollisionV0::new(
+                    ownership,
+                    vec!["linkedOrder"],
+                    CssModuleTokenCollisionPathScopeV0::LinkedOrderOnly,
+                )],
+                Vec::new(),
+                Vec::new(),
+            ),
+            ExpectedReason::Ownership,
+        ),
+        (
+            "zero-owner",
+            CssModuleTokenOwnershipCensusV0::new(
+                "linkedOrder",
+                0,
+                Vec::new(),
+                Vec::new(),
+                vec!["_unowned".to_string()],
+                Vec::new(),
+            ),
+            ExpectedReason::Ownership,
+        ),
+        (
+            "analysis-unavailable",
+            CssModuleTokenOwnershipCensusV0::unavailable(
+                "linkedOrder",
+                "analysis unavailable control",
+            ),
+            ExpectedReason::Evidence,
+        ),
+        (
+            "interface-mismatch",
+            CssModuleTokenOwnershipCensusV0::new(
+                "linkedOrder",
+                1,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                vec![CssModuleTokenInterfaceMismatchV0::new(
+                    first.clone(),
+                    "src/first.module.css",
+                    "shared",
+                    "_promised",
+                    "_emitted",
+                )],
+            ),
+            ExpectedReason::Evidence,
+        ),
+    ];
+
+    for (shape, census, expected) in cases {
+        let execution = census
+            .execute_module_transform_passes_with_ownership_admission(
+                ".dead { color: gray; }",
+                StyleDialect::Css,
+                &[TransformPassKind::TreeShakeClass],
+                &TransformExecutionContextV0::default(),
+                &bundle,
+                &first,
+                FactPrecision::Exact,
+                &TransformExecutionPolicyV0::default(),
+                &[],
+            )
+            .map_err(|error| format!("{shape} module should be known: {error:?}"))?;
+        let reasons = execution
+            .closed_world_admission
+            .refusal_reasons
+            .first()
+            .map(|event| event.reasons.as_slice())
+            .unwrap_or_default();
+        match expected {
+            ExpectedReason::Admit => {
+                assert!(reasons.is_empty(), "{shape}: {reasons:?}");
+                assert!(!execution.output_css.contains("dead"), "{shape}");
+            }
+            ExpectedReason::Ownership => {
+                assert!(
+                    matches!(
+                        reasons,
+                        [TransformStrictPolicyReasonV0::OwnershipNotSeparable { .. }]
+                    ),
+                    "{shape}: {reasons:?}"
+                );
+                assert!(execution.output_css.contains("dead"), "{shape}");
+            }
+            ExpectedReason::Evidence => {
+                assert!(
+                    matches!(
+                        reasons,
+                        [TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { .. }]
+                    ),
+                    "{shape}: {reasons:?}"
+                );
+                assert!(execution.output_css.contains("dead"), "{shape}");
+            }
+        }
+    }
+    Ok(())
+}
 
 #[test]
 fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping_bytes()
@@ -75,8 +319,8 @@ fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping
 #[test]
 fn closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix()
 -> Result<(), String> {
-    // This register-bound legacy name now covers the executor plane only. Producer independence
-    // is exercised by the gate's detached-worktree linker-hop probe.
+    // This register-bound legacy name covers the executor measurement. Producer independence is
+    // exercised by the gate's detached-worktree linker-hop probe.
     fn emit_cell(
         state: &str,
         fixture: &str,
@@ -96,14 +340,16 @@ fn closed_world_composes_admission_covers_tri_state_and_independent_producer_mat
         eprintln!(
             "CLOSED_WORLD_COMPOSES_ADMISSION_CELL={}",
             serde_json::json!({
-                "plane": "executor",
                 "state": state,
                 "fixture": fixture,
                 "refusedCount": execution.closed_world_admission.refused_count,
                 "reasonKind": reason_kind,
                 "evidenceScope": execution.closed_world_admission.evidence_scope,
                 "outputCss": execution.output_css.as_str(),
-                "observedBundleEdgeCount": bundle.composes_edges().len(),
+                "observedBundleEdgeCount": bundle.composes_edge_observation_count(),
+                "semanticObservedPassCount": execution.semantic_preservation_telemetry.observed_pass_count,
+                "semanticPreservedPassCount": execution.semantic_preservation_telemetry.preserved_pass_count,
+                "semanticBlockedPassCount": execution.semantic_preservation_telemetry.blocked_pass_count,
             })
         );
     }
