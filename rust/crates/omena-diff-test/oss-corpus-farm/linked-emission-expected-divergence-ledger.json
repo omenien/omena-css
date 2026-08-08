@@ -36,55 +36,6 @@
       "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     },
     {
-      "fixtureId": "module-qualified-reachability",
-      "classificationArm": "semanticPreservingKnownDifference",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "404232890264314802d6d00e7e11273d06d7b78620ca5e37a616058443983acb",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
-    },
-    {
-      "fixtureId": "entry-ordinal-skew",
-      "classificationArm": "semanticPreservingKnownDifference",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "c3acff4d0e9bd174bd77ee046bbb3048c96f3f117133b74b0f9e23fd081df9ac",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
-    },
-    {
-      "fixtureId": "module-qualified-at-rule-reachability",
-      "classificationArm": "semanticPreservingKnownDifference",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "03c5ad5126f723b488455d8861f6e87dc51b12f7596838a7509752dd4a88f93a",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
-    },
-    {
-      "fixtureId": "two-hop-composes-liveness",
-      "classificationArm": "semanticPreservingKnownDifference",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "186666fddd75b13779c3289de3d4724e22f7f1ca2e6e09ef0a55c9e3e6d54f34",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
-    },
-    {
-      "fixtureId": "package-path-composes-liveness",
-      "classificationArm": "semanticPreservingKnownDifference",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "4da22778fc7e5d6b432d5442a65dc1616b1c332193d926911f9fe8556dd1a429",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
-    },
-    {
-      "fixtureId": "global-at-rule-liveness",
-      "classificationArm": "semanticPreservingKnownDifference",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "bf02e8d66fbc676b08b24d7d1a8e9fd22f408f021233c690c86c0116c58b7aa4",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
-    },
-    {
-      "fixtureId": "combinator-companion-liveness",
-      "classificationArm": "semanticPreservingKnownDifference",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "ee9919b46b9ced531bbc585a7ab96523266a6490832a5685e858c038e280396b",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
-    },
-    {
       "fixtureId": "element-only-reset-module",
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
@@ -103,13 +54,6 @@
       "classificationArm": "semanticPreservingKnownDifference",
       "derivedReasons": ["importGraphModulePlacement", "formattingNormalization"],
       "witnessDigest": "8636e18c2f777a8608ae58708dbfdac09b25d2919cbd868f9c7004083f0baaee",
-      "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
-    },
-    {
-      "fixtureId": "bundler-productization-corpus",
-      "classificationArm": "semanticPreservingKnownDifference",
-      "derivedReasons": ["globalModuleOrder"],
-      "witnessDigest": "0f1f1db1fe4406b3fc93ba5e6a3ca34862e9c55c250d4fedf4fc282fd16a0216",
       "justification": "Both emission paths preserve module-qualified ownership and parsed semantics; the remaining byte delta is the recorded emission-order or formatting difference."
     }
   ]

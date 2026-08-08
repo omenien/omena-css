@@ -24,9 +24,14 @@ const transformFacadeSource = readFileSync(
 const requiredTests = [
   "collision_path_scope_tracks_the_same_token_on_each_emission_path",
   "scanner_scope_follows_the_shared_identifier_predicate",
-  "caller_supplied_module_identity_controls_token_deterministically",
+  "selected_interface_token_detects_unrewritten_output",
+  "ownership_census_zero_owner_path_is_complete_and_empty",
+  "ownership_census_analysis_unavailable_path_names_its_reason",
+  "ownership_census_incomplete_attribution_path_names_the_unowned_token",
+  "equivalent_workspace_relative_identity_produces_equal_tokens",
+  "token_integrity_symlinked_workspace_root_accepts_the_canonical_module_path",
   "strict_css_module_token_integrity_uses_module_qualified_preimages",
-  "strict_css_module_token_integrity_rejects_injected_interface_byte_mismatch",
+  "strict_css_module_token_integrity_accepts_the_selected_module_context",
   "token_integrity_selected_shape_is_injective_on_import_inline_bytes",
   "token_integrity_default_path_scopes_every_declared_dependency_class",
   "token_integrity_default_path_tree_shakes_media_nested_dependency_classes",
@@ -50,6 +55,30 @@ const pathScopeVocabulary = [
   return [variant, `${variant[0].toLowerCase()}${variant.slice(1)}`] as const;
 });
 assert.ok(pathScopeVocabulary.length > 0, "the linked-emission pathScope enum is empty");
+
+const ownershipReason = /OwnershipNotSeparable\s*\{(?<body>[^}]*)\}/u.exec(transformContractSource)
+  ?.groups?.body;
+const collisionCarrier = /pub struct CssModuleTokenCollisionV0\s*\{(?<body>[^}]*)\}/u.exec(
+  transformContractSource,
+)?.groups?.body;
+assert.ok(ownershipReason, "the closed-world ownership refusal variant is missing");
+assert.ok(collisionCarrier, "the ownership census collision carrier is missing");
+const ownershipConsumerFieldMap = {
+  token: "emitted_token",
+  module_paths: "module_paths",
+} as const;
+for (const [consumerField, censusField] of Object.entries(ownershipConsumerFieldMap)) {
+  assert.match(
+    ownershipReason,
+    new RegExp(`\\b${consumerField}\\s*:`, "u"),
+    `OwnershipNotSeparable is missing consumer field ${consumerField}`,
+  );
+  assert.match(
+    collisionCarrier,
+    new RegExp(`\\b${censusField}\\s*:`, "u"),
+    `the ownership census is missing mapped field ${censusField}`,
+  );
+}
 
 for (const [variant, wireLabel] of pathScopeVocabulary) {
   assert.ok(
@@ -131,6 +160,7 @@ process.stdout.write(
       ownershipCensusProduct: "omena-query.css-module-token-ownership-census",
       ownershipIdentity: "omena-parser::ModuleInstanceKeyV0",
       ownershipConsumer: "closed-world admission OwnershipNotSeparable",
+      ownershipConsumerFieldMap,
       pathScopeAuthority: "omena-diff-test::LinkedEmissionModuleTokenCollisionPathScopeV0",
       pathScopeVocabulary: pathScopeVocabulary.map(([, wireLabel]) => wireLabel),
       productTestCount: passed,

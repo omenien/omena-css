@@ -233,6 +233,10 @@ const linkedEmissionSource = readFileSync(
   "rust/crates/omena-diff-test/src/linked_emission.rs",
   "utf8",
 );
+const linkedEmissionProductSource = linkedEmissionSource.slice(
+  0,
+  linkedEmissionSource.indexOf("#[cfg(test)]\nmod tests {"),
+);
 const queryTypesSource = readFileSync("rust/crates/omena-query/src/types.rs", "utf8");
 const attributionAdmissionStart = queryTypesSource.indexOf(
   "pub(crate) fn flat_class_names_for_style_paths",
@@ -291,11 +295,11 @@ const hoistCensus = {
   caseProducer: "LinkedEmissionByteDifferentialCaseV0",
   linkedStylesheetProducer: "LinkedStylesheetWithEmissionItemsV0",
   projectionInvocationCount: countMatches(
-    linkedEmissionSource,
+    linkedEmissionProductSource,
     /\bproject_omena_transform_bundle_linker_and_emission_items\s*\(/gu,
   ),
   linkerInvocationCount: countMatches(
-    linkedEmissionSource,
+    linkedEmissionProductSource,
     /\blink_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options\s*\(/gu,
   ),
   cargoSpawnCounts: Object.fromEntries(

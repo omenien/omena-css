@@ -45,6 +45,7 @@ interface CssModuleTokenLiteralPolicy {
   readonly product: "omena-css-module-token-literal-policy";
   readonly scope: "internal-test-inventory-only";
   readonly regex: string;
+  readonly selectedFormatRegex: string;
   readonly expectedSiteCount: number;
   readonly expectedFileCount: number;
   readonly wholeFileTestInternal: readonly string[];
@@ -58,7 +59,7 @@ interface CssModuleTokenLiteralPolicy {
     readonly startMarker: string;
     readonly endMarker: string;
   }[];
-  readonly roleJustifications: Readonly<Record<string, string>>;
+  readonly legacyFormatJustifications: Readonly<Record<string, string>>;
 }
 
 interface LspBoundarySummary {
@@ -961,6 +962,8 @@ function verifyCssModuleTokenLiteralPolicy(): {
   readonly fileCount: number;
   readonly testInternalCount: number;
   readonly shippedSurfaceCount: number;
+  readonly selectedFormatSiteCount: number;
+  readonly justifiedLegacySiteCount: number;
 } {
   const policyPath = "rust/omena-css-module-token-literal-policy.json";
   const policy = JSON.parse(read(policyPath)) as CssModuleTokenLiteralPolicy;
@@ -985,9 +988,12 @@ function verifyCssModuleTokenLiteralPolicy(): {
     internalRegions.set(region.path, [...(internalRegions.get(region.path) ?? []), region]);
   }
   const tokenPattern = new RegExp(policy.regex, "gu");
+  const selectedFormatPattern = new RegExp(policy.selectedFormatRegex, "u");
   const matchedFiles = new Set<string>();
   const testInternalSites: string[] = [];
   const shippedSurfaceSites: string[] = [];
+  const selectedFormatSites: string[] = [];
+  const legacySitesByFile = new Map<string, string[]>();
 
   for (const relativePath of repositoryFiles) {
     const absolutePath = path.join(repoRoot, relativePath);
@@ -1003,6 +1009,15 @@ function verifyCssModuleTokenLiteralPolicy(): {
       const line = source.slice(0, offset).split("\n").length;
       const site = `${relativePath}:${line}:${match[0]}`;
       matchedFiles.add(relativePath);
+      if (selectedFormatPattern.test(match[0])) {
+        selectedFormatSites.push(site);
+      } else {
+        assert.ok(
+          policy.legacyFormatJustifications[relativePath]?.trim(),
+          `${site} is not satisfiable by the selected token format and needs a named legacy justification`,
+        );
+        legacySitesByFile.set(relativePath, [...(legacySitesByFile.get(relativePath) ?? []), site]);
+      }
       const cfgTestRegion = cfgTestRegions.get(relativePath);
       const regionOffset = cfgTestRegion === undefined ? -1 : source.indexOf(cfgTestRegion.marker);
       assert.notEqual(
@@ -1059,15 +1074,11 @@ function verifyCssModuleTokenLiteralPolicy(): {
     `token-literal site count drifted under ${policy.regex}`,
   );
   assert.equal(matchedFiles.size, policy.expectedFileCount, "token-literal file count drifted");
-  for (const requiredRoleJustification of [
-    "rust/crates/omena-napi/src/lib.rs",
-    "rust/crates/omena-wasm/src/lib.rs",
-  ]) {
-    assert.ok(
-      policy.roleJustifications[requiredRoleJustification]?.trim(),
-      `${requiredRoleJustification} needs a test-internal role justification`,
-    );
-  }
+  assert.deepEqual(
+    Object.keys(policy.legacyFormatJustifications).toSorted(),
+    [...legacySitesByFile.keys()].toSorted(),
+    "legacy token-format justifications must match every and only observed legacy file",
+  );
   assert.deepEqual(
     shippedSurfaceSites,
     [],
@@ -1080,6 +1091,8 @@ function verifyCssModuleTokenLiteralPolicy(): {
     fileCount: policy.expectedFileCount,
     testInternalCount: testInternalSites.length,
     shippedSurfaceCount: shippedSurfaceSites.length,
+    selectedFormatSiteCount: selectedFormatSites.length,
+    justifiedLegacySiteCount: [...legacySitesByFile.values()].flat().length,
   };
 }
 

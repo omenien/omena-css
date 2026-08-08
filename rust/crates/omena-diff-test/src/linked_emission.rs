@@ -3905,6 +3905,7 @@ mod tests {
 
         // This oracle derives order from authored imports, not either product
         // path's emission plan. Path sorting therefore cannot satisfy it.
+        // FALSIFIER: id=linked-emission-legacy-source-order class=placement via=legacy_emission_order_matches_the_independent_import_graph producer=can-fail owner=linked-emission-instrument entry=module-qualified-import-order
         assert_eq!(
             output_module_order_v0(&fixture, &analysis.legacy_css)?,
             observable_module_order_v0(&fixture, &import_graph_order)
@@ -3923,7 +3924,7 @@ mod tests {
         // FALSIFIER: id=linked-emission-rust-019 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(
             analysis.case.difference_class,
-            LinkedEmissionByteDifferenceClassV0::Expected
+            LinkedEmissionByteDifferenceClassV0::Equivalent
         );
         // FALSIFIER: id=linked-emission-rust-020 class=accounting via=DropReachableCrossModuleDeclaration producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
         assert_eq!(analysis.case.semantic_mismatch_count, 0);

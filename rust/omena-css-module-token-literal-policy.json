@@ -3,7 +3,8 @@
   "product": "omena-css-module-token-literal-policy",
   "scope": "internal-test-inventory-only",
   "regex": "(?:(?<![A-Za-z0-9_])_[A-Za-z][A-Za-z0-9-]*_[0-9]+(?![A-Za-z0-9_])|(?<=[.\"'`])_[A-Za-z0-9_-]{6}_[A-Za-z0-9_-]+(?![A-Za-z0-9_]))",
-  "expectedSiteCount": 133,
+  "selectedFormatRegex": "^_[A-Za-z0-9_-]{6}_[A-Za-z0-9_-]+$",
+  "expectedSiteCount": 140,
   "expectedFileCount": 20,
   "wholeFileTestInternal": [
     "rust/crates/omena-abstract-value/src/tests.rs",
@@ -14,7 +15,6 @@
     "scripts/check-rust-omena-bundler-adapter-pass-authority.ts",
     "scripts/check-rust-omena-query-transform-execute.ts",
     "scripts/check-rust-omena-query-transform-plan.ts",
-    "scripts/check-vite-plugin-hmr.mjs",
     "scripts/check-vite-plugin-smoke.mjs",
     "scripts/fixtures/css-module-host-parity/cases.json",
     "test/unit/css-build-adapter/css-build-adapter.test.ts",
@@ -24,6 +24,10 @@
   "cfgTestRegions": [
     {
       "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
+      "marker": "#[cfg(test)]\nmod tests {"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/transform/token_integrity.rs",
       "marker": "#[cfg(test)]\nmod tests {"
     },
     {
@@ -52,8 +56,13 @@
       "endMarker": "fn css_module_composes_resolutions_for_fixture("
     }
   ],
-  "roleJustifications": {
-    "rust/crates/omena-napi/src/lib.rs": "The token-shaped literal is inside the cfg(test) module and asserts only internal transform behavior.",
-    "rust/crates/omena-wasm/src/lib.rs": "The token-shaped literal is inside the cfg(test) module and asserts only internal transform behavior."
+  "legacyFormatJustifications": {
+    "rust/crates/omena-abstract-value/src/tests.rs": "A legacy ordinal token is input data for an abstract-value regression test, not a selected-format expectation.",
+    "rust/crates/omena-query/src/style/transform.rs": "A legacy ordinal token is retained inside a bounded source-map compatibility test.",
+    "rust/crates/omena-transform-passes/src/domains/reachability.rs": "A legacy ordinal token is retained by the compatibility transform's internal fixture.",
+    "rust/crates/omena-transform-passes/src/tests/class_hashing.rs": "These tests explicitly cover the legacy ordinal class-hashing pass independently of the selected module-qualified producer.",
+    "scripts/check-vite-plugin-smoke.mjs": "The smoke host is a self-consistent mock of the legacy plugin result and does not assert selected-format runtime bytes.",
+    "scripts/fixtures/css-module-host-parity/cases.json": "The parity corpus retains authored legacy-host outputs beside selected-format product outputs.",
+    "test/unit/vite-plugin/vite-plugin.test.ts": "These unit fixtures stub legacy host class maps; browser product bytes are checked by the HMR lane."
   }
 }
