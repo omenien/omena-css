@@ -9,7 +9,11 @@ use omena_query_transform_runner::{
 };
 use omena_syntax::{SyntaxKind, ident::decode_css_identifier_escapes};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    ffi::OsString,
+    path::{Path, PathBuf},
+};
 
 const CSS_MODULE_TOKEN_HASH_WIDTH_V0: usize = 6;
 
@@ -36,16 +40,14 @@ pub(in crate::style) fn module_instance_key_relative_to_root(
             .get(1)
             .is_some_and(|separator| *separator == b':');
     let relative_module = if module_is_absolute {
-        let root = normalized_root.trim_end_matches('/');
-        normalized_module
-            .strip_prefix(root)
-            .and_then(|suffix| suffix.strip_prefix('/'))
-            .ok_or_else(|| {
-                format!(
-                    "CSS Modules token identity module {normalized_module:?} is outside caller workspace root {normalized_root:?}"
-                )
-            })?
-            .to_string()
+        let canonical_root = canonicalize_path_allowing_missing_tail(&normalized_root)?;
+        let canonical_module = canonicalize_path_allowing_missing_tail(&normalized_module)?;
+        let relative = canonical_module.strip_prefix(&canonical_root).map_err(|_| {
+            format!(
+                "CSS Modules token identity module {normalized_module:?} is outside caller workspace root {normalized_root:?}"
+            )
+        })?;
+        crate::types::normalize_omena_query_style_path(relative.to_string_lossy().as_ref())
     } else {
         if normalized_module == ".." || normalized_module.starts_with("../") {
             return Err(format!(
@@ -63,6 +65,28 @@ pub(in crate::style) fn module_instance_key_relative_to_root(
     Ok(omena_parser::ModuleInstanceKeyV0::unconfigured(
         omena_parser::ModuleIdV0::new(relative_module),
     ))
+}
+
+fn canonicalize_path_allowing_missing_tail(path: &str) -> Result<PathBuf, String> {
+    let input = Path::new(path);
+    let mut existing = input;
+    let mut missing = Vec::<OsString>::new();
+    while !existing.exists() {
+        let name = existing.file_name().ok_or_else(|| {
+            format!("CSS Modules token identity path {path:?} has no canonical filesystem root")
+        })?;
+        missing.push(name.to_os_string());
+        existing = existing.parent().ok_or_else(|| {
+            format!("CSS Modules token identity path {path:?} has no canonical parent")
+        })?;
+    }
+    let mut canonical = std::fs::canonicalize(existing).map_err(|error| {
+        format!("CSS Modules token identity could not canonicalize {path:?}: {error}")
+    })?;
+    for component in missing.iter().rev() {
+        canonical.push(component);
+    }
+    Ok(canonical)
 }
 
 pub(in crate::style) fn derive_class_name_rewrites_for_transform_context(
@@ -424,4 +448,41 @@ fn stable_transform_context_class_rewrite(
     digest.update(name.as_bytes());
     let hash = URL_SAFE_NO_PAD.encode(digest.finalize());
     format!("_{}_{}", &hash[..CSS_MODULE_TOKEN_HASH_WIDTH_V0], sanitized)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::{
+        fs,
+        os::unix::fs as unix_fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    #[test]
+    fn token_integrity_symlinked_workspace_root_accepts_the_canonical_module_path()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+        let fixture_root = std::env::temp_dir().join(format!(
+            "omena-query-module-identity-root-{}-{unique}",
+            std::process::id()
+        ));
+        let real_root = fixture_root.join("real-workspace");
+        let symlink_root = fixture_root.join("workspace-link");
+        let module_path = real_root.join("src/card.module.css");
+        fs::create_dir_all(module_path.parent().ok_or("module parent is absent")?)?;
+        fs::write(&module_path, ".card {}")?;
+        unix_fs::symlink(&real_root, &symlink_root)?;
+
+        let result = module_instance_key_relative_to_root(
+            &omena_parser::ModuleInstanceKeyV0::unconfigured(omena_parser::ModuleIdV0::new(
+                module_path.to_string_lossy(),
+            )),
+            symlink_root.to_string_lossy().as_ref(),
+        )?;
+        assert_eq!(result.module().as_str(), "src/card.module.css");
+
+        fs::remove_dir_all(&fixture_root).ok();
+        Ok(())
+    }
 }

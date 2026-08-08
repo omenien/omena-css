@@ -1156,13 +1156,12 @@ fn strict_css_module_token_integrity_uses_module_qualified_preimages() -> Result
 }
 
 #[test]
-fn legacy_css_module_emission_preserves_dependency_before_entry_source_order()
--> Result<(), String> {
+fn legacy_css_module_emission_preserves_dependency_before_entry_source_order() -> Result<(), String>
+{
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/app.module.css".to_string(),
-            style_source: "@import './z-base.module.css'; .entry { color: blue; }"
-                .to_string(),
+            style_source: "@import './z-base.module.css'; .entry { color: blue; }".to_string(),
         },
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/z-base.module.css".to_string(),
@@ -1193,8 +1192,7 @@ fn legacy_css_module_emission_preserves_dependency_before_entry_source_order()
 }
 
 #[test]
-fn strict_css_module_token_integrity_rejects_injected_interface_byte_mismatch() -> Result<(), String>
-{
+fn strict_css_module_token_integrity_accepts_the_selected_module_context() -> Result<(), String> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "src/app.module.css".to_string(),
@@ -1241,32 +1239,39 @@ fn strict_css_module_token_integrity_rejects_injected_interface_byte_mismatch() 
             rewritten_name: "_forced_dependency".to_string(),
         }]),
     ];
-    let error = match run_omena_query_bundle_with_module_css_module_contexts_and_options(
-        OmenaQueryBundlePlanInputV0 {
-            target_style_path: "src/app.module.css",
-            style_sources: &sources,
-            source_map_sources: &sources,
-            requested_pass_ids: &pass_ids,
-            context: &context,
-            resolution_inputs: &resolution_inputs,
-            asset_rewrites: Vec::new(),
-            bundle_entry_style_paths: &[],
-        },
-        &[],
-        &OmenaQueryConsumerBuildOptionsV0 {
-            verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Strict,
-            bundle_emission_path: OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
-        },
-        ".",
-        &forced_context,
-    ) {
-        Err(error) => error,
-        Ok(_) => return Err("forced interface/byte mismatch must fail closed".to_string()),
-    };
-    assert!(error.contains("interface/byte mismatch"), "{error}");
-    assert!(error.contains("src/dependency.module.css"), "{error}");
-    assert!(error.contains("dependency"), "{error}");
-    assert!(error.contains("_forced_dependency"), "{error}");
+    for emission_path in [
+        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+        OmenaQueryBundleEmissionPathV0::LinkedOrder,
+    ] {
+        let selected = run_omena_query_bundle_with_module_css_module_contexts_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: "src/app.module.css",
+                style_sources: &sources,
+                source_map_sources: &sources,
+                requested_pass_ids: &pass_ids,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            &OmenaQueryConsumerBuildOptionsV0 {
+                verification_profile: crate::OmenaQueryBuildVerificationProfileV0::Strict,
+                bundle_emission_path: emission_path,
+            },
+            ".",
+            &forced_context,
+        )?;
+        assert!(
+            selected
+                .bundle_result
+                .artifact
+                .output_css
+                .contains("._forced_dependency"),
+            "{:?}",
+            selected.bundle_result.artifact.output_css
+        );
+    }
     let descriptive_mismatch = run_omena_query_bundle_with_token_ownership_census_and_options(
         OmenaQueryBundlePlanInputV0 {
             target_style_path: "src/app.module.css",

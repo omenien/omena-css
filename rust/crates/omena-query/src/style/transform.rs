@@ -579,13 +579,8 @@ fn run_omena_query_bundle_with_optional_module_reachability(
         resolution_inputs,
     )?
     .outputs;
-    let link_options = match options.bundle_emission_path {
-        OmenaQueryBundleEmissionPathV0::ImportInlineLegacy => {
-            TransformBundleLinkOptionsV0::default()
-        }
-        OmenaQueryBundleEmissionPathV0::LinkedOrder => TransformBundleLinkOptionsV0::default()
-            .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving),
-    };
+    let link_options = TransformBundleLinkOptionsV0::default()
+        .with_emission_ordering_policy(EmissionOrderingPolicyV0::ImportOrderPreserving);
     let (legacy_open_decision, linked_result) = link_closed_world_stylesheet_for_style_sources(
         ClosedWorldStylesheetRequestV0 {
             target_style_path,

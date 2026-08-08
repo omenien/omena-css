@@ -85,8 +85,26 @@ pub(super) fn summarize_css_module_token_ownership(
         ));
     }
 
+    let interface_mismatches =
+        interface_mismatches_for_emitted_names(&preimages, emission_path, &emitted_names);
+
+    Ok(CssModuleTokenOwnershipCensusV0::new(
+        emission_path.as_wire_label(),
+        preimages.len(),
+        token_ownerships,
+        module_token_collisions,
+        unattributed_emitted_tokens,
+        interface_mismatches,
+    ))
+}
+
+fn interface_mismatches_for_emitted_names(
+    preimages: &[CssModuleTokenPreimageV0],
+    emission_path: OmenaQueryBundleEmissionPathV0,
+    emitted_names: &BTreeMap<CanonicalClassKeyV0, String>,
+) -> Vec<CssModuleTokenInterfaceMismatchV0> {
     let mut interface_mismatches = Vec::new();
-    for preimage in &preimages {
+    for preimage in preimages {
         if !scanner_can_rewrite(preimage.raw_name.as_str()) {
             continue;
         }
@@ -108,15 +126,7 @@ pub(super) fn summarize_css_module_token_ownership(
             ));
         }
     }
-
-    Ok(CssModuleTokenOwnershipCensusV0::new(
-        emission_path.as_wire_label(),
-        preimages.len(),
-        token_ownerships,
-        module_token_collisions,
-        unattributed_emitted_tokens,
-        interface_mismatches,
-    ))
+    interface_mismatches
 }
 
 pub(super) fn unavailable_css_module_token_ownership_census(
@@ -206,18 +216,19 @@ fn collect_token_preimages(
                 module_path
             ));
         };
-        let interface_rewrites =
+        let derived_rewrites =
             derive_class_name_rewrites_for_module_instance(entry, &token_module_instance);
         for raw_name in &entry.facts.class_selector_names {
-            let module_rewrites = linked_module_executions
+            let selected_module_rewrites = linked_module_executions
                 .and_then(|executions| {
                     executions
                         .iter()
                         .find(|execution| execution.module_instance == module_instance)
                 })
-                .map_or(interface_rewrites.as_slice(), |execution| {
-                    execution.class_name_rewrites.as_slice()
-                });
+                .map(|execution| execution.class_name_rewrites.as_slice());
+            let interface_rewrites =
+                selected_module_rewrites.unwrap_or(derived_rewrites.as_slice());
+            let module_rewrites = selected_module_rewrites.unwrap_or(derived_rewrites.as_slice());
             let default_rewrites = if linked_module_executions.is_some() {
                 module_rewrites
             } else {
@@ -229,7 +240,7 @@ fn collect_token_preimages(
             let linked_token = rewritten_name(module_rewrites, raw_name.as_str())
                 .unwrap_or(raw_name.as_str())
                 .to_string();
-            let interface_token = rewritten_name(interface_rewrites.as_slice(), raw_name.as_str())
+            let interface_token = rewritten_name(interface_rewrites, raw_name.as_str())
                 .unwrap_or(raw_name.as_str())
                 .to_string();
             preimages
@@ -473,7 +484,80 @@ mod tests {
     }
 
     #[test]
-    fn caller_supplied_module_identity_controls_token_deterministically() -> Result<(), String> {
+    fn selected_interface_token_detects_unrewritten_output() {
+        let module_instance = omena_parser::ModuleInstanceKeyV0::unconfigured(
+            omena_parser::ModuleIdV0::new("src/card.module.css"),
+        );
+        let preimages = vec![CssModuleTokenPreimageV0 {
+            module_instance,
+            module_path: "src/card.module.css".to_string(),
+            raw_name: "card".to_string(),
+            default_token: "_Ab1cdE_card".to_string(),
+            linked_token: "_Ab1cdE_card".to_string(),
+            interface_token: "_Ab1cdE_card".to_string(),
+        }];
+        let emitted_names = BTreeMap::from([(canonical_name("card"), "card".to_string())]);
+
+        let mismatches = interface_mismatches_for_emitted_names(
+            &preimages,
+            OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,
+            &emitted_names,
+        );
+        assert_eq!(mismatches.len(), 1);
+        assert_eq!(mismatches[0].promised_token, "_Ab1cdE_card");
+        assert_eq!(mismatches[0].emitted_token, "_Ab1cdE_card");
+    }
+
+    #[test]
+    fn ownership_census_zero_owner_path_is_complete_and_empty() -> Result<(), String> {
+        let census = CssModuleTokenOwnershipCensusV0::new(
+            OmenaQueryBundleEmissionPathV0::ImportInlineLegacy.as_wire_label(),
+            0,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        assert!(census.complete);
+        assert_eq!(census.emitted_token_count, 0);
+        assert!(census.token_ownerships.is_empty());
+        validate_css_module_token_integrity(&census)
+    }
+
+    #[test]
+    fn ownership_census_analysis_unavailable_path_names_its_reason() {
+        let census = CssModuleTokenOwnershipCensusV0::unavailable(
+            OmenaQueryBundleEmissionPathV0::ImportInlineLegacy.as_wire_label(),
+            "analysis unavailable control",
+        );
+        assert!(!census.complete);
+        assert_eq!(census.unavailable_reasons, ["analysis unavailable control"]);
+        assert!(
+            validate_css_module_token_integrity(&census)
+                .is_err_and(|error| error.contains("analysis unavailable control"))
+        );
+    }
+
+    #[test]
+    fn ownership_census_incomplete_attribution_path_names_the_unowned_token() {
+        let census = CssModuleTokenOwnershipCensusV0::new(
+            OmenaQueryBundleEmissionPathV0::ImportInlineLegacy.as_wire_label(),
+            0,
+            Vec::new(),
+            Vec::new(),
+            vec!["unowned-token".to_string()],
+            Vec::new(),
+        );
+        assert!(!census.complete);
+        assert!(census.unavailable_reasons.is_empty());
+        assert!(
+            validate_css_module_token_integrity(&census)
+                .is_err_and(|error| error.contains("unowned-token"))
+        );
+    }
+
+    #[test]
+    fn equivalent_workspace_relative_identity_produces_equal_tokens() -> Result<(), String> {
         let entry_a =
             collect_omena_query_style_fact_entry("/filesystem/card.module.css", ".card {}");
         let entry_b = collect_omena_query_style_fact_entry("memory/card.module.css", ".card {}");
