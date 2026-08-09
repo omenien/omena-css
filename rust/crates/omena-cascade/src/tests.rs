@@ -3224,7 +3224,7 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
     let report = run_cascade_conformance_seed_corpus();
 
     assert_eq!(report.product, "omena-cascade.conformance-seed-corpus");
-    assert_eq!(report.case_count, 21);
+    assert_eq!(report.case_count, 39);
     let important_origin_pin = report
         .results
         .iter()
@@ -3245,6 +3245,59 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
         .find(|result| result.name == "complex-functional-specificity-beats-source-order")
         .map(|result| (result.actual_outcome, result.actual_winner_id.as_deref()));
     assert_eq!(inversion_pin, Some(("definite", Some("complex"))));
+}
+
+#[test]
+fn conformance_corpus_counts_direction_conflicts() {
+    let conformance_report = run_cascade_conformance_seed_corpus();
+    let direction_conflicts = conformance_report
+        .results
+        .iter()
+        .filter(|result| {
+            result
+                .name
+                .starts_with("specificity-precedes-opposed-scope-")
+        })
+        .collect::<Vec<_>>();
+    let failures = direction_conflicts
+        .iter()
+        .filter(|result| !result.passed)
+        .collect::<Vec<_>>();
+
+    for result in &failures {
+        eprintln!(
+            "direction_conflict_failure case={} expected_deciding_axis=specificity expected_winner={:?} actual_winner={:?}",
+            result.name, result.expected_winner_id, result.actual_winner_id
+        );
+    }
+    eprintln!(
+        "direction_conflict_count={} direction_conflict_failure_count={}",
+        direction_conflicts.len(),
+        failures.len()
+    );
+    assert_eq!(direction_conflicts.len(), 18);
+    assert_eq!(failures.len(), 0);
+}
+
+#[test]
+fn equal_specificity_proximity_sweep_remains_complement() {
+    let self_check_report = run_cascade_ordering_axis_self_check_corpus();
+    let equal_specificity_proximity_complement = self_check_report
+        .results
+        .iter()
+        .filter(|result| result.name.starts_with("self-check-scope-proximity-"))
+        .collect::<Vec<_>>();
+    let failure_count = equal_specificity_proximity_complement
+        .iter()
+        .filter(|result| !result.passed)
+        .count();
+
+    eprintln!(
+        "equal_specificity_proximity_complement_count={} equal_specificity_proximity_failure_count={failure_count}",
+        equal_specificity_proximity_complement.len(),
+    );
+    assert_eq!(equal_specificity_proximity_complement.len(), 56);
+    assert_eq!(failure_count, 0);
 }
 
 fn hand_written_cascade_winner(case_name: &str) -> Option<String> {

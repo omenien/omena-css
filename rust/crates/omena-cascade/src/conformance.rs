@@ -151,7 +151,7 @@ fn run_cascade_conformance_seed_case(
 }
 
 fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
-    vec![
+    let mut cases = vec![
         CascadeConformanceSeedCase {
             name: "source-order-breaks-identical-key".to_string(),
             property: "color",
@@ -424,7 +424,7 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: Some("layered".to_string()),
         },
         CascadeConformanceSeedCase {
-            name: "scope-proximity-beats-specificity-tie".to_string(),
+            name: "nearer-scope-breaks-equal-specificity-tie".to_string(),
             property: "color",
             declarations: vec![
                 conformance_decl(
@@ -473,7 +473,92 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_outcome: "inherit",
             expected_winner_id: None,
         },
-    ]
+    ];
+
+    cases.extend(direction_conflict_conformance_seed_cases());
+    cases
+}
+
+fn direction_conflict_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
+    let specificities = [
+        ("zero", Specificity::ZERO),
+        ("class", Specificity::new(0, 1, 0)),
+        ("id", Specificity::new(1, 0, 0)),
+    ];
+    let proximities = [0, 1, 3];
+    let mut cases = Vec::new();
+
+    for (left_specificity_rank, (left_specificity_name, left_specificity)) in
+        specificities.into_iter().enumerate()
+    {
+        for (right_specificity_rank, (right_specificity_name, right_specificity)) in
+            specificities.into_iter().enumerate()
+        {
+            if left_specificity_rank == right_specificity_rank {
+                continue;
+            }
+
+            for left_proximity in proximities {
+                for right_proximity in proximities {
+                    if left_proximity == right_proximity {
+                        continue;
+                    }
+
+                    let specificity_prefers_left = left_specificity_rank > right_specificity_rank;
+                    let proximity_prefers_left = left_proximity < right_proximity;
+                    if specificity_prefers_left == proximity_prefers_left {
+                        continue;
+                    }
+
+                    // CSS Cascading Level 6 applies specificity before scoping
+                    // proximity. These inputs deliberately make the two axes
+                    // disagree, so the spec-authored winner is determined only
+                    // from the enumerated specificity rank above.
+                    let expected_winner = if specificity_prefers_left {
+                        "left"
+                    } else {
+                        "right"
+                    };
+                    cases.push(CascadeConformanceSeedCase {
+                        name: format!(
+                            "specificity-precedes-opposed-scope-{left_specificity_name}-{left_proximity}-vs-{right_specificity_name}-{right_proximity}"
+                        ),
+                        property: "color",
+                        declarations: vec![
+                            conformance_decl(
+                                "left",
+                                "color",
+                                "red",
+                                conformance_key(
+                                    CascadeLevel::AuthorNormal,
+                                    0,
+                                    left_proximity,
+                                    left_specificity,
+                                    1,
+                                ),
+                            ),
+                            conformance_decl(
+                                "right",
+                                "color",
+                                "blue",
+                                conformance_key(
+                                    CascadeLevel::AuthorNormal,
+                                    0,
+                                    right_proximity,
+                                    right_specificity,
+                                    2,
+                                ),
+                            ),
+                        ],
+                        expected_outcome: "definite",
+                        expected_winner_id: Some(expected_winner.to_string()),
+                    });
+                }
+            }
+        }
+    }
+
+    cases
 }
 
 fn selector_specificity_conformance_seed_cases() -> Vec<SelectorSpecificitySeedCase> {
