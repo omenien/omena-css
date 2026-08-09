@@ -32,7 +32,7 @@
   "sites": [
     {
       "path": "rust/crates/omena-cascade/src/lib.rs",
-      "line": 85,
+      "line": 86,
       "function": "prove_scope_flatten_candidate",
       "idiom": "equals",
       "keyword": ":root",
@@ -2012,7 +2012,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 625,
+      "line": 619,
       "function": "conditional_context_is_open",
       "idiom": "contains",
       "keyword": "@supports",
@@ -2066,7 +2066,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:6f7291b247ff8b3693fe9aec038e3d1e0a50a30d0682497c4d81683436588e76",
+  "siteDigest": "sha256:98a79a0659010dbedeca2fe9cd5939a863d9a5094bf088e13f5d11fbe3594599",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

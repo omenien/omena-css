@@ -163,7 +163,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
-        "line": 689,
+        "line": 683,
         "function": "query_selector_class_names",
         "operation": "ClassNameV0::into_raw",
         "evidence": "names.insert(entry.name.into_raw());",
@@ -171,7 +171,7 @@
         "reason": "Cascade diagnostics preserve authored selector spelling after shared lexical extraction."
       }
     ],
-    "siteDigest": "sha256:27118be52a64ac1afe05c5312d9dc82e6523352aee594c07141b11d767fcd446"
+    "siteDigest": "sha256:56748841afa6c93c63d927a51d27d222098e2850e2d2630cf7bcebb7832d5fd1"
   },
   "idiom": {
     "granularity": "line",
@@ -280,7 +280,7 @@
       },
       {
         "path": "rust/crates/omena-bundler/src/lib.rs",
-        "line": 2112,
+        "line": 2115,
         "function": "instance_reachability_inputs_closed_over_composes",
         "operation": "str-eq",
         "evidence": "changed |= target.class_names.len() != before;",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:dd25dec30d3ae1b1ca21fa0108c67871b7f54e08053816e1f2d3189d14b78ad2"
+    "siteDigest": "sha256:54c8ce35160083bbadff0e6bd67e9480dbc7d31c0505a36af72182e60878aac5"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
