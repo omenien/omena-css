@@ -1330,8 +1330,8 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
     const source = sources.get(testPath);
     assert.ok(source, `missing injected mirror source ${testPath}`);
     const drifted = source.replace(
-      '"scopeProximity",\n            "specificityIds",',
-      '"specificityIds",\n            "scopeProximity",',
+      '"specificityElements",\n            "scopeProximity",',
+      '"scopeProximity",\n            "specificityElements",',
     );
     assert.notEqual(drifted, source, "axis mirror falsifier needle is stale");
     sources.set(testPath, drifted);
