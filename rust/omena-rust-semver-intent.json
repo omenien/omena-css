@@ -130,16 +130,12 @@
     {
       "crate": "omena-cascade",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor seals layer-rank construction, adds explicit cascade and computed-value states, extends proof carriers, and retires the old corpus entry points.",
+      "reason": "The next pre-1.0 minor seals layer-rank construction, adds explicit cascade and computed-value states, extends proof carriers, retires the old corpus entry points, orders specificity before scope proximity, separates open-world tie evidence from the specification key, and adds typed cascade-axis reach disclosure.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
-            "field CascadeRankedSetLossCaptureV0.capture_state_recovery_count",
-            "field CascadeRankedSetLossCaptureV0.measurement_invocation_count",
-            "field CascadeRankedSetLossCaptureV0.multi_candidate_inexact_ranked_set_count",
-            "field CascadeRankedSetLossCaptureV0.ranked_set_outcome_count",
-            "field CascadeRankedSetLossCensusRowV0.candidates",
+            "field CascadeDeclaration.open_world_tie_evidence",
             "field SelectorSignature.functional_pseudo_constraints",
             "field CascadeComputedValueResultV0.fallback_indeterminate_reason",
             "field CustomPropertyLeastFixedPointProofV0.bounded_fixed_point_computation_witness",
@@ -149,11 +145,7 @@
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
-            "CascadeRankedSetLossCaptureV0.capture_state_recovery_count",
-            "CascadeRankedSetLossCaptureV0.measurement_invocation_count",
-            "CascadeRankedSetLossCaptureV0.multi_candidate_inexact_ranked_set_count",
-            "CascadeRankedSetLossCaptureV0.ranked_set_outcome_count",
-            "CascadeRankedSetLossCensusRowV0.candidates",
+            "CascadeDeclaration.open_world_tie_evidence",
             "SelectorSignature.functional_pseudo_constraints",
             "CascadeComputedValueResultV0.fallback_indeterminate_reason",
             "CustomPropertyLeastFixedPointProofV0.bounded_fixed_point_computation_witness",
@@ -186,8 +178,18 @@
           ]
         },
         {
+          "lint": "method_parameter_count_changed",
+          "evidenceNeedles": [
+            "omena_cascade::CascadeKey::new takes 6 parameters",
+            "but now takes 5 parameters"
+          ]
+        },
+        {
           "lint": "struct_pub_field_missing",
-          "evidenceNeedles": ["field 0 of struct LayerRank"]
+          "evidenceNeedles": [
+            "field 0 of struct LayerRank",
+            "field module_rank of struct CascadeKey"
+          ]
         },
         {
           "lint": "struct_pub_field_now_doc_hidden",
@@ -226,9 +228,49 @@
               ]
             },
             {
-              "sourcePath": "rust/crates/omena-cascade/src/ranking.rs",
+              "sourcePath": "rust/crates/omena-cascade/src/axis_order.rs",
               "needles": [
                 "CascadeLevel::AuthorImportant => 5,\n        CascadeLevel::InlineImportant => 6,"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cascade-spec-axis-order-and-classification",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeKey::Ord, the emitted omena-cascade.key-axis-order schema, CascadeMarginSchemaV0.axisOrder, and CascadeRankedSetLossClassV0 deciding-axis classification",
+          "reason": "Specificity axes now outrank scope proximity, so public key ordering and serialized axis order follow the CSS cascade while scope proximity no longer qualifies as a strict pre-specificity dominance axis.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/axis_order.rs",
+              "needles": [
+                "CascadeKeyAxisV0::SpecificityIds,\n    CascadeKeyAxisV0::SpecificityClasses,\n    CascadeKeyAxisV0::SpecificityElements,\n    CascadeKeyAxisV0::ScopeProximity,",
+                "compare_axes(left, right, cascade_key_axis_order_v0().iter().copied())"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": ["crate::axis_order::compare_cascade_key_axes_v0(self, other)"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/ranking.rs",
+              "needles": [
+                "axis_order: cascade_key_axis_order_v0()\n            .iter()",
+                "first_deciding_cascade_key_axis_v0(&winner, &challenger)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
+              "needles": [
+                "compare_cascade_axis_prefix(&winner.key, &runner_up.key)",
+                "first_deciding_cascade_key_axis_v0(winner, runner_up)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/data/cascade-key-axis-order.json",
+              "needles": [
+                "\"product\": \"omena-cascade.key-axis-order\"",
+                "\"specificityElements\",\n    \"scopeProximity\",\n    \"sourceOrder\""
               ]
             }
           ]
@@ -238,7 +280,7 @@
     {
       "crate": "omena-bundler",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The public cascade-key constructor accepts an ordinal and importance, linked dependency edges carry composed selector names, reachability is keyed by module instance, and dependency resolution now has an explicit authority mode with consumer-visible disclosures.",
+      "reason": "The public cascade-key helper accepts an ordinal and importance and returns the specification key beside open-world tie evidence, linked dependency edges carry composed selector names, reachability is keyed by module instance, and dependency resolution now has an explicit authority mode with consumer-visible disclosures.",
       "expectedFailures": [
         {
           "lint": "method_parameter_count_changed",
@@ -321,7 +363,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance, while bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity.",
+      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, and cascade confidence weights follow the cascade-axis authority.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -436,6 +478,28 @@
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
               "needles": ["pub closed_world_admission: TransformClosedWorldAdmissionSummaryV0"]
+            }
+          ]
+        },
+        {
+          "id": "cascade-confidence-axis-order",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryCascadeConfidenceV0.dominantAxisWeightBasisPoints, confidenceScoreBasisPoints, and confidenceBucket",
+          "reason": "Specificity confidence weights now outrank scope proximity and the serialized score and bucket are derived from the same cascade-axis authority.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/confidence.rs",
+              "needles": [
+                "let axis_order = AXIS_ORDER.get_or_init(|| summarize_cascade_margin_schema_v0().axis_order);",
+                ".and_then(|position| u16::try_from((axis_order.len() - position) * 1_000).ok())",
+                "query_cascade_confidence_score_basis_points("
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/axis_order.rs",
+              "needles": [
+                "CascadeKeyAxisV0::SpecificityElements,\n    CascadeKeyAxisV0::ScopeProximity,\n    CascadeKeyAxisV0::SourceOrder,"
+              ]
             }
           ]
         }
