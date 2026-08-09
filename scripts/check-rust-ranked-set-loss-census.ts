@@ -553,7 +553,7 @@ function cascadeAxisOrderSiteDispositionsV0(): readonly AxisOrderSiteDisposition
       disposition: "mirror",
     },
     {
-      id: "rust/crates/omena-cascade/src/tests.rs#orders_cascade_keys_by_level_layer_scope_specificity_and_source",
+      id: "rust/crates/omena-cascade/src/tests.rs#cascade_key_order_covers_each_spec_axis",
       disposition: "mirror",
     },
     {
@@ -708,9 +708,20 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
   );
 
   const discovered = discoverAxisOrderSites(sources);
+  const authorityPresent = sources.has("rust/crates/omena-cascade/src/axis_order.rs");
   const dispositions = [...cascadeAxisOrderSiteDispositionsV0()];
   if (sources.has("rust/crates/omena-cascade/examples/cascade_key_axis_order.rs")) {
     dispositions.push(emittedAxisOrderSiteDispositionV0());
+  }
+  if (
+    sources
+      .get("rust/crates/omena-cascade/src/tests.rs")
+      ?.includes("fn library_axis_order_prefers_specificity_before_scope_proximity")
+  ) {
+    dispositions.push({
+      id: "rust/crates/omena-cascade/src/tests.rs#library_axis_order_prefers_specificity_before_scope_proximity",
+      disposition: "mirror",
+    });
   }
   assert.deepEqual(
     discovered.map((site) => site.id).toSorted(),
@@ -722,7 +733,7 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
   const sites = dispositions.map(({ id, disposition, owner, reentry }) => {
     const discoveredSite = discoveredById.get(id);
     assert.ok(discoveredSite, `missing discovered axis-order site ${id}`);
-    if (disposition === "consumer" && sources.has("rust/crates/omena-cascade/src/axis_order.rs")) {
+    if (disposition === "consumer" && authorityPresent) {
       assert.equal(
         discoveredSite.authorityLinked,
         true,
@@ -735,6 +746,7 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
     }
     return {
       ...discoveredSite,
+      authorityLinked: authorityPresent && discoveredSite.authorityLinked,
       disposition,
       ...(owner === undefined ? {} : { owner }),
       ...(reentry === undefined ? {} : { reentry }),
@@ -749,7 +761,7 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
   return {
     product: "omena-cascade.key-axis-order-site-census",
     sourceRef: sourceRef ?? "worktree",
-    authorityPresent: sources.has("rust/crates/omena-cascade/src/axis_order.rs"),
+    authorityPresent,
     siteCount: sites.length,
     dispositionCounts,
     domain: cascadeAxisOrderDomainV0(),
@@ -941,6 +953,13 @@ function rustCharLiteralEnd(source: string, start: number): number {
 }
 
 function normalizeAxisOrderSymbol(file: string, symbol: string): string | undefined {
+  if (
+    file === "rust/crates/omena-cascade/src/tests.rs" &&
+    (symbol === "orders_cascade_keys_by_level_layer_scope_specificity_and_source" ||
+      symbol === "orders_cascade_keys_by_level_layer_specificity_scope_and_source")
+  ) {
+    return "cascade_key_order_covers_each_spec_axis";
+  }
   if (isAxisOrderDetectorInternal(file, symbol)) return undefined;
   if (
     file === "scripts/check-rust-ranked-set-loss-census.ts" &&

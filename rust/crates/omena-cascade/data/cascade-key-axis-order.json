@@ -4,11 +4,11 @@
   "axisOrder": [
     "level",
     "layerRank",
-    "scopeProximity",
     "specificityIds",
     "specificityClasses",
     "specificityElements",
+    "scopeProximity",
     "sourceOrder"
   ],
-  "rankedSetPrefixAxisVocabulary": ["level", "layerRank", "scopeProximity"]
+  "rankedSetPrefixAxisVocabulary": ["level", "layerRank"]
 }

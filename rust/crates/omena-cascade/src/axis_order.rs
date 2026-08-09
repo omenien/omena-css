@@ -16,10 +16,10 @@ pub(crate) enum CascadeKeyAxisV0 {
 pub(crate) const CASCADE_KEY_AXIS_ORDER_V0: [CascadeKeyAxisV0; 7] = [
     CascadeKeyAxisV0::Level,
     CascadeKeyAxisV0::LayerRank,
-    CascadeKeyAxisV0::ScopeProximity,
     CascadeKeyAxisV0::SpecificityIds,
     CascadeKeyAxisV0::SpecificityClasses,
     CascadeKeyAxisV0::SpecificityElements,
+    CascadeKeyAxisV0::ScopeProximity,
     CascadeKeyAxisV0::SourceOrder,
 ];
 

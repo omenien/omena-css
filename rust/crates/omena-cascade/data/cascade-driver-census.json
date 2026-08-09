@@ -58,8 +58,8 @@
   "winnerAxes": [
     { "axis": "cascadeLevel", "status": "driven" },
     { "axis": "layerRank", "status": "driven" },
-    { "axis": "scopeProximity", "status": "driven" },
     { "axis": "specificity", "status": "driven" },
+    { "axis": "scopeProximity", "status": "driven" },
     { "axis": "sourceOrder", "status": "driven" }
   ]
 }

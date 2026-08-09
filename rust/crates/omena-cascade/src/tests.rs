@@ -232,7 +232,7 @@ fn keeps_scope_proximity_unknown_for_inexact_dynamic_classes() {
 }
 
 #[test]
-fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
+fn orders_cascade_keys_by_level_layer_specificity_scope_and_source() {
     let base = key(
         CascadeLevel::AuthorNormal,
         0,
@@ -284,6 +284,66 @@ fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
             Specificity::new(0, 1, 0),
             2,
         ) > base
+    );
+}
+
+#[test]
+fn library_axis_order_prefers_specificity_before_scope_proximity() {
+    let outer = declaration(
+        "outer-high-specificity",
+        "OUTER",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            2,
+            Specificity::new(1, 0, 1),
+            0,
+        ),
+    );
+    let inner = declaration(
+        "inner-low-specificity",
+        "INNER",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::new(0, 1, 0),
+            1,
+        ),
+    );
+
+    let observed = [
+        [outer.clone(), inner.clone()],
+        [inner.clone(), outer.clone()],
+    ]
+    .into_iter()
+    .map(
+        |declarations| match cascade_property(declarations, "color") {
+            CascadeOutcome::Definite { winner, .. } => {
+                ("Definite", Some(winner.id), Some(winner.value))
+            }
+            CascadeOutcome::RankedSet(_) => ("RankedSet", None, None),
+            CascadeOutcome::Inherit => ("Inherit", None, None),
+            CascadeOutcome::Top => ("Top", None, None),
+        },
+    )
+    .collect::<Vec<_>>();
+    let expected = vec![
+        (
+            "Definite",
+            Some("outer-high-specificity".to_string()),
+            Some(CascadeValue::Literal("OUTER".to_string())),
+        ),
+        (
+            "Definite",
+            Some("outer-high-specificity".to_string()),
+            Some(CascadeValue::Literal("OUTER".to_string())),
+        ),
+    ];
+
+    assert_eq!(
+        observed, expected,
+        "the published cascade order requires specificity to precede scoping proximity"
     );
 }
 
@@ -492,16 +552,18 @@ fn open_world_selector_matches_the_hand_written_axis_order() -> Result<(), Strin
                 continue;
             }
 
-            // This independent tuple is intentionally test-only: it makes the
-            // production comparator's module-rank limb falsifiable.
+            // This test-only tuple is authored from CSS Cascading and Inheritance
+            // Level 6 section 3.1 (W3C Working Draft 2024-09-06): specificity
+            // precedes scoping proximity; module provenance is the final
+            // open-world tie-break.
             let oracle_key = |key: CascadeKey| {
                 (
                     key.level,
                     key.layer_rank.get(),
-                    Reverse(key.scope_proximity),
                     key.specificity.ids,
                     key.specificity.classes,
                     key.specificity.elements,
+                    Reverse(key.scope_proximity),
                     key.source_order,
                     key.module_rank.distance_priority,
                     key.module_rank.import_order_priority,
@@ -709,10 +771,10 @@ fn cascade_margin_schema_is_substrate_only_until_calibrated() {
         vec![
             "level",
             "layerRank",
-            "scopeProximity",
             "specificityIds",
             "specificityClasses",
             "specificityElements",
+            "scopeProximity",
             "sourceOrder",
         ]
     );
