@@ -28,7 +28,10 @@ use omena_query::{
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0,
 };
-use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
+use omena_sif::{
+    compute_omena_sif_leaf_hash_v1, compute_omena_stable_cache_shard_address_v1,
+    write_omena_canonical_json_bytes_v1,
+};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::cell::RefCell;
@@ -847,7 +850,7 @@ fn disk_diagnostics_shard_workspace_snapshot_id(
     serde_json::from_value(shard.get("workspaceSnapshotId")?.clone()).ok()
 }
 
-const RELOCATED_WORKSPACE_CACHE_DIR_NAMES: &[&str] = &[
+const RETIRED_WORKSPACE_CACHE_DIR_NAMES: &[&str] = &[
     "diagnostics-cache-v0",
     "source-document-index-v0",
     "source-occurrence-index-v0",
@@ -857,8 +860,17 @@ const RELOCATED_WORKSPACE_CACHE_DIR_NAMES: &[&str] = &[
     "style-symbol-occurrence-index-v1",
     "workspace-occurrence-shards-v0",
 ];
+const RELOCATED_CURRENT_WORKSPACE_CACHE_DIR_NAMES: &[&str] = &[
+    "diagnostics-cache-v1",
+    "external-sif-v0",
+    "source-document-index-v1",
+    "source-type-fact-cache-v1",
+    "workspace-occurrence-shards-v1",
+];
 
 pub(crate) fn sweep_relocated_workspace_cache_roots(state: &mut crate::LspShellState) {
+    let remove_current_caches =
+        state.resolution.cache_storage.location != crate::cache_root::CacheLocationV0::Workspace;
     let workspace_roots = state
         .workspace_runtime_registry
         .folder_snapshots()
@@ -870,21 +882,155 @@ pub(crate) fn sweep_relocated_workspace_cache_roots(state: &mut crate::LspShellS
         if !state.swept_legacy_cache_roots.insert(omena_root.clone()) {
             continue;
         }
-        for cache_dir_name in RELOCATED_WORKSPACE_CACHE_DIR_NAMES {
+        sweep_relocated_workspace_cache_root(omena_root.as_path(), remove_current_caches);
+    }
+}
+
+fn sweep_relocated_workspace_cache_root(omena_root: &Path, remove_current_caches: bool) {
+    if !cache_path_is_real_directory(omena_root)
+        || !omena_root
+            .parent()
+            .is_some_and(cache_path_is_real_directory)
+    {
+        return;
+    }
+    let mut removed_selected_cache_paths = true;
+    for cache_dir_name in RETIRED_WORKSPACE_CACHE_DIR_NAMES {
+        let owned_path = omena_root.join(cache_dir_name);
+        removed_selected_cache_paths &= remove_relocated_owned_cache_path(owned_path.as_path());
+    }
+    if remove_current_caches {
+        for cache_dir_name in RELOCATED_CURRENT_WORKSPACE_CACHE_DIR_NAMES {
             let owned_path = omena_root.join(cache_dir_name);
-            if owned_path.is_dir() {
-                let _ = fs::remove_dir_all(owned_path);
-            }
-        }
-        if !omena_root.join("external-sif-v0").exists() {
-            for owned_file_name in [".gitignore", "CACHEDIR.TAG", ".omena-cache-owner.json"] {
-                let owned_path = omena_root.join(owned_file_name);
-                if owned_path.is_file() {
-                    let _ = fs::remove_file(owned_path);
-                }
-            }
+            removed_selected_cache_paths &= remove_relocated_owned_cache_path(owned_path.as_path());
         }
     }
+
+    // The ignore marker is the visibility barrier. Keep it whenever an owned
+    // cache path could not be removed or a foreign entry remains, so a partial
+    // sweep cannot turn a clean repository dirty. Once every named cache is
+    // absent and only owned markers remain, remove the other marker files first
+    // and the ignore marker last. `remove_dir` then removes the empty subtree.
+    if !removed_selected_cache_paths
+        || RETIRED_WORKSPACE_CACHE_DIR_NAMES
+            .iter()
+            .chain(RELOCATED_CURRENT_WORKSPACE_CACHE_DIR_NAMES)
+            .any(|cache_dir_name| {
+                !cache_path_is_definitely_absent(omena_root.join(cache_dir_name).as_path())
+            })
+    {
+        return;
+    }
+    if !relocated_cache_root_contains_only_owned_markers(omena_root) {
+        return;
+    }
+    let owned_markers = [
+        (
+            ".omena-cache-owner.json",
+            RelocatedOwnedMarkerV0::Attribution,
+        ),
+        (
+            "CACHEDIR.TAG",
+            RelocatedOwnedMarkerV0::Exact(OMENA_CACHEDIR_TAG_BYTES),
+        ),
+        (
+            ".gitignore",
+            RelocatedOwnedMarkerV0::Exact(OMENA_CACHE_GITIGNORE_BYTES),
+        ),
+    ];
+    if owned_markers.iter().any(|(owned_file_name, marker)| {
+        !relocated_marker_is_absent_or_owned(omena_root.join(owned_file_name).as_path(), *marker)
+    }) {
+        return;
+    }
+    for (owned_file_name, marker) in owned_markers {
+        let owned_path = omena_root.join(owned_file_name);
+        if !remove_relocated_owned_marker(owned_path.as_path(), marker) {
+            return;
+        }
+    }
+    let _ = fs::remove_dir(omena_root);
+}
+
+fn relocated_cache_root_contains_only_owned_markers(omena_root: &Path) -> bool {
+    let entries = match fs::read_dir(omena_root) {
+        Ok(entries) => entries,
+        Err(_) => return false,
+    };
+    entries.into_iter().all(|entry| {
+        entry.ok().is_some_and(|entry| {
+            matches!(
+                entry.file_name().to_str(),
+                Some(".omena-cache-owner.json" | "CACHEDIR.TAG" | ".gitignore")
+            )
+        })
+    })
+}
+
+fn remove_relocated_owned_cache_path(path: &Path) -> bool {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
+    };
+    let removed = if metadata.file_type().is_dir() && !metadata.file_type().is_symlink() {
+        fs::remove_dir_all(path)
+    } else {
+        fs::remove_file(path)
+    };
+    removed.is_ok() && cache_path_is_definitely_absent(path)
+}
+
+#[derive(Clone, Copy)]
+enum RelocatedOwnedMarkerV0 {
+    Attribution,
+    Exact(&'static [u8]),
+}
+
+fn relocated_marker_is_absent_or_owned(path: &Path, marker: RelocatedOwnedMarkerV0) -> bool {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
+    };
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return false;
+    }
+    let Ok(bytes) = fs::read(path) else {
+        return false;
+    };
+    match marker {
+        RelocatedOwnedMarkerV0::Exact(expected) => bytes == expected,
+        RelocatedOwnedMarkerV0::Attribution => serde_json::from_slice::<Value>(&bytes)
+            .ok()
+            .is_some_and(|value| {
+                value.pointer("/schemaVersion").and_then(Value::as_str) == Some("0")
+                    && value.pointer("/product").and_then(Value::as_str)
+                        == Some("omena.cache-root-attribution")
+                    && value
+                        .pointer("/workspaceIdentity")
+                        .and_then(Value::as_str)
+                        .is_some()
+            }),
+    }
+}
+
+fn remove_relocated_owned_marker(path: &Path, marker: RelocatedOwnedMarkerV0) -> bool {
+    if !relocated_marker_is_absent_or_owned(path, marker) {
+        return false;
+    }
+    match fs::remove_file(path) {
+        Ok(()) => cache_path_is_definitely_absent(path),
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    }
+}
+
+fn cache_path_is_definitely_absent(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+}
+
+fn cache_path_is_real_directory(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .ok()
+        .is_some_and(|metadata| metadata.file_type().is_dir())
 }
 
 /// Stable shard address for ANY cache subsystem: IDENTITY parts only —
@@ -894,14 +1040,9 @@ pub(crate) fn sweep_relocated_workspace_cache_roots(state: &mut crate::LspShellS
 /// shared by every sidecar (the content-keyed alternative grew without
 /// bound: one new file per corpus state, no eviction).
 pub(crate) fn stable_cache_shard_address(product: &str, identity_parts: &[&str]) -> Option<String> {
-    let input = json!({
-        "schemaVersion": "address-v1",
-        "product": product,
-        "identityParts": identity_parts,
-    });
-    let canonical_bytes = write_omena_canonical_json_bytes_v1(&input).ok()?;
     Some(
-        compute_omena_sif_leaf_hash_v1(canonical_bytes.as_slice())
+        compute_omena_stable_cache_shard_address_v1(product, identity_parts)
+            .ok()?
             .as_str()
             .to_string(),
     )

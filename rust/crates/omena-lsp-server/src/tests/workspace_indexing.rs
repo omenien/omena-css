@@ -1786,27 +1786,255 @@ fn cache_location_configuration_switches_all_caches_to_workspace_mode() -> TestR
 
 #[test]
 fn initialization_sweeps_only_owned_workspace_cache_paths() -> TestResult {
+    const RELOCATED_LEGACY_CACHE_DIRS: [&str; 8] = [
+        "diagnostics-cache-v0",
+        "source-document-index-v0",
+        "source-occurrence-index-v0",
+        "source-occurrence-index-v1",
+        "source-type-fact-cache-v0",
+        "style-symbol-occurrence-index-v0",
+        "style-symbol-occurrence-index-v1",
+        "workspace-occurrence-shards-v0",
+    ];
+    const RELOCATED_CURRENT_CACHE_DIRS: [&str; 5] = [
+        "diagnostics-cache-v1",
+        "source-document-index-v1",
+        "source-type-fact-cache-v1",
+        "workspace-occurrence-shards-v1",
+        "external-sif-v0",
+    ];
+
     let nonce = format!("{}", std::process::id());
-    let workspace_root =
+    let fixture_root =
         std::env::temp_dir().join(format!("omena-lsp-server-cache-sweep-workspace-{nonce}"));
     let editor_storage_root =
         std::env::temp_dir().join(format!("omena-lsp-server-cache-sweep-editor-{nonce}"));
-    let _ = std::fs::remove_dir_all(&workspace_root);
+    let _ = std::fs::remove_dir_all(&fixture_root);
     let _ = std::fs::remove_dir_all(&editor_storage_root);
-    let legacy_dir = workspace_root
+    std::fs::create_dir_all(&fixture_root)?;
+
+    let run_git = |args: &[&str]| -> Result<std::process::Output, std::io::Error> {
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(&fixture_root)
+            .output()
+    };
+    assert!(run_git(&["init", "--quiet"])?.status.success());
+    assert!(
+        run_git(&["config", "user.email", "cache-sweep@example.invalid"])?
+            .status
+            .success()
+    );
+    assert!(
+        run_git(&["config", "user.name", "Cache Sweep Fixture"])?
+            .status
+            .success()
+    );
+
+    let mut rows = Vec::new();
+    for residual_mask in 0_u8..(1 << RELOCATED_CURRENT_CACHE_DIRS.len()) {
+        for markers_present in [false, true] {
+            let row_name = format!(
+                "row-{residual_mask:02}-markers-{}",
+                if markers_present { "present" } else { "absent" }
+            );
+            let workspace_root = fixture_root.join(row_name.as_str());
+            let omena_root = workspace_root.join(".cache").join("omena");
+            std::fs::create_dir_all(&omena_root)?;
+            let foreign_file = omena_root.join("foreign-tool-state.txt");
+            std::fs::write(&foreign_file, b"keep")?;
+            let foreign_cache_file = workspace_root.join(".cache").join("other-tool-state.txt");
+            std::fs::write(&foreign_cache_file, b"keep")?;
+            rows.push((
+                residual_mask,
+                markers_present,
+                workspace_root,
+                foreign_file,
+                foreign_cache_file,
+            ));
+        }
+    }
+    let workspace_mode_root = fixture_root.join("workspace-mode-control");
+    let workspace_mode_omena_root = workspace_mode_root.join(".cache").join("omena");
+    std::fs::create_dir_all(&workspace_mode_omena_root)?;
+    let workspace_mode_foreign = workspace_mode_omena_root.join("foreign-tool-state.txt");
+    std::fs::write(&workspace_mode_foreign, b"keep")?;
+    std::fs::write(
+        workspace_mode_omena_root.join(".gitignore"),
+        crate::disk_cache::OMENA_CACHE_GITIGNORE_BYTES,
+    )?;
+    std::fs::write(
+        workspace_mode_omena_root.join("CACHEDIR.TAG"),
+        crate::disk_cache::OMENA_CACHEDIR_TAG_BYTES,
+    )?;
+    std::fs::write(
+        workspace_mode_omena_root.join(".omena-cache-owner.json"),
+        serde_json::to_vec(&json!({
+            "schemaVersion": "0",
+            "product": "omena.cache-root-attribution",
+            "workspaceIdentity": workspace_mode_root.to_string_lossy(),
+        }))?,
+    )?;
+
+    let marker_control_roots = (0..4)
+        .map(|ordinal| fixture_root.join(format!("foreign-marker-control-{ordinal}")))
+        .collect::<Vec<_>>();
+    for (ordinal, workspace_root) in marker_control_roots.iter().enumerate() {
+        let omena_root = workspace_root.join(".cache").join("omena");
+        std::fs::create_dir_all(&omena_root)?;
+        let attribution = if ordinal == 0 {
+            serde_json::to_vec(&json!({
+                "schemaVersion": "0",
+                "product": "foreign.cache-root-attribution",
+                "workspaceIdentity": workspace_root.to_string_lossy(),
+            }))?
+        } else {
+            serde_json::to_vec(&json!({
+                "schemaVersion": "0",
+                "product": "omena.cache-root-attribution",
+                "workspaceIdentity": workspace_root.to_string_lossy(),
+            }))?
+        };
+        std::fs::write(omena_root.join(".omena-cache-owner.json"), attribution)?;
+        if ordinal == 3 {
+            std::fs::create_dir_all(omena_root.join("CACHEDIR.TAG"))?;
+            std::fs::write(omena_root.join("CACHEDIR.TAG").join("foreign.txt"), b"keep")?;
+        } else {
+            let cachedir_bytes = if ordinal == 1 {
+                b"foreign cachedir marker\n".as_slice()
+            } else {
+                crate::disk_cache::OMENA_CACHEDIR_TAG_BYTES
+            };
+            std::fs::write(omena_root.join("CACHEDIR.TAG"), cachedir_bytes)?;
+        }
+        let gitignore_bytes = if ordinal == 2 {
+            b"# foreign ignore policy\nforeign-only\n".as_slice()
+        } else {
+            crate::disk_cache::OMENA_CACHE_GITIGNORE_BYTES
+        };
+        std::fs::write(omena_root.join(".gitignore"), gitignore_bytes)?;
+    }
+
+    #[cfg(unix)]
+    let symlink_control = {
+        let workspace_root = fixture_root.join("symlink-root-control");
+        let cache_root = workspace_root.join(".cache");
+        let external_omena_root =
+            std::env::temp_dir().join(format!("omena-lsp-server-cache-sweep-external-{nonce}"));
+        let _ = std::fs::remove_dir_all(&external_omena_root);
+        std::fs::create_dir_all(&cache_root)?;
+        std::fs::create_dir_all(&external_omena_root)?;
+        std::os::unix::fs::symlink(&external_omena_root, cache_root.join("omena"))?;
+        Some((workspace_root, external_omena_root))
+    };
+    #[cfg(not(unix))]
+    let symlink_control: Option<(std::path::PathBuf, std::path::PathBuf)> = None;
+
+    let owned_only_control_root = fixture_root.join("owned-only-control");
+    let hidden_foreign_control_root = fixture_root.join("hidden-foreign-control");
+
+    assert!(run_git(&["add", "-f", "."])?.status.success());
+    assert!(
+        run_git(&["commit", "--quiet", "-m", "baseline foreign cache files"])?
+            .status
+            .success()
+    );
+
+    for (residual_mask, markers_present, workspace_root, _, _) in &rows {
+        let omena_root = workspace_root.join(".cache").join("omena");
+        for cache_dir_name in RELOCATED_LEGACY_CACHE_DIRS {
+            let legacy_dir = omena_root.join(cache_dir_name);
+            std::fs::create_dir_all(&legacy_dir)?;
+            std::fs::write(legacy_dir.join("dead.json"), b"{}")?;
+        }
+        for (ordinal, cache_dir_name) in RELOCATED_CURRENT_CACHE_DIRS.iter().enumerate() {
+            if residual_mask & (1 << ordinal) == 0 {
+                continue;
+            }
+            let cache_dir = omena_root.join(cache_dir_name);
+            std::fs::create_dir_all(&cache_dir)?;
+            std::fs::write(cache_dir.join("stale.json"), b"{}")?;
+        }
+        if *markers_present {
+            std::fs::write(
+                omena_root.join(".gitignore"),
+                crate::disk_cache::OMENA_CACHE_GITIGNORE_BYTES,
+            )?;
+            std::fs::write(
+                omena_root.join("CACHEDIR.TAG"),
+                crate::disk_cache::OMENA_CACHEDIR_TAG_BYTES,
+            )?;
+            std::fs::write(
+                omena_root.join(".omena-cache-owner.json"),
+                serde_json::to_vec(&json!({
+                    "schemaVersion": "0",
+                    "product": "omena.cache-root-attribution",
+                    "workspaceIdentity": workspace_root.to_string_lossy(),
+                }))?,
+            )?;
+        }
+    }
+    for cache_dir_name in RELOCATED_LEGACY_CACHE_DIRS
+        .into_iter()
+        .chain(RELOCATED_CURRENT_CACHE_DIRS)
+    {
+        let cache_dir = workspace_mode_omena_root.join(cache_dir_name);
+        std::fs::create_dir_all(&cache_dir)?;
+        std::fs::write(cache_dir.join("shard.json"), b"{}")?;
+    }
+    for workspace_root in &marker_control_roots {
+        let cache_dir = workspace_root
+            .join(".cache")
+            .join("omena")
+            .join("diagnostics-cache-v1");
+        std::fs::create_dir_all(&cache_dir)?;
+        std::fs::write(cache_dir.join("stale.json"), b"{}")?;
+    }
+    if let Some((_, external_omena_root)) = &symlink_control {
+        let external_cache = external_omena_root.join("diagnostics-cache-v1");
+        std::fs::create_dir_all(&external_cache)?;
+        std::fs::write(external_cache.join("must-survive.json"), b"{}")?;
+    }
+    for workspace_root in [&owned_only_control_root, &hidden_foreign_control_root] {
+        let omena_root = workspace_root.join(".cache").join("omena");
+        let current_cache = omena_root.join("diagnostics-cache-v1");
+        std::fs::create_dir_all(&current_cache)?;
+        std::fs::write(current_cache.join("stale.json"), b"{}")?;
+        std::fs::write(
+            omena_root.join(".gitignore"),
+            crate::disk_cache::OMENA_CACHE_GITIGNORE_BYTES,
+        )?;
+        std::fs::write(
+            omena_root.join("CACHEDIR.TAG"),
+            crate::disk_cache::OMENA_CACHEDIR_TAG_BYTES,
+        )?;
+        std::fs::write(
+            omena_root.join(".omena-cache-owner.json"),
+            serde_json::to_vec(&json!({
+                "schemaVersion": "0",
+                "product": "omena.cache-root-attribution",
+                "workspaceIdentity": workspace_root.to_string_lossy(),
+            }))?,
+        )?;
+    }
+    let hidden_foreign_file = hidden_foreign_control_root
         .join(".cache")
         .join("omena")
-        .join("diagnostics-cache-v0");
-    std::fs::create_dir_all(&legacy_dir)?;
-    std::fs::write(legacy_dir.join("dead.json"), b"{}")?;
-    let foreign_file = workspace_root
-        .join(".cache")
-        .join("omena")
-        .join("foreign-tool-state.txt");
-    std::fs::write(&foreign_file, b"keep")?;
-    let foreign_cache_file = workspace_root.join(".cache").join("other-tool-state.txt");
-    std::fs::write(&foreign_cache_file, b"keep")?;
-    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        .join("foreign-untracked-state.txt");
+    std::fs::write(&hidden_foreign_file, b"keep hidden")?;
+    let hidden_status_before = run_git(&[
+        "status",
+        "--porcelain",
+        "--",
+        "hidden-foreign-control/.cache/omena",
+    ])?;
+    assert!(hidden_status_before.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&hidden_status_before.stdout),
+        "",
+        "the exact ignore marker must hide the foreign entry before the sweep"
+    );
+
     let cache_storage = crate::cache_root::LspCacheStorageConfigV0 {
         initialization_global_storage: Some(editor_storage_root.join("global")),
         initialization_workspace_storage: Some(editor_storage_root.join("workspace")),
@@ -1814,21 +2042,46 @@ fn initialization_sweeps_only_owned_workspace_cache_paths() -> TestResult {
         command_cache_dir: None,
         location: crate::cache_root::CacheLocationV0::Editor,
     };
-    let resolved_root_survivor = crate::cache_root::process_cache_roots(
-        &cache_storage,
-        workspace_uri.as_str(),
-        workspace_root.as_path(),
-    )
-    .workspace
-    .ok_or_else(|| std::io::Error::other("editor cache root should resolve"))?
-    .join("diagnostics-cache-v1")
-    .join("preexisting-shard.json");
-    std::fs::create_dir_all(
-        resolved_root_survivor
-            .parent()
-            .ok_or_else(|| std::io::Error::other("resolved survivor parent"))?,
-    )?;
-    std::fs::write(&resolved_root_survivor, b"keep")?;
+    let mut workspace_folders = Vec::new();
+    let mut resolved_root_survivors = Vec::new();
+    for (_, _, workspace_root, _, _) in &rows {
+        let workspace_uri = path_to_file_uri(workspace_root.as_path());
+        workspace_folders.push(json!({"uri": workspace_uri, "name": "cache-sweep"}));
+        let resolved_root_survivor = crate::cache_root::process_cache_roots(
+            &cache_storage,
+            workspace_uri.as_str(),
+            workspace_root.as_path(),
+        )
+        .workspace
+        .ok_or_else(|| std::io::Error::other("editor cache root should resolve"))?
+        .join("diagnostics-cache-v1")
+        .join("preexisting-shard.json");
+        std::fs::create_dir_all(
+            resolved_root_survivor
+                .parent()
+                .ok_or_else(|| std::io::Error::other("resolved survivor parent"))?,
+        )?;
+        std::fs::write(&resolved_root_survivor, b"keep")?;
+        resolved_root_survivors.push(resolved_root_survivor);
+    }
+    for workspace_root in &marker_control_roots {
+        workspace_folders.push(json!({
+            "uri": path_to_file_uri(workspace_root.as_path()),
+            "name": "foreign-marker-control",
+        }));
+    }
+    if let Some((workspace_root, _)) = &symlink_control {
+        workspace_folders.push(json!({
+            "uri": path_to_file_uri(workspace_root.as_path()),
+            "name": "symlink-root-control",
+        }));
+    }
+    for workspace_root in [&owned_only_control_root, &hidden_foreign_control_root] {
+        workspace_folders.push(json!({
+            "uri": path_to_file_uri(workspace_root.as_path()),
+            "name": "marker-atomicity-control",
+        }));
+    }
 
     let mut state = LspShellState::default();
     handle_lsp_message(
@@ -1845,37 +2098,180 @@ fn initialization_sweeps_only_owned_workspace_cache_paths() -> TestResult {
                         "location": "editor",
                     },
                 },
-                "workspaceFolders": [{"uri": workspace_uri, "name": "cache-sweep"}],
+                "workspaceFolders": workspace_folders,
             },
         }),
     );
 
-    assert!(
-        !legacy_dir.exists(),
-        "session initialization must sweep the abandoned workspace cache even when diagnostics writes are disabled: {legacy_dir:?}"
-    );
-    assert!(
-        foreign_file.is_file(),
-        "the sweep must preserve foreign files"
-    );
-    assert!(
-        foreign_cache_file.is_file(),
-        "the sweep must preserve the enclosing .cache directory and other tools' files"
-    );
-    assert!(
-        resolved_root_survivor.is_file(),
-        "the sweep must not target the newly resolved editor root"
-    );
-    eprintln!(
-        "cacheSweep legacyExists={} foreignOwnedTreeExists={} foreignEnclosingCacheExists={} resolvedRootSurvivorExists={}",
-        legacy_dir.exists(),
-        foreign_file.exists(),
-        foreign_cache_file.exists(),
-        resolved_root_survivor.exists(),
+    let hidden_foreign_omena_root = hidden_foreign_control_root.join(".cache").join("omena");
+    let hidden_status_after = run_git(&[
+        "status",
+        "--porcelain",
+        "--",
+        "hidden-foreign-control/.cache/omena",
+    ])?;
+    assert!(hidden_status_after.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&hidden_status_after.stdout),
+        "",
+        "the relocated-cache sweep must not expose a hidden foreign entry"
     );
 
-    let _ = std::fs::remove_dir_all(workspace_root);
+    for (
+        (residual_mask, markers_present, workspace_root, foreign_file, foreign_cache_file),
+        resolved_root_survivor,
+    ) in rows.iter().zip(&resolved_root_survivors)
+    {
+        let omena_root = workspace_root.join(".cache").join("omena");
+        for cache_dir_name in RELOCATED_LEGACY_CACHE_DIRS {
+            assert!(
+                !omena_root.join(cache_dir_name).exists(),
+                "row mask={residual_mask:02} markers={markers_present}: legacy cache {cache_dir_name} survived"
+            );
+        }
+        for cache_dir_name in RELOCATED_CURRENT_CACHE_DIRS {
+            assert!(
+                !omena_root.join(cache_dir_name).exists(),
+                "row mask={residual_mask:02} markers={markers_present}: relocated cache {cache_dir_name} survived"
+            );
+        }
+        for marker_name in [".gitignore", "CACHEDIR.TAG", ".omena-cache-owner.json"] {
+            assert_eq!(
+                omena_root.join(marker_name).is_file(),
+                *markers_present,
+                "row mask={residual_mask:02} markers={markers_present}: a foreign entry must retain an existing marker barrier"
+            );
+        }
+        assert!(
+            foreign_file.is_file(),
+            "row mask={residual_mask:02} markers={markers_present}: foreign file was removed"
+        );
+        assert!(
+            foreign_cache_file.is_file(),
+            "row mask={residual_mask:02} markers={markers_present}: enclosing cache file was removed"
+        );
+        assert!(
+            resolved_root_survivor.is_file(),
+            "row mask={residual_mask:02} markers={markers_present}: resolved editor shard was removed"
+        );
+    }
+    for workspace_root in &marker_control_roots {
+        let omena_root = workspace_root.join(".cache").join("omena");
+        assert!(
+            !omena_root.join("diagnostics-cache-v1").exists(),
+            "foreign marker ownership must not disable owned-cache removal"
+        );
+        for marker_name in [".gitignore", "CACHEDIR.TAG", ".omena-cache-owner.json"] {
+            assert!(
+                omena_root.join(marker_name).exists(),
+                "foreign or blocked marker {marker_name} must survive"
+            );
+        }
+    }
+    if let Some((workspace_root, external_omena_root)) = &symlink_control {
+        assert!(
+            std::fs::symlink_metadata(workspace_root.join(".cache").join("omena"))
+                .is_ok_and(|metadata| metadata.file_type().is_symlink()),
+            "the workspace cache-root symlink must survive"
+        );
+        assert!(
+            external_omena_root
+                .join("diagnostics-cache-v1")
+                .join("must-survive.json")
+                .is_file(),
+            "the sweep must not follow a workspace cache-root symlink"
+        );
+    }
+    assert!(
+        std::fs::symlink_metadata(owned_only_control_root.join(".cache").join("omena"))
+            .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound),
+        "a root containing only owned cache paths and markers must be removed"
+    );
+    assert!(
+        !hidden_foreign_omena_root
+            .join("diagnostics-cache-v1")
+            .exists(),
+        "the hidden-foreign control must still remove its owned cache"
+    );
+    assert!(
+        hidden_foreign_file.is_file(),
+        "the hidden foreign entry must survive"
+    );
+    for marker_name in [".gitignore", "CACHEDIR.TAG", ".omena-cache-owner.json"] {
+        assert!(
+            hidden_foreign_omena_root.join(marker_name).is_file(),
+            "the marker barrier must survive while a hidden foreign entry remains"
+        );
+    }
+    let mut workspace_mode_state = LspShellState::default();
+    handle_lsp_message(
+        &mut workspace_mode_state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "initialize",
+            "params": {
+                "initializationOptions": {
+                    "storage": {
+                        "location": "workspace",
+                    },
+                },
+                "workspaceFolders": [{
+                    "uri": path_to_file_uri(workspace_mode_root.as_path()),
+                    "name": "workspace-mode-control",
+                }],
+            },
+        }),
+    );
+    for cache_dir_name in RELOCATED_LEGACY_CACHE_DIRS {
+        assert!(
+            !workspace_mode_omena_root.join(cache_dir_name).exists(),
+            "workspace mode must still remove retired cache {cache_dir_name}"
+        );
+    }
+    for cache_dir_name in RELOCATED_CURRENT_CACHE_DIRS {
+        assert!(
+            workspace_mode_omena_root.join(cache_dir_name).is_dir(),
+            "workspace mode must preserve live cache {cache_dir_name}"
+        );
+    }
+    for marker_name in [".gitignore", "CACHEDIR.TAG", ".omena-cache-owner.json"] {
+        assert!(
+            workspace_mode_omena_root.join(marker_name).is_file(),
+            "workspace mode must preserve marker {marker_name} while live caches remain"
+        );
+    }
+    assert!(workspace_mode_foreign.is_file());
+
+    let git_status = run_git(&["status", "--porcelain", "--", "."])?;
+    assert!(git_status.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&git_status.stdout),
+        "",
+        "the relocated-cache sweep must leave no git-visible residue"
+    );
+    eprintln!(
+        "cacheSweepMatrix rows={} residualSubsets={} markerStates=2 legacyNames={} currentNames={} ownedCacheResiduals=0 retainedMarkerBarrierRows={} foreignSurvivors={} resolvedRootSurvivors={} workspaceModeCurrentCaches=5 workspaceModeMarkers=3 foreignMarkerControls=4 symlinkRootControls={} ownedOnlyMarkerRemovalControls=1 hiddenForeignBarrierControls=1 gitVisibleResidues=0",
+        rows.len(),
+        1 << RELOCATED_CURRENT_CACHE_DIRS.len(),
+        RELOCATED_LEGACY_CACHE_DIRS.len(),
+        RELOCATED_CURRENT_CACHE_DIRS.len(),
+        rows.iter().filter(|(_, markers, _, _, _)| *markers).count(),
+        rows.iter()
+            .filter(|(_, _, _, path, _)| path.is_file())
+            .count(),
+        resolved_root_survivors
+            .iter()
+            .filter(|path| path.is_file())
+            .count(),
+        usize::from(symlink_control.is_some()),
+    );
+
+    let _ = std::fs::remove_dir_all(fixture_root);
     let _ = std::fs::remove_dir_all(editor_storage_root);
+    if let Some((_, external_omena_root)) = symlink_control {
+        let _ = std::fs::remove_dir_all(external_omena_root);
+    }
     Ok(())
 }
 
