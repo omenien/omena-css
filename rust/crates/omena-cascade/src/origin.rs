@@ -507,8 +507,9 @@ mod tests {
     }
 
     #[test]
-    fn caller_supplied_proximity_surfaces_are_excluded_from_the_automatic_product_driver() {
-        let census = cascade_driver_census_v0().expect("embedded census must parse");
+    fn caller_supplied_proximity_surfaces_are_excluded_from_the_automatic_product_driver()
+    -> Result<(), &'static str> {
+        let census = cascade_driver_census_v0().ok_or("embedded census must parse")?;
         let caller_supplied = census
             .cascade_key_producers
             .iter()
@@ -548,15 +549,17 @@ mod tests {
                 && producer.scope_proximity_source
                     == CascadeScopeProximitySourceV0::LegacySelectorContextFallback
         }));
+        Ok(())
     }
 
     #[test]
-    fn inconsistent_axis_reach_census_fails_closed() {
+    fn inconsistent_axis_reach_census_fails_closed() -> Result<(), &'static str> {
         let mut census = cascade_driver_census_v0()
-            .expect("embedded census must parse")
+            .ok_or("embedded census must parse")?
             .clone();
         census.spec_axis_reach.scope_proximity = CascadeAxisReachStatusV0::Modeled;
 
         assert_eq!(summarize_cascade_axis_reach_from_census_v0(&census), None);
+        Ok(())
     }
 }

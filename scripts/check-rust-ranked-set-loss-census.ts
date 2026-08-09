@@ -67,6 +67,13 @@ interface CascadeDriverCensusArtifactV0 {
   };
 }
 
+interface RustSemverIntentArtifactV0 {
+  readonly intents: readonly {
+    readonly crate: string;
+    readonly expectedRuntimeValueChanges?: readonly { readonly id: string }[];
+  }[];
+}
+
 interface RankedSetLossCensusArtifactV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-diff-test.ranked-set-loss-census";
@@ -139,6 +146,7 @@ const driverCensusArtifactPath = path.join(
   repoRoot,
   "rust/crates/omena-cascade/data/cascade-driver-census.json",
 );
+const semverIntentArtifactPath = "rust/omena-rust-semver-intent.json";
 const args = new Set(process.argv.slice(2));
 const sourceRef = valueAfter("--source-ref");
 
@@ -166,6 +174,7 @@ if (sourceRef !== undefined) {
 }
 
 const cascadeKeyProducerCensus = validateCascadeKeyProducerCensus();
+const cascadeRuntimeIntentCoverage = validateCascadeRuntimeIntentCoverage();
 
 const emittedAxisOrder = spawnSync(
   "cargo",
@@ -458,6 +467,7 @@ process.stdout.write(
       cascadeKeyProducerDispositionCounts: cascadeKeyProducerCensus.dispositionCounts,
       cascadeKeyScopeProximitySourceCounts: cascadeKeyProducerCensus.sourceCounts,
       automaticProductScopeDriver: cascadeKeyProducerCensus.automaticProductScopeDriver,
+      cascadeRuntimeIntentCoverage,
     },
     null,
     2,
@@ -537,6 +547,90 @@ function valueAfter(flag: string): string | undefined {
   const value = process.argv[index + 1];
   assert.ok(value, `${flag} requires a value`);
   return value;
+}
+
+function validateCascadeRuntimeIntentCoverage(): {
+  readonly cascadeAxisOrder: boolean;
+  readonly queryConfidenceAxisOrder: boolean;
+} {
+  assert.ok(
+    !(
+      args.has("--inject-cascade-runtime-intent-removal") &&
+      args.has("--inject-cascade-runtime-intent-row-removal")
+    ),
+    "runtime-intent entry and row falsifiers are mutually exclusive",
+  );
+  const artifact = JSON.parse(
+    readRepositorySource(semverIntentArtifactPath),
+  ) as RustSemverIntentArtifactV0;
+  let intents = [...artifact.intents];
+
+  if (args.has("--inject-cascade-runtime-intent-row-removal")) {
+    assert.equal(
+      intents.filter((intent) => intent.crate === "omena-cascade").length,
+      1,
+      "runtime-intent row-removal falsifier requires exactly one omena-cascade row",
+    );
+    intents = intents.filter((intent) => intent.crate !== "omena-cascade");
+  }
+  if (args.has("--inject-cascade-runtime-intent-removal")) {
+    const cascadeRows = intents.filter((intent) => intent.crate === "omena-cascade");
+    assert.equal(
+      cascadeRows.length,
+      1,
+      "runtime-intent entry-removal falsifier requires exactly one omena-cascade row",
+    );
+    assert.ok(
+      cascadeRows[0]?.expectedRuntimeValueChanges?.some(
+        (change) => change.id === "cascade-spec-axis-order-and-classification",
+      ),
+      "runtime-intent entry-removal falsifier needle is stale",
+    );
+    intents = intents.map((intent) =>
+      intent.crate === "omena-cascade"
+        ? {
+            ...intent,
+            expectedRuntimeValueChanges: intent.expectedRuntimeValueChanges?.filter(
+              (change) => change.id !== "cascade-spec-axis-order-and-classification",
+            ),
+          }
+        : intent,
+    );
+  }
+
+  const required = [
+    {
+      crate: "omena-cascade",
+      id: "cascade-spec-axis-order-and-classification",
+      coverage: "cascadeAxisOrder" as const,
+    },
+    {
+      crate: "omena-query",
+      id: "cascade-confidence-axis-order",
+      coverage: "queryConfidenceAxisOrder" as const,
+    },
+  ];
+  const coverage = {
+    cascadeAxisOrder: false,
+    queryConfidenceAxisOrder: false,
+  };
+
+  for (const requirement of required) {
+    const crateIntents = intents.filter((intent) => intent.crate === requirement.crate);
+    if (crateIntents.length === 0) continue;
+    assert.equal(
+      crateIntents.length,
+      1,
+      `${requirement.crate} must have exactly one release-intent row`,
+    );
+    assert.ok(
+      crateIntents[0]?.expectedRuntimeValueChanges?.some((change) => change.id === requirement.id),
+      `${requirement.crate} release intent must declare runtime change ${requirement.id}`,
+    );
+    coverage[requirement.coverage] = true;
+  }
+
+  return coverage;
 }
 
 function validateCascadeKeyProducerCensus(): {

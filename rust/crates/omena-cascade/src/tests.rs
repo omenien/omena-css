@@ -183,10 +183,15 @@ fn element_attached_style_outranks_author_rules_across_adverse_layers() {
             ],
             "color",
         );
-        let CascadeOutcome::Definite { winner, .. } = outcome else {
-            panic!("cross-level style-attribute comparison must be definite");
+        let winner_id = match outcome {
+            CascadeOutcome::Definite { winner, .. } => Some(winner.id),
+            _ => None,
         };
-        assert_eq!(winner.id, expected_id);
+        assert_eq!(
+            winner_id.as_deref(),
+            Some(expected_id),
+            "cross-level style-attribute comparison must be definite"
+        );
     }
 }
 
@@ -545,7 +550,7 @@ fn generated_binary_search_hits_if_and_only_if_a_key_is_equal() {
     ));
 
     for (probe_index, probe) in probes.into_iter().enumerate() {
-        let equal_key_is_stored = sorted.iter().any(|stored_key| *stored_key == probe);
+        let equal_key_is_stored = sorted.contains(&probe);
         let search = sorted.binary_search(&probe);
         assert_eq!(
             search.is_ok(),
