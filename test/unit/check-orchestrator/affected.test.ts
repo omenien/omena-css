@@ -54,7 +54,7 @@ describe("CI probe profiles", () => {
       expect(target, profile.id).not.toBeNull();
       expect(target?.ciTier, profile.id).toBe("manual");
     }
-  });
+  }, 5_000);
 
   it("keeps workflow choices synchronized with the profile registry", () => {
     const workflow = readFileSync(path.join(repoRoot, ".github/workflows/ci-probe.yml"), "utf8");
