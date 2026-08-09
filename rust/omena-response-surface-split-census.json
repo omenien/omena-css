@@ -2029,7 +2029,7 @@
       "crate": "omena-cascade",
       "typeName": "CaptureGuard",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 279
+      "line": 282
     },
     {
       "crate": "omena-cascade",
@@ -2257,25 +2257,25 @@
       "crate": "omena-cascade",
       "typeName": "CascadeRankedSetLossCandidateV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 51
+      "line": 54
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeRankedSetLossCaptureV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 74
+      "line": 77
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeRankedSetLossCensusRowV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 61
+      "line": 64
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeRankedSetLossClassV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
-      "line": 42
+      "line": 45
     },
     {
       "crate": "omena-cascade",

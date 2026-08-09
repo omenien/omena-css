@@ -444,6 +444,42 @@ fn library_axis_order_prefers_specificity_before_scope_proximity() {
 }
 
 #[test]
+fn equal_scope_proximity_prefers_high_specificity_definite_winner() -> Result<(), String> {
+    let low = declaration(
+        "low-specificity",
+        "LOW",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            1,
+            Specificity::new(0, 1, 0),
+            2,
+        ),
+    );
+    let high = declaration(
+        "high-specificity",
+        "HIGH",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            1,
+            Specificity::new(1, 0, 0),
+            1,
+        ),
+    );
+
+    for declarations in [[low.clone(), high.clone()], [high.clone(), low.clone()]] {
+        let CascadeOutcome::Definite { winner, .. } = cascade_property(declarations, "color")
+        else {
+            return Err("equal-proximity exact declarations must produce a definite winner".into());
+        };
+        assert_eq!(winner.id, "high-specificity");
+        assert_eq!(winner.value, CascadeValue::Literal("HIGH".to_string()));
+    }
+    Ok(())
+}
+
+#[test]
 fn open_world_tie_evidence_is_not_a_cascade_key_axis() {
     let css_specificity_winner = CascadeKey::new(
         CascadeLevel::AuthorNormal,
@@ -605,6 +641,16 @@ fn generated_open_world_tie_evidence_is_independent_of_input_order() -> Result<(
         for stronger_rank in [ModuleRank::new(1, 0, 0), ModuleRank::new(2, 3, 5)] {
             let weaker = (tied_key, OpenWorldTieEvidence::NONE);
             let stronger = (tied_key, OpenWorldTieEvidence::new(stronger_rank));
+
+            assert_eq!(
+                weaker.0.cmp(&stronger.0),
+                std::cmp::Ordering::Equal,
+                "open-world module provenance must stay outside the specification-key order for generated key {key_index}"
+            );
+            assert_ne!(
+                weaker.1.module_rank, stronger.1.module_rank,
+                "the independence arm requires distinct open-world evidence for generated key {key_index}"
+            );
 
             for items in [
                 [("weaker", weaker), ("stronger", stronger)],

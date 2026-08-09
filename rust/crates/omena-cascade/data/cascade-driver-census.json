@@ -76,7 +76,7 @@
     },
     {
       "path": "rust/crates/omena-bundler/src/lib.rs",
-      "symbol": "cascade_key_with_global_source_order",
+      "symbol": "LinkedStylesheetRuleV0::cascade_key_with_global_source_order",
       "occurrence": 1,
       "disposition": "callerSuppliedBoundary",
       "scopeProximitySource": "callerSupplied"
@@ -146,14 +146,14 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/design_tokens.rs",
-      "symbol": "cascade_key",
+      "symbol": "DesignTokenCandidateDeclaration<'_>::cascade_key",
       "occurrence": 1,
       "disposition": "automaticProductDerived",
       "scopeProximitySource": "legacySelectorContextFallback"
     },
     {
       "path": "rust/crates/omena-semantic/src/design_tokens.rs",
-      "symbol": "cascade_key",
+      "symbol": "DesignTokenCandidateDeclaration<'_>::cascade_key",
       "occurrence": 2,
       "disposition": "automaticProductDerived",
       "scopeProximitySource": "legacySelectorContextFallback"

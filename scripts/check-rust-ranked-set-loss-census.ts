@@ -4,8 +4,6 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
-
 interface FixtureResultV0 {
   readonly name: string;
   classification:
@@ -45,6 +43,15 @@ interface CascadeKeyProducerV0 {
   readonly occurrence: number;
   readonly disposition: CascadeKeyProducerDispositionV0;
   readonly scopeProximitySource: CascadeScopeProximitySourceV0;
+}
+
+interface CascadeKeyProducerSyntaxV0 {
+  readonly path: string;
+  readonly symbol: string;
+  readonly occurrence: number;
+  readonly scopeProximitySource: CascadeScopeProximitySourceV0;
+  readonly line: number;
+  readonly column: number;
 }
 
 interface CascadeDriverCensusArtifactV0 {
@@ -133,6 +140,7 @@ const cascadeLevels = [
 
 const repoRoot = process.cwd();
 let currentTrackedFiles: readonly string[] | undefined;
+let currentCargoProductRustRoots: readonly string[] | undefined;
 const repositorySourceCache = new Map<string, string>();
 const artifactPath = path.join(
   repoRoot,
@@ -147,6 +155,21 @@ const driverCensusArtifactPath = path.join(
   "rust/crates/omena-cascade/data/cascade-driver-census.json",
 );
 const semverIntentArtifactPath = "rust/omena-rust-semver-intent.json";
+const syntheticCascadeKeyProbeRoots = new Set([
+  "rust/crates/cascade-key-census-probe/src/lib.rs",
+  "rust/crates/omena-query/src/style/cascade_key_alias_census_probe.rs",
+  "rust/crates/omena-query/src/style/cascade_key_block_alias_probe.rs",
+  "rust/crates/omena-query/src/style/cascade_key_block_type_alias_probe.rs",
+  "rust/crates/omena-query/src/style/cascade_key_boundary_probe.rs",
+  "rust/crates/omena-query/src/style/cascade_key_census_probe.rs",
+  "rust/crates/omena-query/src/style/cascade_key_glob_use_probe.rs",
+  "rust/crates/omena-query/src/style/cascade_key_impl_header_control.rs",
+  "rust/crates/omena-query/src/style/cascade_key_module_scope_probe.rs",
+  "rust/crates/omena-query/src/style/cascade_key_non_code_control.rs",
+  "rust/crates/omena-query/src/style/cascade_key_root_alias_probe.rs",
+  "rust/crates/omena-query/src/style/cascade_key_sibling_alias_control.rs",
+  "rust/crates/omena-query/src/style/unrelated_cascade_key_control.rs",
+]);
 const args = new Set(process.argv.slice(2));
 const sourceRef = valueAfter("--source-ref");
 
@@ -175,6 +198,7 @@ if (sourceRef !== undefined) {
 
 const cascadeKeyProducerCensus = validateCascadeKeyProducerCensus();
 const cascadeRuntimeIntentCoverage = validateCascadeRuntimeIntentCoverage();
+const cascadeReachFixtureTestCount = validateCascadeReachFixtureTests();
 
 const emittedAxisOrder = spawnSync(
   "cargo",
@@ -468,6 +492,7 @@ process.stdout.write(
       cascadeKeyProducerDispositionCounts: cascadeKeyProducerCensus.dispositionCounts,
       cascadeKeyScopeProximitySourceCounts: cascadeKeyProducerCensus.sourceCounts,
       automaticProductScopeDriver: cascadeKeyProducerCensus.automaticProductScopeDriver,
+      cascadeReachFixtureTestCount,
       cascadeRuntimeIntentCoverage,
     },
     null,
@@ -552,6 +577,8 @@ function valueAfter(flag: string): string | undefined {
 
 function validateCascadeRuntimeIntentCoverage(): {
   readonly cascadeAxisOrder: boolean;
+  readonly cascadeOpenWorldTieEvidence: boolean;
+  readonly bundlerLinkedStylesheetEvidence: boolean;
   readonly queryConfidenceAxisOrder: boolean;
 } {
   assert.ok(
@@ -606,6 +633,16 @@ function validateCascadeRuntimeIntentCoverage(): {
       coverage: "cascadeAxisOrder" as const,
     },
     {
+      crate: "omena-cascade",
+      id: "open-world-tie-evidence-carrier-shape",
+      coverage: "cascadeOpenWorldTieEvidence" as const,
+    },
+    {
+      crate: "omena-bundler",
+      id: "linked-stylesheet-cascade-evidence-return",
+      coverage: "bundlerLinkedStylesheetEvidence" as const,
+    },
+    {
       crate: "omena-query",
       id: "cascade-confidence-axis-order",
       coverage: "queryConfidenceAxisOrder" as const,
@@ -613,12 +650,20 @@ function validateCascadeRuntimeIntentCoverage(): {
   ];
   const coverage = {
     cascadeAxisOrder: false,
+    cascadeOpenWorldTieEvidence: false,
+    bundlerLinkedStylesheetEvidence: false,
     queryConfidenceAxisOrder: false,
   };
 
   for (const requirement of required) {
     const crateIntents = intents.filter((intent) => intent.crate === requirement.crate);
-    if (crateIntents.length === 0) continue;
+    if (
+      args.has("--inject-cascade-runtime-intent-row-removal") &&
+      requirement.crate === "omena-cascade" &&
+      crateIntents.length === 0
+    ) {
+      continue;
+    }
     assert.equal(
       crateIntents.length,
       1,
@@ -641,12 +686,516 @@ function validateCascadeKeyProducerCensus(): {
   readonly automaticProductScopeDriver: "legacySelectorContextFallback";
 } {
   const sources = readCascadeKeyProducerSources();
+  const injectProductModule = (
+    flag: string,
+    moduleName: string,
+    sourceLines: readonly string[],
+  ): void => {
+    if (!args.has(flag)) return;
+    const rootPath = "rust/crates/omena-query/src/lib.rs";
+    const rootSource = sources.get(rootPath);
+    assert.ok(rootSource, `missing product root ${rootPath}`);
+    sources.set(rootPath, [rootSource, `mod ${moduleName};`].join("\n"));
+    sources.set(`rust/crates/omena-query/src/${moduleName}.rs`, sourceLines.join("\n"));
+  };
+  if (args.has("--inject-cfg-attr-module-path")) {
+    const rootPath = "rust/crates/omena-query/src/lib.rs";
+    const rootSource = sources.get(rootPath);
+    assert.ok(rootSource, `missing product root ${rootPath}`);
+    sources.set(
+      rootPath,
+      [
+        rootSource,
+        '#[cfg_attr(not(test), path = "style/cascade_key_cfg_attr_path_probe.rs")]',
+        "mod cascade_key_cfg_attr_probe;",
+      ].join("\n"),
+    );
+    sources.set(
+      "rust/crates/omena-query/src/cascade_key_cfg_attr_probe.rs",
+      "fn default_path_control() {}\n",
+    );
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_cfg_attr_path_probe.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn cfg_attr_selected_product_key() -> CascadeKey {",
+        "    CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-inline-module-child-path")) {
+    const rootPath = "rust/crates/omena-query/src/lib.rs";
+    const rootSource = sources.get(rootPath);
+    assert.ok(rootSource, `missing product root ${rootPath}`);
+    sources.set(
+      rootPath,
+      [
+        rootSource,
+        "mod cascade_key_inline_child_path_probe {",
+        '    #[path = "selected.rs"]',
+        "    mod selected;",
+        "}",
+      ].join("\n"),
+    );
+    sources.set("rust/crates/omena-query/src/selected.rs", "fn wrong_base_control() {}\n");
+    sources.set(
+      "rust/crates/omena-query/src/cascade_key_inline_child_path_probe/selected.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn inline_child_selected_product_key() -> CascadeKey {",
+        "    CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-inline-module-directory-path")) {
+    const rootPath = "rust/crates/omena-query/src/lib.rs";
+    const rootSource = sources.get(rootPath);
+    assert.ok(rootSource, `missing product root ${rootPath}`);
+    sources.set(
+      rootPath,
+      [
+        rootSource,
+        '#[path = "cascade_key_inline_selected_files"]',
+        "mod cascade_key_inline_directory_probe {",
+        "    mod selected;",
+        "}",
+      ].join("\n"),
+    );
+    sources.set(
+      "rust/crates/omena-query/src/cascade_key_inline_directory_probe/selected.rs",
+      "fn wrong_inline_directory_control() {}\n",
+    );
+    sources.set(
+      "rust/crates/omena-query/src/cascade_key_inline_selected_files/selected.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn inline_directory_selected_product_key() -> CascadeKey {",
+        "    CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-outlined-module-child-path")) {
+    const rootPath = "rust/crates/omena-query/src/lib.rs";
+    const rootSource = sources.get(rootPath);
+    assert.ok(rootSource, `missing product root ${rootPath}`);
+    sources.set(rootPath, [rootSource, "mod cascade_key_outlined_path_probe;"].join("\n"));
+    sources.set(
+      "rust/crates/omena-query/src/cascade_key_outlined_path_probe.rs",
+      ['#[path = "cascade_key_outlined_selected.rs"]', "mod selected;"].join("\n"),
+    );
+    sources.set(
+      "rust/crates/omena-query/src/cascade_key_outlined_path_probe/cascade_key_outlined_selected.rs",
+      "fn wrong_outlined_directory_control() {}\n",
+    );
+    sources.set(
+      "rust/crates/omena-query/src/cascade_key_outlined_selected.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn outlined_path_selected_product_key() -> CascadeKey {",
+        "    CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-module-path-repository-escape")) {
+    const rootPath = "rust/crates/omena-query/src/lib.rs";
+    const rootSource = sources.get(rootPath);
+    assert.ok(rootSource, `missing product root ${rootPath}`);
+    sources.set(
+      rootPath,
+      [
+        rootSource,
+        '#[path = "../../../../../rust/crates/omena-query/src/cascade_key_path_escape_decoy.rs"]',
+        "mod cascade_key_path_escape_probe;",
+      ].join("\n"),
+    );
+    sources.set(
+      "rust/crates/omena-query/src/cascade_key_path_escape_decoy.rs",
+      "fn repository_escape_alias_control() {}\n",
+    );
+  }
+  if (args.has("--inject-absolute-module-path")) {
+    const rootPath = "rust/crates/omena-query/src/lib.rs";
+    const rootSource = sources.get(rootPath);
+    assert.ok(rootSource, `missing product root ${rootPath}`);
+    sources.set(
+      rootPath,
+      [
+        rootSource,
+        '#[path = "/tmp/cascade_key_absolute_path_probe.rs"]',
+        "mod cascade_key_absolute_path_probe;",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-block-local-outlined-module")) {
+    const rootPath = "rust/crates/omena-query/src/lib.rs";
+    const rootSource = sources.get(rootPath);
+    assert.ok(rootSource, `missing product root ${rootPath}`);
+    sources.set(
+      rootPath,
+      [
+        rootSource,
+        "fn cascade_key_block_local_module_probe() {",
+        '    #[path = "cascade_key_block_local_module_probe.rs"]',
+        "    mod selected;",
+        "}",
+      ].join("\n"),
+    );
+    sources.set(
+      "rust/crates/omena-query/src/cascade_key_block_local_module_probe.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn block_local_selected_product_key() -> CascadeKey {",
+        "    CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-excluded-block-local-outlined-modules")) {
+    const rootPath = "rust/crates/omena-query/src/lib.rs";
+    const rootSource = sources.get(rootPath);
+    assert.ok(rootSource, `missing product root ${rootPath}`);
+    sources.set(
+      rootPath,
+      [
+        rootSource,
+        "#[cfg(test)]",
+        "fn excluded_test_block_local_module_probe() {",
+        '    #[path = "missing_test_only_module.rs"]',
+        "    mod selected;",
+        "}",
+        "const _: () = {",
+        "    #[cfg(any())]",
+        '    #[path = "missing_always_false_module.rs"]',
+        "    mod selected;",
+        "};",
+      ].join("\n"),
+    );
+  }
+  injectProductModule(
+    "--inject-nested-cascade-key-item-type-alias",
+    "cascade_key_nested_item_type_alias_probe",
+    [
+      "use omena_cascade::CascadeKey;",
+      "type Identity<T> = T;",
+      "type ItemKey = Identity<CascadeKey>;",
+    ],
+  );
+  injectProductModule(
+    "--inject-nested-cascade-key-impl-associated-type",
+    "cascade_key_nested_impl_associated_type_probe",
+    [
+      "use omena_cascade::CascadeKey;",
+      "trait AliasTrait { type Key; }",
+      "struct Carrier;",
+      "impl AliasTrait for Carrier { type Key = Option<CascadeKey>; }",
+    ],
+  );
+  injectProductModule(
+    "--inject-cascade-key-generic-default-alias",
+    "cascade_key_generic_default_alias_probe",
+    ["use omena_cascade::CascadeKey;", "type DefaultedKey<T = CascadeKey> = T;"],
+  );
+  injectProductModule("--inject-cascade-key-where-alias", "cascade_key_where_alias_probe", [
+    "use omena_cascade::CascadeKey;",
+    "type BoundedKey<T> where T: Into<CascadeKey> = T;",
+  ]);
+  injectProductModule(
+    "--inject-cascade-key-trait-associated-where",
+    "cascade_key_trait_associated_where_probe",
+    [
+      "use omena_cascade::CascadeKey;",
+      "trait AliasTrait { type Key<T> where T: Into<CascadeKey>; }",
+    ],
+  );
+  injectProductModule(
+    "--inject-cascade-key-turbofish-constructor",
+    "cascade_key_turbofish_constructor_probe",
+    [
+      "use omena_cascade::CascadeKey;",
+      "type Identity<T> = T;",
+      "fn generic_argument_alias_product_key() {",
+      "    let _ = Identity::<CascadeKey>::new(level, layer_rank, 0, specificity, source_order);",
+      "}",
+    ],
+  );
+  injectProductModule(
+    "--inject-cascade-key-qself-constructor",
+    "cascade_key_qself_constructor_probe",
+    [
+      "use omena_cascade::CascadeKey;",
+      "trait Identity<T> { type Output; }",
+      "struct Carrier;",
+      "impl<T> Identity<T> for Carrier { type Output = T; }",
+      "fn qself_alias_product_key() {",
+      "    let _ = <Carrier as Identity<CascadeKey>>::Output::new(level, layer_rank, 0, specificity, source_order);",
+      "}",
+    ],
+  );
   if (args.has("--inject-cascade-key-producer")) {
     sources.set(
       "rust/crates/omena-query/src/style/cascade_key_census_probe.rs",
       [
+        "use omena_cascade::CascadeKey;",
         "fn injected_product_key() -> CascadeKey {",
         "    CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-aliased-cascade-key-producer")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_alias_census_probe.rs",
+      [
+        "use omena_cascade::{CascadeKey as Key1, CascadeKey as Key2};",
+        "type Key3 = Key1;",
+        "type Key4 = Key3;",
+        "fn injected_product_key() -> Key4 {",
+        "    Key4::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-unrelated-cascade-key-constructor")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/unrelated_cascade_key_control.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn unrelated_key() {",
+        "    let _ = unrelated::Key::new(level, layer_rank, specificity);",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-leading-root-cascade-key-producer")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_root_alias_probe.rs",
+      [
+        "fn absolute_product_key() -> ::omena_cascade::CascadeKey {",
+        "    ::omena_cascade::CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-qualified-cascade-key-alias-producer")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "use omena_cascade::CascadeKey as RootKey;",
+        "fn crate_qualified_product_key() -> crate::RootKey {",
+        "    crate::RootKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+        "mod parent {",
+        "    use omena_cascade::CascadeKey as ParentKey;",
+        "    fn self_qualified_product_key() -> self::ParentKey {",
+        "        self::ParentKey::new(level, layer_rank, 0, specificity, source_order)",
+        "    }",
+        "    mod child {",
+        "        fn super_qualified_product_key() -> super::ParentKey {",
+        "            super::ParentKey::new(level, layer_rank, 0, specificity, source_order)",
+        "        }",
+        "    }",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-sibling-cascade-key-alias-control")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_sibling_alias_control.rs",
+      [
+        "mod canonical {",
+        "    use omena_cascade::CascadeKey;",
+        "}",
+        "mod unrelated {",
+        "    struct Key;",
+        "    impl Key {",
+        "        fn new(_level: u32, _layer: u32, _scope: u32, _specificity: u32, _order: u32) -> Self {",
+        "            Self",
+        "        }",
+        "    }",
+        "    fn unrelated_key() -> Key {",
+        "        Key::new(level, layer_rank, 0, specificity, source_order)",
+        "    }",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-block-scoped-cascade-key-alias-producer")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_block_alias_probe.rs",
+      [
+        "fn block_scoped_product_key() {",
+        "    {",
+        "        use omena_cascade::CascadeKey as Key;",
+        "        let _ = Key::new(level, layer_rank, 0, specificity, source_order);",
+        "    }",
+        "    {",
+        "        struct Key;",
+        "        let _ = Key::new(level, layer_rank, 0, specificity, source_order);",
+        "    }",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-relative-cascade-key-alias-control")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn relative_alias_product_key() {",
+        "    use self::CascadeKey as LocalKey;",
+        "    let _ = LocalKey::new(level, layer_rank, 0, specificity, source_order);",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-module-cascade-key-alias-chain-control")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "use omena_cascade as cascade_api;",
+        "use self::cascade_api as cascade_api_2;",
+        "fn module_alias_product_key() -> cascade_api_2::CascadeKey {",
+        "    cascade_api_2::CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-cascade-key-shadow-control")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn shadowed_key() {",
+        "    struct CascadeKey;",
+        "    impl CascadeKey {",
+        "        fn new(_: u32, _: u32, _: u32, _: u32, _: u32) -> Self { Self }",
+        "    }",
+        "    let _ = CascadeKey::new(level, layer_rank, 0, specificity, source_order);",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-cascade-key-extern-alias-control")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "extern crate omena_cascade as cascade_api;",
+        "fn extern_alias_product_key() -> cascade_api::CascadeKey {",
+        "    cascade_api::CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-root-grouped-raw-cascade-key-alias-control")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "use {omena_cascade::CascadeKey as r#Key};",
+        "fn raw_alias_product_key() -> r#Key {",
+        "    r#Key::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-spaced-cascade-key-constructor-control")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn spaced_product_key() -> CascadeKey {",
+        "    CascadeKey /* scanner gap */ :: new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-ufcs-cascade-key-constructor-control")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn ufcs_product_key() -> CascadeKey {",
+        "    <CascadeKey>::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-trait-qualified-cascade-key-constructor-control")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "trait Factory { fn new(_: u32, _: u32, _: u32, _: u32, _: u32) -> Self; }",
+        "fn trait_ufcs_product_key() -> CascadeKey {",
+        "    <CascadeKey as Factory>::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-turbofish-cascade-key-constructor-control")) {
+    sources.set(
+      "rust/crates/cascade-key-census-probe/src/lib.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn turbofish_product_key() -> CascadeKey {",
+        "    CascadeKey::<>::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-cascade-key-glob-use-control")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_glob_use_probe.rs",
+      [
+        "use omena_cascade::*;",
+        "fn glob_import_product_key() -> CascadeKey {",
+        "    CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-block-scoped-cascade-key-type-alias-control")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_block_type_alias_probe.rs",
+      [
+        "use omena_cascade::CascadeKey;",
+        "fn block_scoped_type_alias_product_key() {",
+        "    type LocalKey = CascadeKey;",
+        "    let _ = LocalKey::new(level, layer_rank, 0, specificity, source_order);",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-multiline-cascade-key-impl-control")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_impl_header_control.rs",
+      ["trait LocalTrait {}", "impl LocalTrait", "    for omena_cascade::CascadeKey", "{}"].join(
+        "\n",
+      ),
+    );
+  }
+  if (args.has("--inject-module-scope-cascade-key-producer")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_module_scope_probe.rs",
+      [
+        "fn preceding_function() {}",
+        "const MODULE_KEY: omena_cascade::CascadeKey = omena_cascade::CascadeKey {",
+        "    level, layer_rank, scope_proximity: 0, specificity, source_order",
+        "};",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-commented-cascade-key-noise")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_non_code_control.rs",
+      [
+        "// use omena_cascade::CascadeKey as Key;",
+        "fn unrelated_key() {",
+        '    let _ = "omena_cascade::CascadeKey::new(level, layer_rank, 0, specificity, source_order)";',
+        "    let _ = Key::new(level, layer_rank, specificity);",
         "}",
       ].join("\n"),
     );
@@ -655,6 +1204,7 @@ function validateCascadeKeyProducerCensus(): {
     sources.set(
       "rust/crates/omena-query/src/style/cascade_key_boundary_probe.rs",
       [
+        "use omena_cascade::CascadeKey;",
         "fn injected_product_key(scope_proximity: u32) -> CascadeKey {",
         "    CascadeKey::new(level, layer_rank, scope_proximity, specificity, source_order)",
         "}",
@@ -770,7 +1320,7 @@ function validateCascadeKeyProducerCensus(): {
       .map(cascadeKeyProducerId),
   );
   const bundlerCallerId =
-    "rust/crates/omena-bundler/src/lib.rs#cascade_key_with_global_source_order:1";
+    "rust/crates/omena-bundler/src/lib.rs#LinkedStylesheetRuleV0::cascade_key_with_global_source_order:1";
   const transformCallerId =
     "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair:2";
   assert.deepEqual(
@@ -839,7 +1389,7 @@ function validateCallerSuppliedScopeSurfaces(sources: ReadonlyMap<string, string
   const bundler = sources.get("rust/crates/omena-bundler/src/lib.rs") ?? "";
   assert.match(
     bundler,
-    /pub fn cascade_key_with_global_source_order\([\s\S]*?scope_proximity:\s*u32[\s\S]*?CascadeKey::new\([\s\S]*?scope_proximity,/u,
+    /impl\s+LinkedStylesheetRuleV0\s*\{[\s\S]*?pub fn cascade_key_with_global_source_order\([\s\S]*?scope_proximity:\s*u32[\s\S]*?CascadeKey::new\([\s\S]*?scope_proximity,/u,
     "bundler public helper must preserve its caller-supplied nonzero scope-proximity input",
   );
 
@@ -853,7 +1403,7 @@ function validateCallerSuppliedScopeSurfaces(sources: ReadonlyMap<string, string
     sources.get("rust/crates/omena-transform-passes/src/runtime/winner_equality.rs") ?? "";
   assert.match(
     transformRuntime,
-    /declaration\.scope_proximity\.unwrap_or\(0\)/u,
+    /if\s+let\s+Some\(environment\)\s*=\s*cascade_environment[\s\S]*?for\s+declaration\s+in\s+environment\.declarations\.iter\(\)\.filter\([\s\S]*?declaration\.scope_proximity\.unwrap_or\(0\)/u,
     "transform winner selection must consume caller-supplied scope proximity",
   );
   const napiBoundary =
@@ -871,6 +1421,34 @@ function validateCallerSuppliedScopeSurfaces(sources: ReadonlyMap<string, string
   );
 }
 
+function validateCascadeReachFixtureTests(): number {
+  const fixturePath = "rust/crates/omena-query/src/style/cascade_checker/reach_tests.rs";
+  let source = readRepositorySource(fixturePath);
+  if (args.has("--inject-cascade-reach-fixture-removal")) {
+    const changed = source.replace(
+      "fn css_scope_guards_do_not_supply_cascade_proximity()",
+      "fn removed_scope_guard_fixture()",
+    );
+    assert.notEqual(changed, source, "cascade reach fixture-removal needle is stale");
+    source = changed;
+  }
+  const expected = [
+    "css_scope_guards_do_not_supply_cascade_proximity",
+    "distinct_scope_and_media_guards_have_equivalent_diagnostics_with_a_live_control",
+    "same_scope_duplicates_step_down_to_conditional_certainty",
+  ];
+  const discovered = [...source.matchAll(/#\[test\]\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)/gu)]
+    .map((match) => match[1])
+    .filter((name): name is string => name !== undefined)
+    .toSorted();
+  assert.deepEqual(
+    discovered,
+    expected.toSorted(),
+    `cascade reach fixture tests in ${fixturePath} must match the required functional set`,
+  );
+  return discovered.length;
+}
+
 function readCascadeKeyProducerSources(sourceRef?: string): Map<string, string> {
   const sources = new Map<string, string>();
   const listed =
@@ -882,89 +1460,97 @@ function readCascadeKeyProducerSources(sourceRef?: string): Map<string, string> 
   return sources;
 }
 
-interface RustFunctionItemV0 {
-  readonly name: string;
-  readonly open: number;
-  readonly header: string;
-  readonly body: string;
-}
-
 function discoverCascadeKeyProducers(
   sources: ReadonlyMap<string, string>,
 ): readonly CascadeKeyProducerV0[] {
-  const discovered: CascadeKeyProducerV0[] = [];
-  for (const [file, rawSource] of sources) {
-    if (!isCascadeKeyProducerSourcePath(file)) continue;
-    if (!/(?:CascadeKey::new\s*\(|CascadeKey\s*\{)/u.test(rawSource)) continue;
-    const source = maskRustCfgTestItems(rawSource);
-    if (!/(?:CascadeKey::new\s*\(|CascadeKey\s*\{)/u.test(source)) continue;
-    const calls: { index: number; expression: string; functionItem: RustFunctionItemV0 }[] = [];
-
-    for (const match of source.matchAll(/(?:omena_cascade::)?CascadeKey::new\s*\(/gu)) {
-      const index = match.index;
-      const functionItem = rustEnclosingFunctionAt(source, index);
-      assert.ok(functionItem, `CascadeKey constructor is outside a function: ${file}`);
-      const open = source.indexOf("(", index);
-      const close = matchingRustDelimiter(source, open, "(", ")");
-      const callArguments = splitRustTopLevel(source.slice(open + 1, close), ",");
-      assert.ok(
-        callArguments.length >= 5,
-        `CascadeKey constructor has fewer than five arguments: ${file}#${functionItem.name}`,
-      );
-      calls.push({ index, expression: callArguments[2] ?? "", functionItem });
-    }
-
-    for (const match of source.matchAll(/(?:omena_cascade::)?CascadeKey\s*\{/gu)) {
-      const index = match.index;
-      const functionItem = rustEnclosingFunctionAt(source, index);
-      if (functionItem === undefined) continue;
-      const prefix = source.slice(Math.max(functionItem.open, index - 40), index);
-      if (/(?:struct|impl|for|->)\s*$/u.test(prefix)) continue;
-      const open = source.indexOf("{", index);
-      const close = matchingRustDelimiter(source, open, "{", "}");
-      const fields = source.slice(open + 1, close);
-      const expression = rustStructFieldValue(fields, "scope_proximity");
-      assert.ok(
-        expression !== undefined,
-        `CascadeKey literal is missing scope_proximity: ${file}#${functionItem.name}`,
-      );
-      calls.push({ index, expression, functionItem });
-    }
-
-    const occurrences = new Map<string, number>();
-    for (const call of calls.toSorted((left, right) => left.index - right.index)) {
-      const occurrence = (occurrences.get(call.functionItem.name) ?? 0) + 1;
-      occurrences.set(call.functionItem.name, occurrence);
-      const scopeProximitySource = classifyCascadeScopeProximitySource(
-        call.expression,
-        call.functionItem,
-      );
-      discovered.push({
-        path: file,
-        symbol: call.functionItem.name,
-        occurrence,
-        disposition: classifyCascadeKeyProducerDisposition(
-          file,
-          call.functionItem.name,
-          scopeProximitySource,
-        ),
-        scopeProximitySource,
-      });
-    }
-  }
-  return discovered.toSorted((left, right) =>
-    cascadeKeyProducerId(left).localeCompare(cascadeKeyProducerId(right)),
+  const input = [...sources]
+    .filter(([file]) => isCascadeKeyProducerSourcePath(file))
+    .map(([file, source]) => ({ path: file, source }));
+  const inputPaths = new Set(input.map((entry) => entry.path));
+  const productRoots = [
+    ...cargoProductRustRoots().filter((root) => inputPaths.has(root)),
+    ...[...syntheticCascadeKeyProbeRoots].filter((root) => inputPaths.has(root)),
+  ].toSorted();
+  assert.ok(
+    productRoots.length > 0,
+    "CascadeKey AST scan requires at least one Cargo product root",
   );
+  const scan = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--quiet",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-diff-test",
+      "--bin",
+      "cascade_key_producer_census",
+    ],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      input: JSON.stringify({ sources: input, productRoots }),
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  );
+  assert.equal(
+    scan.status,
+    0,
+    `CascadeKey AST producer scan failed:\n${scan.stderr || scan.stdout}`,
+  );
+  const syntaxRows = JSON.parse(scan.stdout) as readonly CascadeKeyProducerSyntaxV0[];
+  return syntaxRows
+    .map(
+      (row): CascadeKeyProducerV0 => ({
+        path: row.path,
+        symbol: row.symbol,
+        occurrence: row.occurrence,
+        disposition: classifyCascadeKeyProducerDisposition(
+          row.path,
+          row.symbol,
+          row.scopeProximitySource,
+        ),
+        scopeProximitySource: row.scopeProximitySource,
+      }),
+    )
+    .toSorted((left, right) =>
+      cascadeKeyProducerId(left).localeCompare(cascadeKeyProducerId(right)),
+    );
+}
+
+function cargoProductRustRoots(): readonly string[] {
+  if (currentCargoProductRustRoots !== undefined) return currentCargoProductRustRoots;
+  const metadata = spawnSync(
+    "cargo",
+    ["metadata", "--no-deps", "--format-version", "1", "--manifest-path", "rust/Cargo.toml"],
+    { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+  );
+  assert.equal(metadata.status, 0, `cargo metadata failed:\n${metadata.stderr || metadata.stdout}`);
+  const parsed = JSON.parse(metadata.stdout) as {
+    readonly packages: readonly {
+      readonly targets: readonly { readonly kind: readonly string[]; readonly src_path: string }[];
+    }[];
+  };
+  const productKinds = new Set([
+    "bin",
+    "cdylib",
+    "dylib",
+    "lib",
+    "proc-macro",
+    "rlib",
+    "staticlib",
+  ]);
+  currentCargoProductRustRoots = parsed.packages
+    .flatMap((pkg) => pkg.targets)
+    .filter((target) => target.kind.some((kind) => productKinds.has(kind)))
+    .map((target) => path.relative(repoRoot, target.src_path).split(path.sep).join("/"))
+    .toSorted();
+  return currentCargoProductRustRoots;
 }
 
 function isCascadeKeyProducerSourcePath(file: string): boolean {
-  return (
-    file.startsWith("rust/crates/") &&
-    file.endsWith(".rs") &&
-    !file.includes("/tests/") &&
-    !file.includes("/examples/") &&
-    !file.endsWith("/src/tests.rs")
-  );
+  return file.startsWith("rust/crates/") && file.endsWith(".rs");
 }
 
 function classifyCascadeKeyProducerDisposition(
@@ -985,7 +1571,7 @@ function classifyCascadeKeyProducerDisposition(
   if (
     scopeSource === "callerSupplied" &&
     ((file === "rust/crates/omena-bundler/src/lib.rs" &&
-      symbol === "cascade_key_with_global_source_order") ||
+      symbol === "LinkedStylesheetRuleV0::cascade_key_with_global_source_order") ||
       (file === "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs" &&
         symbol === "winner_for_pair"))
   ) {
@@ -994,165 +1580,10 @@ function classifyCascadeKeyProducerDisposition(
   return "automaticProductDerived";
 }
 
-function classifyCascadeScopeProximitySource(
-  expression: string,
-  functionItem: RustFunctionItemV0,
-): CascadeScopeProximitySourceV0 {
-  const normalized = expression.replace(/\s+/gu, "");
-  if (/^0(?:_?u32)?$/u.test(normalized)) return "constantZero";
-  if (normalized.includes("cascade_scope_proximity_fallback_for_selector_context_rank")) {
-    return "legacySelectorContextFallback";
-  }
-  if (/^[A-Za-z_][A-Za-z0-9_]*$/u.test(normalized)) {
-    const assignment = new RegExp(
-      `let\\s+(?:mut\\s+)?${escapeRegExp(normalized)}(?:\\s*:[^=;]+)?\\s*=\\s*([^;]+);`,
-      "u",
-    ).exec(functionItem.body)?.[1];
-    if (assignment?.includes("cascade_scope_proximity_fallback_for_selector_context_rank")) {
-      return "legacySelectorContextFallback";
-    }
-    const parameterPattern = new RegExp(`\\b${escapeRegExp(normalized)}\\s*:`, "u");
-    if (parameterPattern.test(functionItem.header)) return "callerSupplied";
-  }
-  if (/\.scope_proximity\b/u.test(normalized)) return "callerSupplied";
-  return "generatedValue";
-}
-
-function rustEnclosingFunctionAt(source: string, index: number): RustFunctionItemV0 | undefined {
-  const pattern =
-    /^[ \t]*(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)/gmu;
-  const candidates = [...source.slice(0, index).matchAll(pattern)];
-  for (const match of candidates.toReversed()) {
-    const open = source.indexOf("{", match.index);
-    const semicolon = source.indexOf(";", match.index);
-    if (open < 0 || open >= index || (semicolon >= 0 && semicolon < open)) continue;
-    return {
-      name: match[1] ?? "",
-      open,
-      header: source.slice(match.index, open),
-      body: source.slice(open + 1, index),
-    };
-  }
-  return undefined;
-}
-
 function cascadeKeyProducerId(
   producer: Pick<CascadeKeyProducerV0, "path" | "symbol" | "occurrence">,
 ): string {
   return `${producer.path}#${producer.symbol}:${producer.occurrence}`;
-}
-
-function rustStructFieldValue(source: string, field: string): string | undefined {
-  for (const part of splitRustTopLevel(source, ",")) {
-    const separator = part.indexOf(":");
-    if (separator < 0 || part.slice(0, separator).trim() !== field) continue;
-    return part.slice(separator + 1).trim();
-  }
-  return undefined;
-}
-
-function splitRustTopLevel(source: string, separator: string): string[] {
-  const parts: string[] = [];
-  let start = 0;
-  const delimiterStack: string[] = [];
-  let quote: '"' | "'" | undefined;
-  let lineComment = false;
-  let blockComment = false;
-  for (let index = 0; index < source.length; index += 1) {
-    const current = source[index] ?? "";
-    const next = source[index + 1] ?? "";
-    const previous = source[index - 1] ?? "";
-    if (lineComment) {
-      if (current === "\n") lineComment = false;
-      continue;
-    }
-    if (blockComment) {
-      if (current === "*" && next === "/") {
-        blockComment = false;
-        index += 1;
-      }
-      continue;
-    }
-    if (quote !== undefined) {
-      if (current === quote && previous !== "\\") quote = undefined;
-      continue;
-    }
-    if (current === "/" && next === "/") {
-      lineComment = true;
-      index += 1;
-      continue;
-    }
-    if (current === "/" && next === "*") {
-      blockComment = true;
-      index += 1;
-      continue;
-    }
-    if (current === '"' || (current === "'" && rustCharLiteralEnd(source, index) > index)) {
-      quote = current;
-      continue;
-    }
-    if (current === "(" || current === "[" || current === "{") delimiterStack.push(current);
-    if (current === ")" || current === "]" || current === "}") delimiterStack.pop();
-    if (current === separator && delimiterStack.length === 0) {
-      parts.push(source.slice(start, index).trim());
-      start = index + 1;
-    }
-  }
-  parts.push(source.slice(start).trim());
-  return parts;
-}
-
-function matchingRustDelimiter(
-  source: string,
-  openIndex: number,
-  openDelimiter: string,
-  closeDelimiter: string,
-): number {
-  assert.equal(source[openIndex], openDelimiter, `missing ${openDelimiter} at ${openIndex}`);
-  let depth = 0;
-  let quote: '"' | "'" | undefined;
-  let lineComment = false;
-  let blockComment = false;
-  for (let index = openIndex; index < source.length; index += 1) {
-    const current = source[index] ?? "";
-    const next = source[index + 1] ?? "";
-    const previous = source[index - 1] ?? "";
-    if (lineComment) {
-      if (current === "\n") lineComment = false;
-      continue;
-    }
-    if (blockComment) {
-      if (current === "*" && next === "/") {
-        blockComment = false;
-        index += 1;
-      }
-      continue;
-    }
-    if (quote !== undefined) {
-      if (current === quote && previous !== "\\") quote = undefined;
-      continue;
-    }
-    if (current === "/" && next === "/") {
-      lineComment = true;
-      index += 1;
-      continue;
-    }
-    if (current === "/" && next === "*") {
-      blockComment = true;
-      index += 1;
-      continue;
-    }
-    if (current === '"' || (current === "'" && rustCharLiteralEnd(source, index) > index)) {
-      quote = current;
-      continue;
-    }
-    if (current === openDelimiter) depth += 1;
-    if (current === closeDelimiter) {
-      depth -= 1;
-      if (depth === 0) return index;
-    }
-  }
-  throw new Error(`unterminated Rust delimiter ${openDelimiter} at ${openIndex}`);
 }
 
 type AxisOrderSiteDisposition = "consumer" | "mirror" | "structural";
@@ -1350,7 +1781,7 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
   assert.deepEqual(
     axisOrderFromSchemaOracle(sources.get("rust/crates/omena-cascade/src/tests.rs") ?? ""),
     sourceAxisOrder,
-    "margin schema oracle must mirror the axis authority",
+    "axis-order mirror rust/crates/omena-cascade/src/tests.rs#cascade_margin_schema_is_substrate_only_until_calibrated must match the axis authority",
   );
   assert.deepEqual(
     axisOrderFromHandOracle(sources.get("rust/crates/omena-cascade/src/tests.rs") ?? ""),
@@ -1676,7 +2107,7 @@ function normalizeAxisOrderSymbol(file: string, symbol: string): string | undefi
 function isAxisOrderDetectorInternal(file: string, symbol: string): boolean {
   return (
     file === "scripts/check-rust-ranked-set-loss-census.ts" &&
-    /^(?:cascadeAxisOrder|emittedAxisOrderSite|discover|addJsonAxis|sourceSymbols|bracedSourceItem|rustCharLiteralEnd|normalizeAxis|isAxisOrderDetectorInternal|axisTokensIn|hasAxis|hasDenseAxisLiteral|axisOrderFrom|collapseSpecificity|quotedAxis|axisNameFrom|escapeRegExp|readCascadeAxis|listCurrent|listTracked|readAtRef|validateCascadeKeyProducer|validateCallerSuppliedScope|readCascadeKeyProducer|isCascadeKeyProducer|classifyCascade|rustFunctionItems|enclosingRustFunction|cascadeKeyProducerId|rustStructFieldValue|splitRustTopLevel|matchingRustDelimiter|maskCfgTestRustItems)/u.test(
+    /^(?:cascadeAxisOrder|cascadeKeyType|emittedAxisOrderSite|discover|addCascadeAliases|addJsonAxis|sourceSymbols|bracedSourceItem|rustBraceDepth|rustCharLiteralEnd|rustEnclosing|rustModuleScope|rustSourceFileModulePath|normalizeAxis|isAxisOrderDetectorInternal|axisTokensIn|hasAxis|hasDenseAxisLiteral|axisOrderFrom|collapseSpecificity|quotedAxis|axisNameFrom|escapeRegExp|readCascadeAxis|listCurrent|listTracked|readAtRef|validateCascadeKeyProducer|validateCallerSuppliedScope|readCascadeKeyProducer|isCascadeKeyProducer|classifyCascade|rustFunctionItems|enclosingRustFunction|cascadeKeyProducerId|rustStructFieldValue|splitRustTopLevel|matchingRustDelimiter|maskCfgTestRustItems)/u.test(
       symbol,
     )
   );
@@ -1874,8 +2305,4 @@ function axisNameFromRustVariant(variant: string): string {
   const name = names[variant];
   assert.ok(name, `unknown cascade key axis authority variant ${variant}`);
   return name;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }

@@ -2627,9 +2627,12 @@ dependencies = [
  "omena-transform-cst",
  "omena-transform-passes",
  "omena-value-lattice",
+ "proc-macro2",
+ "quote",
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "syn 2.0.117",
  "toml",
 ]
 

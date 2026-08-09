@@ -523,7 +523,7 @@ mod tests {
         }));
         assert!(caller_supplied.iter().any(|producer| {
             producer.path == "rust/crates/omena-bundler/src/lib.rs"
-                && producer.symbol == "cascade_key_with_global_source_order"
+                && producer.symbol == "LinkedStylesheetRuleV0::cascade_key_with_global_source_order"
         }));
         assert!(caller_supplied.iter().any(|producer| {
             producer.path == "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs"

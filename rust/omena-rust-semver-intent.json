@@ -274,6 +274,28 @@
               ]
             }
           ]
+        },
+        {
+          "id": "open-world-tie-evidence-carrier-shape",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeDeclaration.open_world_tie_evidence and select_open_world_cascade_winner callback shape",
+          "reason": "Module provenance moves out of CascadeKey into an explicit carrier, and open-world selection now requires callers to return that carrier beside the specification key.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": ["pub open_world_tie_evidence: OpenWorldTieEvidence"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/ranking.rs",
+              "needles": ["key_and_evidence_for: impl Fn(&T) -> (CascadeKey, OpenWorldTieEvidence)"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/tests/snapshots/public-api.txt",
+              "needles": [
+                "impl core::ops::function::Fn(&T) -> (omena_cascade::CascadeKey, omena_cascade::OpenWorldTieEvidence)"
+              ]
+            }
+          ]
         }
       ]
     },
@@ -335,6 +357,27 @@
               "needles": [
                 "instance_reachability_inputs_closed_over_composes(",
                 "fn composes_closure_expands_module_qualified_semantic_reachability()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "linked-stylesheet-cascade-evidence-return",
+          "kind": "selection-outcome-changing",
+          "surface": "LinkedStylesheetRuleV0::cascade_key_with_global_source_order return carrier",
+          "reason": "The public helper returns the specification key and open-world tie evidence as separate values so callers cannot silently treat module provenance as a cascade axis.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+              "needles": [
+                ") -> (CascadeKey, OpenWorldTieEvidence) {",
+                "OpenWorldTieEvidence::new(module_rank)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-bundler/tests/snapshots/public-api.txt",
+              "needles": [
+                "cascade_key_with_global_source_order(&self, omena_cascade::model::CascadeLevel, omena_cascade::model::LayerOrdinal, bool, u32, omena_cascade::model::Specificity, omena_cascade::model::ModuleRank) -> (omena_cascade::model::CascadeKey, omena_cascade::model::OpenWorldTieEvidence)"
               ]
             }
           ]

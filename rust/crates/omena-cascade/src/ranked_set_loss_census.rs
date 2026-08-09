@@ -34,6 +34,9 @@ pub enum CascadeRankedSetFunctionV0 {
 pub enum CascadeAxisPrefixV0 {
     Level,
     LayerRank,
+    /// Retained for 0.x wire compatibility. The current specification order
+    /// places specificity before scope proximity, so the pre-specificity
+    /// classifier cannot emit this variant.
     ScopeProximity,
 }
 

@@ -727,6 +727,7 @@ function buildRankedSetLossCensus(
     "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
     "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
     "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction.",
+    "CascadeAxisPrefixV0::ScopeProximity is retained for 0.x compatibility but is unreachable from the pre-specificity classifier because specificity precedes scope proximity.",
   ];
   if (multiCandidateInexactRankedSetCount === 0) {
     limitations.push(
