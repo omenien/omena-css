@@ -644,6 +644,51 @@
           ]
         }
       ]
+    },
+    {
+      "crate": "omena-lsp-server",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects and includes the already-landed language-server state additions.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field ScheduledLspOutput.diagnostics_publish_receipt",
+            "field LspDeferredDiagnosticsDispatchV0.diagnostics_publish_registry",
+            "field LspShellStateSnapshot.source_type_fact_cache_telemetry"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "ScheduledLspOutput.diagnostics_publish_receipt",
+            "LspDeferredDiagnosticsDispatchV0.diagnostics_publish_registry",
+            "LspShellStateSnapshot.source_type_fact_cache_telemetry"
+          ]
+        },
+        {
+          "lint": "constructible_struct_adds_private_field",
+          "evidenceNeedles": ["field LspDeferredDiagnosticsDispatchV0.reactive_shadow_flush_id"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["LspDeferredDiagnosticsDispatchV0.reactive_shadow_flush_id"]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "lsp-cache-write-surface-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "LspTrustBoundaryV0.diskWriteSurfaces",
+          "reason": "The serialized write-surface value changes from path strings to typed objects carrying root kind, resolved rung, root shape, and cache directories.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
+              "needles": [
+                "pub disk_write_surfaces: Vec<CacheWriteSurfaceV0>",
+                "disk_write_surfaces: declared_cache_write_surfaces_for_rungs(lsp_rung, bridge_rung)",
+                "pub cache_directories: Vec<&'static str>"
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
