@@ -143,6 +143,11 @@ const expectedUnwiredChecks = [
   "check-rust-m6-dimensional-refinement.ts",
 ] as const;
 const editorSettingContracts = {
+  "omena.cache.location": {
+    owner: "extension-client",
+    source: "client/src/extension.ts",
+    anchor: '.get("cache.location")',
+  },
   "omena.features.definition": {
     owner: "rust-server",
     source: "rust/crates/omena-lsp-server/src/settings.rs",
