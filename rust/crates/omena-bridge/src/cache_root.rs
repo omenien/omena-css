@@ -1,4 +1,4 @@
-use omena_sif::compute_omena_sif_leaf_hash_v1;
+use omena_sif::compute_omena_stable_cache_shard_address_v1;
 use serde::Serialize;
 use std::{
     fs,
@@ -218,7 +218,11 @@ fn scoped_workspace_root(
 ) -> Option<PathBuf> {
     let base = base?;
     let workspace_identity = workspace_identity?;
-    let address = compute_omena_sif_leaf_hash_v1(workspace_identity.as_bytes());
+    let address = compute_omena_stable_cache_shard_address_v1(
+        "omena-bridge.workspace-cache-root",
+        &[workspace_identity],
+    )
+    .ok()?;
     let hex = address.as_str().strip_prefix("blake3:")?;
     Some(base.join("workspaces").join(hex))
 }
@@ -282,14 +286,22 @@ mod tests {
                 "/platform/omena/workspaces",
             ),
         ];
+        let expected_address = compute_omena_stable_cache_shard_address_v1(
+            "omena-bridge.workspace-cache-root",
+            &[identity],
+        )
+        .ok()
+        .and_then(|address| address.as_str().strip_prefix("blake3:").map(str::to_string));
+        assert!(expected_address.is_some());
         for (inputs, expected_source, expected_prefix) in rows {
             let roots = resolve_omena_cache_roots(inputs);
             assert_eq!(roots.source, expected_source);
-            assert!(
-                roots
-                    .workspace
-                    .is_some_and(|root| root.starts_with(expected_prefix)),
-                "source={expected_source:?}"
+            assert_eq!(
+                roots.workspace,
+                expected_address
+                    .as_deref()
+                    .map(|address| Path::new(expected_prefix).join(address)),
+                "source={expected_source:?}: workspace partitions must use the shared stable-address helper"
             );
         }
 
@@ -302,15 +314,49 @@ mod tests {
     }
 
     #[test]
-    fn marker_bytes_match_the_lsp_writer_contract() {
+    fn marker_bytes_equal_the_lsp_writer_contract() {
         let lsp_disk_cache_source = include_str!("../../omena-lsp-server/src/disk_cache.rs");
-        assert!(
-            lsp_disk_cache_source
-                .contains("b\"# machine-generated omena cache - safe to delete\\n*\\n\"")
+        let lsp_gitignore = rust_byte_const(lsp_disk_cache_source, "OMENA_CACHE_GITIGNORE_BYTES");
+        let lsp_cachedir_tag = rust_byte_const(lsp_disk_cache_source, "OMENA_CACHEDIR_TAG_BYTES");
+        assert_eq!(
+            lsp_gitignore.as_deref(),
+            Some(OMENA_CACHE_GITIGNORE_BYTES),
+            "the independently authored .gitignore literals must be byte-equal"
         );
-        assert!(lsp_disk_cache_source.contains(
-            "b\"Signature: 8a477f597d28d172789f06886806bc55\\n# This directory is an omena cache; contents are regenerable.\\n\""
-        ));
+        assert_eq!(
+            lsp_cachedir_tag.as_deref(),
+            Some(OMENA_CACHEDIR_TAG_BYTES),
+            "the independently authored CACHEDIR.TAG literals must be byte-equal"
+        );
+    }
+
+    fn rust_byte_const(source: &str, name: &str) -> Option<Vec<u8>> {
+        let declaration = format!("const {name}: &[u8]");
+        let declaration_start = source.find(declaration.as_str())?;
+        let literal_tail = source.get(declaration_start..)?;
+        let literal_start = literal_tail.find("b\"")? + 2;
+        let mut bytes = Vec::new();
+        let mut escaped = false;
+        for byte in literal_tail.get(literal_start..)?.bytes() {
+            if escaped {
+                bytes.push(match byte {
+                    b'n' => b'\n',
+                    b'r' => b'\r',
+                    b't' => b'\t',
+                    b'\\' => b'\\',
+                    b'"' => b'"',
+                    _ => return None,
+                });
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                return Some(bytes);
+            } else {
+                bytes.push(byte);
+            }
+        }
+        None
     }
 
     #[test]

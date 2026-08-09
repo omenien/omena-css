@@ -1528,12 +1528,34 @@ mod tests {
         let style = shared_package.join("tokens.scss");
         fs::write(style.as_path(), "$brand: #0af;\n")?;
 
-        let shared_global_root = root.join("global").join("omena").join("workspaces");
-        let storage_a = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(
-            shared_global_root.join("workspace-a"),
+        let platform_cache_home = root.join("global");
+        let workspace_identity_a = workspace_a.to_string_lossy().into_owned();
+        let workspace_identity_b = workspace_b.to_string_lossy().into_owned();
+        let derived_workspace_root = |workspace_root: &Path, workspace_identity: &str| {
+            crate::cache_root::resolve_omena_cache_roots(
+                crate::cache_root::CacheRootResolverInputsV0 {
+                    platform_cache_home: Some(platform_cache_home.as_path()),
+                    workspace_root: Some(workspace_root),
+                    workspace_identity: Some(workspace_identity),
+                    ..crate::cache_root::CacheRootResolverInputsV0::default()
+                },
+            )
+            .workspace
+        };
+        let workspace_cache_root_a =
+            derived_workspace_root(workspace_a.as_path(), workspace_identity_a.as_str())
+                .ok_or_else(|| std::io::Error::other("workspace A cache root"))?;
+        let workspace_cache_root_b =
+            derived_workspace_root(workspace_b.as_path(), workspace_identity_b.as_str())
+                .ok_or_else(|| std::io::Error::other("workspace B cache root"))?;
+        assert_ne!(workspace_cache_root_a, workspace_cache_root_b);
+        let storage_a = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root_and_identity(
+            workspace_cache_root_a,
+            workspace_identity_a,
         );
-        let storage_b = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(
-            shared_global_root.join("workspace-b"),
+        let storage_b = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root_and_identity(
+            workspace_cache_root_b,
+            workspace_identity_b,
         );
         let cache_context = OmenaBridgeExternalSifCacheContextV0::default();
         clear_external_sif_memory_cache_for_test();
@@ -1612,7 +1634,10 @@ mod tests {
         assert_eq!(shard_files(cache_dir_b.as_path()).len(), 1);
         eprintln!(
             "externalSifStorage globalBase={} workspaceA={} workspaceB={} shardsA=1 shardsB=1 crossWorkspaceServe=false",
-            shared_global_root.display(),
+            platform_cache_home
+                .join("omena")
+                .join("workspaces")
+                .display(),
             cache_dir_a.display(),
             cache_dir_b.display(),
         );
