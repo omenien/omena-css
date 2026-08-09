@@ -246,7 +246,8 @@ mod tests {
             workspace_opt_in: true,
             ..CacheRootResolverInputsV0::default()
         });
-        let root = roots.workspace.expect("workspace root");
+        let root = workspace.join(".cache").join("omena");
+        assert_eq!(roots.workspace.as_deref(), Some(root.as_path()));
         for cache_dir_name in [
             "diagnostics-cache-v1",
             "source-document-index-v1",
@@ -270,7 +271,6 @@ mod tests {
             workspace_opt_in: true,
             ..CacheRootResolverInputsV0::default()
         });
-        let root = roots.workspace.expect("environment workspace root");
         for cache_dir_name in [
             "diagnostics-cache-v1",
             "source-document-index-v1",
@@ -279,8 +279,10 @@ mod tests {
             "source-occurrence-index-v1",
             "style-symbol-occurrence-index-v1",
         ] {
-            let cache_dir = root.join(cache_dir_name);
-            assert!(cache_dir.starts_with("/forced/omena/workspaces"));
+            assert!(roots.workspace.as_ref().is_some_and(|root| {
+                root.join(cache_dir_name)
+                    .starts_with("/forced/omena/workspaces")
+            }));
         }
     }
 }

@@ -1,12 +1,17 @@
 use crate::LspShellState;
+use crate::cache_limits::{
+    DEFAULT_PERSISTENT_CACHE_LIMITS, PersistentCacheLimitsV0, ensure_cache_root_attribution,
+    read_cache_shard_with_limits, write_cache_shard_atomically_with_limits,
+};
 use crate::protocol::file_uri_to_path;
 use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
 use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
 use serde_json::{Value, json};
-use std::{fs, path::PathBuf};
+use std::path::{Path, PathBuf};
 
 const SOURCE_TYPE_FACT_SIDECAR_PRODUCT: &str = "omena-lsp-server.source-type-fact-sidecar";
 const SOURCE_TYPE_FACT_SIDECAR_DIR: &str = "source-type-fact-cache-v1";
+const SOURCE_TYPE_FACT_SIDECAR_LIMITS: PersistentCacheLimitsV0 = DEFAULT_PERSISTENT_CACHE_LIMITS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SourceTypeFactSidecarFreshnessV0 {
@@ -52,7 +57,8 @@ pub(crate) fn load_source_type_fact_sidecar_with_freshness(
     else {
         return SourceTypeFactSidecarLoadV0::Miss;
     };
-    let Ok(bytes) = fs::read(path) else {
+    let Some(bytes) = read_source_type_fact_shard(path.as_path(), &SOURCE_TYPE_FACT_SIDECAR_LIMITS)
+    else {
         return SourceTypeFactSidecarLoadV0::Miss;
     };
     let Ok(shard) = serde_json::from_slice::<Value>(bytes.as_slice()) else {
@@ -111,13 +117,6 @@ pub(crate) fn store_source_type_fact_sidecar_with_freshness(
     else {
         return false;
     };
-    let Some(dir) = path.parent() else {
-        return false;
-    };
-    if fs::create_dir_all(dir).is_err() {
-        return false;
-    }
-    crate::disk_cache::ensure_omena_cache_root_markers(dir);
     let payload = json!({
         "entries": entries,
         "entryCount": entries.len(),
@@ -139,11 +138,30 @@ pub(crate) fn store_source_type_fact_sidecar_with_freshness(
     let Ok(bytes) = write_omena_canonical_json_bytes_v1(&shard) else {
         return false;
     };
-    let temporary_path = path.with_extension(format!("tmp-{}", std::process::id()));
-    if fs::write(temporary_path.as_path(), bytes).is_ok() {
-        return fs::rename(temporary_path, path).is_ok();
+    if write_source_type_fact_shard(
+        path.as_path(),
+        bytes.as_slice(),
+        &SOURCE_TYPE_FACT_SIDECAR_LIMITS,
+    ) {
+        if let Some(dir) = path.parent() {
+            crate::disk_cache::ensure_omena_cache_root_markers(dir);
+            ensure_cache_root_attribution(dir, workspace_folder_uri.unwrap_or(document_uri));
+        }
+        return true;
     }
     false
+}
+
+fn read_source_type_fact_shard(path: &Path, limits: &PersistentCacheLimitsV0) -> Option<Vec<u8>> {
+    read_cache_shard_with_limits(path, limits)
+}
+
+fn write_source_type_fact_shard(
+    path: &Path,
+    bytes: &[u8],
+    limits: &PersistentCacheLimitsV0,
+) -> bool {
+    write_cache_shard_atomically_with_limits(path, bytes, limits)
 }
 
 fn source_type_fact_sidecar_path(
@@ -234,4 +252,18 @@ pub(crate) fn source_type_fact_sidecar_file_path_for_test(
     document_uri: &str,
 ) -> Option<PathBuf> {
     source_type_fact_sidecar_path(state, workspace_folder_uri, document_uri)
+}
+
+#[cfg(test)]
+mod cache_limit_tests {
+    use super::*;
+
+    #[test]
+    fn source_type_fact_store_enforces_reachable_count_byte_and_shard_limits() {
+        crate::cache_limits::assert_real_cache_store_enforces_reachable_limits(
+            "source-type-fact-sidecar",
+            write_source_type_fact_shard,
+            read_source_type_fact_shard,
+        );
+    }
 }

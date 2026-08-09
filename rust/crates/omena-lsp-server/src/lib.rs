@@ -1,6 +1,7 @@
 //! Rust language-server runtime and editor protocol boundary for Omena CSS Modules.
 
 mod boundary;
+mod cache_limits;
 mod cache_root;
 mod code_actions;
 mod color_provider;
