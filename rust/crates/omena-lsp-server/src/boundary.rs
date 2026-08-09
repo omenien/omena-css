@@ -13,6 +13,34 @@ use crate::{
 use omena_tsgo_client::{OmenaTsgoClientBoundarySummaryV0, summarize_omena_tsgo_client_boundary};
 use serde::Serialize;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum CacheStorageRungV0 {
+    InitializationOptions,
+    Environment,
+    Platform,
+    Workspace,
+    Disabled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum CacheWriteSurfaceKindV0 {
+    LspWorkspaceCache,
+    BridgeExternalSifCache,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheWriteSurfaceV0 {
+    pub root_kind: CacheWriteSurfaceKindV0,
+    pub resolved_rung: CacheStorageRungV0,
+    pub root_shape: &'static str,
+    pub cache_directories: Vec<&'static str>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaLspServerBoundarySummaryV0 {
@@ -46,11 +74,11 @@ pub struct LspTrustBoundaryV0 {
     pub verification_owner: &'static str,
     pub request_path_policy: Vec<&'static str>,
     pub forbidden_runtime_capabilities: Vec<&'static str>,
-    /// Declared local-disk write surfaces. The LSP historically wrote NO
-    /// files; the disk diagnostics cache (RFC 0009 Pillar C, rfcs#66) is the
-    /// first declared write surface. Local workspace disk only — this does
-    /// not weaken the `neverFetch` network invariant.
-    pub disk_write_surfaces: Vec<&'static str>,
+    /// Every owned cache root the LSP process may write, including writes
+    /// performed by the bridge below the query layer. The typed rung keeps
+    /// editor, environment, platform, workspace, and disabled resolution
+    /// distinguishable without weakening the `neverFetch` network invariant.
+    pub disk_write_surfaces: Vec<CacheWriteSurfaceV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -207,6 +235,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
 }
 
 pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
+    let resolved_rung = current_cache_storage_rung();
     LspTrustBoundaryV0 {
         product: "omena-lsp-server.trust-boundary",
         network_access: "neverFetch",
@@ -217,7 +246,10 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
             "attestationVerificationOwnedByCli",
             "noRegistryFetchOnLspRequestPath",
             "noTransparencyLogLookupOnLspRequestPath",
-            "diskDiagnosticsCacheLocalWorkspaceWritesOnly",
+            // Cache roots may be editor- or platform-owned after resolution;
+            // the durable invariant is containment by this declared set, not
+            // physical placement below the opened repository.
+            "cacheWritesConfinedToDeclaredOwnedRootsNeverNetwork",
         ],
         forbidden_runtime_capabilities: vec![
             "registryHttpClient",
@@ -225,7 +257,84 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
             "transparencyLogClient",
             "socketNetworkIo",
         ],
-        disk_write_surfaces: vec!["<workspaceFolder>/.cache/omena/**"],
+        disk_write_surfaces: declared_cache_write_surfaces_for_rung(resolved_rung),
+    }
+}
+
+pub(crate) fn current_cache_storage_rung() -> CacheStorageRungV0 {
+    crate::cache_root::process_cache_roots(
+        "<workspaceIdentity>",
+        std::path::Path::new("<workspaceFolder>"),
+    )
+    .source
+    .into()
+}
+
+pub(crate) fn declared_cache_write_surfaces_for_rung(
+    resolved_rung: CacheStorageRungV0,
+) -> Vec<CacheWriteSurfaceV0> {
+    let (lsp_root_shape, bridge_root_shape) = match resolved_rung {
+        CacheStorageRungV0::InitializationOptions => (
+            "<initializationWorkspaceStorage>/omena/workspaces/<workspaceIdentityHash>/**",
+            "<initializationWorkspaceStorage>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+        ),
+        CacheStorageRungV0::Environment => (
+            "<environmentCacheDir>/omena/workspaces/<workspaceIdentityHash>/**",
+            "<environmentCacheDir>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+        ),
+        CacheStorageRungV0::Platform => (
+            "<platformCacheHome>/omena/workspaces/<workspaceIdentityHash>/**",
+            "<platformCacheHome>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+        ),
+        CacheStorageRungV0::Workspace => (
+            "<workspaceFolder>/.cache/omena/**",
+            "<bridgeWorkspaceRoot>/.cache/omena/**",
+        ),
+        CacheStorageRungV0::Disabled => return Vec::new(),
+    };
+    vec![
+        CacheWriteSurfaceV0 {
+            root_kind: CacheWriteSurfaceKindV0::LspWorkspaceCache,
+            resolved_rung,
+            root_shape: lsp_root_shape,
+            cache_directories: vec![
+                "diagnostics-cache-v1",
+                "source-document-index-v1",
+                "source-type-fact-cache-v1",
+                "workspace-occurrence-shards-v1",
+            ],
+        },
+        CacheWriteSurfaceV0 {
+            root_kind: CacheWriteSurfaceKindV0::BridgeExternalSifCache,
+            resolved_rung,
+            root_shape: bridge_root_shape,
+            cache_directories: vec!["external-sif-v0"],
+        },
+    ]
+}
+
+pub(crate) fn declared_disk_diagnostics_storage_locations() -> Vec<CacheWriteSurfaceV0> {
+    declared_cache_write_surfaces_for_rung(current_cache_storage_rung())
+        .into_iter()
+        .filter(|surface| surface.root_kind == CacheWriteSurfaceKindV0::LspWorkspaceCache)
+        .map(|mut surface| {
+            surface.cache_directories = vec!["diagnostics-cache-v1"];
+            surface
+        })
+        .collect()
+}
+
+impl From<crate::cache_root::CacheRootSourceV0> for CacheStorageRungV0 {
+    fn from(source: crate::cache_root::CacheRootSourceV0) -> Self {
+        match source {
+            crate::cache_root::CacheRootSourceV0::InitializationOptions => {
+                Self::InitializationOptions
+            }
+            crate::cache_root::CacheRootSourceV0::Environment => Self::Environment,
+            crate::cache_root::CacheRootSourceV0::Platform => Self::Platform,
+            crate::cache_root::CacheRootSourceV0::Workspace => Self::Workspace,
+            crate::cache_root::CacheRootSourceV0::Disabled => Self::Disabled,
+        }
     }
 }
 
@@ -457,4 +566,68 @@ pub fn lsp_migration_phases() -> Vec<LspMigrationPhaseV0> {
             exit_gate: "rust/omena-lsp-server/thin-client-boundary",
         },
     ]
+}
+
+#[cfg(test)]
+mod cache_storage_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn declared_cache_surface_table_is_typed_and_exhaustive_by_rung() {
+        let rows = [
+            (
+                CacheStorageRungV0::InitializationOptions,
+                "<initializationWorkspaceStorage>/omena/workspaces/<workspaceIdentityHash>/**",
+                "<initializationWorkspaceStorage>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+            ),
+            (
+                CacheStorageRungV0::Environment,
+                "<environmentCacheDir>/omena/workspaces/<workspaceIdentityHash>/**",
+                "<environmentCacheDir>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+            ),
+            (
+                CacheStorageRungV0::Platform,
+                "<platformCacheHome>/omena/workspaces/<workspaceIdentityHash>/**",
+                "<platformCacheHome>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+            ),
+            (
+                CacheStorageRungV0::Workspace,
+                "<workspaceFolder>/.cache/omena/**",
+                "<bridgeWorkspaceRoot>/.cache/omena/**",
+            ),
+        ];
+
+        for (rung, expected_lsp_root, expected_bridge_root) in rows {
+            let surfaces = declared_cache_write_surfaces_for_rung(rung);
+            assert_eq!(surfaces.len(), 2, "rung={rung:?}");
+            assert_eq!(
+                surfaces[0],
+                CacheWriteSurfaceV0 {
+                    root_kind: CacheWriteSurfaceKindV0::LspWorkspaceCache,
+                    resolved_rung: rung,
+                    root_shape: expected_lsp_root,
+                    cache_directories: vec![
+                        "diagnostics-cache-v1",
+                        "source-document-index-v1",
+                        "source-type-fact-cache-v1",
+                        "workspace-occurrence-shards-v1",
+                    ],
+                }
+            );
+            assert_eq!(
+                surfaces[1],
+                CacheWriteSurfaceV0 {
+                    root_kind: CacheWriteSurfaceKindV0::BridgeExternalSifCache,
+                    resolved_rung: rung,
+                    root_shape: expected_bridge_root,
+                    cache_directories: vec!["external-sif-v0"],
+                }
+            );
+        }
+
+        assert!(
+            declared_cache_write_surfaces_for_rung(CacheStorageRungV0::Disabled).is_empty(),
+            "disabled resolution must declare no writable cache surface"
+        );
+    }
 }

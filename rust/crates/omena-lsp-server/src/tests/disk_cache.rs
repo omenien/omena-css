@@ -102,6 +102,98 @@ fn shard_files(cache_dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+fn cache_files_below(root: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut files = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            files.extend(cache_files_below(path.as_path()));
+        } else if path.is_file()
+            && path
+                .components()
+                .any(|component| component.as_os_str() == "omena")
+        {
+            files.push(path);
+        }
+    }
+    files.sort();
+    files
+}
+
+#[test]
+fn observed_cache_writes_are_contained_by_the_declared_surface() -> TestResult {
+    let fixture_root = disk_cache_workspace_root("declared-write-containment");
+    let (workspace_uri, style_uri) =
+        write_disk_cache_style_fixture(fixture_root.as_path(), DISK_CACHE_STYLE_TEXT);
+    let outputs = run_disk_cache_session(
+        workspace_uri.as_str(),
+        style_uri.as_str(),
+        DISK_CACHE_STYLE_TEXT,
+    );
+    assert!(
+        !outputs.is_empty(),
+        "the LSP store pass must produce output"
+    );
+
+    let external_package = fixture_root.join("external-package");
+    std::fs::create_dir_all(external_package.as_path())?;
+    std::fs::write(
+        external_package.join("package.json"),
+        r#"{"name":"external-package"}"#,
+    )?;
+    let external_style = external_package.join("tokens.scss");
+    std::fs::write(external_style.as_path(), "$brand: #0af;\n")?;
+    omena_query::generate_omena_bridge_sif_for_resolved_style_path(
+        external_style.to_string_lossy().as_ref(),
+    )?;
+
+    let mut observed_files = cache_files_below(fixture_root.as_path());
+    if let Some(environment_root) = std::env::var_os("OMENA_CACHE_DIR").map(PathBuf::from) {
+        observed_files.extend(cache_files_below(environment_root.as_path()));
+        observed_files.sort();
+        observed_files.dedup();
+    }
+    assert!(
+        !observed_files.is_empty(),
+        "the store pass must create observable cache files"
+    );
+
+    let environment_root = std::env::var_os("OMENA_CACHE_DIR").map(PathBuf::from);
+    let declared_roots = crate::lsp_trust_boundary_contract()
+        .disk_write_surfaces
+        .into_iter()
+        .filter_map(|surface| match surface.resolved_rung {
+            crate::CacheStorageRungV0::Environment => environment_root
+                .as_ref()
+                .map(|root| root.join("omena").join("workspaces")),
+            crate::CacheStorageRungV0::Workspace => match surface.root_kind {
+                crate::CacheWriteSurfaceKindV0::LspWorkspaceCache => {
+                    Some(fixture_root.join(".cache").join("omena"))
+                }
+                crate::CacheWriteSurfaceKindV0::BridgeExternalSifCache => {
+                    Some(external_package.join(".cache").join("omena"))
+                }
+            },
+            crate::CacheStorageRungV0::InitializationOptions
+            | crate::CacheStorageRungV0::Platform
+            | crate::CacheStorageRungV0::Disabled => None,
+        })
+        .collect::<Vec<_>>();
+    println!("cacheContainment observed={observed_files:?} declared={declared_roots:?}");
+    assert!(
+        observed_files
+            .iter()
+            .all(|path| declared_roots.iter().any(|root| path.starts_with(root))),
+        "observed cache writes must stay inside the declared set: observed={observed_files:?} declared={declared_roots:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(fixture_root);
+    Ok(())
+}
+
 fn serialized_outputs(outputs: &[ScheduledLspOutput]) -> String {
     serde_json::to_string(
         &outputs

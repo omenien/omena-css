@@ -117,7 +117,7 @@ pub struct DiskDiagnosticsCacheBoundaryV0 {
     pub product: &'static str,
     pub owner: &'static str,
     pub cache_model: &'static str,
-    pub storage_location: &'static str,
+    pub storage_location: Vec<crate::CacheWriteSurfaceV0>,
     pub reuse_policy: Vec<&'static str>,
     pub write_policy: Vec<&'static str>,
     pub kill_switches: Vec<&'static str>,
@@ -128,7 +128,7 @@ pub fn disk_diagnostics_cache_contract() -> DiskDiagnosticsCacheBoundaryV0 {
         product: "omena-lsp-server.disk-diagnostics-cache",
         owner: "omena-lsp-server/diskDiagnosticsCache",
         cache_model: "verifyingTraceStableAddressShardStore",
-        storage_location: "<workspaceFolder>/.cache/omena/diagnostics-cache-v1",
+        storage_location: crate::boundary::declared_disk_diagnostics_storage_locations(),
         reuse_policy: vec![
             "stableAddressPerTargetOneShardEach",
             "recordedReadSetVerifiedPerDependencyContentHash",
@@ -147,7 +147,7 @@ pub fn disk_diagnostics_cache_contract() -> DiskDiagnosticsCacheBoundaryV0 {
             "atomicTempFileRenameWrites",
             "failSoftDisableWritesAfterRepeatedIoFailures",
             "boundedShardCountAndTotalBytesWithOldestMtimeEviction",
-            "localWorkspaceDiskOnlyNeverNetwork",
+            "declaredOwnedCacheRootsOnlyNeverNetwork",
         ],
         kill_switches: vec![
             "envOmenaLspDiskCacheOff",
