@@ -18,7 +18,7 @@
 //! recompute. Read-set completeness is oracle-gated, not assumed.
 //! Everything here is fail-soft: read errors, unparsable or oversized
 //! shards, and write failures degrade to cache misses without ever
-//! surfacing into the LSP loop. The store is local-workspace-disk only —
+//! surfacing into the LSP loop. The store is resolver-owned-cache-disk only —
 //! the trust boundary's `neverFetch` network invariant is untouched.
 
 use crate::protocol::file_uri_to_path;
@@ -496,6 +496,7 @@ pub(crate) fn disk_diagnostics_cache_dir_with_kill_switch(
     let (workspace_identity, workspace_root) =
         disk_diagnostics_cache_workspace_root(state, workspace_folder_uri)?;
     crate::cache_root::resolved_workspace_cache_dir(
+        &state.query_resolution().cache_storage,
         workspace_identity.as_str(),
         workspace_root.as_path(),
         DISK_DIAGNOSTICS_CACHE_DIR_V1,
@@ -794,7 +795,6 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
     if bytes.len() as u64 > limits.max_shard_bytes {
         return;
     }
-    remove_legacy_disk_diagnostics_cache_dir_once(slot.dir.as_path());
     match write_disk_diagnostics_shard_atomically(
         slot.dir.as_path(),
         slot.address.as_str(),
@@ -842,36 +842,42 @@ fn disk_diagnostics_shard_workspace_snapshot_id(
     serde_json::from_value(shard.get("workspaceSnapshotId")?.clone()).ok()
 }
 
-/// The content-keyed stage-1 stores this crate has replaced with stable-
-/// address stores. Their shards were dead weight on any input change and
-/// the directories accumulated without bound; every directory here is
-/// regenerable by contract.
-const LEGACY_CACHE_DIR_NAMES: &[&str] = &[
+const RELOCATED_WORKSPACE_CACHE_DIR_NAMES: &[&str] = &[
     "diagnostics-cache-v0",
+    "source-document-index-v0",
     "source-occurrence-index-v0",
     "source-occurrence-index-v1",
-    "source-document-index-v0",
     "source-type-fact-cache-v0",
     "style-symbol-occurrence-index-v0",
     "style-symbol-occurrence-index-v1",
     "workspace-occurrence-shards-v0",
 ];
 
-/// Best-effort, once per process: drop the abandoned content-keyed stores
-/// next to this one.
-fn remove_legacy_disk_diagnostics_cache_dir_once(current_dir: &Path) {
-    static LEGACY_SWEEP: std::sync::Once = std::sync::Once::new();
-    LEGACY_SWEEP.call_once(|| remove_legacy_cache_dirs(current_dir));
-}
-
-fn remove_legacy_cache_dirs(current_dir: &Path) {
-    let Some(omena_root) = current_dir.parent() else {
-        return;
-    };
-    for legacy_name in LEGACY_CACHE_DIR_NAMES {
-        let legacy_dir = omena_root.join(legacy_name);
-        if legacy_dir != current_dir && legacy_dir.is_dir() {
-            let _ = fs::remove_dir_all(legacy_dir);
+pub(crate) fn sweep_relocated_workspace_cache_roots(state: &mut crate::LspShellState) {
+    let workspace_roots = state
+        .workspace_runtime_registry
+        .folder_snapshots()
+        .into_iter()
+        .filter_map(|folder| file_uri_to_path(folder.uri.as_str()))
+        .map(|root| root.join(".cache").join("omena"))
+        .collect::<Vec<_>>();
+    for omena_root in workspace_roots {
+        if !state.swept_legacy_cache_roots.insert(omena_root.clone()) {
+            continue;
+        }
+        for cache_dir_name in RELOCATED_WORKSPACE_CACHE_DIR_NAMES {
+            let owned_path = omena_root.join(cache_dir_name);
+            if owned_path.is_dir() {
+                let _ = fs::remove_dir_all(owned_path);
+            }
+        }
+        if !omena_root.join("external-sif-v0").exists() {
+            for owned_file_name in [".gitignore", "CACHEDIR.TAG", ".omena-cache-owner.json"] {
+                let owned_path = omena_root.join(owned_file_name);
+                if owned_path.is_file() {
+                    let _ = fs::remove_file(owned_path);
+                }
+            }
         }
     }
 }
@@ -1724,33 +1730,6 @@ mod tests {
             "one target must own exactly one shard file across content edits"
         );
         assert!(slot.load().is_some(), "the overwrite serves the new trace");
-        Ok(())
-    }
-
-    #[test]
-    fn legacy_stage_one_store_is_swept() -> Result<(), &'static str> {
-        let base = temp_cache_dir("legacy-sweep");
-        let omena_root = base.join(".cache/omena");
-        let current_dir = omena_root.join("diagnostics-cache-v1");
-        fs::create_dir_all(current_dir.as_path()).map_err(|_| "create current")?;
-        let retired_dirs = [
-            omena_root.join("source-occurrence-index-v0"),
-            omena_root.join("source-occurrence-index-v1"),
-            omena_root.join("style-symbol-occurrence-index-v0"),
-            omena_root.join("style-symbol-occurrence-index-v1"),
-        ];
-        for retired_dir in &retired_dirs {
-            fs::create_dir_all(retired_dir.as_path()).map_err(|_| "create retired cache")?;
-            fs::write(retired_dir.join("dead.json"), b"{}").map_err(|_| "write retired shard")?;
-        }
-        remove_legacy_cache_dirs(current_dir.as_path());
-        for retired_dir in retired_dirs {
-            assert!(
-                !retired_dir.exists(),
-                "retired write-only occurrence stores must be removed: {retired_dir:?}"
-            );
-        }
-        assert!(current_dir.exists());
         Ok(())
     }
 

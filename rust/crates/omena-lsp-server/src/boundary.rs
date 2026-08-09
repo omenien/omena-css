@@ -235,7 +235,8 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
 }
 
 pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
-    let resolved_rung = current_cache_storage_rung();
+    let lsp_rung = current_cache_storage_rung();
+    let bridge_rung = current_bridge_cache_storage_rung();
     LspTrustBoundaryV0 {
         product: "omena-lsp-server.trust-boundary",
         network_access: "neverFetch",
@@ -257,12 +258,14 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
             "transparencyLogClient",
             "socketNetworkIo",
         ],
-        disk_write_surfaces: declared_cache_write_surfaces_for_rung(resolved_rung),
+        disk_write_surfaces: declared_cache_write_surfaces_for_rungs(lsp_rung, bridge_rung),
     }
 }
 
 pub(crate) fn current_cache_storage_rung() -> CacheStorageRungV0 {
+    let config = crate::cache_root::LspCacheStorageConfigV0::standalone(None);
     crate::cache_root::process_cache_roots(
+        &config,
         "<workspaceIdentity>",
         std::path::Path::new("<workspaceFolder>"),
     )
@@ -270,58 +273,100 @@ pub(crate) fn current_cache_storage_rung() -> CacheStorageRungV0 {
     .into()
 }
 
-pub(crate) fn declared_cache_write_surfaces_for_rung(
-    resolved_rung: CacheStorageRungV0,
+fn current_bridge_cache_storage_rung() -> CacheStorageRungV0 {
+    let has_environment_override = [
+        crate::cache_root::OMENA_CACHE_DIR_ENV,
+        crate::cache_root::OMENA_GLOBAL_CACHE_DIR_ENV,
+    ]
+    .into_iter()
+    .any(|name| std::env::var_os(name).is_some_and(|value| !value.is_empty()));
+    if has_environment_override {
+        CacheStorageRungV0::Environment
+    } else {
+        CacheStorageRungV0::Workspace
+    }
+}
+
+pub(crate) fn declared_cache_write_surfaces_for_rungs(
+    lsp_rung: CacheStorageRungV0,
+    bridge_rung: CacheStorageRungV0,
 ) -> Vec<CacheWriteSurfaceV0> {
-    let (lsp_root_shape, bridge_root_shape) = match resolved_rung {
-        CacheStorageRungV0::InitializationOptions => (
-            "<initializationWorkspaceStorage>/omena/workspaces/<workspaceIdentityHash>/**",
-            "<initializationWorkspaceStorage>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
-        ),
-        CacheStorageRungV0::Environment => (
-            "<environmentCacheDir>/omena/workspaces/<workspaceIdentityHash>/**",
-            "<environmentCacheDir>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
-        ),
-        CacheStorageRungV0::Platform => (
-            "<platformCacheHome>/omena/workspaces/<workspaceIdentityHash>/**",
-            "<platformCacheHome>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
-        ),
-        CacheStorageRungV0::Workspace => (
-            "<workspaceFolder>/.cache/omena/**",
-            "<bridgeWorkspaceRoot>/.cache/omena/**",
-        ),
-        CacheStorageRungV0::Disabled => return Vec::new(),
-    };
-    vec![
-        CacheWriteSurfaceV0 {
+    let mut surfaces = Vec::new();
+    if let Some(root_shape) = cache_root_shape(CacheWriteSurfaceKindV0::LspWorkspaceCache, lsp_rung)
+    {
+        surfaces.push(CacheWriteSurfaceV0 {
             root_kind: CacheWriteSurfaceKindV0::LspWorkspaceCache,
-            resolved_rung,
-            root_shape: lsp_root_shape,
+            resolved_rung: lsp_rung,
+            root_shape,
             cache_directories: vec![
                 "diagnostics-cache-v1",
                 "source-document-index-v1",
                 "source-type-fact-cache-v1",
                 "workspace-occurrence-shards-v1",
             ],
-        },
-        CacheWriteSurfaceV0 {
+        });
+    }
+    if let Some(root_shape) =
+        cache_root_shape(CacheWriteSurfaceKindV0::BridgeExternalSifCache, bridge_rung)
+    {
+        surfaces.push(CacheWriteSurfaceV0 {
             root_kind: CacheWriteSurfaceKindV0::BridgeExternalSifCache,
-            resolved_rung,
-            root_shape: bridge_root_shape,
+            resolved_rung: bridge_rung,
+            root_shape,
             cache_directories: vec!["external-sif-v0"],
-        },
-    ]
+        });
+    }
+    surfaces
+}
+
+fn cache_root_shape(
+    kind: CacheWriteSurfaceKindV0,
+    rung: CacheStorageRungV0,
+) -> Option<&'static str> {
+    match (kind, rung) {
+        (CacheWriteSurfaceKindV0::LspWorkspaceCache, CacheStorageRungV0::InitializationOptions) => {
+            Some("<initializationWorkspaceStorage>/omena/workspaces/<workspaceIdentityHash>/**")
+        }
+        (CacheWriteSurfaceKindV0::LspWorkspaceCache, CacheStorageRungV0::Environment) => {
+            Some("<environmentCacheDir>/omena/workspaces/<workspaceIdentityHash>/**")
+        }
+        (CacheWriteSurfaceKindV0::LspWorkspaceCache, CacheStorageRungV0::Platform) => {
+            Some("<platformCacheHome>/omena/workspaces/<workspaceIdentityHash>/**")
+        }
+        (CacheWriteSurfaceKindV0::LspWorkspaceCache, CacheStorageRungV0::Workspace) => {
+            Some("<workspaceFolder>/.cache/omena/**")
+        }
+        (
+            CacheWriteSurfaceKindV0::BridgeExternalSifCache,
+            CacheStorageRungV0::InitializationOptions,
+        ) => Some(
+            "<initializationWorkspaceStorage>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+        ),
+        (CacheWriteSurfaceKindV0::BridgeExternalSifCache, CacheStorageRungV0::Environment) => {
+            Some("<environmentCacheDir>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**")
+        }
+        (CacheWriteSurfaceKindV0::BridgeExternalSifCache, CacheStorageRungV0::Platform) => {
+            Some("<platformCacheHome>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**")
+        }
+        (CacheWriteSurfaceKindV0::BridgeExternalSifCache, CacheStorageRungV0::Workspace) => {
+            Some("<bridgeWorkspaceRoot>/.cache/omena/**")
+        }
+        (_, CacheStorageRungV0::Disabled) => None,
+    }
 }
 
 pub(crate) fn declared_disk_diagnostics_storage_locations() -> Vec<CacheWriteSurfaceV0> {
-    declared_cache_write_surfaces_for_rung(current_cache_storage_rung())
-        .into_iter()
-        .filter(|surface| surface.root_kind == CacheWriteSurfaceKindV0::LspWorkspaceCache)
-        .map(|mut surface| {
-            surface.cache_directories = vec!["diagnostics-cache-v1"];
-            surface
-        })
-        .collect()
+    declared_cache_write_surfaces_for_rungs(
+        current_cache_storage_rung(),
+        CacheStorageRungV0::Disabled,
+    )
+    .into_iter()
+    .filter(|surface| surface.root_kind == CacheWriteSurfaceKindV0::LspWorkspaceCache)
+    .map(|mut surface| {
+        surface.cache_directories = vec!["diagnostics-cache-v1"];
+        surface
+    })
+    .collect()
 }
 
 impl From<crate::cache_root::CacheRootSourceV0> for CacheStorageRungV0 {
@@ -396,6 +441,8 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
             "resolvePackagedRustBinary",
             "resolveStandaloneRustCommand",
             "buildThinClientServerOptions",
+            "prepareEditorStorageRoots",
+            "passStorageInitializationOptions",
             "declareStaticDocumentSelector",
             "startLanguageClient",
             "registerStaticFileWatchers",
@@ -598,7 +645,7 @@ mod cache_storage_boundary_tests {
         ];
 
         for (rung, expected_lsp_root, expected_bridge_root) in rows {
-            let surfaces = declared_cache_write_surfaces_for_rung(rung);
+            let surfaces = declared_cache_write_surfaces_for_rungs(rung, rung);
             assert_eq!(surfaces.len(), 2, "rung={rung:?}");
             assert_eq!(
                 surfaces[0],
@@ -626,8 +673,19 @@ mod cache_storage_boundary_tests {
         }
 
         assert!(
-            declared_cache_write_surfaces_for_rung(CacheStorageRungV0::Disabled).is_empty(),
+            declared_cache_write_surfaces_for_rungs(
+                CacheStorageRungV0::Disabled,
+                CacheStorageRungV0::Disabled,
+            )
+            .is_empty(),
             "disabled resolution must declare no writable cache surface"
         );
+
+        let split = declared_cache_write_surfaces_for_rungs(
+            CacheStorageRungV0::Platform,
+            CacheStorageRungV0::Workspace,
+        );
+        assert_eq!(split[0].resolved_rung, CacheStorageRungV0::Platform);
+        assert_eq!(split[1].resolved_rung, CacheStorageRungV0::Workspace);
     }
 }

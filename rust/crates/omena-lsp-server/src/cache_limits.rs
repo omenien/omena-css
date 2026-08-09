@@ -117,11 +117,32 @@ pub(crate) fn assert_real_cache_store_enforces_reachable_limits(
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!(
+    let editor_storage_root = std::env::temp_dir().join(format!(
         "omena-cache-limits-{}-{}-{nonce}",
         cache_name.replace('/', "-"),
         std::process::id()
     ));
+    let cache_storage = crate::cache_root::LspCacheStorageConfigV0 {
+        initialization_global_storage: Some(editor_storage_root.join("global")),
+        initialization_workspace_storage: Some(editor_storage_root.join("workspace")),
+        log_path: Some(editor_storage_root.join("logs")),
+        command_cache_dir: None,
+        location: crate::cache_root::CacheLocationV0::Editor,
+    };
+    let resolved_root = crate::cache_root::resolved_workspace_cache_dir(
+        &cache_storage,
+        "file:///workspace",
+        Path::new("/workspace"),
+        cache_name,
+    );
+    assert!(resolved_root.is_some(), "editor cache root must resolve");
+    let Some(root) = resolved_root else {
+        return;
+    };
+    assert!(
+        root.starts_with(editor_storage_root.join("workspace")),
+        "{cache_name}: cap exercise must run under the resolved editor root: {root:?}"
+    );
 
     let count_dir = root.join("count");
     let count_limits = PersistentCacheLimitsV0 {
@@ -193,7 +214,15 @@ pub(crate) fn assert_real_cache_store_enforces_reachable_limits(
         "{cache_name}: refused oversize shard must be removed"
     );
 
-    let _ = fs::remove_dir_all(root);
+    eprintln!(
+        "cacheLimit cache={cache_name} root={} countVictimExists={} countSurvivors=2 byteVictimExists={} byteSurvivors=2 oversizeExists={}",
+        root.display(),
+        count_victim.exists(),
+        byte_victim.exists(),
+        oversize.exists(),
+    );
+
+    let _ = fs::remove_dir_all(editor_storage_root);
 }
 
 #[cfg(test)]

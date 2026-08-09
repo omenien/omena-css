@@ -2,6 +2,7 @@ use crate::cache_limits::{
     DEFAULT_PERSISTENT_CACHE_LIMITS, PersistentCacheLimitsV0, ensure_cache_root_attribution,
     read_cache_shard_with_limits, write_cache_shard_atomically_with_limits,
 };
+use crate::cache_root::LspCacheStorageConfigV0;
 use crate::protocol::file_uri_to_path;
 use omena_query::{
     OmenaQuerySourceClassValueUniverseAxisV0, OmenaQuerySourceClassValueUniverseEntryV0,
@@ -48,6 +49,7 @@ pub(crate) struct LspSourceDocumentIndexSidecarLoadV0 {
 }
 
 pub(crate) fn load_source_document_index_sidecar(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -61,7 +63,12 @@ pub(crate) fn load_source_document_index_sidecar(
         text_hash,
         resolution_inputs,
     )?;
-    let path = source_document_index_sidecar_path(workspace_folder_uri, document_uri, language_id)?;
+    let path = source_document_index_sidecar_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    )?;
     let bytes = read_source_document_index_shard(path.as_path(), &SOURCE_DOCUMENT_INDEX_LIMITS)?;
     let shard: Value = serde_json::from_slice(bytes.as_slice()).ok()?;
     if shard.pointer("/schemaVersion").and_then(Value::as_str)
@@ -96,6 +103,7 @@ pub(crate) fn load_source_document_index_sidecar(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn store_source_document_index_sidecar(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -114,9 +122,12 @@ pub(crate) fn store_source_document_index_sidecar(
     ) else {
         return;
     };
-    let Some(path) =
-        source_document_index_sidecar_path(workspace_folder_uri, document_uri, language_id)
-    else {
+    let Some(path) = source_document_index_sidecar_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    ) else {
         return;
     };
     let payload = json!({
@@ -175,11 +186,17 @@ pub(crate) fn source_document_text_hash(text: &str) -> String {
 
 #[cfg(test)]
 pub(crate) fn source_document_index_sidecar_file_path_for_test(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
 ) -> Option<PathBuf> {
-    source_document_index_sidecar_path(workspace_folder_uri, document_uri, language_id)
+    source_document_index_sidecar_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    )
 }
 
 fn source_document_index_key(
@@ -208,6 +225,7 @@ fn source_document_index_key(
 }
 
 fn source_document_index_sidecar_path(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -225,6 +243,7 @@ fn source_document_index_sidecar_path(
         return None;
     }
     crate::cache_root::resolved_workspace_cache_dir(
+        cache_storage,
         workspace_folder_uri,
         root.as_path(),
         SOURCE_DOCUMENT_INDEX_DIR,

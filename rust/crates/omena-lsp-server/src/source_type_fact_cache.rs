@@ -190,6 +190,7 @@ fn source_type_fact_sidecar_path(
         return None;
     }
     crate::cache_root::resolved_workspace_cache_dir(
+        &state.resolution.cache_storage,
         workspace_folder_uri,
         root.as_path(),
         SOURCE_TYPE_FACT_SIDECAR_DIR,

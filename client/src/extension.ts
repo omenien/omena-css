@@ -10,9 +10,11 @@ import {
   readClientTypeFactBackendSetting,
 } from "./type-fact-backend-config";
 import {
+  buildClientStorageInitializationOptions,
   buildThinClientDocumentSelector,
   buildThinClientRuntimeEndpoint,
   buildThinClientServerOptions,
+  readClientCacheLocationSetting,
   readClientLspServerRuntimeSetting,
   resolveLspServerRuntimeSelection,
 } from "./lsp-server-runtime-config";
@@ -116,7 +118,7 @@ interface ExplainHoverTraceResponse {
   readonly [key: string]: unknown;
 }
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
   serverStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   serverStatusItem.name = "Omena CSS Modules";
   serverStatusItem.command = SHOW_SERVER_OUTPUT_COMMAND;
@@ -128,12 +130,13 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   renderServerStatus(State.Starting);
 
+  const omenaConfiguration = vscode.workspace.getConfiguration("omena");
   const typeFactBackend = readClientTypeFactBackendSetting(
-    vscode.workspace.getConfiguration("omena").get("typeFactBackend"),
+    omenaConfiguration.get("typeFactBackend"),
   );
   const serverEnv = buildTypeFactBackendEnv(typeFactBackend, process.env);
   const lspServerRuntime = readClientLspServerRuntimeSetting(
-    vscode.workspace.getConfiguration("omena").get("lspServerRuntime"),
+    omenaConfiguration.get("lspServerRuntime"),
   );
   let runtimeSelection;
   try {
@@ -155,6 +158,27 @@ export function activate(context: vscode.ExtensionContext): void {
     runtimeSelection,
     context.extensionPath,
   );
+  const cacheLocation = readClientCacheLocationSetting(omenaConfiguration.get("cache.location"));
+  const storageInitializationOptions = buildClientStorageInitializationOptions(
+    context.globalStorageUri.fsPath,
+    context.storageUri?.fsPath,
+    context.logUri.fsPath,
+    cacheLocation,
+  );
+  const storageUris = [context.globalStorageUri, context.storageUri, context.logUri].filter(
+    (uri): uri is vscode.Uri => uri !== undefined,
+  );
+  try {
+    await Promise.all(storageUris.map((uri) => vscode.workspace.fs.createDirectory(uri)));
+  } catch (err) {
+    renderServerStatus("failed");
+    void vscode.window.showErrorMessage(
+      `Omena CSS Modules failed to prepare editor storage: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return;
+  }
 
   const serverOptions: ServerOptions = buildThinClientServerOptions(thinClientEndpoint, serverEnv);
   const rustLspFileEvents = thinClientEndpoint.fileWatcherGlobs.map((glob) =>
@@ -170,6 +194,9 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     outputChannelName: "Omena CSS Modules",
     progressOnInitialization: true,
+    initializationOptions: {
+      storage: storageInitializationOptions,
+    },
   };
 
   client = new LanguageClient("omena", "Omena CSS Modules", serverOptions, {

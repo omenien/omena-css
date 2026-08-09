@@ -2,6 +2,7 @@ use crate::cache_limits::{
     DEFAULT_PERSISTENT_CACHE_LIMITS, PersistentCacheLimitsV0, ensure_cache_root_attribution,
     read_cache_shard_with_limits, write_cache_shard_atomically_with_limits,
 };
+use crate::cache_root::LspCacheStorageConfigV0;
 use crate::protocol::file_uri_to_path;
 use omena_query::{OmenaQueryStyleResolutionInputsV0, OmenaWorkspaceOccurrenceV0};
 use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
@@ -41,6 +42,7 @@ pub(crate) struct LspWorkspaceOccurrenceShardLoadV0 {
 }
 
 pub(crate) fn load_workspace_occurrence_shard(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -56,7 +58,12 @@ pub(crate) fn load_workspace_occurrence_shard(
         dependency_digest,
         resolution_inputs,
     )?;
-    let path = workspace_occurrence_shard_path(workspace_folder_uri, document_uri, language_id)?;
+    let path = workspace_occurrence_shard_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    )?;
     let bytes =
         read_workspace_occurrence_shard(path.as_path(), &WORKSPACE_OCCURRENCE_SHARD_LIMITS)?;
     let shard: Value = serde_json::from_slice(bytes.as_slice()).ok()?;
@@ -99,7 +106,9 @@ pub(crate) fn load_workspace_occurrence_shard(
     Some(LspWorkspaceOccurrenceShardLoadV0 { occurrences })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn store_workspace_occurrence_shard(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -118,9 +127,12 @@ pub(crate) fn store_workspace_occurrence_shard(
     ) else {
         return;
     };
-    let Some(path) =
-        workspace_occurrence_shard_path(workspace_folder_uri, document_uri, language_id)
-    else {
+    let Some(path) = workspace_occurrence_shard_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    ) else {
         return;
     };
     let payload = json!({
@@ -213,6 +225,7 @@ fn workspace_occurrence_shard_key(
 }
 
 fn workspace_occurrence_shard_path(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -230,6 +243,7 @@ fn workspace_occurrence_shard_path(
         return None;
     }
     crate::cache_root::resolved_workspace_cache_dir(
+        cache_storage,
         workspace_folder_uri,
         root.as_path(),
         WORKSPACE_OCCURRENCE_SHARD_DIR,
@@ -283,8 +297,10 @@ mod tests {
         let dependency_digest = Some("blake3:dependency-contract");
         let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
         let occurrences = vec![fixture_occurrence(document_uri.as_str())];
+        let cache_storage = LspCacheStorageConfigV0::default();
 
         store_workspace_occurrence_shard(
+            &cache_storage,
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
@@ -304,6 +320,7 @@ mod tests {
         .ok_or("missing workspace occurrence shard key")?;
         let _ = key;
         let shard_path = workspace_occurrence_shard_path(
+            &cache_storage,
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
@@ -324,6 +341,7 @@ mod tests {
         );
 
         let loaded = load_workspace_occurrence_shard(
+            &cache_storage,
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
@@ -335,6 +353,7 @@ mod tests {
         assert_eq!(loaded.occurrences, occurrences);
 
         store_workspace_occurrence_shard(
+            &cache_storage,
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",

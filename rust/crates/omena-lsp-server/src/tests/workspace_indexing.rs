@@ -1227,7 +1227,9 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
     })
     .collect::<Vec<_>>();
     let text_hash = crate::source_document_cache::source_document_text_hash(source_text);
+    let cache_storage = crate::cache_root::LspCacheStorageConfigV0::default();
     crate::source_document_cache::store_source_document_index_sidecar(
+        &cache_storage,
         Some(workspace_uri.as_str()),
         source_uri.as_str(),
         "typescriptreact",
@@ -1239,6 +1241,7 @@ fn background_source_index_uses_persisted_source_syntax_sidecar() -> TestResult 
     );
     let sidecar_path =
         crate::source_document_cache::source_document_index_sidecar_file_path_for_test(
+            &cache_storage,
             Some(workspace_uri.as_str()),
             source_uri.as_str(),
             "typescriptreact",
@@ -1584,6 +1587,377 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         "rename should reuse the source occurrence index rehydrated for references"
     );
     let _ = std::fs::remove_dir_all(&workspace_root);
+    Ok(())
+}
+
+#[test]
+fn editor_storage_initialization_keeps_the_workspace_cache_clean() -> TestResult {
+    let nonce = format!("{}", std::process::id());
+    let workspace_root =
+        std::env::temp_dir().join(format!("omena-lsp-server-editor-storage-workspace-{nonce}"));
+    let editor_storage_root =
+        std::env::temp_dir().join(format!("omena-lsp-server-editor-storage-root-{nonce}"));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    let _ = std::fs::remove_dir_all(&editor_storage_root);
+    let src_dir = workspace_root.join("src");
+    std::fs::create_dir_all(&src_dir)?;
+    let style_path = src_dir.join("Button.module.scss");
+    let source_path = src_dir.join("App.tsx");
+    std::fs::write(&style_path, ".root { color: red; }")?;
+    std::fs::write(
+        &source_path,
+        "import styles from \"./Button.module.scss\";\nconst view = <div className={styles.root} />;",
+    )?;
+
+    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+    let style_uri = path_to_file_uri(style_path.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "initializationOptions": {
+                    "storage": {
+                        "globalStoragePath": editor_storage_root.join("global"),
+                        "workspaceStoragePath": editor_storage_root.join("workspace"),
+                        "logPath": editor_storage_root.join("logs"),
+                        "location": "editor",
+                    },
+                },
+                "workspaceFolders": [{"uri": workspace_uri, "name": "editor-storage"}],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({"jsonrpc": "2.0", "method": "initialized", "params": {}}),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {"uri": style_uri},
+                "position": {"line": 0, "character": 2},
+                "context": {"includeDeclaration": false},
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {"textDocument": {"uri": style_uri}},
+        }),
+    );
+
+    let workspace_cache = workspace_root.join(".cache").join("omena");
+    assert!(
+        !workspace_cache.exists(),
+        "editor storage must keep the opened workspace clean: {workspace_cache:?}"
+    );
+    assert!(
+        editor_storage_root.exists(),
+        "editor storage must receive cache writes: {editor_storage_root:?}"
+    );
+    let resolved = crate::cache_root::process_cache_roots(
+        &state.resolution.cache_storage,
+        workspace_uri.as_str(),
+        workspace_root.as_path(),
+    );
+    assert_eq!(
+        resolved.source,
+        crate::cache_root::CacheRootSourceV0::InitializationOptions
+    );
+    let resolved_workspace_root = resolved.workspace.ok_or_else(|| {
+        std::io::Error::other("editor initialization must resolve a workspace cache root")
+    })?;
+    for cache_dir_name in [
+        "diagnostics-cache-v1",
+        "source-document-index-v1",
+        "workspace-occurrence-shards-v1",
+        "source-type-fact-cache-v1",
+    ] {
+        assert!(
+            resolved_workspace_root
+                .join(cache_dir_name)
+                .starts_with(editor_storage_root.join("workspace")),
+            "{cache_dir_name} must resolve below editor workspace storage"
+        );
+    }
+    assert!(
+        crate::workspace_index::should_skip_workspace_index_dir(
+            workspace_root.join(".cache").as_path()
+        ),
+        "workspace indexing must keep skipping the shared .cache directory"
+    );
+    eprintln!(
+        "editorStorage rung=initializationOptions resolvedRoot={} workspaceCacheExists={}",
+        resolved_workspace_root.display(),
+        workspace_cache.exists(),
+    );
+
+    let _ = std::fs::remove_dir_all(workspace_root);
+    let _ = std::fs::remove_dir_all(editor_storage_root);
+    Ok(())
+}
+
+#[test]
+fn cache_location_configuration_switches_all_caches_to_workspace_mode() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-cache-location-workspace-{}",
+        std::process::id()
+    ));
+    let editor_storage_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-cache-location-editor-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    let _ = std::fs::remove_dir_all(&editor_storage_root);
+    std::fs::create_dir_all(&workspace_root)?;
+    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "initializationOptions": {
+                    "storage": {
+                        "globalStoragePath": editor_storage_root.join("global"),
+                        "workspaceStoragePath": editor_storage_root.join("workspace"),
+                        "location": "editor",
+                    },
+                },
+                "workspaceFolders": [{"uri": workspace_uri, "name": "cache-location"}],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeConfiguration",
+            "params": {"settings": {"omena": {"cache": {"location": "workspace"}}}},
+        }),
+    );
+
+    let roots = crate::cache_root::process_cache_roots(
+        &state.resolution.cache_storage,
+        workspace_uri.as_str(),
+        workspace_root.as_path(),
+    );
+    assert_eq!(
+        roots.source,
+        crate::cache_root::CacheRootSourceV0::Workspace
+    );
+    let workspace_cache = workspace_root.join(".cache").join("omena");
+    assert_eq!(roots.workspace.as_deref(), Some(workspace_cache.as_path()));
+    for cache_dir_name in [
+        "diagnostics-cache-v1",
+        "source-document-index-v1",
+        "workspace-occurrence-shards-v1",
+        "source-type-fact-cache-v1",
+    ] {
+        assert_eq!(
+            crate::cache_root::resolved_workspace_cache_dir(
+                &state.resolution.cache_storage,
+                workspace_uri.as_str(),
+                workspace_root.as_path(),
+                cache_dir_name,
+            ),
+            Some(workspace_cache.join(cache_dir_name))
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(workspace_root);
+    let _ = std::fs::remove_dir_all(editor_storage_root);
+    Ok(())
+}
+
+#[test]
+fn initialization_sweeps_only_owned_workspace_cache_paths() -> TestResult {
+    let nonce = format!("{}", std::process::id());
+    let workspace_root =
+        std::env::temp_dir().join(format!("omena-lsp-server-cache-sweep-workspace-{nonce}"));
+    let editor_storage_root =
+        std::env::temp_dir().join(format!("omena-lsp-server-cache-sweep-editor-{nonce}"));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    let _ = std::fs::remove_dir_all(&editor_storage_root);
+    let legacy_dir = workspace_root
+        .join(".cache")
+        .join("omena")
+        .join("diagnostics-cache-v0");
+    std::fs::create_dir_all(&legacy_dir)?;
+    std::fs::write(legacy_dir.join("dead.json"), b"{}")?;
+    let foreign_file = workspace_root
+        .join(".cache")
+        .join("omena")
+        .join("foreign-tool-state.txt");
+    std::fs::write(&foreign_file, b"keep")?;
+    let foreign_cache_file = workspace_root.join(".cache").join("other-tool-state.txt");
+    std::fs::write(&foreign_cache_file, b"keep")?;
+    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+    let cache_storage = crate::cache_root::LspCacheStorageConfigV0 {
+        initialization_global_storage: Some(editor_storage_root.join("global")),
+        initialization_workspace_storage: Some(editor_storage_root.join("workspace")),
+        log_path: None,
+        command_cache_dir: None,
+        location: crate::cache_root::CacheLocationV0::Editor,
+    };
+    let resolved_root_survivor = crate::cache_root::process_cache_roots(
+        &cache_storage,
+        workspace_uri.as_str(),
+        workspace_root.as_path(),
+    )
+    .workspace
+    .ok_or_else(|| std::io::Error::other("editor cache root should resolve"))?
+    .join("diagnostics-cache-v1")
+    .join("preexisting-shard.json");
+    std::fs::create_dir_all(
+        resolved_root_survivor
+            .parent()
+            .ok_or_else(|| std::io::Error::other("resolved survivor parent"))?,
+    )?;
+    std::fs::write(&resolved_root_survivor, b"keep")?;
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "initializationOptions": {
+                    "storage": {
+                        "globalStoragePath": editor_storage_root.join("global"),
+                        "workspaceStoragePath": editor_storage_root.join("workspace"),
+                        "location": "editor",
+                    },
+                },
+                "workspaceFolders": [{"uri": workspace_uri, "name": "cache-sweep"}],
+            },
+        }),
+    );
+
+    assert!(
+        !legacy_dir.exists(),
+        "session initialization must sweep the abandoned workspace cache even when diagnostics writes are disabled: {legacy_dir:?}"
+    );
+    assert!(
+        foreign_file.is_file(),
+        "the sweep must preserve foreign files"
+    );
+    assert!(
+        foreign_cache_file.is_file(),
+        "the sweep must preserve the enclosing .cache directory and other tools' files"
+    );
+    assert!(
+        resolved_root_survivor.is_file(),
+        "the sweep must not target the newly resolved editor root"
+    );
+    eprintln!(
+        "cacheSweep legacyExists={} foreignOwnedTreeExists={} foreignEnclosingCacheExists={} resolvedRootSurvivorExists={}",
+        legacy_dir.exists(),
+        foreign_file.exists(),
+        foreign_cache_file.exists(),
+        resolved_root_survivor.exists(),
+    );
+
+    let _ = std::fs::remove_dir_all(workspace_root);
+    let _ = std::fs::remove_dir_all(editor_storage_root);
+    Ok(())
+}
+
+#[test]
+fn uncreatable_cache_root_refuses_without_workspace_fallback() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-cache-root-refusal-workspace-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    let src_dir = workspace_root.join("src");
+    std::fs::create_dir_all(&src_dir)?;
+    let source_path = src_dir.join("App.tsx");
+    std::fs::write(&source_path, "export const app = 'cache-refusal';")?;
+    let fixture_path = std::env::var_os(crate::cache_root::OMENA_CACHE_DIR_ENV)
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/cache-root-refusal-not-a-directory")
+        });
+    assert!(
+        fixture_path.is_file(),
+        "the refusal perturbation must be a regular file: {fixture_path:?}"
+    );
+
+    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+    let source_uri = path_to_file_uri(source_path.as_path());
+    let mut state = LspShellState::default();
+    let command_cache_dir = std::env::var_os(crate::cache_root::OMENA_CACHE_DIR_ENV)
+        .is_none()
+        .then_some(fixture_path.clone());
+    state.configure_standalone_cache_storage(command_cache_dir);
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{"uri": workspace_uri, "name": "cache-refusal"}],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({"jsonrpc": "2.0", "method": "initialized", "params": {}}),
+    );
+
+    let roots = crate::cache_root::process_cache_roots(
+        &state.resolution.cache_storage,
+        workspace_uri.as_str(),
+        workspace_root.as_path(),
+    );
+    assert_eq!(
+        roots.source,
+        crate::cache_root::CacheRootSourceV0::Environment,
+        "refusal reason must name the forced environment/CLI rung"
+    );
+    let sidecar_path =
+        crate::source_document_cache::source_document_index_sidecar_file_path_for_test(
+            &state.resolution.cache_storage,
+            Some(workspace_uri.as_str()),
+            source_uri.as_str(),
+            "typescriptreact",
+        )
+        .ok_or_else(|| std::io::Error::other("forced sidecar path must resolve syntactically"))?;
+    assert!(
+        !sidecar_path.exists(),
+        "an uncreatable forced root must refuse the sidecar write: {sidecar_path:?}"
+    );
+    assert!(
+        !workspace_root.join(".cache").join("omena").exists(),
+        "an uncreatable forced root must never fall back into the workspace"
+    );
+    eprintln!(
+        "cacheRootRefusal rung=environment forcedRoot={} sidecarExists={} workspaceCacheExists={}",
+        fixture_path.display(),
+        sidecar_path.exists(),
+        workspace_root.join(".cache").join("omena").exists(),
+    );
+
+    let _ = std::fs::remove_dir_all(workspace_root);
     Ok(())
 }
 
@@ -3211,7 +3585,9 @@ fn indexed_source_diagnostics_use_persisted_source_syntax_without_provider_candi
         element_parent_edges: Vec::new(),
     };
     let text_hash = crate::source_document_cache::source_document_text_hash(source_text);
+    let cache_storage = crate::cache_root::LspCacheStorageConfigV0::default();
     crate::source_document_cache::store_source_document_index_sidecar(
+        &cache_storage,
         Some(workspace_uri.as_str()),
         source_uri.as_str(),
         "typescriptreact",
@@ -3348,7 +3724,9 @@ fn persisted_source_syntax_sidecar_feeds_unused_selector_diagnostics_without_rep
         element_parent_edges: Vec::new(),
     };
     let text_hash = crate::source_document_cache::source_document_text_hash(source_text);
+    let cache_storage = crate::cache_root::LspCacheStorageConfigV0::default();
     crate::source_document_cache::store_source_document_index_sidecar(
+        &cache_storage,
         Some(workspace_uri.as_str()),
         source_uri.as_str(),
         "typescriptreact",

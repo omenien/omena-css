@@ -4,6 +4,14 @@ import type { Executable } from "vscode-languageclient/node";
 import type { DocumentSelector } from "vscode-languageserver-protocol";
 
 export type ClientLspServerRuntimeSetting = "auto" | "omena-lsp-server";
+export type ClientCacheLocationSetting = "editor" | "workspace" | "global";
+
+export interface ClientStorageInitializationOptions {
+  readonly globalStoragePath: string;
+  readonly workspaceStoragePath?: string;
+  readonly logPath: string;
+  readonly location: ClientCacheLocationSetting;
+}
 
 export interface OmenaLspServerRuntimeSelection {
   readonly runtime: "omena-lsp-server";
@@ -28,6 +36,25 @@ export interface ThinClientRuntimeEndpoint {
 export interface ThinClientServerOptions {
   readonly run: Executable;
   readonly debug: Executable;
+}
+
+export function readClientCacheLocationSetting(value: unknown): ClientCacheLocationSetting {
+  if (value === "workspace" || value === "global") return value;
+  return "editor";
+}
+
+export function buildClientStorageInitializationOptions(
+  globalStoragePath: string,
+  workspaceStoragePath: string | undefined,
+  logPath: string,
+  location: ClientCacheLocationSetting,
+): ClientStorageInitializationOptions {
+  return {
+    globalStoragePath,
+    ...(workspaceStoragePath ? { workspaceStoragePath } : {}),
+    logPath,
+    location,
+  };
 }
 
 export function buildRustLspFileWatcherGlobs(): readonly string[] {
@@ -124,6 +151,8 @@ export function buildThinClientRuntimeEndpoint(
       "resolvePackagedRustBinary",
       "resolveStandaloneRustCommand",
       "buildThinClientServerOptions",
+      "prepareEditorStorageRoots",
+      "passStorageInitializationOptions",
       "declareStaticDocumentSelector",
       "startLanguageClient",
       "registerStaticFileWatchers",

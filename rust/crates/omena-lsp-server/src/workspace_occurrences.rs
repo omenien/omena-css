@@ -202,6 +202,7 @@ fn source_selector_workspace_occurrences_for_document(
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
     if let Some(shard) = load_workspace_occurrence_shard(
+        &state.query_resolution().cache_storage,
         document.workspace_folder_uri.as_deref(),
         document.uri.as_str(),
         document.language_id.as_str(),
@@ -251,6 +252,7 @@ fn source_selector_workspace_occurrences_for_document(
     occurrences.sort();
     occurrences.dedup();
     store_workspace_occurrence_shard(
+        &state.query_resolution().cache_storage,
         document.workspace_folder_uri.as_deref(),
         document.uri.as_str(),
         document.language_id.as_str(),

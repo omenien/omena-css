@@ -42,7 +42,31 @@ fn run_disk_cache_session(
     style_uri: &str,
     style_text: &str,
 ) -> Vec<ScheduledLspOutput> {
+    run_disk_cache_session_with_state(
+        LspShellState::default(),
+        workspace_uri,
+        style_uri,
+        style_text,
+    )
+}
+
+fn run_disk_cache_standalone_session(
+    workspace_uri: &str,
+    style_uri: &str,
+    style_text: &str,
+    cache_dir: Option<PathBuf>,
+) -> Vec<ScheduledLspOutput> {
     let mut state = LspShellState::default();
+    state.configure_standalone_cache_storage(cache_dir);
+    run_disk_cache_session_with_state(state, workspace_uri, style_uri, style_text)
+}
+
+fn run_disk_cache_session_with_state(
+    mut state: LspShellState,
+    workspace_uri: &str,
+    style_uri: &str,
+    style_text: &str,
+) -> Vec<ScheduledLspOutput> {
     let initialize_response = handle_lsp_message(
         &mut state,
         json!({
@@ -128,10 +152,17 @@ fn observed_cache_writes_are_contained_by_the_declared_surface() -> TestResult {
     let fixture_root = disk_cache_workspace_root("declared-write-containment");
     let (workspace_uri, style_uri) =
         write_disk_cache_style_fixture(fixture_root.as_path(), DISK_CACHE_STYLE_TEXT);
-    let outputs = run_disk_cache_session(
+    let process_environment_root = std::env::var_os("OMENA_CACHE_DIR").map(PathBuf::from);
+    let forced_lsp_root = process_environment_root
+        .clone()
+        .unwrap_or_else(|| fixture_root.join("forced-cache-root"));
+    let outputs = run_disk_cache_standalone_session(
         workspace_uri.as_str(),
         style_uri.as_str(),
         DISK_CACHE_STYLE_TEXT,
+        process_environment_root
+            .is_none()
+            .then(|| forced_lsp_root.clone()),
     );
     assert!(
         !outputs.is_empty(),
@@ -151,37 +182,41 @@ fn observed_cache_writes_are_contained_by_the_declared_surface() -> TestResult {
     )?;
 
     let mut observed_files = cache_files_below(fixture_root.as_path());
-    if let Some(environment_root) = std::env::var_os("OMENA_CACHE_DIR").map(PathBuf::from) {
-        observed_files.extend(cache_files_below(environment_root.as_path()));
-        observed_files.sort();
-        observed_files.dedup();
-    }
+    observed_files.extend(cache_files_below(forced_lsp_root.as_path()));
+    observed_files.sort();
+    observed_files.dedup();
     assert!(
         !observed_files.is_empty(),
         "the store pass must create observable cache files"
     );
 
-    let environment_root = std::env::var_os("OMENA_CACHE_DIR").map(PathBuf::from);
-    let declared_roots = crate::lsp_trust_boundary_contract()
-        .disk_write_surfaces
-        .into_iter()
-        .filter_map(|surface| match surface.resolved_rung {
-            crate::CacheStorageRungV0::Environment => environment_root
-                .as_ref()
-                .map(|root| root.join("omena").join("workspaces")),
-            crate::CacheStorageRungV0::Workspace => match surface.root_kind {
-                crate::CacheWriteSurfaceKindV0::LspWorkspaceCache => {
-                    Some(fixture_root.join(".cache").join("omena"))
-                }
-                crate::CacheWriteSurfaceKindV0::BridgeExternalSifCache => {
-                    Some(external_package.join(".cache").join("omena"))
-                }
-            },
-            crate::CacheStorageRungV0::InitializationOptions
-            | crate::CacheStorageRungV0::Platform
-            | crate::CacheStorageRungV0::Disabled => None,
-        })
-        .collect::<Vec<_>>();
+    let bridge_rung = if process_environment_root.is_some() {
+        crate::CacheStorageRungV0::Environment
+    } else {
+        crate::CacheStorageRungV0::Workspace
+    };
+    let declared_roots = crate::boundary::declared_cache_write_surfaces_for_rungs(
+        crate::CacheStorageRungV0::Environment,
+        bridge_rung,
+    )
+    .into_iter()
+    .filter_map(|surface| match surface.resolved_rung {
+        crate::CacheStorageRungV0::Environment => {
+            Some(forced_lsp_root.join("omena").join("workspaces"))
+        }
+        crate::CacheStorageRungV0::Workspace => match surface.root_kind {
+            crate::CacheWriteSurfaceKindV0::LspWorkspaceCache => {
+                Some(fixture_root.join(".cache").join("omena"))
+            }
+            crate::CacheWriteSurfaceKindV0::BridgeExternalSifCache => {
+                Some(external_package.join(".cache").join("omena"))
+            }
+        },
+        crate::CacheStorageRungV0::InitializationOptions
+        | crate::CacheStorageRungV0::Platform
+        | crate::CacheStorageRungV0::Disabled => None,
+    })
+    .collect::<Vec<_>>();
     println!("cacheContainment observed={observed_files:?} declared={declared_roots:?}");
     assert!(
         observed_files

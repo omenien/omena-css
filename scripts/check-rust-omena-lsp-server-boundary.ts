@@ -179,8 +179,8 @@ for (const requiredTrustPolicy of [
 assert.deepEqual(rustSummary.trustBoundary.diskWriteSurfaces, [
   {
     rootKind: "lspWorkspaceCache",
-    resolvedRung: "workspace",
-    rootShape: "<workspaceFolder>/.cache/omena/**",
+    resolvedRung: "platform",
+    rootShape: "<platformCacheHome>/omena/workspaces/<workspaceIdentityHash>/**",
     cacheDirectories: [
       "diagnostics-cache-v1",
       "source-document-index-v1",
@@ -493,8 +493,8 @@ assert.equal(rustSummary.diskDiagnosticsCache.cacheModel, "verifyingTraceStableA
 assert.deepEqual(rustSummary.diskDiagnosticsCache.storageLocation, [
   {
     rootKind: "lspWorkspaceCache",
-    resolvedRung: "workspace",
-    rootShape: "<workspaceFolder>/.cache/omena/**",
+    resolvedRung: "platform",
+    rootShape: "<platformCacheHome>/omena/workspaces/<workspaceIdentityHash>/**",
     cacheDirectories: ["diagnostics-cache-v1"],
   },
 ]);

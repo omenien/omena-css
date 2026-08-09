@@ -737,6 +737,17 @@
           "default": "auto",
           "markdownDescription": "Language-server runtime. `auto` uses the bundled or built Rust `omena-lsp-server` and fails fast if no binary is available. `omena-lsp-server` requires the bundled binary, explicit `OMENA_LSP_SERVER_PATH`, or explicit `OMENA_LSP_SERVER_COMMAND` command."
         },
+        "omena.cache.location": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "workspace",
+            "global"
+          ],
+          "default": "editor",
+          "scope": "window",
+          "markdownDescription": "Persistent cache location. `editor` uses this VS Code workspace's storage, `workspace` opts into `.cache/omena` inside the opened workspace, and `global` uses the extension's global storage partitioned by workspace."
+        },
         "omena.pathAlias": {
           "type": "object",
           "default": {},

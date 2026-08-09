@@ -24,6 +24,7 @@ use omena_tsgo_client::{TsgoTypeFactResultEntryV0, TsgoWorkspaceProcessPoolV0};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 use std::sync::{
     Arc, Mutex, MutexGuard,
     atomic::{AtomicU8, AtomicU64, Ordering},
@@ -427,6 +428,8 @@ pub struct LspResolutionSettings {
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     #[serde(skip)]
     pub(crate) bridge_external_sif_urls: BTreeSet<String>,
+    #[serde(skip)]
+    pub(crate) cache_storage: crate::cache_root::LspCacheStorageConfigV0,
 }
 
 /// Workspace-revision memo for the cascade-narrowing substrate (rfcs#63 E-ii).
@@ -658,6 +661,7 @@ pub struct LspShellState {
     pub(crate) workspace_runtime_registry: WorkspaceRuntimeRegistry,
     pub(crate) tsgo_workspace_process_pool: TsgoWorkspaceProcessPoolV0,
     pub(crate) watched_file_changes: Vec<LspWatchedFileChangeState>,
+    pub(crate) swept_legacy_cache_roots: BTreeSet<PathBuf>,
     pub(crate) client_supports_work_done_progress: bool,
     pub(crate) next_server_progress_request_id: u64,
     pub(crate) pending_server_progress_request_tokens: BTreeMap<String, String>,
@@ -708,6 +712,11 @@ pub struct LspShellState {
 }
 
 impl LspShellState {
+    pub fn configure_standalone_cache_storage(&mut self, cache_dir: Option<PathBuf>) {
+        self.resolution.cache_storage =
+            crate::cache_root::LspCacheStorageConfigV0::standalone(cache_dir);
+    }
+
     pub fn document_count(&self) -> usize {
         self.documents.len()
     }

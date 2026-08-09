@@ -1,8 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
 import {
+  buildClientStorageInitializationOptions,
   buildRustLspFileWatcherGlobs,
   buildThinClientRuntimeEndpoint,
+  readClientCacheLocationSetting,
 } from "../client/src/lsp-server-runtime-config";
 import { readRustPackageMetadata } from "./rust-package-metadata";
 
@@ -63,6 +66,10 @@ assert.ok(rustEndpoint.hostResponsibilities.includes("resolveStandaloneRustComma
 assert.ok(clientEndpoint.hostResponsibilities.includes("resolveStandaloneRustCommand"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("buildThinClientServerOptions"));
 assert.ok(clientEndpoint.hostResponsibilities.includes("buildThinClientServerOptions"));
+assert.ok(rustEndpoint.hostResponsibilities.includes("prepareEditorStorageRoots"));
+assert.ok(clientEndpoint.hostResponsibilities.includes("prepareEditorStorageRoots"));
+assert.ok(rustEndpoint.hostResponsibilities.includes("passStorageInitializationOptions"));
+assert.ok(clientEndpoint.hostResponsibilities.includes("passStorageInitializationOptions"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("declareStaticDocumentSelector"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("startLanguageClient"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("registerStaticFileWatchers"));
@@ -70,6 +77,34 @@ assert.ok(rustEndpoint.rustResponsibilities.includes("ownLspLifecycle"));
 assert.ok(rustEndpoint.rustResponsibilities.includes("ownTsgoClientLifecycle"));
 assert.ok(clientEndpoint.hostResponsibilities.includes("translateShowReferencesArguments"));
 assert.ok(clientEndpoint.rustResponsibilities.includes("ownProviderExecution"));
+
+const storageOptions = buildClientStorageInitializationOptions(
+  "/editor/global",
+  "/editor/workspace",
+  "/editor/logs",
+  readClientCacheLocationSetting("editor"),
+);
+assert.deepEqual(storageOptions, {
+  globalStoragePath: "/editor/global",
+  workspaceStoragePath: "/editor/workspace",
+  logPath: "/editor/logs",
+  location: "editor",
+});
+assert.equal(readClientCacheLocationSetting("workspace"), "workspace");
+assert.equal(readClientCacheLocationSetting("global"), "global");
+assert.equal(readClientCacheLocationSetting("invalid"), "editor");
+
+const extensionSource = readFileSync("client/src/extension.ts", "utf8");
+const storagePreparationIndex = extensionSource.indexOf("vscode.workspace.fs.createDirectory");
+const clientStartIndex = extensionSource.indexOf("client.start()");
+assert.ok(storagePreparationIndex >= 0, "extension must prepare editor storage roots");
+assert.ok(
+  clientStartIndex > storagePreparationIndex,
+  "storage roots must exist before client.start",
+);
+for (const field of ["globalStorageUri", "storageUri", "logUri"]) {
+  assert.ok(extensionSource.includes(field), `extension storage handoff must include ${field}`);
+}
 
 process.stdout.write(
   [

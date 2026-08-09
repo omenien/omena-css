@@ -251,6 +251,10 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
         return;
     };
     apply_feature_settings(state, settings.get("features"));
+    state
+        .resolution
+        .cache_storage
+        .apply_location_setting(settings.pointer("/cache/location"));
     if apply_diagnostic_settings(state, settings.get("diagnostics")) {
         // Changed diagnostics settings owe a workspace republish: published
         // diagnostics must re-render under the new severity / deep-analysis
