@@ -701,7 +701,7 @@
       "emitter": "io-error",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-lsp-server/src/bin/omena-lsp-server.rs",
-      "line": 1114,
+      "line": 1175,
       "source": ".map_err(|_| io::Error::other(\"shared writer poisoned\"))?",
       "errorClass": "internal"
     },
@@ -712,7 +712,7 @@
       "emitter": "startup-error-capability",
       "ordinal": 1,
       "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
-      "line": 295,
+      "line": 453,
       "source": "\"surfaceStartupErrors\",",
       "errorClass": "internal"
     },

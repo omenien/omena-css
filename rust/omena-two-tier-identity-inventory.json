@@ -14,7 +14,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspFileIdentityInterner.ids_by_storage_uri",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:178",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:179",
     "owner": "LspFileIdentityInterner",
     "name": "ids_by_storage_uri",
     "collectionType": "BTreeMap<String, LspFileId>",
@@ -26,7 +26,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspFileIdentityInterner.storage_uris_by_id",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:179",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:180",
     "owner": "LspFileIdentityInterner",
     "name": "storage_uris_by_id",
     "collectionType": "BTreeMap<LspFileId, String>",
@@ -38,7 +38,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.bridge_external_sif_urls",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:429",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:430",
     "owner": "LspResolutionSettings",
     "name": "bridge_external_sif_urls",
     "collectionType": "BTreeSet<String>",
@@ -50,7 +50,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.workspace_style_resolution_inputs",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:422",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:423",
     "owner": "LspResolutionSettings",
     "name": "workspace_style_resolution_inputs",
     "collectionType": "BTreeMap<String, OmenaQueryStyleResolutionInputsV0>",
@@ -62,7 +62,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.documents",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:656",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:659",
     "owner": "LspShellState",
     "name": "documents",
     "collectionType": "BTreeMap<LspFileId, Arc<LspTextDocumentState>>",
@@ -74,7 +74,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.open_document_uris",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:657",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:660",
     "owner": "LspShellState",
     "name": "open_document_uris",
     "collectionType": "BTreeSet<LspFileId>",
@@ -86,7 +86,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.pending_server_progress_request_tokens",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:663",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:667",
     "owner": "LspShellState",
     "name": "pending_server_progress_request_tokens",
     "collectionType": "BTreeMap<String, String>",
@@ -98,7 +98,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.source_type_fact_cache",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:696",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:700",
     "owner": "LspShellState",
     "name": "source_type_fact_cache",
     "collectionType": "BTreeMap<String, LspSourceTypeFactCacheEntryV0>",
@@ -106,6 +106,18 @@
     "identityTier": "session-stable",
     "persistentIdentityKey": true,
     "justification": "String key is a canonical style path, URI, URL, or content hash in the scanned persistent store."
+  },
+  {
+    "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.swept_legacy_cache_roots",
+    "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:664",
+    "owner": "LspShellState",
+    "name": "swept_legacy_cache_roots",
+    "collectionType": "BTreeSet<PathBuf>",
+    "keyType": "PathBuf",
+    "identityTier": "session-stable",
+    "persistentIdentityKey": true,
+    "justification": "PathBuf is a workspace cache root retained only to deduplicate legacy-cache maintenance within one LSP session."
   },
   {
     "id": "rust/crates/omena-parser/src/closed_world/authority.rs#compute_reachability.by_instance",

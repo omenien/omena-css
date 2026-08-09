@@ -370,7 +370,7 @@
       },
       {
         "path": "rust/crates/omena-lsp-server/src/source_document_cache.rs",
-        "line": 542,
+        "line": 579,
         "function": "class_value_universes_from_value",
         "operation": "map-get",
         "evidence": "class_names: strings_from_value(universe.get(\"classNames\")?)?,",
@@ -379,7 +379,7 @@
       },
       {
         "path": "rust/crates/omena-lsp-server/src/source_document_cache.rs",
-        "line": 655,
+        "line": 692,
         "function": "source_elements_from_value",
         "operation": "map-get",
         "evidence": "static_class_names: match fact.get(\"staticClassNames\") {",
@@ -406,7 +406,7 @@
       },
       {
         "path": "rust/crates/omena-lsp-server/src/workspace_occurrences.rs",
-        "line": 265,
+        "line": 245,
         "function": "source_selector_workspace_occurrences_for_document",
         "operation": "str-eq",
         "evidence": "&& reference.name == selector_name,",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:c98316099b0cd3aa428d9aaf4d2f07346baf8948e68e6778c15841ccef3919d6"
+    "siteDigest": "sha256:dd25dec30d3ae1b1ca21fa0108c67871b7f54e08053816e1f2d3189d14b78ad2"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
