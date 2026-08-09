@@ -382,9 +382,10 @@ assert.deepEqual(Object.keys(artifact.functionPopulations).sort(), [
   "cascadeProperty",
   "cascadePropertyOpenWorld",
 ]);
-assert.deepEqual(Object.keys(artifact.decidingAxisCounts).sort(), [
-  ...axisOrderArtifact.rankedSetPrefixAxisVocabulary.toSorted(),
-]);
+assert.deepEqual(
+  Object.keys(artifact.decidingAxisCounts).sort(),
+  axisOrderArtifact.rankedSetPrefixAxisVocabulary.toSorted(),
+);
 assert.equal(
   sum(Object.values(artifact.classCounts)),
   artifact.rowCount,
@@ -1850,27 +1851,6 @@ function collapseSpecificityAxis(axisOrder: readonly string[]): readonly string[
     if (collapsed.at(-1) !== value) collapsed.push(value);
   }
   return collapsed;
-}
-
-function discoverUnclassifiedAxisOrderLiterals(
-  sources: ReadonlyMap<string, string>,
-  sourceAxisOrder: readonly string[],
-): readonly string[] {
-  const knownLiteralPaths = new Set([
-    "rust/crates/omena-cascade/src/ranking.rs",
-    "rust/crates/omena-cascade/src/tests.rs",
-    "rust/crates/omena-query/src/style/cascade_checker/confidence.rs",
-    "scripts/check-rust-ranked-set-loss-census.ts",
-  ]);
-  const tokenPattern = sourceAxisOrder.map(escapeRegExp).join("[\"'][\\s\\S]{0,240}[\"']");
-  const expression = new RegExp(`["']${tokenPattern}["']`, "gu");
-  const unclassified: string[] = [];
-  for (const [file, source] of sources) {
-    if (knownLiteralPaths.has(file)) continue;
-    if (expression.test(source)) unclassified.push(file);
-    expression.lastIndex = 0;
-  }
-  return unclassified.toSorted();
 }
 
 function quotedAxisNames(source: string): readonly string[] {
