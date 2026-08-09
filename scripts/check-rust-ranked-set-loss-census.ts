@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
+import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
+
 interface FixtureResultV0 {
   readonly name: string;
   classification:
@@ -22,6 +24,47 @@ interface CascadeKeyAxisOrderArtifactV0 {
   readonly product: "omena-cascade.key-axis-order";
   readonly axisOrder: readonly string[];
   readonly rankedSetPrefixAxisVocabulary: readonly string[];
+}
+
+type CascadeKeyProducerDispositionV0 =
+  | "automaticProductDerived"
+  | "callerSuppliedBoundary"
+  | "conformance"
+  | "generated"
+  | "fixture";
+
+type CascadeScopeProximitySourceV0 =
+  | "constantZero"
+  | "legacySelectorContextFallback"
+  | "callerSupplied"
+  | "generatedValue";
+
+interface CascadeKeyProducerV0 {
+  readonly path: string;
+  readonly symbol: string;
+  readonly occurrence: number;
+  readonly disposition: CascadeKeyProducerDispositionV0;
+  readonly scopeProximitySource: CascadeScopeProximitySourceV0;
+}
+
+interface CascadeDriverCensusArtifactV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-cascade.driver-census";
+  readonly winnerAxes: readonly {
+    readonly axis: string;
+    readonly status: "driven" | "automaticProductDriver";
+    readonly namedDriver?: "legacySelectorContextFallback";
+  }[];
+  readonly cascadeKeyProducers: readonly CascadeKeyProducerV0[];
+  readonly specAxisReach: {
+    readonly originAndImportance: Readonly<Record<string, string>>;
+    readonly encapsulationContext: Readonly<Record<string, string>>;
+    readonly styleAttribute: Readonly<Record<string, string>>;
+    readonly layers: Readonly<Record<string, string>>;
+    readonly specificity: Readonly<Record<string, string>>;
+    readonly scopeProximity: Readonly<Record<string, string>>;
+    readonly orderOfAppearance: Readonly<Record<string, string>>;
+  };
 }
 
 interface RankedSetLossCensusArtifactV0 {
@@ -82,6 +125,8 @@ const cascadeLevels = [
 ] as const;
 
 const repoRoot = process.cwd();
+let currentTrackedFiles: readonly string[] | undefined;
+const repositorySourceCache = new Map<string, string>();
 const artifactPath = path.join(
   repoRoot,
   "rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json",
@@ -90,8 +135,23 @@ const axisOrderArtifactPath = path.join(
   repoRoot,
   "rust/crates/omena-cascade/data/cascade-key-axis-order.json",
 );
+const driverCensusArtifactPath = path.join(
+  repoRoot,
+  "rust/crates/omena-cascade/data/cascade-driver-census.json",
+);
 const args = new Set(process.argv.slice(2));
 const sourceRef = valueAfter("--source-ref");
+
+if (args.has("--discover-cascade-key-producers")) {
+  process.stdout.write(
+    `${JSON.stringify(
+      discoverCascadeKeyProducers(readCascadeKeyProducerSources(sourceRef)),
+      null,
+      2,
+    )}\n`,
+  );
+  process.exit(0);
+}
 
 if (args.has("--discover-axis-order-sites")) {
   process.stdout.write(
@@ -104,6 +164,8 @@ if (sourceRef !== undefined) {
   process.stdout.write(`${JSON.stringify(cascadeAxisOrderSiteCensus(sourceRef), null, 2)}\n`);
   process.exit(0);
 }
+
+const cascadeKeyProducerCensus = validateCascadeKeyProducerCensus();
 
 const emittedAxisOrder = spawnSync(
   "cargo",
@@ -392,6 +454,10 @@ process.stdout.write(
       decidingAxisCounts: artifact.decidingAxisCounts,
       axisOrderSiteCount: axisOrderSiteCensus.siteCount,
       axisOrderSiteDispositionCounts: axisOrderSiteCensus.dispositionCounts,
+      cascadeKeyProducerCount: cascadeKeyProducerCensus.producerCount,
+      cascadeKeyProducerDispositionCounts: cascadeKeyProducerCensus.dispositionCounts,
+      cascadeKeyScopeProximitySourceCounts: cascadeKeyProducerCensus.sourceCounts,
+      automaticProductScopeDriver: cascadeKeyProducerCensus.automaticProductScopeDriver,
     },
     null,
     2,
@@ -473,6 +539,527 @@ function valueAfter(flag: string): string | undefined {
   return value;
 }
 
+function validateCascadeKeyProducerCensus(): {
+  readonly producerCount: number;
+  readonly dispositionCounts: Readonly<Record<CascadeKeyProducerDispositionV0, number>>;
+  readonly sourceCounts: Readonly<Record<CascadeScopeProximitySourceV0, number>>;
+  readonly automaticProductScopeDriver: "legacySelectorContextFallback";
+} {
+  const sources = readCascadeKeyProducerSources();
+  if (args.has("--inject-cascade-key-producer")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_census_probe.rs",
+      [
+        "fn injected_product_key() -> CascadeKey {",
+        "    CascadeKey::new(level, layer_rank, 0, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-unclassified-caller-supplied-producer")) {
+    sources.set(
+      "rust/crates/omena-query/src/style/cascade_key_boundary_probe.rs",
+      [
+        "fn injected_product_key(scope_proximity: u32) -> CascadeKey {",
+        "    CascadeKey::new(level, layer_rank, scope_proximity, specificity, source_order)",
+        "}",
+      ].join("\n"),
+    );
+  }
+  if (args.has("--inject-automatic-scope-proximity-driver")) {
+    const producerPath = "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs";
+    const source = sources.get(producerPath);
+    assert.ok(source, `missing automatic product producer ${producerPath}`);
+    const changed = source.replace(
+      "key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),",
+      "key: CascadeKey::new(level, layer_rank, 1, specificity, input.source_order),",
+    );
+    assert.notEqual(changed, source, "automatic scope-proximity falsifier needle is stale");
+    sources.set(producerPath, changed);
+  }
+  if (args.has("--inject-producer-classification-drift")) {
+    const producerPath = "rust/crates/omena-semantic/src/design_tokens.rs";
+    const source = sources.get(producerPath);
+    assert.ok(source, `missing named product producer ${producerPath}`);
+    const changed = source.replace(
+      "cascade_scope_proximity_fallback_for_selector_context_rank(",
+      "unclassified_scope_proximity_source(",
+    );
+    assert.notEqual(changed, source, "producer-classification falsifier needle is stale");
+    sources.set(producerPath, changed);
+  }
+  if (args.has("--inject-cascade-key-producer-removal")) {
+    const producerPath = "rust/crates/engine-shadow-runner/src/main.rs";
+    const source = sources.get(producerPath);
+    assert.ok(source, `missing fixture producer ${producerPath}`);
+    const changed = source.replace("key: CascadeKey {", "key: RemovedCascadeRecord {");
+    assert.notEqual(changed, source, "producer-removal falsifier needle is stale");
+    sources.set(producerPath, changed);
+  }
+
+  const discovered = discoverCascadeKeyProducers(sources);
+  let artifact = JSON.parse(
+    readFileSync(driverCensusArtifactPath, "utf8"),
+  ) as CascadeDriverCensusArtifactV0;
+  if (args.has("--inject-axis-reach-disclosure-drift")) {
+    artifact = {
+      ...artifact,
+      specAxisReach: {
+        ...artifact.specAxisReach,
+        scopeProximity: { status: "modeled" },
+      },
+    };
+  }
+  assert.equal(artifact.schemaVersion, "0");
+  assert.equal(artifact.product, "omena-cascade.driver-census");
+
+  const invalidAutomaticSources = discovered.filter(
+    (producer) =>
+      producer.disposition === "automaticProductDerived" &&
+      producer.scopeProximitySource !== "constantZero" &&
+      producer.scopeProximitySource !== "legacySelectorContextFallback",
+  );
+  assert.deepEqual(
+    invalidAutomaticSources,
+    [],
+    `scopeProximity gained an unclassified automatic product driver: ${invalidAutomaticSources
+      .map(cascadeKeyProducerId)
+      .join(", ")}`,
+  );
+
+  const artifactIds = artifact.cascadeKeyProducers.map(cascadeKeyProducerId);
+  const discoveredIds = discovered.map(cascadeKeyProducerId);
+  assert.equal(
+    new Set(artifactIds).size,
+    artifactIds.length,
+    "cascade key producer census must not repeat a source site",
+  );
+  assert.deepEqual(
+    discoveredIds.filter((id) => !artifactIds.includes(id)),
+    [],
+    "source scan found CascadeKey producers missing from the driver census",
+  );
+  assert.deepEqual(
+    artifactIds.filter((id) => !discoveredIds.includes(id)),
+    [],
+    "driver census contains CascadeKey producers missing from the source scan",
+  );
+  const discoveredById = new Map(
+    discovered.map((producer) => [cascadeKeyProducerId(producer), producer]),
+  );
+  for (const recorded of artifact.cascadeKeyProducers) {
+    const id = cascadeKeyProducerId(recorded);
+    assert.deepEqual(
+      recorded,
+      discoveredById.get(id),
+      `CascadeKey producer source classification drifted at ${id}`,
+    );
+  }
+
+  const automaticFallbacks = discovered.filter(
+    (producer) =>
+      producer.disposition === "automaticProductDerived" &&
+      producer.scopeProximitySource === "legacySelectorContextFallback",
+  );
+  assert.ok(
+    automaticFallbacks.length > 0 &&
+      automaticFallbacks.every(
+        (producer) => producer.path === "rust/crates/omena-semantic/src/design_tokens.rs",
+      ),
+    "the named automatic product driver must be the semantic design-token fallback",
+  );
+
+  const callerSuppliedIds = new Set(
+    discovered
+      .filter((producer) => producer.disposition === "callerSuppliedBoundary")
+      .map(cascadeKeyProducerId),
+  );
+  const bundlerCallerId =
+    "rust/crates/omena-bundler/src/lib.rs#cascade_key_with_global_source_order:1";
+  const transformCallerId =
+    "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair:2";
+  assert.deepEqual(
+    [...callerSuppliedIds].toSorted(),
+    [bundlerCallerId, transformCallerId].toSorted(),
+    "only the validated bundler helper and transform/NAPI environment may be excluded as caller-supplied boundaries",
+  );
+  validateCallerSuppliedScopeSurfaces(sources);
+
+  const scopeAxis = artifact.winnerAxes.find((entry) => entry.axis === "scopeProximity");
+  assert.deepEqual(
+    scopeAxis,
+    {
+      axis: "scopeProximity",
+      status: "automaticProductDriver",
+      namedDriver: "legacySelectorContextFallback",
+    },
+    "scopeProximity must name its automatic product driver without excluding caller-supplied surfaces",
+  );
+  assert.deepEqual(
+    artifact.specAxisReach,
+    {
+      originAndImportance: { status: "modeled" },
+      encapsulationContext: {
+        status: "outOfFragment",
+        reason: "shadowTreeEncapsulationContextUnmodeled",
+      },
+      styleAttribute: { status: "modeled" },
+      layers: { status: "modeled" },
+      specificity: { status: "modeled" },
+      scopeProximity: {
+        status: "notReachedByProduct",
+        namedDriver: "legacySelectorContextFallback",
+      },
+      orderOfAppearance: { status: "modeled" },
+    },
+    "typed spec-axis reach disclosure must match authority-derived modeled limbs, the producer-derived scope limb, and the declared encapsulation boundary",
+  );
+
+  const dispositionCounts: Record<CascadeKeyProducerDispositionV0, number> = {
+    automaticProductDerived: 0,
+    callerSuppliedBoundary: 0,
+    conformance: 0,
+    generated: 0,
+    fixture: 0,
+  };
+  const sourceCounts: Record<CascadeScopeProximitySourceV0, number> = {
+    constantZero: 0,
+    legacySelectorContextFallback: 0,
+    callerSupplied: 0,
+    generatedValue: 0,
+  };
+  for (const producer of discovered) {
+    dispositionCounts[producer.disposition] += 1;
+    sourceCounts[producer.scopeProximitySource] += 1;
+  }
+  return {
+    producerCount: discovered.length,
+    dispositionCounts,
+    sourceCounts,
+    automaticProductScopeDriver: "legacySelectorContextFallback",
+  };
+}
+
+function validateCallerSuppliedScopeSurfaces(sources: ReadonlyMap<string, string>): void {
+  const bundler = sources.get("rust/crates/omena-bundler/src/lib.rs") ?? "";
+  assert.match(
+    bundler,
+    /pub fn cascade_key_with_global_source_order\([\s\S]*?scope_proximity:\s*u32[\s\S]*?CascadeKey::new\([\s\S]*?scope_proximity,/u,
+    "bundler public helper must preserve its caller-supplied nonzero scope-proximity input",
+  );
+
+  const transformModel = sources.get("rust/crates/omena-transform-passes/src/model.rs") ?? "";
+  assert.match(
+    transformModel,
+    /pub struct TransformCascadeEnvironmentDeclarationV0[\s\S]*?pub scope_proximity:\s*Option<u32>/u,
+    "transform cascade environment must retain its caller-supplied scope-proximity field",
+  );
+  const transformRuntime =
+    sources.get("rust/crates/omena-transform-passes/src/runtime/winner_equality.rs") ?? "";
+  assert.match(
+    transformRuntime,
+    /declaration\.scope_proximity\.unwrap_or\(0\)/u,
+    "transform winner selection must consume caller-supplied scope proximity",
+  );
+  const napiBoundary =
+    sources.get("rust/crates/omena-napi/src/engine_napi_contract_idl_generated.rs") ?? "";
+  assert.match(
+    napiBoundary,
+    /#\[napi\(js_name = "cascadeEnvironment"\)\][\s\S]*?pub cascade_environment:\s*Option<serde_json::Value>/u,
+    "the NAPI boundary must carry the transform cascade environment",
+  );
+  const napi = sources.get("rust/crates/omena-napi/src/lib.rs") ?? "";
+  assert.match(
+    napi,
+    /OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0/u,
+    "the NAPI context must deserialize into the typed query transform context",
+  );
+}
+
+function readCascadeKeyProducerSources(sourceRef?: string): Map<string, string> {
+  const sources = new Map<string, string>();
+  const listed =
+    sourceRef === undefined ? listCurrentTrackedFiles() : listTrackedFilesAt(sourceRef);
+  for (const file of listed) {
+    if (!file.startsWith("rust/crates/") || !file.endsWith(".rs")) continue;
+    sources.set(file, readRepositorySource(file, sourceRef));
+  }
+  return sources;
+}
+
+interface RustFunctionItemV0 {
+  readonly name: string;
+  readonly open: number;
+  readonly header: string;
+  readonly body: string;
+}
+
+function discoverCascadeKeyProducers(
+  sources: ReadonlyMap<string, string>,
+): readonly CascadeKeyProducerV0[] {
+  const discovered: CascadeKeyProducerV0[] = [];
+  for (const [file, rawSource] of sources) {
+    if (!isCascadeKeyProducerSourcePath(file)) continue;
+    if (!/(?:CascadeKey::new\s*\(|CascadeKey\s*\{)/u.test(rawSource)) continue;
+    const source = maskRustCfgTestItems(rawSource);
+    if (!/(?:CascadeKey::new\s*\(|CascadeKey\s*\{)/u.test(source)) continue;
+    const calls: { index: number; expression: string; functionItem: RustFunctionItemV0 }[] = [];
+
+    for (const match of source.matchAll(/(?:omena_cascade::)?CascadeKey::new\s*\(/gu)) {
+      const index = match.index;
+      const functionItem = rustEnclosingFunctionAt(source, index);
+      assert.ok(functionItem, `CascadeKey constructor is outside a function: ${file}`);
+      const open = source.indexOf("(", index);
+      const close = matchingRustDelimiter(source, open, "(", ")");
+      const callArguments = splitRustTopLevel(source.slice(open + 1, close), ",");
+      assert.ok(
+        callArguments.length >= 5,
+        `CascadeKey constructor has fewer than five arguments: ${file}#${functionItem.name}`,
+      );
+      calls.push({ index, expression: callArguments[2] ?? "", functionItem });
+    }
+
+    for (const match of source.matchAll(/(?:omena_cascade::)?CascadeKey\s*\{/gu)) {
+      const index = match.index;
+      const functionItem = rustEnclosingFunctionAt(source, index);
+      if (functionItem === undefined) continue;
+      const prefix = source.slice(Math.max(functionItem.open, index - 40), index);
+      if (/(?:struct|impl|for|->)\s*$/u.test(prefix)) continue;
+      const open = source.indexOf("{", index);
+      const close = matchingRustDelimiter(source, open, "{", "}");
+      const fields = source.slice(open + 1, close);
+      const expression = rustStructFieldValue(fields, "scope_proximity");
+      assert.ok(
+        expression !== undefined,
+        `CascadeKey literal is missing scope_proximity: ${file}#${functionItem.name}`,
+      );
+      calls.push({ index, expression, functionItem });
+    }
+
+    const occurrences = new Map<string, number>();
+    for (const call of calls.toSorted((left, right) => left.index - right.index)) {
+      const occurrence = (occurrences.get(call.functionItem.name) ?? 0) + 1;
+      occurrences.set(call.functionItem.name, occurrence);
+      const scopeProximitySource = classifyCascadeScopeProximitySource(
+        call.expression,
+        call.functionItem,
+      );
+      discovered.push({
+        path: file,
+        symbol: call.functionItem.name,
+        occurrence,
+        disposition: classifyCascadeKeyProducerDisposition(
+          file,
+          call.functionItem.name,
+          scopeProximitySource,
+        ),
+        scopeProximitySource,
+      });
+    }
+  }
+  return discovered.toSorted((left, right) =>
+    cascadeKeyProducerId(left).localeCompare(cascadeKeyProducerId(right)),
+  );
+}
+
+function isCascadeKeyProducerSourcePath(file: string): boolean {
+  return (
+    file.startsWith("rust/crates/") &&
+    file.endsWith(".rs") &&
+    !file.includes("/tests/") &&
+    !file.includes("/examples/") &&
+    !file.endsWith("/src/tests.rs")
+  );
+}
+
+function classifyCascadeKeyProducerDisposition(
+  file: string,
+  symbol: string,
+  scopeSource: CascadeScopeProximitySourceV0,
+): CascadeKeyProducerDispositionV0 {
+  if (file === "rust/crates/omena-cascade/src/conformance.rs") return "conformance";
+  if (file === "rust/crates/omena-cascade/src/fuzz.rs" || symbol.startsWith("generated_")) {
+    return "generated";
+  }
+  if (
+    file === "rust/crates/engine-shadow-runner/src/main.rs" ||
+    file === "rust/crates/omena-categorical/src/lib.rs"
+  ) {
+    return "fixture";
+  }
+  if (
+    scopeSource === "callerSupplied" &&
+    ((file === "rust/crates/omena-bundler/src/lib.rs" &&
+      symbol === "cascade_key_with_global_source_order") ||
+      (file === "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs" &&
+        symbol === "winner_for_pair"))
+  ) {
+    return "callerSuppliedBoundary";
+  }
+  return "automaticProductDerived";
+}
+
+function classifyCascadeScopeProximitySource(
+  expression: string,
+  functionItem: RustFunctionItemV0,
+): CascadeScopeProximitySourceV0 {
+  const normalized = expression.replace(/\s+/gu, "");
+  if (/^0(?:_?u32)?$/u.test(normalized)) return "constantZero";
+  if (normalized.includes("cascade_scope_proximity_fallback_for_selector_context_rank")) {
+    return "legacySelectorContextFallback";
+  }
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/u.test(normalized)) {
+    const assignment = new RegExp(
+      `let\\s+(?:mut\\s+)?${escapeRegExp(normalized)}(?:\\s*:[^=;]+)?\\s*=\\s*([^;]+);`,
+      "u",
+    ).exec(functionItem.body)?.[1];
+    if (assignment?.includes("cascade_scope_proximity_fallback_for_selector_context_rank")) {
+      return "legacySelectorContextFallback";
+    }
+    const parameterPattern = new RegExp(`\\b${escapeRegExp(normalized)}\\s*:`, "u");
+    if (parameterPattern.test(functionItem.header)) return "callerSupplied";
+  }
+  if (/\.scope_proximity\b/u.test(normalized)) return "callerSupplied";
+  return "generatedValue";
+}
+
+function rustEnclosingFunctionAt(source: string, index: number): RustFunctionItemV0 | undefined {
+  const pattern =
+    /^[ \t]*(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)/gmu;
+  const candidates = [...source.slice(0, index).matchAll(pattern)];
+  for (const match of candidates.toReversed()) {
+    const open = source.indexOf("{", match.index);
+    const semicolon = source.indexOf(";", match.index);
+    if (open < 0 || open >= index || (semicolon >= 0 && semicolon < open)) continue;
+    return {
+      name: match[1] ?? "",
+      open,
+      header: source.slice(match.index, open),
+      body: source.slice(open + 1, index),
+    };
+  }
+  return undefined;
+}
+
+function cascadeKeyProducerId(
+  producer: Pick<CascadeKeyProducerV0, "path" | "symbol" | "occurrence">,
+): string {
+  return `${producer.path}#${producer.symbol}:${producer.occurrence}`;
+}
+
+function rustStructFieldValue(source: string, field: string): string | undefined {
+  for (const part of splitRustTopLevel(source, ",")) {
+    const separator = part.indexOf(":");
+    if (separator < 0 || part.slice(0, separator).trim() !== field) continue;
+    return part.slice(separator + 1).trim();
+  }
+  return undefined;
+}
+
+function splitRustTopLevel(source: string, separator: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  const delimiterStack: string[] = [];
+  let quote: '"' | "'" | undefined;
+  let lineComment = false;
+  let blockComment = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const current = source[index] ?? "";
+    const next = source[index + 1] ?? "";
+    const previous = source[index - 1] ?? "";
+    if (lineComment) {
+      if (current === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (current === "*" && next === "/") {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote !== undefined) {
+      if (current === quote && previous !== "\\") quote = undefined;
+      continue;
+    }
+    if (current === "/" && next === "/") {
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+    if (current === "/" && next === "*") {
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+    if (current === '"' || (current === "'" && rustCharLiteralEnd(source, index) > index)) {
+      quote = current;
+      continue;
+    }
+    if (current === "(" || current === "[" || current === "{") delimiterStack.push(current);
+    if (current === ")" || current === "]" || current === "}") delimiterStack.pop();
+    if (current === separator && delimiterStack.length === 0) {
+      parts.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  parts.push(source.slice(start).trim());
+  return parts;
+}
+
+function matchingRustDelimiter(
+  source: string,
+  openIndex: number,
+  openDelimiter: string,
+  closeDelimiter: string,
+): number {
+  assert.equal(source[openIndex], openDelimiter, `missing ${openDelimiter} at ${openIndex}`);
+  let depth = 0;
+  let quote: '"' | "'" | undefined;
+  let lineComment = false;
+  let blockComment = false;
+  for (let index = openIndex; index < source.length; index += 1) {
+    const current = source[index] ?? "";
+    const next = source[index + 1] ?? "";
+    const previous = source[index - 1] ?? "";
+    if (lineComment) {
+      if (current === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (current === "*" && next === "/") {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote !== undefined) {
+      if (current === quote && previous !== "\\") quote = undefined;
+      continue;
+    }
+    if (current === "/" && next === "/") {
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+    if (current === "/" && next === "*") {
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+    if (current === '"' || (current === "'" && rustCharLiteralEnd(source, index) > index)) {
+      quote = current;
+      continue;
+    }
+    if (current === openDelimiter) depth += 1;
+    if (current === closeDelimiter) {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error(`unterminated Rust delimiter ${openDelimiter} at ${openIndex}`);
+}
+
 type AxisOrderSiteDisposition = "consumer" | "mirror" | "structural";
 
 interface DiscoveredAxisOrderSite {
@@ -531,10 +1118,6 @@ function cascadeAxisOrderSiteDispositionsV0(): readonly AxisOrderSiteDisposition
     {
       id: "rust/crates/omena-cascade/src/ranked_set_loss_census.rs#strict_axis_prefix_winner",
       disposition: "consumer",
-    },
-    {
-      id: "rust/crates/omena-cascade/src/origin.rs#cascade_driver_census_is_consistent_v0",
-      disposition: "mirror",
     },
     {
       id: "rust/crates/omena-cascade/data/cascade-driver-census.json#json:winnerAxes",
@@ -701,6 +1284,18 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
   const authorityPresent = sources.has("rust/crates/omena-cascade/src/axis_order.rs");
   const dispositions = [...cascadeAxisOrderSiteDispositionsV0()];
   const cascadeTests = sources.get("rust/crates/omena-cascade/src/tests.rs") ?? "";
+  const cascadeOrigin = sources.get("rust/crates/omena-cascade/src/origin.rs") ?? "";
+  if (cascadeOrigin.includes("fn cascade_winner_axis_catalog_from_authority_v0")) {
+    dispositions.push({
+      id: "rust/crates/omena-cascade/src/origin.rs#cascade_winner_axis_catalog_from_authority_v0",
+      disposition: "consumer",
+    });
+  } else {
+    dispositions.push({
+      id: "rust/crates/omena-cascade/src/origin.rs#cascade_driver_census_is_consistent_v0",
+      disposition: "mirror",
+    });
+  }
   if (sources.has("rust/crates/omena-cascade/examples/cascade_key_axis_order.rs")) {
     dispositions.push(emittedAxisOrderSiteDispositionV0());
   }
@@ -986,7 +1581,7 @@ function normalizeAxisOrderSymbol(file: string, symbol: string): string | undefi
 function isAxisOrderDetectorInternal(file: string, symbol: string): boolean {
   return (
     file === "scripts/check-rust-ranked-set-loss-census.ts" &&
-    /^(?:cascadeAxisOrder|emittedAxisOrderSite|discover|addJsonAxis|sourceSymbols|bracedSourceItem|rustCharLiteralEnd|normalizeAxis|isAxisOrderDetectorInternal|axisTokensIn|hasAxis|hasDenseAxisLiteral|axisOrderFrom|collapseSpecificity|quotedAxis|axisNameFrom|escapeRegExp|readCascadeAxis|listCurrent|listTracked|readAtRef)/u.test(
+    /^(?:cascadeAxisOrder|emittedAxisOrderSite|discover|addJsonAxis|sourceSymbols|bracedSourceItem|rustCharLiteralEnd|normalizeAxis|isAxisOrderDetectorInternal|axisTokensIn|hasAxis|hasDenseAxisLiteral|axisOrderFrom|collapseSpecificity|quotedAxis|axisNameFrom|escapeRegExp|readCascadeAxis|listCurrent|listTracked|readAtRef|validateCascadeKeyProducer|validateCallerSuppliedScope|readCascadeKeyProducer|isCascadeKeyProducer|classifyCascade|rustFunctionItems|enclosingRustFunction|cascadeKeyProducerId|rustStructFieldValue|splitRustTopLevel|matchingRustDelimiter|maskCfgTestRustItems)/u.test(
       symbol,
     )
   );
@@ -1041,22 +1636,32 @@ function readCascadeAxisOrderDomain(sourceRef?: string): Map<string, string> {
   );
   const sources = new Map<string, string>();
   for (const file of selected) {
-    const source =
-      sourceRef === undefined
-        ? readFileSync(path.join(repoRoot, file), "utf8")
-        : readAtRef(sourceRef, file);
-    sources.set(file, source);
+    sources.set(file, readRepositorySource(file, sourceRef));
   }
   return sources;
 }
 
-function listCurrentTrackedFiles(): string[] {
+function readRepositorySource(file: string, sourceRef?: string): string {
+  const cacheKey = `${sourceRef ?? "worktree"}\0${file}`;
+  const cached = repositorySourceCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const source =
+    sourceRef === undefined
+      ? readFileSync(path.join(repoRoot, file), "utf8")
+      : readAtRef(sourceRef, file);
+  repositorySourceCache.set(cacheKey, source);
+  return source;
+}
+
+function listCurrentTrackedFiles(): readonly string[] {
+  if (currentTrackedFiles !== undefined) return currentTrackedFiles;
   const result = spawnSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
     cwd: repoRoot,
     encoding: "utf8",
   });
   assert.equal(result.status, 0, `git ls-files failed: ${result.stderr}`);
-  return result.stdout.split(/\r?\n/u).filter(Boolean);
+  currentTrackedFiles = result.stdout.split(/\r?\n/u).filter(Boolean);
+  return currentTrackedFiles;
 }
 
 function listTrackedFilesAt(sourceRef: string): string[] {

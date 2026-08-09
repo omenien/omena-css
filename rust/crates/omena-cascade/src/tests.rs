@@ -139,6 +139,58 @@ fn origin_inputs_drive_every_non_temporal_cascade_level() {
 }
 
 #[test]
+fn element_attached_style_outranks_author_rules_across_adverse_layers() {
+    let strongest_specificity = Specificity::new(u32::MAX, u32::MAX, u32::MAX);
+    let normal_inline = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Inline, false),
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        u32::MAX,
+        Specificity::ZERO,
+        0,
+    );
+    let normal_author = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Author, false),
+        normalized_layer_rank(false, None),
+        0,
+        strongest_specificity,
+        u32::MAX,
+    );
+    let important_inline = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Inline, true),
+        normalized_layer_rank(true, None),
+        u32::MAX,
+        Specificity::ZERO,
+        0,
+    );
+    let important_author = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Author, true),
+        normalized_layer_rank(true, LayerOrdinal::new(0)),
+        0,
+        strongest_specificity,
+        u32::MAX,
+    );
+
+    assert!(normal_inline > normal_author);
+    assert!(important_inline > important_author);
+    for (inline_key, author_key, expected_id) in [
+        (normal_inline, normal_author, "inline-normal"),
+        (important_inline, important_author, "inline-important"),
+    ] {
+        let outcome = cascade_property(
+            [
+                declaration(expected_id, "inline", inline_key),
+                declaration("author-rule", "author", author_key),
+            ],
+            "color",
+        );
+        let CascadeOutcome::Definite { winner, .. } = outcome else {
+            panic!("cross-level style-attribute comparison must be definite");
+        };
+        assert_eq!(winner.id, expected_id);
+    }
+}
+
+#[test]
 fn derives_scope_proximity_from_the_nearest_matching_ancestor() {
     let target = ElementIdentityV0 {
         source_path: "Child.tsx".to_string(),
