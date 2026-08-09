@@ -48,7 +48,7 @@
     "omena-abstract-value": 130,
     "omena-bridge": 106,
     "omena-bundler": 59,
-    "omena-cascade": 126,
+    "omena-cascade": 134,
     "omena-cascade-proof": 26,
     "omena-checker": 61,
     "omena-cross-file-summary": 25,
@@ -2045,9 +2045,33 @@
     },
     {
       "crate": "omena-cascade",
+      "typeName": "CascadeAxisNamedDriverV0",
+      "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+      "line": 52
+    },
+    {
+      "crate": "omena-cascade",
+      "typeName": "CascadeAxisOutOfFragmentReasonV0",
+      "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+      "line": 61
+    },
+    {
+      "crate": "omena-cascade",
       "typeName": "CascadeAxisPrefixV0",
       "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
       "line": 34
+    },
+    {
+      "crate": "omena-cascade",
+      "typeName": "CascadeAxisReachDisclosureV0",
+      "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+      "line": 85
+    },
+    {
+      "crate": "omena-cascade",
+      "typeName": "CascadeAxisReachStatusV0",
+      "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+      "line": 69
     },
     {
       "crate": "omena-cascade",
@@ -2099,21 +2123,27 @@
     },
     {
       "crate": "omena-cascade",
+      "typeName": "CascadeDriverAxisStatusV0",
+      "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+      "line": 127
+    },
+    {
+      "crate": "omena-cascade",
       "typeName": "CascadeDriverAxisV0",
       "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
-      "line": 66
+      "line": 118
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeDriverCensusV0",
       "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
-      "line": 47
+      "line": 97
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeDriverLevelV0",
       "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
-      "line": 56
+      "line": 108
     },
     {
       "crate": "omena-cascade",
@@ -2159,6 +2189,18 @@
     },
     {
       "crate": "omena-cascade",
+      "typeName": "CascadeKeyProducerDispositionV0",
+      "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+      "line": 150
+    },
+    {
+      "crate": "omena-cascade",
+      "typeName": "CascadeKeyProducerV0",
+      "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+      "line": 140
+    },
+    {
+      "crate": "omena-cascade",
       "typeName": "CascadeLevel",
       "sourcePath": "rust/crates/omena-cascade/src/model.rs",
       "line": 16
@@ -2179,13 +2221,13 @@
       "crate": "omena-cascade",
       "typeName": "CascadeOriginDriverV0",
       "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
-      "line": 29
+      "line": 32
     },
     {
       "crate": "omena-cascade",
       "typeName": "CascadeOriginV0",
       "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
-      "line": 13
+      "line": 16
     },
     {
       "crate": "omena-cascade",
@@ -2261,6 +2303,12 @@
     },
     {
       "crate": "omena-cascade",
+      "typeName": "CascadeScopeProximitySourceV0",
+      "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+      "line": 160
+    },
+    {
+      "crate": "omena-cascade",
       "typeName": "CascadeSpinGlassHamiltonianV0",
       "sourcePath": "rust/crates/omena-cascade/src/statistics.rs",
       "line": 26
@@ -2311,7 +2359,7 @@
       "crate": "omena-cascade",
       "typeName": "CascadeWinnerAxisV0",
       "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
-      "line": 37
+      "line": 40
     },
     {
       "crate": "omena-cascade",

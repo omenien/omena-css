@@ -1,3 +1,7 @@
+#[non_exhaustive] pub enum omena_cascade::CascadeAxisNamedDriverV0
+#[non_exhaustive] pub enum omena_cascade::CascadeAxisOutOfFragmentReasonV0
+#[non_exhaustive] pub enum omena_cascade::CascadeAxisReachStatusV0
+#[non_exhaustive] pub struct omena_cascade::CascadeAxisReachDisclosureV0
 #[non_exhaustive] pub struct omena_cascade::OpenWorldTieEvidence
 impl core::cmp::Ord for omena_cascade::CascadeKey
 impl core::cmp::Ord for omena_cascade::ModuleRank
@@ -144,6 +148,7 @@ pub fn omena_cascade::selector_signature_co_match_verdict(&omena_cascade::Select
 pub fn omena_cascade::spin_glass_monte_carlo_policy() -> omena_cascade::SpinGlassMonteCarloPolicyV0
 pub fn omena_cascade::spin_glass_ultrametric_binary_five_tier_corpus_v0() -> alloc::vec::Vec<omena_cascade::CascadeUltrametricPathV0>
 pub fn omena_cascade::substitute_custom_properties(&omena_cascade::CascadeValue, &omena_cascade::CustomPropertyEnv) -> omena_cascade::CascadeValue
+pub fn omena_cascade::summarize_cascade_axis_reach_v0() -> core::option::Option<omena_cascade::CascadeAxisReachDisclosureV0>
 pub fn omena_cascade::summarize_cascade_boundary() -> omena_cascade::CascadeBoundarySummary
 pub fn omena_cascade::summarize_cascade_frustration(usize, usize) -> omena_cascade::CascadeFrustrationV0
 pub fn omena_cascade::summarize_cascade_margin_schema_v0() -> omena_cascade::CascadeMarginSchemaV0
@@ -192,9 +197,23 @@ pub omena_cascade::CascadeAttractorBasinV0::strategy: omena_cascade::AttractorEn
 pub omena_cascade::CascadeAttractorBasinV0::transition_count: usize
 pub omena_cascade::CascadeAttractorBasinV0::transition_digest: core::option::Option<alloc::string::String>
 pub omena_cascade::CascadeAttractorBasinV0::variable_count: usize
+pub omena_cascade::CascadeAxisNamedDriverV0::LegacySelectorContextFallback
+pub omena_cascade::CascadeAxisOutOfFragmentReasonV0::ShadowTreeEncapsulationContextUnmodeled
 pub omena_cascade::CascadeAxisPrefixV0::LayerRank
 pub omena_cascade::CascadeAxisPrefixV0::Level
 pub omena_cascade::CascadeAxisPrefixV0::ScopeProximity
+pub omena_cascade::CascadeAxisReachDisclosureV0::encapsulation_context: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::layers: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::order_of_appearance: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::origin_and_importance: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::scope_proximity: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::specificity: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::style_attribute: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachStatusV0::Modeled
+pub omena_cascade::CascadeAxisReachStatusV0::NotReachedByProduct
+pub omena_cascade::CascadeAxisReachStatusV0::NotReachedByProduct::named_driver: omena_cascade::CascadeAxisNamedDriverV0
+pub omena_cascade::CascadeAxisReachStatusV0::OutOfFragment
+pub omena_cascade::CascadeAxisReachStatusV0::OutOfFragment::reason: omena_cascade::CascadeAxisOutOfFragmentReasonV0
 pub omena_cascade::CascadeBoundarySummary::least_fixed_point_proof_model: &'static str
 pub omena_cascade::CascadeBoundarySummary::not_ready_surfaces: alloc::vec::Vec<&'static str>
 pub omena_cascade::CascadeBoundarySummary::ordering_model: &'static str
