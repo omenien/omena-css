@@ -327,6 +327,14 @@ fn first_resolve_writes_shard_and_fresh_state_replays_byte_identical_diagnostics
         "first resolve must write exactly one shard under {}",
         cache_dir.display(),
     );
+    let attribution = workspace_root
+        .join(".cache")
+        .join("omena")
+        .join(".omena-cache-owner.json");
+    assert!(
+        attribution.is_file(),
+        "the diagnostics-only writer must stamp its resolved cache root"
+    );
 
     let second_outputs = run_disk_cache_session(
         workspace_uri.as_str(),

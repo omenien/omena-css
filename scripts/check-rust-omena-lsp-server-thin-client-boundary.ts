@@ -70,11 +70,15 @@ assert.ok(rustEndpoint.hostResponsibilities.includes("prepareEditorStorageRoots"
 assert.ok(clientEndpoint.hostResponsibilities.includes("prepareEditorStorageRoots"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("passStorageInitializationOptions"));
 assert.ok(clientEndpoint.hostResponsibilities.includes("passStorageInitializationOptions"));
+assert.ok(rustEndpoint.hostResponsibilities.includes("requestServerOwnedCacheClear"));
+assert.ok(clientEndpoint.hostResponsibilities.includes("requestServerOwnedCacheClear"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("declareStaticDocumentSelector"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("startLanguageClient"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("registerStaticFileWatchers"));
 assert.ok(rustEndpoint.rustResponsibilities.includes("ownLspLifecycle"));
 assert.ok(rustEndpoint.rustResponsibilities.includes("ownTsgoClientLifecycle"));
+assert.ok(rustEndpoint.rustResponsibilities.includes("resolveAndClearDeclaredOwnedCachePaths"));
+assert.ok(clientEndpoint.rustResponsibilities.includes("resolveAndClearDeclaredOwnedCachePaths"));
 assert.ok(clientEndpoint.hostResponsibilities.includes("translateShowReferencesArguments"));
 assert.ok(clientEndpoint.rustResponsibilities.includes("ownProviderExecution"));
 
@@ -95,6 +99,14 @@ assert.equal(readClientCacheLocationSetting("global"), "global");
 assert.equal(readClientCacheLocationSetting("invalid"), "editor");
 
 const extensionSource = readFileSync("client/src/extension.ts", "utf8");
+const packageManifest = JSON.parse(readFileSync("package.json", "utf8")) as {
+  readonly contributes: {
+    readonly commands: readonly { readonly command: string; readonly title: string }[];
+    readonly configuration: {
+      readonly properties: Readonly<Record<string, { readonly markdownDescription?: string }>>;
+    };
+  };
+};
 const storagePreparationIndex = extensionSource.indexOf("vscode.workspace.fs.createDirectory");
 const clientStartIndex = extensionSource.indexOf("client.start()");
 assert.ok(storagePreparationIndex >= 0, "extension must prepare editor storage roots");
@@ -104,6 +116,36 @@ assert.ok(
 );
 for (const field of ["globalStorageUri", "storageUri", "logUri"]) {
   assert.ok(extensionSource.includes(field), `extension storage handoff must include ${field}`);
+}
+assert.ok(extensionSource.includes('const CLEAR_CACHES_REQUEST = "omena/clearCaches"'));
+assert.ok(extensionSource.includes('const CLEAR_CACHES_COMMAND = "omena.clearCaches"'));
+assert.ok(extensionSource.includes("sendRequest<OmenaCacheClearReport>(CLEAR_CACHES_REQUEST"));
+assert.ok(
+  extensionSource.includes("target.removedPaths"),
+  "the cache command must report the server-returned removed paths",
+);
+assert.ok(
+  !extensionSource.includes('join(".cache", "omena")'),
+  "the thin client must not re-derive server cache roots",
+);
+assert.ok(
+  packageManifest.contributes.commands.some(
+    (command) => command.command === "omena.clearCaches" && command.title === "Omena: Clear Caches",
+  ),
+  "the extension manifest must contribute the cache command",
+);
+const cacheLocationDocumentation =
+  packageManifest.contributes.configuration.properties["omena.cache.location"]
+    ?.markdownDescription ?? "";
+for (const platformPath of [
+  "$XDG_CACHE_HOME/omena",
+  "~/Library/Caches/omena",
+  "%LOCALAPPDATA%\\omena",
+]) {
+  assert.ok(
+    cacheLocationDocumentation.includes(platformPath),
+    `cache setting documentation must name ${platformPath}`,
+  );
 }
 
 process.stdout.write(

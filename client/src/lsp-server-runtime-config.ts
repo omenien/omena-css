@@ -156,6 +156,7 @@ export function buildThinClientRuntimeEndpoint(
       "declareStaticDocumentSelector",
       "startLanguageClient",
       "registerStaticFileWatchers",
+      "requestServerOwnedCacheClear",
       "translateShowReferencesArguments",
       "renderHoverTracePanel",
       "surfaceStartupErrors",
@@ -166,6 +167,7 @@ export function buildThinClientRuntimeEndpoint(
       "ownDiagnosticsScheduling",
       "ownProviderExecution",
       "ownTsgoClientLifecycle",
+      "resolveAndClearDeclaredOwnedCachePaths",
     ],
   };
 }

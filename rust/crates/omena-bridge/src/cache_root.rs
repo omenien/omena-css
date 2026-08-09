@@ -10,6 +10,7 @@ pub(crate) const OMENA_GLOBAL_CACHE_DIR_ENV: &str = "OMENA_GLOBAL_CACHE_DIR";
 pub(crate) const OMENA_CACHE_GITIGNORE_BYTES: &[u8] =
     b"# machine-generated omena cache - safe to delete\n*\n";
 pub(crate) const OMENA_CACHEDIR_TAG_BYTES: &[u8] = b"Signature: 8a477f597d28d172789f06886806bc55\n# This directory is an omena cache; contents are regenerable.\n";
+const OMENA_CACHE_ATTRIBUTION_FILE: &str = ".omena-cache-owner.json";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -190,6 +191,21 @@ pub(crate) fn ensure_omena_cache_root_markers(cache_subdir: &Path) {
     if !cachedir_tag.exists() {
         let _ = fs::write(cachedir_tag, OMENA_CACHEDIR_TAG_BYTES);
     }
+}
+
+pub(crate) fn ensure_omena_cache_root_attribution(cache_subdir: &Path, workspace_identity: &str) {
+    let Some(cache_root) = cache_subdir.parent() else {
+        return;
+    };
+    let attribution = serde_json::json!({
+        "schemaVersion": "0",
+        "product": "omena.cache-root-attribution",
+        "workspaceIdentity": workspace_identity,
+    });
+    let Ok(bytes) = serde_json::to_vec(&attribution) else {
+        return;
+    };
+    let _ = fs::write(cache_root.join(OMENA_CACHE_ATTRIBUTION_FILE), bytes);
 }
 
 fn owned_cache_root(base: &Path) -> PathBuf {

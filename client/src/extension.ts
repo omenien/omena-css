@@ -22,6 +22,7 @@ import { isShowReferencesArgs } from "./util/show-references-guards";
 
 const EXPLAIN_HOVER_TRACE_REQUEST = "omena/explainHoverTrace";
 const EXPLAIN_REQUEST = "omena/explain";
+const CLEAR_CACHES_REQUEST = "omena/clearCaches";
 const EXPLAIN_HOVER_TRACE_COMMAND = "omena.explainHoverTrace";
 const EXPLAIN_DIAGNOSTIC_COMMAND = "omena.explainDiagnostic";
 const EXPLAIN_TRANSFORM_COMMAND = "omena.explainTransform";
@@ -29,6 +30,7 @@ const EXPLAIN_TREE_SHAKE_COMMAND = "omena.whyNotTreeShaken";
 const SHOW_STYLE_GRAPH_COMMAND = "omena.showStyleGraph";
 const SHOW_PRECISION_LEDGER_COMMAND = "omena.showPrecisionLedger";
 const SHOW_SERVER_OUTPUT_COMMAND = "omena.showLanguageServerOutput";
+const CLEAR_CACHES_COMMAND = "omena.clearCaches";
 
 let client: LanguageClient | undefined;
 let clientReady: Promise<void> | undefined;
@@ -116,6 +118,21 @@ interface ExplainHoverTraceResponse {
   readonly resolutionPath?: readonly unknown[];
   readonly readySurfaces?: readonly unknown[];
   readonly [key: string]: unknown;
+}
+
+interface OmenaCacheClearReport {
+  readonly product?: string;
+  readonly targetCount?: number;
+  readonly removedPathCount?: number;
+  readonly targets?: readonly {
+    readonly rootKind?: string;
+    readonly root?: string;
+    readonly removedPaths?: readonly string[];
+  }[];
+  readonly failures?: readonly {
+    readonly path?: string;
+    readonly reason?: string;
+  }[];
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -261,6 +278,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand(CLEAR_CACHES_COMMAND, async () => {
+      await clearOmenaCaches();
+    }),
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand(EXPLAIN_DIAGNOSTIC_COMMAND, async () => {
       await showExplainPanel(context, "diagnostic", "Diagnostic Explanation");
     }),
@@ -302,6 +324,46 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void client?.stop();
     },
   });
+}
+
+async function clearOmenaCaches(): Promise<void> {
+  const activeClient = client;
+  const ready = clientReady;
+  if (!activeClient || !ready) {
+    void vscode.window.showErrorMessage("Omena CSS Modules language server is not initialized.");
+    return;
+  }
+  try {
+    await ready;
+    const report = await activeClient.sendRequest<OmenaCacheClearReport>(CLEAR_CACHES_REQUEST, {});
+    for (const target of report.targets ?? []) {
+      for (const removedPath of target.removedPaths ?? []) {
+        activeClient.outputChannel.appendLine(`[cache] removed ${removedPath}`);
+      }
+    }
+    for (const failure of report.failures ?? []) {
+      activeClient.outputChannel.appendLine(
+        `[cache] failed ${failure.path ?? "unknown path"}: ${failure.reason ?? "unknown error"}`,
+      );
+    }
+    const removed = report.removedPathCount ?? 0;
+    const failures = report.failures?.length ?? 0;
+    if (failures > 0) {
+      void vscode.window.showWarningMessage(
+        `Omena removed ${removed} cache directories; ${failures} could not be removed. See the Omena output for paths.`,
+      );
+    } else {
+      void vscode.window.showInformationMessage(
+        removed > 0
+          ? `Omena removed ${removed} cache directories. Paths are listed in the Omena output.`
+          : "Omena caches are already clear.",
+      );
+    }
+  } catch (err) {
+    void vscode.window.showErrorMessage(
+      `Omena cache clearing failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
 async function showExplainPanel(

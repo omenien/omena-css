@@ -7,8 +7,9 @@ use crate::workspace_runtime_registry::{
     WorkspaceRuntimeRegistryBoundaryV0, workspace_runtime_registry_contract,
 };
 use crate::{
-    CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, EXPLAIN_HOVER_TRACE_REQUEST,
-    EXPLAIN_REQUEST, NODE_TEXT_DOCUMENT_SYNC_KIND, STYLE_CONTEXT_INDEX_REQUEST,
+    CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, CLEAR_CACHES_REQUEST,
+    EXPLAIN_HOVER_TRACE_REQUEST, EXPLAIN_REQUEST, NODE_TEXT_DOCUMENT_SYNC_KIND,
+    STYLE_CONTEXT_INDEX_REQUEST,
 };
 use omena_tsgo_client::{OmenaTsgoClientBoundarySummaryV0, summarize_omena_tsgo_client_boundary};
 use serde::Serialize;
@@ -446,6 +447,7 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
             "declareStaticDocumentSelector",
             "startLanguageClient",
             "registerStaticFileWatchers",
+            "requestServerOwnedCacheClear",
             "translateShowReferencesArguments",
             "renderHoverTracePanel",
             "surfaceStartupErrors",
@@ -456,6 +458,7 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
             "ownDiagnosticsScheduling",
             "ownProviderExecution",
             "ownTsgoClientLifecycle",
+            "resolveAndClearDeclaredOwnedCachePaths",
         ],
     }
 }
@@ -545,6 +548,7 @@ pub fn lsp_handler_surfaces() -> Vec<LspHandlerSurfaceV0> {
         query_inspection_handler(STYLE_CONTEXT_INDEX_REQUEST),
         query_inspection_handler(EXPLAIN_HOVER_TRACE_REQUEST),
         query_inspection_handler(EXPLAIN_REQUEST),
+        runtime_handler(CLEAR_CACHES_REQUEST),
         runtime_handler(CANCEL_REQUEST_METHOD),
     ]
 }

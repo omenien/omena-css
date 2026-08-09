@@ -387,6 +387,7 @@ pub(crate) fn store_disk_diagnostics_shard_for_serial_resolve(
 #[derive(Debug, Clone)]
 pub(crate) struct DiskDiagnosticsCacheSlotV0 {
     dir: PathBuf,
+    workspace_identity: String,
     address: String,
     target_style_path: String,
     environment_fingerprint: String,
@@ -459,10 +460,13 @@ pub(crate) fn disk_diagnostics_cache_slot_for_resolve(
     target_style_path: &str,
     plan: &DiskDiagnosticsCacheWavePlanV0,
 ) -> Option<DiskDiagnosticsCacheSlotV0> {
+    let (workspace_identity, _) =
+        disk_diagnostics_cache_workspace_root(state, workspace_folder_uri)?;
     let dir = disk_diagnostics_cache_dir(state, workspace_folder_uri)?;
     let address = disk_diagnostics_stable_shard_address_v1(target_style_path)?;
     Some(DiskDiagnosticsCacheSlotV0 {
         dir,
+        workspace_identity,
         address,
         target_style_path: target_style_path.to_string(),
         environment_fingerprint: plan.environment_fingerprint.clone(),
@@ -797,6 +801,7 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
     }
     match write_disk_diagnostics_shard_atomically(
         slot.dir.as_path(),
+        slot.workspace_identity.as_str(),
         slot.address.as_str(),
         bytes.as_slice(),
     ) {
@@ -907,11 +912,13 @@ pub(crate) fn stable_cache_shard_address(product: &str, identity_parts: &[&str])
 /// grow the store, so only creations pay the eviction sweep.
 fn write_disk_diagnostics_shard_atomically(
     dir: &Path,
+    workspace_identity: &str,
     key: &str,
     bytes: &[u8],
 ) -> std::io::Result<bool> {
     fs::create_dir_all(dir)?;
     ensure_omena_cache_root_markers(dir);
+    crate::cache_limits::ensure_cache_root_attribution(dir, workspace_identity);
     let final_path = disk_diagnostics_shard_file_path(dir, key).ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidInput, "non-hex shard key")
     })?;
@@ -1087,6 +1094,7 @@ mod tests {
             let plan = self.plan()?;
             let mut slot = DiskDiagnosticsCacheSlotV0 {
                 dir: dir.to_path_buf(),
+                workspace_identity: "test-workspace".to_string(),
                 address: disk_diagnostics_stable_shard_address_v1(self.target_style_path.as_str())?,
                 target_style_path: self.target_style_path.clone(),
                 environment_fingerprint: plan.environment_fingerprint.clone(),
@@ -1517,6 +1525,7 @@ mod tests {
         let plan = fixture.plan().ok_or("plan")?;
         let undeclared = DiskDiagnosticsCacheSlotV0 {
             dir: dir.clone(),
+            workspace_identity: "test-workspace".to_string(),
             address: disk_diagnostics_stable_shard_address_v1(FIXTURE_TARGET).ok_or("address")?,
             target_style_path: FIXTURE_TARGET.to_string(),
             environment_fingerprint: plan.environment_fingerprint.clone(),

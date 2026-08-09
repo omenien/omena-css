@@ -250,6 +250,7 @@ assert.deepEqual(
   rustSummary.handlerSurfaces.map((surface) => surface.method).toSorted(),
   [
     "$/cancelRequest",
+    "omena/clearCaches",
     "omena/explain",
     "omena/explainHoverTrace",
     "omena/rustCascadeAtPosition",

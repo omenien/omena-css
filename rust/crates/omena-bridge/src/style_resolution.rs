@@ -71,12 +71,24 @@ pub struct OmenaBridgeExternalSifCacheContextV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaBridgeExternalSifStorageV0 {
     workspace_cache_root: PathBuf,
+    workspace_identity: Option<String>,
 }
 
 impl OmenaBridgeExternalSifStorageV0 {
     pub fn from_workspace_cache_root(workspace_cache_root: PathBuf) -> Self {
         Self {
             workspace_cache_root,
+            workspace_identity: None,
+        }
+    }
+
+    pub fn from_workspace_cache_root_and_identity(
+        workspace_cache_root: PathBuf,
+        workspace_identity: impl Into<String>,
+    ) -> Self {
+        Self {
+            workspace_cache_root,
+            workspace_identity: Some(workspace_identity.into()),
         }
     }
 
@@ -286,6 +298,12 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_
     let cache_dir = cache_enabled
         .then(|| external_sif_cache_dir_for_path(raw_path.as_path(), cache_storage))
         .flatten();
+    let cache_workspace_identity = cache_storage
+        .and_then(|storage| storage.workspace_identity.clone())
+        .or_else(|| {
+            crate::cache_root::external_sif_workspace_root(raw_path.as_path())
+                .map(|root| root.to_string_lossy().into_owned())
+        });
     let memory_cache_key = external_sif_memory_cache_key(cache_key.as_str(), cache_dir.as_deref());
     if cache_enabled {
         if let Some(sif) = load_external_sif_from_memory_cache(memory_cache_key.as_str()) {
@@ -327,6 +345,7 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_
                 source_hash.as_str(),
                 resolved_base_dir.as_str(),
                 &sif,
+                cache_workspace_identity.as_deref(),
             );
         }
     }
@@ -502,6 +521,7 @@ fn store_external_sif_cache_shard(
     source_hash: &str,
     resolved_base_dir: &str,
     sif: &OmenaSifV1,
+    workspace_identity: Option<&str>,
 ) {
     let Ok(sif_json) = write_omena_sif_json_v1(sif) else {
         return;
@@ -526,6 +546,9 @@ fn store_external_sif_cache_shard(
         return;
     }
     if write_external_sif_cache_shard_atomically(dir, key, bytes.as_slice()).is_ok() {
+        if let Some(workspace_identity) = workspace_identity {
+            crate::cache_root::ensure_omena_cache_root_attribution(dir, workspace_identity);
+        }
         enforce_external_sif_cache_caps(dir);
     }
 }
@@ -1629,6 +1652,19 @@ mod tests {
             b"Signature: 8a477f597d28d172789f06886806bc55\n# This directory is an omena cache; contents are regenerable.\n",
             "external SIF cache root {} must carry the standard cache tag",
             cache_root.display()
+        );
+        let attribution = serde_json::from_slice::<Value>(&fs::read(
+            cache_root.join(".omena-cache-owner.json"),
+        )?)?;
+        assert_eq!(
+            attribution.get("product").and_then(Value::as_str),
+            Some("omena.cache-root-attribution")
+        );
+        assert!(
+            attribution
+                .get("workspaceIdentity")
+                .and_then(Value::as_str)
+                .is_some_and(|identity| !identity.is_empty())
         );
         let _ = fs::remove_dir_all(root);
         Ok(())

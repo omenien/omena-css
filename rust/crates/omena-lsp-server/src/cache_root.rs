@@ -198,12 +198,20 @@ pub(crate) fn resolved_bridge_workspace_cache_root(
     workspace_identity: &str,
     workspace_root: &Path,
 ) -> Option<PathBuf> {
+    process_bridge_cache_roots(config, workspace_identity, workspace_root).workspace
+}
+
+pub(crate) fn process_bridge_cache_roots(
+    config: &LspCacheStorageConfigV0,
+    workspace_identity: &str,
+    workspace_root: &Path,
+) -> OmenaCacheRootsV0 {
     if config.location == CacheLocationV0::Workspace {
-        return process_cache_roots(config, workspace_identity, workspace_root).workspace;
+        return process_cache_roots(config, workspace_identity, workspace_root);
     }
     let mut global_config = config.clone();
     global_config.location = CacheLocationV0::Global;
-    process_cache_roots(&global_config, workspace_identity, workspace_root).workspace
+    process_cache_roots(&global_config, workspace_identity, workspace_root)
 }
 
 pub(crate) fn process_cache_roots(

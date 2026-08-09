@@ -2,6 +2,7 @@
 
 mod boundary;
 mod cache_limits;
+mod cache_maintenance;
 mod cache_root;
 mod code_actions;
 mod color_provider;
@@ -306,6 +307,7 @@ pub const CASCADE_AT_POSITION_REQUEST: &str = "omena/rustCascadeAtPosition";
 pub const STYLE_CONTEXT_INDEX_REQUEST: &str = "omena/rustStyleContextIndex";
 pub const EXPLAIN_HOVER_TRACE_REQUEST: &str = "omena/explainHoverTrace";
 pub const SDK_WORKFLOW_REQUEST: &str = "omena/sdkWorkflow";
+pub const CLEAR_CACHES_REQUEST: &str = "omena/clearCaches";
 const CANCEL_REQUEST_METHOD: &str = "$/cancelRequest";
 const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
 // Cascade docs cost a whole-corpus narrowing analysis per completion item; only the

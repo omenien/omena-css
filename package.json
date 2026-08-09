@@ -653,6 +653,11 @@
         "command": "omena.showLanguageServerOutput",
         "title": "Omena: Show Language Server Output",
         "category": "Omena"
+      },
+      {
+        "command": "omena.clearCaches",
+        "title": "Omena: Clear Caches",
+        "category": "Omena"
       }
     ],
     "configuration": {
@@ -746,7 +751,7 @@
           ],
           "default": "editor",
           "scope": "window",
-          "markdownDescription": "Persistent cache location. `editor` uses this VS Code workspace's storage, `workspace` opts into `.cache/omena` inside the opened workspace, and `global` uses the extension's global storage partitioned by workspace."
+          "markdownDescription": "Persistent cache location. `editor` uses this VS Code workspace's storage, `workspace` opts into `.cache/omena` inside the opened workspace, and `global` uses the extension's global storage partitioned by workspace. Standalone defaults are `$XDG_CACHE_HOME/omena` (or `~/.cache/omena`) on Linux, `~/Library/Caches/omena` on macOS, and `%LOCALAPPDATA%\\omena` on Windows. Run **Omena: Clear Caches** to remove only Omena-owned cache directories resolved by the server."
         },
         "omena.pathAlias": {
           "type": "object",

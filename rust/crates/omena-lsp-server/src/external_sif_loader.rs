@@ -40,6 +40,7 @@ pub struct LspExternalSifRefreshJobV0 {
 #[derive(Debug, Clone, Default)]
 pub struct LspExternalSifRefreshCacheStorageV0 {
     by_workspace_uri: BTreeMap<String, OmenaQueryExternalSifStorageV0>,
+    by_document_uri: BTreeMap<String, OmenaQueryExternalSifStorageV0>,
 }
 
 #[derive(Debug, Clone)]
@@ -310,7 +311,22 @@ pub fn prepare_deferred_external_sif_refresh_cache_storage(
             by_workspace_uri.insert(folder.uri, storage);
         }
     }
-    LspExternalSifRefreshCacheStorageV0 { by_workspace_uri }
+    let by_document_uri = state
+        .documents
+        .values()
+        .map(AsRef::as_ref)
+        .filter(|document| {
+            document.workspace_folder_uri.is_none() && is_style_document_uri(document.uri.as_str())
+        })
+        .filter_map(|document| {
+            bridge_cache_storage_for_document(state, None, document.uri.as_str())
+                .map(|storage| (document.uri.clone(), storage))
+        })
+        .collect();
+    LspExternalSifRefreshCacheStorageV0 {
+        by_workspace_uri,
+        by_document_uri,
+    }
 }
 
 pub fn collect_deferred_external_sif_refresh(
@@ -611,8 +627,11 @@ fn resolve_in_process_external_sifs_for_lsp(
         };
         let resolution_inputs =
             resolution_inputs_for_document(state, document.workspace_folder_uri.as_deref());
-        let cache_storage =
-            bridge_cache_storage_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+        let cache_storage = bridge_cache_storage_for_document(
+            state,
+            document.workspace_folder_uri.as_deref(),
+            document.uri.as_str(),
+        );
         let result = if let Some(cache_storage) = cache_storage.as_ref() {
             resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(
                 std::slice::from_ref(&source),
@@ -670,10 +689,11 @@ fn resolve_external_sifs_for_refresh_documents(
                 ..OmenaQueryStyleResolutionInputsV0::default()
             });
         let document_cache_storage = cache_storage.and_then(|storage| {
-            document
-                .workspace_folder_uri
-                .as_ref()
-                .and_then(|uri| storage.by_workspace_uri.get(uri))
+            if let Some(workspace_uri) = document.workspace_folder_uri.as_ref() {
+                storage.by_workspace_uri.get(workspace_uri)
+            } else {
+                storage.by_document_uri.get(document.uri.as_str())
+            }
         });
         let result = if let Some(document_cache_storage) = document_cache_storage {
             resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(
@@ -715,7 +735,7 @@ fn resolve_bridge_external_sifs_for_sources<'a>(
         .filter(|source| source.starts_with("file://") && !existing_covered.contains(*source))
     {
         let owner = state.workspace_runtime_registry.resolve_owner_uri(source);
-        let cache_storage = bridge_cache_storage_for_workspace_uri(state, owner.as_deref());
+        let cache_storage = bridge_cache_storage_for_document(state, owner.as_deref(), source);
         let result = if let Some(cache_storage) = cache_storage.as_ref() {
             resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage(
                 std::iter::once((source.to_string(), source.to_string())),
@@ -766,9 +786,36 @@ fn bridge_cache_storage_for_workspace_uri(
         workspace_folder_uri,
         workspace_root.as_path(),
     )?;
-    Some(OmenaQueryExternalSifStorageV0::from_workspace_cache_root(
-        workspace_cache_root,
-    ))
+    Some(
+        OmenaQueryExternalSifStorageV0::from_workspace_cache_root_and_identity(
+            workspace_cache_root,
+            workspace_folder_uri,
+        ),
+    )
+}
+
+pub(crate) fn bridge_cache_storage_for_document(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+    document_uri: &str,
+) -> Option<OmenaQueryExternalSifStorageV0> {
+    if let Some(workspace_folder_uri) = workspace_folder_uri {
+        return bridge_cache_storage_for_workspace_uri(state, Some(workspace_folder_uri));
+    }
+    let document_path = file_uri_to_path(document_uri)?;
+    let document_root = document_path.parent()?;
+    let workspace_identity = document_root.to_string_lossy();
+    let workspace_cache_root = crate::cache_root::resolved_bridge_workspace_cache_root(
+        &state.resolution.cache_storage,
+        workspace_identity.as_ref(),
+        document_root,
+    )?;
+    Some(
+        OmenaQueryExternalSifStorageV0::from_workspace_cache_root_and_identity(
+            workspace_cache_root,
+            workspace_identity,
+        ),
+    )
 }
 
 fn resolution_inputs_for_document(
