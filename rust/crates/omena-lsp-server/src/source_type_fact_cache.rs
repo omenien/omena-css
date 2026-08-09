@@ -258,13 +258,95 @@ pub(crate) fn source_type_fact_sidecar_file_path_for_test(
 #[cfg(test)]
 mod cache_limit_tests {
     use super::*;
+    use crate::protocol::path_to_file_uri;
 
     #[test]
     fn source_type_fact_store_enforces_reachable_count_byte_and_shard_limits() {
+        let root = std::env::temp_dir().join(format!(
+            "omena-source-type-fact-store-limits-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(root.as_path());
+        assert!(std::fs::create_dir_all(root.join("src")).is_ok());
+        let workspace_uri = path_to_file_uri(root.as_path());
+        let mut state = LspShellState::default();
+        let editor_workspace_storage = root.join("editor-storage").join("workspace");
+        state.resolution.cache_storage = crate::cache_root::LspCacheStorageConfigV0 {
+            initialization_global_storage: Some(root.join("editor-storage").join("global")),
+            initialization_workspace_storage: Some(editor_workspace_storage.clone()),
+            location: crate::cache_root::CacheLocationV0::Editor,
+            ..crate::cache_root::LspCacheStorageConfigV0::default()
+        };
+        state
+            .workspace_runtime_registry
+            .insert(workspace_uri.clone(), workspace_uri.clone());
+        let freshness = SourceTypeFactSidecarFreshnessV0 {
+            environment_fingerprint: "environment:fixture".to_string(),
+            tsgo_binary_fingerprint: "binary:fixture".to_string(),
+            collection_provenance: json!({"fixture": true}),
+        };
+        let default_document_uri = path_to_file_uri(root.join("src/default-limit.tsx").as_path());
+        let default_path = source_type_fact_sidecar_path(
+            &state,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+        );
+        assert!(default_path.is_some(), "source-type-fact default path");
+        let Some(default_path) = default_path else {
+            return;
+        };
+        assert!(
+            default_path.starts_with(editor_workspace_storage.as_path()),
+            "source-type-fact production cap exercise must use the resolved editor root"
+        );
+        if let Some(parent) = default_path.parent() {
+            assert!(std::fs::create_dir_all(parent).is_ok());
+        }
+        let oversized_key = "x".repeat(
+            usize::try_from(SOURCE_TYPE_FACT_SIDECAR_LIMITS.max_shard_bytes)
+                .unwrap_or(8 * 1024 * 1024)
+                + 1,
+        );
+        assert!(
+            !store_source_type_fact_sidecar_with_freshness(
+                &state,
+                Some(workspace_uri.as_str()),
+                default_document_uri.as_str(),
+                oversized_key.as_str(),
+                &[],
+                &freshness,
+            ),
+            "source-type-fact default max-shard constant must refuse the real store"
+        );
+        assert!(!default_path.exists());
+        let cache_dir = default_path.parent();
+        assert!(cache_dir.is_some(), "source-type-fact default cache dir");
+        if let Some(cache_dir) = cache_dir {
+            crate::cache_limits::assert_production_store_enforces_default_count_and_total(
+                "source-type-fact-sidecar",
+                cache_dir,
+                default_path.as_path(),
+                || {
+                    let _ = store_source_type_fact_sidecar_with_freshness(
+                        &state,
+                        Some(workspace_uri.as_str()),
+                        default_document_uri.as_str(),
+                        "blake3:default-cap-fixture",
+                        &[],
+                        &freshness,
+                    );
+                },
+            );
+        }
+
         crate::cache_limits::assert_real_cache_store_enforces_reachable_limits(
             "source-type-fact-sidecar",
             write_source_type_fact_shard,
             read_source_type_fact_shard,
         );
+        eprintln!(
+            "storeEntryCaps cache=source-type-fact-sidecar resolvedEditorRoot=true defaultCount=true defaultTotalBytes=true defaultMaxShardRefused=true lowLevelCount=true lowLevelTotalBytes=true lowLevelShardBytes=true"
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
 }

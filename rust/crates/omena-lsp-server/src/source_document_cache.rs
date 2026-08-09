@@ -788,13 +788,96 @@ fn recipe_domain_from_value(value: &Value) -> Option<&'static str> {
 #[cfg(test)]
 mod cache_limit_tests {
     use super::*;
+    use crate::protocol::path_to_file_uri;
 
     #[test]
     fn source_document_store_enforces_reachable_count_byte_and_shard_limits() {
+        let root = std::env::temp_dir().join(format!(
+            "omena-source-document-store-limits-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(root.as_path());
+        assert!(std::fs::create_dir_all(root.join("src")).is_ok());
+        let workspace_uri = path_to_file_uri(root.as_path());
+        let editor_workspace_storage = root.join("editor-storage").join("workspace");
+        let cache_storage = LspCacheStorageConfigV0 {
+            initialization_global_storage: Some(root.join("editor-storage").join("global")),
+            initialization_workspace_storage: Some(editor_workspace_storage.clone()),
+            location: crate::cache_root::CacheLocationV0::Editor,
+            ..LspCacheStorageConfigV0::default()
+        };
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let syntax_index = OmenaQuerySourceSyntaxIndexV0::default();
+
+        let default_document_uri = path_to_file_uri(root.join("src/default-limit.tsx").as_path());
+        let default_path = source_document_index_sidecar_path(
+            &cache_storage,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+            "typescriptreact",
+        );
+        assert!(default_path.is_some(), "source-document default path");
+        let Some(default_path) = default_path else {
+            return;
+        };
+        assert!(
+            default_path.starts_with(editor_workspace_storage.as_path()),
+            "source-document production cap exercise must use the resolved editor root"
+        );
+        if let Some(parent) = default_path.parent() {
+            assert!(std::fs::create_dir_all(parent).is_ok());
+        }
+        let oversized_text_hash = "x".repeat(
+            usize::try_from(SOURCE_DOCUMENT_INDEX_LIMITS.max_shard_bytes)
+                .unwrap_or(8 * 1024 * 1024)
+                + 1,
+        );
+        store_source_document_index_sidecar(
+            &cache_storage,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+            "typescriptreact",
+            oversized_text_hash.as_str(),
+            &resolution_inputs,
+            &syntax_index,
+            &[],
+            false,
+        );
+        assert!(
+            !default_path.exists(),
+            "source-document default max-shard constant must be reachable through the real store"
+        );
+        let cache_dir = default_path.parent();
+        assert!(cache_dir.is_some(), "source-document default cache dir");
+        if let Some(cache_dir) = cache_dir {
+            crate::cache_limits::assert_production_store_enforces_default_count_and_total(
+                "source-document-index",
+                cache_dir,
+                default_path.as_path(),
+                || {
+                    store_source_document_index_sidecar(
+                        &cache_storage,
+                        Some(workspace_uri.as_str()),
+                        default_document_uri.as_str(),
+                        "typescriptreact",
+                        "blake3:default-cap-fixture",
+                        &resolution_inputs,
+                        &syntax_index,
+                        &[],
+                        false,
+                    );
+                },
+            );
+        }
+
         crate::cache_limits::assert_real_cache_store_enforces_reachable_limits(
             "source-document-index",
             write_source_document_index_shard,
             read_source_document_index_shard,
         );
+        eprintln!(
+            "storeEntryCaps cache=source-document-index resolvedEditorRoot=true defaultCount=true defaultTotalBytes=true defaultMaxShardRefused=true lowLevelCount=true lowLevelTotalBytes=true lowLevelShardBytes=true"
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
 }

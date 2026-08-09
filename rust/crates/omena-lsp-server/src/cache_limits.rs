@@ -226,6 +226,79 @@ pub(crate) fn assert_real_cache_store_enforces_reachable_limits(
 }
 
 #[cfg(test)]
+pub(crate) fn assert_production_store_enforces_default_count_and_total(
+    cache_name: &str,
+    cache_dir: &Path,
+    new_shard_path: &Path,
+    mut store: impl FnMut(),
+) {
+    assert_eq!(new_shard_path.parent(), Some(cache_dir));
+    let _ = fs::remove_dir_all(cache_dir);
+    assert!(fs::create_dir_all(cache_dir).is_ok());
+    for ordinal in 0..DEFAULT_PERSISTENT_CACHE_LIMITS.max_shards {
+        assert!(
+            fs::write(cache_dir.join(format!("fixture-{ordinal:04}.json")), b"{}").is_ok(),
+            "{cache_name}: default count fixture {ordinal}"
+        );
+    }
+    store();
+    assert!(
+        new_shard_path.is_file(),
+        "{cache_name}: production store must write under the default count cap"
+    );
+    let count_after_store = fs::read_dir(cache_dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("json"))
+        .count();
+    assert_eq!(
+        count_after_store, DEFAULT_PERSISTENT_CACHE_LIMITS.max_shards,
+        "{cache_name}: production store must enforce the default shard-count cap"
+    );
+
+    let _ = fs::remove_dir_all(cache_dir);
+    assert!(fs::create_dir_all(cache_dir).is_ok());
+    let total_victim = cache_dir.join("00-total-victim.json");
+    let total_fixture = fs::File::create(total_victim.as_path());
+    assert!(total_fixture.is_ok(), "{cache_name}: total-byte fixture");
+    if let Ok(total_fixture) = total_fixture {
+        assert!(
+            total_fixture
+                .set_len(DEFAULT_PERSISTENT_CACHE_LIMITS.max_total_bytes)
+                .is_ok(),
+            "{cache_name}: sparse total-byte fixture"
+        );
+    }
+    store();
+    assert!(
+        new_shard_path.is_file(),
+        "{cache_name}: production store must retain the newest shard under total-byte pressure"
+    );
+    let total_bytes_after_store = fs::read_dir(cache_dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| entry.metadata().ok().map(|metadata| metadata.len()))
+        .sum::<u64>();
+    assert!(
+        total_bytes_after_store <= DEFAULT_PERSISTENT_CACHE_LIMITS.max_total_bytes,
+        "{cache_name}: production store must enforce the default total-byte cap"
+    );
+    assert!(
+        !total_victim.exists(),
+        "{cache_name}: the named sparse total-byte victim must be evicted"
+    );
+    eprintln!(
+        "defaultStoreCaps cache={cache_name} countAfterStore={count_after_store} maxShards={} totalBytesAfterStore={total_bytes_after_store} maxTotalBytes={} totalVictimExists={}",
+        DEFAULT_PERSISTENT_CACHE_LIMITS.max_shards,
+        DEFAULT_PERSISTENT_CACHE_LIMITS.max_total_bytes,
+        total_victim.exists(),
+    );
+    let _ = fs::remove_dir_all(cache_dir);
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

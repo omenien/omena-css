@@ -277,11 +277,88 @@ mod tests {
 
     #[test]
     fn workspace_occurrence_store_enforces_reachable_count_byte_and_shard_limits() {
+        let root = unique_temp_root("omena_workspace_occurrence_store_limits")
+            .unwrap_or_else(|_| std::env::temp_dir().join("omena-workspace-occurrence-limits"));
+        let workspace_uri = path_to_file_uri(root.as_path());
+        let editor_workspace_storage = root.join("editor-storage").join("workspace");
+        let cache_storage = LspCacheStorageConfigV0 {
+            initialization_global_storage: Some(root.join("editor-storage").join("global")),
+            initialization_workspace_storage: Some(editor_workspace_storage.clone()),
+            location: crate::cache_root::CacheLocationV0::Editor,
+            ..LspCacheStorageConfigV0::default()
+        };
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let default_document_uri = path_to_file_uri(root.join("src/default-limit.tsx").as_path());
+        let default_path = workspace_occurrence_shard_path(
+            &cache_storage,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+            "typescriptreact",
+        );
+        assert!(default_path.is_some(), "workspace-occurrence default path");
+        let Some(default_path) = default_path else {
+            return;
+        };
+        assert!(
+            default_path.starts_with(editor_workspace_storage.as_path()),
+            "workspace-occurrence production cap exercise must use the resolved editor root"
+        );
+        if let Some(parent) = default_path.parent() {
+            assert!(fs::create_dir_all(parent).is_ok());
+        }
+        let oversized_text_hash = "x".repeat(
+            usize::try_from(WORKSPACE_OCCURRENCE_SHARD_LIMITS.max_shard_bytes)
+                .unwrap_or(8 * 1024 * 1024)
+                + 1,
+        );
+        store_workspace_occurrence_shard(
+            &cache_storage,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+            "typescriptreact",
+            oversized_text_hash.as_str(),
+            None,
+            &resolution_inputs,
+            &[],
+        );
+        assert!(
+            !default_path.exists(),
+            "workspace-occurrence default max-shard constant must be reachable through the real store"
+        );
+        let cache_dir = default_path.parent();
+        assert!(
+            cache_dir.is_some(),
+            "workspace-occurrence default cache dir"
+        );
+        if let Some(cache_dir) = cache_dir {
+            crate::cache_limits::assert_production_store_enforces_default_count_and_total(
+                "workspace-occurrence-shard",
+                cache_dir,
+                default_path.as_path(),
+                || {
+                    store_workspace_occurrence_shard(
+                        &cache_storage,
+                        Some(workspace_uri.as_str()),
+                        default_document_uri.as_str(),
+                        "typescriptreact",
+                        "blake3:default-cap-fixture",
+                        None,
+                        &resolution_inputs,
+                        &[],
+                    );
+                },
+            );
+        }
+
         crate::cache_limits::assert_real_cache_store_enforces_reachable_limits(
             "workspace-occurrence-shard",
             write_workspace_occurrence_shard,
             read_workspace_occurrence_shard,
         );
+        eprintln!(
+            "storeEntryCaps cache=workspace-occurrence-shard resolvedEditorRoot=true defaultCount=true defaultTotalBytes=true defaultMaxShardRefused=true lowLevelCount=true lowLevelTotalBytes=true lowLevelShardBytes=true"
+        );
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
