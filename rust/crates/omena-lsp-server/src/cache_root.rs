@@ -193,6 +193,19 @@ pub(crate) fn resolved_workspace_cache_dir(
         .map(|root| root.join(cache_dir_name))
 }
 
+pub(crate) fn resolved_bridge_workspace_cache_root(
+    config: &LspCacheStorageConfigV0,
+    workspace_identity: &str,
+    workspace_root: &Path,
+) -> Option<PathBuf> {
+    if config.location == CacheLocationV0::Workspace {
+        return process_cache_roots(config, workspace_identity, workspace_root).workspace;
+    }
+    let mut global_config = config.clone();
+    global_config.location = CacheLocationV0::Global;
+    process_cache_roots(&global_config, workspace_identity, workspace_root).workspace
+}
+
 pub(crate) fn process_cache_roots(
     config: &LspCacheStorageConfigV0,
     workspace_identity: &str,
@@ -513,5 +526,32 @@ mod tests {
                 .is_some_and(|root| { root.starts_with("/editor/global/omena/workspaces") }),
             "global mode must not reuse the window-scoped workspaceStorageUri"
         );
+    }
+
+    #[test]
+    fn bridge_storage_uses_global_editor_root_with_workspace_partitions() {
+        let config = LspCacheStorageConfigV0 {
+            initialization_global_storage: Some(PathBuf::from("/editor/global")),
+            initialization_workspace_storage: Some(PathBuf::from("/editor/workspace")),
+            location: CacheLocationV0::Editor,
+            ..LspCacheStorageConfigV0::default()
+        };
+        let first = resolved_bridge_workspace_cache_root(
+            &config,
+            "file:///workspace-a",
+            Path::new("/workspace-a"),
+        );
+        let second = resolved_bridge_workspace_cache_root(
+            &config,
+            "file:///workspace-b",
+            Path::new("/workspace-b"),
+        );
+        assert_ne!(first, second);
+        for root in [first, second] {
+            assert!(root.is_some_and(|root| {
+                root.starts_with("/editor/global/omena/workspaces")
+                    && !root.starts_with("/editor/workspace")
+            }));
+        }
     }
 }

@@ -68,6 +68,23 @@ pub struct OmenaBridgeExternalSifCacheContextV0 {
     pub freshness_fingerprint: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaBridgeExternalSifStorageV0 {
+    workspace_cache_root: PathBuf,
+}
+
+impl OmenaBridgeExternalSifStorageV0 {
+    pub fn from_workspace_cache_root(workspace_cache_root: PathBuf) -> Self {
+        Self {
+            workspace_cache_root,
+        }
+    }
+
+    pub fn workspace_cache_root(&self) -> &Path {
+        self.workspace_cache_root.as_path()
+    }
+}
+
 pub fn summarize_omena_bridge_style_resolution_boundary() -> OmenaBridgeStyleResolutionSummaryV0 {
     OmenaBridgeStyleResolutionSummaryV0 {
         schema_version: "0",
@@ -230,6 +247,18 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context(
     resolved_path: &str,
     cache_context: &OmenaBridgeExternalSifCacheContextV0,
 ) -> Result<OmenaSifV1, String> {
+    generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+        resolved_path,
+        cache_context,
+        None,
+    )
+}
+
+pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+    resolved_path: &str,
+    cache_context: &OmenaBridgeExternalSifCacheContextV0,
+    cache_storage: Option<&OmenaBridgeExternalSifStorageV0>,
+) -> Result<OmenaSifV1, String> {
     let raw_path = raw_resolved_style_entry_path(resolved_path)
         .ok_or_else(|| format!("unresolvable style module entry path: {resolved_path}"))?;
     let path = normalize_path(raw_path.clone());
@@ -253,20 +282,25 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context(
         canonical_url.as_str(),
         cache_context.freshness_fingerprint.as_deref(),
     );
-    if !external_sif_cache_kill_switch_engaged() {
-        if let Some(sif) = load_external_sif_from_memory_cache(cache_key.as_str()) {
+    let cache_enabled = !external_sif_cache_kill_switch_engaged();
+    let cache_dir = cache_enabled
+        .then(|| external_sif_cache_dir_for_path(raw_path.as_path(), cache_storage))
+        .flatten();
+    let memory_cache_key = external_sif_memory_cache_key(cache_key.as_str(), cache_dir.as_deref());
+    if cache_enabled {
+        if let Some(sif) = load_external_sif_from_memory_cache(memory_cache_key.as_str()) {
             return Ok(sif);
         }
-        if let Some(cache_dir) = external_sif_cache_dir_for_path(raw_path.as_path())
+        if let Some(cache_dir) = cache_dir.as_deref()
             && let Some(sif) = load_external_sif_cache_shard(
-                cache_dir.as_path(),
+                cache_dir,
                 cache_key.as_str(),
                 canonical_url.as_str(),
                 source_hash.as_str(),
                 resolved_base_dir.as_str(),
             )
         {
-            store_external_sif_in_memory_cache(cache_key.clone(), sif.clone());
+            store_external_sif_in_memory_cache(memory_cache_key.clone(), sif.clone());
             return Ok(sif);
         }
     }
@@ -283,11 +317,11 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context(
         syntax,
     })
     .map_err(|error| format!("failed to generate SIF for {canonical_url}: {error}"))?;
-    if !external_sif_cache_kill_switch_engaged() {
-        store_external_sif_in_memory_cache(cache_key.clone(), sif.clone());
-        if let Some(cache_dir) = external_sif_cache_dir_for_path(raw_path.as_path()) {
+    if cache_enabled {
+        store_external_sif_in_memory_cache(memory_cache_key, sif.clone());
+        if let Some(cache_dir) = cache_dir.as_deref() {
             store_external_sif_cache_shard(
-                cache_dir.as_path(),
+                cache_dir,
                 cache_key.as_str(),
                 canonical_url.as_str(),
                 source_hash.as_str(),
@@ -316,10 +350,26 @@ fn external_sif_cache_key(
     canonical_url: &str,
     freshness_fingerprint: Option<&str>,
 ) -> String {
+    external_sif_cache_key_with_crate_version(
+        source_hash,
+        resolved_base_dir,
+        canonical_url,
+        freshness_fingerprint,
+        env!("CARGO_PKG_VERSION"),
+    )
+}
+
+fn external_sif_cache_key_with_crate_version(
+    source_hash: &str,
+    resolved_base_dir: &str,
+    canonical_url: &str,
+    freshness_fingerprint: Option<&str>,
+    crate_version: &str,
+) -> String {
     let input = json!({
         "schemaVersion": EXTERNAL_SIF_CACHE_SCHEMA_VERSION,
         "product": "omena-bridge.external-sif-cache-key",
-        "crateVersion": env!("CARGO_PKG_VERSION"),
+        "crateVersion": crate_version,
         "sourceHash": source_hash,
         "resolvedBaseDir": resolved_base_dir,
         "canonicalUrl": canonical_url,
@@ -334,7 +384,7 @@ fn external_sif_cache_key(
         .unwrap_or_else(|_| {
             compute_omena_sif_leaf_hash_v1(
                 format!(
-                    "{source_hash}\0{resolved_base_dir}\0{canonical_url}\0{}",
+                    "{crate_version}\0{source_hash}\0{resolved_base_dir}\0{canonical_url}\0{}",
                     freshness_fingerprint.unwrap_or("")
                 )
                 .as_bytes(),
@@ -369,7 +419,23 @@ fn store_external_sif_in_memory_cache(key: String, sif: OmenaSifV1) {
     }
 }
 
-fn external_sif_cache_dir_for_path(path: &Path) -> Option<PathBuf> {
+fn external_sif_memory_cache_key(key: &str, cache_dir: Option<&Path>) -> String {
+    cache_dir
+        .map(|cache_dir| format!("{}\0{key}", cache_dir.to_string_lossy()))
+        .unwrap_or_else(|| key.to_string())
+}
+
+fn external_sif_cache_dir_for_path(
+    path: &Path,
+    cache_storage: Option<&OmenaBridgeExternalSifStorageV0>,
+) -> Option<PathBuf> {
+    if let Some(cache_storage) = cache_storage {
+        return Some(
+            cache_storage
+                .workspace_cache_root()
+                .join(EXTERNAL_SIF_CACHE_DIR),
+        );
+    }
     crate::cache_root::process_external_sif_cache_root(path)?
         .workspace
         .map(|root| root.join(EXTERNAL_SIF_CACHE_DIR))
@@ -1176,7 +1242,7 @@ mod tests {
         )
         .ok_or_else(|| std::io::Error::other("resolution failed"))?;
 
-        let sif = generate_omena_bridge_sif_for_resolved_style_path(resolved.as_str())?;
+        let sif = generate_fixture_sif_for_resolved_style_path(style.as_path(), resolved.as_str())?;
 
         assert_eq!(sif.canonical_url, resolved);
         assert_eq!(sif.source.syntax, OmenaSifSourceSyntaxV1::Scss);
@@ -1253,8 +1319,10 @@ mod tests {
         let style = root.join("tokens.sass");
         fs::write(&style, "$gap: 8px\n")?;
 
-        let sif =
-            generate_omena_bridge_sif_for_resolved_style_path(style.to_string_lossy().as_ref())?;
+        let sif = generate_fixture_sif_for_resolved_style_path(
+            style.as_path(),
+            style.to_string_lossy().as_ref(),
+        )?;
 
         assert_eq!(sif.source.syntax, OmenaSifSourceSyntaxV1::Sass);
         let _ = fs::remove_dir_all(root);
@@ -1267,8 +1335,10 @@ mod tests {
         let style = root.join("tokens.less");
         fs::write(&style, "@gap: 8px;\n.button { margin: @gap; }\n")?;
 
-        let sif =
-            generate_omena_bridge_sif_for_resolved_style_path(style.to_string_lossy().as_ref())?;
+        let sif = generate_fixture_sif_for_resolved_style_path(
+            style.as_path(),
+            style.to_string_lossy().as_ref(),
+        )?;
 
         assert_eq!(sif.source.syntax, OmenaSifSourceSyntaxV1::Less);
         let json = omena_sif::write_omena_sif_json_v1(&sif)?;
@@ -1363,14 +1433,44 @@ mod tests {
             old_fingerprint_key, new_fingerprint_key,
             "lockfile or package-manager freshness changes must invalidate external SIF cache keys"
         );
+        let old_crate_version_key = external_sif_cache_key_with_crate_version(
+            source_hash.as_str(),
+            first_base_dir.as_str(),
+            path_to_file_uri(first_path.as_path()).as_str(),
+            None,
+            "0.2.0",
+        );
+        let current_crate_version_key = external_sif_cache_key_with_crate_version(
+            source_hash.as_str(),
+            first_base_dir.as_str(),
+            path_to_file_uri(first_path.as_path()).as_str(),
+            None,
+            env!("CARGO_PKG_VERSION"),
+        );
+        assert_ne!(
+            old_crate_version_key, current_crate_version_key,
+            "a shard address from another crate version must never be served"
+        );
 
         let first_uri = path_to_file_uri(first_style.as_path());
-        let fresh = generate_omena_bridge_sif_for_resolved_style_path(first_uri.as_str())?;
+        let cache_storage = fixture_cache_storage(first_style.as_path());
+        let fresh =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                first_uri.as_str(),
+                &OmenaBridgeExternalSifCacheContextV0::default(),
+                Some(&cache_storage),
+            )?;
         clear_external_sif_memory_cache_for_test();
-        let cached = generate_omena_bridge_sif_for_resolved_style_path(first_uri.as_str())?;
+        let cached =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                first_uri.as_str(),
+                &OmenaBridgeExternalSifCacheContextV0::default(),
+                Some(&cache_storage),
+            )?;
         assert_eq!(cached, fresh);
-        let cache_dir = external_sif_cache_dir_for_path(first_style.as_path())
-            .ok_or_else(|| std::io::Error::other("cache dir"))?;
+        let cache_dir =
+            external_sif_cache_dir_for_path(first_style.as_path(), Some(&cache_storage))
+                .ok_or_else(|| std::io::Error::other("cache dir"))?;
         assert!(
             cache_dir.read_dir()?.flatten().any(|entry| entry
                 .path()
@@ -1385,6 +1485,120 @@ mod tests {
     }
 
     #[test]
+    fn global_external_sif_storage_never_cross_serves_workspace_partitions()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_workspace_partitioned_global_sif")?;
+        let workspace_a = root.join("workspace-a");
+        let workspace_b = root.join("workspace-b");
+        fs::create_dir_all(workspace_a.as_path())?;
+        fs::create_dir_all(workspace_b.as_path())?;
+        fs::write(
+            workspace_a.join("package.json"),
+            r#"{"name":"workspace-a"}"#,
+        )?;
+        fs::write(
+            workspace_b.join("package.json"),
+            r#"{"name":"workspace-b"}"#,
+        )?;
+        let shared_package = root.join("node_modules").join("design-system");
+        fs::create_dir_all(shared_package.as_path())?;
+        let style = shared_package.join("tokens.scss");
+        fs::write(style.as_path(), "$brand: #0af;\n")?;
+
+        let shared_global_root = root.join("global").join("omena").join("workspaces");
+        let storage_a = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(
+            shared_global_root.join("workspace-a"),
+        );
+        let storage_b = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(
+            shared_global_root.join("workspace-b"),
+        );
+        let cache_context = OmenaBridgeExternalSifCacheContextV0::default();
+        clear_external_sif_memory_cache_for_test();
+        let sif_a =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                style.to_string_lossy().as_ref(),
+                &cache_context,
+                Some(&storage_a),
+            )?;
+        let sif_b =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                style.to_string_lossy().as_ref(),
+                &cache_context,
+                Some(&storage_b),
+            )?;
+        assert_eq!(sif_a, sif_b);
+
+        let cache_dir_a = storage_a
+            .workspace_cache_root()
+            .join(EXTERNAL_SIF_CACHE_DIR);
+        let cache_dir_b = storage_b
+            .workspace_cache_root()
+            .join(EXTERNAL_SIF_CACHE_DIR);
+        let shard_files = |dir: &Path| -> Vec<PathBuf> {
+            let Ok(entries) = fs::read_dir(dir) else {
+                return Vec::new();
+            };
+            let mut files = entries
+                .flatten()
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.extension()
+                        .is_some_and(|extension| extension == "json")
+                })
+                .collect::<Vec<_>>();
+            files.sort();
+            files
+        };
+        let shard_a = shard_files(cache_dir_a.as_path());
+        let shard_b = shard_files(cache_dir_b.as_path());
+        assert_eq!(shard_a.len(), 1);
+        assert_eq!(shard_b.len(), 1);
+        assert_ne!(shard_a, shard_b);
+        let shard_a_bytes = fs::read(shard_a[0].as_path())?;
+        let mut poisoned_shard = serde_json::from_slice::<Value>(shard_a_bytes.as_slice())?;
+        let mut poisoned_sif = sif_a.clone();
+        poisoned_sif.exports.variables.clear();
+        let poisoned_sif_json = write_omena_sif_json_v1(&poisoned_sif)?;
+        poisoned_shard["sifJson"] = Value::String(poisoned_sif_json.clone());
+        poisoned_shard["payloadDigest"] = Value::String(
+            compute_omena_sif_leaf_hash_v1(poisoned_sif_json.as_bytes())
+                .as_str()
+                .to_string(),
+        );
+        fs::write(
+            shard_a[0].as_path(),
+            write_omena_canonical_json_bytes_v1(&poisoned_shard)?,
+        )?;
+        clear_external_sif_memory_cache_for_test();
+        let poisoned_a =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                style.to_string_lossy().as_ref(),
+                &cache_context,
+                Some(&storage_a),
+            )?;
+        assert_eq!(poisoned_a, poisoned_sif);
+        let isolated_b =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                style.to_string_lossy().as_ref(),
+                &cache_context,
+                Some(&storage_b),
+            )?;
+        assert_eq!(isolated_b, sif_b);
+        assert_ne!(isolated_b, poisoned_a);
+        assert_eq!(shard_files(cache_dir_a.as_path()).len(), 1);
+        assert_eq!(shard_files(cache_dir_b.as_path()).len(), 1);
+        eprintln!(
+            "externalSifStorage globalBase={} workspaceA={} workspaceB={} shardsA=1 shardsB=1 crossWorkspaceServe=false",
+            shared_global_root.display(),
+            cache_dir_a.display(),
+            cache_dir_b.display(),
+        );
+
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
     fn external_sif_disk_cache_root_carries_self_ignore_markers()
     -> Result<(), Box<dyn std::error::Error>> {
         let root = temp_dir("omena_bridge_external_sif_cache_markers")?;
@@ -1392,9 +1606,14 @@ mod tests {
         let style = root.join("tokens.scss");
         fs::write(style.as_path(), "$brand: #0af;\n")?;
 
-        generate_omena_bridge_sif_for_resolved_style_path(style.to_string_lossy().as_ref())?;
+        let cache_storage = fixture_cache_storage(style.as_path());
+        generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+            style.to_string_lossy().as_ref(),
+            &OmenaBridgeExternalSifCacheContextV0::default(),
+            Some(&cache_storage),
+        )?;
 
-        let cache_dir = external_sif_cache_dir_for_path(style.as_path())
+        let cache_dir = external_sif_cache_dir_for_path(style.as_path(), Some(&cache_storage))
             .ok_or_else(|| std::io::Error::other("cache dir"))?;
         let cache_root = cache_dir
             .parent()
@@ -1947,5 +2166,26 @@ mod tests {
         let path = std::env::temp_dir().join(format!("{prefix}_{suffix}"));
         fs::create_dir_all(path.as_path())?;
         Ok(path)
+    }
+
+    fn fixture_cache_storage(path: &Path) -> OmenaBridgeExternalSifStorageV0 {
+        OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(
+            path.parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(".cache")
+                .join("omena"),
+        )
+    }
+
+    fn generate_fixture_sif_for_resolved_style_path(
+        path: &Path,
+        resolved_path: &str,
+    ) -> Result<OmenaSifV1, String> {
+        let cache_storage = fixture_cache_storage(path);
+        generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+            resolved_path,
+            &OmenaBridgeExternalSifCacheContextV0::default(),
+            Some(&cache_storage),
+        )
     }
 }

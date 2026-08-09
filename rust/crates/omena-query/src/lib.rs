@@ -33,8 +33,10 @@ use omena_bridge::{
 };
 pub use omena_bridge::{
     OmenaBridgeExternalSifCacheContextV0 as OmenaQueryExternalSifCacheContextV0,
+    OmenaBridgeExternalSifStorageV0 as OmenaQueryExternalSifStorageV0,
     generate_omena_bridge_sif_for_resolved_style_path,
     generate_omena_bridge_sif_for_resolved_style_path_with_cache_context,
+    generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage,
 };
 pub use omena_bridge::{
     SourceBindingDeclFactV0 as OmenaQuerySourceBindingDeclFactV0,
@@ -443,7 +445,9 @@ pub use source::{
     collect_omena_query_vue_style_module_bindings,
     load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_bridge_external_sifs_for_seed_pairs,
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage,
     resolve_omena_query_bridge_external_sifs_for_style_sources,
+    resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage,
     resolve_omena_query_source_precision_for_source, resolve_omena_query_style_uri_for_specifier,
     resolve_omena_query_style_uri_for_specifier_with_package_manifests,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,

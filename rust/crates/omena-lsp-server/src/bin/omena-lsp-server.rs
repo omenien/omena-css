@@ -12,15 +12,18 @@ use std::{collections::BTreeMap, sync::MutexGuard};
 #[cfg(not(feature = "parallel-style-diagnostics"))]
 use omena_lsp_server::tide_workspace_republish_flush_effects;
 use omena_lsp_server::{
-    DiagnosticsPublishReceiptV0, LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
-    LspLoopTurnV0, LspQueryDispatchV0, LspShellState, LspWorkspaceIndexCacheStorageV0,
-    LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, REACTIVE_SHADOW_ENV, ScheduledLspOutput,
-    apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
-    collect_background_workspace_index_with_cache_storage, collect_deferred_external_sif_refresh,
-    complete_dispatched_query_response, dispatched_query_internal_error_response,
-    enable_deferred_external_sif_refresh, handle_lsp_message_scheduled_outputs_or_dispatch,
+    DiagnosticsPublishReceiptV0, LspExternalSifRefreshCacheStorageV0, LspExternalSifRefreshJobV0,
+    LspExternalSifRefreshResultV0, LspLoopTurnV0, LspQueryDispatchV0, LspShellState,
+    LspWorkspaceIndexCacheStorageV0, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0,
+    REACTIVE_SHADOW_ENV, ScheduledLspOutput, apply_background_workspace_index_result,
+    apply_deferred_external_sif_refresh_result,
+    collect_background_workspace_index_with_cache_storage,
+    collect_deferred_external_sif_refresh_with_cache_storage, complete_dispatched_query_response,
+    dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
+    handle_lsp_message_scheduled_outputs_or_dispatch,
     prepare_background_workspace_index_cache_storage,
-    prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
+    prepare_background_workspace_index_continuation_job,
+    prepare_deferred_external_sif_refresh_cache_storage, prepare_deferred_external_sif_refresh_job,
     resolve_dispatched_query_response, workspace_index_progress_end_output,
 };
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -142,8 +145,10 @@ fn run_stdio_server_with_state<R: BufRead + Send + 'static, W: Write + Send + 's
         mpsc::channel::<(LspWorkspaceIndexJobV0, LspWorkspaceIndexCacheStorageV0)>();
     let (workspace_index_result_sender, workspace_index_result_receiver) =
         mpsc::channel::<LspWorkspaceIndexResultV0>();
-    let (external_sif_refresh_sender, external_sif_refresh_receiver) =
-        mpsc::channel::<LspExternalSifRefreshJobV0>();
+    let (external_sif_refresh_sender, external_sif_refresh_receiver) = mpsc::channel::<(
+        LspExternalSifRefreshJobV0,
+        LspExternalSifRefreshCacheStorageV0,
+    )>();
     let (external_sif_refresh_result_sender, external_sif_refresh_result_receiver) =
         mpsc::channel::<LspExternalSifRefreshResultV0>();
     let workspace_index_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
@@ -156,8 +161,9 @@ fn run_stdio_server_with_state<R: BufRead + Send + 'static, W: Write + Send + 's
         Ok(())
     });
     let external_sif_refresh_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
-        while let Ok(job) = external_sif_refresh_receiver.recv() {
-            let result = collect_deferred_external_sif_refresh(job);
+        while let Ok((job, cache_storage)) = external_sif_refresh_receiver.recv() {
+            let result =
+                collect_deferred_external_sif_refresh_with_cache_storage(job, cache_storage);
             external_sif_refresh_result_sender
                 .send(result)
                 .map_err(|_| "external SIF refresh result receiver dropped".to_string())?;
@@ -756,7 +762,10 @@ fn drain_external_sif_refresh_results<W: Write + Send + 'static>(
 
 fn dispatch_external_sif_refresh_if_needed(
     state: &mut LspShellState,
-    sender: &mpsc::Sender<LspExternalSifRefreshJobV0>,
+    sender: &mpsc::Sender<(
+        LspExternalSifRefreshJobV0,
+        LspExternalSifRefreshCacheStorageV0,
+    )>,
     in_flight: &mut usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if *in_flight > 0 {
@@ -766,7 +775,10 @@ fn dispatch_external_sif_refresh_if_needed(
         return Ok(());
     };
     sender
-        .send(job)
+        .send((
+            job,
+            prepare_deferred_external_sif_refresh_cache_storage(state),
+        ))
         .map_err(|_| "external SIF refresh worker exited before shutdown")?;
     *in_flight = in_flight.saturating_add(1);
     Ok(())

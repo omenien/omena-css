@@ -177,8 +177,16 @@ fn observed_cache_writes_are_contained_by_the_declared_surface() -> TestResult {
     )?;
     let external_style = external_package.join("tokens.scss");
     std::fs::write(external_style.as_path(), "$brand: #0af;\n")?;
-    omena_query::generate_omena_bridge_sif_for_resolved_style_path(
+    let bridge_storage = omena_query::OmenaQueryExternalSifStorageV0::from_workspace_cache_root(
+        forced_lsp_root
+            .join("omena")
+            .join("workspaces")
+            .join("bridge-fixture"),
+    );
+    omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
         external_style.to_string_lossy().as_ref(),
+        &omena_query::OmenaQueryExternalSifCacheContextV0::default(),
+        Some(&bridge_storage),
     )?;
 
     let mut observed_files = cache_files_below(fixture_root.as_path());
@@ -190,14 +198,9 @@ fn observed_cache_writes_are_contained_by_the_declared_surface() -> TestResult {
         "the store pass must create observable cache files"
     );
 
-    let bridge_rung = if process_environment_root.is_some() {
-        crate::CacheStorageRungV0::Environment
-    } else {
-        crate::CacheStorageRungV0::Workspace
-    };
     let declared_roots = crate::boundary::declared_cache_write_surfaces_for_rungs(
         crate::CacheStorageRungV0::Environment,
-        bridge_rung,
+        crate::CacheStorageRungV0::Environment,
     )
     .into_iter()
     .filter_map(|surface| match surface.resolved_rung {

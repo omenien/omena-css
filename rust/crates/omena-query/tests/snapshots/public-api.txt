@@ -71,6 +71,7 @@ pub use omena_query::OmenaQueryExternalCssSemanticChangeV0
 pub use omena_query::OmenaQueryExternalCssSemanticDiffV0
 pub use omena_query::OmenaQueryExternalCssSemanticEntryV0
 pub use omena_query::OmenaQueryExternalSifCacheContextV0
+pub use omena_query::OmenaQueryExternalSifStorageV0
 pub use omena_query::OmenaQueryFragmentBundleV0
 pub use omena_query::OmenaQueryMinifyPassClassificationV0
 pub use omena_query::OmenaQueryMinifyPassProfileClassV0
@@ -264,6 +265,7 @@ pub use omena_query::fact_precision_from_class_value
 pub use omena_query::fact_precision_from_class_value_with_witness
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context
+pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage
 pub use omena_query::invalidate_omena_resolver_style_identity_cache
 pub use omena_query::iterate_reduced_class_value_product_constraints
 pub use omena_query::join_abstract_class_values
@@ -2492,7 +2494,9 @@ pub fn omena_query::render_omena_query_css_module_typescript_declaration(&omena_
 pub fn omena_query::render_omena_query_css_modules_interface_json(&omena_query::OmenaQueryCssModulesInterfaceBundleV0) -> core::result::Result<alloc::string::String, serde_json::error::Error>
 pub fn omena_query::resolve_omena_bundler_host_module_v0(omena_query::OmenaBundlerHostResolveModuleRequestV0) -> omena_query::OmenaBundlerHostResolveModuleResponseV0
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_seed_pairs(impl core::iter::traits::iterator::Iterator<Item = (alloc::string::String, alloc::string::String)>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
+pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage(impl core::iter::traits::iterator::Iterator<Item = (alloc::string::String, alloc::string::String)>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0, &omena_bridge::style_resolution::OmenaBridgeExternalSifStorageV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
+pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0, &omena_bridge::style_resolution::OmenaBridgeExternalSifStorageV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
 pub fn omena_query::resolve_omena_query_sass_forward_sources(&omena_query::OmenaQuerySassModuleSourcesV0) -> alloc::vec::Vec<alloc::string::String>
 pub fn omena_query::resolve_omena_query_sass_module_use_sources_for_candidate(&omena_query::OmenaQuerySassModuleSourcesV0, core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
 pub fn omena_query::resolve_omena_query_sass_symbol_declarations(&[omena_query::OmenaQueryStyleHoverCandidateV0], &str, &str) -> alloc::vec::Vec<omena_query::OmenaQueryStyleHoverCandidateV0>

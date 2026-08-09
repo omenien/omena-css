@@ -190,8 +190,8 @@ assert.deepEqual(rustSummary.trustBoundary.diskWriteSurfaces, [
   },
   {
     rootKind: "bridgeExternalSifCache",
-    resolvedRung: "workspace",
-    rootShape: "<bridgeWorkspaceRoot>/.cache/omena/**",
+    resolvedRung: "platform",
+    rootShape: "<platformCacheHome>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
     cacheDirectories: ["external-sif-v0"],
   },
 ]);

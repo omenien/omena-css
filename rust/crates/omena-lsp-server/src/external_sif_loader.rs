@@ -6,9 +6,11 @@ use crate::tide::{
 use crate::{LspShellState, LspTextDocumentState};
 use omena_query::{
     OmenaQueryBridgeExternalSifResolutionV0, OmenaQueryExternalSifInputV0,
-    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
-    resolve_omena_query_bridge_external_sifs_for_seed_pairs,
+    OmenaQueryExternalSifStorageV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0, resolve_omena_query_bridge_external_sifs_for_seed_pairs,
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage,
     resolve_omena_query_bridge_external_sifs_for_style_sources,
+    resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage,
 };
 use omena_sif::{read_omena_lock_json_v1, read_omena_sif_json_v1};
 use std::{
@@ -33,6 +35,11 @@ pub struct LspExternalSifRefreshJobV0 {
     pub package_manifests: Vec<omena_query::OmenaQueryStylePackageManifestV0>,
     pub resolution_inputs_by_workspace_uri:
         std::collections::BTreeMap<String, OmenaQueryStyleResolutionInputsV0>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LspExternalSifRefreshCacheStorageV0 {
+    by_workspace_uri: BTreeMap<String, OmenaQueryExternalSifStorageV0>,
 }
 
 #[derive(Debug, Clone)]
@@ -159,11 +166,15 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         if active_bridge_sources.contains(source) {
             continue;
         }
-        collect_bridge_sif_urls_for_sources(std::iter::once(source.as_str()), &BTreeSet::new())
-            .into_iter()
-            .for_each(|url| {
-                remove_urls.insert(url);
-            });
+        collect_bridge_sif_urls_for_sources(
+            state,
+            std::iter::once(source.as_str()),
+            &BTreeSet::new(),
+        )
+        .into_iter()
+        .for_each(|url| {
+            remove_urls.insert(url);
+        });
     }
 
     if !remove_urls.is_empty() {
@@ -191,8 +202,11 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         {
             continue;
         }
-        let bridge_result =
-            resolve_bridge_external_sifs_for_sources(std::iter::once(source.as_str()), &covered);
+        let bridge_result = resolve_bridge_external_sifs_for_sources(
+            state,
+            std::iter::once(source.as_str()),
+            &covered,
+        );
         let before_len = state.resolution.external_sifs.len();
         extend_unique_external_sifs(
             &mut state.resolution.external_sifs,
@@ -285,8 +299,32 @@ pub fn prepare_deferred_external_sif_refresh_job(
     })
 }
 
+pub fn prepare_deferred_external_sif_refresh_cache_storage(
+    state: &LspShellState,
+) -> LspExternalSifRefreshCacheStorageV0 {
+    let mut by_workspace_uri = BTreeMap::new();
+    for folder in state.workspace_runtime_registry.folder_snapshots() {
+        if let Some(storage) =
+            bridge_cache_storage_for_workspace_uri(state, Some(folder.uri.as_str()))
+        {
+            by_workspace_uri.insert(folder.uri, storage);
+        }
+    }
+    LspExternalSifRefreshCacheStorageV0 { by_workspace_uri }
+}
+
 pub fn collect_deferred_external_sif_refresh(
     job: LspExternalSifRefreshJobV0,
+) -> LspExternalSifRefreshResultV0 {
+    collect_deferred_external_sif_refresh_with_cache_storage(
+        job,
+        LspExternalSifRefreshCacheStorageV0::default(),
+    )
+}
+
+pub fn collect_deferred_external_sif_refresh_with_cache_storage(
+    job: LspExternalSifRefreshJobV0,
+    cache_storage: LspExternalSifRefreshCacheStorageV0,
 ) -> LspExternalSifRefreshResultV0 {
     let mut external_sifs = Vec::new();
     let mut covered = BTreeSet::new();
@@ -304,6 +342,7 @@ pub fn collect_deferred_external_sif_refresh(
         external_sifs.as_slice(),
         job.package_manifests.as_slice(),
         &job.resolution_inputs_by_workspace_uri,
+        Some(&cache_storage),
     );
     extend_unique_external_sifs(
         &mut external_sifs,
@@ -572,11 +611,22 @@ fn resolve_in_process_external_sifs_for_lsp(
         };
         let resolution_inputs =
             resolution_inputs_for_document(state, document.workspace_folder_uri.as_deref());
-        let result = resolve_omena_query_bridge_external_sifs_for_style_sources(
-            std::slice::from_ref(&source),
-            existing_inputs.as_slice(),
-            &resolution_inputs,
-        );
+        let cache_storage =
+            bridge_cache_storage_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+        let result = if let Some(cache_storage) = cache_storage.as_ref() {
+            resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(
+                std::slice::from_ref(&source),
+                existing_inputs.as_slice(),
+                &resolution_inputs,
+                cache_storage,
+            )
+        } else {
+            resolve_omena_query_bridge_external_sifs_for_style_sources(
+                std::slice::from_ref(&source),
+                existing_inputs.as_slice(),
+                &resolution_inputs,
+            )
+        };
         combined.generation_count = combined
             .generation_count
             .saturating_add(result.generation_count);
@@ -599,6 +649,7 @@ fn resolve_external_sifs_for_refresh_documents(
         String,
         OmenaQueryStyleResolutionInputsV0,
     >,
+    cache_storage: Option<&LspExternalSifRefreshCacheStorageV0>,
 ) -> OmenaQueryBridgeExternalSifResolutionV0 {
     let mut existing_inputs = existing_external_sifs.to_vec();
     let mut combined = OmenaQueryBridgeExternalSifResolutionV0::default();
@@ -618,11 +669,26 @@ fn resolve_external_sifs_for_refresh_documents(
                 package_manifests: package_manifests.to_vec(),
                 ..OmenaQueryStyleResolutionInputsV0::default()
             });
-        let result = resolve_omena_query_bridge_external_sifs_for_style_sources(
-            std::slice::from_ref(&source),
-            existing_inputs.as_slice(),
-            &resolution_inputs,
-        );
+        let document_cache_storage = cache_storage.and_then(|storage| {
+            document
+                .workspace_folder_uri
+                .as_ref()
+                .and_then(|uri| storage.by_workspace_uri.get(uri))
+        });
+        let result = if let Some(document_cache_storage) = document_cache_storage {
+            resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(
+                std::slice::from_ref(&source),
+                existing_inputs.as_slice(),
+                &resolution_inputs,
+                document_cache_storage,
+            )
+        } else {
+            resolve_omena_query_bridge_external_sifs_for_style_sources(
+                std::slice::from_ref(&source),
+                existing_inputs.as_slice(),
+                &resolution_inputs,
+            )
+        };
         combined.generation_count = combined
             .generation_count
             .saturating_add(result.generation_count);
@@ -638,26 +704,71 @@ fn resolve_external_sifs_for_refresh_documents(
 }
 
 fn resolve_bridge_external_sifs_for_sources<'a>(
+    state: &LspShellState,
     sources: impl Iterator<Item = &'a str>,
     existing_covered: &BTreeSet<String>,
 ) -> OmenaQueryBridgeExternalSifResolutionV0 {
-    resolve_omena_query_bridge_external_sifs_for_seed_pairs(
-        sources
-            .filter(|source| source.starts_with("file://") && !existing_covered.contains(*source))
-            .map(|source| (source.to_string(), source.to_string())),
-        &[],
-        &OmenaQueryStyleResolutionInputsV0::default(),
-    )
+    let mut combined = OmenaQueryBridgeExternalSifResolutionV0::default();
+    let mut covered = existing_covered.clone();
+    let mut bridge_urls = BTreeSet::new();
+    for source in sources
+        .filter(|source| source.starts_with("file://") && !existing_covered.contains(*source))
+    {
+        let owner = state.workspace_runtime_registry.resolve_owner_uri(source);
+        let cache_storage = bridge_cache_storage_for_workspace_uri(state, owner.as_deref());
+        let result = if let Some(cache_storage) = cache_storage.as_ref() {
+            resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage(
+                std::iter::once((source.to_string(), source.to_string())),
+                &[],
+                &OmenaQueryStyleResolutionInputsV0::default(),
+                cache_storage,
+            )
+        } else {
+            resolve_omena_query_bridge_external_sifs_for_seed_pairs(
+                std::iter::once((source.to_string(), source.to_string())),
+                &[],
+                &OmenaQueryStyleResolutionInputsV0::default(),
+            )
+        };
+        combined.generation_count = combined
+            .generation_count
+            .saturating_add(result.generation_count);
+        bridge_urls.extend(result.bridge_urls);
+        extend_unique_external_sifs(
+            &mut combined.external_sifs,
+            &mut covered,
+            result.external_sifs,
+        );
+    }
+    combined.bridge_urls = bridge_urls.into_iter().collect();
+    combined
 }
 
 fn collect_bridge_sif_urls_for_sources<'a>(
+    state: &LspShellState,
     sources: impl Iterator<Item = &'a str>,
     existing_covered: &BTreeSet<String>,
 ) -> BTreeSet<String> {
-    resolve_bridge_external_sifs_for_sources(sources, existing_covered)
+    resolve_bridge_external_sifs_for_sources(state, sources, existing_covered)
         .bridge_urls
         .into_iter()
         .collect()
+}
+
+fn bridge_cache_storage_for_workspace_uri(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> Option<OmenaQueryExternalSifStorageV0> {
+    let workspace_folder_uri = workspace_folder_uri?;
+    let workspace_root = file_uri_to_path(workspace_folder_uri)?;
+    let workspace_cache_root = crate::cache_root::resolved_bridge_workspace_cache_root(
+        &state.resolution.cache_storage,
+        workspace_folder_uri,
+        workspace_root.as_path(),
+    )?;
+    Some(OmenaQueryExternalSifStorageV0::from_workspace_cache_root(
+        workspace_cache_root,
+    ))
 }
 
 fn resolution_inputs_for_document(

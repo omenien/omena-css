@@ -146,14 +146,43 @@ pub fn resolve_omena_query_bridge_external_sifs_for_style_sources(
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    resolve_omena_query_bridge_external_sifs_for_style_sources_with_optional_cache_storage(
+        style_sources,
+        existing_external_sifs,
+        resolution_inputs,
+        None,
+    )
+}
+
+pub fn resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    cache_storage: &omena_bridge::OmenaBridgeExternalSifStorageV0,
+) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    resolve_omena_query_bridge_external_sifs_for_style_sources_with_optional_cache_storage(
+        style_sources,
+        existing_external_sifs,
+        resolution_inputs,
+        Some(cache_storage),
+    )
+}
+
+fn resolve_omena_query_bridge_external_sifs_for_style_sources_with_optional_cache_storage(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    cache_storage: Option<&omena_bridge::OmenaBridgeExternalSifStorageV0>,
+) -> OmenaQueryBridgeExternalSifResolutionV0 {
     let seeds = style_sources
         .iter()
         .flat_map(|source| bridge_external_sif_seeds_for_style_source(source, resolution_inputs))
         .collect::<BTreeSet<_>>();
-    resolve_omena_query_bridge_external_sifs_for_seed_pairs(
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_storage(
         seeds.into_iter(),
         existing_external_sifs,
         resolution_inputs,
+        cache_storage,
     )
 }
 
@@ -162,8 +191,39 @@ pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs(
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryBridgeExternalSifResolutionV0 {
-    let mut state =
-        BridgeExternalSifResolutionState::new(existing_external_sifs, resolution_inputs);
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_storage(
+        seeds,
+        existing_external_sifs,
+        resolution_inputs,
+        None,
+    )
+}
+
+pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage(
+    seeds: impl Iterator<Item = (String, String)>,
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    cache_storage: &omena_bridge::OmenaBridgeExternalSifStorageV0,
+) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_storage(
+        seeds,
+        existing_external_sifs,
+        resolution_inputs,
+        Some(cache_storage),
+    )
+}
+
+fn resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_storage(
+    seeds: impl Iterator<Item = (String, String)>,
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    cache_storage: Option<&omena_bridge::OmenaBridgeExternalSifStorageV0>,
+) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    let mut state = BridgeExternalSifResolutionState::new(
+        existing_external_sifs,
+        resolution_inputs,
+        cache_storage,
+    );
 
     for (verbatim_source, resolved_url) in seeds {
         state.enqueue_alias(verbatim_source, resolved_url);
@@ -201,6 +261,7 @@ pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs(
 
 struct BridgeExternalSifResolutionState<'a> {
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    cache_storage: Option<&'a omena_bridge::OmenaBridgeExternalSifStorageV0>,
     emitted_keys: BTreeSet<String>,
     generated_by_resolved_url: BTreeMap<String, omena_sif::OmenaSifV1>,
     bridge_urls: BTreeSet<String>,
@@ -213,9 +274,11 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
     fn new(
         existing_external_sifs: &[OmenaQueryExternalSifInputV0],
         resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+        cache_storage: Option<&'a omena_bridge::OmenaBridgeExternalSifStorageV0>,
     ) -> Self {
         Self {
             resolution_inputs,
+            cache_storage,
             emitted_keys: existing_external_sifs
                 .iter()
                 .flat_map(|input| [input.canonical_url.clone(), input.sif.canonical_url.clone()])
@@ -264,10 +327,13 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
                 .external_sif_cache_fingerprint
                 .clone(),
         };
-        let Ok(sif) = generate_omena_bridge_sif_for_resolved_style_path_with_cache_context(
-            resolved_url.as_str(),
-            &cache_context,
-        ) else {
+        let Ok(sif) =
+            omena_bridge::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                resolved_url.as_str(),
+                &cache_context,
+                self.cache_storage,
+            )
+        else {
             return;
         };
         self.generation_count = self.generation_count.saturating_add(1);

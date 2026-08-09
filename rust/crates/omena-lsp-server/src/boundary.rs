@@ -283,7 +283,7 @@ fn current_bridge_cache_storage_rung() -> CacheStorageRungV0 {
     if has_environment_override {
         CacheStorageRungV0::Environment
     } else {
-        CacheStorageRungV0::Workspace
+        CacheStorageRungV0::Platform
     }
 }
 
@@ -339,9 +339,9 @@ fn cache_root_shape(
         (
             CacheWriteSurfaceKindV0::BridgeExternalSifCache,
             CacheStorageRungV0::InitializationOptions,
-        ) => Some(
-            "<initializationWorkspaceStorage>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
-        ),
+        ) => {
+            Some("<initializationGlobalStorage>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**")
+        }
         (CacheWriteSurfaceKindV0::BridgeExternalSifCache, CacheStorageRungV0::Environment) => {
             Some("<environmentCacheDir>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**")
         }
@@ -625,7 +625,7 @@ mod cache_storage_boundary_tests {
             (
                 CacheStorageRungV0::InitializationOptions,
                 "<initializationWorkspaceStorage>/omena/workspaces/<workspaceIdentityHash>/**",
-                "<initializationWorkspaceStorage>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+                "<initializationGlobalStorage>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
             ),
             (
                 CacheStorageRungV0::Environment,

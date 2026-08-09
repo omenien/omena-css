@@ -98,10 +98,12 @@ pub use style_intelligence::{
     style_intelligence_hover_at_offset,
 };
 pub use style_resolution::{
-    OmenaBridgeExternalSifCacheContextV0, OmenaBridgeStyleResolutionInputsV0,
-    OmenaBridgeStyleResolutionSummaryV0, generate_omena_bridge_lif_exports_for_resolved_style_path,
+    OmenaBridgeExternalSifCacheContextV0, OmenaBridgeExternalSifStorageV0,
+    OmenaBridgeStyleResolutionInputsV0, OmenaBridgeStyleResolutionSummaryV0,
+    generate_omena_bridge_lif_exports_for_resolved_style_path,
     generate_omena_bridge_sif_for_resolved_style_path,
     generate_omena_bridge_sif_for_resolved_style_path_with_cache_context,
+    generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage,
     load_omena_bridge_workspace_style_resolution_inputs,
     resolve_omena_bridge_style_uri_for_specifier,
     resolve_omena_bridge_style_uri_for_specifier_with_package_manifests,

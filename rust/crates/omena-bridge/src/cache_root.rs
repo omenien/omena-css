@@ -115,14 +115,47 @@ pub(crate) fn process_external_sif_cache_root(path: &Path) -> Option<OmenaCacheR
     let environment_workspace_cache_dir = std::env::var_os(OMENA_CACHE_DIR_ENV)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
+    let platform_cache_home = platform_cache_home();
     Some(resolve_omena_cache_roots(CacheRootResolverInputsV0 {
         environment_global_cache_dir: environment_global_cache_dir.as_deref(),
         environment_workspace_cache_dir: environment_workspace_cache_dir.as_deref(),
+        platform_cache_home: platform_cache_home.as_deref(),
         workspace_root: Some(workspace_root.as_path()),
         workspace_identity: Some(workspace_identity.as_ref()),
-        workspace_opt_in: true,
+        workspace_opt_in: false,
         ..CacheRootResolverInputsV0::default()
     }))
+}
+
+fn platform_cache_home() -> Option<PathBuf> {
+    if let Some(path) = std::env::var_os("XDG_CACHE_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+    {
+        return Some(path);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return std::env::var_os("LOCALAPPDATA")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return std::env::var_os("HOME")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .map(|home| home.join("Library").join("Caches"));
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        return std::env::var_os("HOME")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .map(|home| home.join(".cache"));
+    }
+    #[allow(unreachable_code)]
+    None
 }
 
 pub(crate) fn external_sif_workspace_root(path: &Path) -> Option<PathBuf> {
@@ -262,5 +295,34 @@ mod tests {
         assert!(lsp_disk_cache_source.contains(
             "b\"Signature: 8a477f597d28d172789f06886806bc55\\n# This directory is an omena cache; contents are regenerable.\\n\""
         ));
+    }
+
+    #[test]
+    fn external_sif_process_root_is_global_and_workspace_partitioned() {
+        let workspace = std::env::temp_dir().join(format!(
+            "omena-bridge-global-cache-root-{}",
+            std::process::id()
+        ));
+        let style = workspace.join("tokens.scss");
+        let roots = process_external_sif_cache_root(style.as_path()).unwrap_or(OmenaCacheRootsV0 {
+            global: None,
+            workspace: None,
+            source: CacheRootSourceV0::Disabled,
+        });
+        assert!(
+            matches!(
+                roots.source,
+                CacheRootSourceV0::Environment | CacheRootSourceV0::Platform
+            ),
+            "the direct bridge path must use an environment or platform global root: {roots:?}"
+        );
+        assert!(
+            roots.workspace.is_some_and(|root| {
+                root.components()
+                    .any(|component| component.as_os_str() == "workspaces")
+                    && !root.starts_with(workspace.join(".cache"))
+            }),
+            "the global physical store must retain a workspace partition"
+        );
     }
 }

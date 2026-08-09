@@ -93,9 +93,10 @@ pub(crate) use explain::{
     EXPLAIN_REQUEST, project_hover_trace_through_explain_egress, resolve_lsp_explain,
 };
 pub use external_sif_loader::{
-    LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
+    LspExternalSifRefreshCacheStorageV0, LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
     apply_deferred_external_sif_refresh_result, collect_deferred_external_sif_refresh,
-    enable_deferred_external_sif_refresh, prepare_deferred_external_sif_refresh_job,
+    collect_deferred_external_sif_refresh_with_cache_storage, enable_deferred_external_sif_refresh,
+    prepare_deferred_external_sif_refresh_cache_storage, prepare_deferred_external_sif_refresh_job,
 };
 pub(crate) use external_sif_loader::{
     bridge_sources_for_style_uris, refresh_external_sifs_for_bridge_source_delta,
