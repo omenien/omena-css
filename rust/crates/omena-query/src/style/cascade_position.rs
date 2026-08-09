@@ -5,8 +5,8 @@ use omena_bridge::{OmenaBridgeParserRangeV0, StyleSemanticGraphSummaryV0};
 use omena_cascade::{
     CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue,
     ComputedCascadeValueStatusV0, CustomPropertyEnv, CustomPropertyLeastFixedPointEntryV0,
-    LayerOrdinal, ModuleRank, Specificity, compute_cascade_computed_value, normalized_layer_rank,
-    summarize_custom_property_least_fixed_point,
+    LayerOrdinal, OpenWorldTieEvidence, Specificity, compute_cascade_computed_value,
+    normalized_layer_rank, summarize_custom_property_least_fixed_point,
 };
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
@@ -297,9 +297,9 @@ fn compute_referenced_declaration_cascade_value_seed(
                 normalized_layer_rank(false, LayerOrdinal::new(0)),
                 0,
                 Specificity::ZERO,
-                ModuleRank::ZERO,
                 declaration.source_order.min(u32::MAX as usize) as u32,
             ),
+            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
             specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
         }],
         custom_property_env: custom_property_env.clone(),

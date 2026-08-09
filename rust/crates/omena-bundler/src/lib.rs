@@ -23,7 +23,8 @@ pub use emission_order::{
 };
 
 use omena_cascade::{
-    CascadeKey, CascadeLevel, LayerOrdinal, ModuleRank, Specificity, normalized_layer_rank,
+    CascadeKey, CascadeLevel, LayerOrdinal, ModuleRank, OpenWorldTieEvidence, Specificity,
+    normalized_layer_rank,
 };
 use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
 use omena_parser::{
@@ -610,14 +611,16 @@ impl LinkedStylesheetRuleV0 {
         scope_proximity: u32,
         specificity: Specificity,
         module_rank: ModuleRank,
-    ) -> CascadeKey {
-        CascadeKey::new(
-            level,
-            normalized_layer_rank(important, Some(layer_ordinal)),
-            scope_proximity,
-            specificity,
-            module_rank,
-            self.global_order_index,
+    ) -> (CascadeKey, OpenWorldTieEvidence) {
+        (
+            CascadeKey::new(
+                level,
+                normalized_layer_rank(important, Some(layer_ordinal)),
+                scope_proximity,
+                specificity,
+                self.global_order_index,
+            ),
+            OpenWorldTieEvidence::new(module_rank),
         )
     }
 }
@@ -3770,13 +3773,14 @@ mod tests {
         let Some(layer_ordinal) = layer_ordinal else {
             return;
         };
-        let key = rule.cascade_key_with_global_source_order(
+        let module_rank = omena_cascade::ModuleRank::new(3, 2, 1);
+        let (key, open_world_tie_evidence) = rule.cascade_key_with_global_source_order(
             omena_cascade::CascadeLevel::AuthorNormal,
             layer_ordinal,
             false,
             0,
             omena_cascade::Specificity::new(0, 1, 0),
-            omena_cascade::ModuleRank::ZERO,
+            module_rank,
         );
 
         assert_eq!(
@@ -3784,6 +3788,7 @@ mod tests {
             omena_cascade::normalized_layer_rank(false, Some(layer_ordinal))
         );
         assert_eq!(key.source_order, 7);
+        assert_eq!(open_world_tie_evidence.module_rank, module_rank);
     }
 
     #[test]
@@ -3830,6 +3835,18 @@ mod tests {
                 } else {
                     "blue"
                 };
+                let (key, open_world_tie_evidence) = rule.cascade_key_with_global_source_order(
+                    omena_cascade::CascadeLevel::AuthorNormal,
+                    layer_ordinal,
+                    false,
+                    0,
+                    omena_cascade::Specificity::new(0, 1, 0),
+                    if rule.global_order_index == 0 {
+                        omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
+                    } else {
+                        omena_cascade::ModuleRank::ZERO
+                    },
+                );
                 omena_cascade::CascadeDeclaration {
                     id: format!(
                         "{}:{}",
@@ -3838,18 +3855,8 @@ mod tests {
                     ),
                     property: "color".to_string(),
                     value: omena_cascade::CascadeValue::Literal(value.to_string()),
-                    key: rule.cascade_key_with_global_source_order(
-                        omena_cascade::CascadeLevel::AuthorNormal,
-                        layer_ordinal,
-                        false,
-                        0,
-                        omena_cascade::Specificity::new(0, 1, 0),
-                        if rule.global_order_index == 0 {
-                            omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
-                        } else {
-                            omena_cascade::ModuleRank::ZERO
-                        },
-                    ),
+                    key,
+                    open_world_tie_evidence,
                     specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
                 }
             })
@@ -3895,6 +3902,18 @@ mod tests {
             .filter(|rule| rule.selector_name == "button")
             .map(|rule| {
                 let linked_later = rule.global_order_index == 1;
+                let (key, open_world_tie_evidence) = rule.cascade_key_with_global_source_order(
+                    omena_cascade::CascadeLevel::AuthorNormal,
+                    layer_ordinal,
+                    false,
+                    0,
+                    omena_cascade::Specificity::new(0, 1, 0),
+                    if linked_later {
+                        omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
+                    } else {
+                        omena_cascade::ModuleRank::ZERO
+                    },
+                );
                 omena_cascade::CascadeDeclaration {
                     id: format!(
                         "{}:{}",
@@ -3907,18 +3926,8 @@ mod tests {
                     } else {
                         "red".to_string()
                     }),
-                    key: rule.cascade_key_with_global_source_order(
-                        omena_cascade::CascadeLevel::AuthorNormal,
-                        layer_ordinal,
-                        false,
-                        0,
-                        omena_cascade::Specificity::new(0, 1, 0),
-                        if linked_later {
-                            omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
-                        } else {
-                            omena_cascade::ModuleRank::ZERO
-                        },
-                    ),
+                    key,
+                    open_world_tie_evidence,
                     specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
                 }
             })
@@ -3979,7 +3988,7 @@ mod tests {
             declaration.key.layer_rank,
             std::cmp::Reverse(declaration.key.scope_proximity),
             declaration.key.specificity,
-            declaration.key.module_rank,
+            declaration.open_world_tie_evidence.module_rank,
         )
     }
 

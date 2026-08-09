@@ -170,6 +170,32 @@ impl PartialOrd for ModuleRank {
     }
 }
 
+/// Provenance evidence used only to make open-world ties deterministic.
+///
+/// This evidence is deliberately separate from [`CascadeKey`]: it is not a
+/// spec-defined cascade axis and cannot make an otherwise ambiguous cascade
+/// outcome definite.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenWorldTieEvidence {
+    pub module_rank: ModuleRank,
+}
+
+impl OpenWorldTieEvidence {
+    /// No provenance preference is available.
+    pub const NONE: Self = Self {
+        module_rank: ModuleRank::ZERO,
+    };
+
+    /// Numeric zero form retained for callers that model evidence as a rank.
+    pub const ZERO: Self = Self::NONE;
+
+    pub const fn new(module_rank: ModuleRank) -> Self {
+        Self { module_rank }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeKey {
@@ -177,7 +203,6 @@ pub struct CascadeKey {
     pub layer_rank: LayerRank,
     pub scope_proximity: u32,
     pub specificity: Specificity,
-    pub module_rank: ModuleRank,
     pub source_order: u32,
 }
 
@@ -187,7 +212,6 @@ impl CascadeKey {
         layer_rank: LayerRank,
         scope_proximity: u32,
         specificity: Specificity,
-        module_rank: ModuleRank,
         source_order: u32,
     ) -> Self {
         Self {
@@ -195,7 +219,6 @@ impl CascadeKey {
             layer_rank,
             scope_proximity,
             specificity,
-            module_rank,
             source_order,
         }
     }
@@ -224,6 +247,8 @@ pub struct CascadeDeclaration {
     pub property: String,
     pub value: CascadeValue,
     pub key: CascadeKey,
+    /// Non-spec evidence for deterministic ordering of open-world ties.
+    pub open_world_tie_evidence: OpenWorldTieEvidence,
     /// Trust boundary for using `key.specificity` to mint an exact winner.
     pub specificity_exactness: SpecificityExactnessV0,
 }
@@ -255,7 +280,7 @@ impl CascadeProof {
             layer_rank: declaration.key.layer_rank,
             scope_proximity: declaration.key.scope_proximity,
             specificity: declaration.key.specificity,
-            module_rank: declaration.key.module_rank,
+            module_rank: declaration.open_world_tie_evidence.module_rank,
             source_order: declaration.key.source_order,
         }
     }

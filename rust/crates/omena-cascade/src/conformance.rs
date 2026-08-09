@@ -7,8 +7,9 @@
 use crate::{
     CascadeConformanceSeedCase, CascadeConformanceSeedReport, CascadeConformanceSeedResult,
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOriginV0, CascadeOutcome, CascadeValue,
-    LayerOrdinal, ModuleRank, Specificity, SpecificityExactnessV0, cascade_level_for_origin,
-    cascade_property, normalized_layer_rank, parse_simple_selector_signature,
+    LayerOrdinal, OpenWorldTieEvidence, Specificity, SpecificityExactnessV0,
+    cascade_level_for_origin, cascade_property, normalized_layer_rank,
+    parse_simple_selector_signature,
 };
 
 struct SelectorSpecificitySeedDeclaration {
@@ -78,6 +79,7 @@ fn run_selector_specificity_seed_case(
                     signature.specificity,
                     expected.source_order,
                 ),
+                open_world_tie_evidence: OpenWorldTieEvidence::NONE,
                 specificity_exactness: signature.specificity_exactness,
             })
         })
@@ -963,7 +965,6 @@ fn conformance_key(
         normalized_layer_rank(false, Some(layer_ordinal)),
         scope_proximity,
         specificity,
-        ModuleRank::ZERO,
         source_order,
     )
 }
@@ -987,7 +988,6 @@ fn conformance_layer_key(
         normalized_layer_rank(important, layer_ordinal),
         scope_proximity,
         specificity,
-        ModuleRank::ZERO,
         source_order,
     )
 }
@@ -998,6 +998,7 @@ fn conformance_decl(id: &str, property: &str, value: &str, key: CascadeKey) -> C
         property: property.to_string(),
         value: CascadeValue::Literal(value.to_string()),
         key,
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: SpecificityExactnessV0::Exact,
     }
 }

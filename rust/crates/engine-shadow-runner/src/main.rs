@@ -40,7 +40,7 @@ use omena_abstract_value::{
 };
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeProof, CascadeValue,
-    LayerOrdinal, ModuleRank, Specificity, normalized_layer_rank,
+    LayerOrdinal, OpenWorldTieEvidence, Specificity, normalized_layer_rank,
 };
 use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
@@ -3708,9 +3708,9 @@ fn replica_ensemble_definite_outcome(winner: &str, source_order: u32) -> Cascade
                 classes: 1,
                 elements: 0,
             },
-            module_rank: ModuleRank::ZERO,
             source_order,
         },
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
     };
     CascadeOutcome::Definite {

@@ -224,7 +224,7 @@ pub omena_bundler::LinkedStylesheetRuleV0::range_start: u32
 pub omena_bundler::LinkedStylesheetRuleV0::selector_kind: &'static str
 pub omena_bundler::LinkedStylesheetRuleV0::selector_name: alloc::string::String
 impl omena_bundler::LinkedStylesheetRuleV0
-pub fn omena_bundler::LinkedStylesheetRuleV0::cascade_key_with_global_source_order(&self, omena_cascade::model::CascadeLevel, omena_cascade::model::LayerOrdinal, bool, u32, omena_cascade::model::Specificity, omena_cascade::model::ModuleRank) -> omena_cascade::model::CascadeKey
+pub fn omena_bundler::LinkedStylesheetRuleV0::cascade_key_with_global_source_order(&self, omena_cascade::model::CascadeLevel, omena_cascade::model::LayerOrdinal, bool, u32, omena_cascade::model::Specificity, omena_cascade::model::ModuleRank) -> (omena_cascade::model::CascadeKey, omena_cascade::model::OpenWorldTieEvidence)
 pub struct omena_bundler::LinkedStylesheetV0
 pub omena_bundler::LinkedStylesheetV0::closed_world_bundle: omena_parser::closed_world::contract::ClosedWorldBundleV0
 pub omena_bundler::LinkedStylesheetV0::emission_plan: omena_bundler::EmissionPlanV0

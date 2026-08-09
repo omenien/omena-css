@@ -2984,7 +2984,7 @@ fn memo_source_element_static_declarations(
     property: String,
 ) -> SourceElementDeclarationProjectionV0 {
     use omena_cascade::{
-        CascadeDeclaration, CascadeKey, CascadeOriginV0, ModuleRank, Specificity,
+        CascadeDeclaration, CascadeKey, CascadeOriginV0, OpenWorldTieEvidence, Specificity,
         cascade_level_for_origin, normalized_layer_rank,
     };
     use omena_query_transform_runner::parse_static_css_cascade_value;
@@ -3068,9 +3068,9 @@ fn memo_source_element_static_declarations(
                 normalized_layer_rank(false, None),
                 0,
                 Specificity::ZERO,
-                ModuleRank::ZERO,
                 declaration.byte_span.start.min(u32::MAX as usize) as u32,
             ),
+            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
             specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
         });
     }

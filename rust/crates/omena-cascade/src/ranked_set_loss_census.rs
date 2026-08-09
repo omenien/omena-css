@@ -291,8 +291,8 @@ mod tests {
         classify_cascade_ranked_set_loss, recover_captured_rows,
     };
     use crate::{
-        CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerOrdinal, ModuleRank,
-        Specificity, SpecificityExactnessV0, normalized_layer_rank,
+        CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerOrdinal,
+        OpenWorldTieEvidence, Specificity, SpecificityExactnessV0, normalized_layer_rank,
     };
 
     fn declaration(
@@ -312,9 +312,9 @@ mod tests {
                 normalized_layer_rank(false, LayerOrdinal::new(layer_ordinal)),
                 scope_proximity,
                 specificity,
-                ModuleRank::ZERO,
                 0,
             ),
+            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
             specificity_exactness: exactness,
         }
     }

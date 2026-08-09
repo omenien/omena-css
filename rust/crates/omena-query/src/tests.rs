@@ -161,8 +161,7 @@ use crate::{
     reset_committed_style_semantic_graph_compute_count_for_test,
 };
 use omena_cascade::{
-    CascadeKey, CascadeLevel, CascadeMarginV0, LayerOrdinal, ModuleRank, Specificity,
-    normalized_layer_rank,
+    CascadeKey, CascadeLevel, CascadeMarginV0, LayerOrdinal, Specificity, normalized_layer_rank,
 };
 use omena_evidence_graph::EvidenceAnalysisPrecisionV0;
 
@@ -1319,7 +1318,6 @@ fn exposes_style_edit_distance_and_cascade_margin_bridge_witness() {
         normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::new(0, 1, 0),
-        ModuleRank::ZERO,
         2,
     );
     let challenger_key = CascadeKey::new(
@@ -1327,7 +1325,6 @@ fn exposes_style_edit_distance_and_cascade_margin_bridge_witness() {
         normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::new(0, 1, 0),
-        ModuleRank::ZERO,
         1,
     );
     let margin = CascadeMarginV0 {

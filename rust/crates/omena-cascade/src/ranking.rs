@@ -8,7 +8,7 @@ use std::cmp::{Ordering, Reverse};
 
 use crate::{
     CascadeDeclaration, CascadeKey, CascadeMarginSchemaV0, CascadeMarginV0, CascadeOutcome,
-    CascadeProof, SpecificityExactnessV0,
+    CascadeProof, OpenWorldTieEvidence, SpecificityExactnessV0,
     axis_order::{
         cascade_key_axis_name_v0, cascade_key_axis_order_v0, cascade_key_axis_signed_distance_v0,
         first_deciding_cascade_key_axis_v0,
@@ -84,13 +84,20 @@ fn compare_open_world_declarations(
     left: &CascadeDeclaration,
     right: &CascadeDeclaration,
 ) -> Ordering {
-    compare_open_world_cascade_keys(left.key, right.key)
+    compare_open_world_cascade_keys(
+        (left.key, left.open_world_tie_evidence),
+        (right.key, right.open_world_tie_evidence),
+    )
 }
 
-fn compare_open_world_cascade_keys(left: CascadeKey, right: CascadeKey) -> Ordering {
+fn compare_open_world_cascade_keys(
+    left: (CascadeKey, OpenWorldTieEvidence),
+    right: (CascadeKey, OpenWorldTieEvidence),
+) -> Ordering {
     right
-        .cmp(&left)
-        .then_with(|| right.module_rank.cmp(&left.module_rank))
+        .0
+        .cmp(&left.0)
+        .then_with(|| right.1.module_rank.cmp(&left.1.module_rank))
 }
 
 pub fn rank_cascade_items<T>(
@@ -117,14 +124,17 @@ pub fn select_cascade_winner<T>(
 
 /// Selects an open-world winner while retaining provenance as a final tiebreak.
 ///
-/// `CascadeKey::Ord` owns the spec-defined cascade axes. `module_rank` remains
-/// outside that order and is considered only after those axes compare equal.
+/// `CascadeKey::Ord` owns the spec-defined cascade axes. The returned
+/// [`OpenWorldTieEvidence`] remains outside that order and is considered only
+/// after those axes compare equal.
 pub fn select_open_world_cascade_winner<T>(
     items: impl IntoIterator<Item = T>,
-    key_for: impl Fn(&T) -> CascadeKey,
+    key_and_evidence_for: impl Fn(&T) -> (CascadeKey, OpenWorldTieEvidence),
 ) -> Option<(T, Vec<T>)> {
     let mut ranked = items.into_iter().collect::<Vec<_>>();
-    ranked.sort_by(|left, right| compare_open_world_cascade_keys(key_for(left), key_for(right)));
+    ranked.sort_by(|left, right| {
+        compare_open_world_cascade_keys(key_and_evidence_for(left), key_and_evidence_for(right))
+    });
     if ranked.is_empty() {
         return None;
     }

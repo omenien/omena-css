@@ -662,7 +662,7 @@ fn style_semantic_graph_batch_prefers_the_local_file_on_a_full_cascade_tie() -> 
 
     assert_eq!(
         ranked_reference.winner_declaration_file_path, None,
-        "reversion: restoring ModuleRank::ZERO for the local arm makes workspace provenance win a full cascade tie"
+        "reversion: clearing the local open-world tie evidence makes workspace provenance win a full cascade tie"
     );
     assert_eq!(ranked_reference.winner_declaration_source_order, 0);
     assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);

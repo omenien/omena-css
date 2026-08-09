@@ -541,10 +541,6 @@ function cascadeAxisOrderSiteDispositionsV0(): readonly AxisOrderSiteDisposition
       disposition: "mirror",
     },
     {
-      id: "rust/crates/omena-cascade/src/tests.rs#carries_module_rank_without_using_it_as_an_exact_order_axis",
-      disposition: "mirror",
-    },
-    {
       id: "rust/crates/omena-cascade/src/tests.rs#open_world_selector_matches_the_hand_written_axis_order",
       disposition: "mirror",
     },
@@ -577,12 +573,6 @@ function cascadeAxisOrderSiteDispositionsV0(): readonly AxisOrderSiteDisposition
       disposition: "structural",
       owner: "open-world evidence ordering contract",
       reentry: "open-world evidence stops following the specification-key order",
-    },
-    {
-      id: "rust/crates/omena-cascade/src/tests.rs#open_world_winner_is_independent_of_input_order_when_only_module_rank_differs",
-      disposition: "structural",
-      owner: "open-world evidence ordering contract",
-      reentry: "the selector no longer provides stable evidence ordering",
     },
     {
       id: "rust/crates/omena-cascade/src/conformance.rs#cascade_conformance_seed_cases",
@@ -710,14 +700,37 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
   const discovered = discoverAxisOrderSites(sources);
   const authorityPresent = sources.has("rust/crates/omena-cascade/src/axis_order.rs");
   const dispositions = [...cascadeAxisOrderSiteDispositionsV0()];
+  const cascadeTests = sources.get("rust/crates/omena-cascade/src/tests.rs") ?? "";
   if (sources.has("rust/crates/omena-cascade/examples/cascade_key_axis_order.rs")) {
     dispositions.push(emittedAxisOrderSiteDispositionV0());
   }
+  if (cascadeTests.includes("fn carries_module_rank_without_using_it_as_an_exact_order_axis")) {
+    dispositions.push({
+      id: "rust/crates/omena-cascade/src/tests.rs#carries_module_rank_without_using_it_as_an_exact_order_axis",
+      disposition: "mirror",
+    });
+  }
   if (
-    sources
-      .get("rust/crates/omena-cascade/src/tests.rs")
-      ?.includes("fn library_axis_order_prefers_specificity_before_scope_proximity")
+    cascadeTests.includes(
+      "fn open_world_winner_is_independent_of_input_order_when_only_module_rank_differs",
+    )
   ) {
+    dispositions.push({
+      id: "rust/crates/omena-cascade/src/tests.rs#open_world_winner_is_independent_of_input_order_when_only_module_rank_differs",
+      disposition: "structural",
+      owner: "open-world evidence ordering contract",
+      reentry: "the selector no longer provides stable evidence ordering",
+    });
+  }
+  if (cascadeTests.includes("fn generated_binary_search_hits_if_and_only_if_a_key_is_equal")) {
+    dispositions.push({
+      id: "rust/crates/omena-cascade/src/tests.rs#generated_binary_search_hits_if_and_only_if_a_key_is_equal",
+      disposition: "structural",
+      owner: "CascadeKey Eq and Ord coherence contract",
+      reentry: "the CascadeKey field set or total-order implementation changes",
+    });
+  }
+  if (cascadeTests.includes("fn library_axis_order_prefers_specificity_before_scope_proximity")) {
     dispositions.push({
       id: "rust/crates/omena-cascade/src/tests.rs#library_axis_order_prefers_specificity_before_scope_proximity",
       disposition: "mirror",
@@ -1092,7 +1105,7 @@ function axisOrderFromSchemaOracle(source: string): readonly string[] {
 }
 
 function axisOrderFromHandOracle(source: string): readonly string[] {
-  const start = source.indexOf("let oracle_key = |key: CascadeKey|");
+  const start = source.indexOf("let oracle_key = |");
   const end = source.indexOf("};", start);
   assert.ok(start >= 0 && end > start, "hand-written cascade oracle is missing");
   const body = source.slice(start, end);

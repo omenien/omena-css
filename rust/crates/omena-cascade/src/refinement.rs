@@ -126,8 +126,8 @@ fn combine_refinement_verdicts(verdicts: &[RefinementVerdictV0]) -> RefinementVe
 mod tests {
     use super::*;
     use crate::{
-        CascadeKey, CascadeValue, LayerOrdinal, ModuleRank, Specificity, SpecificityExactnessV0,
-        normalized_layer_rank,
+        CascadeKey, CascadeValue, LayerOrdinal, OpenWorldTieEvidence, Specificity,
+        SpecificityExactnessV0, normalized_layer_rank,
     };
 
     const EXPECTED_LEGACY_PROOFS_RS_SHA256: [u8; 32] = [
@@ -156,9 +156,9 @@ mod tests {
                 normalized_layer_rank(true, Some(layer_ordinal)),
                 0,
                 Specificity::ZERO,
-                ModuleRank::ZERO,
                 1,
             ),
+            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
             specificity_exactness: SpecificityExactnessV0::Exact,
         };
         let witness = refine_declaration_in_context(
