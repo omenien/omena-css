@@ -4,6 +4,7 @@
 //! lexicographic cascade keys, specificity, provenance proofs, and a finite
 //! custom-property substitution function with explicit cycle handling.
 
+mod axis_order;
 mod computed_value;
 mod conformance;
 mod custom_property;

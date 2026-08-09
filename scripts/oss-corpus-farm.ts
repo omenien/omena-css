@@ -54,8 +54,15 @@ type CascadeRankedSetLossClassV0 =
   | "noStrictAxisDominance"
   | "singleInexactCandidate"
   | {
-      readonly recoverableAxisDominant: { readonly axis: "level" | "layerRank" | "scopeProximity" };
+      readonly recoverableAxisDominant: { readonly axis: string };
     };
+
+interface CascadeKeyAxisOrderArtifactV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-cascade.key-axis-order";
+  readonly axisOrder: readonly string[];
+  readonly rankedSetPrefixAxisVocabulary: readonly string[];
+}
 
 interface CascadeRankedSetLossCandidateV0 {
   readonly declarationId: string;
@@ -374,6 +381,10 @@ const manifestPath = path.join(farmRoot, "manifest.json");
 const baselinePath = path.join(farmRoot, "baselines.json");
 const reportPath = path.join(farmRoot, "report.json");
 const rankedSetLossCensusPath = path.join(farmRoot, "ranked-set-loss-census.json");
+const cascadeKeyAxisOrderPath = path.join(
+  repoRoot,
+  "rust/crates/omena-cascade/data/cascade-key-axis-order.json",
+);
 const regressionRoot = path.join(repoRoot, "rust/crates/omena-diff-test/regressions");
 const regressionManifestPath = path.join(regressionRoot, "manifest.json");
 const rawCaptureRoot = process.env.OMENA_OSS_CORPUS_CAPTURE_DIR
@@ -672,14 +683,22 @@ function buildRankedSetLossCensus(
     "transformWinnerEqualityFromCascadeOutcome",
     "unclassified",
   ]);
-  const decidingAxisCounts = initializedCounts(["level", "layerRank", "scopeProximity"]);
+  const cascadeKeyAxisOrder = readJson<CascadeKeyAxisOrderArtifactV0>(cascadeKeyAxisOrderPath);
+  assert.equal(cascadeKeyAxisOrder.schemaVersion, "0");
+  assert.equal(cascadeKeyAxisOrder.product, "omena-cascade.key-axis-order");
+  const decidingAxisCounts = initializedCounts(cascadeKeyAxisOrder.rankedSetPrefixAxisVocabulary);
   for (const row of rows) {
     classCounts[classificationName(row.classification)] += 1;
     functionPopulations[row.function] = (functionPopulations[row.function] ?? 0) + 1;
     invocationSitePopulations[row.invocationSite] =
       (invocationSitePopulations[row.invocationSite] ?? 0) + 1;
     if (typeof row.classification === "object") {
-      decidingAxisCounts[row.classification.recoverableAxisDominant.axis] += 1;
+      const decidingAxis = row.classification.recoverableAxisDominant.axis;
+      assert.ok(
+        Object.hasOwn(decidingAxisCounts, decidingAxis),
+        `ranked-set loss row uses an axis outside the emitted prefix vocabulary: ${decidingAxis}`,
+      );
+      decidingAxisCounts[decidingAxis] += 1;
     }
   }
   const recoverableCount = classCounts.recoverableAxisDominant;

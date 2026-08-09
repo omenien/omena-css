@@ -11,6 +11,7 @@ use serde::Serialize;
 
 use crate::{
     CascadeDeclaration, CascadeLevel, CascadeOutcome, SpecificityExactnessV0,
+    axis_order::{CascadeKeyAxisV0, first_deciding_cascade_key_axis_v0},
     model::compare_cascade_axis_prefix,
 };
 
@@ -225,14 +226,11 @@ fn strict_axis_prefix_winner(
 }
 
 fn deciding_axis(winner: &crate::CascadeKey, runner_up: &crate::CascadeKey) -> CascadeAxisPrefixV0 {
-    if winner.level != runner_up.level {
-        CascadeAxisPrefixV0::Level
-    } else if winner.layer_rank != runner_up.layer_rank {
-        CascadeAxisPrefixV0::LayerRank
-    } else if winner.scope_proximity != runner_up.scope_proximity {
-        CascadeAxisPrefixV0::ScopeProximity
-    } else {
-        unreachable!("a strict cascade axis-prefix winner must differ on one prefix axis")
+    match first_deciding_cascade_key_axis_v0(winner, runner_up) {
+        Some(CascadeKeyAxisV0::Level) => CascadeAxisPrefixV0::Level,
+        Some(CascadeKeyAxisV0::LayerRank) => CascadeAxisPrefixV0::LayerRank,
+        Some(CascadeKeyAxisV0::ScopeProximity) => CascadeAxisPrefixV0::ScopeProximity,
+        _ => unreachable!("a strict cascade axis-prefix winner must differ on one prefix axis"),
     }
 }
 

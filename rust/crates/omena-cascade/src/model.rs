@@ -111,7 +111,7 @@ pub enum SpecificityExactnessV0 {
 
 impl Ord for Specificity {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.ids, self.classes, self.elements).cmp(&(other.ids, other.classes, other.elements))
+        crate::axis_order::compare_specificity_axes_v0(self, other)
     }
 }
 
@@ -202,17 +202,12 @@ impl CascadeKey {
 }
 
 pub(crate) fn compare_cascade_axis_prefix(left: &CascadeKey, right: &CascadeKey) -> Ordering {
-    left.level
-        .cmp(&right.level)
-        .then_with(|| left.layer_rank.cmp(&right.layer_rank))
-        .then_with(|| right.scope_proximity.cmp(&left.scope_proximity))
+    crate::axis_order::compare_cascade_axis_prefix_v0(left, right)
 }
 
 impl Ord for CascadeKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        compare_cascade_axis_prefix(self, other)
-            .then_with(|| self.specificity.cmp(&other.specificity))
-            .then_with(|| self.source_order.cmp(&other.source_order))
+        crate::axis_order::compare_cascade_key_axes_v0(self, other)
     }
 }
 
