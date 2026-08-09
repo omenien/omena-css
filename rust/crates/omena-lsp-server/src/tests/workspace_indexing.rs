@@ -1477,16 +1477,19 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         state.workspace_occurrence_index_memo_lock().is_some(),
         "references should populate the workspace occurrence memo"
     );
-    let sidecar_path =
-        crate::source_occurrence_cache::source_occurrence_sidecar_file_path_for_test(
-            &state,
-            Some(workspace_uri.as_str()),
-        )
-        .ok_or_else(|| std::io::Error::other("source occurrence sidecar path should resolve"))?;
-    assert!(
-        sidecar_path.exists(),
-        "references should persist the source occurrence sidecar: {sidecar_path:?}"
-    );
+    for removed_sidecar_dir in [
+        "source-occurrence-index-v1",
+        "style-symbol-occurrence-index-v1",
+    ] {
+        let path = workspace_root
+            .join(".cache")
+            .join("omena")
+            .join(removed_sidecar_dir);
+        assert!(
+            !path.exists(),
+            "occurrence queries must not recreate write-only sidecar directory {removed_sidecar_dir}: {path:?}"
+        );
+    }
     *state.workspace_occurrence_index_memo_lock() = None;
     state
         .document_mut(source_uri.as_str())
@@ -3549,18 +3552,6 @@ fn indexed_style_files_feed_custom_property_references_and_rename() -> TestResul
         state.workspace_occurrence_index_memo_lock().is_some(),
         "custom property definition should populate the workspace occurrence memo"
     );
-    let sidecar_path =
-        crate::style_symbol_occurrence_cache::style_symbol_occurrence_sidecar_file_path_for_test(
-            &state,
-            Some(workspace_uri.as_str()),
-        )
-        .ok_or_else(|| {
-            std::io::Error::other("style symbol occurrence sidecar path should resolve")
-        })?;
-    assert!(
-        sidecar_path.exists(),
-        "custom property lookup should persist the style symbol occurrence sidecar: {sidecar_path:?}"
-    );
     *state.workspace_occurrence_index_memo_lock() = None;
     state
         .document_mut(tokens_uri.as_str())
@@ -3590,7 +3581,7 @@ fn indexed_style_files_feed_custom_property_references_and_rename() -> TestResul
                 .get("uri")
                 .and_then(Value::as_str)
                 .is_some_and(|uri| file_uri_equivalent(uri, tokens_uri.as_str())))),
-        "style symbol sidecar should rehydrate custom property definitions without rescanning the declaring style candidates: {cached_definition_response:?}"
+        "workspace occurrence shards should rehydrate custom property definitions without rescanning the declaring style candidates: {cached_definition_response:?}"
     );
 
     let rename_response = handle_lsp_message(
@@ -3734,18 +3725,6 @@ fn indexed_style_files_feed_sass_symbol_references_and_rename() -> TestResult {
         state.workspace_occurrence_index_memo_lock().is_some(),
         "Sass references should populate the workspace occurrence memo"
     );
-    let sidecar_path =
-        crate::style_symbol_occurrence_cache::style_symbol_occurrence_sidecar_file_path_for_test(
-            &state,
-            Some(workspace_uri.as_str()),
-        )
-        .ok_or_else(|| {
-            std::io::Error::other("style symbol occurrence sidecar path should resolve")
-        })?;
-    assert!(
-        sidecar_path.exists(),
-        "Sass reference lookup should persist the style symbol occurrence sidecar: {sidecar_path:?}"
-    );
     *state.workspace_occurrence_index_memo_lock() = None;
     state
         .document_mut(app_uri.as_str())
@@ -3784,14 +3763,14 @@ fn indexed_style_files_feed_sass_symbol_references_and_rename() -> TestResult {
             .get("uri")
             .and_then(Value::as_str)
             .is_some_and(|uri| file_uri_equivalent(uri, app_uri.as_str()))),
-        "style symbol sidecar should rehydrate the first Sass consumer without rescanning style candidates: {cached_references_response:?}"
+        "workspace occurrence shards should rehydrate the first Sass consumer without rescanning style candidates: {cached_references_response:?}"
     );
     assert!(
         cached_reference_locations.iter().any(|location| location
             .get("uri")
             .and_then(Value::as_str)
             .is_some_and(|uri| file_uri_equivalent(uri, other_uri.as_str()))),
-        "style symbol sidecar should rehydrate the second Sass consumer without rescanning style candidates: {cached_references_response:?}"
+        "workspace occurrence shards should rehydrate the second Sass consumer without rescanning style candidates: {cached_references_response:?}"
     );
 
     let rename_response = handle_lsp_message(

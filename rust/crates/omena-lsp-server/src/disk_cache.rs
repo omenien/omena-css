@@ -849,9 +849,11 @@ fn disk_diagnostics_shard_workspace_snapshot_id(
 const LEGACY_CACHE_DIR_NAMES: &[&str] = &[
     "diagnostics-cache-v0",
     "source-occurrence-index-v0",
+    "source-occurrence-index-v1",
     "source-document-index-v0",
     "source-type-fact-cache-v0",
     "style-symbol-occurrence-index-v0",
+    "style-symbol-occurrence-index-v1",
     "workspace-occurrence-shards-v0",
 ];
 
@@ -1729,13 +1731,25 @@ mod tests {
     fn legacy_stage_one_store_is_swept() -> Result<(), &'static str> {
         let base = temp_cache_dir("legacy-sweep");
         let omena_root = base.join(".cache/omena");
-        let legacy_dir = omena_root.join("diagnostics-cache-v0");
         let current_dir = omena_root.join("diagnostics-cache-v1");
-        fs::create_dir_all(legacy_dir.as_path()).map_err(|_| "create legacy")?;
         fs::create_dir_all(current_dir.as_path()).map_err(|_| "create current")?;
-        fs::write(legacy_dir.join("dead.json"), b"{}").map_err(|_| "write dead shard")?;
+        let retired_dirs = [
+            omena_root.join("source-occurrence-index-v0"),
+            omena_root.join("source-occurrence-index-v1"),
+            omena_root.join("style-symbol-occurrence-index-v0"),
+            omena_root.join("style-symbol-occurrence-index-v1"),
+        ];
+        for retired_dir in &retired_dirs {
+            fs::create_dir_all(retired_dir.as_path()).map_err(|_| "create retired cache")?;
+            fs::write(retired_dir.join("dead.json"), b"{}").map_err(|_| "write retired shard")?;
+        }
         remove_legacy_cache_dirs(current_dir.as_path());
-        assert!(!legacy_dir.exists(), "the stage-1 store must be removed");
+        for retired_dir in retired_dirs {
+            assert!(
+                !retired_dir.exists(),
+                "retired write-only occurrence stores must be removed: {retired_dir:?}"
+            );
+        }
         assert!(current_dir.exists());
         Ok(())
     }

@@ -253,8 +253,6 @@ mod tests {
             "source-document-index-v1",
             "workspace-occurrence-shards-v1",
             "source-type-fact-cache-v1",
-            "source-occurrence-index-v1",
-            "style-symbol-occurrence-index-v1",
         ] {
             assert_eq!(
                 root.join(cache_dir_name),
@@ -276,8 +274,6 @@ mod tests {
             "source-document-index-v1",
             "workspace-occurrence-shards-v1",
             "source-type-fact-cache-v1",
-            "source-occurrence-index-v1",
-            "style-symbol-occurrence-index-v1",
         ] {
             assert!(roots.workspace.as_ref().is_some_and(|root| {
                 root.join(cache_dir_name)

@@ -41,7 +41,6 @@ mod source_completion;
 mod source_diagnostics;
 mod source_document_cache;
 mod source_domain_hover;
-mod source_occurrence_cache;
 mod source_selector_provider;
 mod source_syntax_index;
 mod source_type_fact_cache;
@@ -52,7 +51,6 @@ mod style_diagnostics;
 mod style_diagnostics_snapshot;
 mod style_hover_markdown;
 mod style_symbol_monikers;
-mod style_symbol_occurrence_cache;
 mod style_symbol_provider;
 pub mod tide;
 #[cfg(feature = "parallel-style-diagnostics")]
@@ -195,7 +193,6 @@ pub(crate) use source_diagnostics::{
 use source_domain_hover::{
     source_domain_reference_hover_at_position, source_domain_reference_trace_at_position,
 };
-use source_occurrence_cache::store_source_selector_occurrence_sidecar;
 pub(crate) use source_selector_provider::{
     collect_source_selector_reference_candidates, document_has_style_index,
     first_style_document_for_workspace, resolve_source_provider_candidates,
@@ -243,7 +240,6 @@ pub(crate) use style_diagnostics::{
     resolve_document_diagnostics_for_uri, resolve_style_diagnostics,
 };
 use style_symbol_monikers::render_external_sif_sass_symbol_hover_markdown;
-pub(crate) use style_symbol_occurrence_cache::store_style_symbol_occurrence_sidecar;
 pub(crate) use style_symbol_provider::{
     external_document_uri_for_query_uri, reference_lens_title,
     render_style_hover_candidate_markdown_for_workspace, resolve_selector_rename,
