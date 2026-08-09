@@ -52,7 +52,10 @@ pub(crate) const DISK_DIAGNOSTICS_CACHE_ORACLE_ENV: &str = "OMENA_LSP_DISK_CACHE
 /// Lives under `.cache/`, which the workspace style indexer skip-list already
 /// excludes; shard filenames are hex digests so they can never collide with
 /// the thin-client watcher globs (package.json, tsconfig*.json, *.module.*).
-const DISK_DIAGNOSTICS_CACHE_RELATIVE_DIR_V1: &str = ".cache/omena/diagnostics-cache-v1";
+const DISK_DIAGNOSTICS_CACHE_DIR_V1: &str = "diagnostics-cache-v1";
+pub(crate) const OMENA_CACHE_GITIGNORE_BYTES: &[u8] =
+    b"# machine-generated omena cache - safe to delete\n*\n";
+pub(crate) const OMENA_CACHEDIR_TAG_BYTES: &[u8] = b"Signature: 8a477f597d28d172789f06886806bc55\n# This directory is an omena cache; contents are regenerable.\n";
 /// After this many write failures (read-only fs, sandbox, permissions) the
 /// session stops attempting writes entirely instead of retrying hot.
 const DISK_DIAGNOSTICS_CACHE_MAX_WRITE_FAILURES: usize = 3;
@@ -442,17 +445,11 @@ pub(crate) fn ensure_omena_cache_root_markers(cache_subdir: &Path) {
     };
     let gitignore = omena_root.join(".gitignore");
     if !gitignore.exists() {
-        let _ = fs::write(
-            gitignore,
-            "# machine-generated omena cache - safe to delete\n*\n",
-        );
+        let _ = fs::write(gitignore, OMENA_CACHE_GITIGNORE_BYTES);
     }
     let cachedir_tag = omena_root.join("CACHEDIR.TAG");
     if !cachedir_tag.exists() {
-        let _ = fs::write(
-            cachedir_tag,
-            "Signature: 8a477f597d28d172789f06886806bc55\n# This directory is an omena cache; contents are regenerable.\n",
-        );
+        let _ = fs::write(cachedir_tag, OMENA_CACHEDIR_TAG_BYTES);
     }
 }
 
@@ -496,24 +493,31 @@ pub(crate) fn disk_diagnostics_cache_dir_with_kill_switch(
     if kill_switch_engaged {
         return None;
     }
-    let root = disk_diagnostics_cache_workspace_root(state, workspace_folder_uri)?;
-    Some(root.join(DISK_DIAGNOSTICS_CACHE_RELATIVE_DIR_V1))
+    let (workspace_identity, workspace_root) =
+        disk_diagnostics_cache_workspace_root(state, workspace_folder_uri)?;
+    crate::cache_root::resolved_workspace_cache_dir(
+        workspace_identity.as_str(),
+        workspace_root.as_path(),
+        DISK_DIAGNOSTICS_CACHE_DIR_V1,
+    )
 }
 
 fn disk_diagnostics_cache_workspace_root(
     state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
-) -> Option<PathBuf> {
+) -> Option<(String, PathBuf)> {
     if let Some(uri) = workspace_folder_uri
         && state.query_workspace_runtime_registry().get(uri).is_some()
         && let Some(path) = file_uri_to_path(uri)
     {
-        return Some(path);
+        return Some((uri.to_string(), path));
     }
     state
         .query_workspace_runtime_registry()
         .folders()
-        .find_map(|folder| file_uri_to_path(folder.uri.as_str()))
+        .find_map(|folder| {
+            file_uri_to_path(folder.uri.as_str()).map(|path| (folder.uri.clone(), path))
+        })
 }
 
 fn disk_diagnostics_cache_kill_switch_engaged() -> bool {
@@ -971,7 +975,10 @@ mod tests {
     #[test]
     fn cache_writes_stamp_self_ignore_markers_at_omena_root() -> Result<(), &'static str> {
         let base = temp_cache_dir("markers");
-        let dir = base.join(DISK_DIAGNOSTICS_CACHE_RELATIVE_DIR_V1);
+        let dir = base
+            .join(".cache")
+            .join("omena")
+            .join(DISK_DIAGNOSTICS_CACHE_DIR_V1);
         fs::create_dir_all(dir.as_path()).map_err(|_| "create cache dir")?;
         ensure_omena_cache_root_markers(dir.as_path());
         let omena_root = dir.parent().ok_or("omena root")?;

@@ -103,12 +103,12 @@ fn style_symbol_occurrence_sidecar_path(
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }
-    Some(
-        root.join(".cache")
-            .join("omena")
-            .join(STYLE_SYMBOL_OCCURRENCE_SIDECAR_DIR)
-            .join(format!("{hex}.json")),
+    crate::cache_root::resolved_workspace_cache_dir(
+        workspace_folder_uri,
+        root.as_path(),
+        STYLE_SYMBOL_OCCURRENCE_SIDECAR_DIR,
     )
+    .map(|dir| dir.join(format!("{hex}.json")))
 }
 
 fn style_symbol_occurrence_sidecar_digest(value: &Value) -> Option<String> {

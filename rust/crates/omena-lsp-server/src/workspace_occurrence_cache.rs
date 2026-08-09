@@ -205,12 +205,12 @@ fn workspace_occurrence_shard_path(
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }
-    Some(
-        root.join(".cache")
-            .join("omena")
-            .join(WORKSPACE_OCCURRENCE_SHARD_DIR)
-            .join(format!("{hex}.json")),
+    crate::cache_root::resolved_workspace_cache_dir(
+        workspace_folder_uri,
+        root.as_path(),
+        WORKSPACE_OCCURRENCE_SHARD_DIR,
     )
+    .map(|dir| dir.join(format!("{hex}.json")))
 }
 
 fn workspace_occurrence_shard_digest(value: &Value) -> Option<String> {

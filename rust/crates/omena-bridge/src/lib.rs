@@ -13,6 +13,7 @@ pub use omena_semantic::{
 use serde::Serialize;
 
 mod bundler_config_alias;
+mod cache_root;
 mod promotion_evidence;
 mod selector_references;
 mod source_cfg;

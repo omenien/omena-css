@@ -206,12 +206,12 @@ fn source_document_index_sidecar_path(
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }
-    Some(
-        root.join(".cache")
-            .join("omena")
-            .join(SOURCE_DOCUMENT_INDEX_DIR)
-            .join(format!("{hex}.json")),
+    crate::cache_root::resolved_workspace_cache_dir(
+        workspace_folder_uri,
+        root.as_path(),
+        SOURCE_DOCUMENT_INDEX_DIR,
     )
+    .map(|dir| dir.join(format!("{hex}.json")))
 }
 
 fn source_document_index_payload_digest(value: &Value) -> Option<String> {

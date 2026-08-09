@@ -28,7 +28,7 @@ use serde_json::{Value, json};
 const WORKSPACE_PACKAGE_MANIFEST_SCAN_LIMIT: usize = 1024;
 const EXTERNAL_SIF_CACHE_SCHEMA_VERSION: &str = "0";
 const EXTERNAL_SIF_CACHE_PRODUCT: &str = "omena-bridge.external-sif-cache-shard";
-const EXTERNAL_SIF_CACHE_RELATIVE_DIR: &str = ".cache/omena/external-sif-v0";
+const EXTERNAL_SIF_CACHE_DIR: &str = "external-sif-v0";
 const EXTERNAL_SIF_CACHE_ENV_KILL_SWITCH: &str = "OMENA_BRIDGE_EXTERNAL_SIF_CACHE";
 const EXTERNAL_SIF_CACHE_MAX_MEMORY_ENTRIES: usize = 256;
 const EXTERNAL_SIF_CACHE_MAX_SHARDS: usize = 2048;
@@ -370,27 +370,9 @@ fn store_external_sif_in_memory_cache(key: String, sif: OmenaSifV1) {
 }
 
 fn external_sif_cache_dir_for_path(path: &Path) -> Option<PathBuf> {
-    external_sif_cache_workspace_root(path).map(|root| root.join(EXTERNAL_SIF_CACHE_RELATIVE_DIR))
-}
-
-fn external_sif_cache_workspace_root(path: &Path) -> Option<PathBuf> {
-    let mut current = path.parent();
-    while let Some(dir) = current {
-        if dir.file_name().and_then(|value| value.to_str()) == Some("node_modules") {
-            return dir.parent().map(Path::to_path_buf);
-        }
-        current = dir.parent();
-    }
-
-    let mut current = path.parent();
-    while let Some(dir) = current {
-        if dir.join("package.json").is_file() {
-            return Some(dir.to_path_buf());
-        }
-        current = dir.parent();
-    }
-
-    path.parent().map(Path::to_path_buf)
+    crate::cache_root::process_external_sif_cache_root(path)?
+        .workspace
+        .map(|root| root.join(EXTERNAL_SIF_CACHE_DIR))
 }
 
 fn external_sif_cache_shard_file_path(dir: &Path, key: &str) -> Option<PathBuf> {
@@ -488,6 +470,7 @@ fn write_external_sif_cache_shard_atomically(
     bytes: &[u8],
 ) -> std::io::Result<()> {
     fs::create_dir_all(dir)?;
+    crate::cache_root::ensure_omena_cache_root_markers(dir);
     let final_path = external_sif_cache_shard_file_path(dir, key).ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
@@ -1396,6 +1379,37 @@ mod tests {
                 == Some("json")),
             "expected a disk external SIF cache shard in {}",
             cache_dir.display()
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn external_sif_disk_cache_root_carries_self_ignore_markers()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_external_sif_cache_markers")?;
+        fs::write(root.join("package.json"), r#"{"name":"workspace"}"#)?;
+        let style = root.join("tokens.scss");
+        fs::write(style.as_path(), "$brand: #0af;\n")?;
+
+        generate_omena_bridge_sif_for_resolved_style_path(style.to_string_lossy().as_ref())?;
+
+        let cache_dir = external_sif_cache_dir_for_path(style.as_path())
+            .ok_or_else(|| std::io::Error::other("cache dir"))?;
+        let cache_root = cache_dir
+            .parent()
+            .ok_or_else(|| std::io::Error::other("cache root"))?;
+        assert_eq!(
+            fs::read(cache_root.join(".gitignore"))?,
+            b"# machine-generated omena cache - safe to delete\n*\n",
+            "external SIF cache root {} must self-ignore generated files",
+            cache_root.display()
+        );
+        assert_eq!(
+            fs::read(cache_root.join("CACHEDIR.TAG"))?,
+            b"Signature: 8a477f597d28d172789f06886806bc55\n# This directory is an omena cache; contents are regenerable.\n",
+            "external SIF cache root {} must carry the standard cache tag",
+            cache_root.display()
         );
         let _ = fs::remove_dir_all(root);
         Ok(())
