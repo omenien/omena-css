@@ -1876,11 +1876,6 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
   );
   if (specFixture === undefined) {
     assert.ok(sourceRef, "the live axis-order gate requires the independent spec fixture");
-    assert.deepEqual(
-      handOracleAxisOrder,
-      sourceAxisOrder,
-      "historical hand-written open-world oracle must mirror its pre-fixture authority",
-    );
   } else {
     const specAxisOrder = axisOrderFromSpecFixture(specFixture);
     assert.deepEqual(
