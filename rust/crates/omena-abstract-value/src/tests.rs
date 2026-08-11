@@ -1,3 +1,7 @@
+use super::automaton::{
+    accepted_strings_with_output_bound_for_test, automaton_class_value_from_values,
+    concatenation_preflight_provenance_before_materialization_for_test, finite_language_values,
+};
 use super::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceNodeV0,
     AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractCssTypedComparisonOperatorV0,
@@ -9,6 +13,7 @@ use super::{
     CompositeClassValueInputV0, DeclaredNumericTypeV0, ExternalStringTypeFactsV0, FactPrecision,
     KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
     LinearProvenanceV0, MAX_FINITE_CLASS_VALUES, MAX_FLOW_ANALYSIS_ITERATIONS,
+    MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY, MAX_STRING_AUTOMATON_MATERIALIZED_BYTES,
     MAX_STRING_AUTOMATON_STATES, NaturalCountProvenanceSemiringV0,
     OmenaAbstractValueCoverageDirectionV0, OmenaAbstractValuePrecisionBasisV0,
     OmenaAbstractValuePrecisionWitnessV0, OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0,
@@ -887,6 +892,359 @@ fn uses_string_automaton_above_the_finite_set_boundary() {
     let projection = project_abstract_value_selectors(&value, &selectors);
     assert_eq!(projection.selector_names, values);
     assert!(!projection.selector_names.contains(&"item-cab".to_string()));
+}
+
+#[test]
+fn derives_preconstruction_automaton_cost_walls_from_existing_domain_budgets() {
+    assert_eq!(
+        MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY,
+        MAX_STRING_AUTOMATON_STATES * MAX_FINITE_CLASS_VALUES
+    );
+    assert_eq!(
+        MAX_STRING_AUTOMATON_MATERIALIZED_BYTES,
+        MAX_STRING_AUTOMATON_STATES * MAX_STRING_AUTOMATON_STATES
+    );
+}
+
+#[test]
+fn preserves_large_exact_and_finite_values_that_do_not_need_an_automaton() {
+    let long = "x".repeat(MAX_STRING_AUTOMATON_MATERIALIZED_BYTES + 1);
+    assert_eq!(
+        automaton_class_value_from_values(std::slice::from_ref(&long), None),
+        exact_class_value(long.clone())
+    );
+    assert_eq!(
+        finite_language_values(&exact_class_value(long.clone())),
+        Some(vec![long.clone()]),
+        "generic finite-language consumers retain the legacy long exact value"
+    );
+
+    let values = vec![long.clone(), format!("{long}y")];
+    assert_eq!(
+        automaton_class_value_from_values(&values, None),
+        AbstractClassValueV0::FiniteSet { values }
+    );
+
+    let exact = exact_class_value(long.clone());
+    assert_eq!(
+        concatenate_abstract_class_values(&exact, &prefix_class_value("--", None)),
+        prefix_class_value(format!("{long}--"), None),
+        "a non-finite right operand must reach the existing exact-prefix fallback"
+    );
+    assert_eq!(
+        concatenate_abstract_class_values(&exact, &suffix_class_value("--", None)),
+        prefix_suffix_class_value(long.clone(), "--", Some(long.len() + 2), None),
+        "a non-finite right operand must reach the existing exact-suffix fallback"
+    );
+}
+
+#[test]
+fn bounds_duplicate_heavy_automaton_inputs_before_normalization() {
+    let mut observed_public_candidates = 0_usize;
+    let public_duplicates = (0..MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY + 100).map(|_| {
+        observed_public_candidates += 1;
+        "d"
+    });
+    assert_eq!(
+        finite_set_class_value(public_duplicates),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit),
+        }
+    );
+    assert_eq!(
+        observed_public_candidates,
+        MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY + 1,
+        "the public iterator must stop at the first cardinality falsifier"
+    );
+
+    let duplicates = vec!["d".to_string(); MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY + 1];
+    assert_eq!(
+        automaton_class_value_from_values(&duplicates, None),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit),
+        }
+    );
+
+    let repeated_large =
+        vec!["x".repeat(MAX_STRING_AUTOMATON_MATERIALIZED_BYTES); MAX_FINITE_CLASS_VALUES + 1];
+    assert_eq!(
+        automaton_class_value_from_values(&repeated_large, None),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit),
+        }
+    );
+
+    let mut observed_byte_candidates = 0_usize;
+    let public_byte_overflow = (0..MAX_FINITE_CLASS_VALUES + 2).map(|index| {
+        observed_byte_candidates += 1;
+        assert!(
+            index <= MAX_FINITE_CLASS_VALUES,
+            "the public iterator requested the sentinel after crossing its byte wall"
+        );
+        if index == MAX_FINITE_CLASS_VALUES {
+            "x".repeat(MAX_STRING_AUTOMATON_MATERIALIZED_BYTES)
+        } else {
+            "x".to_string()
+        }
+    });
+    assert_eq!(
+        finite_set_class_value(public_byte_overflow),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit),
+        }
+    );
+    assert_eq!(observed_byte_candidates, MAX_FINITE_CLASS_VALUES + 1);
+}
+
+#[test]
+fn rejects_compressible_automaton_languages_before_building_them() {
+    let cardinality_overflow = cartesian_symbol_values(19, 27);
+    assert_eq!(
+        cardinality_overflow.len(),
+        MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY + 1
+    );
+    assert_eq!(
+        automaton_class_value_from_values(&cardinality_overflow, None),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit),
+        }
+    );
+
+    let byte_overflow = (0..256)
+        .map(|index| format!("{index:08b}xxxxxxxxx"))
+        .collect::<Vec<_>>();
+    assert_eq!(byte_overflow.iter().map(String::len).sum::<usize>(), 4_352);
+    assert!(byte_overflow.len() < MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY);
+    assert_eq!(
+        automaton_class_value_from_values(&byte_overflow, None),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit),
+        }
+    );
+}
+
+#[test]
+fn keeps_products_immediately_inside_each_preconstruction_wall() {
+    let left = finite_set_class_value(symbol_values(0x100, 7));
+    let right = finite_set_class_value(symbol_values(0x200, 73));
+    assert_eq!(7 * 73, MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY - 1);
+    let cardinality_edge = concatenate_abstract_class_values(&left, &right);
+    assert!(
+        automaton_parts(&cardinality_edge)
+            .is_some_and(|(automaton, _)| automaton.state_count <= MAX_STRING_AUTOMATON_STATES),
+        "expected the just-inside cardinality product to remain exact: {cardinality_edge:#?}"
+    );
+
+    let left_text = "x".repeat(MAX_STRING_AUTOMATON_MATERIALIZED_BYTES - 2);
+    let byte_edge = concatenate_abstract_class_values(
+        &exact_class_value(left_text.clone()),
+        &exact_class_value("y"),
+    );
+    assert_eq!(
+        byte_edge,
+        exact_class_value(format!("{left_text}y")),
+        "the product one byte inside the wall must retain its exact value"
+    );
+}
+
+#[test]
+fn rejects_cartesian_products_before_materializing_any_string() {
+    let left = symbol_values(0x100, 8);
+    let right = symbol_values(0x200, 65);
+    assert_eq!(
+        concatenation_preflight_provenance_before_materialization_for_test(&left, &right),
+        Some((
+            Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit),
+            false,
+        ))
+    );
+    assert_eq!(
+        concatenate_abstract_class_values(
+            &finite_set_class_value(left),
+            &finite_set_class_value(right),
+        ),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit),
+        }
+    );
+
+    let at_wall = "x".repeat(MAX_STRING_AUTOMATON_MATERIALIZED_BYTES);
+    assert_eq!(
+        concatenate_abstract_class_values(&exact_class_value(at_wall), &exact_class_value("y")),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit),
+        }
+    );
+    let oversized_operand = "x".repeat(MAX_STRING_AUTOMATON_MATERIALIZED_BYTES + 1);
+    assert_eq!(
+        concatenate_abstract_class_values(
+            &exact_class_value(oversized_operand),
+            &exact_class_value(""),
+        ),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit),
+        },
+        "the strict automaton-operation path refuses an oversized operand before cloning it"
+    );
+}
+
+#[test]
+fn accepted_language_enumeration_obeys_its_output_bound() {
+    let automaton = binary_language_automaton(2, "a", "b");
+    assert_eq!(
+        accepted_strings_with_output_bound_for_test(&automaton, 4),
+        Some(vec![
+            "aa".to_string(),
+            "ab".to_string(),
+            "ba".to_string(),
+            "bb".to_string(),
+        ])
+    );
+    assert_eq!(
+        accepted_strings_with_output_bound_for_test(&automaton, 3),
+        None
+    );
+}
+
+#[test]
+fn propagates_accepted_language_cost_overflow_as_typed_top() {
+    let cardinality_overflow = AbstractClassValueV0::Automaton {
+        automaton: Box::new(two_layer_wide_language_automaton(23)),
+        provenance: None,
+        precision_witness: None,
+    };
+    assert_eq!(
+        concatenate_abstract_class_values(&cardinality_overflow, &exact_class_value("")),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit),
+        }
+    );
+
+    let byte_overflow = AbstractClassValueV0::Automaton {
+        automaton: Box::new(binary_language_automaton(9, "😀", "😁")),
+        provenance: None,
+        precision_witness: None,
+    };
+    assert_eq!(
+        concatenate_abstract_class_values(&byte_overflow, &exact_class_value("")),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit),
+        }
+    );
+}
+
+#[test]
+fn bounds_public_automaton_structure_before_validation_and_enumeration() {
+    let transition_count_overflow = AbstractClassValueV0::Automaton {
+        automaton: Box::new(AbstractStringAutomatonV0 {
+            state_count: 1,
+            start_state: 0,
+            accept_states: vec![0],
+            transitions: (0..MAX_STRING_AUTOMATON_MATERIALIZED_BYTES + 1)
+                .map(|_| AbstractStringAutomatonTransitionV0 {
+                    from: 0,
+                    symbol: "a".to_string(),
+                    to: 0,
+                })
+                .collect(),
+        }),
+        provenance: None,
+        precision_witness: None,
+    };
+    assert_eq!(
+        concatenate_abstract_class_values(&transition_count_overflow, &exact_class_value("")),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit),
+        }
+    );
+
+    let symbol_bytes_overflow = AbstractClassValueV0::Automaton {
+        automaton: Box::new(AbstractStringAutomatonV0 {
+            state_count: 2,
+            start_state: 0,
+            accept_states: vec![1],
+            transitions: vec![AbstractStringAutomatonTransitionV0 {
+                from: 0,
+                symbol: "x".repeat(MAX_STRING_AUTOMATON_MATERIALIZED_BYTES + 1),
+                to: 1,
+            }],
+        }),
+        provenance: None,
+        precision_witness: None,
+    };
+    assert_eq!(
+        concatenate_abstract_class_values(&symbol_bytes_overflow, &exact_class_value("")),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit),
+        }
+    );
+
+    let accept_state_overflow = AbstractClassValueV0::Automaton {
+        automaton: Box::new(AbstractStringAutomatonV0 {
+            state_count: 1,
+            start_state: 0,
+            accept_states: vec![0; MAX_STRING_AUTOMATON_STATES + 1],
+            transitions: Vec::new(),
+        }),
+        provenance: None,
+        precision_witness: None,
+    };
+    assert_eq!(
+        concatenate_abstract_class_values(&accept_state_overflow, &exact_class_value("")),
+        AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::ConcatenationUnrepresentable),
+        },
+        "more accept entries than declared states is malformed, not a state-limit widening"
+    );
+}
+
+#[test]
+fn finite_set_loop_hits_the_preconstruction_wall_and_converges() {
+    let graph = ClassValueFlowGraphV0 {
+        context_key: Some("finite-set-product-loop".to_string()),
+        nodes: vec![
+            flow_assign_node("seed", external_facts("finiteSet").with_values(["a", "b"])),
+            ClassValueFlowNodeV0 {
+                id: "loop".to_string(),
+                predecessors: vec!["seed".to_string(), "loop".to_string()],
+                transfer: ClassValueFlowTransferV0::ConcatFacts(
+                    external_facts("finiteSet").with_values(["x", "y"]),
+                ),
+            },
+        ],
+    };
+
+    let analysis = analyze_class_value_flow(&graph);
+    assert!(analysis.converged);
+    assert!(analysis.iteration_count < MAX_FLOW_ANALYSIS_ITERATIONS);
+    assert_eq!(
+        flow_value(&analysis, "loop"),
+        Some(&AbstractClassValueV0::Top {
+            provenance: Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit),
+        })
+    );
+}
+
+#[test]
+fn exposes_distinct_human_reasons_for_preconstruction_cost_limits() {
+    for (provenance, operation, reason) in [
+        (
+            AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit,
+            "automatonLanguageCardinalityWidening",
+            "the finite language exceeded the preconstruction cardinality limit",
+        ),
+        (
+            AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit,
+            "automatonMaterializedByteWidening",
+            "the finite language exceeded the preconstruction materialized-byte limit",
+        ),
+    ] {
+        let tree = summarize_abstract_class_value_provenance_tree(&AbstractClassValueV0::Top {
+            provenance: Some(provenance),
+        });
+        assert_eq!(tree.root.operation, operation);
+        assert_eq!(tree.root.reason, reason);
+    }
 }
 
 #[test]
@@ -3190,6 +3548,68 @@ fn string_automaton_fixture_values() -> Vec<String> {
     .into_iter()
     .map(str::to_string)
     .collect()
+}
+
+fn symbol_values(start: u32, count: usize) -> Vec<String> {
+    (0..count)
+        .map(|offset| {
+            char::from_u32(start + u32::try_from(offset).unwrap_or_default())
+                .unwrap_or('\u{fffd}')
+                .to_string()
+        })
+        .collect()
+}
+
+fn cartesian_symbol_values(left_count: usize, right_count: usize) -> Vec<String> {
+    let left = symbol_values(0x100, left_count);
+    let right = symbol_values(0x200, right_count);
+    left.iter()
+        .flat_map(|left| right.iter().map(move |right| format!("{left}{right}")))
+        .collect()
+}
+
+fn binary_language_automaton(
+    depth: usize,
+    left_symbol: &str,
+    right_symbol: &str,
+) -> AbstractStringAutomatonV0 {
+    let transitions = (0..depth)
+        .flat_map(|state| {
+            [left_symbol, right_symbol].map(|symbol| AbstractStringAutomatonTransitionV0 {
+                from: state,
+                symbol: symbol.to_string(),
+                to: state + 1,
+            })
+        })
+        .collect();
+    AbstractStringAutomatonV0 {
+        state_count: depth + 1,
+        start_state: 0,
+        accept_states: vec![depth],
+        transitions,
+    }
+}
+
+fn two_layer_wide_language_automaton(width: usize) -> AbstractStringAutomatonV0 {
+    let symbols = symbol_values(0x21, width);
+    let transitions = [0_usize, 1]
+        .into_iter()
+        .flat_map(|state| {
+            symbols
+                .iter()
+                .map(move |symbol| AbstractStringAutomatonTransitionV0 {
+                    from: state,
+                    symbol: symbol.clone(),
+                    to: state + 1,
+                })
+        })
+        .collect();
+    AbstractStringAutomatonV0 {
+        state_count: 3,
+        start_state: 0,
+        accept_states: vec![2],
+        transitions,
+    }
 }
 
 fn deterministic_suffix(index: usize) -> String {

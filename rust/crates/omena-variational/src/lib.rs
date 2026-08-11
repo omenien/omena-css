@@ -803,6 +803,23 @@ pub fn provenance_posterior_node_v0(
     }
 }
 
+/// Returns the observable variational channel for an automaton preconstruction cutoff.
+///
+/// Cardinality and materialized-byte refusals remain separate so downstream summaries do not
+/// collapse two different precision costs into a generic automaton limit.
+#[must_use]
+pub fn automaton_preconstruction_cutoff_channel_v0(
+    provenance: AbstractClassValueProvenanceV0,
+) -> Option<&'static str> {
+    match provenance {
+        AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit => {
+            Some("languageCardinality")
+        }
+        AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit => Some("materializedBytes"),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1041,6 +1058,50 @@ mod tests {
             Some(AbstractClassValueProvenanceV0::FiniteSetWideningChars)
         );
         assert!(!annotation.mutates_existing_provenance_enum);
+    }
+
+    #[test]
+    fn preconstruction_cutoff_provenance_annotations_stay_distinct() {
+        let annotation = provenance_posterior_annotation_v0(
+            "automaton-preconstruction-cutoffs",
+            vec![
+                provenance_posterior_node_v0(
+                    AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit,
+                    -0.5,
+                    -1.0,
+                ),
+                provenance_posterior_node_v0(
+                    AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit,
+                    -0.75,
+                    -1.5,
+                ),
+            ],
+        );
+
+        assert_eq!(
+            annotation.provenance,
+            Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit)
+        );
+        assert_eq!(
+            annotation.annotations[0].provenance,
+            AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit
+        );
+        assert_eq!(
+            annotation.annotations[1].provenance,
+            AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit
+        );
+        assert_ne!(
+            annotation.annotations[0].provenance,
+            annotation.annotations[1].provenance
+        );
+        assert_eq!(
+            automaton_preconstruction_cutoff_channel_v0(annotation.annotations[0].provenance),
+            Some("languageCardinality")
+        );
+        assert_eq!(
+            automaton_preconstruction_cutoff_channel_v0(annotation.annotations[1].provenance),
+            Some("materializedBytes")
+        );
     }
 
     fn score_bits_for_intent(

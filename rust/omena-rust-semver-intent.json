@@ -691,11 +691,15 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state and stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels.",
+      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state, stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels, and adds preconstruction finite-language cost walls whose typed Top results carry two distinct serialized provenance variants, including transition-count and transition-symbol-byte cutoffs for publicly hand-constructed automata.",
       "expectedFailures": [
         {
           "lint": "enum_variant_added",
-          "evidenceNeedles": ["CssValueValidationReasonV0:UnvalidatedStandardFunction"]
+          "evidenceNeedles": [
+            "CssValueValidationReasonV0:UnvalidatedStandardFunction",
+            "AbstractClassValueProvenanceV0:AutomatonLanguageCardinalityLimit",
+            "AbstractClassValueProvenanceV0:AutomatonMaterializedByteLimit"
+          ]
         }
       ],
       "expectedRuntimeValueChanges": [
@@ -722,6 +726,55 @@
                 "\"summarize_omena_abstract_value_flow_analysis\"",
                 "\"analyze_class_value_control_flow_graph\"",
                 "\"analyze_k_limited_call_site_flows\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "automaton-finite-language-preconstruction-cost-walls",
+          "kind": "selection-outcome-changing",
+          "surface": "AbstractClassValueV0::Top provenance produced by finite-language automaton construction, concatenation, and enumeration",
+          "reason": "Oversized factory inputs now refuse before oversized normalization, Cartesian-product materialization, trie construction, or accepted-language enumeration and return Top with a distinct cause. Publicly hand-constructed automata are additionally cut off by transition-count and cumulative transition-symbol-byte walls before validation or enumeration when consumed; the one-to-eight factory exact/finite exception and in-wall representations retain their bounded domain result.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/types.rs",
+              "needles": [
+                "pub const MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY: usize =\n    MAX_STRING_AUTOMATON_STATES * MAX_FINITE_CLASS_VALUES;",
+                "pub const MAX_STRING_AUTOMATON_MATERIALIZED_BYTES: usize =\n    MAX_STRING_AUTOMATON_STATES * MAX_STRING_AUTOMATON_STATES;",
+                "#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]\n#[serde(rename_all = \"camelCase\")]\npub enum AbstractClassValueProvenanceV0 {",
+                "AutomatonLanguageCardinalityLimit,",
+                "AutomatonMaterializedByteLimit,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/automaton.rs",
+              "needles": [
+                "if let Err(limit) = preflight_automaton_branch_values(values.iter().map(String::as_str)) {\n        return top_class_value_with_provenance(limit.provenance());\n    }\n    let values = normalize_automaton_values(values);",
+                "pub(crate) fn automaton_class_value_from_owned_values(",
+                "if let Err(limit) = preflight.observe(&value) {\n            return top_class_value_with_provenance(limit.provenance());\n        }\n        normalized.insert(value);",
+                "let cost = concatenated_language_cost(left.cost, right.cost)?;\n    let mut values = Vec::with_capacity(cost.cardinality);",
+                "if cardinality > MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY {",
+                "if materialized_bytes > MAX_STRING_AUTOMATON_MATERIALIZED_BYTES {",
+                "accepted_strings_from_automaton(automaton, cost.cardinality)",
+                "preflight_automaton_structure(automaton)?;",
+                "if automaton.transitions.len() > MAX_STRING_AUTOMATON_MATERIALIZED_BYTES {\n        return Err(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit);\n    }",
+                "symbol_bytes = symbol_bytes\n            .checked_add(transition.symbol.len())\n            .ok_or(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit)?;"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
+              "needles": [
+                "pub fn finite_set_class_value<I, S>(values: I) -> AbstractClassValueV0",
+                "automaton_class_value_from_owned_values(\n        values.into_iter().map(Into::into),"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/provenance.rs",
+              "needles": [
+                "Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit) => {\n            \"automatonLanguageCardinalityWidening\"\n        }",
+                "Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit) => {\n            \"automatonMaterializedByteWidening\"\n        }",
+                "the finite language exceeded the preconstruction cardinality limit",
+                "the finite language exceeded the preconstruction materialized-byte limit"
               ]
             }
           ]

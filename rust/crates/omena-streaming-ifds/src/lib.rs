@@ -2587,7 +2587,26 @@ fn abstract_class_value_key(value: &AbstractClassValueV0) -> String {
                 .map(|value| value.to_string())
                 .unwrap_or_else(|| "-".to_string())
         ),
-        AbstractClassValueV0::Top { .. } => "top".to_string(),
+        AbstractClassValueV0::Top { provenance } => {
+            automaton_preconstruction_cutoff_provenance_key(*provenance).map_or_else(
+                || "top".to_string(),
+                |provenance| format!("top:{provenance}"),
+            )
+        }
+    }
+}
+
+fn automaton_preconstruction_cutoff_provenance_key(
+    provenance: Option<omena_abstract_value::AbstractClassValueProvenanceV0>,
+) -> Option<&'static str> {
+    use omena_abstract_value::AbstractClassValueProvenanceV0 as Provenance;
+
+    match provenance {
+        Some(Provenance::AutomatonLanguageCardinalityLimit) => {
+            Some("automatonLanguageCardinalityLimit")
+        }
+        Some(Provenance::AutomatonMaterializedByteLimit) => Some("automatonMaterializedByteLimit"),
+        _ => None,
     }
 }
 
@@ -3344,6 +3363,65 @@ mod tests {
                 omena_abstract_value::abstract_class_value_kind(&fact.value)
             );
         }
+    }
+
+    #[test]
+    fn summary_cache_preserves_preconstruction_cutoff_provenances_distinctly() {
+        use omena_abstract_value::AbstractClassValueProvenanceV0 as Provenance;
+
+        let facts = vec![
+            streaming_ifds_fact_v0(
+                "same-cutoff-node".to_string(),
+                AbstractClassValueV0::Top {
+                    provenance: Some(Provenance::AutomatonLanguageCardinalityLimit),
+                },
+                vec!["fixture:cardinality-cutoff".to_string()],
+            ),
+            streaming_ifds_fact_v0(
+                "same-cutoff-node".to_string(),
+                AbstractClassValueV0::Top {
+                    provenance: Some(Provenance::AutomatonMaterializedByteLimit),
+                },
+                vec!["fixture:materialized-byte-cutoff".to_string()],
+            ),
+        ];
+        let entry = streaming_ifds_summary_cache_entry_with_facts_v0(
+            "entry",
+            Vec::new(),
+            facts.clone(),
+            false,
+        );
+        let recovered = previous_facts_by_key(Some(std::slice::from_ref(&entry)));
+
+        assert_ne!(
+            fact_key(&facts[0].node_id, &facts[0].value),
+            fact_key(&facts[1].node_id, &facts[1].value)
+        );
+        assert_eq!(recovered.len(), 2);
+
+        for fact in &facts {
+            assert_eq!(
+                recovered.get(&fact_key(&fact.node_id, &fact.value)),
+                Some(fact),
+                "typed cache must preserve the cutoff provenance for {}",
+                fact.node_id
+            );
+        }
+
+        let serialized = json_value(&entry);
+        let serialized_provenances = serialized["facts"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|fact| fact["value"]["provenance"].as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            serialized_provenances,
+            BTreeSet::from([
+                "automatonLanguageCardinalityLimit",
+                "automatonMaterializedByteLimit",
+            ])
+        );
     }
 
     #[test]

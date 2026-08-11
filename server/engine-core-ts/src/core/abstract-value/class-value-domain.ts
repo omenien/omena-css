@@ -79,6 +79,8 @@ export interface TopClassValue {
   readonly kind: "top";
   readonly provenance?:
     | "unconstrainedInput"
+    | "automatonLanguageCardinalityLimit"
+    | "automatonMaterializedByteLimit"
     | "automatonStateLimit"
     | "flowIterationLimit"
     | "missingFlowPredecessor"

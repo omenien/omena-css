@@ -7,6 +7,29 @@ use serde::{Deserialize, Serialize};
 
 pub const MAX_FINITE_CLASS_VALUES: usize = 8;
 pub const MAX_STRING_AUTOMATON_STATES: usize = 64;
+/// Bounds candidate entries before normalization and accepted-language width before enumeration
+/// or automaton build.
+///
+/// The wall is the 64-state automaton budget times the eight-value finite-set budget: at most
+/// eight accepted strings per state that may survive the existing post-build state cap. Compact
+/// acyclic automata that accept more than 512 strings are deliberately widened to `Top`; a raw
+/// candidate list with more than 512 entries is also widened so duplicates cannot make
+/// normalization unbounded.
+pub const MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY: usize =
+    MAX_STRING_AUTOMATON_STATES * MAX_FINITE_CLASS_VALUES;
+/// Bounds UTF-8 string payload materialized before normalization or automaton build.
+///
+/// The 4 KiB wall is the square of the 64-state automaton budget: one state-cap-sized byte
+/// allowance for every state that may survive the post-build cap. This keeps trie construction
+/// and Cartesian concatenation bounded before allocation, and bounds hand-constructed automata
+/// before validation by both transition count and cumulative transition-symbol UTF-8 bytes. Every
+/// well-formed transition carries one Unicode scalar (at least one byte); the count check also
+/// bounds malformed empty-symbol vectors before their contents are validated. Exact and finite
+/// values with at most eight raw candidates retain their existing precision; automaton-branch
+/// inputs, automaton representations, and products above the wall are deliberately widened to
+/// `Top`.
+pub const MAX_STRING_AUTOMATON_MATERIALIZED_BYTES: usize =
+    MAX_STRING_AUTOMATON_STATES * MAX_STRING_AUTOMATON_STATES;
 pub const MAX_FLOW_ANALYSIS_ITERATIONS: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -544,6 +567,8 @@ pub enum AbstractClassValueProvenanceV0 {
     JoinUnrepresentable,
     ConcatenationUnrepresentable,
     ReducedProductUnconstrained,
+    AutomatonLanguageCardinalityLimit,
+    AutomatonMaterializedByteLimit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
