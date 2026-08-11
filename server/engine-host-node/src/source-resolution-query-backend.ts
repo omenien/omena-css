@@ -1,4 +1,5 @@
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+import type { Utf16CodeUnitLengthV2Json } from "../../engine-core-ts/src/contracts/engine-v2-output-idl.generated";
 import {
   TOP_CLASS_VALUE,
   charInclusionClassValue,
@@ -44,8 +45,8 @@ export interface SourceResolutionEvaluatorCandidatePayloadV0 {
   readonly valueCertaintyConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;

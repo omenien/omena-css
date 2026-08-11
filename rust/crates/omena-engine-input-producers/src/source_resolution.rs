@@ -325,7 +325,10 @@ mod tests {
         summarize_source_resolution_match_fragments_input, summarize_source_resolution_plan_input,
         summarize_source_resolution_query_fragments_input,
     };
-    use crate::{configure_nonconvergent_selector_certainty_fixture, test_support::sample_input};
+    use crate::{
+        PositionV2, RangeV2, StyleSelectorV2, configure_nonconvergent_selector_certainty_fixture,
+        test_support::sample_input,
+    };
 
     #[test]
     fn builds_source_resolution_fragment_from_type_fact() {
@@ -458,6 +461,142 @@ mod tests {
     }
 
     #[test]
+    fn source_resolution_applies_utf16_min_and_max_bounds_to_non_ascii_selectors() {
+        let original_e8_korean = unicode_length_input(
+            "카드-",
+            "-활성",
+            &["카드-활성", "카드-큰-활성", "카드-x-활성"],
+            Some(10),
+            None,
+        );
+        let original_e8_ascii = unicode_length_input(
+            "ab-",
+            "-cd",
+            &["ab-cd", "ab-x-cd", "ab-long-cd"],
+            Some(10),
+            None,
+        );
+        assert!(
+            summarize_source_resolution_candidates_input(&original_e8_korean).candidates[0]
+                .selector_names
+                .is_empty(),
+            "the original Korean E8 candidates are five, seven, and seven UTF-16 units"
+        );
+        assert_eq!(
+            summarize_source_resolution_candidates_input(&original_e8_ascii).candidates[0]
+                .selector_names,
+            vec!["ab-long-cd".to_string()],
+            "the original E8 ASCII control has a ten-unit third member and is not a structural twin"
+        );
+
+        let korean = unicode_length_input(
+            "카드-",
+            "-활성",
+            &["카드-활성", "카드-x-활성", "카드-1234-활성"],
+            Some(10),
+            None,
+        );
+        let ascii = unicode_length_input(
+            "ab-",
+            "-cd",
+            &["ab-cd", "ab-x-cd", "ab-1234-cd"],
+            Some(10),
+            None,
+        );
+
+        assert_eq!(
+            summarize_source_resolution_candidates_input(&korean).candidates[0].selector_names,
+            vec!["카드-1234-활성".to_string()]
+        );
+        assert_eq!(
+            summarize_source_resolution_candidates_input(&ascii).candidates[0].selector_names,
+            vec!["ab-1234-cd".to_string()]
+        );
+
+        let max_five = unicode_length_input(
+            "카드-",
+            "-활성",
+            &["카드-활성", "카드-x-활성", "카드-1234-활성"],
+            None,
+            Some(5),
+        );
+        assert_eq!(
+            summarize_source_resolution_candidates_input(&max_five).candidates[0].selector_names,
+            vec!["카드-활성".to_string()],
+            "the genuine five-code-unit member must pass while longer names are excluded"
+        );
+
+        let max_four = unicode_length_input(
+            "카드-",
+            "-활성",
+            &["카드-활성", "카드-x-활성", "카드-1234-활성"],
+            None,
+            Some(4),
+        );
+        assert!(
+            summarize_source_resolution_candidates_input(&max_four).candidates[0]
+                .selector_names
+                .is_empty(),
+            "a five-code-unit member must not pass a four-code-unit maximum"
+        );
+    }
+
+    #[test]
+    fn source_resolution_applies_utf16_bounds_to_exact_and_finite_values() {
+        let mut exact = unicode_length_input("카드-", "-활성", &["카드-활성"], Some(5), Some(5));
+        let exact_facts = &mut exact.type_facts[0].facts;
+        exact_facts.kind = "exact".to_string();
+        exact_facts.constraint_kind = None;
+        exact_facts.values = Some(vec!["카드-활성".to_string()]);
+        assert_eq!(
+            summarize_source_resolution_candidates_input(&exact).candidates[0].selector_names,
+            vec!["카드-활성".to_string()]
+        );
+
+        exact.type_facts[0].facts.max_len = Some(4);
+        assert!(
+            summarize_source_resolution_candidates_input(&exact).candidates[0]
+                .selector_names
+                .is_empty(),
+            "an exact five-code-unit value must not pass a four-code-unit maximum"
+        );
+
+        exact.type_facts[0].facts.max_len = Some(5);
+        exact.type_facts[0].facts.min_len = Some(6);
+        assert!(
+            summarize_source_resolution_candidates_input(&exact).candidates[0]
+                .selector_names
+                .is_empty(),
+            "an exact five-code-unit value must not pass a six-code-unit minimum"
+        );
+
+        let mut finite = unicode_length_input(
+            "카드-",
+            "-활성",
+            &["카드-활성", "카드-x-활성"],
+            Some(6),
+            Some(7),
+        );
+        let finite_facts = &mut finite.type_facts[0].facts;
+        finite_facts.kind = "finiteSet".to_string();
+        finite_facts.constraint_kind = None;
+        finite_facts.values = Some(vec!["카드-활성".to_string(), "카드-x-활성".to_string()]);
+        assert_eq!(
+            summarize_source_resolution_candidates_input(&finite).candidates[0].selector_names,
+            vec!["카드-x-활성".to_string()],
+            "the minimum excludes the five-unit value while the maximum admits the seven-unit value"
+        );
+
+        finite.type_facts[0].facts.max_len = Some(6);
+        assert!(
+            summarize_source_resolution_candidates_input(&finite).candidates[0]
+                .selector_names
+                .is_empty(),
+            "the finite seven-unit value must be excluded once the maximum drops below it"
+        );
+    }
+
+    #[test]
     fn nonconverged_flow_hedge_demotes_source_resolution_product() {
         let mut input = sample_input();
         input.styles[0].document.selectors[0].name = "x".to_string();
@@ -508,5 +647,45 @@ mod tests {
         assert_eq!(summary.canonical_bundle.candidates.len(), 2);
         assert_eq!(summary.evaluator_candidates.results.len(), 2);
         assert_eq!(summary.evaluator_candidates.results[0].query_id, "expr-1");
+    }
+
+    fn unicode_length_input(
+        prefix: &str,
+        suffix: &str,
+        selector_names: &[&str],
+        min_len: Option<crate::Utf16CodeUnitLengthV2>,
+        max_len: Option<crate::Utf16CodeUnitLengthV2>,
+    ) -> crate::EngineInputV2 {
+        let mut input = sample_input();
+        input.styles.truncate(1);
+        input.styles[0].document.selectors = selector_names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| StyleSelectorV2 {
+                name: (*name).to_string(),
+                view_kind: "canonical".to_string(),
+                canonical_name: Some((*name).to_string()),
+                range: RangeV2 {
+                    start: PositionV2 {
+                        line: index,
+                        character: 0,
+                    },
+                    end: PositionV2 {
+                        line: index,
+                        character: name.encode_utf16().count(),
+                    },
+                },
+                nested_safety: Some("safe".to_string()),
+                composes: None,
+                bem_suffix: None,
+            })
+            .collect();
+        input.type_facts.truncate(1);
+        let facts = &mut input.type_facts[0].facts;
+        facts.prefix = Some(prefix.to_string());
+        facts.suffix = Some(suffix.to_string());
+        facts.min_len = min_len;
+        facts.max_len = max_len;
+        input
     }
 }

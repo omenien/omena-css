@@ -49,14 +49,16 @@ enum StringConstraintKindV2 {
   composite: "composite",
 }
 
+scalar Utf16CodeUnitLengthV2 extends int32;
+
 model StringTypeFactsV2 {
   kind: StringTypeFactKindV2;
   values?: string[];
   constraintKind?: StringConstraintKindV2;
   prefix?: string;
   suffix?: string;
-  minLen?: int32;
-  maxLen?: int32;
+  minLen?: Utf16CodeUnitLengthV2;
+  maxLen?: Utf16CodeUnitLengthV2;
   charMust?: string;
   charMay?: string;
   mayIncludeOtherChars?: boolean;
@@ -191,8 +193,8 @@ model ExpressionSemanticsPayloadV2 {
   valueConstraintKind?: StringConstraintKindV2;
   valuePrefix?: string;
   valueSuffix?: string;
-  valueMinLen?: int32;
-  valueMaxLen?: int32;
+  valueMinLen?: Utf16CodeUnitLengthV2;
+  valueMaxLen?: Utf16CodeUnitLengthV2;
   valueCharMust?: string;
   valueCharMay?: string;
   valueMayIncludeOtherChars?: boolean;
@@ -227,8 +229,8 @@ model SourceExpressionResolutionPayloadV2 {
   valueCertaintyConstraintKind?: StringConstraintKindV2;
   valuePrefix?: string;
   valueSuffix?: string;
-  valueMinLen?: int32;
-  valueMaxLen?: int32;
+  valueMinLen?: Utf16CodeUnitLengthV2;
+  valueMaxLen?: Utf16CodeUnitLengthV2;
   valueCharMust?: string;
   valueCharMay?: string;
   valueMayIncludeOtherChars?: boolean;

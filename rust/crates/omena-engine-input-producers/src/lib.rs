@@ -60,6 +60,7 @@ pub use source_side::summarize_source_side_evaluator_candidates_input;
 pub use type_facts::summarize_type_fact_input;
 pub type EngineInputWireV2 = engine_contract_v2_idl_generated::EngineInputV2Json;
 pub type StringTypeFactsV2 = engine_contract_v2_idl_generated::StringTypeFactsV2Json;
+pub type Utf16CodeUnitLengthV2 = engine_contract_v2_idl_generated::Utf16CodeUnitLengthV2Json;
 pub type TypeFactControlFlowBlockV2 =
     engine_contract_v2_idl_generated::TypeFactControlFlowBlockV2Json;
 pub type TypeFactControlFlowGraphV2 =
@@ -253,9 +254,9 @@ pub struct ExpressionDomainFragmentV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -286,9 +287,9 @@ pub struct ExpressionDomainCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -328,9 +329,9 @@ pub struct ExpressionDomainEvaluatorCandidatePayloadV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -679,9 +680,9 @@ pub struct SourceResolutionCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -733,9 +734,9 @@ pub struct SourceResolutionEvaluatorCandidatePayloadV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -839,9 +840,9 @@ pub struct ExpressionSemanticsFragmentV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value_min_len: Option<usize>,
+    value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value_max_len: Option<usize>,
+    value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -925,9 +926,9 @@ pub struct ExpressionSemanticsCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -984,9 +985,9 @@ pub struct ExpressionSemanticsEvaluatorCandidatePayloadV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1037,9 +1038,9 @@ pub struct SourceResolutionFragmentV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value_min_len: Option<usize>,
+    value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value_max_len: Option<usize>,
+    value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1106,8 +1107,8 @@ fn collect_constraint_detail_counts(
 pub(crate) struct ConstraintDetailInput<'a> {
     pub(crate) prefix: Option<&'a String>,
     pub(crate) suffix: Option<&'a String>,
-    pub(crate) min_len: Option<usize>,
-    pub(crate) max_len: Option<usize>,
+    pub(crate) min_len: Option<Utf16CodeUnitLengthV2>,
+    pub(crate) max_len: Option<Utf16CodeUnitLengthV2>,
     pub(crate) char_must: Option<&'a String>,
     pub(crate) char_may: Option<&'a String>,
     pub(crate) may_include_other_chars: Option<bool>,
@@ -1258,6 +1259,9 @@ pub(crate) fn resolve_selector_names(
         "exact" | "finiteSet" => {
             let mut names = Vec::new();
             for value in facts.values.as_ref().into_iter().flatten() {
+                if !matches_external_utf16_length_bounds(value, facts) {
+                    continue;
+                }
                 push_canonical_match(style, value, &mut names);
             }
             names
@@ -1289,6 +1293,10 @@ fn resolve_constrained_selector_names(
 }
 
 fn matches_selector_constraints(selector: &StyleSelectorV2, facts: &StringTypeFactsV2) -> bool {
+    if !matches_external_utf16_length_bounds(&selector.name, facts) {
+        return false;
+    }
+
     match facts.constraint_kind.as_deref() {
         Some("prefix") => facts
             .prefix
@@ -1307,13 +1315,7 @@ fn matches_selector_constraints(selector: &StyleSelectorV2, facts: &StringTypeFa
                 .suffix
                 .as_ref()
                 .is_none_or(|suffix| selector.name.ends_with(suffix));
-            let min_len_ok = facts
-                .min_len
-                .is_none_or(|min_len| selector.name.len() >= min_len);
-            let max_len_ok = facts
-                .max_len
-                .is_none_or(|max_len| selector.name.len() <= max_len);
-            prefix_ok && suffix_ok && min_len_ok && max_len_ok
+            prefix_ok && suffix_ok
         }
         Some("charInclusion") => matches_char_constraints(
             &selector.name,
@@ -1330,16 +1332,8 @@ fn matches_selector_constraints(selector: &StyleSelectorV2, facts: &StringTypeFa
                 .suffix
                 .as_ref()
                 .is_none_or(|suffix| selector.name.ends_with(suffix));
-            let min_len_ok = facts
-                .min_len
-                .is_none_or(|min_len| selector.name.len() >= min_len);
-            let max_len_ok = facts
-                .max_len
-                .is_none_or(|max_len| selector.name.len() <= max_len);
             prefix_ok
                 && suffix_ok
-                && min_len_ok
-                && max_len_ok
                 && matches_char_constraints(
                     &selector.name,
                     facts.char_must.as_deref().unwrap_or(""),
@@ -1349,6 +1343,12 @@ fn matches_selector_constraints(selector: &StyleSelectorV2, facts: &StringTypeFa
         }
         _ => false,
     }
+}
+
+fn matches_external_utf16_length_bounds(value: &str, facts: &StringTypeFactsV2) -> bool {
+    let value_length = omena_abstract_value::external_utf16_code_unit_length(value);
+    facts.min_len.is_none_or(|min_len| value_length >= min_len)
+        && facts.max_len.is_none_or(|max_len| value_length <= max_len)
 }
 
 fn matches_char_constraints(

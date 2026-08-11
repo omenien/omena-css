@@ -15,6 +15,7 @@ export type StringConstraintKindV2Json =
   | "prefixSuffix"
   | "charInclusion"
   | "composite";
+export type Utf16CodeUnitLengthV2Json = number;
 export type TypeFactControlFlowBlockKindV2Json =
   | "entry"
   | "assignment"
@@ -78,8 +79,8 @@ export interface StringTypeFactsV2Json {
   readonly constraintKind?: StringConstraintKindV2Json;
   readonly prefix?: string;
   readonly suffix?: string;
-  readonly minLen?: number;
-  readonly maxLen?: number;
+  readonly minLen?: Utf16CodeUnitLengthV2Json;
+  readonly maxLen?: Utf16CodeUnitLengthV2Json;
   readonly charMust?: string;
   readonly charMay?: string;
   readonly mayIncludeOtherChars?: boolean;

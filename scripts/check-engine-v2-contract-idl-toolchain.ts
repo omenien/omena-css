@@ -137,8 +137,16 @@ assert.ok(generatedRustContract.includes("CamelCaseOnly"));
 assert.ok(generatedRustContract.includes('#[serde(rename = "camelCaseOnly")]'));
 assert.ok(generatedRustContract.includes("pub kind: String,"));
 assert.ok(generatedRustContract.includes("pub constraint_kind: Option<String>,"));
-assert.ok(generatedRustContract.includes("pub min_len: Option<usize>,"));
-assert.ok(generatedRustContract.includes("pub max_len: Option<usize>,"));
+assert.ok(generatedRustContract.includes("pub type Utf16CodeUnitLengthV2Json = usize;"));
+assert.ok(generatedRustContract.includes("pub type Utf16CodeUnitLengthOutputV2Json = i32;"));
+assert.ok(generatedRustContract.includes("pub min_len: Option<Utf16CodeUnitLengthV2Json>,"));
+assert.ok(generatedRustContract.includes("pub max_len: Option<Utf16CodeUnitLengthV2Json>,"));
+assert.ok(
+  generatedRustContract.includes("pub value_min_len: Option<Utf16CodeUnitLengthOutputV2Json>,"),
+);
+assert.ok(
+  generatedRustContract.includes("pub value_max_len: Option<Utf16CodeUnitLengthOutputV2Json>,"),
+);
 assert.ok(generatedRustContract.includes("pub provenance: Option<String>,"));
 assert.ok(generatedRustContract.includes("#[allow(clippy::large_enum_variant)]"));
 
@@ -148,6 +156,8 @@ assert.ok(engineOutputTypes.includes("rewritePlans: TextRewritePlanJsonV2Json[]"
 assert.match(engineOutputTypes, /target: (unknown|any);/u);
 assert.ok(engineOutputTypes.includes("edits: PlannedTextEditJsonV2Json[]"));
 assert.ok(engineOutputTypes.includes("checkerReport: CheckerReportJsonV1Json"));
+assert.ok(engineOutputTypes.includes("valueMinLen?: Utf16CodeUnitLengthV2Json"));
+assert.ok(engineOutputTypes.includes("valueMaxLen?: Utf16CodeUnitLengthV2Json"));
 assert.ok(!engineOutputTypes.includes("[k: string]"));
 
 assert.ok(codeActionTypes.includes("export interface OmenaQueryCodeActionPlanV0Json"));
@@ -254,6 +264,8 @@ pub enum StringConstraintKindV2 {
     Composite,
 }
 
+pub type Utf16CodeUnitLengthV2 = i32;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StringTypeFactsV2 {
@@ -267,9 +279,9 @@ pub struct StringTypeFactsV2 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub min_len: Option<i32>,
+    pub min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_len: Option<i32>,
+    pub max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

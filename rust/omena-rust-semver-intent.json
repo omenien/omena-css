@@ -695,7 +695,7 @@
     {
       "crate": "omena-bridge",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, surface, and inline-importance observations.",
+      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, surface, and inline-importance observations and emits concatenated source-fact length bounds in the external UTF-16-code-unit contract.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -711,6 +711,25 @@
             "SourceSelectorReferenceFactV0.surface",
             "SourceSyntaxIndexV0.type_fact_target_skipped",
             "SourceSyntaxIndexV0.type_fact_target_skipped_count"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "source-cfg-concat-utf16-length-wire-value",
+          "kind": "selection-outcome-changing",
+          "surface": "StringTypeFactsV2.minLen emitted for source CFG prefix/suffix concatenations",
+          "reason": "A non-ASCII concatenation now carries its JavaScript-compatible UTF-16-code-unit minimum instead of a Rust UTF-8-byte count, so downstream selector membership no longer rejects genuine Unicode members.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bridge/src/source_cfg.rs",
+              "needles": [
+                "external_string_type_facts_from_abstract_class_value, prefix_suffix_class_value,",
+                "facts.min_len = external_string_type_facts_from_abstract_class_value(&value).min_len;",
+                "fn source_cfg_prefix_suffix_fact_preserves_explicit_concat_utf16_length()",
+                "assert_eq!(facts.min_len, Some(6));"
+              ]
+            }
           ]
         }
       ]
@@ -768,7 +787,7 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state, stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels, adds preconstruction finite-language cost walls whose typed Top results carry two distinct serialized provenance variants, and changes bounded flow results through deterministic reverse-postorder iteration, loop-header widening and narrowing, and structured incremental invalidation.",
+      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state, stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels, adds preconstruction finite-language cost walls whose typed Top results carry two distinct serialized provenance variants, changes bounded flow results through deterministic reverse-postorder iteration, loop-header widening and narrowing, and structured incremental invalidation, and defines the external length boundary in UTF-16 code units while retaining sound conservative lowering to and from the byte-based internal domain.",
       "expectedFailures": [
         {
           "lint": "enum_variant_added",
@@ -889,13 +908,47 @@
               ]
             }
           ]
+        },
+        {
+          "id": "external-string-facts-utf16-length-boundary-values",
+          "kind": "selection-outcome-changing",
+          "surface": "ExternalStringTypeFactsV0 min_len/max_len filtering and external_string_type_facts_from_abstract_class_value min_len",
+          "reason": "Concrete external values are filtered by JavaScript-compatible UTF-16-code-unit bounds. Inbound lower bounds are soundly weakened into the byte-only internal domain, outbound byte lower bounds are exported through an overlap-aware conservative UTF-16 lower bound, and no unsupported internal maximum is manufactured.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/facts.rs",
+              "needles": [
+                "pub fn external_utf16_code_unit_length(value: &str) -> Utf16CodeUnitLengthV0",
+                "pub fn external_utf16_code_unit_min_length_lower_bound(",
+                "fn sound_internal_byte_minimum_from_external_utf16_minimum(",
+                "fn value_matches_external_length_bounds(value: &str, facts: &ExternalStringTypeFactsV0) -> bool",
+                "facts.max_len.is_none_or(|maximum| length <= maximum)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
+              "needles": [
+                "fn external_length_bounds_measure_utf16_code_units_for_finite_values()",
+                "fn external_length_lowering_keeps_byte_domain_sound_and_exports_a_utf16_lower_bound()",
+                "assert_eq!(exported.max_len, None);"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query-checker-orchestrator/src/lib.rs",
+              "needles": [
+                "fn k_limited_flow_caller_round_trips_unicode_shape_through_external_utf16_facts()",
+                "external_string_type_facts_from_abstract_class_value(&exit_value)",
+                "the real checker caller must retain the byte-internal Unicode shape after its UTF-16 boundary lowering"
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-engine-input-producers",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor re-emits the supplied-graph context label through the serialized expression-domain flow summary and demotes selector certainty and its aggregate counts when the corresponding flow graph is non-converged or carries FlowIterationLimit provenance.",
+      "reason": "The next pre-1.0 minor re-emits the supplied-graph context label through the serialized expression-domain flow summary, demotes selector certainty and its aggregate counts when the corresponding flow graph is non-converged or carries FlowIterationLimit provenance, and interprets external selector length bounds as UTF-16 code units for exact, finite, and constrained products.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
         {
@@ -951,6 +1004,31 @@
                 "fn nonconverged_flow_hedge_demotes_source_resolution_product()",
                 "assert_eq!(candidate.selector_certainty, \"possible\");",
                 "assert_eq!(candidate.selector_certainty_shape_label, \"unknown\");"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "selector-membership-utf16-length-bounds",
+          "kind": "selection-outcome-changing",
+          "surface": "Expression-semantics and source-resolution selectorNames selected from StringTypeFactsV2 minLen/maxLen, together with the TypeSpec/TypeScript UTF-16 unit and prefix/suffix overlap semantics",
+          "reason": "Exact, finite-set, prefix/suffix, and composite selector candidates now apply minLen and maxLen through the shared UTF-16-code-unit measurement authority, changing non-ASCII membership and overlap-sensitive ASCII minima while preserving unit-equivalent ASCII controls. The same change declares that unit in the TypeSpec and generated mirrors, makes the TypeScript prefix/suffix and composite minima overlap-aware, and compares those typed minima in the TypeScript lattice; authored parity fixtures bind both engines to the membership sets.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/lib.rs",
+              "needles": [
+                "fn matches_external_utf16_length_bounds(value: &str, facts: &StringTypeFactsV2) -> bool",
+                "let value_length = omena_abstract_value::external_utf16_code_unit_length(value);",
+                "facts.max_len.is_none_or(|max_len| value_length <= max_len)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/source_resolution.rs",
+              "needles": [
+                "fn source_resolution_applies_utf16_min_and_max_bounds_to_non_ascii_selectors()",
+                "fn source_resolution_applies_utf16_bounds_to_exact_and_finite_values()",
+                "the original Korean E8 candidates are five, seven, and seven UTF-16 units",
+                "the finite seven-unit value must be excluded once the maximum drops below it"
               ]
             }
           ]

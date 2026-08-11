@@ -2,9 +2,12 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import type { EngineParitySnapshotV2 } from "../server/engine-host-node/src/engine-parity-v2";
 import type { EngineInputV2, QueryResultV2 } from "../server/engine-core-ts/src/contracts";
+import type { Utf16CodeUnitLengthV2Json } from "../server/engine-core-ts/src/contracts/engine-v2-input-idl.generated";
 
 const REPO_ROOT = process.cwd();
 const RUST_MANIFEST = path.join(REPO_ROOT, "rust/Cargo.toml");
+
+type Utf8ByteLengthV0 = number;
 
 export interface ShadowSummaryV0 {
   readonly schemaVersion: string;
@@ -90,8 +93,8 @@ export interface ExpressionDomainFragmentV0 {
   readonly valueConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -111,8 +114,8 @@ export interface ExpressionDomainCandidateV0 {
   readonly valueConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -139,8 +142,8 @@ export interface ExpressionDomainEvaluatorCandidatePayloadV0 {
   readonly valueConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -499,8 +502,8 @@ export interface SourceResolutionCandidateV0 {
   readonly valueCertaintyConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -536,8 +539,8 @@ export interface SourceResolutionEvaluatorCandidatePayloadV0 {
   readonly valueCertaintyConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -614,8 +617,8 @@ export interface ExpressionSemanticsFragmentV0 {
   readonly valueConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -675,8 +678,8 @@ export interface ExpressionSemanticsCandidateV0 {
   readonly valueConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -716,8 +719,8 @@ export interface ExpressionSemanticsEvaluatorCandidatePayloadV0 {
   readonly valueConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -753,8 +756,8 @@ export interface SourceResolutionFragmentV0 {
   readonly valueCertaintyConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -1818,8 +1821,8 @@ type ExpressionValueDomainPayloadLike = {
   readonly valueConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -2112,18 +2115,19 @@ function suffixExpressionAbstractValue(suffix: string, provenance?: string): Abs
 function prefixSuffixExpressionAbstractValue(
   prefix: string,
   suffix: string,
-  minLength?: number,
+  minLength?: Utf16CodeUnitLengthV2Json,
   provenance?: string,
 ): AbstractClassValueV0 {
   if (prefix.length === 0 && suffix.length === 0) return topExpressionAbstractValue();
   if (prefix.length === 0) return suffixExpressionAbstractValue(suffix, provenance);
   if (suffix.length === 0) return prefixExpressionAbstractValue(prefix, provenance);
 
+  const minimumLength = prefixSuffixMinimumUtf16CodeUnitLength(prefix, suffix);
   const value = {
     kind: "prefixSuffix",
     prefix,
     suffix,
-    minLength: Math.max(minLength ?? prefix.length + suffix.length, prefix.length + suffix.length),
+    minLength: Math.max(minLength ?? minimumLength, minimumLength),
   };
   return provenance ? { ...value, provenance } : value;
 }
@@ -2151,7 +2155,7 @@ function charInclusionExpressionAbstractValue(
 function compositeExpressionAbstractValue(input: {
   readonly prefix?: string;
   readonly suffix?: string;
-  readonly minLength?: number;
+  readonly minLength?: Utf16CodeUnitLengthV2Json;
   readonly mustChars: string;
   readonly mayChars: string;
   readonly mayIncludeOtherChars?: boolean;
@@ -2178,8 +2182,12 @@ function compositeExpressionAbstractValue(input: {
     );
   }
 
-  const edgeMinLength = prefix.length + suffix.length;
-  const minLength = Math.max(input.minLength ?? edgeMinLength, edgeMinLength, mustChars.length);
+  const minimumLength = compositeMinimumUtf16CodeUnitLengthForConstraints(
+    prefix,
+    suffix,
+    mustChars,
+  );
+  const minLength = Math.max(input.minLength ?? minimumLength, minimumLength);
   const value = {
     kind: "composite",
     ...(prefix.length > 0 ? { prefix } : {}),
@@ -2190,6 +2198,40 @@ function compositeExpressionAbstractValue(input: {
     ...(mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
   };
   return input.provenance ? { ...value, provenance: input.provenance } : value;
+}
+
+function prefixSuffixMinimumUtf16CodeUnitLength(
+  prefix: string,
+  suffix: string,
+): Utf16CodeUnitLengthV2Json {
+  const prefixScalars = Array.from(prefix);
+  const suffixScalars = Array.from(suffix);
+  const maxOverlapScalarCount = Math.min(prefixScalars.length, suffixScalars.length);
+
+  for (let scalarCount = maxOverlapScalarCount; scalarCount > 0; scalarCount -= 1) {
+    const prefixOverlap = prefixScalars.slice(prefixScalars.length - scalarCount).join("");
+    const suffixOverlap = suffixScalars.slice(0, scalarCount).join("");
+    if (prefixOverlap === suffixOverlap) {
+      return prefix.length + suffix.length - prefixOverlap.length;
+    }
+  }
+
+  return prefix.length + suffix.length;
+}
+
+function compositeMinimumUtf16CodeUnitLengthForConstraints(
+  prefix: string,
+  suffix: string,
+  mustChars: string,
+): Utf16CodeUnitLengthV2Json {
+  const edgeChars = new Set(Array.from(prefix + suffix));
+  const missingRequiredCharLength = Array.from(mustChars)
+    .filter((char) => !edgeChars.has(char))
+    .reduce((length, char) => length + char.length, 0);
+
+  return missingRequiredCharLength === 0
+    ? prefixSuffixMinimumUtf16CodeUnitLength(prefix, suffix)
+    : prefix.length + suffix.length + missingRequiredCharLength;
 }
 
 function enumerateFiniteExpressionAbstractValues(
@@ -3122,6 +3164,7 @@ function resolveInputSelectorNames(
     case "finiteSet": {
       const names: string[] = [];
       for (const value of facts.values ?? []) {
+        if (!matchesInputSelectorUtf16LengthBounds(value, facts)) continue;
         pushCanonicalInputMatch(style, value, names);
       }
       return names;
@@ -3152,6 +3195,8 @@ function matchesInputSelectorConstraints(
   selectorName: string,
   facts: StringTypeFactsInputV2,
 ): boolean {
+  if (!matchesInputSelectorUtf16LengthBounds(selectorName, facts)) return false;
+
   switch (facts.constraintKind) {
     case "prefix":
       return facts.prefix !== undefined && selectorName.startsWith(facts.prefix);
@@ -3160,9 +3205,7 @@ function matchesInputSelectorConstraints(
     case "prefixSuffix": {
       const prefixOk = facts.prefix === undefined || selectorName.startsWith(facts.prefix);
       const suffixOk = facts.suffix === undefined || selectorName.endsWith(facts.suffix);
-      const minLenOk = facts.minLen === undefined || selectorName.length >= facts.minLen;
-      const maxLenOk = facts.maxLen === undefined || selectorName.length <= facts.maxLen;
-      return prefixOk && suffixOk && minLenOk && maxLenOk;
+      return prefixOk && suffixOk;
     }
     case "charInclusion":
       return matchesInputCharConstraints(
@@ -3174,13 +3217,9 @@ function matchesInputSelectorConstraints(
     case "composite": {
       const prefixOk = facts.prefix === undefined || selectorName.startsWith(facts.prefix);
       const suffixOk = facts.suffix === undefined || selectorName.endsWith(facts.suffix);
-      const minLenOk = facts.minLen === undefined || selectorName.length >= facts.minLen;
-      const maxLenOk = facts.maxLen === undefined || selectorName.length <= facts.maxLen;
       return (
         prefixOk &&
         suffixOk &&
-        minLenOk &&
-        maxLenOk &&
         matchesInputCharConstraints(
           selectorName,
           facts.charMust ?? "",
@@ -3192,6 +3231,17 @@ function matchesInputSelectorConstraints(
     default:
       return false;
   }
+}
+
+function matchesInputSelectorUtf16LengthBounds(
+  selectorName: string,
+  facts: StringTypeFactsInputV2,
+): boolean {
+  const selectorLength: Utf16CodeUnitLengthV2Json = selectorName.length;
+  return (
+    (facts.minLen === undefined || selectorLength >= facts.minLen) &&
+    (facts.maxLen === undefined || selectorLength <= facts.maxLen)
+  );
 }
 
 function matchesInputCharConstraints(
@@ -4789,13 +4839,13 @@ interface ConstraintDetailCounts {
   prefixCount: number;
   suffixCount: number;
   minLenCount: number;
-  minLenSum: number;
+  minLenSum: Utf16CodeUnitLengthV2Json;
   maxLenCount: number;
-  maxLenSum: number;
+  maxLenSum: Utf16CodeUnitLengthV2Json;
   charMustCount: number;
-  charMustLenSum: number;
+  charMustLenSum: Utf8ByteLengthV0;
   charMayCount: number;
-  charMayLenSum: number;
+  charMayLenSum: Utf8ByteLengthV0;
   mayIncludeOtherCharsCount: number;
 }
 
@@ -4819,8 +4869,8 @@ function collectConstraintDetailCounts(
   counts: ConstraintDetailCounts,
   prefix: string | undefined,
   suffix: string | undefined,
-  minLen: number | undefined,
-  maxLen: number | undefined,
+  minLen: Utf16CodeUnitLengthV2Json | undefined,
+  maxLen: Utf16CodeUnitLengthV2Json | undefined,
   charMust: string | undefined,
   charMay: string | undefined,
   mayIncludeOtherChars: boolean,
@@ -4837,11 +4887,11 @@ function collectConstraintDetailCounts(
   }
   if (charMust !== undefined) {
     counts.charMustCount += 1;
-    counts.charMustLenSum += charMust.length;
+    counts.charMustLenSum += Buffer.byteLength(charMust, "utf8");
   }
   if (charMay !== undefined) {
     counts.charMayCount += 1;
-    counts.charMayLenSum += charMay.length;
+    counts.charMayLenSum += Buffer.byteLength(charMay, "utf8");
   }
   if (mayIncludeOtherChars) {
     counts.mayIncludeOtherCharsCount += 1;

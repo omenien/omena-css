@@ -874,6 +874,12 @@ pub struct CompositeClassValueInputV0 {
     pub provenance: Option<AbstractClassValueProvenanceV0>,
 }
 
+/// A JavaScript-compatible string length measured in UTF-16 code units.
+pub type Utf16CodeUnitLengthV0 = usize;
+
+/// An internal Rust string length measured in UTF-8 bytes.
+pub type Utf8ByteLengthV0 = usize;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalStringTypeFactsV0 {
     pub kind: String,
@@ -881,8 +887,8 @@ pub struct ExternalStringTypeFactsV0 {
     pub values: Option<Vec<String>>,
     pub prefix: Option<String>,
     pub suffix: Option<String>,
-    pub min_len: Option<usize>,
-    pub max_len: Option<usize>,
+    pub min_len: Option<Utf16CodeUnitLengthV0>,
+    pub max_len: Option<Utf16CodeUnitLengthV0>,
     pub char_must: Option<String>,
     pub char_may: Option<String>,
     pub may_include_other_chars: Option<bool>,

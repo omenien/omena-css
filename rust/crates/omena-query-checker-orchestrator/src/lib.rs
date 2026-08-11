@@ -1377,6 +1377,35 @@ mod tests {
         );
     }
 
+    #[test]
+    fn k_limited_flow_caller_round_trips_unicode_shape_through_external_utf16_facts() {
+        let exit_value =
+            omena_abstract_value::prefix_suffix_class_value("카드-", "-활성", None, None);
+        let contexts = vec![OmenaQueryCheckerKLimitedFlowContextV0 {
+            callee_key: "classForState".to_string(),
+            call_site_stack: vec!["Card.tsx:className".to_string()],
+            exit_value: exit_value.clone(),
+        }];
+        let selector_universe = vec!["카드-활성".to_string(), "카드-큰-활성".to_string()];
+        let exported =
+            omena_abstract_value::external_string_type_facts_from_abstract_class_value(&exit_value);
+        assert_eq!(exported.min_len, Some(5));
+        assert!(selector_universe.iter().all(|selector| {
+            omena_abstract_value::external_utf16_code_unit_length(selector)
+                >= exported.min_len.unwrap_or_default()
+        }));
+
+        let gate =
+            run_omena_query_checker_k_limited_flow_m_tier_gate_v0(&contexts, &selector_universe, 1);
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(gate.contexts.len(), 1);
+        assert_eq!(
+            gate.contexts[0].exit_value, exit_value,
+            "the real checker caller must retain the byte-internal Unicode shape after its UTF-16 boundary lowering"
+        );
+    }
+
     fn context_ending_with<'a>(
         gate: &'a OmenaQueryCheckerKLimitedFlowMTierGateV0,
         suffix: &str,

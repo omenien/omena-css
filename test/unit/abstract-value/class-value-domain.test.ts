@@ -332,7 +332,7 @@ describe("class-value-domain", () => {
         }),
         prefixSuffixClassValue("btn-", "-chip", 12),
       ),
-    ).toEqual(prefixSuffixClassValue("btn-", "-chip", 9, "prefixSuffixJoin"));
+    ).toEqual(prefixSuffixClassValue("btn-", "-chip", 10, "prefixSuffixJoin"));
   });
 
   it("degrades composite joins to char inclusion when joined with char inclusion", () => {
@@ -419,6 +419,38 @@ describe("class-value-domain", () => {
     ).toBe(true);
     expect(classValueMatchesCandidate(prefixClassValue("btn-"), "card")).toBe(false);
     expect(classValueMatchesCandidate(charInclusionClassValue("z", "abc"), "cab")).toBe(false);
+  });
+
+  it("measures overlapping affix constraints in UTF-16 code units", () => {
+    const prefixSuffix = prefixSuffixClassValue("ab-", "-cd");
+    expect(prefixSuffix).toEqual({
+      kind: "prefixSuffix",
+      prefix: "ab-",
+      suffix: "-cd",
+      minLength: 5,
+    });
+    expect(classValueMatchesCandidate(prefixSuffix, "ab-cd")).toBe(true);
+
+    const composite = compositeClassValue({
+      prefix: "ab-",
+      suffix: "-cd",
+      mustChars: "-abcd",
+      mayChars: "-abcdglnox",
+    });
+    expect(composite).toMatchObject({ kind: "composite", minLength: 5 });
+    expect(classValueMatchesCandidate(composite, "ab-cd")).toBe(true);
+
+    expect(prefixSuffixClassValue("카드-", "-활성")).toMatchObject({ minLength: 5 });
+    expect(prefixSuffixClassValue("😀-", "-ok")).toMatchObject({ minLength: 5 });
+
+    const compositeWithMissingAstralScalar = compositeClassValue({
+      prefix: "ab-",
+      suffix: "-cd",
+      mustChars: "😀",
+      mayChars: "-abcd😀",
+    });
+    expect(compositeWithMissingAstralScalar).toMatchObject({ minLength: 8 });
+    expect(classValueMatchesCandidate(compositeWithMissingAstralScalar, "ab-😀-cd")).toBe(true);
   });
 
   it("checks abstract value subset relations across reduced-product constraints", () => {

@@ -1,3 +1,7 @@
+import type { Utf16CodeUnitLengthV2Json } from "../../contracts/engine-v2-input-idl.generated";
+
+export type Utf16CodeUnitLength = Utf16CodeUnitLengthV2Json;
+
 export type AbstractClassValue =
   | BottomClassValue
   | ExactClassValue
@@ -43,7 +47,7 @@ export interface PrefixSuffixClassValue {
   readonly kind: "prefixSuffix";
   readonly prefix: string;
   readonly suffix: string;
-  readonly minLength: number;
+  readonly minLength: Utf16CodeUnitLength;
   readonly provenance?:
     | "concatKnownEdges"
     | "prefixFiniteSetSharedSuffix"
@@ -68,7 +72,7 @@ export interface CompositeClassValue {
   readonly kind: "composite";
   readonly prefix?: string;
   readonly suffix?: string;
-  readonly minLength?: number;
+  readonly minLength?: Utf16CodeUnitLength;
   readonly mustChars: string;
   readonly mayChars: string;
   readonly mayIncludeOtherChars?: true;
@@ -150,13 +154,16 @@ export function suffixClassValue(
 export function prefixSuffixClassValue(
   prefix: string,
   suffix: string,
-  minLength = prefix.length + suffix.length,
+  minLength: Utf16CodeUnitLength = prefixSuffixMinimumUtf16CodeUnitLength(prefix, suffix),
   provenance?: PrefixSuffixClassValue["provenance"],
 ): AbstractClassValue {
   if (prefix.length === 0 && suffix.length === 0) return TOP_CLASS_VALUE;
   if (prefix.length === 0) return suffixClassValue(suffix);
   if (suffix.length === 0) return prefixClassValue(prefix);
-  const normalizedMinLength = Math.max(minLength, prefix.length + suffix.length);
+  const normalizedMinLength = Math.max(
+    minLength,
+    prefixSuffixMinimumUtf16CodeUnitLength(prefix, suffix),
+  );
   return provenance
     ? { kind: "prefixSuffix", prefix, suffix, minLength: normalizedMinLength, provenance }
     : { kind: "prefixSuffix", prefix, suffix, minLength: normalizedMinLength };
@@ -194,7 +201,7 @@ export function charInclusionClassValue(
 export function compositeClassValue(input: {
   readonly prefix?: string;
   readonly suffix?: string;
-  readonly minLength?: number;
+  readonly minLength?: Utf16CodeUnitLength;
   readonly mustChars: string;
   readonly mayChars: string;
   readonly mayIncludeOtherChars?: boolean;
@@ -227,17 +234,12 @@ export function compositeClassValue(input: {
     );
   }
 
-  const guaranteedDistinctCharCount = Array.from(normalizedMustChars).length;
-  const minLength =
-    normalizedPrefix.length > 0 || normalizedSuffix.length > 0
-      ? Math.max(input.minLength ?? 0, normalizedPrefix.length + normalizedSuffix.length)
-      : input.minLength;
-  const tightenedMinLength =
-    minLength !== undefined
-      ? Math.max(minLength, guaranteedDistinctCharCount)
-      : guaranteedDistinctCharCount > 0
-        ? guaranteedDistinctCharCount
-        : undefined;
+  const minimumLength = compositeMinimumUtf16CodeUnitLengthForConstraints(
+    normalizedPrefix,
+    normalizedSuffix,
+    normalizedMustChars,
+  );
+  const tightenedMinLength = Math.max(input.minLength ?? 0, minimumLength);
 
   const base = {
     kind: "composite" as const,
@@ -674,7 +676,10 @@ export function joinClassValues(
       return prefixSuffixClassValue(
         prefix,
         suffix,
-        Math.max(prefix.length + suffix.length, Math.min(left.minLength, right.minLength)),
+        Math.max(
+          prefixSuffixMinimumUtf16CodeUnitLength(prefix, suffix),
+          Math.min(left.minLength, right.minLength),
+        ),
         "prefixSuffixJoin",
       );
     }
@@ -858,7 +863,7 @@ function constrainedValueIsSubset(left: AbstractClassValue, right: AbstractClass
 interface ClassValueReductionFacts {
   readonly prefix?: string;
   readonly suffix?: string;
-  readonly minLength?: number;
+  readonly minLength?: Utf16CodeUnitLength;
   readonly mustChars: string;
   readonly allowedChars?: string;
 }
@@ -927,10 +932,13 @@ function reductionFactsAreSubset(
   return true;
 }
 
-function lowerBoundLength(value: ClassValueReductionFacts): number {
+function lowerBoundLength(value: ClassValueReductionFacts): Utf16CodeUnitLength {
   if (value.minLength !== undefined) return value.minLength;
-  const edgeLength = (value.prefix?.length ?? 0) + (value.suffix?.length ?? 0);
-  return Math.max(edgeLength, Array.from(value.mustChars).length);
+  return compositeMinimumUtf16CodeUnitLengthForConstraints(
+    value.prefix ?? "",
+    value.suffix ?? "",
+    value.mustChars,
+  );
 }
 
 function guaranteedChars(value: ClassValueReductionFacts): string {
@@ -1113,7 +1121,7 @@ function joinCompositeWithPrefixSuffix(
       sharedPrefix,
       sharedSuffix,
       Math.max(
-        sharedPrefix.length + sharedSuffix.length,
+        prefixSuffixMinimumUtf16CodeUnitLength(sharedPrefix, sharedSuffix),
         Math.min(compositeValue.minLength ?? 0, prefixSuffixValue.minLength),
       ),
       "prefixSuffixJoin",
@@ -1139,7 +1147,7 @@ function joinComposites(left: CompositeClassValue, right: CompositeClassValue): 
     ...(prefix || suffix
       ? {
           minLength: Math.max(
-            (prefix?.length ?? 0) + (suffix?.length ?? 0),
+            prefixSuffixMinimumUtf16CodeUnitLength(prefix ?? "", suffix ?? ""),
             Math.min(left.minLength ?? 0, right.minLength ?? 0),
           ),
         }
@@ -1239,6 +1247,45 @@ function charSetIsSubset(left: string, right: string): boolean {
 
 function charSetForString(value: string): string {
   return normalizeCharSet(value);
+}
+
+function prefixSuffixMinimumUtf16CodeUnitLength(
+  prefix: string,
+  suffix: string,
+): Utf16CodeUnitLength {
+  return prefix.length + suffix.length - prefixSuffixOverlapUtf16CodeUnitLength(prefix, suffix);
+}
+
+function prefixSuffixOverlapUtf16CodeUnitLength(
+  prefix: string,
+  suffix: string,
+): Utf16CodeUnitLength {
+  const prefixScalars = Array.from(prefix);
+  const suffixScalars = Array.from(suffix);
+  const maxOverlapScalarCount = Math.min(prefixScalars.length, suffixScalars.length);
+
+  for (let scalarCount = maxOverlapScalarCount; scalarCount > 0; scalarCount -= 1) {
+    const prefixOverlap = prefixScalars.slice(prefixScalars.length - scalarCount).join("");
+    const suffixOverlap = suffixScalars.slice(0, scalarCount).join("");
+    if (prefixOverlap === suffixOverlap) return prefixOverlap.length;
+  }
+
+  return 0;
+}
+
+function compositeMinimumUtf16CodeUnitLengthForConstraints(
+  prefix: string,
+  suffix: string,
+  mustChars: string,
+): Utf16CodeUnitLength {
+  const edgeChars = new Set(Array.from(prefix + suffix));
+  const missingRequiredCharLength = Array.from(mustChars)
+    .filter((char) => !edgeChars.has(char))
+    .reduce((length, char) => length + char.length, 0);
+
+  return missingRequiredCharLength === 0
+    ? prefixSuffixMinimumUtf16CodeUnitLength(prefix, suffix)
+    : prefix.length + suffix.length + missingRequiredCharLength;
 }
 
 function matchesCompositeConstraints(composite: CompositeClassValue, value: string): boolean {

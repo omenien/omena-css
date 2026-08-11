@@ -13,6 +13,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use engine_input_producers::{
     StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2,
 };
+use omena_abstract_value::{
+    external_string_type_facts_from_abstract_class_value, prefix_suffix_class_value,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1058,7 +1061,13 @@ fn prefix_suffix_type_facts(prefix: &str, suffix: &str) -> StringTypeFactsV2 {
         Some(suffix.to_string()),
         "concatKnownEdges",
     );
-    facts.min_len = Some(prefix.len() + suffix.len());
+    let value = prefix_suffix_class_value(
+        prefix,
+        suffix,
+        Some(prefix.len().saturating_add(suffix.len())),
+        None,
+    );
+    facts.min_len = external_string_type_facts_from_abstract_class_value(&value).min_len;
     facts
 }
 
@@ -1158,7 +1167,7 @@ fn span_end(span: Span) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        source_type_fact_control_flow_graph_from_snapshot,
+        prefix_suffix_type_facts, source_type_fact_control_flow_graph_from_snapshot,
         summarize_omena_bridge_source_control_flow_graph_for_source_language,
     };
 
@@ -1285,7 +1294,7 @@ mod tests {
         assert_eq!(facts.constraint_kind.as_deref(), Some("prefixSuffix"));
         assert_eq!(facts.prefix.as_deref(), Some("btn-"));
         assert_eq!(facts.suffix.as_deref(), Some("-chip"));
-        assert_eq!(facts.min_len, Some("btn-".len() + "-chip".len()));
+        assert_eq!(facts.min_len, Some(9));
 
         let type_fact_graph = source_type_fact_control_flow_graph_from_snapshot(&graph.snapshot);
         assert!(type_fact_graph.blocks.iter().any(|block| {
@@ -1296,6 +1305,15 @@ mod tests {
                     .is_some_and(|facts| facts.constraint_kind.as_deref() == Some("prefixSuffix"))
         }));
         Ok(())
+    }
+
+    #[test]
+    fn source_cfg_prefix_suffix_fact_preserves_explicit_concat_utf16_length() {
+        let facts = prefix_suffix_type_facts("카드-", "-활성");
+
+        assert_eq!(facts.min_len, Some(6));
+        assert_eq!(facts.prefix.as_deref(), Some("카드-"));
+        assert_eq!(facts.suffix.as_deref(), Some("-활성"));
     }
 
     #[test]

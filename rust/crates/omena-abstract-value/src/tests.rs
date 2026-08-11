@@ -37,7 +37,9 @@ use super::{
     compare_abstract_css_values_with_typed_payloads, composite_class_value,
     concatenate_abstract_class_values, concatenate_reduced_class_value_products,
     derive_cascade_restriction_maps_v0, derive_selector_projection_certainty,
-    evaluate_cascade_stalk_v0, exact_class_value, fact_precision_from_class_value,
+    evaluate_cascade_stalk_v0, exact_class_value,
+    external_string_type_facts_from_abstract_class_value, external_utf16_code_unit_length,
+    external_utf16_code_unit_min_length_lower_bound, fact_precision_from_class_value,
     fact_precision_from_class_value_with_witness, finite_set_class_value, finite_values_from_facts,
     intersect_abstract_class_values, intersect_reduced_class_value_products,
     iterate_reduced_class_value_product_constraints, join_abstract_class_values,
@@ -446,6 +448,111 @@ fn maps_constrained_external_string_facts_to_stable_shape_labels() {
     assert_eq!(
         selector_certainty_shape_label_from_facts(&edge, 1, 3),
         "constrained edge selector set (1)"
+    );
+}
+
+#[test]
+fn external_length_bounds_measure_utf16_code_units_for_finite_values() {
+    assert_eq!(external_utf16_code_unit_length("카드-활성"), 5);
+    assert_eq!(external_utf16_code_unit_length("😀"), 2);
+
+    let minimum = external_facts("finiteSet")
+        .with_values(["카드-활성", "카드-x-활성", "카드-1234-활성"])
+        .with_min_len(10);
+    assert_eq!(
+        abstract_class_value_from_facts(&minimum),
+        exact_class_value("카드-1234-활성")
+    );
+
+    let maximum = external_facts("finiteSet")
+        .with_values(["카드-활성", "카드-x-활성", "카드-1234-활성"])
+        .with_max_len(5);
+    assert_eq!(
+        abstract_class_value_from_facts(&maximum),
+        exact_class_value("카드-활성")
+    );
+
+    let below_minimum = external_facts("exact")
+        .with_values(["카드-활성"])
+        .with_min_len(6);
+    assert_eq!(
+        abstract_class_value_from_facts(&below_minimum),
+        bottom_class_value()
+    );
+
+    let above_maximum = external_facts("exact")
+        .with_values(["카드-활성"])
+        .with_max_len(4);
+    assert_eq!(
+        abstract_class_value_from_facts(&above_maximum),
+        bottom_class_value()
+    );
+}
+
+#[test]
+fn external_length_lowering_keeps_byte_domain_sound_and_exports_a_utf16_lower_bound() {
+    let inbound = external_facts("constrained")
+        .with_constraint_kind("prefixSuffix")
+        .with_prefix("카드-")
+        .with_suffix("-활성")
+        .with_min_len(10)
+        .with_max_len(12);
+    assert_eq!(
+        abstract_class_value_from_facts(&inbound),
+        AbstractClassValueV0::PrefixSuffix {
+            prefix: "카드-".to_string(),
+            suffix: "-활성".to_string(),
+            // The internal domain remains byte based. The external minimum is
+            // projected soundly and then clamped to the 13-byte affix shape;
+            // its max axis is intentionally retained only at concrete edges.
+            min_length: 13,
+            provenance: None,
+        }
+    );
+
+    let shape = prefix_suffix_class_value("카드-", "-활성", None, None);
+    assert_eq!(
+        external_utf16_code_unit_min_length_lower_bound(&shape),
+        Some(5)
+    );
+    let exported = external_string_type_facts_from_abstract_class_value(&shape);
+    assert_eq!(exported.min_len, Some(5));
+    assert_eq!(exported.max_len, None);
+
+    let ascii_overlap = prefix_suffix_class_value("ab-", "-cd", None, None);
+    assert_eq!(
+        external_utf16_code_unit_min_length_lower_bound(&ascii_overlap),
+        Some(5),
+        "the default edge language admits its shared-hyphen witness `ab-cd`"
+    );
+
+    let high_byte_bound = prefix_suffix_class_value("카드-", "-활성", Some(30), None);
+    assert_eq!(
+        external_utf16_code_unit_min_length_lower_bound(&high_byte_bound),
+        Some(11),
+        "the 17 bytes beyond the five-unit/13-byte affix witness require at least six more UTF-16 units"
+    );
+
+    let ascii_explicit_minimum = prefix_suffix_class_value("btn-", "-chip", Some(9), None);
+    assert_eq!(
+        external_utf16_code_unit_min_length_lower_bound(&ascii_explicit_minimum),
+        Some(9),
+        "one byte beyond the eight-byte overlap witness must retain the explicit nine-unit lower bound"
+    );
+
+    let composite = composite_class_value(CompositeClassValueInputV0 {
+        prefix: Some("ab-".to_string()),
+        suffix: Some("-cd".to_string()),
+        min_length: None,
+        must_chars: "😀".to_string(),
+        may_chars: "😀".to_string(),
+        may_include_other_chars: true,
+        provenance: None,
+    });
+    assert_eq!(
+        external_utf16_code_unit_min_length_lower_bound(&composite),
+        Some(8),
+        "a missing required scalar breaks the affix overlap and contributes its UTF-16 width"
     );
 }
 
@@ -4439,6 +4546,7 @@ trait ExternalFactsTestExt {
     fn with_prefix(self, value: &'static str) -> Self;
     fn with_suffix(self, value: &'static str) -> Self;
     fn with_min_len(self, value: usize) -> Self;
+    fn with_max_len(self, value: usize) -> Self;
     fn with_char_must(self, value: &'static str) -> Self;
     fn with_char_may(self, value: &'static str) -> Self;
 }
@@ -4466,6 +4574,11 @@ impl ExternalFactsTestExt for ExternalStringTypeFactsV0 {
 
     fn with_min_len(mut self, value: usize) -> Self {
         self.min_len = Some(value);
+        self
+    }
+
+    fn with_max_len(mut self, value: usize) -> Self {
+        self.max_len = Some(value);
         self
     }
 

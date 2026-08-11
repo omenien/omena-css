@@ -351,7 +351,7 @@ pub(crate) fn composite_min_length_for_constraints(
     }
 }
 
-fn prefix_suffix_overlap_len(prefix: &str, suffix: &str) -> usize {
+pub(crate) fn prefix_suffix_overlap_len(prefix: &str, suffix: &str) -> usize {
     let max_overlap = prefix.len().min(suffix.len());
 
     for overlap in (0..=max_overlap).rev() {

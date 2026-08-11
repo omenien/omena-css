@@ -6,7 +6,8 @@ use engine_input_producers::{
     ConstraintDetailCounts, EngineInputV2,
     engine_contract_v2_idl_generated::{
         CertaintyShapeKindV2Json, CheckerReportJsonV1Json, EngineOutputV2Json as EngineOutputV2,
-        QueryResultV2Json as QueryResultV2, StringConstraintKindV2Json, ValueDomainKindV2Json,
+        QueryResultV2Json as QueryResultV2, StringConstraintKindV2Json,
+        Utf16CodeUnitLengthOutputV2Json, Utf16CodeUnitLengthV2Json, ValueDomainKindV2Json,
     },
     summarize_expression_domain_candidates_input,
     summarize_expression_domain_canonical_candidate_bundle_input,
@@ -35,7 +36,8 @@ use omena_abstract_value::{
     AbstractClassValueV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
     CompositeClassValueInputV0, ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0,
     abstract_class_value_kind, analyze_k_limited_call_site_flows, bottom_class_value,
-    char_inclusion_class_value, composite_class_value, exact_class_value, finite_set_class_value,
+    char_inclusion_class_value, composite_class_value, exact_class_value,
+    external_string_type_facts_from_abstract_class_value, finite_set_class_value,
     prefix_class_value, prefix_suffix_class_value, suffix_class_value, top_class_value,
 };
 use omena_cascade::{
@@ -940,7 +942,7 @@ struct OmenaCheckerKLimitedFlowContextInputV0 {
     value: OmenaCheckerAbstractClassValueInputV0,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -3107,93 +3109,7 @@ fn checker_k_limited_flow_graph(
 fn checker_external_facts_from_value(
     value: &OmenaCheckerAbstractClassValueInputV0,
 ) -> ExternalStringTypeFactsV0 {
-    match value {
-        OmenaCheckerAbstractClassValueInputV0::Exact { value } => {
-            let mut facts = external_string_type_facts("exact");
-            facts.values = Some(vec![value.clone()]);
-            facts
-        }
-        OmenaCheckerAbstractClassValueInputV0::FiniteSet { values } => {
-            let mut facts = external_string_type_facts("finiteSet");
-            facts.values = Some(values.clone());
-            facts
-        }
-        OmenaCheckerAbstractClassValueInputV0::Prefix { prefix } => {
-            let mut facts = external_string_type_facts("constrained");
-            facts.constraint_kind = Some("prefix".to_string());
-            facts.prefix = Some(prefix.clone());
-            facts
-        }
-        OmenaCheckerAbstractClassValueInputV0::Suffix { suffix } => {
-            let mut facts = external_string_type_facts("constrained");
-            facts.constraint_kind = Some("suffix".to_string());
-            facts.suffix = Some(suffix.clone());
-            facts
-        }
-        OmenaCheckerAbstractClassValueInputV0::PrefixSuffix {
-            prefix,
-            suffix,
-            min_length,
-        } => {
-            let mut facts = external_string_type_facts("constrained");
-            facts.constraint_kind = Some("prefixSuffix".to_string());
-            facts.prefix = Some(prefix.clone());
-            facts.suffix = Some(suffix.clone());
-            facts.min_len = *min_length;
-            facts
-        }
-        OmenaCheckerAbstractClassValueInputV0::CharInclusion {
-            must_chars,
-            may_chars,
-            may_include_other_chars,
-        } => {
-            let mut facts = external_string_type_facts("constrained");
-            facts.constraint_kind = Some("charInclusion".to_string());
-            facts.char_must = Some(must_chars.clone());
-            facts.char_may = Some(may_chars.clone());
-            facts.may_include_other_chars = Some(*may_include_other_chars);
-            facts
-        }
-        OmenaCheckerAbstractClassValueInputV0::Composite {
-            prefix,
-            suffix,
-            min_length,
-            must_chars,
-            may_chars,
-            may_include_other_chars,
-        } => {
-            let mut facts = external_string_type_facts("constrained");
-            facts.constraint_kind = Some("composite".to_string());
-            facts.prefix = prefix.clone();
-            facts.suffix = suffix.clone();
-            facts.min_len = *min_length;
-            facts.char_must = Some(must_chars.clone());
-            facts.char_may = Some(may_chars.clone());
-            facts.may_include_other_chars = Some(*may_include_other_chars);
-            facts
-        }
-        OmenaCheckerAbstractClassValueInputV0::Bottom => {
-            let mut facts = external_string_type_facts("finiteSet");
-            facts.values = Some(Vec::new());
-            facts
-        }
-        OmenaCheckerAbstractClassValueInputV0::Top => external_string_type_facts("top"),
-    }
-}
-
-fn external_string_type_facts(kind: impl Into<String>) -> ExternalStringTypeFactsV0 {
-    ExternalStringTypeFactsV0 {
-        kind: kind.into(),
-        constraint_kind: None,
-        values: None,
-        prefix: None,
-        suffix: None,
-        min_len: None,
-        max_len: None,
-        char_must: None,
-        char_may: None,
-        may_include_other_chars: None,
-    }
+    external_string_type_facts_from_abstract_class_value(&value.clone().into_abstract_class_value())
 }
 
 fn summarize_omena_checker_cascade_evaluations(
@@ -3887,11 +3803,11 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                     ConstraintDetailInput {
                         prefix: payload.value_prefix.as_ref(),
                         suffix: payload.value_suffix.as_ref(),
-                        min_len: optional_nonnegative_i32_to_usize(
+                        min_len: nonnegative_utf16_output_length_to_native(
                             "expression valueMinLen",
                             payload.value_min_len,
                         ),
-                        max_len: optional_nonnegative_i32_to_usize(
+                        max_len: nonnegative_utf16_output_length_to_native(
                             "expression valueMaxLen",
                             payload.value_max_len,
                         ),
@@ -3931,11 +3847,11 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                     ConstraintDetailInput {
                         prefix: payload.value_prefix.as_ref(),
                         suffix: payload.value_suffix.as_ref(),
-                        min_len: optional_nonnegative_i32_to_usize(
+                        min_len: nonnegative_utf16_output_length_to_native(
                             "source resolution valueMinLen",
                             payload.value_min_len,
                         ),
-                        max_len: optional_nonnegative_i32_to_usize(
+                        max_len: nonnegative_utf16_output_length_to_native(
                             "source resolution valueMaxLen",
                             payload.value_max_len,
                         ),
@@ -4386,12 +4302,15 @@ fn summarize_checker_style_unused_canonical_producer(
     }
 }
 
-fn optional_nonnegative_i32_to_usize(label: &str, value: Option<i32>) -> Option<usize> {
-    value.map(|inner| nonnegative_i32_to_usize(label, inner))
-}
-
 fn nonnegative_i32_to_usize(_label: &str, value: i32) -> usize {
     usize::try_from(value).unwrap_or(0)
+}
+
+fn nonnegative_utf16_output_length_to_native(
+    label: &str,
+    value: Option<Utf16CodeUnitLengthOutputV2Json>,
+) -> Option<Utf16CodeUnitLengthV2Json> {
+    value.map(|inner| nonnegative_i32_to_usize(label, inner))
 }
 
 fn checker_summary_count(report: &CheckerReportJsonV1Json, field: &str) -> usize {
@@ -4477,9 +4396,28 @@ fn collect_constraint_detail_counts(
 struct ConstraintDetailInput<'a> {
     prefix: Option<&'a String>,
     suffix: Option<&'a String>,
-    min_len: Option<usize>,
-    max_len: Option<usize>,
+    min_len: Option<Utf16CodeUnitLengthV2Json>,
+    max_len: Option<Utf16CodeUnitLengthV2Json>,
     char_must: Option<&'a String>,
     char_may: Option<&'a String>,
     may_include_other_chars: Option<bool>,
+}
+
+#[cfg(test)]
+mod external_facts_unit_tests {
+    use super::*;
+
+    #[test]
+    fn checker_flow_uses_the_shared_utf16_exporter_for_internal_byte_shapes() {
+        let facts = checker_external_facts_from_value(
+            &OmenaCheckerAbstractClassValueInputV0::PrefixSuffix {
+                prefix: "카드-".to_string(),
+                suffix: "-활성".to_string(),
+                min_length: None,
+            },
+        );
+
+        assert_eq!(facts.min_len, Some(5));
+        assert_eq!(facts.max_len, None);
+    }
 }
