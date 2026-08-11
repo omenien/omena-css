@@ -2,32 +2,38 @@ use super::automaton::{
     accepted_strings_with_output_bound_for_test, automaton_class_value_from_values,
     concatenation_preflight_provenance_before_materialization_for_test, finite_language_values,
 };
+use super::flow::{
+    ClassValueFlowTestPolicyV0, analyze_class_value_flow_with_test_policy,
+    class_value_flow_loop_header_ids_for_test, descending_narrow_class_value_for_test,
+    widen_ascending_loop_header_value_for_test,
+};
 use super::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceNodeV0,
     AbstractClassValueProvenanceV0, AbstractClassValueV0, AbstractCssTypedComparisonOperatorV0,
     AbstractCssTypedScalarValueV0, AbstractCssTypedValueV0, AbstractCssValueV0,
     AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, AbstractStringAutomatonTransitionV0,
-    AbstractStringAutomatonV0, CascadeContextV0, CascadeRestrictionMapV0,
-    CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0,
-    ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
-    CompositeClassValueInputV0, DeclaredNumericTypeV0, ExternalStringTypeFactsV0, FactPrecision,
-    KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0, LinearProvenancePathV0,
-    LinearProvenanceV0, MAX_FINITE_CLASS_VALUES, MAX_FLOW_ANALYSIS_ITERATIONS,
-    MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY, MAX_STRING_AUTOMATON_MATERIALIZED_BYTES,
-    MAX_STRING_AUTOMATON_STATES, NaturalCountProvenanceSemiringV0,
-    OmenaAbstractValueCoverageDirectionV0, OmenaAbstractValuePrecisionBasisV0,
-    OmenaAbstractValuePrecisionWitnessV0, OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0,
-    SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0,
-    ViterbiProvenanceSemiringV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
+    AbstractStringAutomatonV0, BoundedJoinFixpointNodeV0, CascadeContextV0,
+    CascadeRestrictionMapV0, CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0,
+    ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
+    ClassValueFlowTransferV0, CompositeClassValueInputV0, DeclaredNumericTypeV0,
+    ExternalStringTypeFactsV0, FactPrecision, KLimitedCallSiteFlowInputV0,
+    Lin01ProvenanceSemiringV0, LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
+    MAX_FLOW_ANALYSIS_ITERATIONS, MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY,
+    MAX_STRING_AUTOMATON_MATERIALIZED_BYTES, MAX_STRING_AUTOMATON_STATES,
+    NaturalCountProvenanceSemiringV0, OmenaAbstractValueCoverageDirectionV0,
+    OmenaAbstractValuePrecisionBasisV0, OmenaAbstractValuePrecisionWitnessV0,
+    OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0, SecurityLabelProvenanceSemiringV0,
+    SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0, ViterbiProvenanceSemiringV0,
+    abstract_class_value_from_facts, abstract_class_value_is_subset,
     abstract_css_typed_value_from_text, abstract_css_value_from_text,
-    abstract_css_values_canonically_equal, analyze_class_value_control_flow_graph,
-    analyze_class_value_flow, analyze_class_value_flow_incremental,
-    analyze_class_value_flow_incremental_batch_with_reuse,
+    abstract_css_values_canonically_equal, analyze_bounded_join_fixpoint,
+    analyze_class_value_control_flow_graph, analyze_class_value_flow,
+    analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, automaton_key, bottom_class_value,
     cascade_context_refinement_morphism_v0, cascade_family_context_values,
-    cascade_value_for_context, char_inclusion_class_value,
+    cascade_value_for_context, char_inclusion_class_value, class_value_flow_incremental_input,
     compare_abstract_css_values_with_typed_payloads, composite_class_value,
     concatenate_abstract_class_values, concatenate_reduced_class_value_products,
     derive_cascade_restriction_maps_v0, derive_selector_projection_certainty,
@@ -170,7 +176,7 @@ fn summarizes_domain_boundary_contract() {
     assert!(flow_summary.analysis_scopes.contains(&"controlFlowGraph"));
     assert_eq!(
         flow_summary.reuse_policy,
-        "reuse previous context analysis when its omena-incremental plan is clean"
+        "reuse previous context analysis only when its omena-incremental plan is clean and deterministic fresh-equivalence verification matches"
     );
     assert!(flow_summary.transfer_kinds.contains(&"join"));
     assert!(flow_summary.transfer_kinds.contains(&"concatFacts"));
@@ -1226,6 +1232,569 @@ fn finite_set_loop_hits_the_preconstruction_wall_and_converges() {
 }
 
 #[test]
+fn iterative_rpo_crosses_a_66_node_reverse_dag_without_class_widening() {
+    let graph = reverse_propagation_flow_graph(66);
+    let full = analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::Full);
+
+    assert!(full.analysis.converged);
+    assert_eq!(full.analysis.iteration_count, 2);
+    assert_eq!(full.loop_header_count, 0);
+    assert_eq!(full.old_seeded_header_count, 0);
+    assert_eq!(full.widened_header_count, 0);
+    assert!(!full.narrowing_attempted);
+    assert_eq!(full.narrowing_round_count, 0);
+    assert!(full.narrowing_stable);
+    assert!(!full.narrowing_reverted);
+    assert!(full.post_fixpoint);
+    assert!(
+        full.analysis
+            .nodes
+            .iter()
+            .all(|node| node.value == exact_class_value("z"))
+    );
+    assert_eq!(
+        full.analysis
+            .nodes
+            .iter()
+            .map(|node| node.id.as_str())
+            .collect::<Vec<_>>(),
+        (0..66)
+            .map(|index| format!("n{index:02}"))
+            .collect::<Vec<_>>()
+    );
+
+    let cause_b_only =
+        analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::CauseBOnly);
+    assert!(!cause_b_only.analysis.converged);
+    assert_eq!(
+        cause_b_only.analysis.iteration_count,
+        MAX_FLOW_ANALYSIS_ITERATIONS
+    );
+    assert_eq!(cause_b_only.widened_header_count, 0);
+    assert!(cause_b_only.analysis.nodes.iter().all(|node| {
+        node.value
+            == AbstractClassValueV0::Top {
+                provenance: Some(AbstractClassValueProvenanceV0::FlowIterationLimit),
+            }
+    }));
+}
+
+#[test]
+fn generic_join_solver_uses_the_same_iterative_rpo_full_rounds() {
+    let nodes = (0..66)
+        .map(|index| BoundedJoinFixpointNodeV0 {
+            id: format!("n{index:02}"),
+            predecessor_ids: if index + 1 < 66 {
+                vec![format!("n{:02}", index + 1)]
+            } else {
+                Vec::new()
+            },
+            transfer: (index + 1 == 66).then_some(1_u8),
+        })
+        .collect::<Vec<_>>();
+
+    let analysis = analyze_bounded_join_fixpoint(
+        &nodes,
+        MAX_FLOW_ANALYSIS_ITERATIONS,
+        0_u8,
+        u8::MAX,
+        |left, right| (*left).max(*right),
+        |incoming, transfer| (*transfer).unwrap_or(*incoming),
+    );
+
+    assert!(analysis.converged);
+    assert_eq!(analysis.iteration_count, 2);
+    assert!(analysis.nodes.iter().all(|node| node.output_value == 1));
+    assert_eq!(
+        analysis
+            .nodes
+            .iter()
+            .map(|node| node.id.as_str())
+            .collect::<Vec<_>>(),
+        nodes
+            .iter()
+            .map(|node| node.id.as_str())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn rpo_schedule_is_id_deterministic_and_preserves_caller_output_order() {
+    let graph = reverse_propagation_flow_graph(66);
+    let mut permuted = graph.clone();
+    permuted.nodes.reverse();
+
+    let original =
+        analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::Full);
+    let reordered =
+        analyze_class_value_flow_with_test_policy(&permuted, ClassValueFlowTestPolicyV0::Full);
+
+    assert_eq!(
+        original.analysis.iteration_count,
+        reordered.analysis.iteration_count
+    );
+    assert_eq!(
+        flow_values_by_id(&original.analysis),
+        flow_values_by_id(&reordered.analysis)
+    );
+    assert_eq!(
+        reordered
+            .analysis
+            .nodes
+            .iter()
+            .map(|node| node.id.as_str())
+            .collect::<Vec<_>>(),
+        permuted
+            .nodes
+            .iter()
+            .map(|node| node.id.as_str())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn loop_header_prefix_widening_closes_the_product_shaped_ascending_chain() {
+    let graph = product_shaped_growing_loop_graph();
+    let full = analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::Full);
+
+    assert!(full.analysis.converged);
+    assert_eq!(full.analysis.iteration_count, 12);
+    assert_eq!(full.loop_header_count, 1);
+    assert_eq!(full.old_seeded_header_count, 1);
+    assert_eq!(full.widened_header_count, 1);
+    assert!(full.narrowing_attempted);
+    assert_eq!(full.narrowing_round_count, 1);
+    assert!(full.narrowing_stable);
+    assert!(!full.narrowing_reverted);
+    assert!(full.post_fixpoint);
+    assert_eq!(
+        flow_value(&full.analysis, "loop-header"),
+        Some(&prefix_class_value("z", None))
+    );
+    assert!(
+        full.analysis
+            .nodes
+            .iter()
+            .all(|node| !matches!(node.value, AbstractClassValueV0::Top { .. }))
+    );
+
+    let cause_a_only =
+        analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::CauseAOnly);
+    assert!(!cause_a_only.analysis.converged);
+    assert_eq!(
+        cause_a_only.analysis.iteration_count,
+        MAX_FLOW_ANALYSIS_ITERATIONS
+    );
+    assert_eq!(cause_a_only.old_seeded_header_count, 0);
+    assert_eq!(cause_a_only.widened_header_count, 0);
+    assert!(!cause_a_only.narrowing_attempted);
+    assert!(cause_a_only.analysis.nodes.iter().all(|node| {
+        node.value
+            == AbstractClassValueV0::Top {
+                provenance: Some(AbstractClassValueProvenanceV0::FlowIterationLimit),
+            }
+    }));
+}
+
+#[test]
+fn loop_header_widening_obeys_char_growth_budget_and_requires_an_lcp_ascent() {
+    let previous = exact_class_value("z");
+    let inside_budget = finite_set_class_value((1..=9).map(|length| "z".repeat(length)));
+    assert_eq!(
+        widen_ascending_loop_header_value_for_test(&previous, &inside_budget),
+        None
+    );
+
+    let unicode_inside_budget = finite_set_class_value((1..=6).map(|length| "é".repeat(length)));
+    assert_eq!(
+        widen_ascending_loop_header_value_for_test(&exact_class_value("é"), &unicode_inside_budget,),
+        None,
+        "the growth budget counts characters, not UTF-8 bytes"
+    );
+
+    let outside_budget = finite_set_class_value((1..=10).map(|length| "z".repeat(length)));
+    assert_eq!(
+        widen_ascending_loop_header_value_for_test(&previous, &outside_budget),
+        Some(prefix_class_value("z", None))
+    );
+
+    let no_common_prefix = finite_set_class_value(["z", "aaaaaaaaaa"]);
+    assert_eq!(
+        widen_ascending_loop_header_value_for_test(&previous, &no_common_prefix),
+        None
+    );
+    assert_eq!(
+        widen_ascending_loop_header_value_for_test(&previous, &previous),
+        None,
+        "equal values are not a strict ascent"
+    );
+}
+
+#[test]
+fn narrowing_accepts_only_strict_descents() {
+    let widened = prefix_class_value("z", None);
+    let descending = prefix_suffix_class_value("z", "z", Some(2), None);
+
+    assert_eq!(
+        descending_narrow_class_value_for_test(&widened, &descending),
+        descending
+    );
+    assert_eq!(
+        descending_narrow_class_value_for_test(&descending, &widened),
+        descending,
+        "an ascending candidate must not erase the narrowed value"
+    );
+}
+
+#[test]
+fn closed_join_scc_uses_a_deterministic_fallback_header_without_spurious_widening() {
+    let graph = ClassValueFlowGraphV0 {
+        context_key: Some("closed-join-scc".to_string()),
+        nodes: vec![
+            ClassValueFlowNodeV0 {
+                id: "b".to_string(),
+                predecessors: vec!["a".to_string()],
+                transfer: ClassValueFlowTransferV0::Join,
+            },
+            ClassValueFlowNodeV0 {
+                id: "a".to_string(),
+                predecessors: vec!["b".to_string()],
+                transfer: ClassValueFlowTransferV0::Join,
+            },
+        ],
+    };
+    let outcome =
+        analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::Full);
+    let mut permuted = graph.clone();
+    permuted.nodes.reverse();
+
+    assert!(outcome.analysis.converged);
+    assert_eq!(outcome.analysis.iteration_count, 1);
+    assert_eq!(outcome.loop_header_count, 1);
+    assert_eq!(outcome.old_seeded_header_count, 1);
+    assert_eq!(outcome.widened_header_count, 0);
+    assert!(outcome.post_fixpoint);
+    assert_eq!(class_value_flow_loop_header_ids_for_test(&graph), ["a"]);
+    assert_eq!(class_value_flow_loop_header_ids_for_test(&permuted), ["a"]);
+}
+
+#[test]
+fn closed_non_join_scc_header_applies_its_transfer_before_inflationary_join() {
+    let graph = ClassValueFlowGraphV0 {
+        context_key: Some("closed-non-join-scc".to_string()),
+        nodes: vec![
+            ClassValueFlowNodeV0 {
+                id: "b".to_string(),
+                predecessors: vec!["a".to_string()],
+                transfer: ClassValueFlowTransferV0::AssignFacts(
+                    external_facts("exact").with_values(["z"]),
+                ),
+            },
+            ClassValueFlowNodeV0 {
+                id: "a".to_string(),
+                predecessors: vec!["b".to_string()],
+                transfer: ClassValueFlowTransferV0::ConcatFacts(
+                    external_facts("exact").with_values(["x"]),
+                ),
+            },
+        ],
+    };
+    let outcome =
+        analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::Full);
+
+    assert!(outcome.analysis.converged);
+    assert_eq!(outcome.loop_header_count, 1);
+    assert_eq!(outcome.old_seeded_header_count, 0);
+    assert_eq!(outcome.widened_header_count, 0);
+    assert!(outcome.post_fixpoint);
+    assert_eq!(class_value_flow_loop_header_ids_for_test(&graph), ["a"]);
+    assert_eq!(
+        flow_value(&outcome.analysis, "a"),
+        Some(&exact_class_value("zx"))
+    );
+}
+
+#[test]
+fn external_non_join_scc_entry_converges_to_a_sound_prefix_without_old_seeding() {
+    let graph = external_non_join_scc_entry_graph();
+    let outcome =
+        analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::Full);
+
+    assert!(outcome.analysis.converged);
+    assert_eq!(outcome.loop_header_count, 1);
+    assert_eq!(outcome.old_seeded_header_count, 0);
+    assert_eq!(outcome.widened_header_count, 1);
+    assert!(outcome.narrowing_attempted);
+    assert!(outcome.post_fixpoint);
+    assert_eq!(
+        class_value_flow_loop_header_ids_for_test(&graph),
+        ["entry-concat"]
+    );
+    assert!(
+        matches!(
+            flow_value(&outcome.analysis, "entry-concat"),
+            Some(AbstractClassValueV0::Prefix { .. })
+        ),
+        "{:#?}",
+        outcome.analysis
+    );
+    assert!(
+        outcome
+            .analysis
+            .nodes
+            .iter()
+            .all(|node| !matches!(node.value, AbstractClassValueV0::Top { .. }))
+    );
+    let every_branch_is_below_header =
+        flow_value(&outcome.analysis, "entry-concat").is_some_and(|header_value| {
+            ["seed", "internal-join"].into_iter().all(|predecessor_id| {
+                flow_value(&outcome.analysis, predecessor_id).is_some_and(|predecessor_value| {
+                    let branch_output = concatenate_abstract_class_values(
+                        predecessor_value,
+                        &exact_class_value("x"),
+                    );
+                    abstract_class_value_is_subset(&branch_output, header_value)
+                })
+            })
+        });
+    assert!(every_branch_is_below_header);
+}
+
+#[test]
+fn predecessor_id_order_and_duplicates_do_not_change_flow_values_or_round_count() {
+    let graph = external_non_join_scc_entry_graph();
+    let mut permuted = graph.clone();
+    permuted.nodes[1].predecessors = vec![
+        "internal-join".to_string(),
+        "seed".to_string(),
+        "seed".to_string(),
+    ];
+
+    let original =
+        analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::Full);
+    let reordered =
+        analyze_class_value_flow_with_test_policy(&permuted, ClassValueFlowTestPolicyV0::Full);
+
+    assert_eq!(
+        original.analysis.iteration_count,
+        reordered.analysis.iteration_count
+    );
+    assert_eq!(
+        flow_values_by_id(&original.analysis),
+        flow_values_by_id(&reordered.analysis)
+    );
+    assert!(original.post_fixpoint);
+    assert!(reordered.post_fixpoint);
+}
+
+#[test]
+fn incremental_flow_digest_carries_structured_solver_context_and_ordinal()
+-> Result<(), serde_json::Error> {
+    let input = class_value_flow_incremental_input(&flow_exit_graph("z"), 7);
+
+    for (output_ordinal, node) in input.nodes.iter().enumerate() {
+        let payload = serde_json::from_str::<serde_json::Value>(&node.digest)?;
+        assert_eq!(
+            payload["solverRevision"],
+            "iterativeRpoLoopHeaderPrefixWideningNarrowingV1"
+        );
+        assert_eq!(payload["contextKey"], serde_json::Value::Null);
+        assert_eq!(payload["outputOrdinal"], output_ordinal);
+        assert_eq!(payload["nodeId"], node.id);
+    }
+    Ok(())
+}
+
+#[test]
+fn incremental_flow_invalidates_context_and_output_order_before_reuse() {
+    let mut graph = flow_exit_graph("z");
+    graph.context_key = Some("context-a".to_string());
+    let first = analyze_class_value_flow_incremental(&graph, None, 1);
+
+    let mut context_changed = graph.clone();
+    context_changed.context_key = Some("context-b".to_string());
+    let changed_context = analyze_class_value_flow_incremental_with_reuse(
+        &context_changed,
+        Some(&first.next_snapshot),
+        Some(&first.analysis),
+        2,
+    );
+    assert!(!changed_context.reused_previous_analysis);
+    assert!(changed_context.incremental_plan.dirty_node_count > 0);
+    assert_eq!(
+        changed_context.analysis,
+        analyze_class_value_flow(&context_changed)
+    );
+
+    let mut reordered = graph.clone();
+    reordered.nodes.reverse();
+    let changed_order = analyze_class_value_flow_incremental_with_reuse(
+        &reordered,
+        Some(&first.next_snapshot),
+        Some(&first.analysis),
+        2,
+    );
+    assert!(!changed_order.reused_previous_analysis);
+    assert!(changed_order.incremental_plan.dirty_node_count > 0);
+    assert_eq!(changed_order.analysis, analyze_class_value_flow(&reordered));
+    assert_eq!(
+        changed_order
+            .analysis
+            .nodes
+            .iter()
+            .map(|node| node.id.as_str())
+            .collect::<Vec<_>>(),
+        ["exit", "value"]
+    );
+}
+
+#[test]
+fn incremental_flow_rejects_a_snapshot_analysis_pair_from_different_inputs() {
+    let graph_a = flow_exit_graph("a");
+    let graph_b = flow_exit_graph("b");
+    let analysis_a = analyze_class_value_flow_incremental(&graph_a, None, 1);
+    let analysis_b = analyze_class_value_flow_incremental(&graph_b, None, 1);
+
+    let mixed = analyze_class_value_flow_incremental_with_reuse(
+        &graph_b,
+        Some(&analysis_b.next_snapshot),
+        Some(&analysis_a.analysis),
+        2,
+    );
+
+    assert_eq!(mixed.incremental_plan.dirty_node_count, 0);
+    assert!(!mixed.reused_previous_analysis);
+    assert_eq!(mixed.analysis, analyze_class_value_flow(&graph_b));
+    assert_ne!(mixed.analysis, analysis_a.analysis);
+}
+
+#[test]
+fn incremental_empty_flow_never_reuses_a_different_context() {
+    let graph = ClassValueFlowGraphV0 {
+        context_key: Some("empty-context-a".to_string()),
+        nodes: Vec::new(),
+    };
+    let first = analyze_class_value_flow_incremental(&graph, None, 1);
+    let unchanged = analyze_class_value_flow_incremental_with_reuse(
+        &graph,
+        Some(&first.next_snapshot),
+        Some(&first.analysis),
+        2,
+    );
+    assert!(unchanged.reused_previous_analysis);
+
+    let changed_graph = ClassValueFlowGraphV0 {
+        context_key: Some("empty-context-b".to_string()),
+        nodes: Vec::new(),
+    };
+    let changed = analyze_class_value_flow_incremental_with_reuse(
+        &changed_graph,
+        Some(&first.next_snapshot),
+        Some(&first.analysis),
+        2,
+    );
+
+    assert_eq!(changed.incremental_plan.dirty_node_count, 0);
+    assert!(!changed.reused_previous_analysis);
+    assert_eq!(changed.analysis, analyze_class_value_flow(&changed_graph));
+    assert_eq!(
+        changed.analysis.context_key.as_deref(),
+        Some("empty-context-b")
+    );
+}
+
+#[test]
+#[should_panic(expected = "flow graph node ids must be unique")]
+fn duplicate_flow_node_ids_fail_closed_in_batch_analysis() {
+    let graph = duplicate_node_id_flow_graph("a", "a");
+    let _ = analyze_class_value_flow(&graph);
+}
+
+#[test]
+#[should_panic(expected = "flow graph node ids must be unique")]
+fn duplicate_flow_node_ids_fail_closed_before_incremental_reuse() {
+    let graph = duplicate_node_id_flow_graph("a", "a");
+    let _ = analyze_class_value_flow_incremental(&graph, None, 1);
+}
+
+#[test]
+fn structured_incremental_digest_separates_delimiter_bearing_fact_boundaries() {
+    for (label, before_facts, after_facts) in [
+        (
+            "finite-set element boundary",
+            external_facts("finiteSet").with_values(["a,b", "c"]),
+            external_facts("finiteSet").with_values(["a", "b,c"]),
+        ),
+        (
+            "prefix and suffix field boundary",
+            external_facts("constrained")
+                .with_constraint_kind("prefixSuffix")
+                .with_prefix("x;suffix=y")
+                .with_suffix("z"),
+            external_facts("constrained")
+                .with_constraint_kind("prefixSuffix")
+                .with_prefix("x")
+                .with_suffix("y;suffix=z"),
+        ),
+    ] {
+        let graph_from_facts = |facts| ClassValueFlowGraphV0 {
+            context_key: Some("delimiter-bearing-facts".to_string()),
+            nodes: vec![ClassValueFlowNodeV0 {
+                id: "value".to_string(),
+                predecessors: Vec::new(),
+                transfer: ClassValueFlowTransferV0::AssignFacts(facts),
+            }],
+        };
+        let before_graph = graph_from_facts(before_facts);
+        let after_graph = graph_from_facts(after_facts);
+        let before_input = class_value_flow_incremental_input(&before_graph, 1);
+        let after_input = class_value_flow_incremental_input(&after_graph, 2);
+        assert_ne!(
+            before_input.nodes.first().map(|node| node.digest.as_str()),
+            after_input.nodes.first().map(|node| node.digest.as_str()),
+            "{label}"
+        );
+
+        let first = analyze_class_value_flow_incremental(&before_graph, None, 1);
+        let changed = analyze_class_value_flow_incremental_with_reuse(
+            &after_graph,
+            Some(&first.next_snapshot),
+            Some(&first.analysis),
+            2,
+        );
+        assert_eq!(changed.incremental_plan.changed_input_count, 1, "{label}");
+        assert!(!changed.reused_previous_analysis, "{label}");
+        assert_eq!(
+            changed.analysis,
+            analyze_class_value_flow(&after_graph),
+            "{label}"
+        );
+    }
+
+    let digest_for_values = |values| {
+        let graph = ClassValueFlowGraphV0 {
+            context_key: Some("canonical-finite-values".to_string()),
+            nodes: vec![ClassValueFlowNodeV0 {
+                id: "value".to_string(),
+                predecessors: Vec::new(),
+                transfer: ClassValueFlowTransferV0::AssignFacts(
+                    external_facts("finiteSet").with_values(values),
+                ),
+            }],
+        };
+        class_value_flow_incremental_input(&graph, 1)
+            .nodes
+            .into_iter()
+            .next()
+            .map(|node| node.digest)
+    };
+    assert_eq!(
+        digest_for_values(vec!["c", "a,b", "c"]),
+        digest_for_values(vec!["a,b", "c"])
+    );
+}
+
+#[test]
 fn exposes_distinct_human_reasons_for_preconstruction_cost_limits() {
     for (provenance, operation, reason) in [
         (
@@ -1362,7 +1931,7 @@ fn top_provenance_is_additive_to_the_legacy_json_shape() -> Result<(), serde_jso
 }
 
 #[test]
-fn widens_nonconvergent_class_flow_with_an_observable_reason() {
+fn external_concat_loop_converges_to_a_sound_prefix() {
     let graph = ClassValueFlowGraphV0 {
         context_key: Some("growing-loop".to_string()),
         nodes: vec![
@@ -1377,8 +1946,40 @@ fn widens_nonconvergent_class_flow_with_an_observable_reason() {
         ],
     };
 
-    let analysis = analyze_class_value_flow(&graph);
+    let outcome =
+        analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::Full);
+    let analysis = outcome.analysis;
 
+    assert!(analysis.converged);
+    assert_eq!(outcome.widened_header_count, 1);
+    assert!(outcome.post_fixpoint);
+    assert_eq!(
+        flow_value(&analysis, "loop"),
+        Some(&prefix_class_value("ax", None))
+    );
+}
+
+#[test]
+fn preserves_flow_limit_for_a_growing_loop_without_an_lcp() {
+    let graph = ClassValueFlowGraphV0 {
+        context_key: Some("growing-loop-without-common-prefix".to_string()),
+        nodes: vec![
+            flow_assign_node("seed", external_facts("finiteSet").with_values(["a", "b"])),
+            ClassValueFlowNodeV0 {
+                id: "loop".to_string(),
+                predecessors: vec!["seed".to_string(), "loop".to_string()],
+                transfer: ClassValueFlowTransferV0::ConcatFacts(
+                    external_facts("exact").with_values(["x"]),
+                ),
+            },
+        ],
+    };
+
+    let outcome =
+        analyze_class_value_flow_with_test_policy(&graph, ClassValueFlowTestPolicyV0::Full);
+    let analysis = outcome.analysis;
+
+    assert_eq!(outcome.widened_header_count, 0);
     assert!(!analysis.converged);
     assert_eq!(analysis.iteration_count, MAX_FLOW_ANALYSIS_ITERATIONS);
     assert!(analysis.nodes.iter().all(|node| {
@@ -3708,6 +4309,102 @@ fn flow_exit_graph(value: &str) -> ClassValueFlowGraphV0 {
             },
         ],
     }
+}
+
+fn duplicate_node_id_flow_graph(
+    first: &'static str,
+    second: &'static str,
+) -> ClassValueFlowGraphV0 {
+    ClassValueFlowGraphV0 {
+        context_key: Some("duplicate-node-id".to_string()),
+        nodes: [first, second]
+            .into_iter()
+            .map(|value| ClassValueFlowNodeV0 {
+                id: "duplicate".to_string(),
+                predecessors: Vec::new(),
+                transfer: ClassValueFlowTransferV0::AssignFacts(
+                    external_facts("exact").with_values([value]),
+                ),
+            })
+            .collect(),
+    }
+}
+
+fn reverse_propagation_flow_graph(node_count: usize) -> ClassValueFlowGraphV0 {
+    ClassValueFlowGraphV0 {
+        context_key: Some(format!("reverse-propagation-{node_count}")),
+        nodes: (0..node_count)
+            .map(|index| {
+                let id = format!("n{index:02}");
+                if index + 1 == node_count {
+                    flow_assign_node(&id, external_facts("exact").with_values(["z"]))
+                } else {
+                    ClassValueFlowNodeV0 {
+                        id,
+                        predecessors: vec![format!("n{:02}", index + 1)],
+                        transfer: ClassValueFlowTransferV0::Join,
+                    }
+                }
+            })
+            .collect(),
+    }
+}
+
+fn product_shaped_growing_loop_graph() -> ClassValueFlowGraphV0 {
+    ClassValueFlowGraphV0 {
+        context_key: Some("product-shaped-growing-loop".to_string()),
+        nodes: vec![
+            flow_assign_node("seed", external_facts("exact").with_values(["z"])),
+            ClassValueFlowNodeV0 {
+                id: "loop-header".to_string(),
+                predecessors: vec!["seed".to_string(), "loop-body".to_string()],
+                transfer: ClassValueFlowTransferV0::Join,
+            },
+            ClassValueFlowNodeV0 {
+                id: "loop-body".to_string(),
+                predecessors: vec!["loop-header".to_string()],
+                transfer: ClassValueFlowTransferV0::ConcatFacts(
+                    external_facts("exact").with_values(["z"]),
+                ),
+            },
+            ClassValueFlowNodeV0 {
+                id: "exit".to_string(),
+                predecessors: vec!["loop-header".to_string()],
+                transfer: ClassValueFlowTransferV0::Join,
+            },
+        ],
+    }
+}
+
+fn external_non_join_scc_entry_graph() -> ClassValueFlowGraphV0 {
+    ClassValueFlowGraphV0 {
+        context_key: Some("external-non-join-scc-entry".to_string()),
+        nodes: vec![
+            flow_assign_node("seed", external_facts("exact").with_values(["z"])),
+            ClassValueFlowNodeV0 {
+                id: "entry-concat".to_string(),
+                predecessors: vec!["seed".to_string(), "internal-join".to_string()],
+                transfer: ClassValueFlowTransferV0::ConcatFacts(
+                    external_facts("exact").with_values(["x"]),
+                ),
+            },
+            ClassValueFlowNodeV0 {
+                id: "internal-join".to_string(),
+                predecessors: vec!["entry-concat".to_string()],
+                transfer: ClassValueFlowTransferV0::Join,
+            },
+        ],
+    }
+}
+
+fn flow_values_by_id(
+    analysis: &super::ClassValueFlowAnalysisV0,
+) -> BTreeMap<String, AbstractClassValueV0> {
+    analysis
+        .nodes
+        .iter()
+        .map(|node| (node.id.clone(), node.value.clone()))
+        .collect()
 }
 
 fn flow_value<'a>(

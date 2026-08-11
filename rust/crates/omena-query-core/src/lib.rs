@@ -30,6 +30,11 @@ use engine_input_producers::{
     summarize_selector_usage_canonical_producer_signal_input,
     summarize_selector_usage_query_fragments_input,
 };
+use omena_abstract_value::{
+    AbstractClassValueProvenanceV0, analyze_class_value_flow_incremental_with_database,
+    project_abstract_value_selectors, summarize_omena_abstract_value_domain,
+    summarize_reduced_class_value_product,
+};
 pub use omena_abstract_value::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0, AbstractPropertyValueNarrowingV0,
     AbstractPropertyValueV0, AbstractValueDomainSummaryV0, CascadeContextV0,
@@ -48,10 +53,6 @@ pub use omena_abstract_value::{
     summarize_cascade_value_family_v0, summarize_polynomial_provenance_from_linear_v0,
     top_class_value, validate_registered_property_value_v0,
     verify_provenance_semiring_laws_on_fixtures,
-};
-use omena_abstract_value::{
-    analyze_class_value_flow_incremental_with_database, project_abstract_value_selectors,
-    summarize_omena_abstract_value_domain, summarize_reduced_class_value_product,
 };
 pub use omena_incremental::{
     IncrementalEditDistancePriorityInputV0, IncrementalGraphInputV0,
@@ -218,6 +219,12 @@ pub struct OmenaQueryExpressionDomainSelectorPrecisionV0 {
     pub graph_id: String,
     pub node_id: String,
     pub precision: FactPrecision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExpressionDomainSelectorCertaintyFlowHedgeV0 {
+    graph_converged: bool,
+    contains_flow_iteration_limit: bool,
 }
 
 #[derive(Default)]
@@ -413,6 +420,28 @@ where
 {
     #[cfg(feature = "test-support")]
     record_selector_projection_evaluation_for_test();
+    let selector_certainty_flow_hedges = expression_domain_selector_certainty_flow_hedges(input);
+    summarize_omena_query_expression_domain_selector_projection_with_flow_hedges(
+        input,
+        resolve_style_path,
+        &selector_certainty_flow_hedges,
+    )
+}
+
+fn summarize_omena_query_expression_domain_selector_projection_with_flow_hedges<F>(
+    input: &EngineInputV2,
+    resolve_style_path: F,
+    selector_certainty_flow_hedges: &BTreeMap<
+        (String, String),
+        ExpressionDomainSelectorCertaintyFlowHedgeV0,
+    >,
+) -> (
+    OmenaQueryExpressionDomainSelectorProjectionV0,
+    Vec<OmenaQueryExpressionDomainSelectorPrecisionV0>,
+)
+where
+    F: Fn(&str, &[String]) -> Option<String>,
+{
     let style_selectors_by_path = style_selector_universe_by_path(input);
     let known_style_paths = style_selectors_by_path.keys().cloned().collect::<Vec<_>>();
     let expression_targets = expression_target_style_paths(input);
@@ -436,6 +465,10 @@ where
                 &style_selectors_by_path,
             );
             let projection = project_abstract_value_selectors(&node.value, &selector_universe);
+            let certainty = hedge_selector_projection_certainty(
+                projection.certainty,
+                selector_certainty_flow_hedges.get(&(graph.file_path.clone(), node.id.clone())),
+            );
             precisions.push(OmenaQueryExpressionDomainSelectorPrecisionV0 {
                 graph_id: graph.graph_id.clone(),
                 node_id: node.id.clone(),
@@ -449,7 +482,7 @@ where
                 value_kind: node.value_kind,
                 reduced_product: summarize_reduced_class_value_product(&node.value),
                 selector_names: projection.selector_names,
-                certainty: projection.certainty,
+                certainty,
             });
         }
     }
@@ -464,6 +497,112 @@ where
         },
         precisions,
     )
+}
+
+fn expression_domain_selector_certainty_flow_hedges(
+    input: &EngineInputV2,
+) -> BTreeMap<(String, String), ExpressionDomainSelectorCertaintyFlowHedgeV0> {
+    bind_expression_domain_selector_certainty_flow_hedges(
+        input,
+        summarize_omena_query_expression_domain_control_flow_analysis(input),
+    )
+}
+
+fn bind_expression_domain_selector_certainty_flow_hedges(
+    input: &EngineInputV2,
+    control_flow: ExpressionDomainControlFlowAnalysisV0,
+) -> BTreeMap<(String, String), ExpressionDomainSelectorCertaintyFlowHedgeV0> {
+    let control_flow_facts = input
+        .type_facts
+        .iter()
+        .filter(|entry| entry.control_flow_graph.is_some())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        control_flow_facts.len(),
+        control_flow.analyses.len(),
+        "selector-certainty flow hedge requires one control analysis per control-flow type fact"
+    );
+
+    let mut hedges = BTreeMap::new();
+    for (entry, analyzed) in control_flow_facts.into_iter().zip(control_flow.analyses) {
+        let diagnostic_graph_id = format!(
+            "{}:{}:expression-domain-control-flow",
+            entry.file_path, entry.expression_id
+        );
+        assert_eq!(
+            analyzed.file_path, entry.file_path,
+            "selector-certainty flow hedge control analysis order/file mismatch"
+        );
+        assert_eq!(
+            analyzed.graph_id, diagnostic_graph_id,
+            "selector-certainty flow hedge control analysis order/graph mismatch"
+        );
+
+        let contains_flow_iteration_limit = analyzed
+            .analysis
+            .flow_analysis
+            .nodes
+            .iter()
+            .any(|node| abstract_value_contains_flow_iteration_limit(&node.value));
+        let key = (entry.file_path.clone(), entry.expression_id.clone());
+        let previous = hedges.insert(
+            key.clone(),
+            ExpressionDomainSelectorCertaintyFlowHedgeV0 {
+                graph_converged: analyzed.analysis.flow_analysis.converged,
+                contains_flow_iteration_limit,
+            },
+        );
+        assert!(
+            previous.is_none(),
+            "selector-certainty flow hedge duplicate type-fact key: file_path={:?} expression_id={:?}",
+            key.0,
+            key.1
+        );
+    }
+
+    hedges
+}
+
+fn hedge_selector_projection_certainty(
+    base: SelectorProjectionCertaintyV0,
+    flow_hedge: Option<&ExpressionDomainSelectorCertaintyFlowHedgeV0>,
+) -> SelectorProjectionCertaintyV0 {
+    flow_hedge.map_or(base, |hedge| {
+        hedge_selector_certainty_for_flow(
+            base,
+            hedge.graph_converged,
+            hedge.contains_flow_iteration_limit,
+        )
+    })
+}
+
+fn hedge_selector_certainty_for_flow(
+    base: SelectorProjectionCertaintyV0,
+    graph_converged: bool,
+    contains_flow_iteration_limit: bool,
+) -> SelectorProjectionCertaintyV0 {
+    if graph_converged && !contains_flow_iteration_limit {
+        base
+    } else {
+        SelectorProjectionCertaintyV0::Possible
+    }
+}
+
+fn abstract_value_contains_flow_iteration_limit(value: &AbstractClassValueV0) -> bool {
+    let provenance = match value {
+        AbstractClassValueV0::Automaton { provenance, .. }
+        | AbstractClassValueV0::Prefix { provenance, .. }
+        | AbstractClassValueV0::Suffix { provenance, .. }
+        | AbstractClassValueV0::PrefixSuffix { provenance, .. }
+        | AbstractClassValueV0::CharInclusion { provenance, .. }
+        | AbstractClassValueV0::Composite { provenance, .. }
+        | AbstractClassValueV0::Top { provenance } => *provenance,
+        AbstractClassValueV0::Bottom
+        | AbstractClassValueV0::Exact { .. }
+        | AbstractClassValueV0::FiniteSet { .. } => None,
+    };
+
+    provenance == Some(AbstractClassValueProvenanceV0::FlowIterationLimit)
 }
 
 fn expression_target_style_paths(input: &EngineInputV2) -> BTreeMap<String, String> {
@@ -574,6 +713,150 @@ pub fn summarize_omena_query_selector_usage_canonical_producer_signal(
 mod tests {
     use super::*;
 
+    fn selector_certainty_product_input() -> EngineInputV2 {
+        let range = RangeV2 {
+            start: PositionV2 {
+                line: 0,
+                character: 0,
+            },
+            end: PositionV2 {
+                line: 0,
+                character: 11,
+            },
+        };
+        EngineInputV2 {
+            version: "selector-certainty-product".to_string(),
+            sources: vec![SourceAnalysisInputV2 {
+                document: SourceDocumentV2 {
+                    class_expressions: vec![ClassExpressionInputV2 {
+                        id: "expr-certainty".to_string(),
+                        kind: "styleAccess".to_string(),
+                        scss_module_path: "/tmp/App.module.scss".to_string(),
+                        range: range.clone(),
+                        class_name: Some("x".to_string()),
+                        root_binding_decl_id: None,
+                        access_path: Some(vec!["styles".to_string(), "x".to_string()]),
+                    }],
+                },
+            }],
+            styles: vec![StyleAnalysisInputV2 {
+                file_path: "/tmp/App.module.scss".to_string(),
+                source: None,
+                document: StyleDocumentV2 {
+                    selectors: vec![StyleSelectorV2 {
+                        name: "x".to_string(),
+                        view_kind: "canonical".to_string(),
+                        canonical_name: Some("x".to_string()),
+                        range,
+                        nested_safety: Some("safe".to_string()),
+                        composes: None,
+                        bem_suffix: None,
+                    }],
+                },
+            }],
+            type_facts: vec![TypeFactEntryV2 {
+                file_path: "/tmp/App.tsx".to_string(),
+                expression_id: "expr-certainty".to_string(),
+                facts: StringTypeFactsV2 {
+                    kind: "exact".to_string(),
+                    constraint_kind: None,
+                    values: Some(vec!["x".to_string()]),
+                    prefix: None,
+                    suffix: None,
+                    min_len: None,
+                    max_len: None,
+                    char_must: None,
+                    char_may: None,
+                    may_include_other_chars: None,
+                    provenance: None,
+                },
+                control_flow_graph: Some(engine_input_producers::TypeFactControlFlowGraphV2 {
+                    entry_block_id: "seed".to_string(),
+                    blocks: vec![
+                        engine_input_producers::TypeFactControlFlowBlockV2 {
+                            id: "seed".to_string(),
+                            kind: "assignment".to_string(),
+                            transfer_kind: "assignFacts".to_string(),
+                            successor_block_ids: vec!["loop".to_string()],
+                            symbol_ordinal: None,
+                            variable_name: None,
+                            expression_kind: None,
+                            facts: Some(StringTypeFactsV2 {
+                                kind: "finiteSet".to_string(),
+                                constraint_kind: None,
+                                values: Some(vec!["a".to_string(), "b".to_string()]),
+                                prefix: None,
+                                suffix: None,
+                                min_len: None,
+                                max_len: None,
+                                char_must: None,
+                                char_may: None,
+                                may_include_other_chars: None,
+                                provenance: None,
+                            }),
+                        },
+                        engine_input_producers::TypeFactControlFlowBlockV2 {
+                            id: "loop".to_string(),
+                            kind: "loop".to_string(),
+                            transfer_kind: "concatFacts".to_string(),
+                            successor_block_ids: vec!["loop".to_string()],
+                            symbol_ordinal: None,
+                            variable_name: None,
+                            expression_kind: None,
+                            facts: None,
+                        },
+                    ],
+                }),
+            }],
+        }
+    }
+
+    fn selector_certainty_colon_collision_input() -> EngineInputV2 {
+        let mut input = selector_certainty_product_input();
+        input.sources[0].document.class_expressions[0].id = "b:c".to_string();
+        input.sources[0].document.class_expressions[0].class_name = Some("x".to_string());
+        input.sources[0].document.class_expressions[0].access_path =
+            Some(vec!["styles".to_string(), "x".to_string()]);
+        let second_expression = ClassExpressionInputV2 {
+            id: "c".to_string(),
+            kind: "styleAccess".to_string(),
+            scss_module_path: "/tmp/App.module.scss".to_string(),
+            range: input.sources[0].document.class_expressions[0].range.clone(),
+            class_name: Some("y".to_string()),
+            root_binding_decl_id: None,
+            access_path: Some(vec!["styles".to_string(), "y".to_string()]),
+        };
+        input.sources[0]
+            .document
+            .class_expressions
+            .push(second_expression);
+
+        let second_selector = StyleSelectorV2 {
+            name: "y".to_string(),
+            view_kind: "canonical".to_string(),
+            canonical_name: Some("y".to_string()),
+            range: input.styles[0].document.selectors[0].range.clone(),
+            nested_safety: Some("safe".to_string()),
+            composes: None,
+            bem_suffix: None,
+        };
+        input.styles[0].document.selectors.push(second_selector);
+
+        let mut first_fact = input.type_facts[0].clone();
+        first_fact.file_path = "/tmp/A".to_string();
+        first_fact.expression_id = "b:c".to_string();
+        let mut second_fact = first_fact.clone();
+        second_fact.file_path = "/tmp/A:b".to_string();
+        second_fact.expression_id = "c".to_string();
+        second_fact.facts.values = Some(vec!["y".to_string()]);
+        if let Some(second_graph) = second_fact.control_flow_graph.as_mut() {
+            second_graph.blocks.truncate(1);
+            second_graph.blocks[0].successor_block_ids.clear();
+        }
+        input.type_facts = vec![first_fact, second_fact];
+        input
+    }
+
     #[test]
     fn expression_domain_runtime_reuses_graph_databases_across_revisions() {
         let input = EngineInputV2 {
@@ -592,6 +875,93 @@ mod tests {
         assert_eq!(first.revision, 1);
         assert_eq!(second.revision, 2);
         assert_eq!(runtime.revision(), 2);
+    }
+
+    #[test]
+    fn nonconverged_flow_hedge_demotes_typed_query_projection() {
+        let input = selector_certainty_product_input();
+        let graph_id = "/tmp/App.tsx:expr-certainty:expression-domain-control-flow";
+        let control_flow = summarize_omena_query_expression_domain_control_flow_analysis(&input);
+        let projection = summarize_omena_query_expression_domain_selector_projection(&input);
+        let control_entry = &control_flow.analyses[0];
+        let entry = &projection.projections[0];
+
+        println!(
+            "certainty-hedge-census graphId={graph_id} hedged=1 base=exact certainty=possible"
+        );
+        assert_eq!(control_entry.graph_id, graph_id);
+        assert!(!control_entry.analysis.flow_analysis.converged);
+        assert!(
+            control_entry
+                .analysis
+                .flow_analysis
+                .nodes
+                .iter()
+                .all(|node| {
+                    matches!(
+                        &node.value,
+                        AbstractClassValueV0::Top {
+                            provenance: Some(AbstractClassValueProvenanceV0::FlowIterationLimit)
+                        }
+                    )
+                })
+        );
+        assert_eq!(entry.value_kind, "exact");
+        assert_eq!(entry.selector_names, vec!["x".to_string()]);
+        assert_eq!(entry.certainty, SelectorProjectionCertaintyV0::Possible);
+    }
+
+    #[test]
+    fn colon_colliding_graph_ids_bind_selector_certainty_by_type_fact_tuple() {
+        let input = selector_certainty_colon_collision_input();
+        let control_flow = summarize_omena_query_expression_domain_control_flow_analysis(&input);
+        let projection = summarize_omena_query_expression_domain_selector_projection(&input);
+
+        assert_eq!(control_flow.analyses.len(), 2);
+        assert_eq!(
+            control_flow.analyses[0].graph_id, control_flow.analyses[1].graph_id,
+            "fixture must retain the diagnostic graph-id collision"
+        );
+        let nonconverged = projection
+            .projections
+            .iter()
+            .filter(|entry| entry.file_path == "/tmp/A" && entry.node_id == "b:c")
+            .collect::<Vec<_>>();
+        let converged = projection
+            .projections
+            .iter()
+            .filter(|entry| entry.file_path == "/tmp/A:b" && entry.node_id == "c")
+            .collect::<Vec<_>>();
+
+        assert_eq!(nonconverged.len(), 1);
+        assert_eq!(converged.len(), 1);
+        assert_eq!(
+            nonconverged[0].certainty,
+            SelectorProjectionCertaintyV0::Possible
+        );
+        assert_eq!(converged[0].certainty, SelectorProjectionCertaintyV0::Exact);
+    }
+
+    #[test]
+    #[should_panic(expected = "selector-certainty flow hedge duplicate type-fact key")]
+    fn duplicate_selector_certainty_type_fact_key_fails_closed() {
+        let mut input = selector_certainty_product_input();
+        input.type_facts.push(input.type_facts[0].clone());
+
+        let _ = summarize_omena_query_expression_domain_selector_projection(&input);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "selector-certainty flow hedge requires one control analysis per control-flow type fact"
+    )]
+    fn missing_selector_certainty_control_analysis_fails_closed() {
+        let input = selector_certainty_product_input();
+        let mut control_flow =
+            summarize_omena_query_expression_domain_control_flow_analysis(&input);
+        control_flow.analyses.clear();
+
+        let _ = bind_expression_domain_selector_certainty_flow_hedges(&input, control_flow);
     }
 
     #[test]

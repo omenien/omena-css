@@ -7,10 +7,13 @@ use crate::{
     SourceResolutionEvaluatorCandidatesV0, SourceResolutionFragmentV0, SourceResolutionFragmentsV0,
     SourceResolutionMatchFragmentV0, SourceResolutionMatchFragmentsV0,
     SourceResolutionPlanSummaryV0, SourceResolutionQueryFragmentV0,
-    SourceResolutionQueryFragmentsV0, canonical_selector_count, finite_values_for_facts,
-    map_selector_certainty, map_selector_certainty_shape_kind, map_selector_certainty_shape_label,
-    map_value_certainty, map_value_certainty_shape_kind, map_value_certainty_shape_label,
-    resolve_selector_names,
+    SourceResolutionQueryFragmentsV0, canonical_selector_count,
+    expression_domain::{
+        ExpressionDomainSelectorCertaintyFlowHedgesV0,
+        collect_expression_domain_selector_certainty_flow_hedges,
+    },
+    finite_values_for_facts, map_selector_certainty_projection, map_value_certainty,
+    map_value_certainty_shape_kind, map_value_certainty_shape_label, resolve_selector_names,
 };
 
 struct SourceResolutionInputRows {
@@ -22,6 +25,15 @@ struct SourceResolutionInputRows {
 }
 
 fn collect_source_resolution_input_rows(input: &EngineInputV2) -> SourceResolutionInputRows {
+    let selector_certainty_flow_hedges =
+        collect_expression_domain_selector_certainty_flow_hedges(input);
+    collect_source_resolution_input_rows_with_flow_hedges(input, &selector_certainty_flow_hedges)
+}
+
+fn collect_source_resolution_input_rows_with_flow_hedges(
+    input: &EngineInputV2,
+    selector_certainty_flow_hedges: &ExpressionDomainSelectorCertaintyFlowHedgesV0,
+) -> SourceResolutionInputRows {
     let mut expression_index = BTreeMap::new();
     let mut style_index = BTreeMap::new();
     let mut query_fragments = Vec::new();
@@ -57,21 +69,16 @@ fn collect_source_resolution_input_rows(input: &EngineInputV2) -> SourceResoluti
 
         let selector_names = resolve_selector_names(style, &entry.facts);
         let finite_values = finite_values_for_facts(&entry.facts);
-        let selector_certainty = map_selector_certainty(
+        let selector_certainty_projection = map_selector_certainty_projection(
             &entry.facts,
             selector_names.len(),
             canonical_selector_count(style),
+            selector_certainty_flow_hedges
+                .get(&(entry.file_path.clone(), entry.expression_id.clone())),
         );
-        let selector_certainty_shape_label = map_selector_certainty_shape_label(
-            &entry.facts,
-            selector_names.len(),
-            canonical_selector_count(style),
-        );
-        let selector_certainty_shape_kind = map_selector_certainty_shape_kind(
-            &entry.facts,
-            selector_names.len(),
-            canonical_selector_count(style),
-        );
+        let selector_certainty = selector_certainty_projection.certainty;
+        let selector_certainty_shape_label = selector_certainty_projection.shape_label;
+        let selector_certainty_shape_kind = selector_certainty_projection.shape_kind;
         let value_certainty = map_value_certainty(&entry.facts);
         let value_certainty_shape_kind = map_value_certainty_shape_kind(&entry.facts);
         let value_certainty_shape_label = map_value_certainty_shape_label(&entry.facts);
@@ -318,7 +325,7 @@ mod tests {
         summarize_source_resolution_match_fragments_input, summarize_source_resolution_plan_input,
         summarize_source_resolution_query_fragments_input,
     };
-    use crate::test_support::sample_input;
+    use crate::{configure_nonconvergent_selector_certainty_fixture, test_support::sample_input};
 
     #[test]
     fn builds_source_resolution_fragment_from_type_fact() {
@@ -447,6 +454,27 @@ mod tests {
         assert_eq!(
             second.finite_values,
             Some(vec!["card-header".to_string(), "card-body".to_string()])
+        );
+    }
+
+    #[test]
+    fn nonconverged_flow_hedge_demotes_source_resolution_product() {
+        let mut input = sample_input();
+        input.styles[0].document.selectors[0].name = "x".to_string();
+        input.styles[0].document.selectors[0].canonical_name = Some("x".to_string());
+        configure_nonconvergent_selector_certainty_fixture(&mut input.type_facts[0], "x");
+        let product = summarize_source_resolution_canonical_producer_signal_input(&input);
+        let candidate = &product.canonical_bundle.candidates[0];
+
+        assert_eq!(candidate.query_id, "expr-1");
+        assert_eq!(candidate.selector_certainty, "possible");
+        assert_eq!(candidate.selector_certainty_shape_kind, "unknown");
+        assert_eq!(candidate.selector_certainty_shape_label, "unknown");
+        assert_eq!(
+            product.evaluator_candidates.results[0]
+                .payload
+                .selector_certainty,
+            "possible"
         );
     }
 

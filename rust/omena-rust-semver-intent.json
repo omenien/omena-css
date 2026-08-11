@@ -406,20 +406,47 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, and cascade confidence weights follow the cascade-axis authority.",
+      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, and the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses while retaining deprecated compatibility fields.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
             "field OmenaBundlerHostResolveModuleRequestV0.workspace_root",
             "field OmenaQueryInlineStyleRuntimeOverrideV0.important",
-            "field OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete"
+            "field OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_widened_to_top_count",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_converged",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_converged",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_result_kind",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
             "OmenaBundlerHostResolveModuleRequestV0.workspace_root",
             "OmenaQueryInlineStyleRuntimeOverrideV0.important",
-            "OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete"
+            "OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_widened_to_top_count",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_converged",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_converged",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_result_kind",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness"
+          ]
+        },
+        {
+          "lint": "struct_field_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness_widened_to_top_count",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness_converged",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness_widened_to_top_count",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness_converged",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness"
           ]
         }
       ],
@@ -542,6 +569,56 @@
               "sourcePath": "rust/crates/omena-cascade/src/axis_order.rs",
               "needles": [
                 "CascadeKeyAxisV0::SpecificityElements,\n    CascadeKeyAxisV0::ScopeProximity,\n    CascadeKeyAxisV0::SourceOrder,"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "scss-control-flow-witness-taxonomy-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 propagationDepthWitness, ascendingChainWitness, and deprecated wideningWitness compatibility values",
+          "reason": "The query boundary now reports the former pass-through witness as a converged propagation-depth result, exposes a distinct non-Top prefix-widening witness for ascending chains, and makes the deprecated widening fields exact copies of the propagation-depth fields.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/boundary/evaluator.rs",
+              "needles": [
+                "propagation_depth_witness_converged: corpus.propagation_depth_witness_converged",
+                "ascending_chain_witness_result_kind: corpus.ascending_chain_witness_result_kind",
+                "propagation_depth_witness: corpus.propagation_depth_witness.clone()",
+                "ascending_chain_witness: corpus.ascending_chain_witness.clone()",
+                "widening_witness: corpus.widening_witness.clone()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/scss_evaluator.rs",
+              "needles": [
+                "assert!(summary.propagation_depth_witness_converged);",
+                "assert_eq!(summary.propagation_depth_witness.output_top_count, 0);",
+                "assert!(summary.ascending_chain_witness_converged);",
+                "serde_json::json!({ \"kind\": \"prefix\", \"prefix\": \"item-\" })",
+                "assert_eq!(summary.widening_witness, summary.propagation_depth_witness);"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "selector-certainty-flow-hedge-values",
+          "kind": "selection-outcome-changing",
+          "surface": "Re-exported OmenaQueryExpressionDomainSelectorProjectionV0 projections[].certainty values",
+          "reason": "The public query re-export now demotes otherwise exact or inferred selector certainty to possible when the corresponding source control-flow graph is non-converged or carries FlowIterationLimit provenance.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/lib.rs",
+              "needles": [
+                "summarize_omena_query_expression_domain_selector_projection,",
+                "summarize_omena_query_expression_domain_selector_projection_with_precision,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
+              "needles": [
+                "fn nonconverged_flow_hedge_demotes_typed_query_projection()",
+                "assert_eq!(entry.certainty, SelectorProjectionCertaintyV0::Possible);"
               ]
             }
           ]
@@ -691,7 +768,7 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state, stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels, and adds preconstruction finite-language cost walls whose typed Top results carry two distinct serialized provenance variants, including transition-count and transition-symbol-byte cutoffs for publicly hand-constructed automata.",
+      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state, stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels, adds preconstruction finite-language cost walls whose typed Top results carry two distinct serialized provenance variants, and changes bounded flow results through deterministic reverse-postorder iteration, loop-header widening and narrowing, and structured incremental invalidation.",
       "expectedFailures": [
         {
           "lint": "enum_variant_added",
@@ -778,13 +855,47 @@
               ]
             }
           ]
+        },
+        {
+          "id": "class-value-flow-rpo-widening-and-incremental-values",
+          "kind": "selection-outcome-changing",
+          "surface": "BoundedJoinFixpointResultV0 and ClassValueFlowAnalysisV0 convergence, iterationCount, and node values, ClassValueFlowIncrementalAnalysisV0 reuse decisions, and AbstractValueFlowAnalysisSummaryV0.reusePolicy",
+          "reason": "Reverse-postorder rounds remove propagation-depth cap failures without changing the below-cap value, loop-header prefix widening and narrowing produce a sound non-Top result for representable ascending chains, structured solver, context, order, and fact digests prevent stale clean reuse, separately supplied snapshots and analyses require deterministic fresh equivalence before reuse, and duplicate node IDs fail closed before either batch analysis or incremental reuse.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/flow.rs",
+              "needles": [
+                "const CLASS_VALUE_FLOW_SOLVER_REVISION_V0: &str = \"iterativeRpoLoopHeaderPrefixWideningNarrowingV1\";",
+                "reuse_policy: \"reuse previous context analysis only when its omena-incremental plan is clean and deterministic fresh-equivalence verification matches\"",
+                "fn assert_unique_flow_node_ids(node_ids: &[String])",
+                "let schedule = if policy.reverse_postorder {",
+                "if let Some(widened) = widen_ascending_loop_header_value(&previous, &candidate) {",
+                "serde_json::to_string(&payload).unwrap_or_else(|error| error.to_string())",
+                "let verified_fresh_analysis = structurally_reusable_previous_analysis"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
+              "needles": [
+                "fn iterative_rpo_crosses_a_66_node_reverse_dag_without_class_widening()",
+                "assert_eq!(full.analysis.iteration_count, 2);",
+                "fn loop_header_prefix_widening_closes_the_product_shaped_ascending_chain()",
+                "Some(&prefix_class_value(\"z\", None))",
+                "fn incremental_flow_invalidates_context_and_output_order_before_reuse()",
+                "fn structured_incremental_digest_separates_delimiter_bearing_fact_boundaries()",
+                "fn incremental_flow_rejects_a_snapshot_analysis_pair_from_different_inputs()",
+                "fn duplicate_flow_node_ids_fail_closed_in_batch_analysis()",
+                "fn duplicate_flow_node_ids_fail_closed_before_incremental_reuse()"
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-engine-input-producers",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor re-emits the supplied-graph context label through the serialized expression-domain flow summary.",
+      "reason": "The next pre-1.0 minor re-emits the supplied-graph context label through the serialized expression-domain flow summary and demotes selector certainty and its aggregate counts when the corresponding flow graph is non-converged or carries FlowIterationLimit provenance.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
         {
@@ -799,6 +910,154 @@
                 "fn summarizes_expression_domain_flow_analysis()",
                 "wire[\"analyses\"][0][\"analysis\"][\"contextSensitivity\"]",
                 "\"perSuppliedGraph\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "selector-certainty-flow-hedge-values",
+          "kind": "selection-outcome-changing",
+          "surface": "Expression-semantics and source-resolution selectorCertainty/shape values plus selector-usage exact and inferred-or-better aggregate counts",
+          "reason": "A type-fact flow graph that is non-converged or contains FlowIterationLimit provenance now demotes otherwise exact or inferred selector certainty to possible, resets its shape to unknown, and removes the reference from exact and inferred-or-better aggregates.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/lib.rs",
+              "needles": [
+                "pub(crate) fn hedge_selector_certainty_for_flow(",
+                "if graph_converged && !contains_flow_iteration_limit {",
+                "omena_abstract_value::SelectorProjectionCertaintyV0::Possible",
+                "shape_kind: \"unknown\".to_string()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/expression_semantics.rs",
+              "needles": [
+                "fn nonconverged_flow_hedge_demotes_expression_semantics_product()",
+                "assert_eq!(candidate.selector_certainty, \"possible\");",
+                "assert_eq!(candidate.selector_certainty_shape_kind, \"unknown\");"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/selector_usage.rs",
+              "needles": [
+                "fn nonconverged_flow_hedge_demotes_selector_usage_aggregates()",
+                "assert_eq!(candidate.exact_reference_count, 0);",
+                "assert_eq!(candidate.inferred_or_better_reference_count, 0);"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/source_resolution.rs",
+              "needles": [
+                "fn nonconverged_flow_hedge_demotes_source_resolution_product()",
+                "assert_eq!(candidate.selector_certainty, \"possible\");",
+                "assert_eq!(candidate.selector_certainty_shape_label, \"unknown\");"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-query-core",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor consumes source control-flow convergence in the public expression-domain selector projection and demotes otherwise exact or inferred certainty when that graph is non-converged or carries FlowIterationLimit provenance.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "selector-certainty-flow-hedge-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryExpressionDomainSelectorProjectionV0 projections[].certainty",
+          "reason": "A projection backed by a non-converged source control-flow graph, or by FlowIterationLimit provenance, now reports possible instead of exact or inferred while preserving the projected value kind and selector names.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
+              "needles": [
+                "let selector_certainty_flow_hedges = expression_domain_selector_certainty_flow_hedges(input);",
+                "hedge_selector_certainty_for_flow(",
+                "fn nonconverged_flow_hedge_demotes_typed_query_projection()",
+                "assert_eq!(entry.certainty, SelectorProjectionCertaintyV0::Possible);",
+                "fn colon_colliding_graph_ids_bind_selector_certainty_by_type_fact_tuple()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
+              "needles": [
+                "assert!(!control_entry.analysis.flow_analysis.converged);",
+                "Some(AbstractClassValueProvenanceV0::FlowIterationLimit)",
+                "assert_eq!(entry.certainty, SelectorProjectionCertaintyV0::Possible);"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-scss-eval",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor separates the public control-flow oracle's propagation-depth witness from an ascending-chain widening witness and deprecates the inaccurately named widening compatibility fields while preserving them through the 0.4.0 window.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness_widened_to_top_count",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness_converged",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness_converged",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness_result_kind",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness_widened_to_top_count",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness_converged",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness_converged",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness_result_kind",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness"
+          ]
+        },
+        {
+          "lint": "struct_field_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness_widened_to_top_count",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness_converged",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness_widened_to_top_count",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness_converged",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "scss-control-flow-witness-taxonomy-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaScssEvalControlFlowOracleCorpusReportV0 propagationDepthWitness, ascendingChainWitness, and deprecated wideningWitness compatibility values",
+          "reason": "The former pass-through witness now reports its actual propagation-depth mechanism and converges without Top under reverse-postorder iteration; a distinct ascending-chain witness converges to the prefix item-, while deprecated widening fields mirror the propagation-depth result.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-scss-eval/src/control_flow/oracle_corpus.rs",
+              "needles": [
+                "let propagation_depth_witness = summarize_scss_control_flow_propagation_depth_witness();",
+                "let ascending_chain_witness = summarize_scss_control_flow_ascending_chain_witness();",
+                "let widening_witness = propagation_depth_witness.clone();",
+                "propagation_depth_witness_converged: propagation_depth_witness.converged",
+                "ascending_chain_witness_result_kind: ascending_chain_witness.result_kind"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-scss-eval/src/control_flow/oracle_corpus.rs",
+              "needles": [
+                "assert_eq!(report.ascending_chain_witness.output_top_count, 0);",
+                "assert!(report.propagation_depth_witness_converged);",
+                "assert_eq!(report.propagation_depth_witness.output_top_count, 0);",
+                "assert!(report.ascending_chain_witness_converged);",
+                "prefix: \"item-\".to_string()",
+                "assert_eq!(report.widening_witness, report.propagation_depth_witness);"
               ]
             }
           ]

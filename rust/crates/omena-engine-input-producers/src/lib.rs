@@ -1150,42 +1150,81 @@ pub(crate) fn map_value_certainty_shape_label(facts: &StringTypeFactsV2) -> Stri
     omena_abstract_value::value_certainty_shape_label_from_facts(&abstract_value_facts(facts))
 }
 
-pub(crate) fn map_selector_certainty_shape_kind(
-    facts: &StringTypeFactsV2,
-    matched_selector_count: usize,
-    selector_universe_count: usize,
-) -> String {
-    omena_abstract_value::selector_certainty_shape_kind_from_facts(
-        &abstract_value_facts(facts),
-        matched_selector_count,
-        selector_universe_count,
-    )
-    .to_string()
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SelectorCertaintyProjectionV0 {
+    pub(crate) certainty: String,
+    pub(crate) shape_kind: String,
+    pub(crate) shape_label: String,
 }
 
-pub(crate) fn map_selector_certainty_shape_label(
-    facts: &StringTypeFactsV2,
-    matched_selector_count: usize,
-    selector_universe_count: usize,
-) -> String {
-    omena_abstract_value::selector_certainty_shape_label_from_facts(
-        &abstract_value_facts(facts),
-        matched_selector_count,
-        selector_universe_count,
-    )
+/// Consumes the already-published flow-analysis signals when deriving selector certainty.
+pub(crate) fn hedge_selector_certainty_for_flow(
+    base: omena_abstract_value::SelectorProjectionCertaintyV0,
+    graph_converged: bool,
+    contains_flow_iteration_limit: bool,
+) -> omena_abstract_value::SelectorProjectionCertaintyV0 {
+    if graph_converged && !contains_flow_iteration_limit {
+        base
+    } else {
+        omena_abstract_value::SelectorProjectionCertaintyV0::Possible
+    }
 }
 
-pub(crate) fn map_selector_certainty(
+pub(crate) fn map_selector_certainty_projection(
     facts: &StringTypeFactsV2,
     matched_selector_count: usize,
     selector_universe_count: usize,
-) -> String {
-    omena_abstract_value::selector_certainty_from_facts(
-        &abstract_value_facts(facts),
+    flow_hedge: Option<&expression_domain::ExpressionDomainSelectorCertaintyFlowHedgeV0>,
+) -> SelectorCertaintyProjectionV0 {
+    use omena_abstract_value::SelectorProjectionCertaintyV0;
+
+    let abstract_facts = abstract_value_facts(facts);
+    let base = match omena_abstract_value::selector_certainty_from_facts(
+        &abstract_facts,
         matched_selector_count,
         selector_universe_count,
-    )
-    .to_string()
+    ) {
+        "exact" => SelectorProjectionCertaintyV0::Exact,
+        "inferred" => SelectorProjectionCertaintyV0::Inferred,
+        _ => SelectorProjectionCertaintyV0::Possible,
+    };
+    let certainty = flow_hedge.map_or(base, |hedge| {
+        hedge_selector_certainty_for_flow(
+            base,
+            hedge.graph_converged,
+            hedge.contains_flow_iteration_limit,
+        )
+    });
+    let flow_demoted = base != SelectorProjectionCertaintyV0::Possible
+        && certainty == SelectorProjectionCertaintyV0::Possible;
+
+    if flow_demoted {
+        return SelectorCertaintyProjectionV0 {
+            certainty: "possible".to_string(),
+            shape_kind: "unknown".to_string(),
+            shape_label: "unknown".to_string(),
+        };
+    }
+
+    SelectorCertaintyProjectionV0 {
+        certainty: match certainty {
+            SelectorProjectionCertaintyV0::Exact => "exact",
+            SelectorProjectionCertaintyV0::Inferred => "inferred",
+            SelectorProjectionCertaintyV0::Possible => "possible",
+        }
+        .to_string(),
+        shape_kind: omena_abstract_value::selector_certainty_shape_kind_from_facts(
+            &abstract_facts,
+            matched_selector_count,
+            selector_universe_count,
+        )
+        .to_string(),
+        shape_label: omena_abstract_value::selector_certainty_shape_label_from_facts(
+            &abstract_facts,
+            matched_selector_count,
+            selector_universe_count,
+        ),
+    }
 }
 
 pub(crate) fn finite_values_for_facts(facts: &StringTypeFactsV2) -> Option<Vec<String>> {
@@ -1376,4 +1415,106 @@ fn canonical_name_for_view_name(style: &StyleAnalysisInputV2, view_name: &str) -
         .and_then(|selector| selector.canonical_name.clone())
         .or_else(|| matched.canonical_name.clone())
         .or_else(|| Some(matched.name.clone()))
+}
+
+#[cfg(test)]
+pub(crate) fn configure_nonconvergent_selector_certainty_fixture(
+    entry: &mut TypeFactEntryV2,
+    exact_value: &str,
+) {
+    entry.facts = StringTypeFactsV2 {
+        kind: "exact".to_string(),
+        constraint_kind: None,
+        values: Some(vec![exact_value.to_string()]),
+        prefix: None,
+        suffix: None,
+        min_len: None,
+        max_len: None,
+        char_must: None,
+        char_may: None,
+        may_include_other_chars: None,
+        provenance: None,
+    };
+    entry.control_flow_graph = Some(nonconvergent_selector_certainty_control_flow_graph());
+}
+
+#[cfg(test)]
+fn nonconvergent_selector_certainty_control_flow_graph() -> TypeFactControlFlowGraphV2 {
+    TypeFactControlFlowGraphV2 {
+        entry_block_id: "seed".to_string(),
+        blocks: vec![
+            TypeFactControlFlowBlockV2 {
+                id: "seed".to_string(),
+                kind: "assignment".to_string(),
+                transfer_kind: "assignFacts".to_string(),
+                successor_block_ids: vec!["loop".to_string()],
+                symbol_ordinal: None,
+                variable_name: None,
+                expression_kind: None,
+                facts: Some(StringTypeFactsV2 {
+                    kind: "finiteSet".to_string(),
+                    constraint_kind: None,
+                    values: Some(vec!["a".to_string(), "b".to_string()]),
+                    prefix: None,
+                    suffix: None,
+                    min_len: None,
+                    max_len: None,
+                    char_must: None,
+                    char_may: None,
+                    may_include_other_chars: None,
+                    provenance: None,
+                }),
+            },
+            TypeFactControlFlowBlockV2 {
+                id: "loop".to_string(),
+                kind: "loopBody".to_string(),
+                transfer_kind: "concatFacts".to_string(),
+                successor_block_ids: vec!["loop".to_string()],
+                symbol_ordinal: None,
+                variable_name: None,
+                expression_kind: None,
+                facts: None,
+            },
+        ],
+    }
+}
+
+#[cfg(test)]
+mod selector_certainty_flow_tests {
+    use super::{
+        StringTypeFactsV2, hedge_selector_certainty_for_flow, map_selector_certainty_projection,
+    };
+    use omena_abstract_value::SelectorProjectionCertaintyV0;
+
+    #[test]
+    fn shared_flow_hedge_demotes_inferred_certainty_to_possible() {
+        let certainty =
+            hedge_selector_certainty_for_flow(SelectorProjectionCertaintyV0::Inferred, false, true);
+
+        println!("selector-certainty shared hedge inferred->possible");
+        assert_eq!(certainty, SelectorProjectionCertaintyV0::Possible);
+    }
+
+    #[test]
+    fn no_flow_hedge_preserves_base_possible_certainty_shape() {
+        let facts = StringTypeFactsV2 {
+            kind: "exact".to_string(),
+            constraint_kind: None,
+            values: Some(vec!["absent".to_string()]),
+            prefix: None,
+            suffix: None,
+            min_len: None,
+            max_len: None,
+            char_must: None,
+            char_may: None,
+            may_include_other_chars: None,
+            provenance: None,
+        };
+
+        let projection = map_selector_certainty_projection(&facts, 0, 1, None);
+
+        assert_eq!(projection.certainty, "possible");
+        assert_eq!(projection.shape_kind, "unknown");
+        assert_eq!(projection.shape_label, "unknown");
+    }
 }

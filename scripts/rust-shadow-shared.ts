@@ -237,6 +237,51 @@ export interface ExpressionDomainFlowAnalysisEntryV0 {
   readonly analysis: ClassValueFlowAnalysisV0;
 }
 
+export interface ExpressionDomainControlFlowAnalysisV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputVersion: string;
+  readonly analyses: readonly ExpressionDomainControlFlowAnalysisEntryV0[];
+}
+
+export interface ExpressionDomainControlFlowAnalysisEntryV0 {
+  readonly graphId: string;
+  readonly filePath: string;
+  readonly analysis: ClassValueControlFlowAnalysisV0;
+}
+
+export interface ClassValueControlFlowAnalysisV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly contextSensitivity: string;
+  readonly contextKey?: string;
+  readonly blockCount: number;
+  readonly edgeCount: number;
+  readonly reachableBlockCount: number;
+  readonly unreachableBlockIds: readonly string[];
+  readonly branchBlockIds: readonly string[];
+  readonly joinBlockIds: readonly string[];
+  readonly flowAnalysis: ClassValueFlowAnalysisV0;
+}
+
+export interface ExpressionDomainSelectorProjectionV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputVersion: string;
+  readonly projectionCount: number;
+  readonly projections: readonly ExpressionDomainSelectorProjectionEntryV0[];
+}
+
+export interface ExpressionDomainSelectorProjectionEntryV0 {
+  readonly graphId: string;
+  readonly filePath: string;
+  readonly nodeId: string;
+  readonly targetStylePaths: readonly string[];
+  readonly valueKind: string;
+  readonly selectorNames: readonly string[];
+  readonly certainty: "exact" | "inferred" | "possible";
+}
+
 export interface ExpressionDomainCallSiteFlowAnalysisV0 {
   readonly schemaVersion: string;
   readonly product: string;
@@ -363,6 +408,41 @@ export interface SelectorUsageQueryFragmentsV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
   readonly fragments: readonly SelectorUsageQueryFragmentV0[];
+}
+
+export interface SelectorUsageCandidateV0 {
+  readonly queryId: string;
+  readonly canonicalName: string;
+  readonly filePath: string;
+  readonly totalReferences: number;
+  readonly directReferenceCount: number;
+  readonly editableDirectReferenceCount: number;
+  readonly exactReferenceCount: number;
+  readonly inferredOrBetterReferenceCount: number;
+  readonly hasExpandedReferences: boolean;
+  readonly hasStyleDependencyReferences: boolean;
+  readonly hasAnyReferences: boolean;
+}
+
+export interface SelectorUsageCanonicalProducerSignalV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly canonicalBundle: {
+    readonly schemaVersion: string;
+    readonly inputVersion: string;
+    readonly candidates: readonly SelectorUsageCandidateV0[];
+  };
+  readonly evaluatorCandidates: {
+    readonly schemaVersion: string;
+    readonly inputVersion: string;
+    readonly results: readonly {
+      readonly queryId: string;
+      readonly payload: {
+        readonly exactReferenceCount: number;
+        readonly inferredOrBetterReferenceCount: number;
+      };
+    }[];
+  };
 }
 
 export interface SourceResolutionPlanSummaryV0 {
@@ -996,6 +1076,24 @@ export async function runShadowExpressionDomainFlowAnalysisInput(
   );
 }
 
+export async function runShadowExpressionDomainControlFlowAnalysisInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainControlFlowAnalysisV0> {
+  return runShadowJson<ExpressionDomainControlFlowAnalysisV0>(
+    ["input-expression-domain-control-flow-analysis"],
+    input,
+  );
+}
+
+export async function runShadowExpressionDomainSelectorProjectionInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainSelectorProjectionV0> {
+  return runShadowJson<ExpressionDomainSelectorProjectionV0>(
+    ["input-expression-domain-selector-projection"],
+    input,
+  );
+}
+
 export async function runShadowExpressionDomainCallSiteFlowAnalysisInput(
   input: EngineInputV2,
 ): Promise<ExpressionDomainCallSiteFlowAnalysisV0> {
@@ -1049,6 +1147,15 @@ export async function runShadowSelectorUsageQueryFragmentsInput(
 ): Promise<SelectorUsageQueryFragmentsV0> {
   return runShadowJson<SelectorUsageQueryFragmentsV0>(
     ["input-selector-usage-query-fragments"],
+    input,
+  );
+}
+
+export async function runShadowSelectorUsageCanonicalProducerInput(
+  input: EngineInputV2,
+): Promise<SelectorUsageCanonicalProducerSignalV0> {
+  return runShadowJson<SelectorUsageCanonicalProducerSignalV0>(
+    ["input-selector-usage-canonical-producer"],
     input,
   );
 }
