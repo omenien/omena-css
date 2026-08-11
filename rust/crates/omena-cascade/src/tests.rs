@@ -781,10 +781,10 @@ fn open_world_selector_matches_the_hand_written_axis_order() -> Result<(), Strin
                 continue;
             }
 
-            // This test-only tuple is authored from CSS Cascading and Inheritance
-            // Level 6 section 3.1 (W3C Working Draft 2024-09-06): specificity
-            // precedes scoping proximity; module provenance is the final
-            // open-world tie-break.
+            // This test-only tuple is projected from CSS Cascading and Inheritance
+            // Level 6 section 2.1, Cascade Sorting Order (W3C Working Draft,
+            // 6 September 2024): specificity precedes scoping proximity. Module
+            // provenance is Omena's post-key tie-break, not a specification axis.
             let oracle_key = |(key, evidence): (CascadeKey, OpenWorldTieEvidence)| {
                 (
                     key.level,

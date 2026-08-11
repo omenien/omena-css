@@ -24,6 +24,19 @@ interface CascadeKeyAxisOrderArtifactV0 {
   readonly rankedSetPrefixAxisVocabulary: readonly string[];
 }
 
+interface CssCascadeSpecAxisOrderFixtureV0 {
+  readonly schemaVersion: "0";
+  readonly product: "css-cascade-6.spec-axis-order";
+  readonly source: {
+    readonly status: "W3C Working Draft";
+    readonly date: "2024-09-06";
+    readonly section: "2.1 Cascade Sorting Order";
+    readonly url: "https://www.w3.org/TR/2024/WD-css-cascade-6-20240906/#cascade-sort";
+  };
+  readonly documentAxisOrder: readonly string[];
+  readonly cascadeKeyProjectionAxisOrder: readonly string[];
+}
+
 type CascadeKeyProducerDispositionV0 =
   | "automaticProductDerived"
   | "callerSuppliedBoundary"
@@ -155,6 +168,7 @@ const driverCensusArtifactPath = path.join(
   "rust/crates/omena-cascade/data/cascade-driver-census.json",
 );
 const semverIntentArtifactPath = "rust/omena-rust-semver-intent.json";
+const cssCascadeSpecAxisOrderFixturePath = "scripts/fixtures/css-cascade-6-key-axis-order.json";
 const syntheticCascadeKeyProbeRoots = new Set([
   "rust/crates/cascade-key-census-probe/src/lib.rs",
   "rust/crates/omena-query/src/style/cascade_key_alias_census_probe.rs",
@@ -199,6 +213,7 @@ if (sourceRef !== undefined) {
 const cascadeKeyProducerCensus = validateCascadeKeyProducerCensus();
 const cascadeRuntimeIntentCoverage = validateCascadeRuntimeIntentCoverage();
 const cascadeReachFixtureTestCount = validateCascadeReachFixtureTests();
+const cascadeFunctionalContractTestCount = validateCascadeFunctionalContractTests();
 
 const emittedAxisOrder = spawnSync(
   "cargo",
@@ -493,6 +508,7 @@ process.stdout.write(
       cascadeKeyScopeProximitySourceCounts: cascadeKeyProducerCensus.sourceCounts,
       automaticProductScopeDriver: cascadeKeyProducerCensus.automaticProductScopeDriver,
       cascadeReachFixtureTestCount,
+      cascadeFunctionalContractTestCount,
       cascadeRuntimeIntentCoverage,
     },
     null,
@@ -657,13 +673,6 @@ function validateCascadeRuntimeIntentCoverage(): {
 
   for (const requirement of required) {
     const crateIntents = intents.filter((intent) => intent.crate === requirement.crate);
-    if (
-      args.has("--inject-cascade-runtime-intent-row-removal") &&
-      requirement.crate === "omena-cascade" &&
-      crateIntents.length === 0
-    ) {
-      continue;
-    }
     assert.equal(
       crateIntents.length,
       1,
@@ -1449,6 +1458,38 @@ function validateCascadeReachFixtureTests(): number {
   return discovered.length;
 }
 
+function validateCascadeFunctionalContractTests(): number {
+  const testPath = "rust/crates/omena-cascade/src/tests.rs";
+  let source = readRepositorySource(testPath);
+  if (args.has("--inject-cascade-functional-test-removal")) {
+    const changed = source.replace(
+      "fn library_axis_order_prefers_specificity_before_scope_proximity()",
+      "fn removed_library_axis_order_contract()",
+    );
+    assert.notEqual(changed, source, "cascade functional-test removal needle is stale");
+    source = changed;
+  }
+  const expected = [
+    "library_axis_order_prefers_specificity_before_scope_proximity",
+    "equal_scope_proximity_prefers_high_specificity_definite_winner",
+    "generated_cascade_key_equality_matches_total_order_equality",
+    "generated_btree_set_lookup_returns_only_stored_equal_keys",
+    "generated_binary_search_hits_if_and_only_if_a_key_is_equal",
+    "generated_open_world_tie_evidence_is_independent_of_input_order",
+  ].toSorted();
+  const required = new Set(expected);
+  const discovered = [...source.matchAll(/#\[test\]\s*fn\s+([A-Za-z_][A-Za-z0-9_]*)/gu)]
+    .map((match) => match[1])
+    .filter((name): name is string => name !== undefined && required.has(name))
+    .toSorted();
+  assert.deepEqual(
+    discovered,
+    expected,
+    `cascade functional contract tests in ${testPath} must match the required functional set`,
+  );
+  return discovered.length;
+}
+
 function readCascadeKeyProducerSources(sourceRef?: string): Map<string, string> {
   const sources = new Map<string, string>();
   const listed =
@@ -1610,6 +1651,7 @@ function cascadeAxisOrderDomainV0(): readonly string[] {
     "rust/crates/omena-cascade/examples/",
     "rust/crates/omena-query/src/style/cascade_checker/",
     "scripts/check-rust-ranked-set-loss-census.ts",
+    cssCascadeSpecAxisOrderFixturePath,
     "scripts/oss-corpus-farm.ts",
     "rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json",
   ];
@@ -1728,6 +1770,15 @@ function cascadeAxisOrderSiteDispositionsV0(): readonly AxisOrderSiteDisposition
   ];
 }
 
+function specAxisOrderSiteDispositionV0(): AxisOrderSiteDispositionRow {
+  return {
+    id: `${cssCascadeSpecAxisOrderFixturePath}#json:cascadeKeyProjectionAxisOrder`,
+    disposition: "structural",
+    owner: "CSS Cascading and Inheritance Level 6 specification projection",
+    reentry: "the cited specification revision or modeled CascadeKey projection changes",
+  };
+}
+
 function emittedAxisOrderSiteDispositionV0(): AxisOrderSiteDispositionRow {
   return {
     id: "rust/crates/omena-cascade/examples/cascade_key_axis_order.rs#main",
@@ -1776,17 +1827,77 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
     assert.notEqual(detached, source, "axis consumer falsifier needle is stale");
     sources.set(censusPath, detached);
   }
+  if (args.has("--inject-axis-authority-and-oracle-revert")) {
+    const authorityPath = "rust/crates/omena-cascade/src/axis_order.rs";
+    const authority = sources.get(authorityPath);
+    assert.ok(authority, `missing injected authority source ${authorityPath}`);
+    const revertedAuthority = authority.replace(
+      [
+        "    CascadeKeyAxisV0::SpecificityIds,",
+        "    CascadeKeyAxisV0::SpecificityClasses,",
+        "    CascadeKeyAxisV0::SpecificityElements,",
+        "    CascadeKeyAxisV0::ScopeProximity,",
+      ].join("\n"),
+      [
+        "    CascadeKeyAxisV0::ScopeProximity,",
+        "    CascadeKeyAxisV0::SpecificityIds,",
+        "    CascadeKeyAxisV0::SpecificityClasses,",
+        "    CascadeKeyAxisV0::SpecificityElements,",
+      ].join("\n"),
+    );
+    assert.notEqual(revertedAuthority, authority, "axis authority revert needle is stale");
+    sources.set(authorityPath, revertedAuthority);
+
+    const testPath = "rust/crates/omena-cascade/src/tests.rs";
+    const tests = sources.get(testPath);
+    assert.ok(tests, `missing injected oracle source ${testPath}`);
+    const revertedOracle = tests.replace(
+      [
+        "                    key.specificity.ids,",
+        "                    key.specificity.classes,",
+        "                    key.specificity.elements,",
+        "                    Reverse(key.scope_proximity),",
+      ].join("\n"),
+      [
+        "                    Reverse(key.scope_proximity),",
+        "                    key.specificity.ids,",
+        "                    key.specificity.classes,",
+        "                    key.specificity.elements,",
+      ].join("\n"),
+    );
+    assert.notEqual(revertedOracle, tests, "hand oracle revert needle is stale");
+    sources.set(testPath, revertedOracle);
+  }
 
   const sourceAxisOrder = cascadeAxisOrderFromSources(sources);
+  const specFixture = sources.get(cssCascadeSpecAxisOrderFixturePath);
+  const handOracleAxisOrder = axisOrderFromHandOracle(
+    sources.get("rust/crates/omena-cascade/src/tests.rs") ?? "",
+  );
+  if (specFixture === undefined) {
+    assert.ok(sourceRef, "the live axis-order gate requires the independent spec fixture");
+    assert.deepEqual(
+      handOracleAxisOrder,
+      sourceAxisOrder,
+      "historical hand-written open-world oracle must mirror its pre-fixture authority",
+    );
+  } else {
+    const specAxisOrder = axisOrderFromSpecFixture(specFixture);
+    assert.deepEqual(
+      sourceAxisOrder,
+      specAxisOrder,
+      "CascadeKey axis authority must match the independently authored specification projection",
+    );
+    assert.deepEqual(
+      handOracleAxisOrder,
+      specAxisOrder,
+      "hand-written open-world oracle must match the independently authored specification projection",
+    );
+  }
   assert.deepEqual(
     axisOrderFromSchemaOracle(sources.get("rust/crates/omena-cascade/src/tests.rs") ?? ""),
     sourceAxisOrder,
     "axis-order mirror rust/crates/omena-cascade/src/tests.rs#cascade_margin_schema_is_substrate_only_until_calibrated must match the axis authority",
-  );
-  assert.deepEqual(
-    axisOrderFromHandOracle(sources.get("rust/crates/omena-cascade/src/tests.rs") ?? ""),
-    sourceAxisOrder,
-    "hand-written open-world oracle must mirror the axis authority",
   );
   assert.deepEqual(
     axisOrderFromConfidence(
@@ -1824,6 +1935,9 @@ function cascadeAxisOrderSiteCensus(sourceRef?: string): {
   }
   if (sources.has("rust/crates/omena-cascade/examples/cascade_key_axis_order.rs")) {
     dispositions.push(emittedAxisOrderSiteDispositionV0());
+  }
+  if (sources.has(cssCascadeSpecAxisOrderFixturePath)) {
+    dispositions.push(specAxisOrderSiteDispositionV0());
   }
   if (cascadeTests.includes("fn carries_module_rank_without_using_it_as_an_exact_order_axis")) {
     dispositions.push({
@@ -1915,6 +2029,10 @@ function discoverAxisOrderSites(
     }
     if (file.endsWith("ranked-set-loss-census.json")) {
       addJsonAxisSite(sites, file, source, "decidingAxisCounts");
+      continue;
+    }
+    if (file === cssCascadeSpecAxisOrderFixturePath) {
+      addJsonAxisSite(sites, file, source, "cascadeKeyProjectionAxisOrder");
       continue;
     }
     for (const symbol of sourceSymbols(file, source)) {
@@ -2164,6 +2282,12 @@ function readCascadeAxisOrderDomain(sourceRef?: string): Map<string, string> {
   for (const file of selected) {
     sources.set(file, readRepositorySource(file, sourceRef));
   }
+  if (sourceRef === undefined && !sources.has(cssCascadeSpecAxisOrderFixturePath)) {
+    sources.set(
+      cssCascadeSpecAxisOrderFixturePath,
+      readRepositorySource(cssCascadeSpecAxisOrderFixturePath),
+    );
+  }
   return sources;
 }
 
@@ -2254,6 +2378,37 @@ function axisOrderFromHandOracle(source: string): readonly string[] {
     .filter(({ index }) => index >= 0)
     .toSorted((left, right) => left.index - right.index)
     .map(({ axis }) => axis);
+}
+
+function axisOrderFromSpecFixture(source: string): readonly string[] {
+  const fixture = JSON.parse(source) as CssCascadeSpecAxisOrderFixtureV0;
+  assert.equal(fixture.schemaVersion, "0", "spec axis-order fixture schema must stay at v0");
+  assert.equal(
+    fixture.product,
+    "css-cascade-6.spec-axis-order",
+    "spec axis-order fixture product id changed",
+  );
+  assert.deepEqual(fixture.source, {
+    status: "W3C Working Draft",
+    date: "2024-09-06",
+    section: "2.1 Cascade Sorting Order",
+    url: "https://www.w3.org/TR/2024/WD-css-cascade-6-20240906/#cascade-sort",
+  });
+  assert.deepEqual(fixture.documentAxisOrder, [
+    "originAndImportance",
+    "context",
+    "styleAttribute",
+    "layers",
+    "specificity",
+    "scopeProximity",
+    "orderOfAppearance",
+  ]);
+  assert.equal(
+    new Set(fixture.cascadeKeyProjectionAxisOrder).size,
+    fixture.cascadeKeyProjectionAxisOrder.length,
+    "spec CascadeKey projection must not repeat axes",
+  );
+  return fixture.cascadeKeyProjectionAxisOrder;
 }
 
 function axisOrderFromConfidence(
