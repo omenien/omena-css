@@ -384,7 +384,7 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
   {
-    id: "rust/m4-gamma-streaming-ifds",
+    id: "rust/m4-gamma-demand-sliced-monotone-fact-propagation",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },

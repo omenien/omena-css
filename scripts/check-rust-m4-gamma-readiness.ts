@@ -657,8 +657,8 @@ assertIncludes(streaming, "delta: 0", "streaming IFDS default delta must be 0");
 assertIncludes(streaming, "epsilon: 0", "streaming IFDS default epsilon must be 0");
 assertIncludes(
   packageJson,
-  "check:rust-m4-gamma-streaming-ifds",
-  "M4-gamma readiness must exercise default and frame-rule streaming IFDS cells",
+  "check:rust-m4-gamma-demand-sliced-monotone-fact-propagation",
+  "M4-gamma readiness must exercise default and frame-rule demand-sliced monotone fact propagation cells",
 );
 assertIncludes(
   packageJson,

@@ -28,6 +28,15 @@ describe("affected check planning", () => {
     expect(plan.requiresFullCi).toBe(false);
   });
 
+  it("keeps demand-sliced fact-propagation tooling on the Linux benchmark profile", () => {
+    const plan = buildAffectedCheckPlan([
+      "scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate.ts",
+    ]);
+
+    expect(plan.profiles).toEqual(["rust-workspace", "linux-benchmark"]);
+    expect(plan.requiresFullCi).toBe(false);
+  });
+
   it("fails closed for workflow topology and unknown paths", () => {
     const plan = buildAffectedCheckPlan([".github/workflows/ci.yml", "schema/new-format.json"]);
 

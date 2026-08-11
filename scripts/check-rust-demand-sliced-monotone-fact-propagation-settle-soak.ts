@@ -62,7 +62,7 @@ assert.equal(servingSummary.demandSettleAllEqual, false);
 console.log(
   JSON.stringify(
     {
-      product: "omena-streaming-ifds.settle-soak-check",
+      product: "demand-sliced-monotone-fact-propagation.settle-soak-check",
       settleProduct: defaultReport.product,
       requestedRevisionCount: defaultReport.requestedRevisionCount,
       distinctRevisionCount: defaultReport.distinctRevisionCount,
@@ -111,7 +111,7 @@ function runStreamingEvaluationWithRepeatedRevisions(
   settleRevisions: readonly unknown[],
 ): RunnerSummary {
   const input = {
-    updateId: "streaming-ifds-settle-soak-check",
+    updateId: "demand-sliced-monotone-fact-propagation-settle-soak-check",
     startNodeId: "a",
     demandTargetNodeIds: ["c"],
     factKeyGateVerdict: artifactVerdict(BOUNDARY_PRODUCT),
@@ -154,9 +154,12 @@ function runStreamingEvaluationWithRepeatedRevisions(
   assert.equal(
     result.status,
     0,
-    `streaming IFDS serving-mode runner failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    `demand-sliced monotone fact propagation serving-mode runner failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
-  return parseJson<RunnerSummary>(result.stdout, "streaming IFDS serving-mode summary");
+  return parseJson<RunnerSummary>(
+    result.stdout,
+    "demand-sliced monotone fact propagation serving-mode summary",
+  );
 }
 
 function assertGreenSettleSoak(report: SettleSoakReport): void {

@@ -481,7 +481,7 @@ function runRunner(inputVerdicts: {
   readonly relocationApprovalVerdict?: GateArtifactVerdict;
 }): RunnerSummary {
   const input = {
-    updateId: "streaming-ifds-relocation-gate",
+    updateId: "demand-sliced-monotone-fact-propagation-relocation-gate",
     startNodeId: "a",
     demandTargetNodeIds: ["b"],
     ...inputVerdicts,
@@ -526,7 +526,7 @@ function runRunner(inputVerdicts: {
   assert.equal(
     result.status,
     0,
-    `engine-shadow-runner streaming IFDS command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    `engine-shadow-runner demand-sliced monotone fact propagation command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return parseJson<RunnerSummary>(result.stdout, "runner summary");
 }

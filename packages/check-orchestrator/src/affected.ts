@@ -33,7 +33,7 @@ const PERFORMANCE_PATH_MARKERS = [
   "rust/crates/omena-benchmarks/",
   "rust/crates/omena-streaming-ifds/",
   "scripts/check-rust-z5-perf-",
-  "scripts/check-rust-streaming-ifds-relocation-",
+  "scripts/check-rust-demand-sliced-monotone-fact-propagation-",
   "scripts/check-rust-benchmark-",
   "benchmark-artifacts/",
 ] as const;

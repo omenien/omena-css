@@ -378,7 +378,7 @@ jobs:
     timeout-minutes: 20
     env:
       OMENA_Z5_COMPLEXITY_SLOPE_REPORT: .omena-ci/z5-complexity-slope-report.json
-      OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json
+      OMENA_DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_REPORT: .omena-ci/demand-sliced-monotone-fact-propagation-relocation-approval.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -392,7 +392,7 @@ jobs:
           sudo apt-get install -y valgrind
           valgrind --version
       - run: pnpm omena-check run rust/z5-perf-complexity-slope
-      - run: pnpm omena-check run rust/streaming-ifds-relocation-gate-bound
+      - run: pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound
 
   benchmark-products:
     # omena-ci-tier: verify
