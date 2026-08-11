@@ -2915,17 +2915,22 @@ fn compatibility_cascade_checker_bundle_serialized_v0() -> Result<String, serde_
 }
 
 #[cfg(test)]
+const EXPECTED_INCREMENTAL_PRECISION_PARITY_MISMATCH_FIXTURE: bool = false;
+
+#[cfg(test)]
 #[allow(deprecated)]
 #[deprecated(
     since = "0.4.0",
     note = "legacy checker wire fixture adapter owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
 )]
 fn compatibility_propagation_evaluation_serialized_v0() -> Result<String, serde_json::Error> {
+    let incremental_precision_parity_with_batch =
+        EXPECTED_INCREMENTAL_PRECISION_PARITY_MISMATCH_FIXTURE;
     let evaluations =
         evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
             reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
                 report_id: "streaming-report-1".to_string(),
-                incremental_precision_parity_with_batch: false,
+                incremental_precision_parity_with_batch,
                 reachability_fallback_applied: false,
                 fact_fallback_applied: true,
             }],
@@ -2935,12 +2940,14 @@ fn compatibility_propagation_evaluation_serialized_v0() -> Result<String, serde_
 
 #[cfg(test)]
 fn canonical_propagation_evaluation_serialized_v0() -> Result<String, serde_json::Error> {
+    let incremental_precision_parity_with_batch =
+        EXPECTED_INCREMENTAL_PRECISION_PARITY_MISMATCH_FIXTURE;
     let evaluations = evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules(
         OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0 {
             reports: vec![
                 OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0 {
                     report_id: "streaming-report-1".to_string(),
-                    incremental_precision_parity_with_batch: false,
+                    incremental_precision_parity_with_batch,
                     reachability_fallback_applied: false,
                     fact_fallback_applied: true,
                 },

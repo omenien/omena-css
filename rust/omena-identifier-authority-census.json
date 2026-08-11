@@ -352,7 +352,7 @@
       },
       {
         "path": "rust/crates/omena-engine-input-producers/src/selector_usage.rs",
-        "line": 436,
+        "line": 453,
         "function": "build_incoming_style_dependencies",
         "operation": "contains",
         "evidence": "if !target_names.contains(&class_name) {",
@@ -460,7 +460,7 @@
       },
       {
         "path": "rust/crates/omena-query-core/src/lib.rs",
-        "line": 529,
+        "line": 676,
         "function": "selector_universe_for_targets",
         "operation": "map-get",
         "evidence": "if let Some(selector_names) = style_selectors_by_path.get(target_style_path) {",
@@ -469,7 +469,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1536,
+        "line": 1612,
         "function": "summarize_omena_query_css_modules_interface_bundle_inner",
         "operation": "insert",
         "evidence": "emitted_class_names.insert(",
@@ -478,7 +478,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3206,
+        "line": 3297,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "str-eq",
         "evidence": "let target_class_names = if target_style_path == *style_path {",
@@ -487,7 +487,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3221,
+        "line": 3312,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
@@ -496,7 +496,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3227,
+        "line": 3318,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
@@ -505,7 +505,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3564,
+        "line": 3655,
         "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
         "operation": "insert",
         "evidence": "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
@@ -748,7 +748,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
-        "line": 1917,
+        "line": 2008,
         "function": "run_hash_css_module_class_names_structural",
         "operation": "str-eq",
         "evidence": "if mutation_count == 0 && class_name_rewrites.is_empty() {",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:54c8ce35160083bbadff0e6bd67e9480dbc7d31c0505a36af72182e60878aac5"
+    "siteDigest": "sha256:4315763598485173fbd1955510570d2d5a6be38e268f87fdc13e19ae2d80b7df"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -849,7 +849,7 @@
       },
       {
         "path": "rust/crates/omena-scss-eval/src/lib.rs",
-        "line": 274,
+        "line": 276,
         "function": "css_value_fragment_char_is_ident_like",
         "operation": "character-predicate-copy",
         "evidence": "fn css_value_fragment_char_is_ident_like(character: char) -> bool { character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '%' | '.' | '#') }",
@@ -893,6 +893,6 @@
         "reason": "omena-transform-cst owns diagnostic context extraction, whose punctuation set is intentionally broader than a CSS identifier."
       }
     ],
-    "siteDigest": "sha256:b05a911580bd00f282661fcad12c5424104a5a425354eaa606e2f2240e8c0f14"
+    "siteDigest": "sha256:1b327f0779524a5950e59801502ff883b7641220af6465d30fc9473673da7806"
   }
 }

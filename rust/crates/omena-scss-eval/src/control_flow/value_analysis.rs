@@ -293,7 +293,7 @@ pub(crate) fn summarize_scss_control_flow_ascending_chain_witness()
         .iter()
         .find(|node| node.id == SCSS_CONTROL_FLOW_ASCENDING_CHAIN_RESULT_NODE_ID)
         .map_or_else(
-            || ("top", AbstractClassValueV0::Top { provenance: None }),
+            || ("missingResultNode", AbstractClassValueV0::Bottom),
             |node| (node.value_kind, node.value.clone()),
         );
     let output_top_count = analysis

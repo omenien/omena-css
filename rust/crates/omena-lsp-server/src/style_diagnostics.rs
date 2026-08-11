@@ -29,7 +29,6 @@ pub(crate) fn resolve_style_diagnostics_for_uri(
     let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
         return json!([]);
     };
-
     let query_candidates = candidates
         .iter()
         .map(query_style_hover_candidate_from_lsp)
@@ -208,7 +207,6 @@ pub(crate) fn prepare_deferred_style_diagnostics_for_uri(
             .as_ref()
             .and_then(|slot| slot.load_workspace_snapshot_id())
             .or_else(|| current_style_workspace_snapshot_id(state));
-
         let mut baseline_summary = summarize_omena_query_style_diagnostics_for_file(
             document.uri.as_str(),
             document.text.as_str(),

@@ -38,7 +38,7 @@ for (const [producer, literal, disposition] of contextLabelDispositions) {
 
 const flowSource = readFileSync("rust/crates/omena-abstract-value/src/flow.rs", "utf8");
 for (const disclosure of [
-  "Runs a bounded worklist over one supplied graph without deriving a call",
+  "Runs bounded deterministic iteration over one supplied graph without\n/// deriving a call graph or call-site context.",
   "Partitions caller-supplied graphs by caller-supplied call-site identifiers.",
   "This does not derive a call graph or run an interprocedural fixed point.",
 ]) {

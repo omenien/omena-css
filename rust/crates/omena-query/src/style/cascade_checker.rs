@@ -50,23 +50,9 @@ use super::{
 
 /// Cascade checker surface with an explicit deep-analysis switch.
 ///
-/// The default surface entry passes `deep_analysis == false`: the multiscale-complexity-heuristic +
-/// categorical *theory* diagnostics are opt-in deep-analysis hints, so the
-/// default LSP/CLI surface keeps only the product cascade diagnostics (e.g.
-/// `circularVar`).
-///
-/// `deep_analysis == false` (the default) emits only the product cascade gate
-/// diagnostics. `deep_analysis == true` additionally surfaces the opt-in multiscale-complexity-heuristic
-/// (the retained multiscale-complexity compatibility diagnostic code) and categorical
-/// (`categoricalCascadeEvidenceInconsistency`) theory hints — but those hints are
-/// *deduplicated* against the product `circularVar` warning: on a single
-/// custom-property reference cycle the product chain already emits a `circularVar`
-/// warning over the cyclic declarations, so the two whole-file-ranged theory hints
-/// that key off the same `has_reference_cycle` predicate would be a redundant
-/// triple-fire. When a theory hint's range overlaps a range where `circularVar`
-/// already fired, the hint is folded into that `circularVar` diagnostic's
-/// provenance instead of surfacing a second/third diagnostic, so a lone var cycle
-/// yields exactly one diagnostic.
+/// The default emits product diagnostics such as `circularVar`. Deep analysis adds
+/// the multiscale-complexity compatibility and categorical theory hints. Hints
+/// overlapping `circularVar` fold into its provenance to avoid duplicate diagnostics.
 pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     style_uri: &str,
     source: &str,

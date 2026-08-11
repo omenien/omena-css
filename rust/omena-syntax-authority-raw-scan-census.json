@@ -124,7 +124,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1111,
+      "line": 1187,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -133,7 +133,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3739,
+      "line": 3830,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -142,7 +142,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3795,
+      "line": 3886,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -151,7 +151,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3881,
+      "line": 3972,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -187,7 +187,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 425,
+      "line": 428,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -196,7 +196,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_position.rs",
-      "line": 430,
+      "line": 433,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -1356,7 +1356,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
-      "line": 4384,
+      "line": 4475,
       "idiom": "brace-find",
       "family": "transform-runtime",
       "disposition": "named-exempt",
@@ -1364,7 +1364,7 @@
       "reason": "Transform runtime scanning outside the preservation observer remains a named follow-up."
     }
   ],
-  "siteDigest": "sha256:cf176f17134495ebbada7d3b5945b9697e2f02adbb0465ba8cfa594d62cdb87f",
+  "siteDigest": "sha256:1d68a810e5b1f3fc6cfde4d22c129eb96b8a703291ac93cbe1aeca56181e1baa",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,

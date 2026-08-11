@@ -329,7 +329,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
-      "line": 197,
+      "line": 208,
       "function": "source_spelling_guarded_facts",
       "idiom": "equals",
       "keyword": "@keyframes",
@@ -340,7 +340,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
-      "line": 205,
+      "line": 216,
       "function": "source_spelling_guarded_facts",
       "idiom": "equals",
       "keyword": "@value",
@@ -351,7 +351,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/facts/product_facts_authority_tests.rs",
-      "line": 209,
+      "line": 220,
       "function": "source_spelling_guarded_facts",
       "idiom": "equals",
       "keyword": "composes",
@@ -681,7 +681,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1118,
+      "line": 1194,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -2066,7 +2066,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:98a79a0659010dbedeca2fe9cd5939a863d9a5094bf088e13f5d11fbe3594599",
+  "siteDigest": "sha256:d55ca2bb91a291204e91b585ad7e57732b6cd6fd8988e0dd40d6666505ed08a1",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [

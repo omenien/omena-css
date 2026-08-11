@@ -2959,7 +2959,7 @@
       "crate": "omena-checker",
       "typeName": "CascadeDeclarationFixture",
       "sourcePath": "rust/crates/omena-checker/src/lib.rs",
-      "line": 4883
+      "line": 4890
     },
     {
       "crate": "omena-checker",
