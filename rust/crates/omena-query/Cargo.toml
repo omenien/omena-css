@@ -17,8 +17,14 @@ workspace = true
 
 [features]
 default = []
-hypergraph-ifds = []
-lawvere-trace = ["omena-query-transform-runner/lawvere-trace"]
+hypergraph-monotone-fact-propagation = []
+# compatibility-owner: omena-query maintainers
+# compatibility-removal: not before 1.0, and only after downstream migration and audited zero in-repo non-compat uses
+hypergraph-ifds = ["hypergraph-monotone-fact-propagation"]
+transform-catalog-trace = ["omena-query-transform-runner/transform-catalog-trace"]
+# compatibility-owner: omena-query maintainers
+# compatibility-removal: not before 1.0, and only after downstream migration and audited zero in-repo non-compat uses
+lawvere-trace = ["transform-catalog-trace"]
 salsa-memo = ["dep:salsa"]
 smt-z3 = ["omena-query-checker-orchestrator/smt-z3"]
 test-support = [
@@ -49,4 +55,4 @@ base64.workspace = true
 sha2.workspace = true
 
 [package.metadata.docs.rs]
-features = ["hypergraph-ifds", "lawvere-trace"]
+features = ["hypergraph-monotone-fact-propagation", "transform-catalog-trace"]

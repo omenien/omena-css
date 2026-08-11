@@ -288,7 +288,7 @@ pub(crate) fn owned_style_diagnostics_render_inputs_for_uri(
 }
 
 /// RFC 0009 Pillar F (rfcs#68): the worker-safe tail of the style
-/// diagnostics pipeline — per-file fallback summarize, streaming-IFDS
+/// diagnostics pipeline — per-file fallback summarize, demand-sliced-monotone-fact-propagation
 /// extend, opt-in deep analysis, severity mapping and LSP JSON rendering.
 /// Pure of its arguments, so the serial resolve and the parallel wave share
 /// ONE implementation and cannot drift byte-wise.
@@ -313,7 +313,9 @@ pub(crate) fn finish_style_diagnostics_value_with_shared_reachability(
     inputs: &LspStyleDiagnosticsRenderInputsV0<'_>,
     workspace_diagnostics_summary: Option<omena_query::OmenaQueryStyleDiagnosticsForFileV0>,
     committed_cross_file_summary: Option<&omena_query::OmenaQueryCrossFileSummaryV0>,
-    shared_reachability: Option<&crate::streaming_ifds_diagnostics::SharedStreamingReachabilityV0>,
+    shared_reachability: Option<
+        &crate::demand_sliced_monotone_fact_propagation_diagnostics::SharedStreamingReachabilityV0,
+    >,
 ) -> Value {
     let mut diagnostics_summary = workspace_diagnostics_summary.unwrap_or_else(|| {
         summarize_omena_query_style_diagnostics_for_file(
@@ -327,7 +329,7 @@ pub(crate) fn finish_style_diagnostics_value_with_shared_reachability(
             .diagnostics
             .extend(match shared_reachability {
                 Some(shared) => {
-                    crate::streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp_shared(
+                    crate::demand_sliced_monotone_fact_propagation_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp_shared(
                         inputs.document_uri,
                         shared,
                     )
@@ -410,6 +412,7 @@ fn render_style_diagnostics_summary_value(
     json!(diagnostics)
 }
 
+#[allow(deprecated)]
 fn summarize_lsp_opt_in_deep_analysis_diagnostics(
     document_uri: &str,
     text: &str,
@@ -426,7 +429,7 @@ fn summarize_lsp_opt_in_deep_analysis_diagnostics(
     .filter(|diagnostic| {
         matches!(
             diagnostic.code,
-            "rgFlowRelevantOperator"
+            omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
                 | "categoricalCascadeEvidenceInconsistency"
                 | "cascadeSmtViolation"
         )

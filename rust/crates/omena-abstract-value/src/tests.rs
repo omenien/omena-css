@@ -32,11 +32,11 @@ use super::{
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, automaton_key, bottom_class_value,
-    cascade_context_refinement_morphism_v0, cascade_family_context_values,
-    cascade_value_for_context, char_inclusion_class_value, class_value_flow_incremental_input,
-    compare_abstract_css_values_with_typed_payloads, composite_class_value,
-    concatenate_abstract_class_values, concatenate_reduced_class_value_products,
-    derive_cascade_restriction_maps_v0, derive_selector_projection_certainty,
+    cascade_family_context_values, cascade_value_for_context, char_inclusion_class_value,
+    class_value_flow_incremental_input, compare_abstract_css_values_with_typed_payloads,
+    composite_class_value, concatenate_abstract_class_values,
+    concatenate_reduced_class_value_products, context_indexed_cascade_refinement_morphism_v0,
+    derive_context_indexed_cascade_restriction_maps_v0, derive_selector_projection_certainty,
     evaluate_cascade_stalk_v0, exact_class_value,
     external_string_type_facts_from_abstract_class_value, external_utf16_code_unit_length,
     external_utf16_code_unit_min_length_lower_bound, fact_precision_from_class_value,
@@ -52,11 +52,11 @@ use super::{
     reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
     selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
     suffix_class_value, summarize_abstract_class_value_provenance_tree,
-    summarize_belief_propagation_iteration_v0, summarize_cascade_restriction_cycles_v0,
-    summarize_cascade_value_family_v0, summarize_omena_abstract_value_domain,
-    summarize_omena_abstract_value_flow_analysis, summarize_polynomial_provenance_from_linear_v0,
-    summarize_reduced_class_value_product,
-    summarize_reduced_product_belief_propagation_domain_graph_v0, top_class_value,
+    summarize_cascade_restriction_cycles_v0, summarize_context_indexed_cascade_value_family_v0,
+    summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
+    summarize_polynomial_provenance_from_linear_v0, summarize_reduced_class_value_product,
+    summarize_reduced_product_constraint_graph_v0,
+    summarize_reduced_product_constraint_propagation_v0, top_class_value,
     value_certainty_from_facts, value_certainty_shape_kind_from_facts,
     value_certainty_shape_label_from_facts,
 };
@@ -216,8 +216,8 @@ fn summarizes_framing_neutral_cascade_value_family_substrate() {
             },
         },
     ];
-    let restrictions = derive_cascade_restriction_maps_v0(members.as_slice());
-    let family = summarize_cascade_value_family_v0("color", members, restrictions);
+    let restrictions = derive_context_indexed_cascade_restriction_maps_v0(members.as_slice());
+    let family = summarize_context_indexed_cascade_value_family_v0("color", members, restrictions);
 
     assert_eq!(family.product, "omena-abstract-value.cascade-value-family");
     assert_eq!(family.framing, "framingNeutralCascadeFamily");
@@ -227,7 +227,7 @@ fn summarizes_framing_neutral_cascade_value_family_substrate() {
     );
     assert_eq!(
         family.supported_readings,
-        vec!["presheafCompatible", "cosheafCompatible"]
+        vec!["restrictionMapCompatible", "aggregationCompatible"]
     );
     assert_eq!(family.context_value_count, 2);
     assert_eq!(family.restriction_map_count, 1);
@@ -275,8 +275,8 @@ fn evaluates_cascade_stalks_along_bounded_restriction_paths() {
             },
         },
     ];
-    let restrictions = derive_cascade_restriction_maps_v0(members.as_slice());
-    let family = summarize_cascade_value_family_v0("color", members, restrictions);
+    let restrictions = derive_context_indexed_cascade_restriction_maps_v0(members.as_slice());
+    let family = summarize_context_indexed_cascade_value_family_v0("color", members, restrictions);
     let stalk = evaluate_cascade_stalk_v0(&family, "narrow");
 
     assert_eq!(
@@ -338,15 +338,15 @@ fn detects_bounded_restriction_cycles_without_theorem_claims() {
         CascadeRestrictionMapV0 {
             parent_context_id: "a".to_string(),
             child_context_id: "b".to_string(),
-            morphism: cascade_context_refinement_morphism_v0(),
+            morphism: context_indexed_cascade_refinement_morphism_v0(),
         },
         CascadeRestrictionMapV0 {
             parent_context_id: "b".to_string(),
             child_context_id: "a".to_string(),
-            morphism: cascade_context_refinement_morphism_v0(),
+            morphism: context_indexed_cascade_refinement_morphism_v0(),
         },
     ];
-    let family = summarize_cascade_value_family_v0("color", members, restrictions);
+    let family = summarize_context_indexed_cascade_value_family_v0("color", members, restrictions);
     let cycles = summarize_cascade_restriction_cycles_v0(&family);
 
     assert_eq!(
@@ -2562,8 +2562,8 @@ fn iterates_reduced_product_constraints_with_monotone_witness() {
 }
 
 #[test]
-fn belief_propagation_iteration_is_strict_superset_of_reduced_product_iteration() {
-    let summary = summarize_belief_propagation_iteration_v0(&[
+fn constraint_propagation_is_strict_superset_of_reduced_product_iteration() {
+    let summary = summarize_reduced_product_constraint_propagation_v0(&[
         prefix_class_value("btn-", None),
         suffix_class_value("-active", None),
         char_inclusion_class_value("a", "abcde-5intv", None, false),
@@ -2572,7 +2572,7 @@ fn belief_propagation_iteration_is_strict_superset_of_reduced_product_iteration(
     assert_eq!(summary.schema_version, "0");
     assert_eq!(
         summary.product,
-        "omena-abstract-value.belief-propagation-iteration"
+        "omena-abstract-value.reduced-product-constraint-propagation"
     );
     assert_eq!(
         summary.algorithm_view,
@@ -2601,8 +2601,8 @@ fn belief_propagation_iteration_is_strict_superset_of_reduced_product_iteration(
 }
 
 #[test]
-fn belief_propagation_domain_graph_generalizes_reduced_product_axes() {
-    let graph = summarize_reduced_product_belief_propagation_domain_graph_v0(&[
+fn constraint_graph_generalizes_reduced_product_axes() {
+    let graph = summarize_reduced_product_constraint_graph_v0(&[
         prefix_class_value("btn-", None),
         suffix_class_value("-active", None),
         char_inclusion_class_value("abc", "abcdefghijklmnopqrstuvwxyz", None, false),
@@ -2610,7 +2610,7 @@ fn belief_propagation_domain_graph_generalizes_reduced_product_axes() {
 
     assert_eq!(
         graph.product,
-        "omena-abstract-value.belief-propagation-domain-graph"
+        "omena-abstract-value.reduced-product-constraint-graph"
     );
     assert_eq!(graph.claim_level, "fixtureWitnessReducedProductDomainGraph");
     assert_eq!(

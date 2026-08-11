@@ -97,12 +97,28 @@ pub use omena_transform_passes::{
     restore_less_inline_literal_placeholders,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
-#[cfg(feature = "lawvere-trace")]
+/// Compatibility aliases for the superseded trace name.
+/// Owner: `omena-query-transform-runner` maintainers. Removal condition: not
+/// before 1.0, after downstream migration and zero audited non-compat uses.
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the TransformCatalog trace surface; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub use omena_transform_passes::{
-    LawvereDifferentialCommutativityWitnessV0, LawvereModelTraceV0, ReorderabilityCertificateV0,
-    TransformPassParallelPlanV0, evaluate_lawvere_reorderability_with_differential_corpus,
+    LawvereDifferentialCommutativityWitnessV0, LawvereModelTraceV0, TransformPassParallelPlanV0,
+    evaluate_lawvere_reorderability_with_differential_corpus,
     execute_transform_passes_on_source_with_lawvere_trace_and_dialect,
     plan_transform_passes_parallel_lawvere_layers,
+};
+#[cfg(feature = "transform-catalog-trace")]
+pub use omena_transform_passes::{
+    ReorderabilityCertificateV0, TransformCatalogDifferentialCommutativityWitnessV0,
+    TransformCatalogModelTraceV0, TransformCatalogTransformPassParallelPlanV0,
+    evaluate_transform_catalog_reorderability_with_differential_corpus,
+    execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect,
+    plan_transform_passes_parallel_transform_catalog_layers,
 };
 pub use omena_transform_print::{
     PrettyFormatOptionsV0, StyleDialect, TransformPrintArtifactV0, TransformPrintMode,
@@ -171,7 +187,8 @@ pub struct OmenaQueryTransformRunnerBoundaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
-pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransformRunnerBoundaryV0 {
+pub fn summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0()
+-> OmenaQueryTransformRunnerBoundaryV0 {
     let ready_surfaces = vec![
         "transformPlannerBoundary",
         "transformExecutorBoundary",
@@ -180,10 +197,10 @@ pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransfo
         "transformTargetPlannerBoundary",
         "transformEggWitnessBoundary",
     ];
-    #[cfg(feature = "lawvere-trace")]
+    #[cfg(feature = "transform-catalog-trace")]
     let mut ready_surfaces = ready_surfaces;
-    #[cfg(feature = "lawvere-trace")]
-    ready_surfaces.push("transformLawvereTraceBoundary");
+    #[cfg(feature = "transform-catalog-trace")]
+    ready_surfaces.push("transformCatalogTraceBoundary");
 
     OmenaQueryTransformRunnerBoundaryV0 {
         schema_version: "0",
@@ -196,13 +213,44 @@ pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransfo
     }
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "use summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransformRunnerBoundaryV0 {
+    #[cfg(feature = "transform-catalog-trace")]
+    let mut summary = summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0();
+    #[cfg(not(feature = "transform-catalog-trace"))]
+    let summary = summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0();
+    #[cfg(feature = "transform-catalog-trace")]
+    if let Some(surface) = summary
+        .ready_surfaces
+        .iter_mut()
+        .find(|surface| **surface == "transformCatalogTraceBoundary")
+    {
+        *surface = "transformLawvereTraceBoundary";
+    }
+    summary
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Exact pre-1.0 transform-runner boundary projection retained for wire
+    /// compatibility. Owner: `omena-query-transform-runner` maintainers.
+    /// Removal is not before 1.0 and requires downstream migration plus zero
+    /// audited non-compatibility uses.
+    #[cfg(feature = "transform-catalog-trace")]
+    #[deprecated(
+        since = "0.4.0",
+        note = "compatibility projection; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
+    const COMPATIBILITY_TRANSFORM_RUNNER_BOUNDARY_JSON_V0: &str = r#"{"schemaVersion":"0","product":"omena-query-transform-runner.boundary","boundaryKind":"query-transform-runner-split","collapsedTransformCrateCount":6,"collapsedTransformCrates":["omena-bundler","omena-transform-cst","omena-transform-egg","omena-transform-passes","omena-transform-print","omena-transform-target"],"directQueryDependencyReplacement":"omena-query-transform-runner","readySurfaces":["transformPlannerBoundary","transformExecutorBoundary","transformPrinterBoundary","transformSourceMapV3SerializerBoundary","transformTargetPlannerBoundary","transformEggWitnessBoundary","transformLawvereTraceBoundary"]}"#;
+
     #[test]
     fn transform_runner_boundary_collapses_transform_family_for_query() {
-        let summary = summarize_omena_query_transform_runner_boundary_v0();
+        let summary = summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0();
 
         assert_eq!(summary.collapsed_transform_crate_count, 6);
         assert_eq!(
@@ -219,6 +267,25 @@ mod tests {
                 .ready_surfaces
                 .contains(&"transformTargetPlannerBoundary")
         );
+    }
+
+    #[cfg(feature = "transform-catalog-trace")]
+    #[test]
+    #[allow(deprecated)]
+    fn transform_runner_boundary_preserves_legacy_and_canonical_serialized_projections()
+    -> Result<(), serde_json::Error> {
+        let legacy = serde_json::to_string(&summarize_omena_query_transform_runner_boundary_v0())?;
+        let canonical = serde_json::to_string(
+            &summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0(),
+        )?;
+
+        assert_eq!(legacy, COMPATIBILITY_TRANSFORM_RUNNER_BOUNDARY_JSON_V0);
+        assert_eq!(
+            canonical,
+            r#"{"schemaVersion":"0","product":"omena-query-transform-runner.boundary","boundaryKind":"query-transform-runner-split","collapsedTransformCrateCount":6,"collapsedTransformCrates":["omena-bundler","omena-transform-cst","omena-transform-egg","omena-transform-passes","omena-transform-print","omena-transform-target"],"directQueryDependencyReplacement":"omena-query-transform-runner","readySurfaces":["transformPlannerBoundary","transformExecutorBoundary","transformPrinterBoundary","transformSourceMapV3SerializerBoundary","transformTargetPlannerBoundary","transformEggWitnessBoundary","transformCatalogTraceBoundary"]}"#
+        );
+
+        Ok(())
     }
 
     #[test]

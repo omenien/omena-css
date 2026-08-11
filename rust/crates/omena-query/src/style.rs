@@ -40,7 +40,7 @@ pub(crate) use cascade_checker::cascade_declarations_collect_probe;
 pub use cascade_position::*;
 pub use code_actions::*;
 pub use completion::*;
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 pub use cross_file_hypergraph::*;
 use cross_file_summary::summarize_omena_query_cross_file_summary;
 #[cfg(any(test, feature = "test-support"))]
@@ -105,6 +105,24 @@ mod cascade_checker;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCascadeSectionOutcomeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub selector: String,
+    pub property: String,
+    pub winning_value: String,
+}
+
+/// Pre-1.0 source and serialized-wire compatibility surface.
+///
+/// Owner: `omena-query` maintainers. Removal is not before 1.0 and requires
+/// downstream migration plus zero audited non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaQueryCascadeSectionOutcomeV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeSiteOutcomeV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -113,17 +131,19 @@ pub struct OmenaQueryCascadeSiteOutcomeV0 {
     pub winning_value: String,
 }
 
-/// Project the product cascade scanner and ranker onto stable site outcomes.
+/// Project the product cascade scanner and ranker onto selector/property
+/// outcomes.
 ///
 /// The projection intentionally excludes custom properties because their
 /// computed value depends on the workspace fixed point rather than one file.
-pub fn summarize_omena_query_cascade_site_outcomes_from_source(
+#[allow(deprecated)]
+pub fn summarize_omena_query_cascade_section_outcomes_from_source(
     source: &str,
-) -> Vec<OmenaQueryCascadeSiteOutcomeV0> {
+) -> Vec<OmenaQueryCascadeSectionOutcomeV0> {
     let mut outcomes = cascade_checker::collect_query_replica_ensemble_site_outcomes(source)
         .into_iter()
-        .filter_map(|site_outcome| {
-            let omena_cascade::CascadeOutcome::Definite { winner, .. } = site_outcome.outcome
+        .filter_map(|property_outcome| {
+            let omena_cascade::CascadeOutcome::Definite { winner, .. } = property_outcome.outcome
             else {
                 return None;
             };
@@ -131,11 +151,11 @@ pub fn summarize_omena_query_cascade_site_outcomes_from_source(
                 omena_cascade::CascadeValue::Literal(value) => value,
                 _ => winner.id,
             };
-            Some(OmenaQueryCascadeSiteOutcomeV0 {
+            Some(OmenaQueryCascadeSectionOutcomeV0 {
                 schema_version: "0",
-                product: "omena-query.cascade-site-outcome",
-                selector: site_outcome.site.element_selector,
-                property: site_outcome.site.property,
+                product: "omena-query.cascade-section-outcome",
+                selector: property_outcome.site.element_selector,
+                property: property_outcome.site.property,
                 winning_value,
             })
         })
@@ -149,20 +169,76 @@ pub fn summarize_omena_query_cascade_site_outcomes_from_source(
     outcomes
 }
 
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use summarize_omena_query_cascade_section_outcomes_from_source; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn summarize_omena_query_cascade_site_outcomes_from_source(
+    source: &str,
+) -> Vec<OmenaQueryCascadeSiteOutcomeV0> {
+    summarize_omena_query_cascade_section_outcomes_from_source(source)
+        .into_iter()
+        .map(|outcome| OmenaQueryCascadeSiteOutcomeV0 {
+            schema_version: outcome.schema_version,
+            product: "omena-query.cascade-site-outcome",
+            selector: outcome.selector,
+            property: outcome.property,
+            winning_value: outcome.winning_value,
+        })
+        .collect()
+}
+
 #[cfg(test)]
-mod cascade_site_outcome_tests {
+mod cascade_section_outcome_tests {
+    use std::fmt::Write as _;
+
     use super::*;
+    use sha2::{Digest, Sha256};
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        let mut output = String::with_capacity(64);
+        for byte in Sha256::digest(bytes) {
+            let _ = write!(&mut output, "{byte:02x}");
+        }
+        output
+    }
+
+    #[deprecated(
+        since = "0.4.0",
+        note = "legacy wire regression helper owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
+    #[allow(deprecated)]
+    fn compatibility_outcomes_serialized_v0(source: &str) -> Result<String, serde_json::Error> {
+        serde_json::to_string(&summarize_omena_query_cascade_site_outcomes_from_source(
+            source,
+        ))
+    }
 
     #[test]
-    fn cascade_site_projection_uses_the_product_source_order_winner() {
-        let outcomes = summarize_omena_query_cascade_site_outcomes_from_source(
+    fn cascade_section_projection_uses_the_product_source_order_winner() {
+        let outcomes = summarize_omena_query_cascade_section_outcomes_from_source(
             ".card { color: red; } .card { color: blue; }",
         );
 
         assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].product, "omena-query.cascade-section-outcome");
         assert_eq!(outcomes[0].selector, ".card");
         assert_eq!(outcomes[0].property, "color");
         assert_eq!(outcomes[0].winning_value, "blue");
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn compatibility_projection_preserves_exact_serialized_bytes() -> Result<(), serde_json::Error>
+    {
+        let serialized =
+            compatibility_outcomes_serialized_v0(".card { color: red; } .card { color: blue; }")?;
+        assert_eq!(
+            sha256_hex(serialized.as_bytes()),
+            "061a1cadf92641c82fe69480884202bfebc1ec4f51693dccbbf8430cc76b890c"
+        );
+        Ok(())
     }
 }
 
@@ -2074,6 +2150,7 @@ fn summarize_sass_module_cross_file_resolution(
     }
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn summarize_sass_module_edge_resolutions_for_module_interface(
     projection: &OmenaQueryModuleInterfaceProjectionV0,
     available_style_paths: &BTreeSet<&str>,
@@ -2203,6 +2280,7 @@ fn summarize_sass_module_edge_resolutions_for_module_interface(
     edges
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn summarize_sass_module_cross_file_resolution_from_module_interfaces_and_edges(
     module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
     edges: Vec<OmenaQuerySassModuleEdgeResolutionV0>,
@@ -2302,6 +2380,7 @@ fn canonical_available_style_path(
         .map(|available| (*available).to_string())
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn sass_module_rule_variable_overrides_from_interface(
     projection: &OmenaQueryModuleInterfaceProjectionV0,
     edge_kind: &'static str,
@@ -2315,6 +2394,7 @@ fn sass_module_rule_variable_overrides_from_interface(
         .unwrap_or_default()
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn sass_module_forward_variable_overrides_from_interface(
     projection: &OmenaQueryModuleInterfaceProjectionV0,
     rule_ordinal: usize,
@@ -2325,6 +2405,7 @@ fn sass_module_forward_variable_overrides_from_interface(
     )
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn sass_module_forward_variable_overrides_from_rule_configurations(
     rule_configurations: &[OmenaQuerySassModuleRuleConfigurationSurfaceV0],
     rule_ordinal: usize,
@@ -2337,6 +2418,7 @@ fn sass_module_forward_variable_overrides_from_rule_configurations(
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 struct ModuleInterfaceSassModuleGraphConfigurationResolver<'a> {
     module_interface_by_path: &'a BTreeMap<String, &'a OmenaQueryModuleInterfaceProjectionV0>,
     configurable_names_by_path: &'a BTreeMap<String, BTreeSet<String>>,
@@ -2563,6 +2645,7 @@ fn summarize_css_modules_cross_file_resolution_with_resolution_inputs(
     )
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn summarize_css_modules_cross_file_resolution_from_module_interfaces_and_import_edges(
     module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
@@ -2640,6 +2723,7 @@ fn summarize_css_modules_cross_file_resolution_from_module_interfaces_and_import
     )
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn summarize_css_modules_import_edge_resolutions_for_module_interface(
     origin: &OmenaQueryModuleInterfaceProjectionV0,
     target_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
@@ -2835,6 +2919,7 @@ fn summarize_css_modules_cross_file_resolution_from_semantic_inputs(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 struct OmenaQueryCssModulesClosurePartsV0 {
     composes_closure_edge_count: usize,
     value_closure_edge_count: usize,
@@ -2848,6 +2933,7 @@ struct OmenaQueryCssModulesClosurePartsV0 {
     cycles: Vec<OmenaQueryCssModulesCycleV0>,
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn css_modules_cross_file_resolution_from_query_parts(
     style_count: usize,
     edges: Vec<OmenaQueryCssModulesImportEdgeResolutionV0>,
@@ -2901,11 +2987,13 @@ fn css_modules_cross_file_resolution_from_query_parts(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 struct CssModulesImportReachabilityForQuery {
     distance: usize,
     order: usize,
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn css_modules_import_reachability_for_origin(
     origin_style_path: &str,
     style_import_edges: &[omena_semantic::StyleImportReachabilityEdgeFactV0],
@@ -2926,6 +3014,7 @@ fn css_modules_import_reachability_for_origin(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn resolve_css_modules_import_edge_for_query(
     from_style_path: &str,
     import_kind: &'static str,
@@ -2980,6 +3069,7 @@ fn resolve_css_modules_import_edge_for_query(
     }
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn sorted_unique_query_strings(values: &[String]) -> Vec<String> {
     values
         .iter()
@@ -2989,6 +3079,7 @@ fn sorted_unique_query_strings(values: &[String]) -> Vec<String> {
         .collect()
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn sorted_query_name_intersection(left: &[String], right: &[String]) -> Vec<String> {
     let right = right.iter().map(String::as_str).collect::<BTreeSet<_>>();
     left.iter()

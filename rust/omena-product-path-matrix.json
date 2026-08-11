@@ -82,7 +82,9 @@
       "crate": "omena-cross-file-summary",
       "role": "R1",
       "surface": "product-runtime",
-      "entrypoints": ["cross-file hypergraph substrate consumed by query and streaming IFDS"],
+      "entrypoints": [
+        "cross-file hypergraph substrate consumed by query and demand-sliced monotone fact propagation"
+      ],
       "evidence": [
         "rust/crates/omena-cross-file-summary/src/lib.rs",
         "rust/crates/omena-streaming-ifds/Cargo.toml"
@@ -342,7 +344,7 @@
       "role": "R1",
       "surface": "check-evidence",
       "entrypoints": [
-        "lab RG-flow evidence compatibility exercised by product-lab severance gates"
+        "lab design-system complexity heuristic records exercised by product-lab severance gates"
       ],
       "evidence": ["rust/crates/omena-rg-flow/src/lib.rs", "rust/crates/omena-checker/Cargo.toml"],
       "gates": ["rust/product-lab-severance"]

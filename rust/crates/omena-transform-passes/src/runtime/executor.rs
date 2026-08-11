@@ -1048,7 +1048,88 @@ pub fn execute_transform_passes_on_source_with_dialect(
     )
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+pub fn execute_transform_passes_on_source_with_transform_catalog_trace(
+    source: &str,
+    requested: &[TransformPassKind],
+) -> (
+    TransformExecutionSummaryV0,
+    omena_lawvere::TransformCatalogModelTraceV0,
+) {
+    execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect(
+        source,
+        StyleDialect::Css,
+        requested,
+    )
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+pub fn execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+) -> (
+    TransformExecutionSummaryV0,
+    omena_lawvere::TransformCatalogModelTraceV0,
+) {
+    let summary = execute_transform_passes_on_source_with_dialect(source, dialect, requested);
+    let trace = omena_lawvere::trace_transform_catalog_model_v0(
+        requested,
+        summary.ordered_pass_ids.clone(),
+    );
+    (summary, trace)
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+pub fn evaluate_transform_catalog_reorderability_with_differential_corpus(
+    left: TransformPassKind,
+    right: TransformPassKind,
+    fixtures: &[&str],
+) -> (
+    omena_lawvere::ReorderabilityCertificateV0,
+    omena_lawvere::TransformCatalogDifferentialCommutativityWitnessV0,
+) {
+    let cases = fixtures
+        .iter()
+        .enumerate()
+        .map(|(index, source)| {
+            let left_first = execute_transform_passes_on_source(source, &[left]);
+            let left_then_right =
+                execute_transform_passes_on_source(&left_first.output_css, &[right]);
+            let right_first = execute_transform_passes_on_source(source, &[right]);
+            let right_then_left =
+                execute_transform_passes_on_source(&right_first.output_css, &[left]);
+            let left_then_right_mutation_count =
+                left_first.mutation_count + left_then_right.mutation_count;
+            let right_then_left_mutation_count =
+                right_first.mutation_count + right_then_left.mutation_count;
+
+            omena_lawvere::TransformCatalogDifferentialCommutativityCaseV0 {
+                label: format!("fixture-{index}"),
+                input_css: (*source).to_string(),
+                left_then_right_css: left_then_right.output_css.clone(),
+                right_then_left_css: right_then_left.output_css.clone(),
+                left_then_right_mutation_count,
+                right_then_left_mutation_count,
+                equal_output: left_then_right.output_css == right_then_left.output_css,
+            }
+        })
+        .collect::<Vec<_>>();
+    let witness =
+        omena_lawvere::transform_catalog_differential_commutativity_witness_v0(left, right, cases);
+    let certificate =
+        omena_lawvere::transform_catalog_reorderability_certificate_from_differential_v0(
+            left, right, &witness,
+        );
+    (certificate, witness)
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use execute_transform_passes_on_source_with_transform_catalog_trace; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn execute_transform_passes_on_source_with_lawvere_trace(
     source: &str,
     requested: &[TransformPassKind],
@@ -1063,7 +1144,12 @@ pub fn execute_transform_passes_on_source_with_lawvere_trace(
     )
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
     source: &str,
     dialect: StyleDialect,
@@ -1077,7 +1163,12 @@ pub fn execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
     (summary, trace)
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use evaluate_transform_catalog_reorderability_with_differential_corpus; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn evaluate_lawvere_reorderability_with_differential_corpus(
     left: TransformPassKind,
     right: TransformPassKind,

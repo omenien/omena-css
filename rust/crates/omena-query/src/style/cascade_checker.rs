@@ -40,7 +40,7 @@ pub(super) use theory_hints::query_exercised_cascade_primitive_role_pairs_from_s
 use theory_hints::{
     deduplicate_query_theory_hints_against_circular_var,
     summarize_query_categorical_cascade_evidence_diagnostics,
-    summarize_query_rg_flow_coupling_diagnostics,
+    summarize_query_multiscale_complexity_heuristic_coupling_diagnostics,
 };
 
 use super::{
@@ -50,14 +50,14 @@ use super::{
 
 /// Cascade checker surface with an explicit deep-analysis switch.
 ///
-/// The default surface entry passes `deep_analysis == false`: the rg-flow +
+/// The default surface entry passes `deep_analysis == false`: the multiscale-complexity-heuristic +
 /// categorical *theory* diagnostics are opt-in deep-analysis hints, so the
 /// default LSP/CLI surface keeps only the product cascade diagnostics (e.g.
 /// `circularVar`).
 ///
 /// `deep_analysis == false` (the default) emits only the product cascade gate
-/// diagnostics. `deep_analysis == true` additionally surfaces the opt-in rg-flow
-/// (`rgFlowRelevantOperator`) and categorical
+/// diagnostics. `deep_analysis == true` additionally surfaces the opt-in multiscale-complexity-heuristic
+/// (the retained multiscale-complexity compatibility diagnostic code) and categorical
 /// (`categoricalCascadeEvidenceInconsistency`) theory hints — but those hints are
 /// *deduplicated* against the product `circularVar` warning: on a single
 /// custom-property reference cycle the product chain already emits a `circularVar`
@@ -84,22 +84,26 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     // Theory diagnostics are produced eagerly only when deep-analysis is on; the
     // default surface skips the (whole-file-ranged, non-actionable) theory hints
     // entirely so the LSP/CLI output stays clean.
-    let (rg_flow_diagnostics, categorical_diagnostics, smt_diagnostics) = if deep_analysis {
-        (
-            summarize_query_rg_flow_coupling_diagnostics(source, &checker_input.custom_properties),
-            summarize_query_categorical_cascade_evidence_diagnostics(
-                source,
-                &checker_input.custom_properties,
-            ),
-            summarize_query_smt_cascade_obligation_diagnostics(
-                source,
-                &checker_input.declarations,
-                &declaration_ranges,
-            ),
-        )
-    } else {
-        (Vec::new(), Vec::new(), Vec::new())
-    };
+    let (multiscale_complexity_heuristic_diagnostics, categorical_diagnostics, smt_diagnostics) =
+        if deep_analysis {
+            (
+                summarize_query_multiscale_complexity_heuristic_coupling_diagnostics(
+                    source,
+                    &checker_input.custom_properties,
+                ),
+                summarize_query_categorical_cascade_evidence_diagnostics(
+                    source,
+                    &checker_input.custom_properties,
+                ),
+                summarize_query_smt_cascade_obligation_diagnostics(
+                    source,
+                    &checker_input.declarations,
+                    &declaration_ranges,
+                ),
+            )
+        } else {
+            (Vec::new(), Vec::new(), Vec::new())
+        };
 
     let gate = run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0(
         checker_input.clone(),
@@ -211,12 +215,12 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     if deep_analysis {
         deduplicate_query_theory_hints_against_circular_var(
             &mut diagnostics,
-            rg_flow_diagnostics,
+            multiscale_complexity_heuristic_diagnostics,
             categorical_diagnostics,
         );
         // The SMT cascade-violation diagnostics are anchored on the specific
         // longhand declaration that breaks the combination obligation (not the
-        // whole-file span the rg-flow/categorical hints use), so they are a
+        // whole-file span the multiscale-complexity-heuristic/categorical hints use), so they are a
         // distinct, actionable diagnostic and are appended directly rather than
         // deduplicated against `circularVar`.
         diagnostics.extend(smt_diagnostics);
@@ -229,6 +233,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
 mod reach_tests;
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -529,7 +534,7 @@ mod tests {
         );
     }
 
-    // ---- WP7-b: de-noise rg-flow + categorical theory hints -----------
+    // ---- WP7-b: de-noise multiscale-complexity-heuristic + categorical theory hints -----------
 
     /// A two-property custom-property reference cycle that the product chain
     /// flags as `circularVar`.
@@ -559,8 +564,10 @@ mod tests {
             "circularVar must fire on the default surface: {codes:?}"
         );
         assert!(
-            !codes.contains(&"rgFlowRelevantOperator"),
-            "rg-flow theory hint must be OFF by default: {codes:?}"
+            !codes.contains(
+                &crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0,
+            ),
+            "multiscale-complexity-heuristic theory hint must be OFF by default: {codes:?}"
         );
         assert!(
             !codes.contains(&"categoricalCascadeEvidenceInconsistency"),
@@ -572,7 +579,8 @@ mod tests {
         assert!(
             codes.iter().all(|code| !matches!(
                 *code,
-                "rgFlowRelevantOperator" | "categoricalCascadeEvidenceInconsistency"
+                crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
+                    | "categoricalCascadeEvidenceInconsistency"
             )),
             "default surface must surface no theory hints for a lone var cycle: {codes:?}"
         );
@@ -580,7 +588,7 @@ mod tests {
 
     #[test]
     fn wp7b_deep_analysis_dedups_theory_hints_into_circular_var() -> Result<(), &'static str> {
-        // Deep-analysis ON: the rg-flow + categorical hints key off the same
+        // Deep-analysis ON: the multiscale-complexity-heuristic + categorical hints key off the same
         // reference-cycle predicate as `circularVar`, so they are deduplicated
         // (folded into `circularVar`'s provenance) rather than triple-firing.
         let codes = diagnostic_codes_with_deep_analysis(VAR_CYCLE_SOURCE, true);
@@ -589,8 +597,10 @@ mod tests {
             "circularVar must fire with deep analysis ON: {codes:?}"
         );
         assert!(
-            !codes.contains(&"rgFlowRelevantOperator"),
-            "rg-flow hint must be deduplicated against circularVar: {codes:?}"
+            !codes.contains(
+                &crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0,
+            ),
+            "multiscale-complexity-heuristic hint must be deduplicated against circularVar: {codes:?}"
         );
         assert!(
             !codes.contains(&"categoricalCascadeEvidenceInconsistency"),
@@ -609,11 +619,10 @@ mod tests {
             .find(|diagnostic| diagnostic.code == "circularVar")
             .ok_or("circularVar diagnostic must exist")?;
         assert!(
-            circular_var
-                .provenance
+            crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0
                 .iter()
-                .any(|label| label.contains("rg-flow")),
-            "rg-flow provenance should be folded into circularVar: {:?}",
+                .all(|label| circular_var.provenance.contains(label)),
+            "the existing query path must fold its exact compatibility provenance into circularVar: {:?}",
             circular_var.provenance
         );
         assert!(
@@ -630,22 +639,23 @@ mod tests {
     #[test]
     fn wp7b_deep_analysis_reaches_theory_gate_on_cyclic_input() {
         // With deep-analysis ON the theory producers are reachable (the gate runs)
-        // even though their output is deduplicated here: the rg-flow coupling and
+        // even though their output is deduplicated here: the multiscale-complexity-heuristic coupling and
         // categorical mapping are both populated for a cyclic stylesheet, so the
         // underlying mechanisms still execute (proving the opt-in path is live).
         let collection =
             collect_query_checker_cascade_input("file:///tmp/test.scss", VAR_CYCLE_SOURCE);
-        let rg_flow = summarize_query_rg_flow_coupling_diagnostics(
-            VAR_CYCLE_SOURCE,
-            &collection.checker_input.custom_properties,
-        );
+        let multiscale_complexity_heuristic =
+            summarize_query_multiscale_complexity_heuristic_coupling_diagnostics(
+                VAR_CYCLE_SOURCE,
+                &collection.checker_input.custom_properties,
+            );
         let categorical = summarize_query_categorical_cascade_evidence_diagnostics(
             VAR_CYCLE_SOURCE,
             &collection.checker_input.custom_properties,
         );
         assert!(
-            !rg_flow.is_empty(),
-            "rg-flow theory gate should fire on a cyclic stylesheet when reached"
+            !multiscale_complexity_heuristic.is_empty(),
+            "multiscale-complexity-heuristic theory gate should fire on a cyclic stylesheet when reached"
         );
         assert!(
             !categorical.is_empty(),
@@ -660,14 +670,16 @@ mod tests {
         let acyclic = ":root { --a: 1px; --b: var(--a); }";
         let codes = diagnostic_codes_with_deep_analysis(acyclic, true);
         assert!(
-            !codes.contains(&"rgFlowRelevantOperator")
+            !codes.contains(
+                &crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0,
+            )
                 && !codes.contains(&"categoricalCascadeEvidenceInconsistency"),
             "acyclic stylesheet must not surface theory hints: {codes:?}"
         );
     }
 
     #[test]
-    fn wp7b_acyclic_high_gain_hub_surfaces_standalone_rg_flow_hint() {
+    fn wp7b_acyclic_high_gain_hub_surfaces_standalone_multiscale_complexity_heuristic_hint() {
         let high_gain = r#"
 :root {
   --seed: 1px;
@@ -680,18 +692,22 @@ mod tests {
 
         let default_codes = diagnostic_codes_with_deep_analysis(high_gain, false);
         assert!(
-            !default_codes.contains(&"rgFlowRelevantOperator"),
-            "rg-flow theory hint must stay off on the default surface: {default_codes:?}"
+            !default_codes.contains(
+                &crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0,
+            ),
+            "multiscale-complexity-heuristic theory hint must stay off on the default surface: {default_codes:?}"
         );
 
         let deep_codes = diagnostic_codes_with_deep_analysis(high_gain, true);
         assert!(
-            deep_codes.contains(&"rgFlowRelevantOperator"),
-            "acyclic high-gain hub should surface a standalone rg-flow hint: {deep_codes:?}"
+            deep_codes.contains(
+                &crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0,
+            ),
+            "acyclic high-gain hub should surface a standalone multiscale-complexity-heuristic hint: {deep_codes:?}"
         );
         assert!(
             !deep_codes.contains(&"circularVar"),
-            "standalone rg-flow hint must not depend on circularVar: {deep_codes:?}"
+            "standalone multiscale-complexity-heuristic hint must not depend on circularVar: {deep_codes:?}"
         );
     }
 }

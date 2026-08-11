@@ -27,7 +27,7 @@ use omena_query::{
     summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
 };
 use omena_sif::{read_omena_lock_json_v1, read_omena_sif_json_v1};
-use omena_streaming_ifds::summarize_streaming_ifds_cross_file_reachability_v0;
+use omena_streaming_ifds::summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -245,7 +245,7 @@ pub(crate) fn workspace_style_diagnostics_summaries(
 
 /// Surface a real cross-file dataflow reachability fact through the product diagnostics.
 ///
-/// The streaming-IFDS crate projects the resolved workspace cross-file summary
+/// The demand-sliced-monotone-fact-propagation crate projects the resolved workspace cross-file summary
 /// to the unified hypergraph — the SAME real `composes`/`@use`/`@forward`/
 /// `@import`/value/icss/foreign-reference edges the analyzer already resolves.
 /// It then owns the exact propagation report: every node owned by the target
@@ -282,7 +282,7 @@ pub(crate) fn summarize_cross_file_streaming_reachability_diagnostics_from_summa
     summary: &omena_query::OmenaQueryCrossFileSummaryV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(summary);
-    let report = summarize_streaming_ifds_cross_file_reachability_v0(
+    let report = summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0(
         target_style_path,
         hypergraph.hyperedges.as_slice(),
     );

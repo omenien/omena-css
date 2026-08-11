@@ -17,9 +17,20 @@ use omena_cascade_proof::{
 pub use omena_product_hints::CategoricalCascadeEvidenceV0;
 use omena_product_hints::{
     CascadeFunctorApplicationV0, PatternIntentV0, apply_cascade_role_mapping_functor_v0,
-    coupling_space, designer_intent_posterior_input_v0, dominant_designer_intent_v0,
-    estimate_coupling_jacobian_spectrum_v0, infer_designer_intent_posterior_v0,
+    designer_intent_posterior_input_v0, dominant_designer_intent_v0,
+    estimate_multiscale_complexity_heuristic_coupling_jacobian_spectrum_v0,
+    infer_designer_intent_posterior_v0, multiscale_complexity_heuristic_coupling_space,
 };
+pub use omena_product_hints::{
+    MULTISCALE_COMPLEXITY_HEURISTIC_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
+    MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0,
+    MULTISCALE_COMPLEXITY_HEURISTIC_PRODUCT_SURFACE_V0,
+};
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the MULTISCALE_COMPLEXITY_HEURISTIC_* constants; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub use omena_product_hints::{
     RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, RG_FLOW_MECHANISM_SCOPE_V0,
     RG_FLOW_PRODUCT_SURFACE_V0,
@@ -45,6 +56,31 @@ pub use frame_emission::*;
 pub use lint_tier::*;
 use rule_metadata::{bundle, count_rules_in_tier, rule, rule_tier_for_code};
 pub use selectors::{CanonicalSelector, RawSelector};
+
+/// Accurate rule codes emitted by additive domain-honest checker APIs.
+///
+/// This is intentionally separate from [`OmenaCheckerRuleCodeV0`]: that
+/// exhaustive pre-1.0 enum retains its published discriminants and serialized
+/// values for compatibility.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OmenaCheckerCanonicalRuleCodeV0 {
+    DemandSlicedMonotoneFactPropagationPrecisionParity,
+    MultiscaleComplexityHeuristicRelevantOperator,
+}
+
+impl OmenaCheckerCanonicalRuleCodeV0 {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DemandSlicedMonotoneFactPropagationPrecisionParity => {
+                "demand-sliced-monotone-fact-propagation-precision-parity"
+            }
+            Self::MultiscaleComplexityHeuristicRelevantOperator => {
+                "multiscale-complexity-heuristic-relevant-operator"
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -75,7 +111,20 @@ pub enum OmenaCheckerRuleCodeV0 {
     CascadeUnreachableRule,
     CascadeSMTViolation,
     DesignerIntentInconsistency,
+    /// Compatibility variant owned by `omena-checker` maintainers.
+    /// Removal is not before 1.0 and requires downstream migration plus zero
+    /// audited in-repo non-compatibility uses.
+    #[deprecated(
+        since = "0.4.0",
+        note = "use OmenaCheckerCanonicalRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
     StreamingIfdsPrecisionParity,
+    /// Compatibility variant owned by `omena-checker` maintainers. Removal is
+    /// not before 1.0 and requires downstream migration plus zero audited uses.
+    #[deprecated(
+        since = "0.4.0",
+        note = "use OmenaCheckerCanonicalRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
     RgFlowRelevantOperator,
     ReplicaEnsembleInconsistency,
     CategoricalCascadeEvidenceInconsistency,
@@ -84,6 +133,21 @@ pub enum OmenaCheckerRuleCodeV0 {
 }
 
 impl OmenaCheckerRuleCodeV0 {
+    /// Source-compatible spelling for the retained pre-1.0 compatibility
+    /// variant. Its serialized value remains the legacy wire value; accurate
+    /// APIs use [`OmenaCheckerCanonicalRuleCodeV0`].
+    #[allow(non_upper_case_globals, deprecated)]
+    pub const DemandSlicedMonotoneFactPropagationPrecisionParity: Self =
+        compatibility_propagation_rule_code_v0();
+
+    /// Source-compatible spelling for the retained pre-1.0 compatibility
+    /// variant. Its serialized value remains the legacy wire value; accurate
+    /// APIs use [`OmenaCheckerCanonicalRuleCodeV0`].
+    #[allow(non_upper_case_globals, deprecated)]
+    pub const MultiscaleComplexityHeuristicRelevantOperator: Self =
+        compatibility_multiscale_rule_code_v0();
+
+    #[allow(deprecated)]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::NoUnknownDynamicClass => "no-unknown-dynamic-class",
@@ -112,17 +176,102 @@ impl OmenaCheckerRuleCodeV0 {
             Self::CascadeUnreachableRule => "cascade.unreachable-rule",
             Self::CascadeSMTViolation => "cascade.smt-violation",
             Self::DesignerIntentInconsistency => "designer-intent-inconsistency",
-            Self::StreamingIfdsPrecisionParity => "streaming-ifds-precision-parity",
-            Self::RgFlowRelevantOperator => "rg-flow-relevant-operator",
             Self::ReplicaEnsembleInconsistency => "replica-ensemble-inconsistency",
             Self::CategoricalCascadeEvidenceInconsistency => {
                 "categorical-cascade-evidence-inconsistency"
             }
             Self::RegisteredPropertyTypeMismatch => "registered-property-type-mismatch",
             Self::InvalidPropertyValue => "invalid-property-value",
+            _ => compatibility_rule_code_wire_name_v0(self),
+        }
+    }
+
+    #[allow(deprecated)]
+    pub const fn canonical_name(self) -> &'static str {
+        match compatibility_rule_code_family_v0(self) {
+            1 => "demand-sliced-monotone-fact-propagation-precision-parity",
+            2 => "multiscale-complexity-heuristic-relevant-operator",
+            _ => self.as_str(),
         }
     }
 }
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility discriminant adapter owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+const fn compatibility_propagation_rule_code_v0() -> OmenaCheckerRuleCodeV0 {
+    OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility discriminant adapter owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+const fn compatibility_multiscale_rule_code_v0() -> OmenaCheckerRuleCodeV0 {
+    OmenaCheckerRuleCodeV0::RgFlowRelevantOperator
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility wire adapter owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+const fn compatibility_rule_code_wire_name_v0(code: OmenaCheckerRuleCodeV0) -> &'static str {
+    match code {
+        OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity => "streaming-ifds-precision-parity",
+        OmenaCheckerRuleCodeV0::RgFlowRelevantOperator => "rg-flow-relevant-operator",
+        _ => "unknown-compatibility-rule",
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility discriminant adapter owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+const fn compatibility_rule_code_family_v0(code: OmenaCheckerRuleCodeV0) -> u8 {
+    match code {
+        OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity => 1,
+        OmenaCheckerRuleCodeV0::RgFlowRelevantOperator => 2,
+        _ => 0,
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility descriptions owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_PROPAGATION_RULE_DESCRIPTION_V0: &str =
+    "Report streaming IFDS results that fail exact parity with the batch hypergraph oracle.";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility descriptions owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_MULTISCALE_RULE_DESCRIPTION_V0: &str = "Report RG-flow coupling spectra whose relevant operator indicates unstable cascade sensitivity.";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy checker wire fixture owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[cfg(test)]
+const LEGACY_PROPAGATION_EVALUATION_EXPECTED_WIRE_V0: &str = r#"{"ruleCode":"streaming-ifds-precision-parity","ruleCodeName":"streaming-ifds-precision-parity","severity":"hint","severityName":"hint","reportId":"streaming-report-1","incrementalPrecisionParityWithBatch":false,"reachabilityFallbackApplied":false,"factFallbackApplied":true,"message":"Streaming IFDS analysis failed exact batch precision parity.","mechanismProducts":["omena-streaming-ifds.analysis-report"]}"#;
+
+#[cfg(test)]
+const CANONICAL_PROPAGATION_EVALUATION_EXPECTED_WIRE_V0: &str = r#"{"ruleCode":"demand-sliced-monotone-fact-propagation-precision-parity","ruleCodeName":"demand-sliced-monotone-fact-propagation-precision-parity","severity":"hint","severityName":"hint","reportId":"streaming-report-1","incrementalPrecisionParityWithBatch":false,"reachabilityFallbackApplied":false,"factFallbackApplied":true,"message":"demand-sliced monotone fact propagation analysis failed exact batch precision parity.","mechanismProducts":["omena-streaming-ifds.analysis-report"]}"#;
+
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy checker wire fixture owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[cfg(test)]
+const LEGACY_MULTISCALE_EVALUATION_EXPECTED_WIRE_V0: &str = r#"{"ruleCode":"rg-flow-relevant-operator","ruleCodeName":"rg-flow-relevant-operator","severity":"hint","severityName":"hint","workspacePath":"workspace://critical-token-graph","spectralRadius":8.0,"eigenvalues":[4.192582403567252,-1.1925824035672519,8.0,0.0],"mechanismScope":"optInDeepAnalysisJacobianSpectrumHintSubstrate","productSurface":"deepAnalysisCascadeSensitivityHint","defaultProductDecisionMechanism":false,"message":"RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.","mechanismProducts":["omena-rg-flow.coupling-jacobian-spectrum"]}"#;
+
+#[cfg(test)]
+const CANONICAL_MULTISCALE_EVALUATION_EXPECTED_WIRE_V0: &str = r#"{"ruleCode":"multiscale-complexity-heuristic-relevant-operator","ruleCodeName":"multiscale-complexity-heuristic-relevant-operator","severity":"hint","severityName":"hint","workspacePath":"workspace://critical-token-graph","spectralRadius":8.0,"eigenvalues":[4.192582403567252,-1.1925824035672519,8.0,0.0],"mechanismScope":"optInDeepAnalysisJacobianSpectrumHintSubstrate","productSurface":"deepAnalysisCascadeSensitivityHint","defaultProductDecisionMechanism":false,"message":"multiscale-complexity-heuristic opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.","mechanismProducts":["omena-rg-flow.coupling-jacobian-spectrum"]}"#;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -615,13 +764,13 @@ pub struct OmenaCheckerMdlEvaluationV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaCheckerStreamingIfdsInputV0 {
-    pub reports: Vec<OmenaCheckerStreamingIfdsReportInputV0>,
+pub struct OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0 {
+    pub reports: Vec<OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaCheckerStreamingIfdsReportInputV0 {
+pub struct OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0 {
     pub report_id: String,
     pub incremental_precision_parity_with_batch: bool,
     pub reachability_fallback_applied: bool,
@@ -630,8 +779,8 @@ pub struct OmenaCheckerStreamingIfdsReportInputV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaCheckerStreamingIfdsEvaluationV0 {
-    pub rule_code: OmenaCheckerRuleCodeV0,
+pub struct OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationV0 {
+    pub rule_code: OmenaCheckerCanonicalRuleCodeV0,
     pub rule_code_name: &'static str,
     pub severity: OmenaCheckerSeverityV0,
     pub severity_name: &'static str,
@@ -645,21 +794,21 @@ pub struct OmenaCheckerStreamingIfdsEvaluationV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaCheckerRgFlowInputV0 {
-    pub flows: Vec<OmenaCheckerRgFlowCouplingInputV0>,
+pub struct OmenaCheckerMultiscaleComplexityHeuristicInputV0 {
+    pub flows: Vec<OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaCheckerRgFlowCouplingInputV0 {
+pub struct OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0 {
     pub workspace_path: String,
-    pub before: OmenaCheckerRgFlowCouplingSpaceInputV0,
-    pub after: OmenaCheckerRgFlowCouplingSpaceInputV0,
+    pub before: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
+    pub after: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaCheckerRgFlowCouplingSpaceInputV0 {
+pub struct OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
     pub k_env: usize,
     pub k_decl: usize,
     pub k_cycle: usize,
@@ -668,8 +817,8 @@ pub struct OmenaCheckerRgFlowCouplingSpaceInputV0 {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaCheckerRgFlowEvaluationV0 {
-    pub rule_code: OmenaCheckerRuleCodeV0,
+pub struct OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0 {
+    pub rule_code: OmenaCheckerCanonicalRuleCodeV0,
     pub rule_code_name: &'static str,
     pub severity: OmenaCheckerSeverityV0,
     pub severity_name: &'static str,
@@ -769,6 +918,7 @@ pub struct OmenaCheckerCategoricalEvaluationV0 {
     pub mechanism_products: Vec<&'static str>,
 }
 
+#[allow(deprecated)]
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
     use OmenaCheckerFindingCategoryV0::{Source, Style};
     use OmenaCheckerRuleCodeV0::{
@@ -779,9 +929,8 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
-        UnusedSelector,
+        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
     use OmenaCheckerRuleFixabilityV0::{CodeAction, None};
     use OmenaCheckerRulePresetV0::{Recommended, Strict};
@@ -981,20 +1130,20 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             "Report design-system compression candidates whose MDL budget is worse than the configured canonical fallback.",
         ),
         rule(
-            StreamingIfdsPrecisionParity,
+            OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity,
             Style,
             Hint,
             None,
             &[Strict],
-            "Report streaming IFDS results that fail exact parity with the batch hypergraph oracle.",
+            LEGACY_PROPAGATION_RULE_DESCRIPTION_V0,
         ),
         rule(
-            RgFlowRelevantOperator,
+            OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator,
             Style,
             Hint,
             None,
             &[Strict],
-            "Report RG-flow coupling spectra whose relevant operator indicates unstable cascade sensitivity.",
+            LEGACY_MULTISCALE_RULE_DESCRIPTION_V0,
         ),
         rule(
             ReplicaEnsembleInconsistency,
@@ -1058,6 +1207,15 @@ pub fn list_omena_checker_rule_code_names() -> Vec<&'static str> {
     list_omena_checker_rule_codes()
         .into_iter()
         .map(OmenaCheckerRuleCodeV0::as_str)
+        .collect()
+}
+
+/// Accurate additive names for callers that are not constrained by the
+/// pre-1.0 serialized checker-code contract.
+pub fn list_omena_checker_canonical_rule_code_names() -> Vec<&'static str> {
+    list_omena_checker_rule_codes()
+        .into_iter()
+        .map(OmenaCheckerRuleCodeV0::canonical_name)
         .collect()
 }
 
@@ -1136,15 +1294,14 @@ pub fn list_omena_checker_t_tier_rule_code_names() -> Vec<&'static str> {
 pub fn list_omena_checker_i_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
     use OmenaCheckerRuleCodeV0::{
         CascadeUnreachableRule, CategoricalCascadeEvidenceInconsistency, DesignSystemMdlBudget,
-        DesignerIntentInconsistency, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
-        StreamingIfdsPrecisionParity,
+        DesignerIntentInconsistency, ReplicaEnsembleInconsistency,
     };
 
     vec![
         DesignerIntentInconsistency,
         DesignSystemMdlBudget,
-        StreamingIfdsPrecisionParity,
-        RgFlowRelevantOperator,
+        OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity,
+        OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator,
         ReplicaEnsembleInconsistency,
         CascadeUnreachableRule,
         CategoricalCascadeEvidenceInconsistency,
@@ -1186,10 +1343,10 @@ pub fn resolve_omena_checker_rule_tier_for_smt_backend(
     }
 }
 
-pub fn checker_categorical_cascade_evidence_v0(
+pub fn checker_cascade_section_evidence_v0(
     source_product: &'static str,
 ) -> CategoricalCascadeEvidenceV0 {
-    omena_product_hints::categorical_cascade_evidence_v0(source_product)
+    omena_product_hints::cascade_section_evidence_v0(source_product)
 }
 
 /// Build cascade categorical evidence whose functor application is the real
@@ -1198,11 +1355,11 @@ pub fn checker_categorical_cascade_evidence_v0(
 /// Thin wrapper over the product-owned categorical hint contract so the query
 /// style path can attach a verdict that depends on the parsed cascade without a
 /// Query -> Theory layer skip.
-pub fn checker_categorical_cascade_evidence_for_exercised_primitives_v0(
+pub fn checker_cascade_section_evidence_for_exercised_primitives_v0(
     source_product: &'static str,
     exercised_primitive_role_pairs: &[(String, String)],
 ) -> CategoricalCascadeEvidenceV0 {
-    omena_product_hints::categorical_cascade_evidence_for_exercised_primitives_v0(
+    omena_product_hints::cascade_section_evidence_for_exercised_primitives_v0(
         source_product,
         exercised_primitive_role_pairs,
     )
@@ -1216,6 +1373,44 @@ pub fn checker_categorical_cascade_evidence_for_exercised_primitives_v0(
 /// stylesheet exercises and feed the projection into the categorical functor
 /// gate; keeping the catalog here avoids a Query -> Theory layer skip and keeps
 /// the role names in sync with the categorical source of truth.
+pub fn checker_cascade_implementation_role_catalog_v0() -> Vec<(&'static str, &'static str)> {
+    omena_product_hints::cascade_implementation_roles_v0()
+        .into_iter()
+        .map(|role| (role.primitive_name, role.categorical_role))
+        .collect()
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use checker_cascade_section_evidence_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn checker_categorical_cascade_evidence_v0(
+    source_product: &'static str,
+) -> CategoricalCascadeEvidenceV0 {
+    omena_product_hints::categorical_cascade_evidence_v0(source_product)
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use checker_cascade_section_evidence_for_exercised_primitives_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn checker_categorical_cascade_evidence_for_exercised_primitives_v0(
+    source_product: &'static str,
+    exercised_primitive_role_pairs: &[(String, String)],
+) -> CategoricalCascadeEvidenceV0 {
+    omena_product_hints::categorical_cascade_evidence_for_exercised_primitives_v0(
+        source_product,
+        exercised_primitive_role_pairs,
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use checker_cascade_implementation_role_catalog_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn checker_cascade_primitive_role_catalog_v0() -> Vec<(&'static str, &'static str)> {
     omena_product_hints::cascade_primitive_roles_v0()
         .into_iter()
@@ -1235,8 +1430,7 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
         MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
         NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
-        UnusedSelector,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
 
     vec![
@@ -1296,7 +1490,7 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
                 DesignSystemMdlBudget,
                 CascadeSMTViolation,
                 DesignerIntentInconsistency,
-                StreamingIfdsPrecisionParity,
+                OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity,
                 CategoricalCascadeEvidenceInconsistency,
             ],
         ),
@@ -1876,41 +2070,44 @@ pub fn evaluate_omena_checker_mdl_rules(
         .collect()
 }
 
-pub fn evaluate_omena_checker_streaming_ifds_rules(
-    input: OmenaCheckerStreamingIfdsInputV0,
-) -> Vec<OmenaCheckerStreamingIfdsEvaluationV0> {
+pub fn evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules(
+    input: OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0,
+) -> Vec<OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationV0> {
     input
         .reports
         .into_iter()
         .filter(|report| !report.incremental_precision_parity_with_batch)
         .map(|report| {
-            streaming_ifds_evaluation(
+            demand_sliced_monotone_fact_propagation_evaluation(
                 report.report_id,
                 report.incremental_precision_parity_with_batch,
                 report.reachability_fallback_applied,
                 report.fact_fallback_applied,
-                "Streaming IFDS analysis failed exact batch precision parity.",
+                "demand-sliced monotone fact propagation analysis failed exact batch precision parity.",
             )
         })
         .collect()
 }
 
-pub fn evaluate_omena_checker_rg_flow_rules(
-    input: OmenaCheckerRgFlowInputV0,
-) -> Vec<OmenaCheckerRgFlowEvaluationV0> {
+pub fn evaluate_omena_checker_multiscale_complexity_heuristic_rules(
+    input: OmenaCheckerMultiscaleComplexityHeuristicInputV0,
+) -> Vec<OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0> {
     input
         .flows
         .into_iter()
         .filter_map(|flow| {
-            let before = checker_rg_flow_coupling_space(flow.before);
-            let after = checker_rg_flow_coupling_space(flow.after);
-            let spectrum = estimate_coupling_jacobian_spectrum_v0(&before, &after);
+            let before = checker_multiscale_complexity_heuristic_coupling_space(flow.before);
+            let after = checker_multiscale_complexity_heuristic_coupling_space(flow.after);
+            let spectrum =
+                estimate_multiscale_complexity_heuristic_coupling_jacobian_spectrum_v0(
+                    &before, &after,
+                );
             (spectrum.spectral_radius > 1.0).then(|| {
-                rg_flow_evaluation(
+                multiscale_complexity_heuristic_evaluation(
                     flow.workspace_path,
                     spectrum.spectral_radius,
                     spectrum.eigenvalues,
-                    "RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.",
+                    "multiscale-complexity-heuristic opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.",
                 )
             })
         })
@@ -2168,16 +2365,19 @@ fn mdl_evaluation(
     }
 }
 
-fn streaming_ifds_evaluation(
+fn demand_sliced_monotone_fact_propagation_evaluation(
     report_id: String,
     incremental_precision_parity_with_batch: bool,
     reachability_fallback_applied: bool,
     fact_fallback_applied: bool,
     message: &'static str,
-) -> OmenaCheckerStreamingIfdsEvaluationV0 {
-    OmenaCheckerStreamingIfdsEvaluationV0 {
-        rule_code: OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity,
-        rule_code_name: OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity.as_str(),
+) -> OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationV0 {
+    OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationV0 {
+        rule_code:
+            OmenaCheckerCanonicalRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity,
+        rule_code_name:
+            OmenaCheckerCanonicalRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity
+                .as_str(),
         severity: OmenaCheckerSeverityV0::Hint,
         severity_name: OmenaCheckerSeverityV0::Hint.as_str(),
         report_id,
@@ -2189,23 +2389,25 @@ fn streaming_ifds_evaluation(
     }
 }
 
-fn rg_flow_evaluation(
+fn multiscale_complexity_heuristic_evaluation(
     workspace_path: String,
     spectral_radius: f64,
     eigenvalues: Vec<f64>,
     message: &'static str,
-) -> OmenaCheckerRgFlowEvaluationV0 {
-    OmenaCheckerRgFlowEvaluationV0 {
-        rule_code: OmenaCheckerRuleCodeV0::RgFlowRelevantOperator,
-        rule_code_name: OmenaCheckerRuleCodeV0::RgFlowRelevantOperator.as_str(),
+) -> OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0 {
+    OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0 {
+        rule_code: OmenaCheckerCanonicalRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator,
+        rule_code_name:
+            OmenaCheckerCanonicalRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator.as_str(),
         severity: OmenaCheckerSeverityV0::Hint,
         severity_name: OmenaCheckerSeverityV0::Hint.as_str(),
         workspace_path,
         spectral_radius,
         eigenvalues,
-        mechanism_scope: RG_FLOW_MECHANISM_SCOPE_V0,
-        product_surface: RG_FLOW_PRODUCT_SURFACE_V0,
-        default_product_decision_mechanism: RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
+        mechanism_scope: MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0,
+        product_surface: MULTISCALE_COMPLEXITY_HEURISTIC_PRODUCT_SURFACE_V0,
+        default_product_decision_mechanism:
+            MULTISCALE_COMPLEXITY_HEURISTIC_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
         message: message.to_string(),
         mechanism_products: vec!["omena-rg-flow.coupling-jacobian-spectrum"],
     }
@@ -2232,10 +2434,15 @@ fn replica_ensemble_evaluation(
     }
 }
 
-fn checker_rg_flow_coupling_space(
-    input: OmenaCheckerRgFlowCouplingSpaceInputV0,
+fn checker_multiscale_complexity_heuristic_coupling_space(
+    input: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
 ) -> omena_product_hints::CouplingSpaceV0 {
-    coupling_space(input.k_env, input.k_decl, input.k_cycle, input.k_dirty)
+    multiscale_complexity_heuristic_coupling_space(
+        input.k_env,
+        input.k_decl,
+        input.k_cycle,
+        input.k_dirty,
+    )
 }
 
 fn designer_intent_source_order_tie_is_inconsistent(
@@ -2420,16 +2627,399 @@ fn custom_property_reaches_name(
     false
 }
 
+/// Pre-1.0 nominal compatibility input.
+/// Owner: `omena-checker` maintainers. Removal condition: not before 1.0,
+/// after downstream migration and zero audited in-repo non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerStreamingIfdsInputV0 {
+    pub reports: Vec<OmenaCheckerStreamingIfdsReportInputV0>,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerStreamingIfdsReportInputV0 {
+    pub report_id: String,
+    pub incremental_precision_parity_with_batch: bool,
+    pub reachability_fallback_applied: bool,
+    pub fact_fallback_applied: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerStreamingIfdsEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub report_id: String,
+    pub incremental_precision_parity_with_batch: bool,
+    pub reachability_fallback_applied: bool,
+    pub fact_fallback_applied: bool,
+    pub message: String,
+    pub mechanism_products: Vec<&'static str>,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "nominal compatibility conversion owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn into_streaming_ifds_input_v0(
+    input: OmenaCheckerStreamingIfdsInputV0,
+) -> OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0 {
+    OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0 {
+        reports: input
+            .reports
+            .into_iter()
+            .map(
+                |report| OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0 {
+                    report_id: report.report_id,
+                    incremental_precision_parity_with_batch: report
+                        .incremental_precision_parity_with_batch,
+                    reachability_fallback_applied: report.reachability_fallback_applied,
+                    fact_fallback_applied: report.fact_fallback_applied,
+                },
+            )
+            .collect(),
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "nominal compatibility conversion owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn into_streaming_ifds_evaluation_v0(
+    evaluation: OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationV0,
+) -> OmenaCheckerStreamingIfdsEvaluationV0 {
+    let rule_code = canonical_rule_code_into_compatibility_v0(evaluation.rule_code);
+    OmenaCheckerStreamingIfdsEvaluationV0 {
+        rule_code,
+        rule_code_name: rule_code.as_str(),
+        severity: evaluation.severity,
+        severity_name: evaluation.severity_name,
+        report_id: evaluation.report_id,
+        incremental_precision_parity_with_batch: evaluation.incremental_precision_parity_with_batch,
+        reachability_fallback_applied: evaluation.reachability_fallback_applied,
+        fact_fallback_applied: evaluation.fact_fallback_applied,
+        message: "Streaming IFDS analysis failed exact batch precision parity.".to_string(),
+        mechanism_products: evaluation.mechanism_products,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn evaluate_omena_checker_streaming_ifds_rules(
+    input: OmenaCheckerStreamingIfdsInputV0,
+) -> Vec<OmenaCheckerStreamingIfdsEvaluationV0> {
+    evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules(
+        into_streaming_ifds_input_v0(input),
+    )
+    .into_iter()
+    .map(into_streaming_ifds_evaluation_v0)
+    .collect()
+}
+
+/// Pre-1.0 nominal compatibility input.
+/// Owner: `omena-checker` maintainers. Removal condition: not before 1.0,
+/// after downstream migration and zero audited non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaCheckerMultiscaleComplexityHeuristicInputV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerRgFlowInputV0 {
+    pub flows: Vec<OmenaCheckerRgFlowCouplingInputV0>,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerRgFlowCouplingInputV0 {
+    pub workspace_path: String,
+    pub before: OmenaCheckerRgFlowCouplingSpaceInputV0,
+    pub after: OmenaCheckerRgFlowCouplingSpaceInputV0,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerRgFlowCouplingSpaceInputV0 {
+    pub k_env: usize,
+    pub k_decl: usize,
+    pub k_cycle: usize,
+    pub k_dirty: usize,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerRgFlowEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub workspace_path: String,
+    pub spectral_radius: f64,
+    pub eigenvalues: Vec<f64>,
+    pub mechanism_scope: &'static str,
+    pub product_surface: &'static str,
+    pub default_product_decision_mechanism: bool,
+    pub message: String,
+    pub mechanism_products: Vec<&'static str>,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "nominal compatibility conversion owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn into_multiscale_complexity_heuristic_input_v0(
+    input: OmenaCheckerRgFlowInputV0,
+) -> OmenaCheckerMultiscaleComplexityHeuristicInputV0 {
+    OmenaCheckerMultiscaleComplexityHeuristicInputV0 {
+        flows: input
+            .flows
+            .into_iter()
+            .map(
+                |flow| OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0 {
+                    workspace_path: flow.workspace_path,
+                    before: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
+                        k_env: flow.before.k_env,
+                        k_decl: flow.before.k_decl,
+                        k_cycle: flow.before.k_cycle,
+                        k_dirty: flow.before.k_dirty,
+                    },
+                    after: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
+                        k_env: flow.after.k_env,
+                        k_decl: flow.after.k_decl,
+                        k_cycle: flow.after.k_cycle,
+                        k_dirty: flow.after.k_dirty,
+                    },
+                },
+            )
+            .collect(),
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "nominal compatibility conversion owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn into_rg_flow_evaluation_v0(
+    evaluation: OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0,
+) -> OmenaCheckerRgFlowEvaluationV0 {
+    let rule_code = canonical_rule_code_into_compatibility_v0(evaluation.rule_code);
+    OmenaCheckerRgFlowEvaluationV0 {
+        rule_code,
+        rule_code_name: rule_code.as_str(),
+        severity: evaluation.severity,
+        severity_name: evaluation.severity_name,
+        workspace_path: evaluation.workspace_path,
+        spectral_radius: evaluation.spectral_radius,
+        eigenvalues: evaluation.eigenvalues,
+        mechanism_scope: evaluation.mechanism_scope,
+        product_surface: evaluation.product_surface,
+        default_product_decision_mechanism: evaluation.default_product_decision_mechanism,
+        message: "RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.".to_string(),
+        mechanism_products: evaluation.mechanism_products,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "canonical-to-compatibility rule-code conversion owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const fn canonical_rule_code_into_compatibility_v0(
+    code: OmenaCheckerCanonicalRuleCodeV0,
+) -> OmenaCheckerRuleCodeV0 {
+    match code {
+        OmenaCheckerCanonicalRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity => {
+            OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity
+        }
+        OmenaCheckerCanonicalRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator => {
+            OmenaCheckerRuleCodeV0::RgFlowRelevantOperator
+        }
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use evaluate_omena_checker_multiscale_complexity_heuristic_rules; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn evaluate_omena_checker_rg_flow_rules(
+    input: OmenaCheckerRgFlowInputV0,
+) -> Vec<OmenaCheckerRgFlowEvaluationV0> {
+    evaluate_omena_checker_multiscale_complexity_heuristic_rules(
+        into_multiscale_complexity_heuristic_input_v0(input),
+    )
+    .into_iter()
+    .map(into_rg_flow_evaluation_v0)
+    .collect()
+}
+
+#[cfg(test)]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy categorical checker wire fixture adapter owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_cascade_checker_bundle_serialized_v0() -> Result<String, serde_json::Error> {
+    let role_catalog = checker_cascade_primitive_role_catalog_v0();
+    let exercised_primitive_role_pairs = role_catalog
+        .iter()
+        .map(|(primitive_name, role)| ((*primitive_name).to_string(), (*role).to_string()))
+        .collect::<Vec<_>>();
+    let evidence = checker_categorical_cascade_evidence_v0("omena-query.read-cascade-at-position");
+    let exercised = checker_categorical_cascade_evidence_for_exercised_primitives_v0(
+        "omena-query.read-cascade-at-position",
+        &exercised_primitive_role_pairs,
+    );
+    serde_json::to_string(&serde_json::json!({
+        "roleCatalog": role_catalog,
+        "evidence": evidence,
+        "exercisedEvidence": exercised,
+    }))
+}
+
+#[cfg(test)]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy checker wire fixture adapter owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_propagation_evaluation_serialized_v0() -> Result<String, serde_json::Error> {
+    let evaluations =
+        evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
+            reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
+                report_id: "streaming-report-1".to_string(),
+                incremental_precision_parity_with_batch: false,
+                reachability_fallback_applied: false,
+                fact_fallback_applied: true,
+            }],
+        });
+    serde_json::to_string(&evaluations[0])
+}
+
+#[cfg(test)]
+fn canonical_propagation_evaluation_serialized_v0() -> Result<String, serde_json::Error> {
+    let evaluations = evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules(
+        OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0 {
+            reports: vec![
+                OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0 {
+                    report_id: "streaming-report-1".to_string(),
+                    incremental_precision_parity_with_batch: false,
+                    reachability_fallback_applied: false,
+                    fact_fallback_applied: true,
+                },
+            ],
+        },
+    );
+    serde_json::to_string(&evaluations[0])
+}
+
+#[cfg(test)]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy checker wire fixture adapter owned by omena-checker maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_multiscale_evaluation_serialized_v0() -> Result<String, serde_json::Error> {
+    let evaluations = evaluate_omena_checker_rg_flow_rules(OmenaCheckerRgFlowInputV0 {
+        flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
+            workspace_path: "workspace://critical-token-graph".to_string(),
+            before: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+                k_env: 1,
+                k_decl: 1,
+                k_cycle: 0,
+                k_dirty: 0,
+            },
+            after: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+                k_env: 5,
+                k_decl: 0,
+                k_cycle: 0,
+                k_dirty: 8,
+            },
+        }],
+    });
+    serde_json::to_string(&evaluations[0])
+}
+
+#[cfg(test)]
+fn canonical_multiscale_evaluation_serialized_v0() -> Result<String, serde_json::Error> {
+    let evaluations = evaluate_omena_checker_multiscale_complexity_heuristic_rules(
+        OmenaCheckerMultiscaleComplexityHeuristicInputV0 {
+            flows: vec![OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0 {
+                workspace_path: "workspace://critical-token-graph".to_string(),
+                before: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
+                    k_env: 1,
+                    k_decl: 1,
+                    k_cycle: 0,
+                    k_dirty: 0,
+                },
+                after: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
+                    k_env: 5,
+                    k_decl: 0,
+                    k_cycle: 0,
+                    k_dirty: 8,
+                },
+            }],
+        },
+    );
+    serde_json::to_string(&evaluations[0])
+}
+
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::{collections::BTreeSet, fmt::Write};
 
     use omena_abstract_value::{
         CompositeClassValueInputV0, composite_class_value, finite_set_class_value,
         prefix_class_value,
     };
+    use sha2::{Digest, Sha256};
 
     use super::*;
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        let mut digest = String::with_capacity(64);
+        for byte in Sha256::digest(bytes) {
+            let _ = write!(&mut digest, "{byte:02x}");
+        }
+        digest
+    }
 
     #[test]
     fn lists_current_checker_registry_in_stable_ts_order() {
@@ -2460,8 +3050,8 @@ mod tests {
                 "designer-intent-inconsistency",
                 "cascade.smt-violation",
                 "design-system-mdl-budget",
-                "streaming-ifds-precision-parity",
-                "rg-flow-relevant-operator",
+                OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity.as_str(),
+                OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator.as_str(),
                 "replica-ensemble-inconsistency",
                 "cascade.deep-conflict",
                 "cascade.unreachable-rule",
@@ -2652,8 +3242,8 @@ mod tests {
             vec![
                 "designer-intent-inconsistency",
                 "design-system-mdl-budget",
-                "streaming-ifds-precision-parity",
-                "rg-flow-relevant-operator",
+                OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity.as_str(),
+                OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator.as_str(),
                 "replica-ensemble-inconsistency",
                 "cascade.unreachable-rule",
                 "categorical-cascade-evidence-inconsistency",
@@ -2679,13 +3269,17 @@ mod tests {
             Some(24)
         );
         assert_eq!(
-            get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity)
-                .map(|descriptor| descriptor.ordinal),
+            get_omena_checker_rule_descriptor(
+                OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity
+            )
+            .map(|descriptor| descriptor.ordinal),
             Some(25)
         );
         assert_eq!(
-            get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::RgFlowRelevantOperator)
-                .map(|descriptor| descriptor.ordinal),
+            get_omena_checker_rule_descriptor(
+                OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator
+            )
+            .map(|descriptor| descriptor.ordinal),
             Some(28)
         );
         assert_eq!(
@@ -3400,11 +3994,11 @@ mod tests {
             mappings: vec![categorical_role_mapping(
                 "functorial-mapping",
                 &[
-                    ("cascade_property", "cosheaf colimit witness"),
+                    ("cascade_property", "cascade section aggregation witness"),
                     ("prove_layer_flatten_candidate", "beck-chevalley witness"),
                     (
                         "evaluate_static_supports_condition",
-                        "site decidability witness",
+                        "cascade-section-axis decidability witness",
                     ),
                 ],
             )],
@@ -3421,7 +4015,7 @@ mod tests {
             mappings: vec![categorical_role_mapping(
                 "broken-mapping",
                 &[
-                    ("cascade_property", "cosheaf colimit witness"),
+                    ("cascade_property", "cascade section aggregation witness"),
                     ("prove_layer_flatten_candidate", "beck-chevalley witness"),
                 ],
             )],
@@ -3440,6 +4034,39 @@ mod tests {
             evaluation.mechanism_products,
             vec!["omena-categorical.cascade-primitive-role-functor"]
         );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn compatibility_and_canonical_cascade_checker_bundles_have_exact_distinct_bytes()
+    -> Result<(), serde_json::Error> {
+        let compatibility = compatibility_cascade_checker_bundle_serialized_v0()?;
+        assert_eq!(
+            sha256_hex(compatibility.as_bytes()),
+            "f1df35b9db79aa7da228bbaf542c0282831fd9b6e98cbd62f6b4e1c91b584e55"
+        );
+
+        let role_catalog = checker_cascade_implementation_role_catalog_v0();
+        let exercised_primitive_role_pairs = role_catalog
+            .iter()
+            .map(|(primitive_name, role)| ((*primitive_name).to_string(), (*role).to_string()))
+            .collect::<Vec<_>>();
+        let evidence = checker_cascade_section_evidence_v0("omena-query.read-cascade-at-position");
+        let exercised = checker_cascade_section_evidence_for_exercised_primitives_v0(
+            "omena-query.read-cascade-at-position",
+            &exercised_primitive_role_pairs,
+        );
+        let canonical = serde_json::to_string(&serde_json::json!({
+            "roleCatalog": role_catalog,
+            "evidence": evidence,
+            "exercisedEvidence": exercised,
+        }))?;
+        assert_eq!(
+            sha256_hex(canonical.as_bytes()),
+            "8e5873b6d7ce50edf7ab6105150e7a78ae8c87c5ed9445ff393cc177293d9135"
+        );
+        assert_ne!(canonical, compatibility);
+        Ok(())
     }
 
     fn categorical_role_mapping(
@@ -3648,13 +4275,13 @@ mod tests {
         assert!(clear_evaluations.is_empty());
     }
 
-    fn streaming_ifds_report_input(
+    fn demand_sliced_monotone_fact_propagation_report_input(
         report_id: &str,
         incremental_precision_parity_with_batch: bool,
         reachability_fallback_applied: bool,
         fact_fallback_applied: bool,
-    ) -> OmenaCheckerStreamingIfdsReportInputV0 {
-        OmenaCheckerStreamingIfdsReportInputV0 {
+    ) -> OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0 {
+        OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0 {
             report_id: report_id.to_string(),
             incremental_precision_parity_with_batch,
             reachability_fallback_applied,
@@ -3663,21 +4290,22 @@ mod tests {
     }
 
     #[test]
-    fn evaluates_streaming_ifds_precision_parity_rule_family() {
-        let evaluations =
-            evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
-                reports: vec![streaming_ifds_report_input(
+    fn evaluates_demand_sliced_monotone_fact_propagation_precision_parity_rule_family() {
+        let evaluations = evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules(
+            OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0 {
+                reports: vec![demand_sliced_monotone_fact_propagation_report_input(
                     "streaming-report-1",
                     false,
                     false,
                     true,
                 )],
-            });
+            },
+        );
 
         assert_eq!(evaluations.len(), 1);
         assert_eq!(
             evaluations[0].rule_code,
-            OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity
+            OmenaCheckerCanonicalRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity
         );
         assert_eq!(evaluations[0].report_id, "streaming-report-1");
         assert!(!evaluations[0].incremental_precision_parity_with_batch);
@@ -3689,39 +4317,53 @@ mod tests {
         );
 
         let clear_evaluations =
-            evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
-                reports: vec![streaming_ifds_report_input(
-                    "streaming-report-2",
-                    true,
-                    false,
-                    false,
-                )],
-            });
+            evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules(
+                OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0 {
+                    reports: vec![demand_sliced_monotone_fact_propagation_report_input(
+                        "streaming-report-2",
+                        true,
+                        false,
+                        false,
+                    )],
+                },
+            );
         assert!(clear_evaluations.is_empty());
     }
 
     #[test]
-    fn evaluates_rg_flow_relevant_operator_rule_family() {
-        let evaluations = evaluate_omena_checker_rg_flow_rules(OmenaCheckerRgFlowInputV0 {
-            flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
-                workspace_path: "workspace://critical-token-graph".to_string(),
-                before: rg_flow_coupling(1, 1, 0, 0),
-                after: rg_flow_coupling(5, 0, 0, 8),
-            }],
-        });
+    fn evaluates_multiscale_complexity_heuristic_relevant_operator_rule_family() {
+        let evaluations = evaluate_omena_checker_multiscale_complexity_heuristic_rules(
+            OmenaCheckerMultiscaleComplexityHeuristicInputV0 {
+                flows: vec![OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0 {
+                    workspace_path: "workspace://critical-token-graph".to_string(),
+                    before: multiscale_complexity_heuristic_coupling(1, 1, 0, 0),
+                    after: multiscale_complexity_heuristic_coupling(5, 0, 0, 8),
+                }],
+            },
+        );
 
         assert_eq!(evaluations.len(), 1);
         assert_eq!(
             evaluations[0].rule_code,
-            OmenaCheckerRuleCodeV0::RgFlowRelevantOperator
+            OmenaCheckerCanonicalRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator
+        );
+        assert_eq!(
+            evaluations[0].rule_code_name,
+            "multiscale-complexity-heuristic-relevant-operator"
         );
         assert_eq!(
             evaluations[0].workspace_path,
             "workspace://critical-token-graph"
         );
         assert!(evaluations[0].spectral_radius > 1.0);
-        assert_eq!(evaluations[0].mechanism_scope, RG_FLOW_MECHANISM_SCOPE_V0);
-        assert_eq!(evaluations[0].product_surface, RG_FLOW_PRODUCT_SURFACE_V0);
+        assert_eq!(
+            evaluations[0].mechanism_scope,
+            MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0
+        );
+        assert_eq!(
+            evaluations[0].product_surface,
+            MULTISCALE_COMPLEXITY_HEURISTIC_PRODUCT_SURFACE_V0
+        );
         assert!(!evaluations[0].default_product_decision_mechanism);
         assert!(
             evaluations[0]
@@ -3733,14 +4375,39 @@ mod tests {
             vec!["omena-rg-flow.coupling-jacobian-spectrum"]
         );
 
-        let clear_evaluations = evaluate_omena_checker_rg_flow_rules(OmenaCheckerRgFlowInputV0 {
-            flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
-                workspace_path: "workspace://settled-token-graph".to_string(),
-                before: rg_flow_coupling(4, 2, 0, 0),
-                after: rg_flow_coupling(3, 1, 0, 0),
-            }],
-        });
+        let clear_evaluations = evaluate_omena_checker_multiscale_complexity_heuristic_rules(
+            OmenaCheckerMultiscaleComplexityHeuristicInputV0 {
+                flows: vec![OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0 {
+                    workspace_path: "workspace://settled-token-graph".to_string(),
+                    before: multiscale_complexity_heuristic_coupling(4, 2, 0, 0),
+                    after: multiscale_complexity_heuristic_coupling(3, 1, 0, 0),
+                }],
+            },
+        );
         assert!(clear_evaluations.is_empty());
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn compatibility_and_canonical_rule_codes_preserve_exact_full_serialized_bytes()
+    -> Result<(), serde_json::Error> {
+        assert_eq!(
+            compatibility_propagation_evaluation_serialized_v0()?,
+            LEGACY_PROPAGATION_EVALUATION_EXPECTED_WIRE_V0,
+        );
+        assert_eq!(
+            canonical_propagation_evaluation_serialized_v0()?,
+            CANONICAL_PROPAGATION_EVALUATION_EXPECTED_WIRE_V0,
+        );
+        assert_eq!(
+            compatibility_multiscale_evaluation_serialized_v0()?,
+            LEGACY_MULTISCALE_EVALUATION_EXPECTED_WIRE_V0,
+        );
+        assert_eq!(
+            canonical_multiscale_evaluation_serialized_v0()?,
+            CANONICAL_MULTISCALE_EVALUATION_EXPECTED_WIRE_V0,
+        );
+        Ok(())
     }
 
     #[test]
@@ -4252,13 +4919,13 @@ mod tests {
         }
     }
 
-    fn rg_flow_coupling(
+    fn multiscale_complexity_heuristic_coupling(
         k_env: usize,
         k_decl: usize,
         k_cycle: usize,
         k_dirty: usize,
-    ) -> OmenaCheckerRgFlowCouplingSpaceInputV0 {
-        OmenaCheckerRgFlowCouplingSpaceInputV0 {
+    ) -> OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
+        OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
             k_env,
             k_decl,
             k_cycle,

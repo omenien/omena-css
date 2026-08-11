@@ -5671,7 +5671,7 @@ fn cross_file_streaming_reachability_fires_on_use_chain_not_self_contained() {
     };
     let sources = vec![tokens.clone(), importer.clone()];
 
-    // The importer reaches a foreign module over the resolved `@use` edge: the streaming-IFDS
+    // The importer reaches a foreign module over the resolved `@use` edge: the demand-sliced-monotone-fact-propagation
     // oracle propagates a seeded fact from a Button node to a `_tokens.scss` node, so the
     // computed foreign-reachable set is non-empty.
     let importer_diagnostics = summarize_cross_file_streaming_reachability_diagnostics(

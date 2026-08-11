@@ -46,13 +46,21 @@ pub use omena_abstract_value::{
     PolynomialProvenanceTermV0, PolynomialProvenanceV0, PolynomialProvenanceVariableV0,
     ProvenanceSemiringLawReportV0, ReducedClassValueProductIterationV0, ReducedClassValueProductV0,
     SelectorProjectionCertaintyV0, abstract_class_value_from_facts, abstract_class_value_kind,
-    derive_cascade_restriction_maps_v0, fact_precision_from_class_value,
+    derive_context_indexed_cascade_restriction_maps_v0, fact_precision_from_class_value,
     fact_precision_from_class_value_with_witness, iterate_reduced_class_value_product_constraints,
     join_abstract_class_values, narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_suffix_class_value,
-    summarize_cascade_value_family_v0, summarize_polynomial_provenance_from_linear_v0,
-    top_class_value, validate_registered_property_value_v0,
-    verify_provenance_semiring_laws_on_fixtures,
+    summarize_context_indexed_cascade_value_family_v0,
+    summarize_polynomial_provenance_from_linear_v0, top_class_value,
+    validate_registered_property_value_v0, verify_provenance_semiring_laws_on_fixtures,
+};
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the context-indexed cascade value family adapters; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use omena_abstract_value::{
+    derive_cascade_restriction_maps_v0, summarize_cascade_value_family_v0,
 };
 pub use omena_incremental::{
     IncrementalEditDistancePriorityInputV0, IncrementalGraphInputV0,

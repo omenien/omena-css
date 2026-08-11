@@ -190,7 +190,7 @@ const survivors: readonly Survivor[] = [
     forbiddenSymbols: ["omena_evidence_graph::", "EvidenceGraphV0"],
   },
   {
-    family: "streaming IFDS module claim note",
+    family: "demand-sliced monotone fact propagation module claim note",
     file: "rust/crates/omena-streaming-ifds/src/lib.rs",
     requiredSymbols: ["//! claim_level:"],
     forbiddenSymbols: ["omena_evidence_graph::", "EvidenceGraphV0"],

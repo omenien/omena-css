@@ -3354,7 +3354,111 @@ fn enforce_strict_decision_coverage(
     }
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+pub fn execute_omena_query_transform_passes_from_source_with_transform_catalog_trace(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+) -> OmenaQueryTransformCatalogTransformExecuteSummaryV0 {
+    let execution = execute_omena_query_transform_passes_from_source(
+        style_path,
+        style_source,
+        requested_pass_ids,
+    );
+    let requested_passes = requested_pass_ids
+        .iter()
+        .filter_map(|pass_id| transform_pass_kind_from_id(pass_id))
+        .collect::<Vec<_>>();
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let (_traced_execution, transform_catalog_trace) =
+        execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect(
+            style_source,
+            dialect,
+            requested_passes.as_slice(),
+        );
+    let parallel_plan =
+        plan_transform_passes_parallel_transform_catalog_layers(requested_passes.as_slice());
+    let mut reorderability_certificates = Vec::new();
+    let mut differential_witnesses = Vec::new();
+
+    if let Some((left, right)) = requested_passes.first().zip(requested_passes.get(1)) {
+        let (certificate, witness) =
+            evaluate_transform_catalog_reorderability_with_differential_corpus(
+                *left,
+                *right,
+                &[style_source],
+            );
+        reorderability_certificates.push(certificate);
+        differential_witnesses.push(witness);
+    }
+
+    build_transform_catalog_execute_summary_v0(
+        execution,
+        transform_catalog_trace,
+        parallel_plan,
+        reorderability_certificates,
+        differential_witnesses,
+    )
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+fn build_transform_catalog_execute_summary_v0(
+    execution: OmenaQueryTransformExecuteSummaryV0,
+    transform_catalog_trace: OmenaQueryTransformCatalogModelTraceV0,
+    parallel_plan: OmenaQueryTransformCatalogTransformPassParallelPlanV0,
+    reorderability_certificates: Vec<OmenaQueryTransformCatalogReorderabilityCertificateV0>,
+    differential_witnesses: Vec<OmenaQueryTransformCatalogDifferentialCommutativityWitnessV0>,
+) -> OmenaQueryTransformCatalogTransformExecuteSummaryV0 {
+    build_transform_catalog_execute_summary_with_legacy_field_v0(
+        execution,
+        transform_catalog_trace,
+        parallel_plan,
+        reorderability_certificates,
+        differential_witnesses,
+    )
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "constructs a retained serialized field; owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn build_transform_catalog_execute_summary_with_legacy_field_v0(
+    execution: OmenaQueryTransformExecuteSummaryV0,
+    transform_catalog_trace: OmenaQueryTransformCatalogModelTraceV0,
+    parallel_plan: OmenaQueryTransformCatalogTransformPassParallelPlanV0,
+    reorderability_certificates: Vec<OmenaQueryTransformCatalogReorderabilityCertificateV0>,
+    differential_witnesses: Vec<OmenaQueryTransformCatalogDifferentialCommutativityWitnessV0>,
+) -> OmenaQueryTransformCatalogTransformExecuteSummaryV0 {
+    OmenaQueryTransformCatalogTransformExecuteSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-execute-transform-catalog-trace",
+        product_scope: "explicitOptInTransformCatalogTraceProductLane",
+        default_product_mechanism: false,
+        global_transform_theorem_claimed: false,
+        execution,
+        lawvere_trace: transform_catalog_trace,
+        parallel_plan,
+        reorderability_certificates,
+        differential_witnesses,
+        ready_surfaces: vec![
+            "queryTransformExecutionHandoff",
+            "transformCatalogModelTrace",
+            "transformCatalogParallelPlanTrace",
+            "transformCatalogDifferentialReorderabilityCertificate",
+        ],
+    }
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use execute_omena_query_transform_passes_from_source_with_transform_catalog_trace; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn execute_omena_query_transform_passes_from_source_with_lawvere_trace(
     style_path: &str,
     style_source: &str,
@@ -3371,21 +3475,23 @@ pub fn execute_omena_query_transform_passes_from_source_with_lawvere_trace(
         .collect::<Vec<_>>();
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let (_traced_execution, lawvere_trace) =
-        execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
+        omena_query_transform_runner::execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
             style_source,
             dialect,
             requested_passes.as_slice(),
         );
-    let parallel_plan = plan_transform_passes_parallel_lawvere_layers(requested_passes.as_slice());
+    let parallel_plan = omena_query_transform_runner::plan_transform_passes_parallel_lawvere_layers(
+        requested_passes.as_slice(),
+    );
     let mut reorderability_certificates = Vec::new();
     let mut differential_witnesses = Vec::new();
-
     if let Some((left, right)) = requested_passes.first().zip(requested_passes.get(1)) {
-        let (certificate, witness) = evaluate_lawvere_reorderability_with_differential_corpus(
-            *left,
-            *right,
-            &[style_source],
-        );
+        let (certificate, witness) =
+            omena_query_transform_runner::evaluate_lawvere_reorderability_with_differential_corpus(
+                *left,
+                *right,
+                &[style_source],
+            );
         reorderability_certificates.push(certificate);
         differential_witnesses.push(witness);
     }

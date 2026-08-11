@@ -32,9 +32,14 @@ pub use reduced_product::{
     concatenate_reduced_class_value_products, intersect_reduced_class_value_products,
     iterate_reduced_class_value_product_constraints, join_reduced_class_value_products,
     reduce_class_value_product, reduced_class_value_product_is_subset,
-    reduced_class_value_product_matches_string, summarize_belief_propagation_iteration_v0,
-    summarize_reduced_class_value_product,
-    summarize_reduced_product_belief_propagation_domain_graph_v0, summarize_reduced_product_domain,
+    reduced_class_value_product_matches_string, summarize_reduced_class_value_product,
+    summarize_reduced_product_constraint_graph_v0,
+    summarize_reduced_product_constraint_propagation_v0, summarize_reduced_product_domain,
+};
+#[allow(deprecated)]
+pub use reduced_product::{
+    summarize_belief_propagation_iteration_v0,
+    summarize_reduced_product_belief_propagation_domain_graph_v0,
 };
 pub use registered_property::*;
 pub use selector_projection::*;

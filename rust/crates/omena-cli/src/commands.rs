@@ -354,7 +354,7 @@ pub(crate) enum Command {
         /// External Sass module mode: omitted enables SIF discovery; use ignored as the compatibility opt-out.
         #[arg(long)]
         external: Option<String>,
-        /// Opt-in deep analysis: also surface the rg-flow / categorical theory hints
+        /// Opt-in deep analysis: also surface the multiscale-complexity-heuristic / categorical theory hints
         /// (off by default; deduplicated against the circular-var warning). Single-file path only.
         #[arg(long)]
         deep_analysis: bool,

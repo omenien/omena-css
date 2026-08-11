@@ -2009,9 +2009,9 @@ fn exposes_transform_plan_custom_property_fixed_point() {
     );
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 #[test]
-fn transform_execute_lawvere_trace_is_explicit_opt_in_product_lane() {
+fn transform_execute_transform_catalog_trace_is_explicit_opt_in_product_lane() {
     let source = r#".a { color : red ; /* remove */ content : "x y" ; }"#;
     let requested_pass_ids = vec![
         "comment-strip".to_string(),
@@ -2019,7 +2019,7 @@ fn transform_execute_lawvere_trace_is_explicit_opt_in_product_lane() {
         "print-css".to_string(),
     ];
 
-    let summary = execute_omena_query_transform_passes_from_source_with_lawvere_trace(
+    let summary = execute_omena_query_transform_passes_from_source_with_transform_catalog_trace(
         "Button.css",
         source,
         &requested_pass_ids,
@@ -2027,11 +2027,11 @@ fn transform_execute_lawvere_trace_is_explicit_opt_in_product_lane() {
 
     assert_eq!(
         summary.product,
-        "omena-query.transform-execute-lawvere-trace"
+        "omena-query.transform-execute-transform-catalog-trace"
     );
     assert_eq!(
         summary.product_scope,
-        "explicitOptInLawvereTraceProductLane"
+        "explicitOptInTransformCatalogTraceProductLane"
     );
     assert!(!summary.default_product_mechanism);
     assert!(!summary.global_transform_theorem_claimed);
@@ -2039,9 +2039,12 @@ fn transform_execute_lawvere_trace_is_explicit_opt_in_product_lane() {
         summary.execution.execution.output_css,
         r#".a{color:red;content:"x y"}"#
     );
-    assert_eq!(summary.lawvere_trace.product, "omena-lawvere.model-trace");
     assert_eq!(
-        summary.lawvere_trace.ordered_pass_ids,
+        summary.transform_catalog_trace().product,
+        "omena-lawvere.model-trace"
+    );
+    assert_eq!(
+        summary.transform_catalog_trace().ordered_pass_ids,
         summary.execution.execution.ordered_pass_ids
     );
     assert_eq!(summary.parallel_plan.scheduler_status, "scaffoldOnly");
@@ -2058,20 +2061,71 @@ fn transform_execute_lawvere_trace_is_explicit_opt_in_product_lane() {
     assert!(
         summary
             .ready_surfaces
-            .contains(&"lawvereDifferentialReorderabilityCertificate")
+            .contains(&"transformCatalogDifferentialReorderabilityCertificate")
     );
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 #[test]
-fn transform_execute_lawvere_trace_exposes_rejected_differential_witness() {
+#[allow(deprecated)]
+fn compatibility_and_canonical_transform_execution_keep_distinct_exact_wire_projections()
+-> Result<(), serde_json::Error> {
+    let source = r#".a { color : red ; /* remove */ content : "x y" ; }"#;
+    let requested_pass_ids = vec![
+        "comment-strip".to_string(),
+        "whitespace-strip".to_string(),
+        "print-css".to_string(),
+    ];
+
+    let compatibility = compatibility_transform_execution_serialized_projection_v0(
+        "Button.css",
+        source,
+        &requested_pass_ids,
+    )?;
+    assert_eq!(
+        compatibility,
+        COMPATIBILITY_TRANSFORM_EXECUTION_EXPECTED_WIRE_V0
+    );
+
+    let summary = execute_omena_query_transform_passes_from_source_with_transform_catalog_trace(
+        "Button.css",
+        source,
+        &requested_pass_ids,
+    );
+    let trace = summary.transform_catalog_trace();
+    let canonical = serde_json::to_string(&serde_json::json!({
+        "product": summary.product,
+        "productScope": summary.product_scope,
+        "readySurfaces": summary.ready_surfaces,
+        "traceFeatureGate": trace.feature_gate,
+        "traceTheoryVersion": trace.theory_version,
+        "traceClusterFeatureGate": trace.rank_clusters[0].feature_gate,
+        "traceClusterTheoryVersion": trace.rank_clusters[0].theory_version,
+        "planFeatureGate": summary.parallel_plan.feature_gate,
+        "planClusterFeatureGate": summary.parallel_plan.rank_clusters[0].feature_gate,
+        "planClusterTheoryVersion": summary.parallel_plan.rank_clusters[0].theory_version,
+        "certificateFeatureGate": summary.reorderability_certificates[0].feature_gate,
+        "certificateTheoryVersion": summary.reorderability_certificates[0].theory_version,
+        "witnessFeatureGate": summary.differential_witnesses[0].feature_gate,
+        "witnessTheoryVersion": summary.differential_witnesses[0].theory_version,
+    }))?;
+    assert_eq!(
+        canonical,
+        r#"{"product":"omena-query.transform-execute-transform-catalog-trace","productScope":"explicitOptInTransformCatalogTraceProductLane","readySurfaces":["queryTransformExecutionHandoff","transformCatalogModelTrace","transformCatalogParallelPlanTrace","transformCatalogDifferentialReorderabilityCertificate"],"traceFeatureGate":"transform-catalog-saturation","traceTheoryVersion":"css-transform-catalog-v0","traceClusterFeatureGate":"transform-catalog-saturation","traceClusterTheoryVersion":"css-transform-catalog-v0","planFeatureGate":"transform-catalog-saturation","planClusterFeatureGate":"transform-catalog-saturation","planClusterTheoryVersion":"css-transform-catalog-v0","certificateFeatureGate":"transform-catalog-saturation","certificateTheoryVersion":"css-transform-catalog-v0","witnessFeatureGate":"transform-catalog-saturation","witnessTheoryVersion":"css-transform-catalog-v0"}"#
+    );
+    Ok(())
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[test]
+fn transform_execute_transform_catalog_trace_exposes_rejected_differential_witness() {
     let source = r#".a { & .b { color: red; } } .a .b { color: red; }"#;
     let requested_pass_ids = vec![
         "rule-deduplication".to_string(),
         "nesting-unwrap".to_string(),
     ];
 
-    let summary = execute_omena_query_transform_passes_from_source_with_lawvere_trace(
+    let summary = execute_omena_query_transform_passes_from_source_with_transform_catalog_trace(
         "Nested.css",
         source,
         &requested_pass_ids,
@@ -2079,7 +2133,7 @@ fn transform_execute_lawvere_trace_exposes_rejected_differential_witness() {
 
     assert_eq!(
         summary.product_scope,
-        "explicitOptInLawvereTraceProductLane"
+        "explicitOptInTransformCatalogTraceProductLane"
     );
     assert!(!summary.default_product_mechanism);
     assert!(!summary.global_transform_theorem_claimed);

@@ -158,7 +158,7 @@ gate. Both checks are included in `pnpm release:verify` and in publish integrity
 jobs.
 
 Do not claim a public Datalog host, egglog binding, modal theorem prover,
-belief-propagation result, safety margin, or final external plugin ABI from
+probabilistic factor-graph result, safety margin, or final external plugin ABI from
 research contracts alone.
 
 ## Failure Recovery

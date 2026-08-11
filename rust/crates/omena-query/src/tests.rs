@@ -1,5 +1,48 @@
-#[cfg(feature = "lawvere-trace")]
-use super::execute_omena_query_transform_passes_from_source_with_lawvere_trace;
+#[cfg(feature = "transform-catalog-trace")]
+use super::execute_omena_query_transform_passes_from_source_with_transform_catalog_trace;
+
+#[cfg(feature = "transform-catalog-trace")]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy query transform wire fixture owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const COMPATIBILITY_TRANSFORM_EXECUTION_EXPECTED_WIRE_V0: &str = r#"{"product":"omena-query.transform-execute-lawvere-trace","productScope":"explicitOptInLawvereTraceProductLane","readySurfaces":["queryTransformExecutionHandoff","lawvereModelTrace","lawvereParallelPlanTrace","lawvereDifferentialReorderabilityCertificate"],"traceFeatureGate":"lawvere-saturation","traceTheoryVersion":"lawvere-css-transform-catalog-v0","traceClusterFeatureGate":"lawvere-saturation","traceClusterTheoryVersion":"lawvere-css-transform-catalog-v0","planFeatureGate":"lawvere-saturation","planClusterFeatureGate":"lawvere-saturation","planClusterTheoryVersion":"lawvere-css-transform-catalog-v0","certificateFeatureGate":"lawvere-saturation","certificateTheoryVersion":"lawvere-css-transform-catalog-v0","witnessFeatureGate":"lawvere-saturation","witnessTheoryVersion":"lawvere-css-transform-catalog-v0"}"#;
+
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy query transform wire fixture adapter owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_transform_execution_serialized_projection_v0(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+) -> Result<String, serde_json::Error> {
+    let summary = super::execute_omena_query_transform_passes_from_source_with_lawvere_trace(
+        style_path,
+        style_source,
+        requested_pass_ids,
+    );
+    let trace = &summary.lawvere_trace;
+    serde_json::to_string(&serde_json::json!({
+        "product": summary.product,
+        "productScope": summary.product_scope,
+        "readySurfaces": summary.ready_surfaces,
+        "traceFeatureGate": trace.feature_gate,
+        "traceTheoryVersion": trace.theory_version,
+        "traceClusterFeatureGate": trace.rank_clusters[0].feature_gate,
+        "traceClusterTheoryVersion": trace.rank_clusters[0].theory_version,
+        "planFeatureGate": summary.parallel_plan.feature_gate,
+        "planClusterFeatureGate": summary.parallel_plan.rank_clusters[0].feature_gate,
+        "planClusterTheoryVersion": summary.parallel_plan.rank_clusters[0].theory_version,
+        "certificateFeatureGate": summary.reorderability_certificates[0].feature_gate,
+        "certificateTheoryVersion": summary.reorderability_certificates[0].theory_version,
+        "witnessFeatureGate": summary.differential_witnesses[0].feature_gate,
+        "witnessTheoryVersion": summary.differential_witnesses[0].theory_version,
+    }))
+}
+
 use std::collections::BTreeSet;
 
 use super::{

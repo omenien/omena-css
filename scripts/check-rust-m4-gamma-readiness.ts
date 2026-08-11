@@ -168,8 +168,8 @@ assert(
 
 const categorical = read("rust/crates/omena-categorical/src/lib.rs");
 const categoricalEndpointIds = [
-  "rust/omena-categorical/verify-site-stability",
-  "rust/omena-categorical/verify-cosheaf-covariance",
+  "rust/omena-categorical/verify-cascade-section-aggregation-plan-stability",
+  "rust/omena-categorical/verify-cascade-section-aggregation-covariance",
   "rust/omena-categorical/verify-beck-chevalley",
   "rust/omena-categorical/classify-omega-truth",
   "rust/omena-categorical/verify-s4-axioms",
@@ -179,10 +179,35 @@ const categoricalEndpointIds = [
   "rust/omena-categorical/summarize-kripke-frame",
   "rust/omena-categorical/verify-cross-project-symmetry",
 ] as const;
+
+const categoricalFixtureIds = [
+  "fixture.categorical.cascade-section-aggregation-plan-stability.v0",
+  "fixture.categorical.cascade-section-aggregation-covariance.v0",
+  "fixture.categorical.beck-chevalley.v0",
+  "fixture.categorical.omega-truth.v0",
+  "fixture.categorical.s4-axioms.v0",
+  "fixture.categorical.modal-imperative-equivalence.v0",
+  "fixture.categorical.invariant-functoriality.v0",
+  "fixture.categorical.design-system-theory-compare.v0",
+  "fixture.categorical.kripke-frame.v0",
+  "fixture.categorical.cross-project-symmetry.v0",
+] as const;
+
+/**
+ * @deprecated Compatibility owner: omena-categorical maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const LEGACY_CATEGORICAL_ENDPOINT_AND_FIXTURE_MARKERS_V0 = [
+  "rust/omena-categorical/verify-site-stability",
+  "rust/omena-categorical/verify-cosheaf-covariance",
+  "fixture.categorical.site-stability.v0",
+  "fixture.categorical.cosheaf-covariance.v0",
+] as const;
+
 for (const moduleName of [
-  "site",
-  "sheaf",
-  "cosheaf",
+  "cascade_declaration_sections",
+  "cascade_section_plan",
+  "cascade_section_aggregation",
   "colimit",
   "beck_chevalley",
   "omega",
@@ -212,8 +237,8 @@ assertIncludes(
 );
 assertIncludes(
   categorical,
-  "cosheaf colimit witness",
-  "omena-categorical must map cascade_property to a cosheaf colimit witness",
+  "cascade section aggregation witness",
+  "omena-categorical must map cascade_property to a cascade section aggregation witness",
 );
 assertIncludes(categorical, "contract_count: 26", "omena-categorical must pin 26 V0 contracts");
 assertIncludes(
@@ -263,22 +288,18 @@ for (const endpointId of categoricalEndpointIds) {
     "omena-categorical must expose all 10 omena-check endpoints",
   );
 }
-for (const fixtureId of [
-  "fixture.categorical.site-stability.v0",
-  "fixture.categorical.cosheaf-covariance.v0",
-  "fixture.categorical.beck-chevalley.v0",
-  "fixture.categorical.omega-truth.v0",
-  "fixture.categorical.s4-axioms.v0",
-  "fixture.categorical.modal-imperative-equivalence.v0",
-  "fixture.categorical.invariant-functoriality.v0",
-  "fixture.categorical.design-system-theory-compare.v0",
-  "fixture.categorical.kripke-frame.v0",
-  "fixture.categorical.cross-project-symmetry.v0",
-]) {
+for (const fixtureId of categoricalFixtureIds) {
   assertIncludes(
     categorical,
     fixtureId,
     "omena-categorical must expose fixture-backed evidence IDs",
+  );
+}
+for (const compatibilityMarker of LEGACY_CATEGORICAL_ENDPOINT_AND_FIXTURE_MARKERS_V0) {
+  assertIncludes(
+    categorical,
+    compatibilityMarker,
+    "omena-categorical must retain its deprecated endpoint and fixture wire compatibility",
   );
 }
 
@@ -436,8 +457,8 @@ assertIncludes(checker, "CascadeSMTViolation", "checker must register S-tier SMT
 assertIncludes(checker, "DesignerIntentInconsistency", "checker must register variational lint");
 assertIncludes(
   checker,
-  "StreamingIfdsPrecisionParity",
-  "checker must register streaming IFDS parity lint",
+  "DemandSlicedMonotoneFactPropagationPrecisionParity",
+  "checker must register demand-sliced monotone fact propagation parity lint",
 );
 assertIncludes(checker, "pub ordinal: u16", "checker descriptors must expose stable rule ordinals");
 assertIncludes(
@@ -448,8 +469,8 @@ assertIncludes(
 assertIncludes(checker, "CascadeSMTViolation => 23", "SMT lint must keep R4 expansion ordinal 23");
 assertIncludes(
   checker,
-  "StreamingIfdsPrecisionParity => 25",
-  "streaming IFDS lint must keep R4 expansion ordinal 25",
+  "DemandSlicedMonotoneFactPropagationPrecisionParity => 25",
+  "demand-sliced monotone fact propagation lint must keep R4 expansion ordinal 25",
 );
 assertIncludes(
   checker,
@@ -611,50 +632,58 @@ const streaming = read("rust/crates/omena-streaming-ifds/src/lib.rs");
 assertIncludes(
   streaming,
   "OmenaUnifiedHypergraphConnectivityOracle",
-  "streaming IFDS must consume M4-beta hypergraph oracle trait",
+  "demand-sliced monotone fact propagation must consume M4-beta hypergraph oracle trait",
 );
 assertIncludes(
   streaming,
   "PolylogDynamicConnectivityBackendV0",
-  "streaming IFDS must expose polylog backend type",
+  "demand-sliced monotone fact propagation must expose polylog backend type",
 );
 assertIncludes(
   streaming,
-  "StreamingIFDSAnalysisReportV0",
-  "streaming IFDS must expose a substantive analysis report",
+  "DemandSlicedMonotoneFactPropagationAnalysisReportV0",
+  "demand-sliced monotone fact propagation must expose a substantive analysis report",
 );
 assertIncludes(
   streaming,
-  "StreamingIFDSTransferFunctionV0",
-  "streaming IFDS must expose transfer functions, not reachability only",
+  "DemandSlicedMonotoneFactPropagationTransferFunctionV0",
+  "demand-sliced monotone fact propagation must expose transfer functions, not reachability only",
 );
 assertIncludes(
   streaming,
-  "StreamingIFDSSummaryCacheEntryV0",
-  "streaming IFDS must expose a summary cache contract",
+  "DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0",
+  "demand-sliced monotone fact propagation must expose a summary cache contract",
 );
 assertIncludes(
   streaming,
-  "run_streaming_ifds_exact_v0",
-  "streaming IFDS must run exact streaming fact propagation",
+  "run_demand_sliced_monotone_fact_propagation_exact_v0",
+  "demand-sliced monotone fact propagation must run exact streaming fact propagation",
 );
 assertIncludes(
   streaming,
   "incremental_precision_parity_with_batch",
-  "streaming IFDS must distinguish incremental precision from returned output",
+  "demand-sliced monotone fact propagation must distinguish incremental precision from returned output",
 );
 assertIncludes(
   streaming,
-  "streaming_ifds_frame_rule_bridge_policy_v0",
-  "streaming IFDS must keep the frame-rule bridge feature-gated",
+  "demand_sliced_monotone_fact_propagation_frame_rule_bridge_policy_v0",
+  "demand-sliced monotone fact propagation must keep the frame-rule bridge feature-gated",
 );
 assertIncludes(
   streaming,
-  "streaming_ifds_refinement_revision_bump_v0",
-  "streaming IFDS must model refinement Salsa revision bump",
+  "demand_sliced_monotone_fact_propagation_refinement_revision_bump_v0",
+  "demand-sliced monotone fact propagation must model refinement Salsa revision bump",
 );
-assertIncludes(streaming, "delta: 0", "streaming IFDS default delta must be 0");
-assertIncludes(streaming, "epsilon: 0", "streaming IFDS default epsilon must be 0");
+assertIncludes(
+  streaming,
+  "delta: 0",
+  "demand-sliced monotone fact propagation default delta must be 0",
+);
+assertIncludes(
+  streaming,
+  "epsilon: 0",
+  "demand-sliced monotone fact propagation default epsilon must be 0",
+);
 assertIncludes(
   packageJson,
   "check:rust-m4-gamma-demand-sliced-monotone-fact-propagation",
@@ -663,7 +692,7 @@ assertIncludes(
 assertIncludes(
   packageJson,
   "--features with-frame-rule",
-  "streaming IFDS readiness must exercise with-frame-rule",
+  "demand-sliced monotone fact propagation readiness must exercise with-frame-rule",
 );
 
 console.log(

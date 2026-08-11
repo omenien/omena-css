@@ -152,7 +152,7 @@ pub struct ReducedClassValueProductIterationStepV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BeliefPropagationMessageV0 {
+pub struct ReducedProductConstraintMessageV0 {
     pub iteration: usize,
     pub from_factor: &'static str,
     pub to_variable: &'static str,
@@ -166,7 +166,81 @@ pub struct BeliefPropagationMessageV0 {
 /// V0 algorithm-view substrate over the reduced-product class-value iterator.
 ///
 /// This records compatibility evidence for the current message-passing view; it
-/// is not a belief-propagation paper result or mechanism-completeness claim.
+/// is not a probabilistic factor-graph result or mechanism-completeness claim.
+pub struct ReducedProductConstraintPropagationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub algorithm_view: &'static str,
+    pub substrate: &'static str,
+    pub equation_system: &'static str,
+    pub input_count: usize,
+    pub message_count: usize,
+    pub iteration_count: usize,
+    pub converged: bool,
+    pub monotone_witness_valid: bool,
+    pub fixed_point_reached: bool,
+    pub messages: Vec<ReducedProductConstraintMessageV0>,
+    pub source_iteration: ReducedClassValueProductIterationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedProductConstraintGraphV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub algorithm_view: &'static str,
+    pub substrate: &'static str,
+    pub variable_count: usize,
+    pub factor_count: usize,
+    pub edge_count: usize,
+    pub converged: bool,
+    pub monotone_witness_valid: bool,
+    pub variables: Vec<ReducedProductConstraintVariableV0>,
+    pub factors: Vec<ReducedProductConstraintFactorV0>,
+    pub messages: Vec<ReducedProductConstraintMessageV0>,
+    pub source_iteration: ReducedClassValueProductIterationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedProductConstraintVariableV0 {
+    pub variable_id: &'static str,
+    pub axis: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedProductConstraintFactorV0 {
+    pub factor_id: String,
+    pub input_value_kind: &'static str,
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BeliefPropagationMessageV0 {
+    pub iteration: usize,
+    pub from_factor: &'static str,
+    pub to_variable: &'static str,
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+    pub monotone_with_previous: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BeliefPropagationIterationV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -183,6 +257,11 @@ pub struct BeliefPropagationIterationV0 {
     pub source_iteration: ReducedClassValueProductIterationV0,
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BeliefPropagationDomainGraphV0 {
@@ -203,6 +282,10 @@ pub struct BeliefPropagationDomainGraphV0 {
     pub source_iteration: ReducedClassValueProductIterationV0,
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BeliefPropagationDomainVariableV0 {
@@ -210,6 +293,10 @@ pub struct BeliefPropagationDomainVariableV0 {
     pub axis: &'static str,
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BeliefPropagationDomainFactorV0 {
@@ -629,7 +716,8 @@ impl LinearProvenancePathV0 {
 /// V0 freeze-candidate provenance contract over the existing label vector.
 ///
 /// The shape is a strict-superset bridge for staged query provenance evidence;
-/// it does not declare Cargo 1.0 API finality or a completed QTT/sheaf model.
+/// it does not declare Cargo 1.0 API finality or a completed context-indexed
+/// aggregation model.
 pub struct LinearProvenanceV0<K: ProvenanceSemiringV0> {
     pub schema_version: &'static str,
     pub product: &'static str,

@@ -48,7 +48,7 @@ assert.notEqual(
   0,
   "same-input revision repetition must fail in hard soak mode",
 );
-assert.match(repeatedSoak.stderr, /streaming IFDS settle soak failed/);
+assert.match(repeatedSoak.stderr, /demand-sliced monotone fact propagation settle soak failed/);
 
 const servingSummary = runStreamingEvaluationWithRepeatedRevisions(repeatedRevisions);
 assert.equal(servingSummary.demandPrimaryReady, false);
@@ -91,7 +91,7 @@ function runSettleSoak(input: unknown): {
       "engine-shadow-runner",
       "--quiet",
       "--",
-      "omena-checker-streaming-ifds-settle-soak",
+      "omena-checker-demand-sliced-monotone-fact-propagation-settle-soak",
     ],
     {
       cwd: process.cwd(),
@@ -142,7 +142,7 @@ function runStreamingEvaluationWithRepeatedRevisions(
       "engine-shadow-runner",
       "--quiet",
       "--",
-      "omena-checker-streaming-ifds-evaluations",
+      "omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
     ],
     {
       cwd: process.cwd(),

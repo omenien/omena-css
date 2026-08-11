@@ -226,7 +226,7 @@ export function runDeclaredRustSemverCheck(
   );
 
   const summary = output.match(
-    /Summary semver requires new major version: (\d+) major and (\d+) minor checks failed/u,
+    /Summary semver requires new (major|minor) version: (\d+) major and (\d+) minor checks failed/u,
   );
   if (intent.expectedFailures.length > 0) {
     assert.ok(
@@ -239,13 +239,23 @@ export function runDeclaredRustSemverCheck(
     const expectedMinorFailureCount = intent.expectedFailures.filter(
       (failure) => failure.level === "minor",
     ).length;
+    const requiredReleaseWord = summary[1];
+    const observedMajorFailureCount = Number(summary[2]);
+    const observedMinorFailureCount = Number(summary[3]);
+    assert.ok(
+      (requiredReleaseWord === "major" && observedMajorFailureCount > 0) ||
+        (requiredReleaseWord === "minor" &&
+          observedMajorFailureCount === 0 &&
+          observedMinorFailureCount > 0),
+      `${options.crate} cargo-semver-checks release requirement disagrees with its failure counts`,
+    );
     assert.equal(
-      Number(summary[1]),
+      observedMajorFailureCount,
       expectedMajorFailureCount,
       `${options.crate} major failure count drifted`,
     );
     assert.equal(
-      Number(summary[2]),
+      observedMinorFailureCount,
       expectedMinorFailureCount,
       `${options.crate} minor failure count drifted`,
     );

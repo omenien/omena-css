@@ -879,7 +879,7 @@ pub fn prepare_committed_workspace_wave_substrate(
                 resolver_identity_index,
             ),
         ),
-        #[cfg(feature = "hypergraph-ifds")]
+        #[cfg(feature = "hypergraph-monotone-fact-propagation")]
         cross_file_scc_report: Some(
             crate::style::diagnostics::collect_omena_query_unified_cross_file_scc_report_shared(
                 corpus.as_slice(),

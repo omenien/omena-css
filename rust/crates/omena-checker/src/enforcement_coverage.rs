@@ -77,9 +77,8 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
-        UnusedSelector,
+        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     vec![
@@ -178,17 +177,17 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
             &["omena-query.design-system-minimum-description"],
         ),
         mechanism(
-            StreamingIfdsPrecisionParity,
-            "engine-shadow-runner.omena-checker-streaming-ifds-evaluations",
-            "evaluates_streaming_ifds_precision_parity_rule_family",
-            "evaluates_streaming_ifds_precision_parity_rule_family",
+            OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity,
+            "engine-shadow-runner.omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
+            "evaluates_demand_sliced_monotone_fact_propagation_precision_parity_rule_family",
+            "evaluates_demand_sliced_monotone_fact_propagation_precision_parity_rule_family",
             &["omena-streaming-ifds.analysis-report"],
         ),
         mechanism(
-            RgFlowRelevantOperator,
-            "omena-query-checker-orchestrator.rg-flow-gate",
-            "rg_flow_gate_emits_relevant_operator_for_divergent_coupling_flow",
-            "rg_flow_gate_records_clear_suppression_for_settled_coupling_flow",
+            OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator,
+            "omena-query-checker-orchestrator.multiscale-complexity-heuristic-gate",
+            "multiscale_complexity_heuristic_gate_emits_relevant_operator_for_divergent_coupling_flow",
+            "multiscale_complexity_heuristic_gate_records_clear_suppression_for_settled_coupling_flow",
             &["omena-rg-flow.coupling-jacobian-spectrum"],
         ),
         mechanism(

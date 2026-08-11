@@ -5,11 +5,11 @@ use super::{
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
 };
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 use super::{
-    evaluate_lawvere_reorderability_with_differential_corpus,
-    execute_transform_passes_on_source_with_lawvere_trace,
-    plan_transform_passes_parallel_lawvere_layers,
+    evaluate_transform_catalog_reorderability_with_differential_corpus,
+    execute_transform_passes_on_source_with_transform_catalog_trace,
+    plan_transform_passes_parallel_transform_catalog_layers,
 };
 use crate::domains::css_modules_classes::local_css_module_composes_resolutions_with_lexer;
 use omena_parser::{

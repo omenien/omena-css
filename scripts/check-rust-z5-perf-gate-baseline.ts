@@ -20,10 +20,10 @@ type PerfGateLane =
   | "transform-ir-lowering-n"
   | "transform-ir-lowering-2n"
   | "transform-ir-lowering-4n"
-  | "demand-ifds-fixed-query-n"
-  | "demand-ifds-fixed-query-2n"
-  | "demand-ifds-fixed-query-4n"
-  | "demand-ifds-fixed-query-8n";
+  | "demand-monotone-fact-propagation-fixed-query-n"
+  | "demand-monotone-fact-propagation-fixed-query-2n"
+  | "demand-monotone-fact-propagation-fixed-query-4n"
+  | "demand-monotone-fact-propagation-fixed-query-8n";
 
 type PerfGateComparisonLane =
   | "memoized-recheck-slope"
@@ -32,7 +32,7 @@ type PerfGateComparisonLane =
   | "property-metadata-lookup-registry-size"
   | "transform-ir-mutation-density-slope"
   | "transform-ir-lowering-slope"
-  | "demand-ifds-fixed-query-slope";
+  | "demand-monotone-fact-propagation-fixed-query-slope";
 
 interface PerfGateQueryFamilyV0 {
   readonly comparisonLane: PerfGateComparisonLane;
@@ -219,19 +219,19 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
     includeInCommittedBaseline: false,
   },
   {
-    comparisonLane: "demand-ifds-fixed-query-slope",
-    numeratorLane: "demand-ifds-fixed-query-8n",
-    denominatorLane: "demand-ifds-fixed-query-n",
+    comparisonLane: "demand-monotone-fact-propagation-fixed-query-slope",
+    numeratorLane: "demand-monotone-fact-propagation-fixed-query-8n",
+    denominatorLane: "demand-monotone-fact-propagation-fixed-query-n",
     threshold: 0.15,
     thresholdPolicy:
-      "fixed-target demand IFDS structural request work uses a lattice-top seed and should stay near-flat while unrelated fixed-depth compose branches grow; the paired transfer-count gate requires the fixed slice to remain flat and the workspace slice to grow",
+      "fixed-target demand monotone fact propagation structural request work uses a lattice-top seed and should stay near-flat while unrelated fixed-depth compose branches grow; the paired transfer-count gate requires the fixed slice to remain flat and the workspace slice to grow",
     enforceComplexitySlope: true,
     enforceNoRegression: false,
     resultLanes: [
-      "demand-ifds-fixed-query-n",
-      "demand-ifds-fixed-query-2n",
-      "demand-ifds-fixed-query-4n",
-      "demand-ifds-fixed-query-8n",
+      "demand-monotone-fact-propagation-fixed-query-n",
+      "demand-monotone-fact-propagation-fixed-query-2n",
+      "demand-monotone-fact-propagation-fixed-query-4n",
+      "demand-monotone-fact-propagation-fixed-query-8n",
     ],
     slopeFit: "log-log",
     includeInCommittedBaseline: false,
@@ -255,10 +255,10 @@ if (writeMode) {
 function validateFixedQueryInstrumentationBoundary() {
   const source = readFileSync(perfGateSpinePath, "utf8");
   const benchmarkFunctions = [
-    "demand_ifds_fixed_query_corpus_n",
-    "demand_ifds_fixed_query_corpus_2n",
-    "demand_ifds_fixed_query_corpus_4n",
-    "demand_ifds_fixed_query_corpus_8n",
+    "demand_monotone_fact_propagation_fixed_query_corpus_n",
+    "demand_monotone_fact_propagation_fixed_query_corpus_2n",
+    "demand_monotone_fact_propagation_fixed_query_corpus_4n",
+    "demand_monotone_fact_propagation_fixed_query_corpus_8n",
   ] as const;
 
   for (const functionName of benchmarkFunctions) {
@@ -277,12 +277,16 @@ function validateFixedQueryInstrumentationBoundary() {
   assert.match(source, /--instr-atstart=no/);
   assert.match(source, /\.entry_point\(EntryPoint::None\)/);
 
-  const measurementStart = source.indexOf("fn measure_demand_ifds_fixed_query_corpus(");
+  const measurementStart = source.indexOf(
+    "fn measure_demand_monotone_fact_propagation_fixed_query_corpus(",
+  );
   const measurementEnd = source.indexOf("fn measure_committed_graph_edit_query_corpus(");
   assert.ok(measurementStart >= 0 && measurementEnd > measurementStart);
   const measurement = source.slice(measurementStart, measurementEnd);
   const startOffset = measurement.indexOf("callgrind::start_instrumentation();");
-  const queryOffset = measurement.indexOf("run_streaming_ifds_demand_with_index_v0(");
+  const queryOffset = measurement.indexOf(
+    "run_demand_sliced_monotone_fact_propagation_demand_with_index_v0(",
+  );
   const stopOffset = measurement.indexOf("callgrind::stop_instrumentation();");
   assert.ok(
     startOffset >= 0 && startOffset < queryOffset && queryOffset < stopOffset,
@@ -411,7 +415,7 @@ function checkComplexitySlope() {
   const demandCounterResult = runCommand(demandCounterCommand);
   if (demandCounterResult.exitCode !== 0) {
     throw new Error(
-      `streaming IFDS transfer-count slope gate failed\n${tailLines(demandCounterResult.stderr).join("\n")}`,
+      `demand-sliced monotone fact propagation transfer-count slope gate failed\n${tailLines(demandCounterResult.stderr).join("\n")}`,
     );
   }
   const currentResults = measureCurrentResults();
@@ -708,14 +712,14 @@ function laneForBenchmarkFunction(functionName: string): PerfGateLane {
       return "transform-ir-lowering-2n";
     case "transform_ir_lowering_4n":
       return "transform-ir-lowering-4n";
-    case "demand_ifds_fixed_query_corpus_n":
-      return "demand-ifds-fixed-query-n";
-    case "demand_ifds_fixed_query_corpus_2n":
-      return "demand-ifds-fixed-query-2n";
-    case "demand_ifds_fixed_query_corpus_4n":
-      return "demand-ifds-fixed-query-4n";
-    case "demand_ifds_fixed_query_corpus_8n":
-      return "demand-ifds-fixed-query-8n";
+    case "demand_monotone_fact_propagation_fixed_query_corpus_n":
+      return "demand-monotone-fact-propagation-fixed-query-n";
+    case "demand_monotone_fact_propagation_fixed_query_corpus_2n":
+      return "demand-monotone-fact-propagation-fixed-query-2n";
+    case "demand_monotone_fact_propagation_fixed_query_corpus_4n":
+      return "demand-monotone-fact-propagation-fixed-query-4n";
+    case "demand_monotone_fact_propagation_fixed_query_corpus_8n":
+      return "demand-monotone-fact-propagation-fixed-query-8n";
     default:
       throw new Error(`unexpected z5 perf benchmark function: ${functionName}`);
   }

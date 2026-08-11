@@ -46,7 +46,7 @@ use omena_parser::{
 use omena_query::{
     OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleSourceInputV0,
-    summarize_omena_query_cascade_site_outcomes_from_source,
+    summarize_omena_query_cascade_section_outcomes_from_source,
     summarize_omena_query_m4_axis_c_readiness, summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_hover_candidates,

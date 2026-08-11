@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Enriched Lawvere theory contracts for the Omena transform catalog"
+description = "Transform-pass catalog and reorderability metadata scaffold for Omena CSS"
 repository = "https://github.com/omenien/omena-css"
 readme = "README.md"
 
@@ -18,7 +18,10 @@ workspace = true
 
 [features]
 default = []
-lawvere-saturation = []
+transform-catalog-saturation = []
+# compatibility-owner: omena-lawvere maintainers
+# compatibility-removal: not before 1.0, and only after downstream migration and audited zero in-repo non-compat uses
+lawvere-saturation = ["transform-catalog-saturation"]
 
 [dependencies]
 omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.3.0" }

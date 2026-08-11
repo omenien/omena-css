@@ -17,10 +17,19 @@ pub use domains::css_modules_values::resolve_static_css_modules_local_value_reso
 pub use domains::number::reduce_static_numeric_expression;
 pub use domains::vendor_prefix::StaleVendorPrefixRemovalProofCandidateV0;
 pub use model::*;
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the TransformCatalog metadata types; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub use omena_lawvere::{
-    LawvereDifferentialCommutativityWitnessV0, LawvereModelTraceV0, ReorderabilityCertificateV0,
-    TransformPassParallelPlanV0,
+    LawvereDifferentialCommutativityWitnessV0, LawvereModelTraceV0, TransformPassParallelPlanV0,
+};
+#[cfg(feature = "transform-catalog-trace")]
+pub use omena_lawvere::{
+    ReorderabilityCertificateV0, TransformCatalogDifferentialCommutativityWitnessV0,
+    TransformCatalogModelTraceV0, TransformCatalogTransformPassParallelPlanV0,
 };
 pub use omena_value_lattice::{
     StaticSrgbColorWithAlpha, can_shorten_hex_pairs, compress_hex_color_token_text,
@@ -55,11 +64,18 @@ pub use runtime::executor::{
     execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_and_precision,
     execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_precision_and_policy,
 };
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
 pub use runtime::executor::{
     evaluate_lawvere_reorderability_with_differential_corpus,
     execute_transform_passes_on_source_with_lawvere_trace,
     execute_transform_passes_on_source_with_lawvere_trace_and_dialect,
+};
+#[cfg(feature = "transform-catalog-trace")]
+pub use runtime::executor::{
+    evaluate_transform_catalog_reorderability_with_differential_corpus,
+    execute_transform_passes_on_source_with_transform_catalog_trace,
+    execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect,
 };
 pub use runtime::fuzz::{run_transform_cascade_safe_fuzz_case, run_transform_fuzz_seed_corpus};
 pub use runtime::incremental::{
@@ -68,8 +84,11 @@ pub use runtime::incremental::{
 pub use runtime::lex_cache::{
     reset_transform_lex_cache_splice_telemetry, transform_lex_cache_splice_telemetry_snapshot,
 };
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
 pub use runtime::planner::plan_transform_passes_parallel_lawvere_layers;
+#[cfg(feature = "transform-catalog-trace")]
+pub use runtime::planner::plan_transform_passes_parallel_transform_catalog_layers;
 pub use runtime::planner::{
     default_transform_pass_registry, implemented_mutation_pass_ids, plan_transform_passes,
     plan_transform_passes_checked, summarize_omena_transform_passes_boundary,

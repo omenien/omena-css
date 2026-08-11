@@ -1115,7 +1115,38 @@ pub struct OmenaQueryTransformExecuteSummaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryTransformCatalogTransformExecuteSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub product_scope: &'static str,
+    pub default_product_mechanism: bool,
+    pub global_transform_theorem_claimed: bool,
+    pub execution: OmenaQueryTransformExecuteSummaryV0,
+    /// Compatibility field owned by `omena-query` maintainers. Remove not
+    /// before 1.0, after downstream migration and zero audited non-compat uses.
+    #[deprecated(
+        since = "0.4.0",
+        note = "use transform_catalog_trace(); removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
+    pub lawvere_trace: OmenaQueryTransformCatalogModelTraceV0,
+    pub parallel_plan: OmenaQueryTransformCatalogTransformPassParallelPlanV0,
+    pub reorderability_certificates: Vec<OmenaQueryTransformCatalogReorderabilityCertificateV0>,
+    pub differential_witnesses: Vec<OmenaQueryTransformCatalogDifferentialCommutativityWitnessV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+/// Pre-1.0 nominal compatibility summary for the former trace surface.
+/// Owner: `omena-query` maintainers. Removal condition: not before 1.0,
+/// after downstream migration and zero audited in-repo non-compatibility uses.
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaQueryTransformCatalogTransformExecuteSummaryV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryLawvereTransformExecuteSummaryV0 {
@@ -1125,11 +1156,32 @@ pub struct OmenaQueryLawvereTransformExecuteSummaryV0 {
     pub default_product_mechanism: bool,
     pub global_transform_theorem_claimed: bool,
     pub execution: OmenaQueryTransformExecuteSummaryV0,
-    pub lawvere_trace: OmenaQueryLawvereModelTraceV0,
-    pub parallel_plan: OmenaQueryLawvereTransformPassParallelPlanV0,
-    pub reorderability_certificates: Vec<OmenaQueryLawvereReorderabilityCertificateV0>,
-    pub differential_witnesses: Vec<OmenaQueryLawvereDifferentialCommutativityWitnessV0>,
+    pub lawvere_trace: omena_query_transform_runner::LawvereModelTraceV0,
+    pub parallel_plan: omena_query_transform_runner::TransformPassParallelPlanV0,
+    pub reorderability_certificates: Vec<omena_query_transform_runner::ReorderabilityCertificateV0>,
+    pub differential_witnesses:
+        Vec<omena_query_transform_runner::LawvereDifferentialCommutativityWitnessV0>,
     pub ready_surfaces: Vec<&'static str>,
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+impl OmenaQueryTransformCatalogTransformExecuteSummaryV0 {
+    #[allow(deprecated)]
+    pub fn transform_catalog_trace(&self) -> &OmenaQueryTransformCatalogModelTraceV0 {
+        transform_catalog_trace_from_legacy_field_v0(self)
+    }
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility field adapter owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn transform_catalog_trace_from_legacy_field_v0(
+    summary: &OmenaQueryTransformCatalogTransformExecuteSummaryV0,
+) -> &OmenaQueryTransformCatalogModelTraceV0 {
+    &summary.lawvere_trace
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

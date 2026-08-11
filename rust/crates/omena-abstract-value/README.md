@@ -36,8 +36,8 @@ Current public product:
   and flow-produced abstract class values.
 - `summarize_cascade_value_family_v0` — M6 research-staged, framing-neutral
   cascade-family substrate for context-indexed property values and
-  parent-to-child restriction morphisms. This is not a sheaf/cosheaf theorem
-  claim.
+  parent-to-child restriction records. This is a cascade-section scaffold, not
+  a completed gluing theorem.
 
 Primary check:
 

@@ -1,16 +1,20 @@
-//! Deletion stale-reuse fixtures for the streaming IFDS oracle.
+//! Deletion stale-reuse fixtures for the demand-sliced monotone fact propagation oracle.
 
 use omena_abstract_value::AbstractClassValueV0;
 use omena_cross_file_summary::{UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0};
 use omena_streaming_ifds::{
-    ExactStreamingConnectivityOracleV0, StreamingIFDSAnalysisReportV0,
-    StreamingIFDSFallbackCauseV0, omena_streaming_ifds_batch_fact_keys_v0,
-    run_streaming_ifds_demand_v0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
-    streaming_ifds_structural_projection_node_ids_v0,
+    DemandSlicedMonotoneFactPropagationAnalysisReportV0,
+    DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0,
+    DemandSlicedMonotoneFactPropagationFallbackCauseV0,
+    demand_sliced_monotone_fact_propagation_batch_fact_keys_v0,
+    demand_sliced_monotone_fact_propagation_event_input_v0,
+    demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0,
+    run_demand_sliced_monotone_fact_propagation_demand_v0,
+    run_demand_sliced_monotone_fact_propagation_exact_v0,
 };
 use serde::Serialize;
 
-/// Fixture report for deletion stale-reuse runs of the streaming IFDS oracle.
+/// Fixture report for deletion stale-reuse runs of the demand-sliced monotone fact propagation oracle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaDiffDeletionStaleReuseFixtureReportV0 {
@@ -108,49 +112,51 @@ fn stale_incremental_reuse_fixture_report() -> OmenaDiffDeletionStaleReuseFixtur
         hyperedge("edge-b-c", "b", "c"),
     ];
     let value = exact_value("button");
-    let seed = vec![streaming_ifds_event_input_v0(
+    let seed = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
         "event-a",
         1,
         "a",
         value.clone(),
         None,
     )];
-    let initial = run_streaming_ifds_exact_v0(
+    let initial = run_demand_sliced_monotone_fact_propagation_exact_v0(
         "stale-reuse-initial",
         "a",
         &old_graph,
         &seed,
-        &ExactStreamingConnectivityOracleV0::default(),
+        &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
         None,
     );
     let current_graph = vec![hyperedge("edge-a-b", "a", "b")];
-    let warm_event = vec![streaming_ifds_event_input_v0(
+    let warm_event = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
         "event-a-next",
         2,
         "a",
         value,
         None,
     )];
-    let warm = run_streaming_ifds_exact_v0(
+    let warm = run_demand_sliced_monotone_fact_propagation_exact_v0(
         "stale-reuse-warm",
         "a",
         &current_graph,
         &warm_event,
-        &ExactStreamingConnectivityOracleV0::default(),
+        &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
         Some(&initial.summary_cache),
     );
-    let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(&current_graph, &warm_event);
-    let demand = run_streaming_ifds_demand_v0(
+    let batch_fact_keys =
+        demand_sliced_monotone_fact_propagation_batch_fact_keys_v0(&current_graph, &warm_event);
+    let demand = run_demand_sliced_monotone_fact_propagation_demand_v0(
         &["a".to_string()],
         &["b".to_string()],
         &current_graph,
         &warm_event,
     );
-    let projection_node_ids = streaming_ifds_structural_projection_node_ids_v0(
-        &["a".to_string()],
-        &["b".to_string()],
-        &current_graph,
-    );
+    let projection_node_ids =
+        demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
+            &["a".to_string()],
+            &["b".to_string()],
+            &current_graph,
+        );
     let projected_batch_fact_keys =
         project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
     let output_node_ids = report_node_ids(&warm);
@@ -171,10 +177,11 @@ fn stale_incremental_reuse_fixture_report() -> OmenaDiffDeletionStaleReuseFixtur
         demand_fact_keys: demand.fact_keys.clone(),
         projected_batch_fact_keys: projected_batch_fact_keys.clone(),
         incremental_precision_parity_with_batch: warm.incremental_precision_parity_with_batch,
-        reachability_fallback_applied: warm
-            .fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch),
+        reachability_fallback_applied: warm.fallback_applied_for(
+            DemandSlicedMonotoneFactPropagationFallbackCauseV0::ReachabilityMismatch,
+        ),
         fact_fallback_applied: warm
-            .fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch),
+            .fallback_applied_for(DemandSlicedMonotoneFactPropagationFallbackCauseV0::FactMismatch),
         dropped_node_absent_from_witness: !warm
             .witness
             .reachable_node_ids
@@ -194,52 +201,54 @@ fn reachability_changing_cycle_deletion_fixture_report()
         hyperedge("edge-c-b", "c", "b"),
     ];
     let value = exact_value("button");
-    let seed = vec![streaming_ifds_event_input_v0(
+    let seed = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
         "event-a",
         1,
         "a",
         value.clone(),
         None,
     )];
-    let initial = run_streaming_ifds_exact_v0(
+    let initial = run_demand_sliced_monotone_fact_propagation_exact_v0(
         "cycle-deletion-initial",
         "a",
         &old_graph,
         &seed,
-        &ExactStreamingConnectivityOracleV0::default(),
+        &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
         None,
     );
     let current_graph = vec![
         hyperedge("edge-a-b", "a", "b"),
         hyperedge("edge-c-b", "c", "b"),
     ];
-    let warm_event = vec![streaming_ifds_event_input_v0(
+    let warm_event = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
         "event-b-next",
         2,
         "b",
         value,
         None,
     )];
-    let warm = run_streaming_ifds_exact_v0(
+    let warm = run_demand_sliced_monotone_fact_propagation_exact_v0(
         "cycle-deletion-warm",
         "a",
         &current_graph,
         &warm_event,
-        &ExactStreamingConnectivityOracleV0::default(),
+        &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
         Some(&initial.summary_cache),
     );
-    let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(&current_graph, &warm_event);
-    let demand = run_streaming_ifds_demand_v0(
+    let batch_fact_keys =
+        demand_sliced_monotone_fact_propagation_batch_fact_keys_v0(&current_graph, &warm_event);
+    let demand = run_demand_sliced_monotone_fact_propagation_demand_v0(
         &["b".to_string()],
         &["b".to_string()],
         &current_graph,
         &warm_event,
     );
-    let projection_node_ids = streaming_ifds_structural_projection_node_ids_v0(
-        &["b".to_string()],
-        &["b".to_string()],
-        &current_graph,
-    );
+    let projection_node_ids =
+        demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
+            &["b".to_string()],
+            &["b".to_string()],
+            &current_graph,
+        );
     let projected_batch_fact_keys =
         project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
     let output_node_ids = report_node_ids(&warm);
@@ -260,10 +269,11 @@ fn reachability_changing_cycle_deletion_fixture_report()
         demand_fact_keys: demand.fact_keys.clone(),
         projected_batch_fact_keys: projected_batch_fact_keys.clone(),
         incremental_precision_parity_with_batch: warm.incremental_precision_parity_with_batch,
-        reachability_fallback_applied: warm
-            .fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch),
+        reachability_fallback_applied: warm.fallback_applied_for(
+            DemandSlicedMonotoneFactPropagationFallbackCauseV0::ReachabilityMismatch,
+        ),
         fact_fallback_applied: warm
-            .fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch),
+            .fallback_applied_for(DemandSlicedMonotoneFactPropagationFallbackCauseV0::FactMismatch),
         dropped_node_absent_from_witness: !warm
             .witness
             .reachable_node_ids
@@ -274,7 +284,7 @@ fn reachability_changing_cycle_deletion_fixture_report()
     }
 }
 
-fn report_node_ids(report: &StreamingIFDSAnalysisReportV0) -> Vec<String> {
+fn report_node_ids(report: &DemandSlicedMonotoneFactPropagationAnalysisReportV0) -> Vec<String> {
     report
         .output_facts
         .iter()
@@ -309,8 +319,8 @@ fn hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {
     UnifiedHypergraphHyperedgeV0 {
         schema_version: "0",
         product: "omena-diff-test.deletion-stale-reuse-fixture",
-        layer_marker: "hypergraph-ifds",
-        feature_gate: "hypergraph-ifds",
+        layer_marker: "hypergraph-monotone-fact-propagation",
+        feature_gate: "hypergraph-monotone-fact-propagation",
         hyperedge_id: id.to_string(),
         edge_kind,
         source_summary_edge_id: id.to_string(),

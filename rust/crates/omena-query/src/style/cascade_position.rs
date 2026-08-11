@@ -17,8 +17,9 @@ use crate::{
     AbstractPropertyValueV0, CascadeContextV0, CascadeDimensionalRefinementBridgeV0,
     CascadeValueFamilyMemberV0, OmenaQueryAnalysisPrecisionV0, OmenaQueryAnalysisResultV0,
     OmenaQueryCascadeAtPositionV0, OmenaQueryEvaluationRuntimeSummaryV0,
-    RefinementPropertyPredicateV0, derive_cascade_restriction_maps_v0,
-    summarize_cascade_dimensional_refinement_bridge_v0, summarize_cascade_value_family_v0,
+    RefinementPropertyPredicateV0, derive_context_indexed_cascade_restriction_maps_v0,
+    summarize_cascade_dimensional_refinement_bridge_v0,
+    summarize_context_indexed_cascade_value_family_v0,
 };
 
 use super::{
@@ -78,6 +79,7 @@ fn cascade_at_position_analysis_result(
     )
 }
 
+#[allow(deprecated)]
 pub fn read_omena_query_cascade_at_position_with_categorical_evidence(
     style_path: &str,
     style_source: &str,
@@ -356,8 +358,9 @@ fn summarize_query_cascade_refinement_evidence(
             pseudo_state: None,
         },
     }];
-    let restrictions = derive_cascade_restriction_maps_v0(members.as_slice());
-    let family = summarize_cascade_value_family_v0(reference_name, members, restrictions);
+    let restrictions = derive_context_indexed_cascade_restriction_maps_v0(members.as_slice());
+    let family =
+        summarize_context_indexed_cascade_value_family_v0(reference_name, members, restrictions);
     let predicate = RefinementPropertyPredicateV0::Not {
         predicate: Box::new(RefinementPropertyPredicateV0::ExactValue {
             property_name: reference_name.to_string(),

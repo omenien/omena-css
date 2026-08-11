@@ -48,26 +48,37 @@ use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCategoricalEvaluationV0, OmenaCheckerCategoricalInputV0,
     OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
+    OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationV0,
+    OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0,
+    OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0,
     OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerGrnEvaluationV0, OmenaCheckerGrnInputV0,
     OmenaCheckerMTierEvaluationV0, OmenaCheckerMdlEvaluationV0, OmenaCheckerMdlInputV0,
-    OmenaCheckerMdlSummaryInputV0, OmenaCheckerReplicaEnsembleEvaluationV0,
+    OmenaCheckerMdlSummaryInputV0, OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0,
+    OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
+    OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0,
+    OmenaCheckerMultiscaleComplexityHeuristicInputV0, OmenaCheckerReplicaEnsembleEvaluationV0,
     OmenaCheckerReplicaEnsembleInputV0, OmenaCheckerReplicaEnsembleReportInputV0,
-    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
-    OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0, OmenaCheckerSmtEvaluationV0,
-    OmenaCheckerSmtInputV0, OmenaCheckerStreamingIfdsEvaluationV0,
-    OmenaCheckerStreamingIfdsInputV0, OmenaCheckerStreamingIfdsReportInputV0,
-    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_categorical_rules,
+    OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0, evaluate_omena_checker_cascade_rules,
+    evaluate_omena_checker_categorical_rules,
+    evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules,
     evaluate_omena_checker_grn_rules, evaluate_omena_checker_m_tier_rules,
-    evaluate_omena_checker_mdl_rules, evaluate_omena_checker_replica_ensemble_rules,
-    evaluate_omena_checker_rg_flow_rules, evaluate_omena_checker_smt_rules,
-    evaluate_omena_checker_streaming_ifds_rules,
+    evaluate_omena_checker_mdl_rules, evaluate_omena_checker_multiscale_complexity_heuristic_rules,
+    evaluate_omena_checker_replica_ensemble_rules, evaluate_omena_checker_smt_rules,
     summarize_omena_checker_rule_enforcement_coverage_v0,
 };
+#[allow(deprecated)]
+use omena_checker::{
+    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
+    OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0,
+    evaluate_omena_checker_rg_flow_rules,
+};
+#[allow(deprecated)]
+use omena_ensemble::compatibility_key_from_cascade_section_key_v0;
 use omena_ensemble::{
     ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
     REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0,
     ReplicaSnapshotV0, ReportOptionsV0, ReportRecommendation,
-    build_cross_file_inconsistency_report, site,
+    build_cross_file_inconsistency_report, cascade_section_key,
 };
 use omena_query::{
     OmenaBundlerHostResolveModuleRequestV0, OmenaParserStyleDialect,
@@ -140,14 +151,72 @@ use omena_resolver::{
     summarize_omena_resolver_style_module_resolution_with_path_mappings,
 };
 use omena_streaming_ifds::{
-    PolylogDynamicConnectivityBackendV0, StreamingIFDSDemandReadinessInputV0,
-    StreamingIFDSFallbackCauseV0, StreamingIFDSGateArtifactVerdictV0,
-    StreamingIFDSSettleSoakRevisionInputV0, run_streaming_ifds_exact_v0,
-    run_streaming_ifds_settle_soak_v0, streaming_ifds_default_settle_soak_revisions_v0,
-    streaming_ifds_demand_eager_equivalence_v0, streaming_ifds_demand_readiness_v0,
-    streaming_ifds_event_input_v0, streaming_ifds_fact_key_route_with_gate_v0,
-    streaming_ifds_settle_soak_revision_v0, streaming_ifds_summary_cache_entry_v0,
+    DemandSlicedMonotoneFactPropagationDemandReadinessInputV0,
+    DemandSlicedMonotoneFactPropagationExactBfsConnectivityBackendV0,
+    DemandSlicedMonotoneFactPropagationFallbackCauseV0,
+    DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
+    DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0,
+    demand_sliced_monotone_fact_propagation_default_settle_soak_revisions_v0,
+    demand_sliced_monotone_fact_propagation_demand_eager_equivalence_v0,
+    demand_sliced_monotone_fact_propagation_demand_readiness_v0,
+    demand_sliced_monotone_fact_propagation_event_input_v0,
+    demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_v0,
+    demand_sliced_monotone_fact_propagation_settle_soak_revision_v0,
+    demand_sliced_monotone_fact_propagation_summary_cache_entry_v0,
+    run_demand_sliced_monotone_fact_propagation_exact_v0,
+    run_demand_sliced_monotone_fact_propagation_settle_soak_v0,
 };
+
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy runner command owned by engine-shadow-runner maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_PROPAGATION_EVALUATIONS_COMMAND_V0: &str = "omena-checker-streaming-ifds-evaluations";
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy runner command owned by engine-shadow-runner maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_PROPAGATION_SETTLE_SOAK_COMMAND_V0: &str = "omena-checker-streaming-ifds-settle-soak";
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy runner product owned by engine-shadow-runner maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_PROPAGATION_EVALUATIONS_PRODUCT_V0: &str = "omena-checker.streaming-ifds-evaluations";
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy runner command owned by engine-shadow-runner maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_MULTISCALE_EVALUATIONS_COMMAND_V0: &str = "omena-checker-rg-flow-evaluations";
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy runner product owned by engine-shadow-runner maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_MULTISCALE_EVALUATIONS_PRODUCT_V0: &str = "omena-checker.rg-flow-evaluations";
+
+#[allow(deprecated)]
+fn is_legacy_propagation_evaluations_command_v0(command: &str) -> bool {
+    command == LEGACY_PROPAGATION_EVALUATIONS_COMMAND_V0
+}
+
+#[allow(deprecated)]
+fn is_legacy_propagation_settle_soak_command_v0(command: &str) -> bool {
+    command == LEGACY_PROPAGATION_SETTLE_SOAK_COMMAND_V0
+}
+
+#[allow(deprecated)]
+fn legacy_propagation_evaluations_product_v0() -> &'static str {
+    LEGACY_PROPAGATION_EVALUATIONS_PRODUCT_V0
+}
+
+#[allow(deprecated)]
+fn is_legacy_multiscale_evaluations_command_v0(command: &str) -> bool {
+    command == LEGACY_MULTISCALE_EVALUATIONS_COMMAND_V0
+}
+
+#[allow(deprecated)]
+fn legacy_multiscale_evaluations_product_v0() -> &'static str {
+    LEGACY_MULTISCALE_EVALUATIONS_PRODUCT_V0
+}
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -1130,7 +1199,7 @@ struct OmenaCheckerMdlEvaluationRunnerOutputV0 {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
+struct OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationInputV0 {
     update_id: String,
     start_node_id: String,
     #[serde(default)]
@@ -1138,15 +1207,15 @@ struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
     #[serde(default)]
     settle_mode: Option<String>,
     #[serde(default)]
-    fact_key_gate_verdict: StreamingIFDSGateArtifactVerdictV0,
+    fact_key_gate_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
     #[serde(default)]
-    deletion_corpus_verdict: StreamingIFDSGateArtifactVerdictV0,
+    deletion_corpus_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
     #[serde(default)]
-    complexity_slope_verdict: StreamingIFDSGateArtifactVerdictV0,
+    complexity_slope_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
     #[serde(default)]
-    relocation_approval_verdict: StreamingIFDSGateArtifactVerdictV0,
-    hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
-    events: Vec<StreamingIfdsEventRunnerInputV0>,
+    relocation_approval_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
+    hyperedges: Vec<DemandSlicedMonotoneFactPropagationHyperedgeInputV0>,
+    events: Vec<DemandSlicedMonotoneFactPropagationEventRunnerInputV0>,
     /// Prior streaming summary fact keys (`node_id|value-key`) carried from an
     /// earlier revision. When present, the incremental path reuses prior facts
     /// outside the dirty region; a stale key (a fact the current graph no longer
@@ -1154,21 +1223,21 @@ struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
     #[serde(default)]
     previous_fact_keys: Vec<String>,
     #[serde(default)]
-    settle_revisions: Vec<StreamingIfdsSettleSoakRevisionRunnerInputV0>,
+    settle_revisions: Vec<DemandSlicedMonotoneFactPropagationSettleSoakRevisionRunnerInputV0>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct OmenaCheckerStreamingIfdsSettleSoakInputV0 {
+struct OmenaCheckerDemandSlicedMonotoneFactPropagationSettleSoakInputV0 {
     #[serde(default)]
     settle_mode: Option<String>,
     #[serde(default)]
-    settle_revisions: Vec<StreamingIfdsSettleSoakRevisionRunnerInputV0>,
+    settle_revisions: Vec<DemandSlicedMonotoneFactPropagationSettleSoakRevisionRunnerInputV0>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct StreamingIfdsHyperedgeInputV0 {
+struct DemandSlicedMonotoneFactPropagationHyperedgeInputV0 {
     hyperedge_id: String,
     from: String,
     to: String,
@@ -1178,7 +1247,7 @@ struct StreamingIfdsHyperedgeInputV0 {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct StreamingIfdsEventRunnerInputV0 {
+struct DemandSlicedMonotoneFactPropagationEventRunnerInputV0 {
     event_id: String,
     revision: u64,
     node_id: String,
@@ -1189,19 +1258,19 @@ struct StreamingIfdsEventRunnerInputV0 {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct StreamingIfdsSettleSoakRevisionRunnerInputV0 {
+struct DemandSlicedMonotoneFactPropagationSettleSoakRevisionRunnerInputV0 {
     revision_id: String,
     #[serde(default)]
     start_node_ids: Vec<String>,
     #[serde(default)]
     target_node_ids: Vec<String>,
-    hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
-    events: Vec<StreamingIfdsEventRunnerInputV0>,
+    hyperedges: Vec<DemandSlicedMonotoneFactPropagationHyperedgeInputV0>,
+    events: Vec<DemandSlicedMonotoneFactPropagationEventRunnerInputV0>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
+struct OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationRunnerOutputV0 {
     schema_version: &'static str,
     product: &'static str,
     report_product: &'static str,
@@ -1250,26 +1319,45 @@ struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     fact_key_route_relocation_gate_green: bool,
     evaluation_count: usize,
     rule_code_names: Vec<&'static str>,
-    evaluations: Vec<OmenaCheckerStreamingIfdsEvaluationV0>,
+    evaluations: Vec<OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationV0>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct OmenaCheckerRgFlowEvaluationInputV0 {
-    flows: Vec<OmenaCheckerRgFlowCouplingRunnerInputV0>,
+struct OmenaCheckerMultiscaleComplexityHeuristicEvaluationInputV0 {
+    flows: Vec<OmenaCheckerMultiscaleComplexityHeuristicCouplingRunnerInputV0>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct OmenaCheckerRgFlowCouplingRunnerInputV0 {
+struct OmenaCheckerMultiscaleComplexityHeuristicCouplingRunnerInputV0 {
     workspace_path: String,
-    before: OmenaCheckerRgFlowCouplingSpaceInputV0,
-    after: OmenaCheckerRgFlowCouplingSpaceInputV0,
+    before: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
+    after: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct OmenaCheckerRgFlowEvaluationRunnerOutputV0 {
+struct OmenaCheckerMultiscaleComplexityHeuristicEvaluationRunnerOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    flow_count: usize,
+    evaluation_count: usize,
+    rule_code_names: Vec<&'static str>,
+    evaluations: Vec<OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0>,
+}
+
+/// Pre-1.0 runner output retained for the compatibility command.
+/// Owner: `engine-shadow-runner` maintainers. Removal condition: not before
+/// 1.0, after downstream migration and zero audited non-compatibility uses.
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaCheckerMultiscaleComplexityHeuristicEvaluationRunnerOutputV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerCompatibilityCouplingEvaluationRunnerOutputV0 {
     schema_version: &'static str,
     product: &'static str,
     flow_count: usize,
@@ -2437,19 +2525,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_checker_mdl_evaluations(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
-        Some("omena-checker-streaming-ifds-evaluations") => {
-            let input: OmenaCheckerStreamingIfdsEvaluationInputV0 = serde_json::from_str(&stdin)?;
-            let summary = summarize_omena_checker_streaming_ifds_evaluations(input)?;
+        Some("omena-checker-demand-sliced-monotone-fact-propagation-evaluations") => {
+            let input: OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationInputV0 =
+                serde_json::from_str(&stdin)?;
+            let summary =
+                summarize_omena_checker_demand_sliced_monotone_fact_propagation_evaluations(
+                    input,
+                    "omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
+                )?;
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
-        Some("omena-checker-streaming-ifds-settle-soak") => {
-            let input: OmenaCheckerStreamingIfdsSettleSoakInputV0 = serde_json::from_str(&stdin)?;
-            let summary = summarize_omena_checker_streaming_ifds_settle_soak(input)?;
+        Some(command) if is_legacy_propagation_evaluations_command_v0(command) => {
+            let input: OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationInputV0 =
+                serde_json::from_str(&stdin)?;
+            let summary =
+                summarize_omena_checker_demand_sliced_monotone_fact_propagation_evaluations(
+                    input, command,
+                )?;
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
-        Some("omena-checker-rg-flow-evaluations") => {
-            let input: OmenaCheckerRgFlowEvaluationInputV0 = serde_json::from_str(&stdin)?;
-            let summary = summarize_omena_checker_rg_flow_evaluations(input);
+        Some("omena-checker-demand-sliced-monotone-fact-propagation-settle-soak") => {
+            let input: OmenaCheckerDemandSlicedMonotoneFactPropagationSettleSoakInputV0 =
+                serde_json::from_str(&stdin)?;
+            let summary =
+                summarize_omena_checker_demand_sliced_monotone_fact_propagation_settle_soak(input)?;
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some(command) if is_legacy_propagation_settle_soak_command_v0(command) => {
+            let input: OmenaCheckerDemandSlicedMonotoneFactPropagationSettleSoakInputV0 =
+                serde_json::from_str(&stdin)?;
+            let summary =
+                summarize_omena_checker_demand_sliced_monotone_fact_propagation_settle_soak(input)?;
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("omena-checker-multiscale-complexity-heuristic-evaluations") => {
+            let input: OmenaCheckerMultiscaleComplexityHeuristicEvaluationInputV0 =
+                serde_json::from_str(&stdin)?;
+            let summary =
+                summarize_omena_checker_multiscale_complexity_heuristic_evaluations(input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some(command) if is_legacy_multiscale_evaluations_command_v0(command) => {
+            let input: OmenaCheckerMultiscaleComplexityHeuristicEvaluationInputV0 =
+                serde_json::from_str(&stdin)?;
+            #[allow(deprecated)]
+            let summary = summarize_compatibility_checker_coupling_evaluations_v0(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("omena-checker-replica-ensemble-evaluations") => {
@@ -2974,23 +3094,52 @@ fn run_daemon_selected_query_command(
                 summarize_omena_checker_mdl_evaluations(input),
             )?)
         }
-        "omena-checker-streaming-ifds-evaluations" => {
-            let input: OmenaCheckerStreamingIfdsEvaluationInputV0 = serde_json::from_value(input)?;
+        "omena-checker-demand-sliced-monotone-fact-propagation-evaluations" => {
+            let input: OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationInputV0 =
+                serde_json::from_value(input)?;
             Ok(serde_json::to_value(
-                summarize_omena_checker_streaming_ifds_evaluations(input)?,
+                summarize_omena_checker_demand_sliced_monotone_fact_propagation_evaluations(
+                    input,
+                    "omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
+                )?,
             )?)
         }
-        "omena-checker-streaming-ifds-settle-soak" => {
-            let input: OmenaCheckerStreamingIfdsSettleSoakInputV0 = serde_json::from_value(input)?;
+        command if is_legacy_propagation_evaluations_command_v0(command) => {
+            let input: OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationInputV0 =
+                serde_json::from_value(input)?;
             Ok(serde_json::to_value(
-                summarize_omena_checker_streaming_ifds_settle_soak(input)?,
+                summarize_omena_checker_demand_sliced_monotone_fact_propagation_evaluations(
+                    input, command,
+                )?,
             )?)
         }
-        "omena-checker-rg-flow-evaluations" => {
-            let input: OmenaCheckerRgFlowEvaluationInputV0 = serde_json::from_value(input)?;
+        "omena-checker-demand-sliced-monotone-fact-propagation-settle-soak" => {
+            let input: OmenaCheckerDemandSlicedMonotoneFactPropagationSettleSoakInputV0 =
+                serde_json::from_value(input)?;
             Ok(serde_json::to_value(
-                summarize_omena_checker_rg_flow_evaluations(input),
+                summarize_omena_checker_demand_sliced_monotone_fact_propagation_settle_soak(input)?,
             )?)
+        }
+        command if is_legacy_propagation_settle_soak_command_v0(command) => {
+            let input: OmenaCheckerDemandSlicedMonotoneFactPropagationSettleSoakInputV0 =
+                serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_demand_sliced_monotone_fact_propagation_settle_soak(input)?,
+            )?)
+        }
+        "omena-checker-multiscale-complexity-heuristic-evaluations" => {
+            let input: OmenaCheckerMultiscaleComplexityHeuristicEvaluationInputV0 =
+                serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_multiscale_complexity_heuristic_evaluations(input),
+            )?)
+        }
+        command if is_legacy_multiscale_evaluations_command_v0(command) => {
+            let input: OmenaCheckerMultiscaleComplexityHeuristicEvaluationInputV0 =
+                serde_json::from_value(input)?;
+            #[allow(deprecated)]
+            let summary = summarize_compatibility_checker_coupling_evaluations_v0(input);
+            Ok(serde_json::to_value(summary)?)
         }
         "omena-checker-replica-ensemble-evaluations" => {
             let input: OmenaCheckerReplicaEnsembleEvaluationInputV0 =
@@ -3216,22 +3365,31 @@ fn summarize_omena_checker_mdl_evaluations(
     }
 }
 
-fn summarize_omena_checker_streaming_ifds_settle_soak(
-    input: OmenaCheckerStreamingIfdsSettleSoakInputV0,
-) -> Result<omena_streaming_ifds::StreamingIFDSSettleSoakReportV0, Box<dyn std::error::Error>> {
+fn summarize_omena_checker_demand_sliced_monotone_fact_propagation_settle_soak(
+    input: OmenaCheckerDemandSlicedMonotoneFactPropagationSettleSoakInputV0,
+) -> Result<
+    omena_streaming_ifds::DemandSlicedMonotoneFactPropagationSettleSoakReportV0,
+    Box<dyn std::error::Error>,
+> {
     let settle_mode = input
         .settle_mode
         .clone()
         .unwrap_or_else(|| "serving".to_string());
-    let settle_revisions = streaming_ifds_settle_soak_revisions(input.settle_revisions);
-    let settle_report = run_streaming_ifds_settle_soak_v0(&settle_revisions);
-    ensure_streaming_ifds_settle_mode(&settle_mode, &settle_report)?;
+    let settle_revisions =
+        demand_sliced_monotone_fact_propagation_settle_soak_revisions(input.settle_revisions);
+    let settle_report =
+        run_demand_sliced_monotone_fact_propagation_settle_soak_v0(&settle_revisions);
+    ensure_demand_sliced_monotone_fact_propagation_settle_mode(&settle_mode, &settle_report)?;
     Ok(settle_report)
 }
 
-fn summarize_omena_checker_streaming_ifds_evaluations(
-    input: OmenaCheckerStreamingIfdsEvaluationInputV0,
-) -> Result<OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0, Box<dyn std::error::Error>> {
+fn summarize_omena_checker_demand_sliced_monotone_fact_propagation_evaluations(
+    input: OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationInputV0,
+    command: &str,
+) -> Result<
+    OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationRunnerOutputV0,
+    Box<dyn std::error::Error>,
+> {
     let update_id = input.update_id.clone();
     let start_node_id = input.start_node_id.clone();
     let settle_mode = input
@@ -3250,13 +3408,13 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
     let hyperedges = input
         .hyperedges
         .into_iter()
-        .map(streaming_ifds_hyperedge)
+        .map(demand_sliced_monotone_fact_propagation_hyperedge)
         .collect::<Vec<_>>();
     let events = input
         .events
         .into_iter()
         .map(|event| {
-            streaming_ifds_event_input_v0(
+            demand_sliced_monotone_fact_propagation_event_input_v0(
                 event.event_id,
                 event.revision,
                 event.node_id,
@@ -3265,41 +3423,47 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
             )
         })
         .collect::<Vec<_>>();
-    let settle_revisions = streaming_ifds_settle_soak_revisions(input.settle_revisions);
+    let settle_revisions =
+        demand_sliced_monotone_fact_propagation_settle_soak_revisions(input.settle_revisions);
     let previous_cache = if input.previous_fact_keys.is_empty() {
         Vec::new()
     } else {
-        vec![streaming_ifds_summary_cache_entry_v0(
-            start_node_id.clone(),
-            Vec::new(),
-            input.previous_fact_keys.clone(),
-            true,
-        )]
+        vec![
+            demand_sliced_monotone_fact_propagation_summary_cache_entry_v0(
+                start_node_id.clone(),
+                Vec::new(),
+                input.previous_fact_keys.clone(),
+                true,
+            ),
+        ]
     };
-    let report = run_streaming_ifds_exact_v0(
+    let report = run_demand_sliced_monotone_fact_propagation_exact_v0(
         update_id.clone(),
         start_node_id.clone(),
         &hyperedges,
         &events,
-        &PolylogDynamicConnectivityBackendV0::default(),
+        &DemandSlicedMonotoneFactPropagationExactBfsConnectivityBackendV0::default(),
         (!previous_cache.is_empty()).then_some(previous_cache.as_slice()),
     );
-    let settle_report = run_streaming_ifds_settle_soak_v0(&settle_revisions);
-    ensure_streaming_ifds_settle_mode(&settle_mode, &settle_report)?;
-    let approval_readiness =
-        streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+    let settle_report =
+        run_demand_sliced_monotone_fact_propagation_settle_soak_v0(&settle_revisions);
+    ensure_demand_sliced_monotone_fact_propagation_settle_mode(&settle_mode, &settle_report)?;
+    let approval_readiness = demand_sliced_monotone_fact_propagation_demand_readiness_v0(
+        DemandSlicedMonotoneFactPropagationDemandReadinessInputV0 {
             fact_key_gate_verdict,
             deletion_corpus_verdict,
             complexity_slope_verdict,
             relocation_approval_verdict,
             settle_report: settle_report.clone(),
-        });
-    let demand_route_equivalence = streaming_ifds_demand_eager_equivalence_v0(
-        std::slice::from_ref(&start_node_id),
-        demand_target_node_ids.as_slice(),
-        &hyperedges,
-        &events,
+        },
     );
+    let demand_route_equivalence =
+        demand_sliced_monotone_fact_propagation_demand_eager_equivalence_v0(
+            std::slice::from_ref(&start_node_id),
+            demand_target_node_ids.as_slice(),
+            &hyperedges,
+            &events,
+        );
     let demand_route_green =
         approval_readiness.demand_primary_ready && demand_route_equivalence.equivalent;
     let demand_route_refusal = if !approval_readiness.demand_primary_ready {
@@ -3309,22 +3473,27 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
     } else {
         None
     };
-    let route = streaming_ifds_fact_key_route_with_gate_v0(
+    let route = demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_v0(
         demand_target_node_ids.as_slice(),
         demand_route_green,
     );
-    let evaluations =
-        evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
-            reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
-                report_id: update_id,
-                incremental_precision_parity_with_batch: report
-                    .incremental_precision_parity_with_batch,
-                reachability_fallback_applied: report
-                    .fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch),
-                fact_fallback_applied: report
-                    .fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch),
-            }],
-        });
+    let evaluations = evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules(
+        OmenaCheckerDemandSlicedMonotoneFactPropagationInputV0 {
+            reports: vec![
+                OmenaCheckerDemandSlicedMonotoneFactPropagationReportInputV0 {
+                    report_id: update_id,
+                    incremental_precision_parity_with_batch: report
+                        .incremental_precision_parity_with_batch,
+                    reachability_fallback_applied: report.fallback_applied_for(
+                        DemandSlicedMonotoneFactPropagationFallbackCauseV0::ReachabilityMismatch,
+                    ),
+                    fact_fallback_applied: report.fallback_applied_for(
+                        DemandSlicedMonotoneFactPropagationFallbackCauseV0::FactMismatch,
+                    ),
+                },
+            ],
+        },
+    );
     let rule_code_names = evaluations
         .iter()
         .map(|evaluation| evaluation.rule_code_name)
@@ -3332,87 +3501,101 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         .into_iter()
         .collect::<Vec<_>>();
 
-    Ok(OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
-        schema_version: "0",
-        product: "omena-checker.streaming-ifds-evaluations",
-        report_product: report.product,
-        settle_report_product: settle_report.product,
-        demand_readiness_product: approval_readiness.product,
-        event_count: report.event_count,
-        output_fact_count: report.output_fact_count,
-        incremental_precision_parity_with_batch: report.incremental_precision_parity_with_batch,
-        reachability_fallback_applied: report
-            .fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch),
-        fact_fallback_applied: report
-            .fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch),
-        demand_fact_key_gate_green: approval_readiness.fact_key_gate_green,
-        demand_fact_key_gate_source_product: approval_readiness.fact_key_gate.source_product,
-        demand_fact_key_gate_artifact_sha256: approval_readiness.fact_key_gate.artifact_sha256,
-        demand_fact_key_gate_refusal: approval_readiness.fact_key_gate.refusal,
-        demand_deletion_corpus_green: approval_readiness.deletion_corpus_green,
-        demand_deletion_corpus_source_product: approval_readiness.deletion_corpus.source_product,
-        demand_deletion_corpus_artifact_sha256: approval_readiness.deletion_corpus.artifact_sha256,
-        demand_deletion_corpus_refusal: approval_readiness.deletion_corpus.refusal,
-        demand_complexity_slope_green: approval_readiness.complexity_slope_green,
-        demand_complexity_slope_source_product: approval_readiness.complexity_slope.source_product,
-        demand_complexity_slope_artifact_sha256: approval_readiness
-            .complexity_slope
-            .artifact_sha256,
-        demand_complexity_slope_refusal: approval_readiness.complexity_slope.refusal,
-        demand_relocation_approval_green: approval_readiness.relocation_approval_green,
-        demand_relocation_approval_source_product: approval_readiness
-            .relocation_approval
-            .source_product,
-        demand_relocation_approval_artifact_sha256: approval_readiness
-            .relocation_approval
-            .artifact_sha256,
-        demand_relocation_approval_refusal: approval_readiness.relocation_approval.refusal,
-        demand_route_equivalence_product: demand_route_equivalence.product,
-        demand_route_comparison_kind: demand_route_equivalence.comparison_kind,
-        demand_route_demand_fact_key_count: demand_route_equivalence.demand_fact_key_count,
-        demand_route_eager_fact_key_count: demand_route_equivalence.eager_fact_key_count,
-        demand_route_demand_fact_key_sha256: demand_route_equivalence.demand_fact_key_sha256,
-        demand_route_eager_fact_key_sha256: demand_route_equivalence.eager_fact_key_sha256,
-        demand_route_equivalent_to_eager: demand_route_equivalence.equivalent,
-        demand_route_refusal,
-        demand_settle_requested_count: settle_report.requested_revision_count,
-        demand_settle_equal_count: settle_report.consecutive_equal_count,
-        demand_settle_divergence_count: settle_report.divergence_count,
-        demand_settle_distinct_revision_count: settle_report.distinct_revision_count,
-        demand_settle_min_revision_count: settle_report.min_revision_count,
-        demand_settle_has_in_scc_edge_removal: settle_report.has_in_scc_edge_removal,
-        demand_settle_all_equal: settle_report.all_revisions_equal,
-        demand_readiness_green_precondition_count: approval_readiness.green_precondition_count,
-        demand_primary_ready: approval_readiness.demand_primary_ready,
-        fact_key_route_scope: route.request_scope,
-        fact_key_route_engine: route.fact_key_engine,
-        fact_key_route_relocation_gate_green: route.relocation_gate_green,
-        evaluation_count: evaluations.len(),
-        rule_code_names,
-        evaluations,
-    })
+    Ok(
+        OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationRunnerOutputV0 {
+            schema_version: "0",
+            product: if is_legacy_propagation_evaluations_command_v0(command) {
+                legacy_propagation_evaluations_product_v0()
+            } else {
+                "omena-checker.demand-sliced-monotone-fact-propagation-evaluations"
+            },
+            report_product: report.product,
+            settle_report_product: settle_report.product,
+            demand_readiness_product: approval_readiness.product,
+            event_count: report.event_count,
+            output_fact_count: report.output_fact_count,
+            incremental_precision_parity_with_batch: report.incremental_precision_parity_with_batch,
+            reachability_fallback_applied: report.fallback_applied_for(
+                DemandSlicedMonotoneFactPropagationFallbackCauseV0::ReachabilityMismatch,
+            ),
+            fact_fallback_applied: report.fallback_applied_for(
+                DemandSlicedMonotoneFactPropagationFallbackCauseV0::FactMismatch,
+            ),
+            demand_fact_key_gate_green: approval_readiness.fact_key_gate_green,
+            demand_fact_key_gate_source_product: approval_readiness.fact_key_gate.source_product,
+            demand_fact_key_gate_artifact_sha256: approval_readiness.fact_key_gate.artifact_sha256,
+            demand_fact_key_gate_refusal: approval_readiness.fact_key_gate.refusal,
+            demand_deletion_corpus_green: approval_readiness.deletion_corpus_green,
+            demand_deletion_corpus_source_product: approval_readiness
+                .deletion_corpus
+                .source_product,
+            demand_deletion_corpus_artifact_sha256: approval_readiness
+                .deletion_corpus
+                .artifact_sha256,
+            demand_deletion_corpus_refusal: approval_readiness.deletion_corpus.refusal,
+            demand_complexity_slope_green: approval_readiness.complexity_slope_green,
+            demand_complexity_slope_source_product: approval_readiness
+                .complexity_slope
+                .source_product,
+            demand_complexity_slope_artifact_sha256: approval_readiness
+                .complexity_slope
+                .artifact_sha256,
+            demand_complexity_slope_refusal: approval_readiness.complexity_slope.refusal,
+            demand_relocation_approval_green: approval_readiness.relocation_approval_green,
+            demand_relocation_approval_source_product: approval_readiness
+                .relocation_approval
+                .source_product,
+            demand_relocation_approval_artifact_sha256: approval_readiness
+                .relocation_approval
+                .artifact_sha256,
+            demand_relocation_approval_refusal: approval_readiness.relocation_approval.refusal,
+            demand_route_equivalence_product: demand_route_equivalence.product,
+            demand_route_comparison_kind: demand_route_equivalence.comparison_kind,
+            demand_route_demand_fact_key_count: demand_route_equivalence.demand_fact_key_count,
+            demand_route_eager_fact_key_count: demand_route_equivalence.eager_fact_key_count,
+            demand_route_demand_fact_key_sha256: demand_route_equivalence.demand_fact_key_sha256,
+            demand_route_eager_fact_key_sha256: demand_route_equivalence.eager_fact_key_sha256,
+            demand_route_equivalent_to_eager: demand_route_equivalence.equivalent,
+            demand_route_refusal,
+            demand_settle_requested_count: settle_report.requested_revision_count,
+            demand_settle_equal_count: settle_report.consecutive_equal_count,
+            demand_settle_divergence_count: settle_report.divergence_count,
+            demand_settle_distinct_revision_count: settle_report.distinct_revision_count,
+            demand_settle_min_revision_count: settle_report.min_revision_count,
+            demand_settle_has_in_scc_edge_removal: settle_report.has_in_scc_edge_removal,
+            demand_settle_all_equal: settle_report.all_revisions_equal,
+            demand_readiness_green_precondition_count: approval_readiness.green_precondition_count,
+            demand_primary_ready: approval_readiness.demand_primary_ready,
+            fact_key_route_scope: route.request_scope,
+            fact_key_route_engine: route.fact_key_engine,
+            fact_key_route_relocation_gate_green: route.relocation_gate_green,
+            evaluation_count: evaluations.len(),
+            rule_code_names,
+            evaluations,
+        },
+    )
 }
 
-fn streaming_ifds_settle_soak_revisions(
-    revisions: Vec<StreamingIfdsSettleSoakRevisionRunnerInputV0>,
-) -> Vec<StreamingIFDSSettleSoakRevisionInputV0> {
+fn demand_sliced_monotone_fact_propagation_settle_soak_revisions(
+    revisions: Vec<DemandSlicedMonotoneFactPropagationSettleSoakRevisionRunnerInputV0>,
+) -> Vec<DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0> {
     if revisions.is_empty() {
-        streaming_ifds_default_settle_soak_revisions_v0()
+        demand_sliced_monotone_fact_propagation_default_settle_soak_revisions_v0()
     } else {
         revisions
             .into_iter()
-            .map(streaming_ifds_settle_soak_revision)
+            .map(demand_sliced_monotone_fact_propagation_settle_soak_revision)
             .collect::<Vec<_>>()
     }
 }
 
-fn ensure_streaming_ifds_settle_mode(
+fn ensure_demand_sliced_monotone_fact_propagation_settle_mode(
     settle_mode: &str,
-    settle_report: &omena_streaming_ifds::StreamingIFDSSettleSoakReportV0,
+    settle_report: &omena_streaming_ifds::DemandSlicedMonotoneFactPropagationSettleSoakReportV0,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if settle_mode == "soak" && !settle_report.all_revisions_equal {
         return Err(format!(
-            "streaming IFDS settle soak failed: requestedRevisions={} distinctRevisions={} divergences={}",
+            "demand-sliced monotone fact propagation settle soak failed: requestedRevisions={} distinctRevisions={} divergences={}",
             settle_report.requested_revision_count,
             settle_report.distinct_revision_count,
             settle_report.divergence_count
@@ -3420,14 +3603,60 @@ fn ensure_streaming_ifds_settle_mode(
         .into());
     }
     if settle_mode != "serving" && settle_mode != "soak" {
-        return Err(format!("unsupported streaming IFDS settle mode: {settle_mode}").into());
+        return Err(format!(
+            "unsupported demand-sliced monotone fact propagation settle mode: {settle_mode}"
+        )
+        .into());
     }
     Ok(())
 }
 
-fn summarize_omena_checker_rg_flow_evaluations(
-    input: OmenaCheckerRgFlowEvaluationInputV0,
-) -> OmenaCheckerRgFlowEvaluationRunnerOutputV0 {
+fn summarize_omena_checker_multiscale_complexity_heuristic_evaluations(
+    input: OmenaCheckerMultiscaleComplexityHeuristicEvaluationInputV0,
+) -> OmenaCheckerMultiscaleComplexityHeuristicEvaluationRunnerOutputV0 {
+    let flow_count = input.flows.len();
+    let checker_input = OmenaCheckerMultiscaleComplexityHeuristicInputV0 {
+        flows: input
+            .flows
+            .into_iter()
+            .map(
+                |flow| OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0 {
+                    workspace_path: flow.workspace_path,
+                    before: flow.before,
+                    after: flow.after,
+                },
+            )
+            .collect(),
+    };
+    let evaluations = evaluate_omena_checker_multiscale_complexity_heuristic_rules(checker_input);
+    let rule_code_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    OmenaCheckerMultiscaleComplexityHeuristicEvaluationRunnerOutputV0 {
+        schema_version: "0",
+        product: "omena-checker.multiscale-complexity-heuristic-evaluations",
+        flow_count,
+        evaluation_count: evaluations.len(),
+        rule_code_names,
+        evaluations,
+    }
+}
+
+/// Pre-1.0 compatibility command adapter.
+/// Owner: `engine-shadow-runner` maintainers. Removal condition: not before
+/// 1.0, after downstream migration and zero audited non-compatibility uses.
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use summarize_omena_checker_multiscale_complexity_heuristic_evaluations; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn summarize_compatibility_checker_coupling_evaluations_v0(
+    input: OmenaCheckerMultiscaleComplexityHeuristicEvaluationInputV0,
+) -> OmenaCheckerCompatibilityCouplingEvaluationRunnerOutputV0 {
     let flow_count = input.flows.len();
     let checker_input = OmenaCheckerRgFlowInputV0 {
         flows: input
@@ -3435,8 +3664,18 @@ fn summarize_omena_checker_rg_flow_evaluations(
             .into_iter()
             .map(|flow| OmenaCheckerRgFlowCouplingInputV0 {
                 workspace_path: flow.workspace_path,
-                before: flow.before,
-                after: flow.after,
+                before: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+                    k_env: flow.before.k_env,
+                    k_decl: flow.before.k_decl,
+                    k_cycle: flow.before.k_cycle,
+                    k_dirty: flow.before.k_dirty,
+                },
+                after: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+                    k_env: flow.after.k_env,
+                    k_decl: flow.after.k_decl,
+                    k_cycle: flow.after.k_cycle,
+                    k_dirty: flow.after.k_dirty,
+                },
             })
             .collect(),
     };
@@ -3448,9 +3687,9 @@ fn summarize_omena_checker_rg_flow_evaluations(
         .into_iter()
         .collect::<Vec<_>>();
 
-    OmenaCheckerRgFlowEvaluationRunnerOutputV0 {
+    OmenaCheckerCompatibilityCouplingEvaluationRunnerOutputV0 {
         schema_version: "0",
-        product: "omena-checker.rg-flow-evaluations",
+        product: legacy_multiscale_evaluations_product_v0(),
         flow_count,
         evaluation_count: evaluations.len(),
         rule_code_names,
@@ -3554,6 +3793,7 @@ fn summarize_omena_checker_replica_ensemble_evaluations(
     }
 }
 
+#[allow(deprecated)]
 fn replica_ensemble_snapshot(input: ReplicaEnsembleSnapshotRunnerInputV0) -> ReplicaSnapshotV0 {
     let sites = input
         .winners
@@ -3564,7 +3804,10 @@ fn replica_ensemble_snapshot(input: ReplicaEnsembleSnapshotRunnerInputV0) -> Rep
             product: "omena-ensemble.replica-site-outcome",
             layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
             feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-            site: site(format!(".item-{index}"), "color"),
+            site: compatibility_key_from_cascade_section_key_v0(cascade_section_key(
+                format!(".item-{index}"),
+                "color",
+            )),
             outcome: replica_ensemble_definite_outcome(&winner, index as u32),
             provenance: None,
         })
@@ -3653,13 +3896,15 @@ fn replica_ensemble_recommendation_name(recommendation: ReportRecommendation) ->
     }
 }
 
-fn streaming_ifds_hyperedge(input: StreamingIfdsHyperedgeInputV0) -> UnifiedHypergraphHyperedgeV0 {
-    let edge_kind = streaming_ifds_edge_kind(input.edge_kind.as_deref());
+fn demand_sliced_monotone_fact_propagation_hyperedge(
+    input: DemandSlicedMonotoneFactPropagationHyperedgeInputV0,
+) -> UnifiedHypergraphHyperedgeV0 {
+    let edge_kind = demand_sliced_monotone_fact_propagation_edge_kind(input.edge_kind.as_deref());
     UnifiedHypergraphHyperedgeV0 {
         schema_version: "0",
         product: "omena-query.unified-hypergraph-edge",
-        layer_marker: "hypergraph-ifds",
-        feature_gate: "hypergraph-ifds",
+        layer_marker: "hypergraph-monotone-fact-propagation",
+        feature_gate: "hypergraph-monotone-fact-propagation",
         source_summary_edge_id: input.hyperedge_id.clone(),
         source_edge_kind: edge_kind.as_wire_label(),
         source_status: "resolved",
@@ -3671,19 +3916,19 @@ fn streaming_ifds_hyperedge(input: StreamingIfdsHyperedgeInputV0) -> UnifiedHype
     }
 }
 
-fn streaming_ifds_settle_soak_revision(
-    input: StreamingIfdsSettleSoakRevisionRunnerInputV0,
-) -> StreamingIFDSSettleSoakRevisionInputV0 {
+fn demand_sliced_monotone_fact_propagation_settle_soak_revision(
+    input: DemandSlicedMonotoneFactPropagationSettleSoakRevisionRunnerInputV0,
+) -> DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0 {
     let hyperedges = input
         .hyperedges
         .into_iter()
-        .map(streaming_ifds_hyperedge)
+        .map(demand_sliced_monotone_fact_propagation_hyperedge)
         .collect::<Vec<_>>();
     let events = input
         .events
         .into_iter()
         .map(|event| {
-            streaming_ifds_event_input_v0(
+            demand_sliced_monotone_fact_propagation_event_input_v0(
                 event.event_id,
                 event.revision,
                 event.node_id,
@@ -3692,7 +3937,7 @@ fn streaming_ifds_settle_soak_revision(
             )
         })
         .collect::<Vec<_>>();
-    streaming_ifds_settle_soak_revision_v0(
+    demand_sliced_monotone_fact_propagation_settle_soak_revision_v0(
         input.revision_id,
         input.start_node_ids,
         input.target_node_ids,
@@ -3701,7 +3946,9 @@ fn streaming_ifds_settle_soak_revision(
     )
 }
 
-fn streaming_ifds_edge_kind(value: Option<&str>) -> UnifiedHypergraphEdgeKindV0 {
+fn demand_sliced_monotone_fact_propagation_edge_kind(
+    value: Option<&str>,
+) -> UnifiedHypergraphEdgeKindV0 {
     match value {
         Some("composesLocal") => UnifiedHypergraphEdgeKindV0::ComposesLocal,
         Some("composesGlobal") => UnifiedHypergraphEdgeKindV0::ComposesGlobal,

@@ -1282,8 +1282,9 @@ pub fn refinement_smt_backend_available_v0() -> bool {
 mod tests {
     use super::*;
     use omena_abstract_value::{
-        CascadeContextV0, CascadeValueFamilyMemberV0, derive_cascade_restriction_maps_v0,
-        summarize_cascade_value_family_v0,
+        CascadeContextV0, CascadeValueFamilyMemberV0,
+        derive_context_indexed_cascade_restriction_maps_v0,
+        summarize_context_indexed_cascade_value_family_v0,
     };
 
     #[test]
@@ -1515,8 +1516,9 @@ mod tests {
                 },
             },
         ];
-        let restrictions = derive_cascade_restriction_maps_v0(&members);
-        let family = summarize_cascade_value_family_v0("width", members, restrictions);
+        let restrictions = derive_context_indexed_cascade_restriction_maps_v0(&members);
+        let family =
+            summarize_context_indexed_cascade_value_family_v0("width", members, restrictions);
         let predicate = RefinementPropertyPredicateV0::NumericRange {
             property_name: "width".to_string(),
             min_inclusive: Some(0),

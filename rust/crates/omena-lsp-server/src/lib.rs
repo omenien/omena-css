@@ -8,6 +8,7 @@ mod code_actions;
 mod color_provider;
 #[cfg(feature = "salsa-style-diagnostics")]
 mod deferred_notification;
+mod demand_sliced_monotone_fact_propagation_diagnostics;
 mod diagnostics_follow_up;
 mod diagnostics_scheduler;
 mod disk_cache;
@@ -47,7 +48,6 @@ mod source_syntax_index;
 mod source_type_fact_cache;
 mod source_type_facts;
 mod state;
-mod streaming_ifds_diagnostics;
 mod style_diagnostics;
 mod style_diagnostics_snapshot;
 mod style_hover_markdown;
@@ -69,6 +69,7 @@ pub use deferred_notification::{
     resolve_deferred_diagnostics_notification,
     resolve_deferred_diagnostics_notification_with_reverse_refresh,
 };
+use demand_sliced_monotone_fact_propagation_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 pub use diagnostics_follow_up::*;
 pub(crate) use document_events::{
     did_change_text_document, did_change_watched_files, did_change_workspace_folders,
@@ -211,7 +212,6 @@ pub(crate) use source_type_facts::apply_source_type_fact_results_to_document;
 pub(crate) use source_type_facts::refresh_source_type_fact_candidates_for_document;
 pub use state::*;
 use std::{collections::BTreeSet, fs, sync::Arc};
-use streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 #[cfg(feature = "salsa-style-diagnostics")]
 pub(crate) use style_diagnostics_snapshot::LspStyleDiagnosticsRenderInputsV0;
 

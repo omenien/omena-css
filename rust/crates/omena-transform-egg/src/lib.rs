@@ -21,10 +21,10 @@ use serde::Serialize;
 
 mod mdl_cost;
 pub use mdl_cost::*;
-#[cfg(feature = "lawvere-saturation")]
-mod lawvere_analysis;
-#[cfg(feature = "lawvere-saturation")]
-pub use lawvere_analysis::*;
+#[cfg(feature = "transform-catalog-saturation")]
+mod transform_catalog_analysis;
+#[cfg(feature = "transform-catalog-saturation")]
+pub use transform_catalog_analysis::*;
 
 define_language! {
     enum CssRewriteLanguage {
