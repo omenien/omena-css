@@ -626,8 +626,19 @@ mod tests {
         let (shortcut_result, shortcut_counts) = fixed_seed(true)?;
         let (recursive_result, recursive_counts) = fixed_seed(false)?;
         assert_eq!(shortcut_result, recursive_result);
+        assert!(recursive_counts.choose_invocations > shortcut_counts.choose_invocations);
         assert!(recursive_counts.apply_invocations > shortcut_counts.apply_invocations);
         assert!(recursive_counts.apply_cache_lookups > shortcut_counts.apply_cache_lookups);
+        eprintln!(
+            "{{\"seed\":\"(a or b) and (a or b)\",\"result\":{},\"shortcuts\":{{\"choose\":{},\"apply\":{},\"cacheLookups\":{}}},\"recursive\":{{\"choose\":{},\"apply\":{},\"cacheLookups\":{}}}}}",
+            shortcut_result,
+            shortcut_counts.choose_invocations,
+            shortcut_counts.apply_invocations,
+            shortcut_counts.apply_cache_lookups,
+            recursive_counts.choose_invocations,
+            recursive_counts.apply_invocations,
+            recursive_counts.apply_cache_lookups,
+        );
         Ok(())
     }
 
@@ -741,6 +752,10 @@ mod tests {
             .collect();
         let interleaved_nodes = build(interleaved)?;
         let blocked_nodes = build(blocked)?;
+        eprintln!(
+            "{{\"declaredSynthetic\":true,\"pairCount\":{PAIRS},\"policy\":\"siteFirstAppearance\",\"interleavedNodes\":{interleaved_nodes},\"blockedNodes\":{blocked_nodes},\"interleavedUpperBound\":{},\"blockedRatioFloor\":8}}",
+            14 * PAIRS,
+        );
         assert!(
             interleaved_nodes <= 14 * PAIRS,
             "interleaved={interleaved_nodes}, blocked={blocked_nodes}"
