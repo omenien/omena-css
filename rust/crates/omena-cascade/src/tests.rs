@@ -105,6 +105,87 @@ fn generated_cascade_keys() -> Vec<CascadeKey> {
     keys
 }
 
+fn token_texts(word: &OrderedTokenWordV0) -> Vec<&str> {
+    word.tokens()
+        .iter()
+        .map(omena_syntax::ident::CanonicalClassKeyV0::as_str)
+        .collect()
+}
+
+fn known_dom_word(value: &str) -> OrderedTokenWordV0 {
+    let DomClassTokenizationV0::Known { word, .. } = tokenize_dom_class_attribute_v0(Some(value))
+    else {
+        unreachable!("a supplied class attribute is a known tokenizer input");
+    };
+    word
+}
+
+#[test]
+fn dom_class_tokenizer_preserves_first_order_and_uses_only_ascii_whitespace() {
+    assert_eq!(token_texts(&known_dom_word("b a b")), vec!["b", "a"]);
+    assert_eq!(
+        token_texts(&known_dom_word("a\u{00a0}b")),
+        vec!["a\u{00a0}b"]
+    );
+    assert_eq!(
+        token_texts(&known_dom_word("a\u{000b}b")),
+        vec!["a\u{000b}b"],
+        "vertical tab is ASCII but not DOM class whitespace"
+    );
+    assert!(matches!(
+        tokenize_dom_class_attribute_v0(None),
+        DomClassTokenizationV0::Unknown {
+            cause: DomClassTokenizationUnknownCauseV0::InputUnavailable
+        }
+    ));
+}
+
+#[test]
+fn token_support_enforces_subset_and_matches_ordered_support() {
+    let left = known_dom_word("button primary");
+    let right = known_dom_word("primary large");
+    let combined = left.combine_first_occurrence(&right);
+    assert_eq!(token_texts(&combined), vec!["button", "primary", "large"]);
+    let support = token_support_v0(&combined);
+    let left_support = token_support_v0(&left);
+    let right_support = token_support_v0(&right);
+    let expected_union = left_support
+        .may()
+        .union(right_support.may())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        support
+            .must()
+            .iter()
+            .map(omena_syntax::ident::CanonicalClassKeyV0::as_str)
+            .collect::<Vec<_>>(),
+        vec!["button", "large", "primary"]
+    );
+    assert_eq!(support.must(), support.may());
+    assert_eq!(support.may(), &expected_union);
+
+    let button = omena_syntax::ident::ClassNameV0::new("button").canonical_key();
+    let primary = omena_syntax::ident::ClassNameV0::new("primary").canonical_key();
+    assert!(TokenSupportV0::new([button.clone()], [button.clone(), primary.clone()]).is_some());
+    assert!(TokenSupportV0::new([button, primary.clone()], [primary]).is_none());
+}
+
+#[test]
+fn attribute_and_selector_escape_planes_share_keys_without_escape_aware_tokenization() {
+    let attribute = known_dom_word(r"a\2d b");
+    assert_eq!(token_texts(&attribute), vec!["a-", "b"]);
+
+    let escaped_selector = omena_syntax::ident::class_selector_names(r".a\2d b");
+    let plain_selector = omena_syntax::ident::class_selector_names(".a-b");
+    assert_eq!(escaped_selector.len(), 1);
+    assert_eq!(plain_selector.len(), 1);
+    assert_eq!(
+        escaped_selector[0].name.clone().canonical_key(),
+        plain_selector[0].name.clone().canonical_key()
+    );
+}
+
 #[test]
 fn orders_specificity_lexicographically() {
     assert!(Specificity::new(1, 0, 0) > Specificity::new(0, 99, 99));

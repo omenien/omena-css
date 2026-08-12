@@ -1,6 +1,30 @@
 use super::*;
 
 #[test]
+fn source_class_splitter_consumes_dom_ordered_tokenization() {
+    assert_eq!(split_class_names("b a b"), vec!["b", "a"]);
+    assert_eq!(split_class_names("a\u{00a0}b"), vec!["a\u{00a0}b"]);
+}
+
+#[test]
+fn class_tokenizer_migration_table_names_both_previous_splitters()
+-> Result<(), Box<dyn std::error::Error>> {
+    let rows: serde_json::Value =
+        serde_json::from_str(include_str!("../../data/class-tokenizer-migration-v0.json"))?;
+    let rows = rows
+        .as_array()
+        .ok_or_else(|| std::io::Error::other("class tokenizer migration table must be an array"))?;
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[0]["site"], "source_syntax::split_class_names");
+    assert_eq!(rows[1]["site"], "utility_intelligence::class_tokens");
+    assert_eq!(
+        rows[2]["site"],
+        "utility_intelligence::config::collect_safelist"
+    );
+    Ok(())
+}
+
+#[test]
 fn css_identifier_safety_matches_shared_cases() -> Result<(), Box<dyn std::error::Error>> {
     let cases: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../omena-css-identifier-safety-cases.json"

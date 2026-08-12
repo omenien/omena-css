@@ -2451,6 +2451,7 @@ dependencies = [
 name = "omena-abstract-value"
 version = "0.3.0"
 dependencies = [
+ "omena-cascade",
  "omena-evidence-graph",
  "omena-incremental",
  "omena-spec-audit",

@@ -5,6 +5,7 @@
 //! custom-property substitution function with explicit cycle handling.
 
 mod axis_order;
+pub mod class_tokens;
 mod computed_value;
 mod conformance;
 mod custom_property;
@@ -24,6 +25,7 @@ mod selector;
 mod shorthand_authority;
 mod statistics;
 
+pub use class_tokens::*;
 pub use computed_value::*;
 pub use conformance::*;
 pub use custom_property::*;

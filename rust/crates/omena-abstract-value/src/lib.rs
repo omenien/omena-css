@@ -26,6 +26,11 @@ pub use cascade_family::*;
 pub use domain::*;
 pub use facts::*;
 pub use flow::*;
+pub use omena_cascade::{
+    DomClassTokenSpanV0, DomClassTokenizationUnknownCauseV0, DomClassTokenizationV0,
+    OrderedTokenWordV0, TokenSupportV0, is_dom_class_ascii_whitespace_v0, token_support_v0,
+    tokenize_dom_class_attribute_v0,
+};
 pub use property_value::*;
 pub use provenance::*;
 pub use reduced_product::{

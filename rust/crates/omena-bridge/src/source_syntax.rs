@@ -4172,14 +4172,15 @@ fn string_expression_value_and_span(
 }
 
 fn split_class_names(value: &str) -> Vec<String> {
-    let mut class_names = value
-        .split_whitespace()
-        .filter(|part| !part.is_empty())
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    class_names.sort();
-    class_names.dedup();
-    class_names
+    let omena_abstract_value::DomClassTokenizationV0::Known { word, .. } =
+        omena_abstract_value::tokenize_dom_class_attribute_v0(Some(value))
+    else {
+        return Vec::new();
+    };
+    word.tokens()
+        .iter()
+        .map(|token| token.as_str().to_string())
+        .collect()
 }
 
 fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {
