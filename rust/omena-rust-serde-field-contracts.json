@@ -1254,6 +1254,18 @@
           "skipDeserializing": false
         },
         {
+          "memberPath": "class_attribute_sites",
+          "memberKind": "field",
+          "rustName": "class_attribute_sites",
+          "serializeKey": "classAttributeSites",
+          "deserializeKey": "classAttributeSites",
+          "typeExpression": "Vec<SourceClassAttributeSiteFactV0>",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
           "memberPath": "expression_targets_modules",
           "memberKind": "field",
           "rustName": "expression_targets_modules",
@@ -1413,6 +1425,124 @@
           "deserializeKey": "styleUri",
           "typeExpression": "String",
           "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        }
+      ]
+    },
+    {
+      "crate": "omena-bridge",
+      "typeName": "SourceClassAttributeSiteFactV0",
+      "kind": "struct",
+      "sourcePath": "rust/crates/omena-bridge/src/source_syntax.rs",
+      "nonExhaustive": false,
+      "containerSerde": "rename_all = \"camelCase\"",
+      "members": [
+        {
+          "memberPath": "attribute_name",
+          "memberKind": "field",
+          "rustName": "attribute_name",
+          "serializeKey": "attributeName",
+          "deserializeKey": "attributeName",
+          "typeExpression": "String",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "site_byte_span",
+          "memberKind": "field",
+          "rustName": "site_byte_span",
+          "serializeKey": "siteByteSpan",
+          "deserializeKey": "siteByteSpan",
+          "typeExpression": "ParserByteSpanV0",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "value_byte_span",
+          "memberKind": "field",
+          "rustName": "value_byte_span",
+          "serializeKey": "valueByteSpan",
+          "deserializeKey": "valueByteSpan",
+          "typeExpression": "Option<ParserByteSpanV0>",
+          "optional": true,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "value_kind",
+          "memberKind": "field",
+          "rustName": "value_kind",
+          "serializeKey": "valueKind",
+          "deserializeKey": "valueKind",
+          "typeExpression": "&'static str",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "target_style_uris",
+          "memberKind": "field",
+          "rustName": "target_style_uris",
+          "serializeKey": "targetStyleUris",
+          "deserializeKey": "targetStyleUris",
+          "typeExpression": "Vec<String>",
+          "optional": true,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "boundary_effect",
+          "memberKind": "field",
+          "rustName": "boundary_effect",
+          "serializeKey": "boundaryEffect",
+          "deserializeKey": "boundaryEffect",
+          "typeExpression": "ClassBoundaryEffectV0",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "ordered_word",
+          "memberKind": "field",
+          "rustName": "ordered_word",
+          "serializeKey": "orderedWord",
+          "deserializeKey": "orderedWord",
+          "typeExpression": "Option<OrderedTokenWordV0>",
+          "optional": true,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "source_facts",
+          "memberKind": "field",
+          "rustName": "source_facts",
+          "serializeKey": "sourceFacts",
+          "deserializeKey": "sourceFacts",
+          "typeExpression": "Option<StringTypeFactsV2>",
+          "optional": true,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "guarded_tokens",
+          "memberKind": "field",
+          "rustName": "guarded_tokens",
+          "serializeKey": "guardedTokens",
+          "deserializeKey": "guardedTokens",
+          "typeExpression": "Vec<SourceGuardedClassTokenFactV0>",
+          "optional": true,
           "flatten": false,
           "skipSerializing": false,
           "skipDeserializing": false
@@ -2436,6 +2566,30 @@
           "skipDeserializing": false
         },
         {
+          "memberPath": "boundary_effect",
+          "memberKind": "field",
+          "rustName": "boundary_effect",
+          "serializeKey": "boundaryEffect",
+          "deserializeKey": "boundaryEffect",
+          "typeExpression": "ClassBoundaryEffectV0",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "ordered_word",
+          "memberKind": "field",
+          "rustName": "ordered_word",
+          "serializeKey": "orderedWord",
+          "deserializeKey": "orderedWord",
+          "typeExpression": "Option<OrderedTokenWordV0>",
+          "optional": true,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
           "memberPath": "facts",
           "memberKind": "field",
           "rustName": "facts",
@@ -2443,6 +2597,52 @@
           "deserializeKey": "facts",
           "typeExpression": "Option<StringTypeFactsV2>",
           "optional": true,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        }
+      ]
+    },
+    {
+      "crate": "omena-bridge",
+      "typeName": "SourceGuardedClassTokenFactV0",
+      "kind": "struct",
+      "sourcePath": "rust/crates/omena-bridge/src/source_syntax.rs",
+      "nonExhaustive": false,
+      "containerSerde": "rename_all = \"camelCase\"",
+      "members": [
+        {
+          "memberPath": "token",
+          "memberKind": "field",
+          "rustName": "token",
+          "serializeKey": "token",
+          "deserializeKey": "token",
+          "typeExpression": "String",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "condition",
+          "memberKind": "field",
+          "rustName": "condition",
+          "serializeKey": "condition",
+          "deserializeKey": "condition",
+          "typeExpression": "String",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "condition_kind",
+          "memberKind": "field",
+          "rustName": "condition_kind",
+          "serializeKey": "conditionKind",
+          "deserializeKey": "conditionKind",
+          "typeExpression": "&'static str",
+          "optional": false,
           "flatten": false,
           "skipSerializing": false,
           "skipDeserializing": false

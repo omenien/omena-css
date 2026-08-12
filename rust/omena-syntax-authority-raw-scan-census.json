@@ -70,7 +70,7 @@
   "sites": [
     {
       "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-      "line": 1597,
+      "line": 1643,
       "idiom": "brace-contains",
       "family": "engine-support",
       "disposition": "named-exempt",
@@ -1364,7 +1364,7 @@
       "reason": "Transform runtime scanning outside the preservation observer remains a named follow-up."
     }
   ],
-  "siteDigest": "sha256:1d68a810e5b1f3fc6cfde4d22c129eb96b8a703291ac93cbe1aeca56181e1baa",
+  "siteDigest": "sha256:66914574bd819151db4f6e16f119b1aac062dc819bb89e4dd276f84698b5a05e",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,

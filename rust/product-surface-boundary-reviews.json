@@ -84,9 +84,9 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-scss-eval",
-          "value": 7,
+          "value": 8,
           "unit": "commits",
-          "response": "The measured interval contains seven evaluator boundary changes, all covered by Rust workspace API and conformance gates; future changes must preserve that review path."
+          "response": "The measured interval contains eight evaluator boundary changes, all covered by Rust workspace API and conformance gates; future changes must preserve that review path."
         },
         "dependencyDirection": {
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
@@ -117,7 +117,7 @@
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
           "value": 4,
           "unit": "directWorkspaceConsumers",
-          "sourceLines": 45817,
+          "sourceLines": 45820,
           "response": "Four consumers and substantial language-specific implementation make the physical boundary preferable to embedding the evaluator in the facade."
         }
       }

@@ -226,7 +226,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 3798,
+        "line": 4029,
         "function": "collect_computed_member_expression",
         "operation": "insert",
         "evidence": "self.style_property_access_selector_names.insert(",
@@ -235,7 +235,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 3858,
+        "line": 4089,
         "function": "static_string_expression_class_name",
         "operation": "str-eq",
         "evidence": "&& class_selector_name_end(selector_name.as_str(), 0) == Some(selector_name.len()))",
@@ -244,7 +244,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 5500,
+        "line": 5755,
         "function": "retire_template_prefix_reference",
         "operation": "str-eq",
         "evidence": "|| reference.selector_name.as_deref() != Some(prefix)",
@@ -262,7 +262,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/utility_intelligence/config.rs",
-        "line": 440,
+        "line": 444,
         "function": "collect_theme_container",
         "operation": "insert",
         "evidence": "enumerated.insert(class_name);",
@@ -460,7 +460,7 @@
       },
       {
         "path": "rust/crates/omena-query-core/src/lib.rs",
-        "line": 676,
+        "line": 679,
         "function": "selector_universe_for_targets",
         "operation": "map-get",
         "evidence": "if let Some(selector_names) = style_selectors_by_path.get(target_style_path) {",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:4315763598485173fbd1955510570d2d5a6be38e268f87fdc13e19ae2d80b7df"
+    "siteDigest": "sha256:18fd5f4642420fbfc6c0b5359414fb37bbcec26283336367b158512208446346"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -804,7 +804,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 1564,
+        "line": 1610,
         "function": "is_html_attribute_name_byte",
         "operation": "character-predicate-copy",
         "evidence": "fn is_html_attribute_name_byte(byte: u8) -> bool { byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'-' | b'_' | b'.') }",
@@ -893,6 +893,6 @@
         "reason": "omena-transform-cst owns diagnostic context extraction, whose punctuation set is intentionally broader than a CSS identifier."
       }
     ],
-    "siteDigest": "sha256:1b327f0779524a5950e59801502ff883b7641220af6465d30fc9473673da7806"
+    "siteDigest": "sha256:2cf9ca4dc41942d5d25b19dec45e21f521a91b15a79179b906ea063938146643"
   }
 }
