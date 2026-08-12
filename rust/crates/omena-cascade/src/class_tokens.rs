@@ -182,3 +182,188 @@ pub fn tokenize_dom_class_attribute_v0(value: Option<&str>) -> DomClassTokenizat
         token_spans,
     }
 }
+
+#[cfg(test)]
+mod band_law_tests {
+    use std::collections::BTreeSet;
+
+    use proptest::prelude::*;
+
+    use super::*;
+
+    const TOKEN_ALPHABET: [&str; 4] = ["alpha", "beta", "gamma", "delta"];
+
+    fn landed_word(indices: &[usize]) -> OrderedTokenWordV0 {
+        let raw = indices
+            .iter()
+            .map(|index| TOKEN_ALPHABET[index % TOKEN_ALPHABET.len()])
+            .collect::<Vec<_>>()
+            .join(" ");
+        let DomClassTokenizationV0::Known { word, .. } =
+            tokenize_dom_class_attribute_v0(Some(&raw))
+        else {
+            unreachable!("a supplied string uses the known tokenizer arm");
+        };
+        word
+    }
+
+    fn token_labels(word: &OrderedTokenWordV0) -> Vec<&str> {
+        word.tokens()
+            .iter()
+            .map(CanonicalClassKeyV0::as_str)
+            .collect()
+    }
+
+    fn last_occurrence_control(left: &[usize], right: &[usize]) -> Vec<usize> {
+        let mut seen = BTreeSet::new();
+        let mut result = left
+            .iter()
+            .chain(right)
+            .rev()
+            .filter(|token| seen.insert(**token))
+            .copied()
+            .collect::<Vec<_>>();
+        result.reverse();
+        result
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: 256,
+            failure_persistence: None,
+            ..ProptestConfig::default()
+        })]
+        #[test]
+        fn landed_ordered_word_obeys_band_and_support_laws(
+            u in prop::collection::vec(0usize..4, 0..10),
+            v in prop::collection::vec(0usize..4, 0..10),
+            w in prop::collection::vec(0usize..4, 0..10),
+        ) {
+            let u = landed_word(&u);
+            let v = landed_word(&v);
+            let w = landed_word(&w);
+            let uv = u.combine_first_occurrence(&v);
+            prop_assert_eq!(
+                uv.combine_first_occurrence(&w),
+                u.combine_first_occurrence(&v.combine_first_occurrence(&w)),
+                "associativity"
+            );
+            prop_assert_eq!(u.combine_first_occurrence(&u), u.clone(), "idempotence");
+            prop_assert_eq!(
+                uv.combine_first_occurrence(&u),
+                uv.clone(),
+                "left-regular-band absorption"
+            );
+            let combined_support = token_support_v0(&uv);
+            let mut expected = token_support_v0(&u).may().clone();
+            expected.extend(token_support_v0(&v).may().iter().cloned());
+            prop_assert_eq!(combined_support.must(), &expected);
+            prop_assert_eq!(combined_support.may(), &expected);
+        }
+
+        #[test]
+        fn whitespace_delimited_raw_join_is_a_token_word_homomorphism(
+            left in prop::collection::vec(0usize..4, 0..10),
+            right in prop::collection::vec(0usize..4, 0..10),
+        ) {
+            let left_raw = left
+                .iter()
+                .map(|index| TOKEN_ALPHABET[index % TOKEN_ALPHABET.len()])
+                .collect::<Vec<_>>()
+                .join(" ");
+            let right_raw = right
+                .iter()
+                .map(|index| TOKEN_ALPHABET[index % TOKEN_ALPHABET.len()])
+                .collect::<Vec<_>>()
+                .join(" ");
+            let joined = format!("{left_raw} {right_raw}");
+            let DomClassTokenizationV0::Known { word: joined, .. } =
+                tokenize_dom_class_attribute_v0(Some(&joined))
+            else {
+                unreachable!("a supplied string uses the known tokenizer arm");
+            };
+            prop_assert_eq!(joined, landed_word(&left).combine_first_occurrence(&landed_word(&right)));
+        }
+    }
+
+    #[test]
+    fn raw_concatenation_is_a_required_inequality_counterexample() {
+        let DomClassTokenizationV0::Known {
+            word: raw_concat, ..
+        } = tokenize_dom_class_attribute_v0(Some("btn-large"))
+        else {
+            unreachable!("a supplied string uses the known tokenizer arm");
+        };
+        let DomClassTokenizationV0::Known { word: left, .. } =
+            tokenize_dom_class_attribute_v0(Some("btn-"))
+        else {
+            unreachable!("a supplied string uses the known tokenizer arm");
+        };
+        let DomClassTokenizationV0::Known { word: right, .. } =
+            tokenize_dom_class_attribute_v0(Some("large"))
+        else {
+            unreachable!("a supplied string uses the known tokenizer arm");
+        };
+        assert_eq!(token_labels(&raw_concat), vec!["btn-large"]);
+        assert_eq!(
+            token_labels(&left.combine_first_occurrence(&right)),
+            vec!["btn-", "large"]
+        );
+        assert_ne!(raw_concat, left.combine_first_occurrence(&right));
+    }
+
+    #[test]
+    fn last_occurrence_negative_control_violates_absorption() {
+        let u = [0, 1];
+        let v = [0];
+        let uv = last_occurrence_control(&u, &v);
+        assert_ne!(last_occurrence_control(&uv, &u), uv);
+    }
+
+    #[test]
+    fn generated_pairs_have_collision_and_non_commutativity_witnesses() {
+        let generated = (0..TOKEN_ALPHABET.len())
+            .flat_map(|left| {
+                (0..TOKEN_ALPHABET.len()).map(move |right| landed_word(&[left, right]))
+            })
+            .collect::<Vec<_>>();
+        let mut pair_count = 0usize;
+        let mut collision_count = 0usize;
+        let mut non_commutative_count = 0usize;
+        for left in &generated {
+            for right in &generated {
+                pair_count += 1;
+                if token_support_v0(left)
+                    .may()
+                    .intersection(token_support_v0(right).may())
+                    .next()
+                    .is_some()
+                {
+                    collision_count += 1;
+                }
+                if left.combine_first_occurrence(right) != right.combine_first_occurrence(left) {
+                    non_commutative_count += 1;
+                }
+            }
+        }
+        let collision_basis_points = collision_count * 10_000 / pair_count;
+        const COLLISION_FLOOR_BASIS_POINTS: usize = 2_500;
+        assert!(collision_basis_points >= COLLISION_FLOOR_BASIS_POINTS);
+        assert!(non_commutative_count > 0);
+        eprintln!(
+            "{{\"pairCount\":{pair_count},\"collisionCount\":{collision_count},\"collisionBasisPoints\":{collision_basis_points},\"collisionFloorBasisPoints\":{COLLISION_FLOOR_BASIS_POINTS},\"nonCommutativeCount\":{non_commutative_count}}}"
+        );
+    }
+
+    #[test]
+    fn law_suite_calls_landed_tokenizer_without_a_local_splitter() {
+        let source = include_str!("class_tokens.rs");
+        let tests = source
+            .split("mod band_law_tests")
+            .nth(1)
+            .unwrap_or_default();
+        assert!(tests.matches("tokenize_dom_class_attribute_v0").count() >= 5);
+        assert!(!tests.contains("split_whitespace"));
+        assert!(!tests.contains("is_whitespace"));
+    }
+}

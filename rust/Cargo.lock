@@ -2524,6 +2524,7 @@ version = "0.3.0"
 dependencies = [
  "omena-refinement-trait",
  "omena-syntax",
+ "proptest",
  "serde",
  "serde_json",
 ]
