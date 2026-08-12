@@ -30,10 +30,10 @@ pub enum OmenaQueryExplainCapabilityV0 {
     Transform,
     TreeShake,
     Precision,
-    ClassSite,
     Cascade,
     Bundle,
     HoverTrace,
+    ClassSite,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -70,10 +70,6 @@ pub enum OmenaQueryExplainTargetV0 {
         variable_name: String,
         reference_byte_offset: usize,
     },
-    ClassSite {
-        source_path: String,
-        site_byte_span: ParserByteSpanV0,
-    },
     Cascade {
         style_path: String,
         position: ParserPositionV0,
@@ -84,6 +80,10 @@ pub enum OmenaQueryExplainTargetV0 {
     HoverTrace {
         document_uri: String,
         position: Option<ParserPositionV0>,
+    },
+    ClassSite {
+        source_path: String,
+        site_byte_span: ParserByteSpanV0,
     },
 }
 
@@ -116,10 +116,6 @@ pub enum OmenaQueryExplainFactReferenceV0 {
         variable_name: String,
         reference_byte_offset: usize,
     },
-    ClassSiteFact {
-        source_path: String,
-        site_byte_span: ParserByteSpanV0,
-    },
     CascadeResolution {
         style_path: String,
         position: ParserPositionV0,
@@ -132,6 +128,10 @@ pub enum OmenaQueryExplainFactReferenceV0 {
         document_uri: String,
         position: Option<ParserPositionV0>,
         reason_code: String,
+    },
+    ClassSiteFact {
+        source_path: String,
+        site_byte_span: ParserByteSpanV0,
     },
 }
 
@@ -167,9 +167,6 @@ pub enum OmenaQueryExplainFactValueV0 {
         precision: FactPrecision,
         resolved_tier: String,
     },
-    ClassSiteValue {
-        value: Box<OmenaQueryClassSiteValueV0>,
-    },
     CascadeResolution {
         status: String,
         candidate_count: usize,
@@ -182,6 +179,9 @@ pub enum OmenaQueryExplainFactValueV0 {
         matched: bool,
         candidate_count: usize,
         definition_count: usize,
+    },
+    ClassSiteValue {
+        value: Box<OmenaQueryClassSiteValueV0>,
     },
 }
 
@@ -388,9 +388,6 @@ pub enum OmenaQueryExplainInputV0<'a> {
     Precision {
         reference: &'a OmenaQuerySourcePrecisionReferenceV0,
     },
-    ClassSite {
-        value: &'a OmenaQueryClassSiteValueV0,
-    },
     Cascade {
         result: &'a OmenaQueryCascadeAtPositionV0,
     },
@@ -404,6 +401,9 @@ pub enum OmenaQueryExplainInputV0<'a> {
         matched: bool,
         candidate_count: usize,
         definition_count: usize,
+    },
+    ClassSite {
+        value: &'a OmenaQueryClassSiteValueV0,
     },
 }
 

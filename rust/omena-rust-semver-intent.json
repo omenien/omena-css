@@ -406,7 +406,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, and the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses while measured legacy declarations remain deprecated beside additive accurate APIs.",
+      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses, class sites expose typed token support and guarded-token explanations, and measured legacy declarations remain deprecated beside additive accurate APIs.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -432,6 +432,16 @@
             "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_result_kind",
             "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness",
             "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "variant OmenaQueryExplainFactValueV0:ClassSiteValue",
+            "variant OmenaQueryExplainCapabilityV0:ClassSite",
+            "variant OmenaQueryExplainTargetV0:ClassSite",
+            "variant OmenaQueryExplainInputV0:ClassSite",
+            "variant OmenaQueryExplainFactReferenceV0:ClassSiteFact"
           ]
         },
         {
@@ -477,6 +487,29 @@
         }
       ],
       "expectedRuntimeValueChanges": [
+        {
+          "id": "class-site-token-resolution-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryClassSiteValueV0 precisionTier, orderedWord, support, tokenProvenance, and class-site explain values",
+          "reason": "Class-carrying source sites now return typed ordered-token and support values, including finite joined type-fact results and structured unknown causes, instead of having no site-indexed query result.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/class_site_values.rs",
+              "needles": [
+                "fn class_site_plane_matches_authored_sites_with_and_without_type_facts()",
+                "assert_support(site, &row.must, &row.may, row.site_text.as_str());",
+                "assert_support(\n            site,\n            &row.must_with_type_fact,\n            &row.may_with_type_fact,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/source.rs",
+              "needles": [
+                "pub fn resolve_omena_query_class_site_value_for_source(",
+                "pub fn resolve_omena_query_class_site_values_for_source_with_type_facts("
+              ]
+            }
+          ]
+        },
         {
           "id": "inline-important-runtime-winner",
           "kind": "selection-outcome-changing",
