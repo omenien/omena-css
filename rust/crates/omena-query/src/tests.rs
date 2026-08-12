@@ -301,6 +301,7 @@ fn cascade_narrowing_substrate_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
 }
 
 mod cascade_queries;
+mod class_site_values;
 mod consumer_reachability;
 mod consumer_surfaces;
 mod cross_file_summary;

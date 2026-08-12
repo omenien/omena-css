@@ -621,6 +621,23 @@ pub(crate) enum ExplainCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Explain the token value resolved for one class-carrying attribute site.
+    ClassSite {
+        /// JavaScript or TypeScript source containing the class site.
+        path: PathBuf,
+        /// Byte offset where the class/className attribute begins.
+        #[arg(long = "site-start")]
+        site_start: usize,
+        /// Byte offset immediately after the class/className attribute.
+        #[arg(long = "site-end")]
+        site_end: usize,
+        /// Optional source language id used by the source frontend.
+        #[arg(long = "source-language")]
+        source_language: Option<String>,
+        /// Print a machine-readable response envelope.
+        #[arg(long)]
+        json: bool,
+    },
     /// Explain cascade resolution at a source position.
     Cascade {
         /// CSS-family source to inspect.

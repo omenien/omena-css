@@ -65,6 +65,13 @@ pub struct SourceFlowBlockSnapshotV0 {
     pub facts: Option<StringTypeFactsV2>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SourceClassSiteExpressionValueV0 {
+    pub facts: Option<StringTypeFactsV2>,
+    pub boundary_effect: ClassBoundaryEffectV0,
+    pub ordered_word: Option<OrderedTokenWordV0>,
+}
+
 enum SourceFlowNode<'a> {
     Assignment {
         binding: Option<SourceFlowBindingRefV0>,
@@ -128,6 +135,35 @@ pub(crate) fn summarize_source_control_flow_graph_from_program<'a>(
         snapshot: SourceFlowBlockGraphSnapshotBuilder::new(&program.body, scoping)
             .build(nodes.as_slice()),
     })
+}
+
+pub(crate) fn summarize_source_class_site_expression_value_from_program<'a>(
+    program: &'a Program<'a>,
+    scoping: &'a Scoping,
+    expression: &'a Expression<'a>,
+) -> SourceClassSiteExpressionValueV0 {
+    let reference_byte_offset = expression.span().start as usize;
+    let container = statement_container_for_reference(&program.body, reference_byte_offset);
+    let nodes = build_flow_nodes(container, scoping, reference_byte_offset);
+    let snapshot =
+        SourceFlowBlockGraphSnapshotBuilder::new(&program.body, scoping).build(nodes.as_slice());
+    let facts = expression_type_facts(expression, &program.body, scoping, &snapshot.blocks);
+    SourceClassSiteExpressionValueV0 {
+        ordered_word: facts.as_ref().and_then(ordered_word_for_type_facts),
+        boundary_effect: class_boundary_effect_for_expression(expression),
+        facts,
+    }
+}
+
+pub(crate) fn summarize_source_class_site_literal_value(
+    value: &str,
+) -> SourceClassSiteExpressionValueV0 {
+    let facts = exact_type_facts(value);
+    SourceClassSiteExpressionValueV0 {
+        ordered_word: ordered_word_for_type_facts(&facts),
+        boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
+        facts: Some(facts),
+    }
 }
 
 pub fn summarize_omena_bridge_source_type_fact_control_flow_graph_for_source_language(

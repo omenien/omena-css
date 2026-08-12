@@ -1,7 +1,7 @@
 use omena_evidence_graph::{EvidenceNodeKeyV0, GuaranteeKindV0};
 use omena_parser::{
-    ClosedWorldBundleV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, ParserPositionV0,
-    ParserRangeV0,
+    ClosedWorldBundleV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, ParserByteSpanV0,
+    ParserPositionV0, ParserRangeV0,
 };
 use omena_query_core::{FactPrecision, fact_precision_from_analysis_precision};
 use omena_query_transform_runner::{
@@ -11,8 +11,8 @@ use omena_query_transform_runner::{
 use serde::Serialize;
 
 use crate::{
-    OmenaQueryCascadeAtPositionV0, OmenaQuerySourcePrecisionReferenceV0,
-    OmenaQueryStyleDiagnosticV0,
+    OmenaQueryCascadeAtPositionV0, OmenaQueryClassSiteValueV0,
+    OmenaQuerySourcePrecisionReferenceV0, OmenaQueryStyleDiagnosticV0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -30,6 +30,7 @@ pub enum OmenaQueryExplainCapabilityV0 {
     Transform,
     TreeShake,
     Precision,
+    ClassSite,
     Cascade,
     Bundle,
     HoverTrace,
@@ -68,6 +69,10 @@ pub enum OmenaQueryExplainTargetV0 {
         source_path: String,
         variable_name: String,
         reference_byte_offset: usize,
+    },
+    ClassSite {
+        source_path: String,
+        site_byte_span: ParserByteSpanV0,
     },
     Cascade {
         style_path: String,
@@ -110,6 +115,10 @@ pub enum OmenaQueryExplainFactReferenceV0 {
         source_path: String,
         variable_name: String,
         reference_byte_offset: usize,
+    },
+    ClassSiteFact {
+        source_path: String,
+        site_byte_span: ParserByteSpanV0,
     },
     CascadeResolution {
         style_path: String,
@@ -157,6 +166,9 @@ pub enum OmenaQueryExplainFactValueV0 {
     PrecisionClassification {
         precision: FactPrecision,
         resolved_tier: String,
+    },
+    ClassSiteValue {
+        value: OmenaQueryClassSiteValueV0,
     },
     CascadeResolution {
         status: String,
@@ -376,6 +388,9 @@ pub enum OmenaQueryExplainInputV0<'a> {
     Precision {
         reference: &'a OmenaQuerySourcePrecisionReferenceV0,
     },
+    ClassSite {
+        value: &'a OmenaQueryClassSiteValueV0,
+    },
     Cascade {
         result: &'a OmenaQueryCascadeAtPositionV0,
     },
@@ -417,6 +432,7 @@ pub fn explain_omena_query(input: OmenaQueryExplainInputV0<'_>) -> OmenaQueryExp
             symbol_name,
         } => explain_tree_shake(bundle, symbol_kind, symbol_name),
         OmenaQueryExplainInputV0::Precision { reference } => explain_precision(reference),
+        OmenaQueryExplainInputV0::ClassSite { value } => explain_class_site(value),
         OmenaQueryExplainInputV0::Cascade { result } => explain_cascade(result),
         OmenaQueryExplainInputV0::BundleUnavailable { chunk_reference } => {
             explain_bundle_unavailable(chunk_reference)
@@ -698,6 +714,28 @@ fn explain_precision(
             OmenaQueryExplainFactValueV0::PrecisionClassification {
                 precision: fact_precision_from_analysis_precision(&precision_reference.precision),
                 resolved_tier: precision_reference.resolved_tier.to_string(),
+            },
+        ),
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+fn explain_class_site(value: &OmenaQueryClassSiteValueV0) -> OmenaQueryExplainResponseV0 {
+    let reference = OmenaQueryExplainFactReferenceV0::ClassSiteFact {
+        source_path: value.source_path.clone(),
+        site_byte_span: value.site_byte_span,
+    };
+    OmenaQueryExplainResponseV0::new(
+        OmenaQueryExplainTargetV0::ClassSite {
+            source_path: value.source_path.clone(),
+            site_byte_span: value.site_byte_span,
+        },
+        OmenaQueryExplainAvailabilityV0::Available,
+        OmenaQueryExplainFactV0::new(
+            reference,
+            OmenaQueryExplainFactValueV0::ClassSiteValue {
+                value: value.clone(),
             },
         ),
         Vec::new(),
