@@ -357,6 +357,12 @@
       "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
     },
     {
+      "id": "workspace:test/_fixtures/guarded-token-map/ClassSitePlane.module.scss",
+      "syntax": "scss",
+      "sourceHash": "c2cad3df4b6593769802b5621a40c1bc726f13d0b325c8bb8656bb6c91f08ed0",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
       "id": "workspace:test/_fixtures/lsp-stdio-smoke/src/App.module.scss",
       "syntax": "scss",
       "sourceHash": "e8b7dbffe1b7988e1e19f0b54df23fe7bf6422f29759620c9d98c9b07555ce90",
