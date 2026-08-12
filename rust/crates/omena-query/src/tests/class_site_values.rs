@@ -4,7 +4,8 @@ use serde::Deserialize;
 
 use super::super::{
     OmenaQueryClassSitePlaneV0, OmenaQueryClassSiteTypeFactInputV0, OmenaQueryClassSiteValueV0,
-    StringTypeFactsV2, resolve_omena_query_class_site_values_for_source,
+    StringTypeFactsV2, build_omena_query_guarded_token_map_for_site,
+    resolve_omena_query_class_site_values_for_source,
     resolve_omena_query_class_site_values_for_source_with_type_facts,
 };
 
@@ -91,6 +92,22 @@ fn class_site_plane_matches_authored_sites_with_and_without_type_facts()
             );
         }
     }
+
+    let guarded = actual_by_site[&"className={clsx({ active: flag })}"];
+    let guarded_map = build_omena_query_guarded_token_map_for_site(guarded)?;
+    let active = super::super::GuardedTokenLanguageV0::concrete("active");
+    assert!(guarded_map.is_may(&active));
+    assert!(!guarded_map.is_must(&active));
+
+    let static_site = actual_by_site[&"className=\"root root\""];
+    let static_map = build_omena_query_guarded_token_map_for_site(static_site)?;
+    let root = super::super::GuardedTokenLanguageV0::concrete("root");
+    assert!(static_map.is_must(&root));
+
+    let symbolic_site = actual_by_site[&"className={`tone-${computeClassName()}`}"];
+    let symbolic_map = build_omena_query_guarded_token_map_for_site(symbolic_site)?;
+    let symbolic = super::super::GuardedTokenLanguageV0::symbolic("`tone-${computeClassName()}`");
+    assert!(symbolic_map.is_must(&symbolic));
 
     let type_facts = expectations
         .rows

@@ -168,7 +168,7 @@ pub enum OmenaQueryExplainFactValueV0 {
         resolved_tier: String,
     },
     ClassSiteValue {
-        value: OmenaQueryClassSiteValueV0,
+        value: Box<OmenaQueryClassSiteValueV0>,
     },
     CascadeResolution {
         status: String,
@@ -735,7 +735,7 @@ fn explain_class_site(value: &OmenaQueryClassSiteValueV0) -> OmenaQueryExplainRe
         OmenaQueryExplainFactV0::new(
             reference,
             OmenaQueryExplainFactValueV0::ClassSiteValue {
-                value: value.clone(),
+                value: Box::new(value.clone()),
             },
         ),
         Vec::new(),

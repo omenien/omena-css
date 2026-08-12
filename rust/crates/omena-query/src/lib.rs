@@ -35,6 +35,7 @@ pub use omena_cascade::{
     CascadeRankedSetLossCaptureV0 as OmenaQueryCascadeRankedSetLossCaptureV0,
     capture_cascade_ranked_set_losses as capture_omena_query_cascade_ranked_set_losses,
 };
+pub use omena_query_core::{GuardedTokenLanguageV0, GuardedTokenMapV0};
 
 mod explain;
 pub use explain::{
@@ -508,6 +509,7 @@ pub use source::{
     OmenaQueryClassSiteUnknownCauseV0, OmenaQueryClassSiteValueV0,
     OmenaQuerySourcePrecisionReferenceV0, OmenaQueryStyleModuleDiskCandidateIdentityV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryTsconfigPathMappingV0,
+    build_omena_query_guarded_token_map_for_site,
     canonicalize_omena_query_source_selector_references,
     collect_omena_query_vue_style_module_bindings,
     load_omena_query_workspace_style_resolution_inputs,

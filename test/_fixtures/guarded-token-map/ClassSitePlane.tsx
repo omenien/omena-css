@@ -15,6 +15,7 @@ export function ClassSitePlane({ flag }: { flag: boolean }) {
       <div className={clsx({ active: flag })} />
       <div className={computeClassName()} />
       <div className={styles.root} />
+      <div className={`tone-${computeClassName()}`} />
     </section>
   );
 }

@@ -67,6 +67,15 @@
       "typeFactValues": ["root"],
       "mustWithTypeFact": ["root"],
       "mayWithTypeFact": ["root"]
+    },
+    {
+      "siteText": "className={`tone-${computeClassName()}`}",
+      "must": [],
+      "may": [],
+      "unknownCause": "nonFiniteRawLanguage",
+      "typeFactRefusalCause": "fixtureTypeFactRefused",
+      "mustWithTypeFact": [],
+      "mayWithTypeFact": []
     }
   ]
 }

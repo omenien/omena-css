@@ -3,7 +3,9 @@ use omena_cascade::{
     DomClassTokenizationV0, OrderedTokenWordV0, TokenSupportV0, tokenize_dom_class_attribute_v0,
 };
 use omena_query_core::{
-    AbstractClassValueV0, ClassBoundaryEffectV0, ExternalStringTypeFactsV0, StringTypeFactsV2,
+    AbstractClassValueV0, ClassBoundaryEffectV0, ExternalStringTypeFactsV0, FirstWitnessErrorV0,
+    GuardAtomV0, GuardedTokenInputV0, GuardedTokenLanguageV0, GuardedTokenMapInputV0,
+    GuardedTokenMapV0, StringTypeFactsV2, TokenObserverProjectionV0,
     abstract_class_value_from_facts, abstract_class_value_kind, join_abstract_class_values,
     top_class_value,
 };
@@ -649,6 +651,8 @@ pub struct OmenaQueryClassSiteValueV0 {
     pub site_byte_span: ParserByteSpanV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_byte_span: Option<ParserByteSpanV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_value: Option<String>,
     pub target_style_uris: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ordered_word: Option<OrderedTokenWordV0>,
@@ -727,7 +731,13 @@ pub fn resolve_omena_query_class_site_values_for_source_with_type_facts(
             let type_fact = type_facts
                 .iter()
                 .find(|fact| fact.site_byte_span == site.site_byte_span);
-            class_site_value_from_binding_fact(source_path, source_language, site, type_fact)
+            class_site_value_from_binding_fact(
+                source_path,
+                source,
+                source_language,
+                site,
+                type_fact,
+            )
         })
         .collect()
 }
@@ -743,8 +753,65 @@ pub fn resolve_omena_query_class_site_value_for_source(
         .find(|site| site.site_byte_span == site_byte_span)
 }
 
+pub fn build_omena_query_guarded_token_map_for_site(
+    site: &OmenaQueryClassSiteValueV0,
+) -> Result<GuardedTokenMapV0, FirstWitnessErrorV0> {
+    let mut tokens = Vec::new();
+    for provenance in &site.token_provenance {
+        let token = GuardedTokenLanguageV0::concrete(provenance.token.as_str());
+        let observers = TokenObserverProjectionV0::exact(&token);
+        if provenance.guard_conditions.is_empty() {
+            tokens.push(GuardedTokenInputV0 {
+                token,
+                guards: Vec::new(),
+                observers,
+            });
+            continue;
+        }
+        tokens.extend(
+            provenance
+                .guard_conditions
+                .iter()
+                .map(|condition| GuardedTokenInputV0 {
+                    token: token.clone(),
+                    guards: vec![guard_atom_from_source_condition(condition)],
+                    observers: observers.clone(),
+                }),
+        );
+    }
+    if tokens.is_empty()
+        && let Some(raw_language) = site
+            .raw_value
+            .as_ref()
+            .filter(|raw| raw.starts_with('`') && raw.contains("${"))
+    {
+        let token = GuardedTokenLanguageV0::symbolic(raw_language.clone());
+        tokens.push(GuardedTokenInputV0 {
+            observers: TokenObserverProjectionV0::exact(&token),
+            token,
+            guards: Vec::new(),
+        });
+    }
+    GuardedTokenMapV0::build(GuardedTokenMapInputV0 {
+        tokens,
+        site_usage_guards: Vec::new(),
+    })
+}
+
+fn guard_atom_from_source_condition(condition: &str) -> GuardAtomV0 {
+    let condition = condition.trim();
+    let negated = condition
+        .strip_prefix("!(")
+        .and_then(|condition| condition.strip_suffix(')'));
+    GuardAtomV0 {
+        atom: negated.unwrap_or(condition).trim().to_string(),
+        polarity: negated.is_none(),
+    }
+}
+
 fn class_site_value_from_binding_fact(
     source_path: &str,
+    source: &str,
     source_language: Option<&str>,
     site: &crate::OmenaQuerySourceClassAttributeSiteFactV0,
     type_fact: Option<&OmenaQueryClassSiteTypeFactInputV0>,
@@ -895,6 +962,10 @@ fn class_site_value_from_binding_fact(
         attribute_name: site.attribute_name.clone(),
         site_byte_span: site.site_byte_span,
         value_byte_span: site.value_byte_span,
+        raw_value: site
+            .value_byte_span
+            .and_then(|span| source.get(span.start..span.end))
+            .map(str::to_string),
         target_style_uris: site.target_style_uris.clone(),
         ordered_word,
         support,

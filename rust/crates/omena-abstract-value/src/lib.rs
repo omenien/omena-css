@@ -10,6 +10,7 @@ mod cascade_family;
 mod domain;
 mod facts;
 mod flow;
+mod guarded_token_map;
 mod property_value;
 mod provenance;
 mod reduced_product;
@@ -26,10 +27,11 @@ pub use cascade_family::*;
 pub use domain::*;
 pub use facts::*;
 pub use flow::*;
+pub use guarded_token_map::*;
 pub use omena_cascade::{
     DomClassTokenSpanV0, DomClassTokenizationUnknownCauseV0, DomClassTokenizationV0,
-    OrderedTokenWordV0, TokenSupportV0, is_dom_class_ascii_whitespace_v0, token_support_v0,
-    tokenize_dom_class_attribute_v0,
+    FirstWitnessErrorV0, OrderedTokenWordV0, TokenSupportV0, is_dom_class_ascii_whitespace_v0,
+    token_support_v0, tokenize_dom_class_attribute_v0,
 };
 pub use property_value::*;
 pub use provenance::*;
