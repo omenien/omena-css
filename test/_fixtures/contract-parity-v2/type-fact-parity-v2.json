@@ -182,12 +182,14 @@
           "blocks": [
             {
               "id": "entry",
+              "boundaryEffect": "unknownBoundary",
               "kind": "entry",
               "successorBlockIds": ["exit"],
               "transferKind": "entry"
             },
             {
               "id": "exit",
+              "boundaryEffect": "unknownBoundary",
               "kind": "exit",
               "successorBlockIds": [],
               "transferKind": "exit"

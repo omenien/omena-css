@@ -71,6 +71,7 @@ export interface FlowBlockSnapshot {
     | "terminate"
     | "exit";
   readonly successorBlockIds: readonly string[];
+  readonly boundaryEffect: "concatInsideToken" | "concatAtTokenBoundary" | "unknownBoundary";
   readonly variableName?: string;
   readonly expressionKind?: "logicalAnd" | "logicalOr" | "nullishCoalesce";
 }
@@ -296,6 +297,7 @@ class FlowBlockGraphSnapshotBuilder {
     const assignmentBlockId = this.#addBlock("assignment", undefined, {
       transferKind: isConcatExpression(node.expression) ? "concatFacts" : "assignFacts",
       variableName: node.variableName,
+      boundaryEffect: classBoundaryEffectForExpression(node.expression),
     });
     this.#connect(incomingBlockIds, assignmentBlockId);
 
@@ -375,6 +377,7 @@ class FlowBlockGraphSnapshotBuilder {
       kind,
       transferKind: metadata.transferKind ?? transferKindForBlockKind(kind),
       successorBlockIds: [],
+      boundaryEffect: metadata.boundaryEffect ?? "unknownBoundary",
       ...metadata,
     });
     return id;
@@ -413,11 +416,154 @@ function isShortCircuitExpression(expression: ts.Expression): expression is ts.B
 }
 
 function isConcatExpression(expression: ts.Expression | null): boolean {
+  if (!expression) return false;
+  const unwrapped = transparentExpression(expression);
+  if (
+    ts.isBinaryExpression(unwrapped) &&
+    unwrapped.operatorToken.kind === ts.SyntaxKind.PlusToken
+  ) {
+    return true;
+  }
+  if (ts.isTemplateExpression(unwrapped)) return true;
   return (
-    expression !== null &&
-    ts.isBinaryExpression(expression) &&
-    expression.operatorToken.kind === ts.SyntaxKind.PlusToken
+    ts.isCallExpression(unwrapped) && classBoundaryEffectForCall(unwrapped) !== "unknownBoundary"
   );
+}
+
+function classBoundaryEffectForExpression(
+  expression: ts.Expression | null,
+): FlowBlockSnapshot["boundaryEffect"] {
+  if (!expression) return "unknownBoundary";
+  const unwrapped = transparentExpression(expression);
+  if (
+    ts.isBinaryExpression(unwrapped) &&
+    unwrapped.operatorToken.kind === ts.SyntaxKind.PlusToken
+  ) {
+    return boundaryEffectForBinaryConcat(unwrapped.left, unwrapped.right);
+  }
+  if (ts.isTemplateExpression(unwrapped)) {
+    let sawLiteralDelimiter = unwrapped.head.text.length > 0;
+    let leftLiteral = unwrapped.head.text;
+    for (const span of unwrapped.templateSpans) {
+      if (
+        endsWithDomClassAsciiWhitespace(leftLiteral) ||
+        startsWithDomClassAsciiWhitespace(span.literal.text)
+      ) {
+        return "concatAtTokenBoundary";
+      }
+      sawLiteralDelimiter ||= span.literal.text.length > 0;
+      leftLiteral = span.literal.text;
+      if (classBoundaryEffectForExpression(span.expression) === "concatAtTokenBoundary") {
+        return "concatAtTokenBoundary";
+      }
+    }
+    return sawLiteralDelimiter ? "concatInsideToken" : "unknownBoundary";
+  }
+  return ts.isCallExpression(unwrapped) ? classBoundaryEffectForCall(unwrapped) : "unknownBoundary";
+}
+
+function boundaryEffectForBinaryConcat(
+  left: ts.Expression,
+  right: ts.Expression,
+): FlowBlockSnapshot["boundaryEffect"] {
+  const leftEdge = expressionLiteralEdge(left, "trailing");
+  const rightEdge = expressionLiteralEdge(right, "leading");
+  if (leftEdge === "whitespace" || rightEdge === "whitespace") {
+    return "concatAtTokenBoundary";
+  }
+  return leftEdge === "nonWhitespace" || rightEdge === "nonWhitespace"
+    ? "concatInsideToken"
+    : "unknownBoundary";
+}
+
+function classBoundaryEffectForCall(call: ts.CallExpression): FlowBlockSnapshot["boundaryEffect"] {
+  const callee = transparentExpression(call.expression);
+  if (
+    ts.isIdentifier(callee) &&
+    (callee.text === "clsx" || callee.text === "classnames" || callee.text === "classNames")
+  ) {
+    return "concatAtTokenBoundary";
+  }
+  if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "join") {
+    return "unknownBoundary";
+  }
+  const separator = call.arguments[0] ? staticStringValue(call.arguments[0]) : ",";
+  if (separator === null) return "unknownBoundary";
+  return [...separator].some(isDomClassAsciiWhitespace)
+    ? "concatAtTokenBoundary"
+    : "concatInsideToken";
+}
+
+type LiteralEdge = "empty" | "whitespace" | "nonWhitespace" | "unknown";
+
+function expressionLiteralEdge(
+  expression: ts.Expression,
+  side: "leading" | "trailing",
+): LiteralEdge {
+  const unwrapped = transparentExpression(expression);
+  const literal = staticStringValue(unwrapped);
+  if (literal !== null) return literalEdge(literal, side);
+  if (ts.isTemplateExpression(unwrapped)) {
+    const text =
+      side === "leading" ? unwrapped.head.text : unwrapped.templateSpans.at(-1)?.literal.text;
+    return literalEdge(text ?? "", side);
+  }
+  if (
+    ts.isBinaryExpression(unwrapped) &&
+    unwrapped.operatorToken.kind === ts.SyntaxKind.PlusToken
+  ) {
+    const primary = side === "leading" ? unwrapped.left : unwrapped.right;
+    const fallback = side === "leading" ? unwrapped.right : unwrapped.left;
+    const edge = expressionLiteralEdge(primary, side);
+    return edge === "empty" ? expressionLiteralEdge(fallback, side) : edge;
+  }
+  return "unknown";
+}
+
+function literalEdge(value: string, side: "leading" | "trailing"): LiteralEdge {
+  if (value.length === 0) return "empty";
+  const character = side === "leading" ? [...value][0] : [...value].at(-1);
+  return character && isDomClassAsciiWhitespace(character) ? "whitespace" : "nonWhitespace";
+}
+
+function transparentExpression(expression: ts.Expression): ts.Expression {
+  if (
+    ts.isParenthesizedExpression(expression) ||
+    ts.isAsExpression(expression) ||
+    ts.isTypeAssertionExpression(expression) ||
+    ts.isNonNullExpression(expression) ||
+    ts.isSatisfiesExpression(expression)
+  ) {
+    return transparentExpression(expression.expression);
+  }
+  return expression;
+}
+
+function staticStringValue(expression: ts.Expression): string | null {
+  const unwrapped = transparentExpression(expression);
+  return ts.isStringLiteral(unwrapped) || ts.isNoSubstitutionTemplateLiteral(unwrapped)
+    ? unwrapped.text
+    : null;
+}
+
+function isDomClassAsciiWhitespace(character: string): boolean {
+  return (
+    character === "\u0009" ||
+    character === "\u000a" ||
+    character === "\u000c" ||
+    character === "\u000d" ||
+    character === " "
+  );
+}
+
+function startsWithDomClassAsciiWhitespace(value: string): boolean {
+  const character = [...value][0];
+  return character !== undefined && isDomClassAsciiWhitespace(character);
+}
+
+function endsWithDomClassAsciiWhitespace(value: string): boolean {
+  const character = [...value].at(-1);
+  return character !== undefined && isDomClassAsciiWhitespace(character);
 }
 
 function shortCircuitExpressionKind(

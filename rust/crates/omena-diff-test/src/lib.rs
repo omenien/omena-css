@@ -3078,6 +3078,7 @@ fn type_fact_control_flow_block(
         symbol_ordinal: None,
         variable_name: None,
         expression_kind: None,
+        boundary_effect: "unknownBoundary".to_string(),
         facts: None,
     }
 }

@@ -1006,7 +1006,17 @@ pub struct ClassValueControlFlowBlockV0 {
 pub struct ClassValueFlowNodeV0 {
     pub id: String,
     pub predecessors: Vec<String>,
+    pub boundary_effect: ClassBoundaryEffectV0,
     pub transfer: ClassValueFlowTransferV0,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClassBoundaryEffectV0 {
+    ConcatInsideToken,
+    ConcatAtTokenBoundary,
+    #[default]
+    UnknownBoundary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1187,6 +1197,7 @@ pub struct OneCfaCallSiteDerivationStepV0 {
 pub struct ClassValueFlowNodeResultV0 {
     pub id: String,
     pub predecessor_ids: Vec<String>,
+    pub boundary_effect: ClassBoundaryEffectV0,
     pub transfer_kind: &'static str,
     pub value_kind: &'static str,
     pub value: AbstractClassValueV0,

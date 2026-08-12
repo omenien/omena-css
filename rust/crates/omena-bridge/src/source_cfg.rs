@@ -14,6 +14,7 @@ use engine_input_producers::{
     StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2,
 };
 use omena_abstract_value::{
+    ClassBoundaryEffectV0, DomClassTokenizationV0, OrderedTokenWordV0,
     external_string_type_facts_from_abstract_class_value, prefix_suffix_class_value,
 };
 
@@ -57,6 +58,9 @@ pub struct SourceFlowBlockSnapshotV0 {
     pub variable_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression_kind: Option<&'static str>,
+    pub boundary_effect: ClassBoundaryEffectV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ordered_word: Option<OrderedTokenWordV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facts: Option<StringTypeFactsV2>,
 }
@@ -77,6 +81,13 @@ enum SourceFlowNode<'a> {
     Terminate,
 }
 
+type SourceFlowBlockMetadataV0 = (
+    Option<SourceFlowBindingRefV0>,
+    Option<&'static str>,
+    Option<StringTypeFactsV2>,
+    ClassBoundaryEffectV0,
+);
+
 pub fn summarize_omena_bridge_source_control_flow_graph_for_source_language(
     source_path: &str,
     source: &str,
@@ -93,9 +104,9 @@ pub fn summarize_omena_bridge_source_control_flow_graph_for_source_language(
     )
 }
 
-pub(crate) fn summarize_source_control_flow_graph_from_program(
-    program: &Program<'_>,
-    scoping: &Scoping,
+pub(crate) fn summarize_source_control_flow_graph_from_program<'a>(
+    program: &'a Program<'a>,
+    scoping: &'a Scoping,
     variable_name: &str,
     reference_byte_offset: usize,
 ) -> Option<SourceControlFlowGraphCaptureV0> {
@@ -114,7 +125,8 @@ pub(crate) fn summarize_source_control_flow_graph_from_program(
         variable_name: reference_binding.name.clone(),
         binding: reference_binding,
         reference_byte_offset,
-        snapshot: SourceFlowBlockGraphSnapshotBuilder::new(&program.body).build(nodes.as_slice()),
+        snapshot: SourceFlowBlockGraphSnapshotBuilder::new(&program.body, scoping)
+            .build(nodes.as_slice()),
     })
 }
 
@@ -159,6 +171,7 @@ fn source_type_fact_control_flow_block_from_snapshot(
         symbol_ordinal: block.symbol_ordinal,
         variable_name: block.variable_name.clone(),
         expression_kind: block.expression_kind.map(str::to_string),
+        boundary_effect: boundary_effect_wire_value(block.boundary_effect).to_string(),
         facts: block.facts.clone(),
     }
 }
@@ -523,14 +536,19 @@ struct SourceFlowBlockGraphSnapshotBuilder<'a> {
     blocks: Vec<SourceFlowBlockSnapshotV0>,
     counters: BTreeMap<&'static str, usize>,
     root_statements: &'a oxc_allocator::Vec<'a, Statement<'a>>,
+    scoping: &'a Scoping,
 }
 
 impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
-    fn new(root_statements: &'a oxc_allocator::Vec<'a, Statement<'a>>) -> Self {
+    fn new(
+        root_statements: &'a oxc_allocator::Vec<'a, Statement<'a>>,
+        scoping: &'a Scoping,
+    ) -> Self {
         Self {
             blocks: Vec::new(),
             counters: BTreeMap::new(),
             root_statements,
+            scoping,
         }
     }
 
@@ -604,21 +622,22 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
         expression: Option<&Expression<'_>>,
         incoming_block_ids: Vec<String>,
     ) -> Vec<String> {
+        let boundary_effect = expression
+            .map(class_boundary_effect_for_expression)
+            .unwrap_or_default();
         let transfer_kind = if expression.is_some_and(is_concat_expression) {
             "concatFacts"
         } else {
             "assignFacts"
         };
+        let facts = expression.and_then(|expression| {
+            expression_type_facts(expression, self.root_statements, self.scoping, &self.blocks)
+        });
         let assignment_block_id = self.add_block(
             "assignment",
             None,
             Some(transfer_kind),
-            Some((
-                binding.cloned(),
-                None,
-                expression
-                    .and_then(|expression| expression_type_facts(expression, self.root_statements)),
-            )),
+            Some((binding.cloned(), None, facts, boundary_effect)),
         );
         self.connect(incoming_block_ids.as_slice(), assignment_block_id.as_str());
 
@@ -639,19 +658,34 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
             "logicalOperand",
             None,
             None,
-            Some((None, expression_kind, None)),
+            Some((
+                None,
+                expression_kind,
+                None,
+                ClassBoundaryEffectV0::UnknownBoundary,
+            )),
         );
         let rhs_block_id = self.add_block(
             "logicalRhs",
             None,
             None,
-            Some((None, expression_kind, None)),
+            Some((
+                None,
+                expression_kind,
+                None,
+                ClassBoundaryEffectV0::UnknownBoundary,
+            )),
         );
         let join_block_id = self.add_block(
             "logicalJoin",
             None,
             None,
-            Some((None, expression_kind, None)),
+            Some((
+                None,
+                expression_kind,
+                None,
+                ClassBoundaryEffectV0::UnknownBoundary,
+            )),
         );
         self.connect(incoming_block_ids.as_slice(), operand_block_id.as_str());
         self.connect(
@@ -726,16 +760,13 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
         kind: &'static str,
         explicit_id: Option<&str>,
         transfer_kind: Option<&'static str>,
-        metadata: Option<(
-            Option<SourceFlowBindingRefV0>,
-            Option<&'static str>,
-            Option<StringTypeFactsV2>,
-        )>,
+        metadata: Option<SourceFlowBlockMetadataV0>,
     ) -> String {
         let id = explicit_id
             .map(str::to_string)
             .unwrap_or_else(|| format!("{kind}:{}", self.next_index(kind)));
-        let (binding, expression_kind, facts) = metadata.unwrap_or_default();
+        let (binding, expression_kind, facts, boundary_effect) = metadata.unwrap_or_default();
+        let ordered_word = facts.as_ref().and_then(ordered_word_for_type_facts);
         self.blocks.push(SourceFlowBlockSnapshotV0 {
             id: id.clone(),
             kind,
@@ -745,6 +776,8 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
             variable_name: binding.as_ref().map(|binding| binding.name.clone()),
             binding,
             expression_kind,
+            boundary_effect,
+            ordered_word,
             facts,
         });
         id
@@ -774,10 +807,242 @@ impl<'a> SourceFlowBlockGraphSnapshotBuilder<'a> {
 }
 
 fn is_concat_expression(expression: &Expression<'_>) -> bool {
-    matches!(
-        expression,
-        Expression::BinaryExpression(expression) if expression.operator == BinaryOperator::Addition
-    )
+    match transparent_expression(expression) {
+        Expression::BinaryExpression(expression) => expression.operator == BinaryOperator::Addition,
+        Expression::TemplateLiteral(template) => !template.expressions.is_empty(),
+        Expression::CallExpression(call) => {
+            class_boundary_effect_for_call(call) != ClassBoundaryEffectV0::UnknownBoundary
+        }
+        _ => false,
+    }
+}
+
+fn class_boundary_effect_for_expression(expression: &Expression<'_>) -> ClassBoundaryEffectV0 {
+    match transparent_expression(expression) {
+        Expression::BinaryExpression(expression)
+            if expression.operator == BinaryOperator::Addition =>
+        {
+            boundary_effect_for_binary_concat(&expression.left, &expression.right)
+        }
+        Expression::TemplateLiteral(template) if !template.expressions.is_empty() => {
+            let mut saw_literal_delimiter = false;
+            for (index, interpolation) in template.expressions.iter().enumerate() {
+                let left = template
+                    .quasis
+                    .get(index)
+                    .and_then(|quasi| quasi.value.cooked.as_ref())
+                    .map(|value| value.as_str())
+                    .unwrap_or_default();
+                let right = template
+                    .quasis
+                    .get(index + 1)
+                    .and_then(|quasi| quasi.value.cooked.as_ref())
+                    .map(|value| value.as_str())
+                    .unwrap_or_default();
+                if left
+                    .chars()
+                    .next_back()
+                    .is_some_and(omena_abstract_value::is_dom_class_ascii_whitespace_v0)
+                    || right
+                        .chars()
+                        .next()
+                        .is_some_and(omena_abstract_value::is_dom_class_ascii_whitespace_v0)
+                {
+                    return ClassBoundaryEffectV0::ConcatAtTokenBoundary;
+                }
+                saw_literal_delimiter |= !left.is_empty() || !right.is_empty();
+                if class_boundary_effect_for_expression(interpolation)
+                    == ClassBoundaryEffectV0::ConcatAtTokenBoundary
+                {
+                    return ClassBoundaryEffectV0::ConcatAtTokenBoundary;
+                }
+            }
+            if saw_literal_delimiter {
+                ClassBoundaryEffectV0::ConcatInsideToken
+            } else {
+                ClassBoundaryEffectV0::UnknownBoundary
+            }
+        }
+        Expression::CallExpression(call) => class_boundary_effect_for_call(call),
+        _ => ClassBoundaryEffectV0::UnknownBoundary,
+    }
+}
+
+fn boundary_effect_for_binary_concat(
+    left: &Expression<'_>,
+    right: &Expression<'_>,
+) -> ClassBoundaryEffectV0 {
+    let left_edge = expression_literal_edge(left, LiteralEdgeSide::Trailing);
+    let right_edge = expression_literal_edge(right, LiteralEdgeSide::Leading);
+    if matches!(left_edge, LiteralEdgeV0::Whitespace)
+        || matches!(right_edge, LiteralEdgeV0::Whitespace)
+    {
+        ClassBoundaryEffectV0::ConcatAtTokenBoundary
+    } else if matches!(left_edge, LiteralEdgeV0::NonWhitespace)
+        || matches!(right_edge, LiteralEdgeV0::NonWhitespace)
+    {
+        ClassBoundaryEffectV0::ConcatInsideToken
+    } else {
+        ClassBoundaryEffectV0::UnknownBoundary
+    }
+}
+
+fn class_boundary_effect_for_call(
+    call: &oxc_ast::ast::CallExpression<'_>,
+) -> ClassBoundaryEffectV0 {
+    if matches!(
+        transparent_expression(&call.callee),
+        Expression::Identifier(identifier)
+            if matches!(identifier.name.as_str(), "clsx" | "classnames" | "classNames")
+    ) {
+        return ClassBoundaryEffectV0::ConcatAtTokenBoundary;
+    }
+    let Expression::StaticMemberExpression(member) = transparent_expression(&call.callee) else {
+        return ClassBoundaryEffectV0::UnknownBoundary;
+    };
+    if member.property.name.as_str() != "join" {
+        return ClassBoundaryEffectV0::UnknownBoundary;
+    }
+    let Some(separator) = call
+        .arguments
+        .first()
+        .and_then(argument_expression)
+        .and_then(static_string_value)
+    else {
+        return ClassBoundaryEffectV0::UnknownBoundary;
+    };
+    if separator
+        .chars()
+        .any(omena_abstract_value::is_dom_class_ascii_whitespace_v0)
+    {
+        ClassBoundaryEffectV0::ConcatAtTokenBoundary
+    } else {
+        ClassBoundaryEffectV0::ConcatInsideToken
+    }
+}
+
+#[derive(Clone, Copy)]
+enum LiteralEdgeSide {
+    Leading,
+    Trailing,
+}
+
+#[derive(Clone, Copy)]
+enum LiteralEdgeV0 {
+    Empty,
+    Whitespace,
+    NonWhitespace,
+    Unknown,
+}
+
+fn expression_literal_edge(expression: &Expression<'_>, side: LiteralEdgeSide) -> LiteralEdgeV0 {
+    match transparent_expression(expression) {
+        Expression::StringLiteral(literal) => literal_edge(literal.value.as_str(), side),
+        Expression::TemplateLiteral(template) => {
+            let value = match side {
+                LiteralEdgeSide::Leading => template.quasis.first(),
+                LiteralEdgeSide::Trailing => template.quasis.last(),
+            }
+            .and_then(|quasi| quasi.value.cooked.as_ref())
+            .map(|value| value.as_str())
+            .unwrap_or_default();
+            literal_edge(value, side)
+        }
+        Expression::BinaryExpression(binary) if binary.operator == BinaryOperator::Addition => {
+            let primary = match side {
+                LiteralEdgeSide::Leading => &binary.left,
+                LiteralEdgeSide::Trailing => &binary.right,
+            };
+            let fallback = match side {
+                LiteralEdgeSide::Leading => &binary.right,
+                LiteralEdgeSide::Trailing => &binary.left,
+            };
+            match expression_literal_edge(primary, side) {
+                LiteralEdgeV0::Empty => expression_literal_edge(fallback, side),
+                edge => edge,
+            }
+        }
+        _ => LiteralEdgeV0::Unknown,
+    }
+}
+
+fn literal_edge(value: &str, side: LiteralEdgeSide) -> LiteralEdgeV0 {
+    let character = match side {
+        LiteralEdgeSide::Leading => value.chars().next(),
+        LiteralEdgeSide::Trailing => value.chars().next_back(),
+    };
+    match character {
+        None => LiteralEdgeV0::Empty,
+        Some(character) if omena_abstract_value::is_dom_class_ascii_whitespace_v0(character) => {
+            LiteralEdgeV0::Whitespace
+        }
+        Some(_) => LiteralEdgeV0::NonWhitespace,
+    }
+}
+
+fn transparent_expression<'a>(expression: &'a Expression<'a>) -> &'a Expression<'a> {
+    match expression {
+        Expression::ParenthesizedExpression(expression) => {
+            transparent_expression(&expression.expression)
+        }
+        Expression::TSAsExpression(expression) => transparent_expression(&expression.expression),
+        Expression::TSSatisfiesExpression(expression) => {
+            transparent_expression(&expression.expression)
+        }
+        Expression::TSTypeAssertion(expression) => transparent_expression(&expression.expression),
+        Expression::TSNonNullExpression(expression) => {
+            transparent_expression(&expression.expression)
+        }
+        Expression::TSInstantiationExpression(expression) => {
+            transparent_expression(&expression.expression)
+        }
+        _ => expression,
+    }
+}
+
+fn static_string_value<'a>(expression: &'a Expression<'a>) -> Option<&'a str> {
+    match transparent_expression(expression) {
+        Expression::StringLiteral(literal) => Some(literal.value.as_str()),
+        Expression::TemplateLiteral(template) if template.expressions.is_empty() => template
+            .quasis
+            .first()
+            .and_then(|quasi| quasi.value.cooked.as_ref())
+            .map(|value| value.as_str()),
+        _ => None,
+    }
+}
+
+fn argument_expression<'a>(argument: &'a oxc_ast::ast::Argument<'a>) -> Option<&'a Expression<'a>> {
+    match argument {
+        oxc_ast::ast::Argument::SpreadElement(spread) => Some(&spread.argument),
+        _ => argument.as_expression(),
+    }
+}
+
+fn ordered_word_for_type_facts(facts: &StringTypeFactsV2) -> Option<OrderedTokenWordV0> {
+    let mut values = facts.values.as_ref()?.iter();
+    let first = values.next()?;
+    let DomClassTokenizationV0::Known { word, .. } =
+        omena_abstract_value::tokenize_dom_class_attribute_v0(Some(first))
+    else {
+        return None;
+    };
+    values
+        .all(|value| {
+            matches!(
+                omena_abstract_value::tokenize_dom_class_attribute_v0(Some(value)),
+                DomClassTokenizationV0::Known { word: candidate, .. } if candidate == word
+            )
+        })
+        .then_some(word)
+}
+
+fn boundary_effect_wire_value(effect: ClassBoundaryEffectV0) -> &'static str {
+    match effect {
+        ClassBoundaryEffectV0::ConcatInsideToken => "concatInsideToken",
+        ClassBoundaryEffectV0::ConcatAtTokenBoundary => "concatAtTokenBoundary",
+        ClassBoundaryEffectV0::UnknownBoundary => "unknownBoundary",
+    }
 }
 
 fn logical_expression_kind(expression: &LogicalExpression<'_>) -> Option<&'static str> {
@@ -792,93 +1057,272 @@ fn logical_expression_kind(expression: &LogicalExpression<'_>) -> Option<&'stati
     }
 }
 
-fn expression_type_facts(
-    expression: &Expression<'_>,
-    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+struct ExpressionFactContext<'ast, 'context> {
+    root_statements: &'context oxc_allocator::Vec<'ast, Statement<'ast>>,
+    scoping: &'context Scoping,
+    binding_facts: &'context BTreeMap<usize, Vec<StringTypeFactsV2>>,
+}
+
+fn expression_type_facts<'ast>(
+    expression: &Expression<'ast>,
+    root_statements: &oxc_allocator::Vec<'ast, Statement<'ast>>,
+    scoping: &Scoping,
+    prior_blocks: &[SourceFlowBlockSnapshotV0],
 ) -> Option<StringTypeFactsV2> {
-    expression_type_facts_inner(expression, root_statements, &mut BTreeSet::new())
+    let mut binding_facts = BTreeMap::<usize, Vec<StringTypeFactsV2>>::new();
+    for block in prior_blocks {
+        if let (Some(symbol_ordinal), Some(facts)) = (block.symbol_ordinal, block.facts.clone()) {
+            binding_facts.entry(symbol_ordinal).or_default().push(facts);
+        }
+    }
+    let context = ExpressionFactContext {
+        root_statements,
+        scoping,
+        binding_facts: &binding_facts,
+    };
+    expression_type_facts_inner(
+        expression,
+        &context,
+        &mut BTreeSet::new(),
+        &mut BTreeSet::new(),
+    )
 }
 
 fn expression_type_facts_inner(
     expression: &Expression<'_>,
-    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+    context: &ExpressionFactContext<'_, '_>,
     seen_functions: &mut BTreeSet<String>,
+    seen_bindings: &mut BTreeSet<usize>,
 ) -> Option<StringTypeFactsV2> {
     match expression {
         Expression::StringLiteral(literal) => Some(exact_type_facts(literal.value.as_str())),
-        Expression::TemplateLiteral(template) if template.expressions.is_empty() => {
-            let value = template.quasis.first()?.value.cooked.as_ref()?.as_str();
-            Some(exact_type_facts(value))
+        Expression::Identifier(identifier) => {
+            let symbol_ordinal =
+                binding_ref_from_reference(context.scoping, identifier)?.symbol_ordinal;
+            if !seen_bindings.insert(symbol_ordinal) {
+                return None;
+            }
+            let facts = merge_type_facts(
+                context
+                    .binding_facts
+                    .get(&symbol_ordinal)?
+                    .iter()
+                    .cloned()
+                    .map(Some),
+            );
+            seen_bindings.remove(&symbol_ordinal);
+            facts
         }
-        Expression::ParenthesizedExpression(expression) => {
-            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
+        Expression::TemplateLiteral(template) => {
+            let first = template.quasis.first()?.value.cooked.as_ref()?.as_str();
+            let mut facts = Some(exact_type_facts(first));
+            for (index, expression) in template.expressions.iter().enumerate() {
+                facts = concatenate_type_facts(
+                    facts,
+                    expression_type_facts_inner(expression, context, seen_functions, seen_bindings),
+                );
+                let suffix = template
+                    .quasis
+                    .get(index + 1)?
+                    .value
+                    .cooked
+                    .as_ref()?
+                    .as_str();
+                facts = concatenate_type_facts(facts, Some(exact_type_facts(suffix)));
+            }
+            facts
         }
-        Expression::TSAsExpression(expression) => {
-            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
-        }
-        Expression::TSSatisfiesExpression(expression) => {
-            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
-        }
-        Expression::TSTypeAssertion(expression) => {
-            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
-        }
-        Expression::TSNonNullExpression(expression) => {
-            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
-        }
-        Expression::TSInstantiationExpression(expression) => {
-            expression_type_facts_inner(&expression.expression, root_statements, seen_functions)
-        }
+        Expression::ParenthesizedExpression(expression) => expression_type_facts_inner(
+            &expression.expression,
+            context,
+            seen_functions,
+            seen_bindings,
+        ),
+        Expression::TSAsExpression(expression) => expression_type_facts_inner(
+            &expression.expression,
+            context,
+            seen_functions,
+            seen_bindings,
+        ),
+        Expression::TSSatisfiesExpression(expression) => expression_type_facts_inner(
+            &expression.expression,
+            context,
+            seen_functions,
+            seen_bindings,
+        ),
+        Expression::TSTypeAssertion(expression) => expression_type_facts_inner(
+            &expression.expression,
+            context,
+            seen_functions,
+            seen_bindings,
+        ),
+        Expression::TSNonNullExpression(expression) => expression_type_facts_inner(
+            &expression.expression,
+            context,
+            seen_functions,
+            seen_bindings,
+        ),
+        Expression::TSInstantiationExpression(expression) => expression_type_facts_inner(
+            &expression.expression,
+            context,
+            seen_functions,
+            seen_bindings,
+        ),
         Expression::ConditionalExpression(expression) => merge_type_facts([
-            expression_type_facts_inner(&expression.consequent, root_statements, seen_functions),
-            expression_type_facts_inner(&expression.alternate, root_statements, seen_functions),
+            expression_type_facts_inner(
+                &expression.consequent,
+                context,
+                seen_functions,
+                seen_bindings,
+            ),
+            expression_type_facts_inner(
+                &expression.alternate,
+                context,
+                seen_functions,
+                seen_bindings,
+            ),
         ]),
         Expression::LogicalExpression(expression) => {
             if expression.operator.is_and() {
                 return expression_type_facts_inner(
                     &expression.right,
-                    root_statements,
+                    context,
                     seen_functions,
+                    seen_bindings,
                 );
             }
             merge_type_facts([
-                expression_type_facts_inner(&expression.left, root_statements, seen_functions),
-                expression_type_facts_inner(&expression.right, root_statements, seen_functions),
+                expression_type_facts_inner(
+                    &expression.left,
+                    context,
+                    seen_functions,
+                    seen_bindings,
+                ),
+                expression_type_facts_inner(
+                    &expression.right,
+                    context,
+                    seen_functions,
+                    seen_bindings,
+                ),
             ])
         }
         Expression::BinaryExpression(expression)
             if expression.operator == BinaryOperator::Addition =>
         {
             concatenate_type_facts(
-                expression_type_facts_inner(&expression.left, root_statements, seen_functions),
-                expression_type_facts_inner(&expression.right, root_statements, seen_functions),
+                expression_type_facts_inner(
+                    &expression.left,
+                    context,
+                    seen_functions,
+                    seen_bindings,
+                ),
+                expression_type_facts_inner(
+                    &expression.right,
+                    context,
+                    seen_functions,
+                    seen_bindings,
+                ),
             )
         }
         Expression::CallExpression(call) => {
+            if let Some(facts) =
+                class_boundary_call_type_facts(call, context, seen_functions, seen_bindings)
+            {
+                return Some(facts);
+            }
             let Expression::Identifier(callee) = &call.callee else {
                 return None;
             };
-            function_return_type_facts(callee.name.as_str(), root_statements, seen_functions)
+            function_return_type_facts(callee.name.as_str(), context, seen_functions, seen_bindings)
         }
         _ => None,
     }
 }
 
+fn class_boundary_call_type_facts(
+    call: &oxc_ast::ast::CallExpression<'_>,
+    context: &ExpressionFactContext<'_, '_>,
+    seen_functions: &mut BTreeSet<String>,
+    seen_bindings: &mut BTreeSet<usize>,
+) -> Option<StringTypeFactsV2> {
+    if matches!(
+        transparent_expression(&call.callee),
+        Expression::Identifier(identifier)
+            if matches!(identifier.name.as_str(), "clsx" | "classnames" | "classNames")
+    ) {
+        let facts = call
+            .arguments
+            .iter()
+            .map(|argument| {
+                argument_expression(argument).and_then(|expression| {
+                    expression_type_facts_inner(expression, context, seen_functions, seen_bindings)
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return concatenate_type_fact_sequence(facts, " ");
+    }
+
+    let Expression::StaticMemberExpression(member) = transparent_expression(&call.callee) else {
+        return None;
+    };
+    if member.property.name.as_str() != "join" {
+        return None;
+    }
+    let Expression::ArrayExpression(array) = transparent_expression(&member.object) else {
+        return None;
+    };
+    let separator = call
+        .arguments
+        .first()
+        .and_then(argument_expression)
+        .and_then(static_string_value)
+        .unwrap_or(",");
+    let facts = array
+        .elements
+        .iter()
+        .map(|element| {
+            let expression = match element {
+                oxc_ast::ast::ArrayExpressionElement::SpreadElement(spread) => &spread.argument,
+                oxc_ast::ast::ArrayExpressionElement::Elision(_) => return None,
+                _ => element.as_expression()?,
+            };
+            expression_type_facts_inner(expression, context, seen_functions, seen_bindings)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    concatenate_type_fact_sequence(facts, separator)
+}
+
+fn concatenate_type_fact_sequence(
+    facts: Vec<StringTypeFactsV2>,
+    separator: &str,
+) -> Option<StringTypeFactsV2> {
+    let mut facts = facts.into_iter();
+    let mut combined = Some(facts.next()?);
+    for fact in facts {
+        combined = concatenate_type_facts(combined, Some(exact_type_facts(separator)));
+        combined = concatenate_type_facts(combined, Some(fact));
+    }
+    combined
+}
+
 fn function_return_type_facts(
     function_name: &str,
-    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+    context: &ExpressionFactContext<'_, '_>,
     seen_functions: &mut BTreeSet<String>,
+    seen_bindings: &mut BTreeSet<usize>,
 ) -> Option<StringTypeFactsV2> {
     if !seen_functions.insert(function_name.to_string()) {
         return None;
     }
-    let body = root_statements
+    let body = context
+        .root_statements
         .iter()
         .find_map(|statement| function_body_for_named_statement(statement, function_name))?;
     let facts = merge_type_facts(
         body.statements
             .iter()
             .flat_map(|statement| {
-                return_type_facts_for_statement(statement, root_statements, seen_functions)
+                return_type_facts_for_statement(statement, context, seen_functions, seen_bindings)
             })
             .map(Some),
     );
@@ -916,15 +1360,16 @@ fn function_body_for_named_statement<'a>(
 
 fn return_type_facts_for_statement(
     statement: &Statement<'_>,
-    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+    context: &ExpressionFactContext<'_, '_>,
     seen_functions: &mut BTreeSet<String>,
+    seen_bindings: &mut BTreeSet<usize>,
 ) -> Vec<StringTypeFactsV2> {
     match statement {
         Statement::ReturnStatement(statement) => statement
             .argument
             .as_ref()
             .and_then(|expression| {
-                expression_type_facts_inner(expression, root_statements, seen_functions)
+                expression_type_facts_inner(expression, context, seen_functions, seen_bindings)
             })
             .into_iter()
             .collect(),
@@ -932,20 +1377,22 @@ fn return_type_facts_for_statement(
             .body
             .iter()
             .flat_map(|statement| {
-                return_type_facts_for_statement(statement, root_statements, seen_functions)
+                return_type_facts_for_statement(statement, context, seen_functions, seen_bindings)
             })
             .collect(),
         Statement::IfStatement(statement) => {
             let mut facts = return_type_facts_for_statement(
                 &statement.consequent,
-                root_statements,
+                context,
                 seen_functions,
+                seen_bindings,
             );
             if let Some(alternate) = &statement.alternate {
                 facts.extend(return_type_facts_for_statement(
                     alternate,
-                    root_statements,
+                    context,
                     seen_functions,
+                    seen_bindings,
                 ));
             }
             facts
@@ -954,7 +1401,7 @@ fn return_type_facts_for_statement(
             .cases
             .iter()
             .flat_map(|case| {
-                return_type_facts_for_switch_case(case, root_statements, seen_functions)
+                return_type_facts_for_switch_case(case, context, seen_functions, seen_bindings)
             })
             .collect(),
         _ => Vec::new(),
@@ -963,13 +1410,14 @@ fn return_type_facts_for_statement(
 
 fn return_type_facts_for_switch_case(
     case: &SwitchCase<'_>,
-    root_statements: &oxc_allocator::Vec<'_, Statement<'_>>,
+    context: &ExpressionFactContext<'_, '_>,
     seen_functions: &mut BTreeSet<String>,
+    seen_bindings: &mut BTreeSet<usize>,
 ) -> Vec<StringTypeFactsV2> {
     case.consequent
         .iter()
         .flat_map(|statement| {
-            return_type_facts_for_statement(statement, root_statements, seen_functions)
+            return_type_facts_for_statement(statement, context, seen_functions, seen_bindings)
         })
         .collect()
 }
@@ -991,6 +1439,12 @@ fn concatenate_type_facts(
     left: Option<StringTypeFactsV2>,
     right: Option<StringTypeFactsV2>,
 ) -> Option<StringTypeFactsV2> {
+    if left.as_ref().and_then(single_finite_value).as_deref() == Some("") {
+        return right;
+    }
+    if right.as_ref().and_then(single_finite_value).as_deref() == Some("") {
+        return left;
+    }
     match (left, right) {
         (Some(left), Some(right)) => {
             if let (Some(left_values), Some(right_values)) = (
@@ -1167,7 +1621,8 @@ fn span_end(span: Span) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        prefix_suffix_type_facts, source_type_fact_control_flow_graph_from_snapshot,
+        ClassBoundaryEffectV0, prefix_suffix_type_facts,
+        source_type_fact_control_flow_graph_from_snapshot,
         summarize_omena_bridge_source_control_flow_graph_for_source_language,
     };
 
@@ -1304,6 +1759,113 @@ mod tests {
                     .as_ref()
                     .is_some_and(|facts| facts.constraint_kind.as_deref() == Some("prefixSuffix"))
         }));
+        Ok(())
+    }
+
+    #[test]
+    fn delimiter_content_drives_boundary_effects_and_ordered_words() -> Result<(), String> {
+        let source = [
+            "export function Card(flag: boolean) {",
+            "  const token = flag ? \"large\" : \"small\";",
+            "  const binary = \"btn-\" + token;",
+            "  const template = `btn-${token}`;",
+            "  const explicitBoundary = \"btn-\" + \" \" + token;",
+            "  const joinedInside = [\"a\", \"b\"].join(\"\");",
+            "  const joinedBoundary = [\"a\", \"b\"].join(\" \" );",
+            "  const listed = clsx(\"a\", \"b\");",
+            "  const guarded = clsx({ active: flag });",
+            "  const opaque = left() + right();",
+            "  return opaque;",
+            "}",
+            "",
+        ]
+        .join("\n");
+        let reference = source
+            .rfind("opaque")
+            .ok_or_else(|| "fixture contains opaque reference".to_string())?;
+        let graph = summarize_omena_bridge_source_control_flow_graph_for_source_language(
+            "/fake/ws/src/Card.tsx",
+            source.as_str(),
+            Some("typescriptreact"),
+            "opaque",
+            reference,
+        )
+        .ok_or_else(|| "fixture should produce CFG".to_string())?;
+        let block = |name: &str| {
+            graph
+                .snapshot
+                .blocks
+                .iter()
+                .find(|block| block.variable_name.as_deref() == Some(name))
+                .ok_or_else(|| format!("missing {name} assignment"))
+        };
+
+        let binary = block("binary")?;
+        let template = block("template")?;
+        assert_eq!(
+            binary.boundary_effect,
+            ClassBoundaryEffectV0::ConcatInsideToken
+        );
+        assert_eq!(template.boundary_effect, binary.boundary_effect);
+        assert_eq!(template.facts, binary.facts);
+        assert_eq!(
+            binary.facts.as_ref().and_then(|facts| facts.values.clone()),
+            Some(vec!["btn-large".to_string(), "btn-small".to_string()])
+        );
+
+        assert_eq!(
+            block("explicitBoundary")?.boundary_effect,
+            ClassBoundaryEffectV0::ConcatAtTokenBoundary
+        );
+        assert_eq!(
+            block("joinedInside")?.boundary_effect,
+            ClassBoundaryEffectV0::ConcatInsideToken
+        );
+        assert_eq!(
+            block("joinedBoundary")?.boundary_effect,
+            ClassBoundaryEffectV0::ConcatAtTokenBoundary
+        );
+        assert_eq!(
+            block("listed")?.boundary_effect,
+            ClassBoundaryEffectV0::ConcatAtTokenBoundary
+        );
+        assert_eq!(
+            block("listed")?.ordered_word.as_ref().map(|word| word
+                .tokens()
+                .iter()
+                .map(|token| token.as_str())
+                .collect::<Vec<_>>()),
+            Some(vec!["a", "b"])
+        );
+        assert_eq!(
+            block("guarded")?.boundary_effect,
+            ClassBoundaryEffectV0::ConcatAtTokenBoundary
+        );
+        assert!(block("guarded")?.ordered_word.is_none());
+        assert_eq!(
+            block("opaque")?.boundary_effect,
+            ClassBoundaryEffectV0::UnknownBoundary
+        );
+        assert!(block("opaque")?.ordered_word.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn class_boundary_transfer_table_names_each_delimiter_authority()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let rows: serde_json::Value =
+            serde_json::from_str(include_str!("../data/class-boundary-transfer-v0.json"))?;
+        let rows = rows
+            .as_array()
+            .ok_or_else(|| std::io::Error::other("boundary transfer table must be an array"))?;
+        assert_eq!(rows.len(), 6);
+        assert!(rows.iter().all(|row| row["delimiterFact"].is_string()));
+        assert_eq!(rows[0]["construct"], "binaryAddition");
+        assert_eq!(rows[1]["construct"], "templateInterpolation");
+        assert_eq!(rows[2]["construct"], "clsxOrClassnamesArguments");
+        assert_eq!(rows[3]["construct"], "arrayJoin");
+        assert_eq!(rows[4]["construct"], "objectMapEntry");
+        assert_eq!(rows[5]["construct"], "opaqueOperands");
         Ok(())
     }
 

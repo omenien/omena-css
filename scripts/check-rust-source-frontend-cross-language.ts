@@ -121,6 +121,7 @@ interface RustFlowBlockSnapshotV0 {
     | "terminate"
     | "exit";
   readonly successorBlockIds: readonly string[];
+  readonly boundaryEffect: "concatInsideToken" | "concatAtTokenBoundary" | "unknownBoundary";
   readonly binding?: {
     readonly symbolOrdinal: number;
     readonly name: string;
@@ -1113,6 +1114,7 @@ function canonicalCfgBlock(
     id: block.id,
     kind: block.kind,
     transferKind: block.transferKind,
+    boundaryEffect: block.boundaryEffect,
     successorBlockIds: [...block.successorBlockIds],
     ...(block.variableName ? { variableName: block.variableName } : {}),
     ...(block.expressionKind ? { expressionKind: block.expressionKind } : {}),

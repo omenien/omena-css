@@ -1451,6 +1451,7 @@ fn nonconvergent_selector_certainty_control_flow_graph() -> TypeFactControlFlowG
                 symbol_ordinal: None,
                 variable_name: None,
                 expression_kind: None,
+                boundary_effect: "unknownBoundary".to_string(),
                 facts: Some(StringTypeFactsV2 {
                     kind: "finiteSet".to_string(),
                     constraint_kind: None,
@@ -1473,6 +1474,7 @@ fn nonconvergent_selector_certainty_control_flow_graph() -> TypeFactControlFlowG
                 symbol_ordinal: None,
                 variable_name: None,
                 expression_kind: None,
+                boundary_effect: "unknownBoundary".to_string(),
                 facts: None,
             },
         ],

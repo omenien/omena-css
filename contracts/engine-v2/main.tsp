@@ -99,6 +99,12 @@ enum TypeFactControlFlowExpressionKindV2 {
   nullishCoalesce: "nullishCoalesce",
 }
 
+enum ClassBoundaryEffectV2 {
+  concatInsideToken: "concatInsideToken",
+  concatAtTokenBoundary: "concatAtTokenBoundary",
+  unknownBoundary: "unknownBoundary",
+}
+
 model TypeFactControlFlowBlockV2 {
   id: string;
   kind: TypeFactControlFlowBlockKindV2;
@@ -107,6 +113,7 @@ model TypeFactControlFlowBlockV2 {
   symbolOrdinal?: int32;
   variableName?: string;
   expressionKind?: TypeFactControlFlowExpressionKindV2;
+  boundaryEffect: ClassBoundaryEffectV2;
   facts?: StringTypeFactsV2;
 }
 

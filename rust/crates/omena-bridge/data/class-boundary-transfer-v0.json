@@ -1,0 +1,44 @@
+[
+  {
+    "construct": "binaryAddition",
+    "delimiterFact": "trailing literal edge of the left operand or leading literal edge of the right operand",
+    "insideTokenWhen": "a visible literal edge is non-whitespace",
+    "tokenBoundaryWhen": "a visible literal edge is DOM ASCII whitespace",
+    "unknownWhen": "neither operand exposes a literal edge"
+  },
+  {
+    "construct": "templateInterpolation",
+    "delimiterFact": "the adjacent cooked quasi edges",
+    "insideTokenWhen": "a non-empty adjacent quasi edge contains no boundary whitespace",
+    "tokenBoundaryWhen": "an adjacent quasi edge is DOM ASCII whitespace",
+    "unknownWhen": "all adjacent quasis are empty and the interpolations expose no boundary"
+  },
+  {
+    "construct": "clsxOrClassnamesArguments",
+    "delimiterFact": "the construct inserts U+0020 between contributing arguments",
+    "insideTokenWhen": "never for distinct contributing arguments",
+    "tokenBoundaryWhen": "the implicit U+0020 separator is present",
+    "unknownWhen": "the call is not a recognized class-list constructor"
+  },
+  {
+    "construct": "arrayJoin",
+    "delimiterFact": "the exact separator argument, with the JavaScript comma default when omitted",
+    "insideTokenWhen": "the exact separator contains no DOM ASCII whitespace",
+    "tokenBoundaryWhen": "the exact separator contains DOM ASCII whitespace",
+    "unknownWhen": "the separator is dynamic"
+  },
+  {
+    "construct": "objectMapEntry",
+    "delimiterFact": "the owning clsx/classnames call's implicit U+0020 separator",
+    "insideTokenWhen": "never for a contributing entry",
+    "tokenBoundaryWhen": "the entry is selected by its guard",
+    "unknownWhen": "the owning call is not recognized or the property key is dynamic"
+  },
+  {
+    "construct": "opaqueOperands",
+    "delimiterFact": "no literal or exact separator is visible",
+    "insideTokenWhen": "never inferred",
+    "tokenBoundaryWhen": "never inferred",
+    "unknownWhen": "both operands are opaque to the source and type-fact planes"
+  }
+]

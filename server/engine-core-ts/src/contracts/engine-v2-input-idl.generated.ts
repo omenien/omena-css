@@ -44,6 +44,10 @@ export type TypeFactControlFlowExpressionKindV2Json =
   | "logicalAnd"
   | "logicalOr"
   | "nullishCoalesce";
+export type ClassBoundaryEffectV2Json =
+  | "concatInsideToken"
+  | "concatAtTokenBoundary"
+  | "unknownBoundary";
 
 export interface EngineInputV2Json {
   readonly version: "2";
@@ -98,5 +102,6 @@ export interface TypeFactControlFlowBlockV2Json {
   readonly symbolOrdinal?: number;
   readonly variableName?: string;
   readonly expressionKind?: TypeFactControlFlowExpressionKindV2Json;
+  readonly boundaryEffect: ClassBoundaryEffectV2Json;
   readonly facts?: StringTypeFactsV2Json;
 }

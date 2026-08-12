@@ -273,16 +273,19 @@ pub(crate) fn summarize_scss_control_flow_ascending_chain_witness()
             ClassValueFlowNodeV0 {
                 id: "seed".to_string(),
                 predecessors: Vec::new(),
+                boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::AssignFacts(exact_facts("item-")),
             },
             ClassValueFlowNodeV0 {
                 id: SCSS_CONTROL_FLOW_ASCENDING_CHAIN_RESULT_NODE_ID.to_string(),
                 predecessors: vec!["seed".to_string(), "loop-body".to_string()],
+                boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
             ClassValueFlowNodeV0 {
                 id: "loop-body".to_string(),
                 predecessors: vec![SCSS_CONTROL_FLOW_ASCENDING_CHAIN_RESULT_NODE_ID.to_string()],
+                boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::ConcatFacts(exact_facts("x")),
             },
         ],

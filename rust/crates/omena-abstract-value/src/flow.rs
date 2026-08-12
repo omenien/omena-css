@@ -800,6 +800,7 @@ fn analyze_class_value_flow_with_policy(
                 ClassValueFlowNodeResultV0 {
                     id: node.id.clone(),
                     predecessor_ids: node.predecessors.clone(),
+                    boundary_effect: node.boundary_effect,
                     transfer_kind: flow_transfer_kind(&node.transfer),
                     value_kind: abstract_class_value_kind(&value),
                     value,
@@ -849,6 +850,7 @@ pub fn analyze_class_value_control_flow_graph(
                         .filter(|id| reachable_node_ids.contains(id.as_str()))
                         .cloned()
                         .collect(),
+                    boundary_effect: node.boundary_effect,
                     transfer: node.transfer.clone(),
                 })
             })
@@ -1430,6 +1432,7 @@ fn flow_node_incremental_digest(
         output_ordinal,
         node_id: &node.id,
         dependency_ids: &node.predecessors,
+        boundary_effect: node.boundary_effect,
         transfer,
     };
 
@@ -1444,6 +1447,7 @@ struct ClassValueFlowNodeDigestPayload<'a> {
     output_ordinal: usize,
     node_id: &'a str,
     dependency_ids: &'a [String],
+    boundary_effect: ClassBoundaryEffectV0,
     transfer: ClassValueFlowTransferDigestPayload<'a>,
 }
 

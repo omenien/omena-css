@@ -753,6 +753,7 @@ pub fn run_omena_query_checker_k_limited_flow_m_tier_gate_v0(
                 nodes: vec![ClassValueFlowNodeV0 {
                     id: "exit".to_string(),
                     predecessors: Vec::new(),
+                    boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
                     transfer: ClassValueFlowTransferV0::AssignFacts(
                         external_string_type_facts_from_abstract_class_value(&context.exit_value),
                     ),

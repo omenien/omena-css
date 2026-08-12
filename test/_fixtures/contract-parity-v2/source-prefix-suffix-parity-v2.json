@@ -218,6 +218,7 @@
           "blocks": [
             {
               "id": "entry",
+              "boundaryEffect": "unknownBoundary",
               "kind": "entry",
               "successorBlockIds": ["assignment:0"],
               "transferKind": "entry"
@@ -232,6 +233,7 @@
                 "suffix": "-chip"
               },
               "id": "assignment:0",
+              "boundaryEffect": "concatInsideToken",
               "kind": "assignment",
               "successorBlockIds": ["exit"],
               "symbolOrdinal": 5,
@@ -240,6 +242,7 @@
             },
             {
               "id": "exit",
+              "boundaryEffect": "unknownBoundary",
               "kind": "exit",
               "successorBlockIds": [],
               "transferKind": "exit"

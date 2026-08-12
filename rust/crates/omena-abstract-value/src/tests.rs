@@ -13,10 +13,10 @@ use super::{
     AbstractCssTypedScalarValueV0, AbstractCssTypedValueV0, AbstractCssValueV0,
     AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, AbstractStringAutomatonTransitionV0,
     AbstractStringAutomatonV0, BoundedJoinFixpointNodeV0, CascadeContextV0,
-    CascadeRestrictionMapV0, CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0,
-    ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
-    ClassValueFlowTransferV0, CompositeClassValueInputV0, DeclaredNumericTypeV0,
-    ExternalStringTypeFactsV0, FactPrecision, KLimitedCallSiteFlowInputV0,
+    CascadeRestrictionMapV0, CascadeValueFamilyMemberV0, ClassBoundaryEffectV0,
+    ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0, ClassValueFlowGraphV0,
+    ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
+    DeclaredNumericTypeV0, ExternalStringTypeFactsV0, FactPrecision, KLimitedCallSiteFlowInputV0,
     Lin01ProvenanceSemiringV0, LinearProvenancePathV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
     MAX_FLOW_ANALYSIS_ITERATIONS, MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY,
     MAX_STRING_AUTOMATON_MATERIALIZED_BYTES, MAX_STRING_AUTOMATON_STATES,
@@ -1320,6 +1320,7 @@ fn finite_set_loop_hits_the_preconstruction_wall_and_converges() {
             ClassValueFlowNodeV0 {
                 id: "loop".to_string(),
                 predecessors: vec!["seed".to_string(), "loop".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::ConcatFacts(
                     external_facts("finiteSet").with_values(["x", "y"]),
                 ),
@@ -1561,11 +1562,13 @@ fn closed_join_scc_uses_a_deterministic_fallback_header_without_spurious_widenin
             ClassValueFlowNodeV0 {
                 id: "b".to_string(),
                 predecessors: vec!["a".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
             ClassValueFlowNodeV0 {
                 id: "a".to_string(),
                 predecessors: vec!["b".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],
@@ -1593,6 +1596,7 @@ fn closed_non_join_scc_header_applies_its_transfer_before_inflationary_join() {
             ClassValueFlowNodeV0 {
                 id: "b".to_string(),
                 predecessors: vec!["a".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::AssignFacts(
                     external_facts("exact").with_values(["z"]),
                 ),
@@ -1600,6 +1604,7 @@ fn closed_non_join_scc_header_applies_its_transfer_before_inflationary_join() {
             ClassValueFlowNodeV0 {
                 id: "a".to_string(),
                 predecessors: vec!["b".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::ConcatFacts(
                     external_facts("exact").with_values(["x"]),
                 ),
@@ -1849,6 +1854,7 @@ fn structured_incremental_digest_separates_delimiter_bearing_fact_boundaries() {
             nodes: vec![ClassValueFlowNodeV0 {
                 id: "value".to_string(),
                 predecessors: Vec::new(),
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::AssignFacts(facts),
             }],
         };
@@ -1884,6 +1890,7 @@ fn structured_incremental_digest_separates_delimiter_bearing_fact_boundaries() {
             nodes: vec![ClassValueFlowNodeV0 {
                 id: "value".to_string(),
                 predecessors: Vec::new(),
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::AssignFacts(
                     external_facts("finiteSet").with_values(values),
                 ),
@@ -1898,6 +1905,47 @@ fn structured_incremental_digest_separates_delimiter_bearing_fact_boundaries() {
     assert_eq!(
         digest_for_values(vec!["c", "a,b", "c"]),
         digest_for_values(vec!["a,b", "c"])
+    );
+}
+
+#[test]
+fn boundary_effect_survives_analysis_and_invalidates_incremental_reuse() {
+    let graph_with_effect = |boundary_effect| ClassValueFlowGraphV0 {
+        context_key: Some("boundary-effect".to_string()),
+        nodes: vec![ClassValueFlowNodeV0 {
+            id: "value".to_string(),
+            predecessors: Vec::new(),
+            boundary_effect,
+            transfer: ClassValueFlowTransferV0::AssignFacts(
+                external_facts("exact").with_values(["btn-large"]),
+            ),
+        }],
+    };
+    let inside = graph_with_effect(ClassBoundaryEffectV0::ConcatInsideToken);
+    let boundary = graph_with_effect(ClassBoundaryEffectV0::ConcatAtTokenBoundary);
+
+    let inside_analysis = analyze_class_value_flow(&inside);
+    assert_eq!(
+        inside_analysis.nodes[0].boundary_effect,
+        ClassBoundaryEffectV0::ConcatInsideToken
+    );
+    assert_ne!(
+        class_value_flow_incremental_input(&inside, 1).nodes[0].digest,
+        class_value_flow_incremental_input(&boundary, 2).nodes[0].digest
+    );
+
+    let first = analyze_class_value_flow_incremental(&inside, None, 1);
+    let changed = analyze_class_value_flow_incremental_with_reuse(
+        &boundary,
+        Some(&first.next_snapshot),
+        Some(&first.analysis),
+        2,
+    );
+    assert_eq!(changed.incremental_plan.changed_input_count, 1);
+    assert!(!changed.reused_previous_analysis);
+    assert_eq!(
+        changed.analysis.nodes[0].boundary_effect,
+        ClassBoundaryEffectV0::ConcatAtTokenBoundary
     );
 }
 
@@ -2046,6 +2094,7 @@ fn external_concat_loop_converges_to_a_sound_prefix() {
             ClassValueFlowNodeV0 {
                 id: "loop".to_string(),
                 predecessors: vec!["seed".to_string(), "loop".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::ConcatFacts(
                     external_facts("exact").with_values(["x"]),
                 ),
@@ -2075,6 +2124,7 @@ fn preserves_flow_limit_for_a_growing_loop_without_an_lcp() {
             ClassValueFlowNodeV0 {
                 id: "loop".to_string(),
                 predecessors: vec!["seed".to_string(), "loop".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::ConcatFacts(
                     external_facts("exact").with_values(["x"]),
                 ),
@@ -2846,6 +2896,7 @@ fn flow_join_preserves_reduced_product_branch_shape() {
             ClassValueFlowNodeV0 {
                 id: "merge".to_string(),
                 predecessors: vec!["primary".to_string(), "secondary".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],
@@ -2978,6 +3029,7 @@ fn flow_concat_preserves_reduced_product_shape() {
             ClassValueFlowNodeV0 {
                 id: "base".to_string(),
                 predecessors: Vec::new(),
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::AssignFacts(
                     external_facts("constrained")
                         .with_constraint_kind("composite")
@@ -2989,6 +3041,7 @@ fn flow_concat_preserves_reduced_product_shape() {
             ClassValueFlowNodeV0 {
                 id: "active".to_string(),
                 predecessors: vec!["base".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::ConcatFacts(
                     external_facts("constrained")
                         .with_constraint_kind("charInclusion")
@@ -3024,6 +3077,7 @@ fn analyzes_flow_concat_facts_before_refinement() {
             ClassValueFlowNodeV0 {
                 id: "variant".to_string(),
                 predecessors: vec!["base".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::ConcatFacts(
                     external_facts("finiteSet").with_values(["primary", "secondary", "icon"]),
                 ),
@@ -3031,6 +3085,7 @@ fn analyzes_flow_concat_facts_before_refinement() {
             ClassValueFlowNodeV0 {
                 id: "btn-only".to_string(),
                 predecessors: vec!["variant".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::RefineFacts(
                     external_facts("constrained")
                         .with_constraint_kind("suffix")
@@ -3145,11 +3200,13 @@ fn analyzes_one_cfa_class_value_flow_with_branch_merge_and_refinement() {
                     "else-if".to_string(),
                     "else".to_string(),
                 ],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
             ClassValueFlowNodeV0 {
                 id: "btn-only".to_string(),
                 predecessors: vec!["merge".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::RefineFacts(
                     external_facts("constrained")
                         .with_constraint_kind("prefix")
@@ -3200,6 +3257,7 @@ fn analyzes_one_cfa_call_site_flows_with_context_discrimination() {
             ClassValueFlowNodeV0 {
                 id: "exit".to_string(),
                 predecessors: vec!["variant".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::RefineFacts(
                     external_facts("constrained")
                         .with_constraint_kind("prefix")
@@ -3218,6 +3276,7 @@ fn analyzes_one_cfa_call_site_flows_with_context_discrimination() {
             ClassValueFlowNodeV0 {
                 id: "exit".to_string(),
                 predecessors: vec!["variant".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::RefineFacts(
                     external_facts("constrained")
                         .with_constraint_kind("prefix")
@@ -3455,6 +3514,7 @@ fn analyzes_control_flow_graph_with_reachability_pruning() {
                 nodes: vec![ClassValueFlowNodeV0 {
                     id: "exit".to_string(),
                     predecessors: vec!["base".to_string(), "ghost".to_string()],
+                    boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                     transfer: ClassValueFlowTransferV0::Join,
                 }],
                 successor_block_ids: Vec::new(),
@@ -3498,6 +3558,7 @@ fn analyzes_class_value_flow_on_incremental_plan() {
             ClassValueFlowNodeV0 {
                 id: "merge".to_string(),
                 predecessors: vec!["then".to_string(), "else".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],
@@ -3534,6 +3595,7 @@ fn analyzes_class_value_flow_on_incremental_plan() {
             ClassValueFlowNodeV0 {
                 id: "merge".to_string(),
                 predecessors: vec!["then".to_string(), "else".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],
@@ -3561,6 +3623,7 @@ fn reuses_previous_class_value_flow_analysis_when_incremental_plan_is_clean() {
             ClassValueFlowNodeV0 {
                 id: "merge".to_string(),
                 predecessors: vec!["then".to_string(), "else".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],
@@ -3589,6 +3652,7 @@ fn reuses_previous_class_value_flow_analysis_through_salsa_database() {
             ClassValueFlowNodeV0 {
                 id: "merge".to_string(),
                 predecessors: vec!["then".to_string(), "else".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],
@@ -3630,6 +3694,7 @@ fn reuses_clean_contexts_in_incremental_flow_batch() {
             ClassValueFlowNodeV0 {
                 id: "merge".to_string(),
                 predecessors: vec!["then".to_string(), "else".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],
@@ -3644,6 +3709,7 @@ fn reuses_clean_contexts_in_incremental_flow_batch() {
             ClassValueFlowNodeV0 {
                 id: "refined".to_string(),
                 predecessors: vec!["base".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::RefineFacts(
                     external_facts("prefix").with_prefix("btn-"),
                 ),
@@ -3681,6 +3747,7 @@ fn reuses_clean_contexts_in_incremental_flow_batch() {
             ClassValueFlowNodeV0 {
                 id: "refined".to_string(),
                 predecessors: vec!["base".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::RefineFacts(
                     external_facts("prefix").with_prefix("btn-"),
                 ),
@@ -4368,6 +4435,7 @@ fn flow_assign_node(id: &str, facts: ExternalStringTypeFactsV0) -> ClassValueFlo
     ClassValueFlowNodeV0 {
         id: id.to_string(),
         predecessors: Vec::new(),
+        boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
         transfer: ClassValueFlowTransferV0::AssignFacts(facts),
     }
 }
@@ -4412,6 +4480,7 @@ fn flow_exit_graph(value: &str) -> ClassValueFlowGraphV0 {
             ClassValueFlowNodeV0 {
                 id: "exit".to_string(),
                 predecessors: vec!["value".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],
@@ -4429,6 +4498,7 @@ fn duplicate_node_id_flow_graph(
             .map(|value| ClassValueFlowNodeV0 {
                 id: "duplicate".to_string(),
                 predecessors: Vec::new(),
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::AssignFacts(
                     external_facts("exact").with_values([value]),
                 ),
@@ -4449,6 +4519,7 @@ fn reverse_propagation_flow_graph(node_count: usize) -> ClassValueFlowGraphV0 {
                     ClassValueFlowNodeV0 {
                         id,
                         predecessors: vec![format!("n{:02}", index + 1)],
+                        boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                         transfer: ClassValueFlowTransferV0::Join,
                     }
                 }
@@ -4465,11 +4536,13 @@ fn product_shaped_growing_loop_graph() -> ClassValueFlowGraphV0 {
             ClassValueFlowNodeV0 {
                 id: "loop-header".to_string(),
                 predecessors: vec!["seed".to_string(), "loop-body".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
             ClassValueFlowNodeV0 {
                 id: "loop-body".to_string(),
                 predecessors: vec!["loop-header".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::ConcatFacts(
                     external_facts("exact").with_values(["z"]),
                 ),
@@ -4477,6 +4550,7 @@ fn product_shaped_growing_loop_graph() -> ClassValueFlowGraphV0 {
             ClassValueFlowNodeV0 {
                 id: "exit".to_string(),
                 predecessors: vec!["loop-header".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],
@@ -4491,6 +4565,7 @@ fn external_non_join_scc_entry_graph() -> ClassValueFlowGraphV0 {
             ClassValueFlowNodeV0 {
                 id: "entry-concat".to_string(),
                 predecessors: vec!["seed".to_string(), "internal-join".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::ConcatFacts(
                     external_facts("exact").with_values(["x"]),
                 ),
@@ -4498,6 +4573,7 @@ fn external_non_join_scc_entry_graph() -> ClassValueFlowGraphV0 {
             ClassValueFlowNodeV0 {
                 id: "internal-join".to_string(),
                 predecessors: vec!["entry-concat".to_string()],
+                boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
                 transfer: ClassValueFlowTransferV0::Join,
             },
         ],

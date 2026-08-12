@@ -119,6 +119,7 @@ pub struct TypeFactControlFlowBlockV2Json {
     pub variable_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression_kind: Option<String>,
+    pub boundary_effect: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facts: Option<StringTypeFactsV2Json>,
 }

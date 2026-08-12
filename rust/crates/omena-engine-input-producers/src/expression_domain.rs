@@ -353,6 +353,7 @@ pub fn collect_expression_domain_flow_graphs(
                 nodes: vec![omena_abstract_value::ClassValueFlowNodeV0 {
                     id: entry.expression_id.clone(),
                     predecessors: Vec::new(),
+                    boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
                     transfer: omena_abstract_value::ClassValueFlowTransferV0::AssignFacts(
                         abstract_value_facts(&entry.facts),
                     ),
@@ -557,6 +558,7 @@ fn expression_domain_control_flow_graph_from_type_fact_graph(
                 nodes: vec![omena_abstract_value::ClassValueFlowNodeV0 {
                     id: node_id,
                     predecessors,
+                    boundary_effect: type_fact_class_boundary_effect(block),
                     transfer: type_fact_control_flow_transfer(block, &entry.facts),
                 }],
                 successor_block_ids: block.successor_block_ids.clone(),
@@ -613,6 +615,18 @@ fn type_fact_control_flow_transfer(
             omena_abstract_value::ClassValueFlowTransferV0::ConcatFacts(abstract_value_facts(facts))
         }
         _ => omena_abstract_value::ClassValueFlowTransferV0::Join,
+    }
+}
+
+fn type_fact_class_boundary_effect(
+    block: &TypeFactControlFlowBlockV2,
+) -> omena_abstract_value::ClassBoundaryEffectV0 {
+    match block.boundary_effect.as_str() {
+        "concatInsideToken" => omena_abstract_value::ClassBoundaryEffectV0::ConcatInsideToken,
+        "concatAtTokenBoundary" => {
+            omena_abstract_value::ClassBoundaryEffectV0::ConcatAtTokenBoundary
+        }
+        _ => omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
     }
 }
 
@@ -1217,6 +1231,7 @@ mod tests {
             symbol_ordinal: None,
             variable_name: None,
             expression_kind: None,
+            boundary_effect: "unknownBoundary".to_string(),
             facts: None,
         }
     }

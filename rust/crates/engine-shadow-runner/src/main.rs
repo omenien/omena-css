@@ -33,10 +33,10 @@ use engine_input_producers::{
     summarize_source_side_evaluator_candidates_input, summarize_type_fact_input,
 };
 use omena_abstract_value::{
-    AbstractClassValueV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
-    CompositeClassValueInputV0, ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0,
-    abstract_class_value_kind, analyze_k_limited_call_site_flows, bottom_class_value,
-    char_inclusion_class_value, composite_class_value, exact_class_value,
+    AbstractClassValueV0, ClassBoundaryEffectV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
+    ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
+    KLimitedCallSiteFlowInputV0, abstract_class_value_kind, analyze_k_limited_call_site_flows,
+    bottom_class_value, char_inclusion_class_value, composite_class_value, exact_class_value,
     external_string_type_facts_from_abstract_class_value, finite_set_class_value,
     prefix_class_value, prefix_suffix_class_value, suffix_class_value, top_class_value,
 };
@@ -3248,6 +3248,7 @@ fn checker_k_limited_flow_graph(
         nodes: vec![ClassValueFlowNodeV0 {
             id: "exit".to_string(),
             predecessors: Vec::new(),
+            boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
             transfer: ClassValueFlowTransferV0::AssignFacts(checker_external_facts_from_value(
                 &context.value,
             )),

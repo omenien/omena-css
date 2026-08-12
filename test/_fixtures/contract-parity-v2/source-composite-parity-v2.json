@@ -414,6 +414,7 @@
           "blocks": [
             {
               "id": "entry",
+              "boundaryEffect": "unknownBoundary",
               "kind": "entry",
               "successorBlockIds": ["assignment:0"],
               "transferKind": "entry"
@@ -434,6 +435,7 @@
                 ]
               },
               "id": "assignment:0",
+              "boundaryEffect": "unknownBoundary",
               "kind": "assignment",
               "successorBlockIds": ["exit"],
               "symbolOrdinal": 7,
@@ -442,6 +444,7 @@
             },
             {
               "id": "exit",
+              "boundaryEffect": "unknownBoundary",
               "kind": "exit",
               "successorBlockIds": [],
               "transferKind": "exit"
