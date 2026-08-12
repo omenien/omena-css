@@ -133,6 +133,7 @@ const CERTAINTY_HEDGE_INPUT: EngineInputV2 = {
             kind: "assignment",
             transferKind: "assignFacts",
             successorBlockIds: ["loop"],
+            boundaryEffect: "unknownBoundary",
             facts: {
               kind: "finiteSet",
               values: ["a", "b"],
@@ -143,6 +144,7 @@ const CERTAINTY_HEDGE_INPUT: EngineInputV2 = {
             kind: "loopBody",
             transferKind: "concatFacts",
             successorBlockIds: ["loop"],
+            boundaryEffect: "unknownBoundary",
           },
         ],
       },
