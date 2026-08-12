@@ -83,6 +83,7 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build/omena-napi
+      - run: pnpm omena-check run contract/parity-v2-golden
       - run: pnpm omena-check run contract/type-fact-backend-parity
       - run: pnpm omena-check run test/test
       - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform

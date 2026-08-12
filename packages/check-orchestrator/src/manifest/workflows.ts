@@ -146,11 +146,6 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",
   },
   {
-    id: "contract/parity-v2-golden",
-    reason:
-      "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",
-  },
-  {
     id: "contract/parity-v2-smoke",
     reason:
       "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",

@@ -521,6 +521,15 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "verify",
   },
   {
+    id: "contract/parity-v2-golden",
+    kind: "gate",
+    scope: "contract",
+    packageTarget: "contract/parity-v2-golden",
+    tags: ["contract", "golden", "parity"],
+    ciTier: "verify",
+    ciGroup: "verify",
+  },
+  {
     id: "contract/type-fact-backend-parity",
     kind: "gate",
     scope: "contract",
