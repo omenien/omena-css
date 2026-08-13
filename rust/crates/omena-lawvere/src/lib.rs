@@ -171,9 +171,11 @@ impl ReorderabilityCertificateV0 {
     ) -> bool {
         let before = adjacent_schedule_pair_term_v0(left, right);
         let after = adjacent_schedule_pair_term_v0(right, left);
-        self.issuance_token
-            .as_ref()
-            .is_some_and(|token| token.matches_endpoints_v0(&before, &after))
+        let trusted_catalog = independence::adjacent_schedule_swap_catalog_v0();
+        self.issuance_token.as_ref().is_some_and(|token| {
+            token.matches_endpoints_v0(&before, &after)
+                && token.matches_catalog_v0(&trusted_catalog)
+        })
     }
 }
 

@@ -84,6 +84,11 @@ pub use runtime::incremental::{
 pub use runtime::lex_cache::{
     reset_transform_lex_cache_splice_telemetry, transform_lex_cache_splice_telemetry_snapshot,
 };
+pub use runtime::observation_projection::{
+    TransformExecutableCascadeWinnerEquivalenceV0, TransformExecutableObservationProjectionV0,
+    TransformExecutableObservationReportV0, compare_transform_cascade_winner_observation_v0,
+    execute_transform_pass_selector_matching_observation_v0,
+};
 #[cfg(feature = "transform-catalog-trace")]
 #[allow(deprecated)]
 pub use runtime::planner::plan_transform_passes_parallel_lawvere_layers;

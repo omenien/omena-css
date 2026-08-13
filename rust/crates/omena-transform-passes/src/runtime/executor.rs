@@ -3189,7 +3189,9 @@ fn checked_token_ownership_admission_v0(
         &CanonicalRewriteAssumptionsV0::default(),
     )
     .ok()
-    .filter(|token| token.matches_endpoints_v0(&before, &after))
+    .filter(|token| {
+        token.matches_endpoints_v0(&before, &after) && token.matches_catalog_v0(&catalog)
+    })
 }
 
 struct ClosedWorldAdmissionO3V0<'a> {

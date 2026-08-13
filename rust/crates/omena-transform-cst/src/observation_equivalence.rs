@@ -315,6 +315,54 @@ pub fn compare_transform_observation_outputs_v0(
     }
 }
 
+/// Compare one authority-produced observation projection.
+///
+/// The caller supplies values computed by the owning parser or semantic
+/// authority; this function owns the observation-indexed equality relation.
+pub fn compare_transform_observation_projection_values_v0(
+    profile_id: impl Into<String>,
+    kind: ObservationKindV0,
+    left_projection: &str,
+    right_projection: &str,
+) -> TransformObservationEquivalenceV0 {
+    let observer = TransformObserverV0::Contract(kind);
+    let equivalent = left_projection == right_projection;
+    TransformObservationEquivalenceV0 {
+        schema_version: "0",
+        product: "omena-transform-cst.observation-indexed-equivalence",
+        profile_id: profile_id.into(),
+        compared_observer_count: 1,
+        differing_observers: if equivalent {
+            Vec::new()
+        } else {
+            vec![observer]
+        },
+        equivalent,
+    }
+}
+
+/// Compare exact output bytes through the same observation relation used by
+/// committed transform-independence data.
+pub fn compare_raw_transform_observation_bytes_v0(
+    profile_id: impl Into<String>,
+    left: &[u8],
+    right: &[u8],
+) -> TransformObservationEquivalenceV0 {
+    let equivalent = left == right;
+    TransformObservationEquivalenceV0 {
+        schema_version: "0",
+        product: "omena-transform-cst.observation-indexed-equivalence",
+        profile_id: profile_id.into(),
+        compared_observer_count: 1,
+        differing_observers: if equivalent {
+            Vec::new()
+        } else {
+            vec![TransformObserverV0::RawBytes]
+        },
+        equivalent,
+    }
+}
+
 pub fn observation_indexed_equivalent_v0(
     profile: &TransformObservationProfileV0,
     left: &TransformObservationOutputV0,
@@ -458,7 +506,7 @@ mod tests {
     }
 
     #[test]
-    fn whitespace_strip_is_semantically_equivalent_but_not_raw_equivalent()
+    fn declared_projection_relation_distinguishes_semantic_and_raw_values()
     -> Result<(), Box<dyn std::error::Error>> {
         let left = output_with_override(
             ".a { color: red; }",
@@ -482,7 +530,7 @@ mod tests {
         let parsed_equivalent = observation_indexed_equivalent_v0(&parsed, &left, &right);
         let raw_equivalent = observation_indexed_equivalent_v0(&raw, &left, &right);
         println!(
-            "pass=whitespace-strip parsedProfile={} rawProfile={}",
+            "declaredOnly=true parsedProfile={} rawProfile={}",
             parsed_equivalent, raw_equivalent
         );
         assert!(parsed_equivalent);
@@ -491,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    fn cascade_winner_change_only_reddens_profiles_that_observe_it()
+    fn declared_projection_relation_scopes_a_cascade_winner_change()
     -> Result<(), Box<dyn std::error::Error>> {
         let matrix = default_transform_observation_matrix_v0();
         let whitespace = matrix
@@ -539,7 +587,7 @@ mod tests {
         let cascade_equivalent = observation_indexed_equivalent_v0(&cascade, &left, &right);
         let disjoint_equivalent = observation_indexed_equivalent_v0(&disjoint, &left, &right);
         println!(
-            "pass=whitespace-strip cascadeProfile={} disjointSourceMapProfile={}",
+            "declaredOnly=true cascadeProfile={} disjointSourceMapProfile={}",
             cascade_equivalent, disjoint_equivalent
         );
         assert!(!cascade_equivalent);

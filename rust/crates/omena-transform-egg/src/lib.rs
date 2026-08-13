@@ -97,6 +97,11 @@ pub enum EggRewriteClaimEvidenceV0 {
     IndependentlyChecked {
         token: RewriteIssuanceTokenV0,
     },
+    /// The checker derived the rewrite endpoints from a trusted catalog, but
+    /// the catalog rule carried no side-condition certificate for this claim.
+    DerivabilityOnly {
+        token: RewriteIssuanceTokenV0,
+    },
     NotIndependentlyChecked {
         owner: String,
         reentry_condition: String,
@@ -106,6 +111,10 @@ pub enum EggRewriteClaimEvidenceV0 {
 impl EggRewriteClaimEvidenceV0 {
     pub fn independently_checked(token: RewriteIssuanceTokenV0) -> Self {
         Self::IndependentlyChecked { token }
+    }
+
+    pub fn derivability_only(token: RewriteIssuanceTokenV0) -> Self {
+        Self::DerivabilityOnly { token }
     }
 
     pub fn not_independently_checked(
@@ -120,14 +129,14 @@ impl EggRewriteClaimEvidenceV0 {
 
     fn issued_token(&self) -> Option<&RewriteIssuanceTokenV0> {
         match self {
-            Self::IndependentlyChecked { token } => Some(token),
+            Self::IndependentlyChecked { token } | Self::DerivabilityOnly { token } => Some(token),
             Self::NotIndependentlyChecked { .. } => None,
         }
     }
 
     fn is_well_formed(&self) -> bool {
         match self {
-            Self::IndependentlyChecked { .. } => true,
+            Self::IndependentlyChecked { .. } | Self::DerivabilityOnly { .. } => true,
             Self::NotIndependentlyChecked {
                 owner,
                 reentry_condition,
@@ -495,6 +504,7 @@ pub fn decide_checked_egg_rewrite(
     candidate: &CheckedEggRewriteCandidateV0,
 ) -> EggRewriteDecisionV0 {
     let endpoint_terms = selector_kernel_terms_v0(&candidate.before, &candidate.after);
+    let trusted_selector_catalog = selector_rewrite_rule_catalog_v0();
     let evidence = [
         &candidate.proof.specificity,
         &candidate.proof.provenance,
@@ -507,11 +517,18 @@ pub fn decide_checked_egg_rewrite(
     } else if candidate.pass_id == TransformPassKind::SelectorIsWhereCompression.id()
         && candidate.proof.specificity.issued_token().is_none()
     {
-        Some("selector rewrite requires an independently checked specificity claim")
+        Some("selector rewrite requires a checker-issued derivability token for specificity")
     } else if candidate.pass_id == TransformPassKind::SelectorIsWhereCompression.id()
         && candidate.proof.cascade_safety.issued_token().is_none()
     {
-        Some("selector rewrite requires an independently checked cascade-safety claim")
+        Some("selector rewrite requires a checker-issued derivability token for cascade safety")
+    } else if candidate.pass_id == TransformPassKind::SelectorIsWhereCompression.id()
+        && evidence
+            .iter()
+            .filter_map(|claim| claim.issued_token())
+            .any(|token| !token.matches_catalog_v0(&trusted_selector_catalog))
+    {
+        Some("rewrite certificate token does not match the trusted rule catalog")
     } else if evidence
         .iter()
         .filter_map(|claim| claim.issued_token())
@@ -706,10 +723,10 @@ fn selector_rewrite_witnesses(
                     before,
                     after,
                     proof: CheckedEggRewriteProofV0::new(
-                        EggRewriteClaimEvidenceV0::independently_checked(token.clone()),
+                        EggRewriteClaimEvidenceV0::derivability_only(token.clone()),
                         ObligationFamilyIdV0::CascadeSafetyFloor,
                         declared_provenance_gap_v0(),
-                        EggRewriteClaimEvidenceV0::independently_checked(token),
+                        EggRewriteClaimEvidenceV0::derivability_only(token),
                     ),
                 });
                 witnesses.push(EggRewriteSourceWitnessV0 {
@@ -1582,10 +1599,10 @@ mod tests {
             before: before.to_owned(),
             after: after.to_owned(),
             proof: CheckedEggRewriteProofV0::new(
-                EggRewriteClaimEvidenceV0::independently_checked(token.clone()),
+                EggRewriteClaimEvidenceV0::derivability_only(token.clone()),
                 ObligationFamilyIdV0::CascadeSafetyFloor,
                 declared_provenance_gap_v0(),
-                EggRewriteClaimEvidenceV0::independently_checked(token),
+                EggRewriteClaimEvidenceV0::derivability_only(token),
             ),
         });
         let legacy = execute_egg_rewrite(EggRewriteCandidateV0 {
@@ -1617,10 +1634,10 @@ mod tests {
             before: "(is other)".to_owned(),
             after: "other".to_owned(),
             proof: CheckedEggRewriteProofV0::new(
-                EggRewriteClaimEvidenceV0::independently_checked(token.clone()),
+                EggRewriteClaimEvidenceV0::derivability_only(token.clone()),
                 ObligationFamilyIdV0::CascadeSafetyFloor,
                 declared_provenance_gap_v0(),
-                EggRewriteClaimEvidenceV0::independently_checked(token),
+                EggRewriteClaimEvidenceV0::derivability_only(token),
             ),
         });
 
@@ -1628,6 +1645,80 @@ mod tests {
         assert_eq!(
             decision.blocked_reason,
             Some("rewrite certificate token does not match candidate endpoints")
+        );
+    }
+
+    #[test]
+    fn checked_selector_rejects_token_issued_by_spoofed_catalog() {
+        let before = RewriteTermV0::apply("selectorIs", vec![RewriteTermV0::atom("ready")]);
+        let after = RewriteTermV0::atom("ready");
+        let spoofed_catalog = omena_cascade_proof::RewriteRuleCatalogV0 {
+            schema_version: omena_cascade_proof::REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0.to_owned(),
+            operators: vec![omena_cascade_proof::RewriteOperatorV0 {
+                operator: "selectorIs".to_owned(),
+                arity: 1,
+            }],
+            rules: vec![omena_cascade_proof::RewriteRuleV0 {
+                rule_id: "selector-is-single-v0".to_owned(),
+                before_pattern: omena_cascade_proof::RewritePatternV0::variable("anything"),
+                after_pattern: omena_cascade_proof::RewritePatternV0::variable("whatever"),
+                side_condition_kind:
+                    omena_cascade_proof::RewriteSideConditionKindV0::NoSideCondition,
+            }],
+        };
+        let certificate = RewriteCertificateEnvelopeV0 {
+            schema_version: REWRITE_CERTIFICATE_SCHEMA_VERSION_V0.to_owned(),
+            max_depth: 1,
+            max_nodes: 1,
+            certificate: RewriteCertificateV0::Rewrite {
+                rule_id: "selector-is-single-v0".to_owned(),
+                substitution: vec![
+                    RewriteSubstitutionEntryV0 {
+                        variable: "anything".to_owned(),
+                        term: before,
+                    },
+                    RewriteSubstitutionEntryV0 {
+                        variable: "whatever".to_owned(),
+                        term: after,
+                    },
+                ],
+                side_condition: SideConditionCertV0::NoSideCondition,
+            },
+        };
+        let token = check_rewrite_certificate_v0(
+            &RewriteTermV0::apply("selectorIs", vec![RewriteTermV0::atom("ready")]),
+            &RewriteTermV0::atom("ready"),
+            &spoofed_catalog,
+            &certificate,
+            &CanonicalRewriteAssumptionsV0::default(),
+        );
+        assert!(
+            token.is_ok(),
+            "spoof fixture must reach the consumer: {token:?}"
+        );
+        let Ok(token) = token else {
+            return;
+        };
+
+        let decision = decide_checked_egg_rewrite(&CheckedEggRewriteCandidateV0 {
+            pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+            before: "(is ready)".to_owned(),
+            after: "ready".to_owned(),
+            proof: CheckedEggRewriteProofV0::new(
+                EggRewriteClaimEvidenceV0::independently_checked(token.clone()),
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                declared_provenance_gap_v0(),
+                EggRewriteClaimEvidenceV0::independently_checked(token),
+            ),
+        });
+
+        assert!(
+            !decision.accepted,
+            "spoofed catalog token reached admission"
+        );
+        assert_eq!(
+            decision.blocked_reason,
+            Some("rewrite certificate token does not match the trusted rule catalog")
         );
     }
 
@@ -1650,7 +1741,7 @@ mod tests {
         assert!(!decision.accepted);
         assert_eq!(
             decision.blocked_reason,
-            Some("selector rewrite requires an independently checked specificity claim")
+            Some("selector rewrite requires a checker-issued derivability token for specificity")
         );
     }
 

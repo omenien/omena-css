@@ -30,7 +30,8 @@ pub use observation_equivalence::{
     TransformObservationMatrixV0, TransformObservationOutputErrorV0, TransformObservationOutputV0,
     TransformObservationProfileErrorV0, TransformObservationProfileV0,
     TransformObservationProjectionV0, TransformObserverClassV0, TransformObserverV0,
-    all_observation_kinds_v0, compare_transform_observation_outputs_v0,
+    all_observation_kinds_v0, compare_raw_transform_observation_bytes_v0,
+    compare_transform_observation_outputs_v0, compare_transform_observation_projection_values_v0,
     default_transform_observation_matrix_v0, observation_indexed_equivalent_v0,
     observation_kind_observer_class_v0, project_transform_observation_v0,
 };

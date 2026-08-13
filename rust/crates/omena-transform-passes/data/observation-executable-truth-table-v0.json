@@ -1,0 +1,26 @@
+[
+  {
+    "caseId": "r15-selector-matching-positive",
+    "passId": "whitespace-strip",
+    "observationKind": "selectorMatching",
+    "inputCss": ".a { color: red; }",
+    "candidateOutputCss": null,
+    "expectedEquivalent": true
+  },
+  {
+    "caseId": "r15-raw-bytes-negative",
+    "passId": "whitespace-strip",
+    "observationKind": "rawBytes",
+    "inputCss": ".a { color: red; }",
+    "candidateOutputCss": null,
+    "expectedEquivalent": false
+  },
+  {
+    "caseId": "r16-cascade-winner-corruption-negative",
+    "passId": "whitespace-strip",
+    "observationKind": "cascadeWinner",
+    "inputCss": ".a { color: red; } .a { color: blue; }",
+    "candidateOutputCss": ".a{color:blue}.a{color:red}",
+    "expectedEquivalent": false
+  }
+]

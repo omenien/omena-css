@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 
 pub const REWRITE_CERTIFICATE_SCHEMA_VERSION_V0: &str = "0";
 pub const REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0: &str = "0";
+pub const REWRITE_RULE_CATALOG_SCHEMA_ID_V0: &str = "omena-cascade-proof.rewrite-rule-catalog.v0";
 pub const CANONICAL_REWRITE_ASSUMPTIONS_SCHEMA_VERSION_V0: &str = "0";
 pub const REWRITE_CERTIFICATE_MAX_DEPTH_V0: usize = 64;
 pub const REWRITE_CERTIFICATE_MAX_NODES_V0: usize = 4_096;
@@ -608,6 +609,8 @@ struct RewriteIssuanceSealV0(());
 /// let _token = RewriteIssuanceTokenV0 {
 ///     before_digest: [0; 32],
 ///     after_digest: [0; 32],
+///     catalog_schema_id: "caller-owned",
+///     catalog_content_digest: [0; 32],
 ///     checked_rule_ids: Vec::new(),
 ///     _seal: loop {},
 /// };
@@ -616,15 +619,24 @@ struct RewriteIssuanceSealV0(());
 pub struct RewriteIssuanceTokenV0 {
     before_digest: [u8; 32],
     after_digest: [u8; 32],
+    catalog_schema_id: &'static str,
+    catalog_content_digest: [u8; 32],
     checked_rule_ids: Vec<String>,
     _seal: RewriteIssuanceSealV0,
 }
 
 impl RewriteIssuanceTokenV0 {
-    fn issue(before: &RewriteTermV0, after: &RewriteTermV0, checked_rule_ids: Vec<String>) -> Self {
+    fn issue(
+        before: &RewriteTermV0,
+        after: &RewriteTermV0,
+        catalog: &RewriteRuleCatalogV0,
+        checked_rule_ids: Vec<String>,
+    ) -> Self {
         Self {
             before_digest: term_digest_v0(before),
             after_digest: term_digest_v0(after),
+            catalog_schema_id: REWRITE_RULE_CATALOG_SCHEMA_ID_V0,
+            catalog_content_digest: catalog_content_digest_v0(catalog),
             checked_rule_ids,
             _seal: RewriteIssuanceSealV0(()),
         }
@@ -642,10 +654,26 @@ impl RewriteIssuanceTokenV0 {
         self.checked_rule_ids.as_slice()
     }
 
+    pub const fn catalog_schema_id_v0(&self) -> &'static str {
+        self.catalog_schema_id
+    }
+
+    pub fn catalog_content_digest_hex_v0(&self) -> String {
+        digest_hex_v0(&self.catalog_content_digest)
+    }
+
     /// Re-bind a sealed issuance token to the exact endpoints a consumer is
     /// about to apply. A token for a different rewrite pair is not reusable.
     pub fn matches_endpoints_v0(&self, before: &RewriteTermV0, after: &RewriteTermV0) -> bool {
         self.before_digest == term_digest_v0(before) && self.after_digest == term_digest_v0(after)
+    }
+
+    /// Compare the sealed catalog identity with catalog content selected by a
+    /// consumer. Callers do not supply a digest: it is re-derived here from
+    /// the catalog value the consumer trusts.
+    pub fn matches_catalog_v0(&self, catalog: &RewriteRuleCatalogV0) -> bool {
+        self.catalog_schema_id == REWRITE_RULE_CATALOG_SCHEMA_ID_V0
+            && self.catalog_content_digest == catalog_content_digest_v0(catalog)
     }
 }
 
@@ -722,6 +750,7 @@ pub fn check_rewrite_certificate_v0(
     Ok(RewriteIssuanceTokenV0::issue(
         before,
         after,
+        rule_catalog,
         derived.checked_rule_ids,
     ))
 }
@@ -1807,6 +1836,102 @@ fn first_term_mismatch_path(expected: &RewriteTermV0, observed: &RewriteTermV0) 
     Vec::new()
 }
 
+/// Return the order-independent digest used to bind an issuance token to the
+/// exact catalog content checked by the kernel.
+pub fn rewrite_rule_catalog_content_digest_hex_v0(catalog: &RewriteRuleCatalogV0) -> String {
+    digest_hex_v0(&catalog_content_digest_v0(catalog))
+}
+
+fn catalog_content_digest_v0(catalog: &RewriteRuleCatalogV0) -> [u8; 32] {
+    let mut operators = catalog
+        .operators
+        .iter()
+        .map(|operator| {
+            let mut material = Vec::new();
+            append_framed_bytes_v0(&mut material, operator.operator.as_bytes());
+            append_framed_bytes_v0(&mut material, operator.arity.to_string().as_bytes());
+            material
+        })
+        .collect::<Vec<_>>();
+    operators.sort();
+
+    let mut rules = catalog
+        .rules
+        .iter()
+        .map(|rule| {
+            let mut material = Vec::new();
+            append_framed_bytes_v0(&mut material, rule.rule_id.as_bytes());
+            append_pattern_material_v0(&mut material, &rule.before_pattern);
+            append_pattern_material_v0(&mut material, &rule.after_pattern);
+            append_framed_bytes_v0(
+                &mut material,
+                rewrite_side_condition_kind_id_v0(rule.side_condition_kind).as_bytes(),
+            );
+            material
+        })
+        .collect::<Vec<_>>();
+    rules.sort();
+
+    let mut hasher = blake3::Hasher::new();
+    update_framed_hash_v0(&mut hasher, REWRITE_RULE_CATALOG_SCHEMA_ID_V0.as_bytes());
+    update_framed_hash_v0(&mut hasher, catalog.schema_version.as_bytes());
+    update_framed_hash_v0(&mut hasher, operators.len().to_string().as_bytes());
+    for operator in operators {
+        update_framed_hash_v0(&mut hasher, operator.as_slice());
+    }
+    update_framed_hash_v0(&mut hasher, rules.len().to_string().as_bytes());
+    for rule in rules {
+        update_framed_hash_v0(&mut hasher, rule.as_slice());
+    }
+    *hasher.finalize().as_bytes()
+}
+
+fn append_pattern_material_v0(material: &mut Vec<u8>, pattern: &RewritePatternV0) {
+    match pattern {
+        RewritePatternV0::Atom { value } => {
+            append_framed_bytes_v0(material, b"atom");
+            append_framed_bytes_v0(material, value.as_bytes());
+        }
+        RewritePatternV0::Variable { name } => {
+            append_framed_bytes_v0(material, b"variable");
+            append_framed_bytes_v0(material, name.as_bytes());
+        }
+        RewritePatternV0::Apply { operator, operands } => {
+            append_framed_bytes_v0(material, b"apply");
+            append_framed_bytes_v0(material, operator.as_bytes());
+            append_framed_bytes_v0(material, operands.len().to_string().as_bytes());
+            for operand in operands {
+                append_pattern_material_v0(material, operand);
+            }
+        }
+    }
+}
+
+fn rewrite_side_condition_kind_id_v0(kind: RewriteSideConditionKindV0) -> &'static str {
+    match kind {
+        RewriteSideConditionKindV0::NoSideCondition => "noSideCondition",
+        RewriteSideConditionKindV0::CascadeWinnerEquality => "cascadeWinnerEquality",
+        RewriteSideConditionKindV0::ComputedValueEquality => "computedValueEquality",
+        RewriteSideConditionKindV0::SourceMapTrace => "sourceMapTrace",
+        RewriteSideConditionKindV0::TokenOwnershipSeparability => "tokenOwnershipSeparability",
+        RewriteSideConditionKindV0::TransformIndependence => "transformIndependence",
+    }
+}
+
+fn append_framed_bytes_v0(material: &mut Vec<u8>, value: &[u8]) {
+    material.extend_from_slice(value.len().to_string().as_bytes());
+    material.push(0);
+    material.extend_from_slice(value);
+    material.push(0xff);
+}
+
+fn update_framed_hash_v0(hasher: &mut blake3::Hasher, value: &[u8]) {
+    hasher.update(value.len().to_string().as_bytes());
+    hasher.update(b"\0");
+    hasher.update(value);
+    hasher.update(b"\xff");
+}
+
 fn term_digest_v0(term: &RewriteTermV0) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     let mut stack = vec![term];
@@ -2450,7 +2575,8 @@ mod tests {
 
     #[test]
     fn real_selector_trans_cong_rewrite_chain_issues_token() {
-        let result = check_selector(&selector_rewrite_rule_catalog_v0(), &selector_certificate());
+        let catalog = selector_rewrite_rule_catalog_v0();
+        let result = check_selector(&catalog, &selector_certificate());
         assert!(result.is_ok(), "selector certificate rejected: {result:?}");
         let Ok(token) = result else {
             return;
@@ -2461,11 +2587,38 @@ mod tests {
             ["selector-list-deduplicate-v0", "selector-is-single-v0"]
         );
         assert_ne!(token.before_digest_hex_v0(), token.after_digest_hex_v0());
+        assert_eq!(
+            token.catalog_schema_id_v0(),
+            REWRITE_RULE_CATALOG_SCHEMA_ID_V0
+        );
+        assert!(token.matches_catalog_v0(&catalog));
         println!(
-            "issued=true beforeDigest={} afterDigest={} checkedRules={:?}",
+            "issued=true beforeDigest={} afterDigest={} catalogSchemaId={} catalogDigest={} checkedRules={:?}",
             token.before_digest_hex_v0(),
             token.after_digest_hex_v0(),
+            token.catalog_schema_id_v0(),
+            token.catalog_content_digest_hex_v0(),
             token.checked_rule_ids_v0()
+        );
+    }
+
+    #[test]
+    fn catalog_digest_is_order_independent_and_content_sensitive() {
+        let catalog = selector_rewrite_rule_catalog_v0();
+        let mut permuted = catalog.clone();
+        permuted.operators.reverse();
+        permuted.rules.reverse();
+        assert_eq!(
+            rewrite_rule_catalog_content_digest_hex_v0(&catalog),
+            rewrite_rule_catalog_content_digest_hex_v0(&permuted)
+        );
+
+        let mut spoofed = catalog.clone();
+        spoofed.rules[1].before_pattern = RewritePatternV0::variable("anything");
+        spoofed.rules[1].after_pattern = RewritePatternV0::variable("whatever");
+        assert_ne!(
+            rewrite_rule_catalog_content_digest_hex_v0(&catalog),
+            rewrite_rule_catalog_content_digest_hex_v0(&spoofed)
         );
     }
 

@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
 const catalogCratePath = path.join("rust/crates", ["omena", ["law", "vere"].join("")].join("-"));
 const catalogPath = path.join(catalogCratePath, "src/lib.rs");
+const proofKernelPath = "rust/crates/omena-cascade-proof/src/proof_kernel.rs";
 const executorPath = "rust/crates/omena-transform-passes/src/runtime/executor.rs";
+const eggPath = "rust/crates/omena-transform-egg/src/lib.rs";
 const independencePath = path.join(catalogCratePath, "src/independence.rs");
 const dataPath = path.join(catalogCratePath, "data/transform-catalog-independence-v0.json");
 const args = new Set(process.argv.slice(2));
@@ -22,12 +24,15 @@ assert.ok(
 );
 
 let catalogSource = read(catalogPath);
+const proofKernelSource = read(proofKernelPath);
 let executorSource = read(executorPath);
+const eggSource = read(eggPath);
 const independenceSource = read(independencePath);
 const independenceData = JSON.parse(read(dataPath)) as {
-  entries: readonly { disposition: string }[];
+  entries: { leftPassId: string; rightPassId: string; disposition: string }[];
   profiles: readonly unknown[];
 };
+const injectedIndependenceData = structuredClone(independenceData);
 
 if (injectRankHint) {
   catalogSource = catalogSource.replace(
@@ -41,11 +46,23 @@ if (injectO1Bypass) {
     "false",
   );
 }
+if (injectDependentPair) {
+  const dependent = injectedIndependenceData.entries.find(
+    (entry) =>
+      entry.leftPassId === "color-mix-lowering" && entry.rightPassId === "color-function-lowering",
+  );
+  assert.ok(dependent, "dependent-pair injection fixture is absent");
+  dependent.disposition = "independent";
+}
+if (injectEmptyIndependence) {
+  injectedIndependenceData.entries = [];
+}
 
 const planBody = functionBody(catalogSource, "plan_transform_catalog_parallel_layers_v0");
 const layerBody = functionBody(catalogSource, "transform_catalog_independence_clusters_v0");
 const o1Body = functionBody(executorSource, "closed_world_admission_o1_reasons");
 const tokenConsumerBody = functionBody(executorSource, "checked_token_ownership_admission_v0");
+const selectorDecisionBody = functionBody(eggSource, "decide_checked_egg_rewrite");
 
 assert.match(planBody, /transform_catalog_independence_clusters_v0\(requested\)/);
 assert.doesNotMatch(planBody, /transform_catalog_equation_clusters_v0/);
@@ -62,6 +79,10 @@ assert.match(o1Body, /checked_token_ownership_admission_v0/);
 assert.match(o1Body, /proofKernelToken:/);
 assert.match(tokenConsumerBody, /check_rewrite_certificate_v0/);
 assert.match(tokenConsumerBody, /matches_endpoints_v0/);
+assert.match(tokenConsumerBody, /matches_catalog_v0/);
+assert.match(selectorDecisionBody, /selector_rewrite_rule_catalog_v0/);
+assert.match(selectorDecisionBody, /matches_catalog_v0/);
+assert.match(proofKernelSource, /catalog_content_digest:\s*\[u8; 32\]/);
 assert.match(independenceSource, /default_transform_observation_matrix_v0\(\)/);
 assert.match(independenceSource, /checked_adjacent_swap_token_v0/);
 assert.match(independenceSource, /canonicalize_transform_catalog_schedule_v0/);
@@ -75,14 +96,30 @@ const kernelOutput = cargoTest(
   "omena-cascade-proof",
   "proof_kernel::tests::transform_independence_requires_observation_and_precondition_halves",
 );
+const catalogDigestOutput = cargoTest(
+  "omena-cascade-proof",
+  "proof_kernel::tests::catalog_digest_is_order_independent_and_content_sensitive",
+);
+const spoofedCatalogOutput = cargoTest(
+  "omena-transform-egg",
+  "tests::checked_selector_rejects_token_issued_by_spoofed_catalog",
+);
 const ownershipOutput = cargoTest(
   "omena-transform-passes",
   "tests::runtime_boundary::proof_kernel_token_closes_favourable_ownership_count_bypass",
   true,
 );
-const observationOutput = cargoTest(
-  "omena-transform-cst",
-  "observation_equivalence::tests::cascade_winner_change_only_reddens_profiles_that_observe_it",
+const r15ObservationOutput = cargoTest(
+  "omena-transform-passes",
+  "runtime::observation_projection::tests::r15_whitespace_pass_is_selector_equivalent_but_not_raw_equivalent",
+);
+const r16ObservationOutput = cargoTest(
+  "omena-transform-passes",
+  "runtime::observation_projection::tests::r16_executed_pass_baseline_detects_cascade_winner_corruption",
+);
+const executableTruthOutput = cargoTest(
+  "omena-transform-passes",
+  "runtime::observation_projection::tests::executable_truth_table_runs_product_pass_and_authority_projections",
 );
 const r18Output = cargoTest(
   "omena-lawvere",
@@ -109,37 +146,43 @@ const r20Output = cargoTest(
   "independence::tests::empty_independence_data_collapses_parallel_width_to_one",
   true,
 );
+const injectedDataOutput = cargoTest(
+  "omena-lawvere",
+  "independence::tests::gate_supplied_independence_data_satisfies_product_invariants",
+  true,
+  {
+    OMENA_PROOF_KERNEL_INDEPENDENCE_JSON: JSON.stringify(injectedIndependenceData),
+  },
+);
 
 assert.match(kernelOutput, /test result: ok/);
+assert.match(catalogDigestOutput, /test result: ok/);
+assert.match(spoofedCatalogOutput, /test result: ok/);
 assert.match(ownershipOutput, /test result: ok/);
-assert.match(observationOutput, /test result: ok/);
+assert.match(
+  r15ObservationOutput,
+  /selectorProjection passExecuted=true pass=whitespace-strip selectorMatching=true rawBytes=false/,
+);
+assert.match(
+  r16ObservationOutput,
+  /cascadeWinnerProjection passExecuted=true pass=whitespace-strip passCascadeWinner=true corruptedCascadeWinner=false disjointSelectorMatching=true/,
+);
+assert.match(executableTruthOutput, /test result: ok/);
 assert.match(r18Output, /bound=4 permutations=24[\s\S]*canonicalOracleAgreement=true/);
 assert.match(productRowsOutput, /test result: ok/);
 assert.match(r19ProductOutput, /equal=false/);
 assert.match(r19CheckerOutput, /dataValidation=Err/);
 assert.match(r19CheckerOutput, /S1 checker rejected reorder certificate/);
 assert.match(r20Output, /entries=0 layers=2 maxParallelWidth=1/);
-
-if (injectDependentPair) {
-  assert.doesNotMatch(
-    r19CheckerOutput,
-    /dataValidation=Err|S1 checker rejected reorder certificate/,
-    "injected dependent pair was rejected instead of being admitted",
-  );
-}
-if (injectEmptyIndependence) {
-  assert.match(
-    r20Output,
-    /maxParallelWidth=[2-9]/,
-    "empty independence data unexpectedly collapsed parallel width to one",
-  );
-}
+assert.match(injectedDataOutput, /injectedDataValidation=Ok independentPairs=1 maxParallelWidth=2/);
 
 process.stdout.write(
   [
     "proof-kernel gate: ok",
     "checkerSideConditions=tokenOwnershipSeparability,transformIndependence",
+    "catalogBinding=schemaId+contentDigest trustedCatalogSelectedByConsumer",
     "observationProfiles=1 independentPairs=1 dependentPairs=1",
+    "executableObservationKinds=selectorMatching,cascadeWinner",
     "scheduleOracleBound=4 schedulePermutations=24",
     "executorConsumesPlan=false nonConsumptionReason=executorKeepsValidatedSerialDagUntilParallelApplicationSemanticsLand",
     "o1Consumer=closed_world_admission_o1_reasons",
@@ -147,16 +190,25 @@ process.stdout.write(
   ].join("\n"),
 );
 
-function cargoTest(packageName: string, testName: string, allFeatures = false): string {
+function cargoTest(
+  packageName: string,
+  testName: string,
+  allFeatures = false,
+  extraEnv: Readonly<Record<string, string>> = {},
+): string {
   const cargoArgs = ["test", "--manifest-path", "rust/Cargo.toml", "-p", packageName];
   if (allFeatures) cargoArgs.push("--all-features");
   cargoArgs.push(testName, "--", "--exact", "--nocapture");
-  return execFileSync("cargo", cargoArgs, {
+  const result = spawnSync("cargo", cargoArgs, {
     cwd: repoRoot,
     encoding: "utf8",
+    env: { ...process.env, ...extraEnv },
     maxBuffer: 64 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  if (result.status !== 0) process.stderr.write(output);
+  assert.equal(result.status, 0, `${packageName} ${testName} failed`);
+  return output;
 }
 
 function read(sourcePath: string): string {

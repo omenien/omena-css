@@ -14,7 +14,8 @@ use omena_cascade_proof::{
 use omena_transform_cst::{
     ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, TransformObserverV0,
     TransformPassDescriptorV0, TransformPassKind, TransformPassObservationRecordV0,
-    all_transform_pass_kinds, default_transform_observation_matrix_v0,
+    all_transform_pass_kinds, compare_raw_transform_observation_bytes_v0,
+    default_transform_observation_matrix_v0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -280,9 +281,14 @@ fn validate_independent_entry_v0(
     let mut covered = BTreeSet::new();
     let mut row_keys = BTreeSet::new();
     for row in &entry.justification.observation_rows {
+        let raw_relation = compare_raw_transform_observation_bytes_v0(
+            format!("independence:{}:{}", entry.left_pass_id, row.fixture_id),
+            row.left_then_right.as_bytes(),
+            row.right_then_left.as_bytes(),
+        );
         if row.fixture_id.is_empty()
             || !profile_observers.contains(row.observer.as_str())
-            || row.left_then_right != row.right_then_left
+            || !raw_relation.equivalent
             || !row_keys.insert((row.fixture_id.as_str(), row.observer.as_str()))
         {
             return Err(pair_error(
@@ -641,7 +647,7 @@ pub(crate) fn checked_adjacent_swap_token_v0(
         )
     })
     .and_then(|token| {
-        if token.matches_endpoints_v0(&before, &after) {
+        if token.matches_endpoints_v0(&before, &after) && token.matches_catalog_v0(&catalog) {
             Ok(token)
         } else {
             Err(pair_error(
@@ -665,7 +671,7 @@ pub(crate) fn adjacent_schedule_pair_term_v0(
     )
 }
 
-fn adjacent_schedule_swap_catalog_v0() -> RewriteRuleCatalogV0 {
+pub(crate) fn adjacent_schedule_swap_catalog_v0() -> RewriteRuleCatalogV0 {
     RewriteRuleCatalogV0 {
         schema_version: REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0.to_owned(),
         operators: vec![RewriteOperatorV0 {
@@ -977,6 +983,47 @@ mod tests {
         assert_eq!(layers.len(), 2);
         assert_eq!(layers.iter().map(Vec::len).max(), Some(1));
         println!("R20 WIRING_CHECK entries=0 layers=2 maxParallelWidth=1");
+        Ok(())
+    }
+
+    #[test]
+    fn gate_supplied_independence_data_satisfies_product_invariants()
+    -> Result<(), TransformCatalogIndependenceErrorV0> {
+        let source = std::env::var("OMENA_PROOF_KERNEL_INDEPENDENCE_JSON")
+            .unwrap_or_else(|_| INDEPENDENCE_DATA_JSON_V0.to_owned());
+        let data: TransformCatalogIndependenceDataV0 = serde_json::from_str(source.as_str())
+            .map_err(|error| {
+                TransformCatalogIndependenceErrorV0::global(format!(
+                    "gate-supplied independence data is not valid JSON: {error}"
+                ))
+            })?;
+        validate_transform_catalog_independence_data_v0(&data)?;
+        let independent_pairs = data
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry.disposition == TransformCatalogIndependenceDispositionV0::Independent
+            })
+            .count();
+        assert!(
+            independent_pairs > 0,
+            "gate-supplied data lost every independent pair"
+        );
+        let layers = transform_catalog_independence_layers_from_data_v0(
+            &[
+                TransformPassKind::NumberCompression,
+                TransformPassKind::ColorCompression,
+            ],
+            &data,
+        );
+        let max_parallel_width = layers.iter().map(Vec::len).max().unwrap_or_default();
+        assert!(
+            max_parallel_width > 1,
+            "gate-supplied independence data cannot justify a parallel layer"
+        );
+        println!(
+            "injectedDataValidation=Ok independentPairs={independent_pairs} maxParallelWidth={max_parallel_width}"
+        );
         Ok(())
     }
 }

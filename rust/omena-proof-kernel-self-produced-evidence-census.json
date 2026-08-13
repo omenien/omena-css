@@ -3,6 +3,7 @@
   "product": "omena-proof-kernel.self-produced-evidence-census",
   "committedSourceFiles": [
     "rust/crates/omena-cascade-proof/src/lib.rs",
+    "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
     "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
     "rust/crates/omena-transform-passes/src/runtime/executor.rs",
     "rust/crates/omena-transform-egg/src/lib.rs",
@@ -18,11 +19,11 @@
   "defaultBackendDisposition": "StubSmtBackendV0 re-reads require:<name>=<bool>; non-require audit labels are satisfied by unwrap_or(true) and do not contribute a checked formula.",
   "entry": {
     "sourceRef": "0749a00707b07070ec0fed3342c836a674facd14",
-    "sourceFileSha256": "dc9d32965458dca92752802644a5237e78705c312256413e1e7d217cc6aa1acf",
-    "rowCount": 16,
+    "sourceFileSha256": "6c55d2982c0fc8307c24e6a956f7a1d92596bad9499c77859d04f8e4fc17da48",
+    "rowCount": 17,
     "planeCounts": {
       "cascadeObligation": 12,
-      "eGraph": 3,
+      "eGraph": 4,
       "evidenceMint": 1
     },
     "rows": [
@@ -65,7 +66,7 @@
           "lineSha256": "86cd35de895b5f9e3e64339c67ff24bc2dbf3cb0b0c8bbb8fb6e78004142a338"
         },
         "plane": "cascadeObligation",
-        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "decidingValue": "producer-owned cascade obligation value",
         "independentlyRecheckedBy": "NONE",
         "owner": null,
         "reentryCondition": null,
@@ -80,7 +81,7 @@
           "lineSha256": "24705189d912903d9a225f1fafc969e187563a35e64605ccce2283ac5faa71cb"
         },
         "plane": "cascadeObligation",
-        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "decidingValue": "producer-owned cascade obligation value",
         "independentlyRecheckedBy": "NONE",
         "owner": null,
         "reentryCondition": null,
@@ -140,7 +141,7 @@
           "lineSha256": "86cd35de895b5f9e3e64339c67ff24bc2dbf3cb0b0c8bbb8fb6e78004142a338"
         },
         "plane": "cascadeObligation",
-        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "decidingValue": "producer-owned cascade obligation value",
         "independentlyRecheckedBy": "NONE",
         "owner": null,
         "reentryCondition": null,
@@ -155,7 +156,7 @@
           "lineSha256": "f57b19f4f1bab9ec32a46b7583a437c09bd4bebbc9a527213eb0125ba0e3047b"
         },
         "plane": "cascadeObligation",
-        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "decidingValue": "producer-owned cascade obligation value",
         "independentlyRecheckedBy": "NONE",
         "owner": null,
         "reentryCondition": null,
@@ -170,7 +171,7 @@
           "lineSha256": "93d5cf2b0a68d2f6dfee19c364044ce83d4ca75f6f29fce36116b208cd51f35d"
         },
         "plane": "cascadeObligation",
-        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "decidingValue": "producer-owned cascade obligation value",
         "independentlyRecheckedBy": "NONE",
         "owner": null,
         "reentryCondition": null,
@@ -185,7 +186,7 @@
           "lineSha256": "72cadfd68151093e0a064f91675db699fc790adb750001adce808b3d18f0ea96"
         },
         "plane": "cascadeObligation",
-        "decidingValue": "literal accepted exact-peer obligation",
+        "decidingValue": "literal accepted producer-owned structural obligation",
         "independentlyRecheckedBy": "NONE",
         "owner": null,
         "reentryCondition": null,
@@ -215,11 +216,26 @@
           "lineSha256": "c6a14a3d61ea472cf355af02f747bfbdf7e84cba25a813292bb4b92594d66075"
         },
         "plane": "eGraph",
-        "decidingValue": "calc_rewrite_witnesses legacy admission disposition",
+        "decidingValue": "calc_rewrite_witnesses post-transform witness emission under a declared structural gap",
         "independentlyRecheckedBy": "NONE",
         "owner": null,
         "reentryCondition": null,
         "entryStateObservation": "EggRewriteProofV0 accepted caller-owned specificity/provenance/witness values without an outside endpoint derivation"
+      },
+      {
+        "siteKey": "eGraph:check_rewrite_certificate_v0:issuance:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
+          "symbol": "check_rewrite_certificate_v0 -> RewriteIssuanceTokenV0::issue",
+          "lineHint": 653,
+          "lineSha256": "a10ba8c32c6d98a971d80a6885175be0dfa0eea458ae36b37471476ccae95f0d"
+        },
+        "plane": "eGraph",
+        "decidingValue": "sealed witness-issuance token bound to catalog identity and endpoints; transform application is not decided here",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the checker issued an endpoint token from a caller-supplied catalog without sealing catalog identity"
       },
       {
         "siteKey": "eGraph:selector_rewrite_witnesses",
@@ -230,7 +246,7 @@
           "lineSha256": "7e00413a6f36decf09e3e4505eb16dd037b2c30b37e5b99884165766881ad298"
         },
         "plane": "eGraph",
-        "decidingValue": "selector rewrite admission",
+        "decidingValue": "selector_rewrite_witnesses post-transform witness emission under a declared structural gap",
         "independentlyRecheckedBy": "NONE",
         "owner": null,
         "reentryCondition": null,
@@ -245,7 +261,7 @@
           "lineSha256": "c6a14a3d61ea472cf355af02f747bfbdf7e84cba25a813292bb4b92594d66075"
         },
         "plane": "eGraph",
-        "decidingValue": "stale_prefix_removal_witnesses legacy admission disposition",
+        "decidingValue": "stale_prefix_removal_witnesses post-transform witness emission under a declared structural gap",
         "independentlyRecheckedBy": "NONE",
         "owner": null,
         "reentryCondition": null,
@@ -567,15 +583,29 @@
           "lineSha256": "a0764edcb8bec324dadbc4d46df7760dc15a6b7f0577572b80f5ed36ceeffbfe"
         }
       }
-    ]
+    ],
+    "certificateConstructionCounts": {
+      "CascadeWinnerEqualityCertV0": {
+        "production": 0,
+        "test": 2
+      },
+      "ComputedValueEqualityCertV0": {
+        "production": 0,
+        "test": 2
+      },
+      "SourceMapTraceCertV0": {
+        "production": 0,
+        "test": 2
+      }
+    }
   },
   "exit": {
     "sourceRef": "WORKTREE",
-    "sourceFileSha256": "a076984afa4e8da256aff207cd2fcc40bfc369651a61ce15ead563ea16993e12",
-    "rowCount": 16,
+    "sourceFileSha256": "8fcec52ed896b0af0ff35b37c38ad2cd03e91f49fccebc04478b8c9b2e07f905",
+    "rowCount": 17,
     "planeCounts": {
       "cascadeObligation": 12,
-      "eGraph": 3,
+      "eGraph": 4,
       "evidenceMint": 1
     },
     "rows": [
@@ -738,7 +768,7 @@
           "lineSha256": "72cadfd68151093e0a064f91675db699fc790adb750001adce808b3d18f0ea96"
         },
         "plane": "cascadeObligation",
-        "decidingValue": "literal accepted exact-peer obligation",
+        "decidingValue": "literal accepted producer-owned structural obligation",
         "independentlyRecheckedBy": "NONE",
         "owner": "omena-transform-passes maintainers",
         "reentryCondition": "add a certificate or independently produced ledger cell for this obligation before strengthening its acceptance claim",
@@ -764,26 +794,41 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
           "symbol": "calc_rewrite_witnesses",
-          "lineHint": 753,
+          "lineHint": 770,
           "lineSha256": "e313c582aafb10184fc7ae26b8a8fce5c1bd0aeb733626eae0cf9ef525f48c08"
         },
         "plane": "eGraph",
-        "decidingValue": "calc_rewrite_witnesses legacy admission disposition",
+        "decidingValue": "calc_rewrite_witnesses post-transform witness emission under a declared structural gap",
         "independentlyRecheckedBy": "NONE",
         "owner": "omena-transform-egg maintainers",
         "reentryCondition": "replace the declared structural disposition with a matching S1 certificate before tightening this producer",
         "entryStateObservation": "EggRewriteProofV0 accepted caller-owned specificity/provenance/witness values without an outside endpoint derivation"
       },
       {
+        "siteKey": "eGraph:check_rewrite_certificate_v0:issuance:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
+          "symbol": "check_rewrite_certificate_v0 -> RewriteIssuanceTokenV0::issue",
+          "lineHint": 750,
+          "lineSha256": "a10ba8c32c6d98a971d80a6885175be0dfa0eea458ae36b37471476ccae95f0d"
+        },
+        "plane": "eGraph",
+        "decidingValue": "sealed witness-issuance token bound to catalog identity and endpoints; transform application is not decided here",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "proof-kernel consumers",
+        "reentryCondition": "every consuming gate must compare the sealed catalog identity and endpoints with its internally selected trusted catalog before using the token",
+        "entryStateObservation": "the checker issued an endpoint token from a caller-supplied catalog without sealing catalog identity"
+      },
+      {
         "siteKey": "eGraph:selector_rewrite_witnesses",
         "site": {
           "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
           "symbol": "selector_rewrite_witnesses",
-          "lineHint": 708,
+          "lineHint": 725,
           "lineSha256": "a48e10cb67c41b3f739c1051eaba71cecf5aa3aed7ca1e4a99cd6f7615e4e76b"
         },
         "plane": "eGraph",
-        "decidingValue": "selector rewrite admission",
+        "decidingValue": "post-transform witness emission guarded by a derivability-only checker token; transform application already occurred",
         "independentlyRecheckedBy": "omena_cascade_proof::check_rewrite_certificate_v0",
         "owner": null,
         "reentryCondition": null,
@@ -794,11 +839,11 @@
         "site": {
           "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
           "symbol": "stale_prefix_removal_witnesses",
-          "lineHint": 808,
+          "lineHint": 825,
           "lineSha256": "e313c582aafb10184fc7ae26b8a8fce5c1bd0aeb733626eae0cf9ef525f48c08"
         },
         "plane": "eGraph",
-        "decidingValue": "stale_prefix_removal_witnesses legacy admission disposition",
+        "decidingValue": "stale_prefix_removal_witnesses post-transform witness emission under a declared structural gap",
         "independentlyRecheckedBy": "NONE",
         "owner": "omena-transform-egg maintainers",
         "reentryCondition": "replace the declared structural disposition with a matching S1 certificate before tightening this producer",
@@ -1120,6 +1165,20 @@
           "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
         }
       }
-    ]
+    ],
+    "certificateConstructionCounts": {
+      "CascadeWinnerEqualityCertV0": {
+        "production": 0,
+        "test": 2
+      },
+      "ComputedValueEqualityCertV0": {
+        "production": 0,
+        "test": 2
+      },
+      "SourceMapTraceCertV0": {
+        "production": 0,
+        "test": 2
+      }
+    }
   }
 }

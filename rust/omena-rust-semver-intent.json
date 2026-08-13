@@ -770,14 +770,15 @@
           "id": "proof-kernel-token-ownership-admission-values",
           "kind": "selection-outcome-changing",
           "surface": "ClassTreeShake closed-world admission and TransformExecutionSummaryV0.closedWorldAdmission",
-          "reason": "A complete ownership census is admitted only when the proof kernel independently checks token separability and binds its issuance token to the exact admission endpoints; favourable aggregate counts alone no longer admit a destructive pass.",
+          "reason": "A complete ownership census is admitted only when the proof kernel independently checks token separability and binds its issuance token to the exact admission endpoints and the consumer-selected trusted catalog; favourable aggregate counts alone no longer admit a destructive pass.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
               "needles": [
                 "checked_token_ownership_admission_v0(census, module_instance, pass_kind).is_none()",
                 "check_rewrite_certificate_v0(",
-                ".filter(|token| token.matches_endpoints_v0(&before, &after))"
+                "token.matches_endpoints_v0(&before, &after)",
+                "token.matches_catalog_v0(&catalog)"
               ]
             },
             {
