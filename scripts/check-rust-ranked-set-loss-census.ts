@@ -1332,10 +1332,12 @@ function validateCascadeKeyProducerCensus(): {
     "rust/crates/omena-bundler/src/lib.rs#LinkedStylesheetRuleV0::cascade_key_with_global_source_order:1";
   const transformCallerId =
     "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair:2";
+  const proofKernelCallerId =
+    "rust/crates/omena-cascade-proof/src/proof_kernel.rs#cascade_key_from_certificate_v0:1";
   assert.deepEqual(
     [...callerSuppliedIds].toSorted(),
-    [bundlerCallerId, transformCallerId].toSorted(),
-    "only the validated bundler helper and transform/NAPI environment may be excluded as caller-supplied boundaries",
+    [bundlerCallerId, proofKernelCallerId, transformCallerId].toSorted(),
+    "only the validated bundler helper, proof certificate, and transform/NAPI environment may be excluded as caller-supplied boundaries",
   );
   validateCallerSuppliedScopeSurfaces(sources);
 
@@ -1427,6 +1429,13 @@ function validateCallerSuppliedScopeSurfaces(sources: ReadonlyMap<string, string
     napi,
     /OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0/u,
     "the NAPI context must deserialize into the typed query transform context",
+  );
+
+  const proofKernel = sources.get("rust/crates/omena-cascade-proof/src/proof_kernel.rs") ?? "";
+  assert.match(
+    proofKernel,
+    /fn\s+cascade_key_from_certificate_v0\(\s*key:\s*&CascadeWinnerKeyCertV0,[\s\S]*?CascadeKey::new\([\s\S]*?key\.scope_proximity,/u,
+    "the proof kernel must preserve the checked certificate's caller-supplied scope proximity",
   );
 }
 
@@ -1613,6 +1622,8 @@ function classifyCascadeKeyProducerDisposition(
     scopeSource === "callerSupplied" &&
     ((file === "rust/crates/omena-bundler/src/lib.rs" &&
       symbol === "LinkedStylesheetRuleV0::cascade_key_with_global_source_order") ||
+      (file === "rust/crates/omena-cascade-proof/src/proof_kernel.rs" &&
+        symbol === "cascade_key_from_certificate_v0") ||
       (file === "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs" &&
         symbol === "winner_for_pair"))
   ) {

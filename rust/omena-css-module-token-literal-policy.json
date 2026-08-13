@@ -4,14 +4,15 @@
   "scope": "internal-test-inventory-only",
   "regex": "(?:(?<![A-Za-z0-9_])_[A-Za-z][A-Za-z0-9-]*_[0-9]+(?![A-Za-z0-9_])|(?<=[.\"'`])_[A-Za-z0-9_-]{6}_[A-Za-z0-9_-]+(?![A-Za-z0-9_]))",
   "selectedFormatRegex": "^_[A-Za-z0-9_-]{6}_[A-Za-z0-9_-]+$",
-  "expectedSiteCount": 140,
-  "expectedFileCount": 20,
+  "expectedSiteCount": 145,
+  "expectedFileCount": 22,
   "wholeFileTestInternal": [
     "rust/crates/omena-abstract-value/src/tests.rs",
     "rust/crates/omena-cli/src/tests.rs",
     "rust/crates/omena-query/src/tests/transform_facade.rs",
     "rust/crates/omena-transform-passes/data/string-authority-structural-golden-v0.json",
     "rust/crates/omena-transform-passes/src/tests/class_hashing.rs",
+    "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
     "scripts/check-rust-omena-bundler-adapter-pass-authority.ts",
     "scripts/check-rust-omena-query-transform-execute.ts",
     "scripts/check-rust-omena-query-transform-plan.ts",
@@ -22,6 +23,10 @@
     "test/unit/vite-plugin/vite-plugin.test.ts"
   ],
   "cfgTestRegions": [
+    {
+      "path": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
+      "marker": "#[cfg(test)]\nmod tests {"
+    },
     {
       "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
       "marker": "#[cfg(test)]\nmod tests {"

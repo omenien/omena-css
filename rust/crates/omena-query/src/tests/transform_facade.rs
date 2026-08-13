@@ -2047,17 +2047,21 @@ fn transform_execute_transform_catalog_trace_is_explicit_opt_in_product_lane() {
         summary.transform_catalog_trace().ordered_pass_ids,
         summary.execution.execution.ordered_pass_ids
     );
-    assert_eq!(summary.parallel_plan.scheduler_status, "scaffoldOnly");
+    assert_eq!(
+        summary.parallel_plan.scheduler_status,
+        "independenceDataReady"
+    );
     assert!(!summary.parallel_plan.executor_consumes_plan);
     assert_eq!(summary.reorderability_certificates.len(), 1);
     assert_eq!(summary.differential_witnesses.len(), 1);
     assert_eq!(
         summary.reorderability_certificates[0].commute_witness,
-        "differentialCommutativityCorpus"
+        "requiresCheckedIndependenceCertificate"
     );
-    assert!(summary.reorderability_certificates[0].accepted);
+    assert!(!summary.reorderability_certificates[0].accepted);
     assert_eq!(summary.differential_witnesses[0].fixture_count, 1);
     assert_eq!(summary.differential_witnesses[0].mismatch_count, 0);
+    assert!(summary.differential_witnesses[0].accepted);
     assert!(
         summary
             .ready_surfaces
