@@ -10,7 +10,7 @@ use omena_query::{
     render_omena_query_css_module_typescript_declaration,
     render_omena_query_css_modules_interface_json, summarize_cross_file_summary_view_v0,
     summarize_omena_query_css_modules_export_usage,
-    summarize_omena_query_css_modules_interface_bundle,
+    summarize_omena_query_css_modules_interface_bundle_with_module_identity_root,
     summarize_omena_query_css_modules_interface_summary_view,
     summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
 };
@@ -220,10 +220,11 @@ fn build_modules_execution(options: ModulesOptions) -> Result<ModulesExecutionV0
         workspace_folder_uri.as_deref(),
         package_manifests.as_slice(),
     );
-    let bundle = summarize_omena_query_css_modules_interface_bundle(
+    let bundle = summarize_omena_query_css_modules_interface_bundle_with_module_identity_root(
+        path_string(workspace_root.as_path()).as_str(),
         style_sources.as_slice(),
         package_manifests.as_slice(),
-    );
+    )?;
     let usage = summarize_omena_query_css_modules_export_usage(
         style_sources.as_slice(),
         source_documents.as_slice(),

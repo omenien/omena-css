@@ -27,7 +27,7 @@ const REQUIRED_BENCHMARK_GATES = [
   "rust/z5-parser-product-cutover",
   "rust/z5-perf-baseline",
   "rust/z5-perf-complexity-slope",
-  "rust/streaming-ifds-relocation-gate-bound",
+  "rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound",
   "rust/z5-perf-no-regression",
   "rust/z5-perf-per-file-invariant",
   "rust/z5-perf-warmup-wave-count",
@@ -50,7 +50,7 @@ assert.deepEqual(
 const ci = read(".github/workflows/ci.yml");
 assert.ok(
   ci.includes(
-    "OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json",
+    "OMENA_DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_REPORT: .omena-ci/demand-sliced-monotone-fact-propagation-relocation-approval.json",
   ),
   "CI must name the live relocation approval artifact consumed by the demand route",
 );
@@ -87,12 +87,16 @@ assert.ok(
   "CI must hard-run the z5 complexity-slope perf gate",
 );
 assert.ok(
-  ci.includes("pnpm omena-check run rust/streaming-ifds-relocation-gate-bound"),
-  "CI must hard-run the streaming IFDS bound relocation gate after the slope report is produced",
+  ci.includes(
+    "pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound",
+  ),
+  "CI must hard-run the demand-sliced monotone fact propagation bound relocation gate after the slope report is produced",
 );
 assert.ok(
   ci.indexOf("pnpm omena-check run rust/z5-perf-complexity-slope") <
-    ci.indexOf("pnpm omena-check run rust/streaming-ifds-relocation-gate-bound"),
+    ci.indexOf(
+      "pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound",
+    ),
   "CI must run the complexity-slope producer before the bound relocation gate consumes its report",
 );
 assert.ok(
@@ -105,33 +109,41 @@ assert.ok(
 );
 
 const nightlySoak = read(".github/workflows/nightly-soak.yml");
-const scheduledStreamingStart = nightlySoak.indexOf("  streaming-ifds-settle-soak:");
-assert.ok(scheduledStreamingStart >= 0, "nightly soak must retain the streaming IFDS job");
-const scheduledStreamingEnd = nightlySoak.indexOf("\n  # NOTE:", scheduledStreamingStart);
-const scheduledStreamingJob = nightlySoak.slice(
-  scheduledStreamingStart,
-  scheduledStreamingEnd === -1 ? undefined : scheduledStreamingEnd,
+const scheduledFactPropagationStart = nightlySoak.indexOf(
+  "  demand-sliced-monotone-fact-propagation-settle-soak:",
 );
 assert.ok(
-  scheduledStreamingJob.includes(
+  scheduledFactPropagationStart >= 0,
+  "nightly soak must retain the demand-sliced monotone fact propagation job",
+);
+const scheduledFactPropagationEnd = nightlySoak.indexOf(
+  "\n  # NOTE:",
+  scheduledFactPropagationStart,
+);
+const scheduledFactPropagationJob = nightlySoak.slice(
+  scheduledFactPropagationStart,
+  scheduledFactPropagationEnd === -1 ? undefined : scheduledFactPropagationEnd,
+);
+assert.ok(
+  scheduledFactPropagationJob.includes(
     "OMENA_Z5_COMPLEXITY_SLOPE_REPORT: .omena-ci/z5-complexity-slope-report.json",
   ),
-  "scheduled streaming IFDS soak must name the live slope artifact",
+  "scheduled demand-sliced monotone fact propagation soak must name the live slope artifact",
 );
 assert.ok(
-  scheduledStreamingJob.includes(
-    "OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json",
+  scheduledFactPropagationJob.includes(
+    "OMENA_DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_REPORT: .omena-ci/demand-sliced-monotone-fact-propagation-relocation-approval.json",
   ),
-  "scheduled streaming IFDS soak must name the live relocation approval artifact",
+  "scheduled demand-sliced monotone fact propagation soak must name the live relocation approval artifact",
 );
-const scheduledSlopeIndex = scheduledStreamingJob.indexOf(
+const scheduledSlopeIndex = scheduledFactPropagationJob.indexOf(
   "pnpm omena-check run rust/z5-perf-complexity-slope",
 );
-const scheduledApprovalIndex = scheduledStreamingJob.indexOf(
-  "pnpm omena-check run rust/streaming-ifds-relocation-gate-bound",
+const scheduledApprovalIndex = scheduledFactPropagationJob.indexOf(
+  "pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound",
 );
-const scheduledSettleIndex = scheduledStreamingJob.indexOf(
-  "pnpm omena-check run rust/streaming-ifds-settle-soak",
+const scheduledSettleIndex = scheduledFactPropagationJob.indexOf(
+  "pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-settle-soak",
 );
 assert.ok(scheduledSlopeIndex >= 0, "scheduled soak must produce live slope evidence");
 assert.ok(

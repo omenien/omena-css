@@ -10,6 +10,7 @@ mod cascade_family;
 mod domain;
 mod facts;
 mod flow;
+mod guarded_token_map;
 mod property_value;
 mod provenance;
 mod reduced_product;
@@ -26,15 +27,26 @@ pub use cascade_family::*;
 pub use domain::*;
 pub use facts::*;
 pub use flow::*;
+pub use guarded_token_map::*;
+pub use omena_cascade::{
+    DomClassTokenSpanV0, DomClassTokenizationUnknownCauseV0, DomClassTokenizationV0,
+    FirstWitnessErrorV0, OrderedTokenWordV0, TokenSupportV0, is_dom_class_ascii_whitespace_v0,
+    token_support_v0, tokenize_dom_class_attribute_v0,
+};
 pub use property_value::*;
 pub use provenance::*;
 pub use reduced_product::{
     concatenate_reduced_class_value_products, intersect_reduced_class_value_products,
     iterate_reduced_class_value_product_constraints, join_reduced_class_value_products,
     reduce_class_value_product, reduced_class_value_product_is_subset,
-    reduced_class_value_product_matches_string, summarize_belief_propagation_iteration_v0,
-    summarize_reduced_class_value_product,
-    summarize_reduced_product_belief_propagation_domain_graph_v0, summarize_reduced_product_domain,
+    reduced_class_value_product_matches_string, summarize_reduced_class_value_product,
+    summarize_reduced_product_constraint_graph_v0,
+    summarize_reduced_product_constraint_propagation_v0, summarize_reduced_product_domain,
+};
+#[allow(deprecated)]
+pub use reduced_product::{
+    summarize_belief_propagation_iteration_v0,
+    summarize_reduced_product_belief_propagation_domain_graph_v0,
 };
 pub use registered_property::*;
 pub use selector_projection::*;

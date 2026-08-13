@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_evidence_graph::{
     EvidenceDemandEdgeV0, EvidenceGraphBuildErrorV0, EvidenceGraphV0, EvidenceNodeKeyV0,
-    EvidenceNodeSeedV0, FamilyStampV0, GuaranteeKindV0, TypedInvariantWitnessTokenV0,
+    EvidenceNodeSeedV0, FamilyStampV0, GuaranteeKindV0, SampledFixtureCorpusTokenV0,
     build_evidence_graph_from_edges_v0,
 };
 use salsa::Setter;
@@ -359,9 +359,15 @@ fn incremental_evidence_edge(
     )
 }
 
-fn typed_invariant_family_stamp() -> FamilyStampV0 {
-    let token = TypedInvariantWitnessTokenV0::from_incremental_layer_evidence();
-    FamilyStampV0::typed_invariant_witness(&token)
+fn shadow_delta_family_stamp(oracle: &IncrementalShadowDeltaOracleV0) -> FamilyStampV0 {
+    match SampledFixtureCorpusTokenV0::from_matching_string_vectors(
+        &oracle.incremental_dirty_ids,
+        &oracle.from_scratch_dirty_ids,
+        oracle.incremental_matches_from_scratch_delta,
+    ) {
+        Some(token) => FamilyStampV0::sampled_fixture_corpus(&token),
+        None => FamilyStampV0::floor_assumption(),
+    }
 }
 
 impl IncrementalAlphaEquivalenceHashV0 {
@@ -378,7 +384,7 @@ impl IncrementalAlphaEquivalenceHashV0 {
                 self.claim_level.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
-            typed_invariant_family_stamp(),
+            FamilyStampV0::floor_assumption(),
         )
     }
 
@@ -409,7 +415,7 @@ impl IncrementalShadowDeltaOracleV0 {
                 self.claim_level.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
-            typed_invariant_family_stamp(),
+            shadow_delta_family_stamp(self),
         )
     }
 
@@ -436,7 +442,7 @@ impl IncrementalEditDistancePriorityInputV0 {
                 self.bridge_calibration_stage.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
-            typed_invariant_family_stamp(),
+            FamilyStampV0::floor_assumption(),
         )
     }
 
@@ -469,7 +475,7 @@ impl IncrementalInvalidationPriorityPlanV0 {
                 self.calibration_stage.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
-            typed_invariant_family_stamp(),
+            FamilyStampV0::floor_assumption(),
         )
     }
 
@@ -515,7 +521,7 @@ impl IncrementalLayerEvidenceV0 {
                 self.benchmark_evidence_level.to_string(),
             ],
             incremental_guarantee_kind(self.claim_level),
-            typed_invariant_family_stamp(),
+            FamilyStampV0::floor_assumption(),
         )
     }
 
@@ -2455,6 +2461,55 @@ mod tests {
     }
 
     #[test]
+    fn shadow_delta_fixture_stamp_refuses_mismatch_and_flag_disagreement() {
+        let oracle = |incremental: &[&str], from_scratch: &[&str], reported_match| {
+            super::IncrementalShadowDeltaOracleV0 {
+                schema_version: "0",
+                product: "omena-incremental.shadow-delta-oracle",
+                feature_gate: "incremental-shadow-delta-v0",
+                claim_level: "sampledFixtureWitnessNotEquivalenceProof",
+                theorem_claimed: false,
+                sampled_shadow_witness_ready: reported_match,
+                incremental_dirty_ids: incremental
+                    .iter()
+                    .map(|value| (*value).to_string())
+                    .collect(),
+                from_scratch_dirty_ids: from_scratch
+                    .iter()
+                    .map(|value| (*value).to_string())
+                    .collect(),
+                incremental_matches_from_scratch_delta: reported_match,
+                dbsp_zset_claim_ready: false,
+                performance_benchmark_claim_ready: false,
+            }
+        };
+
+        let recomputed_mismatch = oracle(&["source", "style"], &["source"], false);
+        assert_eq!(
+            recomputed_mismatch.evidence_node_seed().earned_via,
+            GuaranteeFamilyV0::FloorAssumption
+        );
+
+        let lying_match_flag = oracle(&["source", "style"], &["source"], true);
+        assert_eq!(
+            lying_match_flag.evidence_node_seed().earned_via,
+            GuaranteeFamilyV0::FloorAssumption
+        );
+
+        let lying_mismatch_flag = oracle(&["source", "style"], &["source", "style"], false);
+        assert_eq!(
+            lying_mismatch_flag.evidence_node_seed().earned_via,
+            GuaranteeFamilyV0::FloorAssumption
+        );
+
+        let consistent = oracle(&["source", "style"], &["source", "style"], true);
+        assert_eq!(
+            consistent.evidence_node_seed().earned_via,
+            GuaranteeFamilyV0::SampledFixtureCorpus
+        );
+    }
+
+    #[test]
     fn incremental_layer_evidence_graph_preserves_public_shape() -> Result<(), String> {
         let evidence = summarize_incremental_layer_evidence_v0();
         let before = serde_json::to_value(&evidence).map_err(|error| error.to_string())?;
@@ -2475,11 +2530,33 @@ mod tests {
         assert!(labels.contains(&Some("fixtureWitnessAlphaRenamingStableHash")));
         assert!(labels.contains(&Some("sampledFixtureWitnessNotEquivalenceProof")));
         assert!(labels.contains(&Some("fixtureWitnessSchedulerPriority")));
-        assert!(
-            graph
-                .nodes
-                .iter()
-                .all(|node| node.earned_via() == GuaranteeFamilyV0::TypedInvariantWitness)
+        for node in &graph.nodes {
+            let expected_family = match node.guarantee {
+                GuaranteeKindV0::SampledFixtureWitness => GuaranteeFamilyV0::SampledFixtureCorpus,
+                GuaranteeKindV0::AlphaRenamingStableHashFixtureWitness
+                | GuaranteeKindV0::SchedulerPriorityFixtureWitness
+                | GuaranteeKindV0::IncrementalLayerEvidenceOnly => {
+                    GuaranteeFamilyV0::FloorAssumption
+                }
+                guarantee => {
+                    return Err(format!(
+                        "unexpected incremental evidence guarantee {guarantee:?}"
+                    ));
+                }
+            };
+            assert_eq!(
+                node.earned_via(),
+                expected_family,
+                "node {:?} pairs guarantee {:?} with an unsupported earned family",
+                node.key,
+                node.guarantee,
+            );
+        }
+        assert_eq!(
+            priority_input("style", 3, 2, true)
+                .evidence_node_seed()
+                .earned_via,
+            GuaranteeFamilyV0::FloorAssumption
         );
         Ok(())
     }

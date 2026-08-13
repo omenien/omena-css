@@ -4,7 +4,8 @@ use omena_parser::StyleDialect;
 use omena_transform_cst::{
     IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTargetV0, IrTransactionErrorV0,
     IrTransactionV0, TransformIrPrintErrorV0, TransformIrV0, lower_transform_ir_from_source,
-    materialize_transform_ir_printed_source,
+    materialize_transform_ir_printed_source, reset_transform_ir_metadata_telemetry,
+    transform_ir_metadata_telemetry_snapshot,
 };
 
 use crate::helpers::source_rewrite::replace_source_ranges;
@@ -15,6 +16,10 @@ thread_local! {
         RefCell<TransformStructuralIrTransactionTelemetryV0> = const {
             RefCell::new(TransformStructuralIrTransactionTelemetryV0 {
                 transaction_commit_count: 0,
+                ir_metadata_refresh_count: 0,
+                ir_transaction_commit_count: 0,
+                ir_materialization_count: 0,
+                ir_mutation_count: 0,
             })
         };
     static STRUCTURAL_IR_TRANSACTION_MUTATION_SPAN_BATCHES:
@@ -27,12 +32,19 @@ pub(crate) fn reset_structural_ir_transaction_telemetry() {
     STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| {
         *telemetry.borrow_mut() = TransformStructuralIrTransactionTelemetryV0::default();
     });
+    reset_transform_ir_metadata_telemetry();
     reset_structural_ir_transaction_mutation_span_batches();
 }
 
 pub(crate) fn structural_ir_transaction_telemetry_snapshot()
 -> TransformStructuralIrTransactionTelemetryV0 {
-    STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| *telemetry.borrow())
+    let mut telemetry = STRUCTURAL_IR_TRANSACTION_TELEMETRY.with(|telemetry| *telemetry.borrow());
+    let ir_metadata = transform_ir_metadata_telemetry_snapshot();
+    telemetry.ir_metadata_refresh_count = ir_metadata.ir_metadata_refresh_count;
+    telemetry.ir_transaction_commit_count = ir_metadata.ir_transaction_commit_count;
+    telemetry.ir_materialization_count = ir_metadata.ir_materialization_count;
+    telemetry.ir_mutation_count = ir_metadata.ir_mutation_count;
+    telemetry
 }
 
 fn record_ir_transaction_commit() {

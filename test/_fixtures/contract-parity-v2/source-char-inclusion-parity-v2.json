@@ -5,57 +5,57 @@
         "bindingGraph": {
           "declarations": [
             {
-              "id": "decl:0",
+              "id": "rust-decl:import:classNames:7:17:classnames/bind",
               "kind": "import",
               "name": "classNames"
             },
             {
-              "id": "decl:1",
+              "id": "rust-decl:import:styles:49:55:./SourceCharInclusionParity.module.scss",
               "kind": "import",
               "name": "styles"
             },
             {
-              "id": "decl:2",
+              "id": "rust-decl:localVar:cx:111:113:",
               "kind": "localVar",
               "name": "cx"
             },
             {
-              "id": "decl:3",
+              "id": "rust-decl:localVar:resolveState:151:163:",
               "kind": "localVar",
               "name": "resolveState"
             },
             {
-              "id": "decl:4",
-              "kind": "parameter",
-              "name": "value"
-            },
-            {
-              "id": "decl:5",
+              "id": "rust-decl:localVar:SourceCharInclusionParity:566:591:",
               "kind": "localVar",
               "name": "SourceCharInclusionParity"
             },
             {
-              "id": "decl:6",
+              "id": "rust-decl:localVar:state:617:622:",
+              "kind": "localVar",
+              "name": "state"
+            },
+            {
+              "id": "rust-decl:parameter:value:164:169:",
               "kind": "parameter",
               "name": "value"
             },
             {
-              "id": "decl:7",
-              "kind": "localVar",
-              "name": "state"
+              "id": "rust-decl:parameter:value:592:597:",
+              "kind": "parameter",
+              "name": "value"
             }
           ],
           "resolutions": [
             {
-              "declarationId": "decl:7",
-              "expressionId": "class-expr:0"
+              "declarationId": "rust-decl:localVar:state:617:622:",
+              "expressionId": "expression:rust-expression:symbolRef:30:28:30:33:<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss"
             }
           ]
         },
         "document": {
           "classExpressions": [
             {
-              "id": "class-expr:0",
+              "id": "expression:rust-expression:symbolRef:30:28:30:33:<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
               "kind": "symbolRef",
               "origin": "cxCall",
               "pathSegments": [],
@@ -70,18 +70,19 @@
                 }
               },
               "rawReference": "state",
-              "rootBindingDeclId": "decl:7",
+              "rootBindingDeclId": "rust-decl:localVar:state:617:622:",
               "rootName": "state",
               "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss"
             }
           ],
+          "domainClassReferences": [],
           "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.tsx",
           "kind": "source",
           "language": "typescriptreact",
           "styleImports": [
             {
-              "bindingDeclId": "decl:1",
-              "id": "style-import:0",
+              "bindingDeclId": "rust-decl:import:styles:49:55:./SourceCharInclusionParity.module.scss",
+              "id": "styleImport:rust-style-import:styles:<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
               "kind": "styleImport",
               "localName": "styles",
               "resolved": {
@@ -92,9 +93,9 @@
           ],
           "utilityBindings": [
             {
-              "bindingDeclId": "decl:2",
+              "bindingDeclId": "rust-decl:localVar:cx:111:113:",
               "classNamesImportName": "classNames",
-              "id": "utility-binding:cx:0",
+              "id": "utilityBinding:rust-utility:classnamesBind:cx:styles:<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
               "kind": "classnamesBind",
               "localName": "cx",
               "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
@@ -109,9 +110,14 @@
       {
         "document": {
           "animationNameRefs": [],
+          "customPropertyDecls": [],
+          "customPropertyRefs": [],
           "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
           "keyframes": [],
           "kind": "style",
+          "sassModuleForwards": [],
+          "sassModuleMemberRefs": [],
+          "sassModuleUses": [],
           "sassSymbolDecls": [],
           "sassSymbols": [],
           "selectors": [
@@ -156,7 +162,49 @@
     ],
     "typeFacts": [
       {
-        "expressionId": "class-expr:0",
+        "controlFlowGraph": {
+          "blocks": [
+            {
+              "id": "entry",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "entry",
+              "successorBlockIds": ["assignment:0"],
+              "transferKind": "entry"
+            },
+            {
+              "facts": {
+                "kind": "finiteSet",
+                "values": [
+                  "stateEight",
+                  "stateFive",
+                  "stateFour",
+                  "stateNine",
+                  "stateOne",
+                  "stateSeven",
+                  "stateSix",
+                  "stateThree",
+                  "stateTwo"
+                ]
+              },
+              "id": "assignment:0",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "assignment",
+              "successorBlockIds": ["exit"],
+              "symbolOrdinal": 7,
+              "transferKind": "assignFacts",
+              "variableName": "state"
+            },
+            {
+              "id": "exit",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "exit",
+              "successorBlockIds": [],
+              "transferKind": "exit"
+            }
+          ],
+          "entryBlockId": "entry"
+        },
+        "expressionId": "expression:rust-expression:symbolRef:30:28:30:33:<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
         "facts": {
           "kind": "unknown"
         },
@@ -188,7 +236,7 @@
           "canonicalName": "stateOne",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -202,13 +250,15 @@
         "kind": "expression-semantics",
         "payload": {
           "candidateNames": ["stateOne"],
-          "expressionId": "class-expr:0",
+          "expressionId": "expression:rust-expression:symbolRef:30:28:30:33:<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
           "expressionKind": "symbolRef",
           "finiteValues": null,
           "reason": "flowBranch",
-          "selectorCertainty": "exact",
-          "selectorCertaintyShapeKind": "exact",
-          "selectorCertaintyShapeLabel": "exact",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidates widened to shared character inclusion constraints",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained character selector set (1)",
+          "selectorConstraintKind": "charInclusion",
           "selectorNames": ["stateOne"],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
           "valueCertainty": "inferred",
@@ -219,21 +269,73 @@
           "valueCharMay": "EFNOSTaeghinorstuvwx",
           "valueCharMust": "aest",
           "valueConstraintKind": "charInclusion",
+          "valueDomainDerivation": {
+            "inputConstraintKind": "charInclusion",
+            "inputFactKind": "constrained",
+            "inputValueCount": 0,
+            "product": "omena-abstract-value.reduced-class-value-derivation",
+            "reducedKind": "constrained",
+            "schemaVersion": "0",
+            "steps": [
+              {
+                "operation": "baseFromFacts",
+                "reason": "preserved reduced string constraint facts",
+                "resultKind": "charInclusion",
+                "resultProvenance": "finiteSetWideningChars"
+              }
+            ]
+          },
           "valueDomainKind": "constrained",
+          "valueDomainProvenanceTree": {
+            "product": "omena-abstract-value.provenance-tree",
+            "root": {
+              "children": [
+                {
+                  "children": [],
+                  "detail": "mustChars=aest",
+                  "operation": "characterMustConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "mayChars=EFNOSTaeghinorstuvwx",
+                  "operation": "characterMayConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                }
+              ],
+              "operation": "finiteSetWidening",
+              "reason": "large finite set widened to character or edge constraints",
+              "resultKind": "charInclusion",
+              "resultProvenance": "finiteSetWideningChars"
+            },
+            "schemaVersion": "0",
+            "value": {
+              "kind": "charInclusion",
+              "mayChars": "EFNOSTaeghinorstuvwx",
+              "mustChars": "aest",
+              "provenance": "finiteSetWideningChars"
+            },
+            "valueKind": "charInclusion",
+            "valueProvenance": "finiteSetWideningChars"
+          },
           "valueDomainReason": "finite candidates widened to shared character inclusion constraints"
         },
-        "queryId": "class-expr:0"
+        "queryId": "expression:rust-expression:symbolRef:30:28:30:33:<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss"
       },
       {
         "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.tsx",
         "kind": "source-expression-resolution",
         "payload": {
-          "expressionId": "class-expr:0",
+          "expressionId": "expression:rust-expression:symbolRef:30:28:30:33:<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
           "finiteValues": null,
           "reason": "flowBranch",
-          "selectorCertainty": "exact",
-          "selectorCertaintyShapeKind": "exact",
-          "selectorCertaintyShapeLabel": "exact",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidates widened to shared character inclusion constraints",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained character selector set (1)",
+          "selectorConstraintKind": "charInclusion",
           "selectorNames": ["stateOne"],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
           "valueCertainty": "inferred",
@@ -244,7 +346,7 @@
           "valueCharMay": "EFNOSTaeghinorstuvwx",
           "valueCharMust": "aest"
         },
-        "queryId": "class-expr:0"
+        "queryId": "expression:rust-expression:symbolRef:30:28:30:33:<workspace>/test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss"
       }
     ],
     "rewritePlans": [],

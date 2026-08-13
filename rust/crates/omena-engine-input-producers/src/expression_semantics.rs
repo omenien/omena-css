@@ -7,11 +7,16 @@ use crate::{
     ExpressionSemanticsEvaluatorCandidatesV0, ExpressionSemanticsFragmentV0,
     ExpressionSemanticsFragmentsV0, ExpressionSemanticsMatchFragmentV0,
     ExpressionSemanticsMatchFragmentsV0, ExpressionSemanticsQueryFragmentV0,
-    ExpressionSemanticsQueryFragmentsV0, canonical_selector_count, finite_values_for_facts,
-    map_expression_value_domain_kind, map_reduced_expression_value_domain_derivation,
-    map_reduced_expression_value_domain_provenance_tree, map_selector_certainty,
-    map_selector_certainty_shape_kind, map_selector_certainty_shape_label, map_value_certainty,
-    map_value_certainty_shape_kind, map_value_certainty_shape_label, resolve_selector_names,
+    ExpressionSemanticsQueryFragmentsV0, canonical_selector_count,
+    expression_domain::{
+        ExpressionDomainSelectorCertaintyFlowHedgesV0,
+        collect_expression_domain_selector_certainty_flow_hedges,
+    },
+    finite_values_for_facts, map_expression_value_domain_kind,
+    map_reduced_expression_value_domain_derivation,
+    map_reduced_expression_value_domain_provenance_tree, map_selector_certainty_projection,
+    map_value_certainty, map_value_certainty_shape_kind, map_value_certainty_shape_label,
+    resolve_selector_names,
 };
 
 struct ExpressionSemanticsInputRows {
@@ -23,6 +28,15 @@ struct ExpressionSemanticsInputRows {
 }
 
 fn collect_expression_semantics_input_rows(input: &EngineInputV2) -> ExpressionSemanticsInputRows {
+    let selector_certainty_flow_hedges =
+        collect_expression_domain_selector_certainty_flow_hedges(input);
+    collect_expression_semantics_input_rows_with_flow_hedges(input, &selector_certainty_flow_hedges)
+}
+
+fn collect_expression_semantics_input_rows_with_flow_hedges(
+    input: &EngineInputV2,
+    selector_certainty_flow_hedges: &ExpressionDomainSelectorCertaintyFlowHedgesV0,
+) -> ExpressionSemanticsInputRows {
     let mut expression_index = BTreeMap::new();
     let mut style_index = BTreeMap::new();
     let mut query_fragments = Vec::new();
@@ -61,22 +75,17 @@ fn collect_expression_semantics_input_rows(input: &EngineInputV2) -> ExpressionS
         let candidate_names = finite_values
             .clone()
             .unwrap_or_else(|| selector_names.clone());
-        let selector_certainty = map_selector_certainty(
+        let selector_certainty_projection = map_selector_certainty_projection(
             &entry.facts,
             selector_names.len(),
             canonical_selector_count(style),
+            selector_certainty_flow_hedges
+                .get(&(entry.file_path.clone(), entry.expression_id.clone())),
         );
+        let selector_certainty = selector_certainty_projection.certainty;
         let value_certainty = map_value_certainty(&entry.facts);
-        let selector_certainty_shape_label = map_selector_certainty_shape_label(
-            &entry.facts,
-            selector_names.len(),
-            canonical_selector_count(style),
-        );
-        let selector_certainty_shape_kind = map_selector_certainty_shape_kind(
-            &entry.facts,
-            selector_names.len(),
-            canonical_selector_count(style),
-        );
+        let selector_certainty_shape_label = selector_certainty_projection.shape_label;
+        let selector_certainty_shape_kind = selector_certainty_projection.shape_kind;
         let value_certainty_shape_kind = map_value_certainty_shape_kind(&entry.facts);
         let value_certainty_shape_label = map_value_certainty_shape_label(&entry.facts);
 
@@ -298,7 +307,7 @@ mod tests {
         summarize_expression_semantics_match_fragments_input,
         summarize_expression_semantics_query_fragments_input,
     };
-    use crate::test_support::sample_input;
+    use crate::{configure_nonconvergent_selector_certainty_fixture, test_support::sample_input};
 
     #[test]
     fn builds_expression_semantics_fragment_from_type_fact() {
@@ -421,6 +430,27 @@ mod tests {
         );
         assert_eq!(second.value_certainty_shape_kind, "boundedFinite");
         assert_eq!(second.value_certainty_shape_label, "bounded finite (2)");
+    }
+
+    #[test]
+    fn nonconverged_flow_hedge_demotes_expression_semantics_product() {
+        let mut input = sample_input();
+        input.styles[0].document.selectors[0].name = "x".to_string();
+        input.styles[0].document.selectors[0].canonical_name = Some("x".to_string());
+        configure_nonconvergent_selector_certainty_fixture(&mut input.type_facts[0], "x");
+        let product = summarize_expression_semantics_canonical_producer_signal_input(&input);
+        let candidate = &product.canonical_bundle.candidates[0];
+
+        assert_eq!(candidate.query_id, "expr-1");
+        assert_eq!(candidate.selector_certainty, "possible");
+        assert_eq!(candidate.selector_certainty_shape_kind, "unknown");
+        assert_eq!(candidate.selector_certainty_shape_label, "unknown");
+        assert_eq!(
+            product.evaluator_candidates.results[0]
+                .payload
+                .selector_certainty,
+            "possible"
+        );
     }
 
     #[test]

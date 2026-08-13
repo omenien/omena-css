@@ -19,8 +19,8 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
     "diff-wpt": ["rust/omena-diff-test-wpt"],
     "diff-sass": ["rust/omena-diff-test-sass-spec"],
     "semantic-analysis": [
-      "rust/streaming-ifds-relocation-gate",
-      "rust/streaming-ifds-settle-soak",
+      "rust/demand-sliced-monotone-fact-propagation-relocation-gate",
+      "rust/demand-sliced-monotone-fact-propagation-settle-soak",
       "rust/discharge-ledger",
       "rust/semantic/preservation-model-conformance",
       "rust/translation-validation-kill-rate",
@@ -29,6 +29,8 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
       "rust/oss-corpus-farm-regressions",
       "rust/lint-finding-census",
       "rust/ranked-set-loss-census",
+      "rust/proof-kernel",
+      "rust/proof-kernel-self-produced-census",
     ],
   },
   "rust/product-test-contracts": {

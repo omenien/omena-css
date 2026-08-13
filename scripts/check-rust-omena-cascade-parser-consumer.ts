@@ -29,10 +29,21 @@ assert.ok(
 );
 
 const designTokens = read("rust/crates/omena-semantic/src/design_tokens.rs");
+const cascadeRanking = read("rust/crates/omena-cascade/src/ranking.rs");
 assert.ok(
   designTokens.includes("use omena_cascade::{") &&
     designTokens.includes("select_open_world_cascade_winner"),
   "design token semantics must call omena-cascade open-world winner selection",
+);
+assert.equal(
+  countOccurrences(cascadeRanking, "module_rank.cmp("),
+  1,
+  "omena-cascade must contain one open-world module-rank comparison",
+);
+assert.equal(
+  countOccurrences(designTokens, "ModuleRank::ZERO"),
+  0,
+  "design-token cascade keys must not manufacture a zero module rank",
 );
 assert.equal(
   countOccurrences(designTokens, "select_open_world_cascade_winner("),

@@ -67,6 +67,7 @@ pub enum GuaranteeFamilyV0 {
     ProseObligationDischarged,
     FloorAssumption,
     LedgerBackedObligationDischarge,
+    SampledFixtureCorpus,
 }
 
 impl GuaranteeFamilyV0 {
@@ -80,6 +81,7 @@ impl GuaranteeFamilyV0 {
             Self::ProseObligationDischarged => "proseObligationDischarged",
             Self::FloorAssumption => "floorAssumption",
             Self::LedgerBackedObligationDischarge => "ledgerBackedObligationDischarge",
+            Self::SampledFixtureCorpus => "sampledFixtureCorpus",
         }
     }
 }
@@ -133,13 +135,34 @@ impl PropertyCorpusWitnessTokenV0 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TypedInvariantWitnessTokenV0(FamilyStampSealV0);
+pub struct SampledFixtureCorpusTokenV0(FamilyStampSealV0);
 
-impl TypedInvariantWitnessTokenV0 {
-    pub const fn from_incremental_layer_evidence() -> Self {
-        Self(FamilyStampSealV0(()))
+impl SampledFixtureCorpusTokenV0 {
+    pub fn from_matching_string_vectors(
+        sampled_values: &[String],
+        control_values: &[String],
+        reported_match: bool,
+    ) -> Option<Self> {
+        let recomputed_match = sampled_values == control_values;
+        (!sampled_values.is_empty()
+            && !control_values.is_empty()
+            && recomputed_match
+            && reported_match == recomputed_match)
+            .then_some(Self(FamilyStampSealV0(())))
     }
 }
+
+/// Reserved for evidence produced by a real typed invariant.
+///
+/// Incremental fixture evidence cannot mint this token.
+///
+/// ```compile_fail
+/// use omena_evidence_graph::TypedInvariantWitnessTokenV0;
+///
+/// let _ = TypedInvariantWitnessTokenV0::from_incremental_layer_evidence();
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypedInvariantWitnessTokenV0(FamilyStampSealV0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProseObligationProvenanceV0(FamilyStampSealV0);
@@ -205,6 +228,10 @@ impl FamilyStampV0 {
 
     pub const fn property_corpus_witness(_token: &PropertyCorpusWitnessTokenV0) -> Self {
         Self::from_family(GuaranteeFamilyV0::PropertyCorpusWitness)
+    }
+
+    pub const fn sampled_fixture_corpus(_token: &SampledFixtureCorpusTokenV0) -> Self {
+        Self::from_family(GuaranteeFamilyV0::SampledFixtureCorpus)
     }
 
     pub const fn typed_invariant_witness(_token: &TypedInvariantWitnessTokenV0) -> Self {
@@ -939,6 +966,22 @@ pub enum EvidenceGraphBuildErrorV0 {
     MissingDemandNode(EvidenceNodeKeyV0),
 }
 
+fn fixture_witness_family_matches(
+    guarantee: GuaranteeKindV0,
+    earned_via: GuaranteeFamilyV0,
+) -> bool {
+    !matches!(
+        guarantee,
+        GuaranteeKindV0::SampledFixtureWitness
+            | GuaranteeKindV0::SchedulerPriorityFixtureWitness
+            | GuaranteeKindV0::MetricInputFixtureWitness
+            | GuaranteeKindV0::AlphaRenamingStableHashFixtureWitness
+    ) || matches!(
+        earned_via,
+        GuaranteeFamilyV0::SampledFixtureCorpus | GuaranteeFamilyV0::FloorAssumption
+    )
+}
+
 pub fn build_salsa_demand_evidence_graph_v0(
     all_node_seeds: impl IntoIterator<Item = EvidenceNodeSeedV0>,
     demand_edges: impl IntoIterator<Item = EvidenceDemandEdgeV0>,
@@ -965,6 +1008,18 @@ pub fn build_evidence_graph_from_edges_v0(
         let Some(seed) = all_nodes.get(&key) else {
             return Err(EvidenceGraphBuildErrorV0::MissingDemandNode(key));
         };
+        // STRUCTURAL ENTAILMENT: the evidence-graph semver-intent operator owns this assertion.
+        // Current workspace producers can emit fixture-witness guarantees only with sampled-corpus
+        // or floor-assumption families; re-enter when a fixture producer or a typed-invariant token
+        // constructor is added. Panic is deliberate: returning this internal producer bug would
+        // require a breaking variant on the published, exhaustive EvidenceGraphBuildErrorV0 surface.
+        assert!(
+            fixture_witness_family_matches(seed.guarantee, seed.earned_via),
+            "evidence node {:?} pairs fixture-witness guarantee {:?} with earned family {:?}",
+            seed.key,
+            seed.guarantee,
+            seed.earned_via,
+        );
         nodes.push(EvidenceNodeV0 {
             key: seed.key.clone(),
             provenance: seed.provenance.clone(),
@@ -1104,6 +1159,10 @@ mod tests {
                 "propertyCorpusWitness",
             ),
             (
+                GuaranteeFamilyV0::SampledFixtureCorpus,
+                "sampledFixtureCorpus",
+            ),
+            (
                 GuaranteeFamilyV0::TypedInvariantWitness,
                 "typedInvariantWitness",
             ),
@@ -1118,7 +1177,7 @@ mod tests {
             ),
         ];
 
-        assert_eq!(families.len(), 8);
+        assert_eq!(families.len(), 9);
         for (family, description) in families {
             assert_eq!(family.describe(), description);
         }
@@ -1167,6 +1226,80 @@ mod tests {
         assert_eq!(
             graph.nodes[1].earned_via(),
             GuaranteeFamilyV0::ProseObligationDischarged
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn fixture_witness_kind_rejects_an_unearned_family() -> Result<(), &'static str> {
+        let key = EvidenceNodeKeyV0::new("fixture_query", "fixture_input");
+        let panic = match std::panic::catch_unwind(|| {
+            build_evidence_graph_from_edges_v0(
+                [EvidenceNodeSeedV0 {
+                    key: key.clone(),
+                    provenance: vec!["fixture-input".to_string()],
+                    precision: None,
+                    guarantee: GuaranteeKindV0::SampledFixtureWitness,
+                    earned_via: GuaranteeFamilyV0::TypedInvariantWitness,
+                }],
+                [EvidenceDemandEdgeV0::new(
+                    "fixture_query",
+                    key,
+                    "fixture-edge",
+                )],
+            )
+        }) {
+            Ok(_) => return Err("mismatched fixture witness family must be rejected"),
+            Err(panic) => panic,
+        };
+        let message = panic
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| panic.downcast_ref::<&str>().copied())
+            .ok_or("panic must carry the mismatch detail")?;
+
+        for detail in [
+            "fixture_input",
+            "SampledFixtureWitness",
+            "TypedInvariantWitness",
+        ] {
+            assert!(
+                message.contains(detail),
+                "mismatch message must name {detail}: {message}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn sampled_fixture_corpus_token_requires_nonempty_matching_evidence() -> Result<(), &'static str>
+    {
+        let sampled = vec!["source".to_string(), "style".to_string()];
+        let control = sampled.clone();
+        let mismatch = vec!["source".to_string()];
+
+        assert!(
+            SampledFixtureCorpusTokenV0::from_matching_string_vectors(&sampled, &mismatch, false,)
+                .is_none()
+        );
+        assert!(
+            SampledFixtureCorpusTokenV0::from_matching_string_vectors(&sampled, &mismatch, true,)
+                .is_none()
+        );
+        assert!(
+            SampledFixtureCorpusTokenV0::from_matching_string_vectors(&sampled, &control, false,)
+                .is_none()
+        );
+        assert!(
+            SampledFixtureCorpusTokenV0::from_matching_string_vectors(&[], &[], true).is_none()
+        );
+
+        let token =
+            SampledFixtureCorpusTokenV0::from_matching_string_vectors(&sampled, &control, true)
+                .ok_or("consistent nonempty fixture evidence should mint a token")?;
+        assert_eq!(
+            FamilyStampV0::sampled_fixture_corpus(&token).earned_via(),
+            GuaranteeFamilyV0::SampledFixtureCorpus
         );
         Ok(())
     }

@@ -7,6 +7,14 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readme = readFileSync(path.join(repoRoot, "README.md"), "utf8");
+const tokenOpacitySentence =
+  "the emitted token is not a contract; `classMap`, `namedExports`,\n" +
+  "and the generated `.d.ts` are. Hand-writing an emitted token into markup, tests,\n" +
+  "or CSS is unsupported.";
+assert.ok(
+  readme.includes(tokenOpacitySentence),
+  "README must declare emitted CSS Modules tokens unsupported as a consumer contract",
+);
 const source = requiredCapture(
   readme,
   /Create `path\/to\/file\.module\.css`[\s\S]*?```css\n([\s\S]*?)\n```/u,

@@ -24,6 +24,7 @@ use omena_tsgo_client::{TsgoTypeFactResultEntryV0, TsgoWorkspaceProcessPoolV0};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 use std::sync::{
     Arc, Mutex, MutexGuard,
     atomic::{AtomicU8, AtomicU64, Ordering},
@@ -55,6 +56,10 @@ pub struct LspTextDocumentState {
     pub style_candidates: Vec<LspStyleHoverCandidate>,
     #[serde(skip)]
     pub(crate) source_syntax_index: SourceSyntaxIndex,
+    #[serde(skip)]
+    pub(crate) source_module_specifiers: Vec<String>,
+    #[serde(skip)]
+    pub(crate) source_module_specifier_index_complete: bool,
     #[serde(skip)]
     pub(crate) source_type_fact_lexical_attempts: Vec<SourceTypeFactLexicalAttempt>,
     #[serde(skip)]
@@ -142,6 +147,22 @@ pub struct LspWatchedFileChangeState {
     pub change_type: u64,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct LspSourceTypeFactCacheEntryV0 {
+    pub(crate) entries: Vec<TsgoTypeFactResultEntryV0>,
+    pub(crate) last_used: u64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspSourceTypeFactCacheTelemetryV0 {
+    pub hit_count: u64,
+    pub miss_count: u64,
+    pub sidecar_hit_count: u64,
+    pub sidecar_refused_by_reason: BTreeMap<String, u64>,
+    pub closure_incomplete_by_reason: BTreeMap<String, u64>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct LspFileId(u32);
 
@@ -205,6 +226,7 @@ pub struct LspShellStateSnapshot {
     pub configuration_change_count: usize,
     pub watched_file_event_count: usize,
     pub cached_workspace_resolution_input_count: usize,
+    pub source_type_fact_cache_telemetry: LspSourceTypeFactCacheTelemetryV0,
     /// Tide observability (rfcs#111 §11.4): the ledger epoch and the state
     /// of both settle-gated lanes, so #110-style loop debugging is a debug
     /// request instead of ad-hoc instrumentation.
@@ -406,6 +428,8 @@ pub struct LspResolutionSettings {
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     #[serde(skip)]
     pub(crate) bridge_external_sif_urls: BTreeSet<String>,
+    #[serde(skip)]
+    pub(crate) cache_storage: crate::cache_root::LspCacheStorageConfigV0,
 }
 
 /// Workspace-revision memo for the cascade-narrowing substrate (rfcs#63 E-ii).
@@ -602,6 +626,8 @@ pub struct LspShellState {
     pub(crate) cancelled_request_ids: IncrementalCancellationRegistryV0,
     pub(crate) in_flight_requests: LspInFlightRequestRegistry,
     pub(crate) workspace_style_index_exhausted_count: usize,
+    pub(crate) source_type_fact_workspace_index_incomplete: bool,
+    pub(crate) source_type_fact_watched_files_observed: bool,
     pub(crate) workspace_index_pending_file_count: usize,
     pub(crate) external_sif_lock_read_count: usize,
     pub(crate) external_sif_bridge_generation_count: usize,
@@ -635,6 +661,7 @@ pub struct LspShellState {
     pub(crate) workspace_runtime_registry: WorkspaceRuntimeRegistry,
     pub(crate) tsgo_workspace_process_pool: TsgoWorkspaceProcessPoolV0,
     pub(crate) watched_file_changes: Vec<LspWatchedFileChangeState>,
+    pub(crate) swept_legacy_cache_roots: BTreeSet<PathBuf>,
     pub(crate) client_supports_work_done_progress: bool,
     pub(crate) next_server_progress_request_id: u64,
     pub(crate) pending_server_progress_request_tokens: BTreeMap<String, String>,
@@ -670,7 +697,9 @@ pub struct LspShellState {
     /// Shared with delayed diagnostics workers and updated only after a payload
     /// reaches the client writer, so stale or failed work cannot suppress a retry.
     pub(crate) diagnostics_publish_digest_registry: DiagnosticsPublishDigestRegistryV0,
-    pub(crate) source_type_fact_cache: BTreeMap<String, Vec<TsgoTypeFactResultEntryV0>>,
+    pub(crate) source_type_fact_cache: BTreeMap<String, LspSourceTypeFactCacheEntryV0>,
+    pub(crate) source_type_fact_cache_next_use: u64,
+    pub(crate) source_type_fact_cache_telemetry: LspSourceTypeFactCacheTelemetryV0,
     /// RFC 0009 Pillar C (rfcs#66): fail-soft write breaker for the disk
     /// diagnostics shard cache. Interior mutability because the write-behind
     /// runs on the immutable resolve path; owned by the single loop thread.
@@ -683,6 +712,11 @@ pub struct LspShellState {
 }
 
 impl LspShellState {
+    pub fn configure_standalone_cache_storage(&mut self, cache_dir: Option<PathBuf>) {
+        self.resolution.cache_storage =
+            crate::cache_root::LspCacheStorageConfigV0::standalone(cache_dir);
+    }
+
     pub fn document_count(&self) -> usize {
         self.documents.len()
     }
@@ -827,6 +861,7 @@ impl LspShellState {
                 .resolution
                 .workspace_style_resolution_inputs
                 .len(),
+            source_type_fact_cache_telemetry: self.source_type_fact_cache_telemetry.clone(),
             tide_epoch: self.tide_ledger.epoch(),
             tide_sif_lane_generation: self.tide_sif_lane.generation(),
             tide_sif_lane_in_flight: self.tide_sif_lane.in_flight(),

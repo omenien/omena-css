@@ -93,7 +93,7 @@ result rather than rebuilding import or selector meaning.
 - Cascade order and winner evidence belong to `omena-cascade`.
 - Dynamic class/value approximation belongs to `omena-abstract-value` and
   `omena-value-lattice`.
-- Cross-file reachability belongs to summary and IFDS substrates.
+- Cross-file reachability belongs to summary and demand-sliced monotone fact-propagation substrates.
 - User-facing read and decision models belong to `omena-query`.
 - Transport shaping belongs to the consuming CLI, LSP, or binding.
 

@@ -315,9 +315,21 @@
       "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
     },
     {
+      "id": "workspace:test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+      "syntax": "scss",
+      "sourceHash": "1260d21ff67a6d1c1c198352638002d0883b2639b3695150388646af802d59c5",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
       "id": "workspace:test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
       "syntax": "scss",
       "sourceHash": "bdfafa38522032f1cee1bc8c46be3d3b84d62cc6454b465c3f8165ea47af8398",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+      "syntax": "scss",
+      "sourceHash": "06152c07e75c91c0775761bd162055276025083875e0854e44ec447a3d316196",
       "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
     },
     {
@@ -342,6 +354,12 @@
       "id": "workspace:test/_fixtures/eslint-plugin-smoke/src/TemplatePrefix.module.scss",
       "syntax": "scss",
       "sourceHash": "e0f472e2e46f033bde559f22bcd3d2bd27b29096f9813e7a2433ff3ba34817a8",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/guarded-token-map/ClassSitePlane.module.scss",
+      "syntax": "scss",
+      "sourceHash": "ead0708f45fee88d88f251dbf12ba9a26d6eb3b32df8491ad898c1e39dce8718",
       "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
     },
     {
@@ -450,6 +468,12 @@
       "id": "workspace:test/_fixtures/type-fact-backend-parity/literal-union/src/App.module.scss",
       "syntax": "scss",
       "sourceHash": "d777236697f204d02c860cd40b92b4a002180945484eb029ceef8acd84533617",
+      "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
+    },
+    {
+      "id": "workspace:test/_fixtures/type-fact-backend-parity/non-ascii-exact-span/src/App.module.scss",
+      "syntax": "scss",
+      "sourceHash": "7c16a4d962681f5ede4d8d7ddc24071bb9cc06d82341bd45f0e737a401bf0cb5",
       "scannerHash": "cd1f8ab3777e8c8dfdcba7eb4b05413fb733c8ba6021bc67979082c3148ae38a"
     },
     {

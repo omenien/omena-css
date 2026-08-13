@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "0",
+  "product": "css-cascade-6.spec-axis-order",
+  "source": {
+    "status": "W3C Working Draft",
+    "date": "2024-09-06",
+    "section": "2.1 Cascade Sorting Order",
+    "url": "https://www.w3.org/TR/2024/WD-css-cascade-6-20240906/#cascade-sort"
+  },
+  "documentAxisOrder": [
+    "originAndImportance",
+    "context",
+    "styleAttribute",
+    "layers",
+    "specificity",
+    "scopeProximity",
+    "orderOfAppearance"
+  ],
+  "cascadeKeyProjectionAxisOrder": [
+    "level",
+    "layerRank",
+    "specificityIds",
+    "specificityClasses",
+    "specificityElements",
+    "scopeProximity",
+    "sourceOrder"
+  ]
+}

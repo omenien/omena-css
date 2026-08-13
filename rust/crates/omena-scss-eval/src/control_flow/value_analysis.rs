@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
 use omena_abstract_value::{
-    AbstractCssTypedComparisonOperatorV0, AbstractCssTypedValueV0, AbstractCssValueV0,
-    MAX_FLOW_ANALYSIS_ITERATIONS, abstract_css_typed_value_kind_label,
-    abstract_css_value_from_text,
+    AbstractClassValueV0, AbstractCssTypedComparisonOperatorV0, AbstractCssTypedValueV0,
+    AbstractCssValueV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
+    ExternalStringTypeFactsV0, MAX_FLOW_ANALYSIS_ITERATIONS, abstract_css_typed_value_kind_label,
+    abstract_css_value_from_text, analyze_class_value_flow,
 };
 use omena_cascade::{
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
@@ -22,10 +23,11 @@ use super::{
         loop_carried_binding_values, loop_carried_value, while_loop_carried_binding_values,
     },
     model::{
-        OmenaScssEvalControlFlowBlockIdV0, OmenaScssEvalControlFlowBlockV0,
-        OmenaScssEvalControlFlowGraphV0, OmenaScssEvalControlFlowValueAnalysisV0,
-        OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalControlFlowWideningWitnessV0,
-        OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
+        OmenaScssEvalControlFlowAscendingChainWitnessV0, OmenaScssEvalControlFlowBlockIdV0,
+        OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowGraphV0,
+        OmenaScssEvalControlFlowPropagationDepthWitnessV0, OmenaScssEvalControlFlowValueAnalysisV0,
+        OmenaScssEvalControlFlowValueBlockV0, OmenaScssEvalTypedValueKindCountV0,
+        OmenaScssEvalTypedValueLatticeWitnessV0,
     },
     oracle_corpus::scss_control_flow_oracle_corpus_fixtures,
     transfer::{
@@ -39,7 +41,9 @@ use super::{
     variables::insert_static_scss_binding,
 };
 
-const SCSS_CONTROL_FLOW_WIDENING_WITNESS_NODE_COUNT: usize = MAX_FLOW_ANALYSIS_ITERATIONS + 8;
+const SCSS_CONTROL_FLOW_PROPAGATION_DEPTH_WITNESS_NODE_COUNT: usize =
+    MAX_FLOW_ANALYSIS_ITERATIONS + 8;
+const SCSS_CONTROL_FLOW_ASCENDING_CHAIN_RESULT_NODE_ID: &str = "loop-header";
 const TYPED_VALUE_LATTICE_WITNESS_VALUES: &[&str] =
     &["0px", "50%", "red", "true", "\"hello\"", "var(--gap)"];
 const TYPED_VALUE_LATTICE_WITNESS_COMPARISONS: &[(
@@ -183,15 +187,15 @@ pub(super) fn analyze_scss_control_flow_values_with_truthiness_consumer(
     })
 }
 
-pub(crate) fn summarize_scss_control_flow_widening_witness()
--> OmenaScssEvalControlFlowWideningWitnessV0 {
-    let nodes = (0..SCSS_CONTROL_FLOW_WIDENING_WITNESS_NODE_COUNT)
+pub(crate) fn summarize_scss_control_flow_propagation_depth_witness()
+-> OmenaScssEvalControlFlowPropagationDepthWitnessV0 {
+    let nodes = (0..SCSS_CONTROL_FLOW_PROPAGATION_DEPTH_WITNESS_NODE_COUNT)
         .map(|index| {
             let source_span_start = index;
             let source_span_end = index + 1;
             let block = OmenaScssEvalControlFlowBlockV0 {
                 node_key: blocks::scss_eval_stable_node_key(
-                    "scss-control-widening-witness",
+                    "scss-control-propagation-depth-witness",
                     "loop",
                     source_span_start,
                     source_span_end,
@@ -204,11 +208,12 @@ pub(crate) fn summarize_scss_control_flow_widening_witness()
                 successor_count: 1,
                 has_back_edge: true,
             };
-            let predecessor_indices = (index + 1 < SCSS_CONTROL_FLOW_WIDENING_WITNESS_NODE_COUNT)
+            let predecessor_indices = (index + 1
+                < SCSS_CONTROL_FLOW_PROPAGATION_DEPTH_WITNESS_NODE_COUNT)
                 .then_some(index + 1)
                 .into_iter()
                 .collect::<Vec<_>>();
-            let transfer = if index + 1 == SCSS_CONTROL_FLOW_WIDENING_WITNESS_NODE_COUNT {
+            let transfer = if index + 1 == SCSS_CONTROL_FLOW_PROPAGATION_DEPTH_WITNESS_NODE_COUNT {
                 ScssControlFlowTransfer::LoopCondition {
                     bindings: Vec::new(),
                     value: AbstractCssValueV0::Exact {
@@ -233,17 +238,88 @@ pub(crate) fn summarize_scss_control_flow_widening_witness()
         .filter(|value| matches!(value, AbstractCssValueV0::Top))
         .count();
 
-    OmenaScssEvalControlFlowWideningWitnessV0 {
+    OmenaScssEvalControlFlowPropagationDepthWitnessV0 {
         schema_version: "0",
-        product: "omena-scss-eval.control-flow-widening-witness",
+        product: "omena-scss-eval.control-flow-propagation-depth-witness",
         mode: "oracleOnly",
         value_type: "AbstractCssValueV0",
-        policy: "nonConvergedOutputsWidenToTop",
+        policy: "reversePostorderBoundedJoinFixpoint",
         max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
         node_count: nodes.len(),
         converged: fixpoint.converged,
         iteration_count: fixpoint.iteration_count,
         widened_to_top_count: fixpoint.widened_to_top_count,
+        output_top_count,
+    }
+}
+
+pub(crate) fn summarize_scss_control_flow_ascending_chain_witness()
+-> OmenaScssEvalControlFlowAscendingChainWitnessV0 {
+    let exact_facts = |value: &str| ExternalStringTypeFactsV0 {
+        kind: "exact".to_string(),
+        constraint_kind: None,
+        values: Some(vec![value.to_string()]),
+        prefix: None,
+        suffix: None,
+        min_len: None,
+        max_len: None,
+        char_must: None,
+        char_may: None,
+        may_include_other_chars: None,
+    };
+    let graph = ClassValueFlowGraphV0 {
+        context_key: Some("scss-control-ascending-chain-witness".to_string()),
+        nodes: vec![
+            ClassValueFlowNodeV0 {
+                id: "seed".to_string(),
+                predecessors: Vec::new(),
+                boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
+                transfer: ClassValueFlowTransferV0::AssignFacts(exact_facts("item-")),
+            },
+            ClassValueFlowNodeV0 {
+                id: SCSS_CONTROL_FLOW_ASCENDING_CHAIN_RESULT_NODE_ID.to_string(),
+                predecessors: vec!["seed".to_string(), "loop-body".to_string()],
+                boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
+                transfer: ClassValueFlowTransferV0::Join,
+            },
+            ClassValueFlowNodeV0 {
+                id: "loop-body".to_string(),
+                predecessors: vec![SCSS_CONTROL_FLOW_ASCENDING_CHAIN_RESULT_NODE_ID.to_string()],
+                boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
+                transfer: ClassValueFlowTransferV0::ConcatFacts(exact_facts("x")),
+            },
+        ],
+    };
+    let analysis = analyze_class_value_flow(&graph);
+    let (result_kind, result_value) = analysis
+        .nodes
+        .iter()
+        .find(|node| node.id == SCSS_CONTROL_FLOW_ASCENDING_CHAIN_RESULT_NODE_ID)
+        .map_or_else(
+            || ("missingResultNode", AbstractClassValueV0::Bottom),
+            |node| (node.value_kind, node.value.clone()),
+        );
+    let output_top_count = analysis
+        .nodes
+        .iter()
+        .filter(|node| matches!(node.value, AbstractClassValueV0::Top { .. }))
+        .count();
+
+    OmenaScssEvalControlFlowAscendingChainWitnessV0 {
+        schema_version: "0",
+        product: "omena-scss-eval.control-flow-ascending-chain-witness",
+        mode: "oracleOnly",
+        value_type: "AbstractClassValueV0",
+        policy: "loopHeaderPrefixWideningAndNarrowing",
+        max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
+        node_count: graph.nodes.len(),
+        converged: analysis.converged,
+        iteration_count: analysis.iteration_count,
+        solver_product: analysis.product,
+        context_sensitivity: analysis.context_sensitivity,
+        result_node_id: SCSS_CONTROL_FLOW_ASCENDING_CHAIN_RESULT_NODE_ID,
+        result_kind,
+        result_value,
         output_top_count,
     }
 }

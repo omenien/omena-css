@@ -15,33 +15,3 @@ pub(crate) fn css_identifier_text_is_plain(text: &str) -> bool {
 pub(crate) fn css_identifier_names_match(left: &str, right: &str) -> bool {
     ClassNameV0::new(left).same_as(&ClassNameV0::new(right))
 }
-
-pub(crate) fn css_identifier_escape_sequence_end(text: &str, slash_index: usize) -> Option<usize> {
-    let slash = text[slash_index..].chars().next()?;
-    if slash != '\\' {
-        return None;
-    }
-    let mut index = slash_index + slash.len_utf8();
-    let next = text[index..].chars().next()?;
-    if !next.is_ascii_hexdigit() {
-        return Some(index + next.len_utf8());
-    }
-
-    let mut digit_count = 0usize;
-    while index < text.len() && digit_count < 6 {
-        let Some(candidate) = text[index..].chars().next() else {
-            break;
-        };
-        if !candidate.is_ascii_hexdigit() {
-            break;
-        }
-        index += candidate.len_utf8();
-        digit_count += 1;
-    }
-    if let Some(terminator) = text[index..].chars().next()
-        && terminator.is_ascii_whitespace()
-    {
-        index += terminator.len_utf8();
-    }
-    Some(index)
-}

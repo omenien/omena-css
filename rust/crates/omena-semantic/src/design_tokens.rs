@@ -5,9 +5,9 @@
 //! diagnostics, and cascade-aware resolution.
 
 use omena_cascade::{
-    CascadeKey, CascadeLevel, LayerOrdinal, LayerRank, ModuleRank, SelectorMatchVerdict,
-    Specificity, normalized_layer_rank, select_open_world_cascade_winner, selector_context_witness,
-    selector_context_witness_for_declaration,
+    CascadeKey, CascadeLevel, LayerOrdinal, LayerRank, ModuleRank, OpenWorldTieEvidence,
+    SelectorMatchVerdict, Specificity, normalized_layer_rank, select_open_world_cascade_winner,
+    selector_context_witness, selector_context_witness_for_declaration,
 };
 use omena_syntax::css_keyword;
 use serde::Serialize;
@@ -816,7 +816,8 @@ impl DesignTokenCascadeContext {
         }
         normalized_layer_rank(
             false,
-            self.layer_ordinal_for(layer_names, selector_contexts),
+            self.layer_ordinal_for(layer_names, selector_contexts)
+                .or_else(|| LayerOrdinal::new(0)),
         )
     }
 
@@ -901,8 +902,8 @@ impl DesignTokenCascadeContext {
 
 impl DesignTokenCandidateDeclaration<'_> {
     /// `CascadeKey::Ord` owns the CSS cascade axes through `source_order`.
-    /// Open-world comparators then consume `module_rank` as a provenance
-    /// tiebreak; `select_cascade_winner` intentionally discards that field.
+    /// Open-world comparators consume separate provenance evidence only after
+    /// those axes compare equal.
     ///
     /// `source_order` remains a file-local ordinal even when candidates come
     /// from different files, so cross-file comparisons are disclosed on the
@@ -912,34 +913,12 @@ impl DesignTokenCandidateDeclaration<'_> {
         reference: &ParserIndexCustomPropertyRefFactV0,
         workspace_file_ranks: Option<&BTreeMap<&str, usize>>,
         cascade_context: &DesignTokenCascadeContext,
-    ) -> CascadeKey {
+    ) -> (CascadeKey, OpenWorldTieEvidence) {
         let scope_proximity = cascade_scope_proximity_fallback_for_selector_context_rank(
             self.context_rank(reference),
         );
         match self {
-            DesignTokenCandidateDeclaration::Local(declaration) => CascadeKey::new(
-                CascadeLevel::AuthorNormal,
-                cascade_context.layer_rank_for(
-                    &declaration.layer_names,
-                    &declaration.selector_contexts,
-                    declaration.under_layer,
-                ),
-                scope_proximity,
-                Specificity::ZERO,
-                // The local file is provenance distance 0, import order 0, and
-                // file rank 0, expressed through the same inverse domain as
-                // workspace candidates.
-                ModuleRank::new(
-                    cascade_inverse_rank(0),
-                    cascade_inverse_rank(0),
-                    cascade_inverse_rank(0),
-                ),
-                cascade_u32_rank(declaration.source_order),
-            ),
-            DesignTokenCandidateDeclaration::Workspace(declaration) => {
-                let file_rank = workspace_file_ranks
-                    .and_then(|ranks| ranks.get(declaration.file_path.as_str()).copied())
-                    .unwrap_or(usize::MAX);
+            DesignTokenCandidateDeclaration::Local(declaration) => (
                 CascadeKey::new(
                     CascadeLevel::AuthorNormal,
                     cascade_context.layer_rank_for(
@@ -949,14 +928,40 @@ impl DesignTokenCandidateDeclaration<'_> {
                     ),
                     scope_proximity,
                     Specificity::ZERO,
-                    ModuleRank::new(
+                    cascade_u32_rank(declaration.source_order),
+                ),
+                // The local file is provenance distance 0, import order 0, and
+                // file rank 0, expressed through the same inverse domain as
+                // workspace candidates.
+                OpenWorldTieEvidence::new(ModuleRank::new(
+                    cascade_inverse_rank(0),
+                    cascade_inverse_rank(0),
+                    cascade_inverse_rank(0),
+                )),
+            ),
+            DesignTokenCandidateDeclaration::Workspace(declaration) => {
+                let file_rank = workspace_file_ranks
+                    .and_then(|ranks| ranks.get(declaration.file_path.as_str()).copied())
+                    .unwrap_or(usize::MAX);
+                (
+                    CascadeKey::new(
+                        CascadeLevel::AuthorNormal,
+                        cascade_context.layer_rank_for(
+                            &declaration.layer_names,
+                            &declaration.selector_contexts,
+                            declaration.under_layer,
+                        ),
+                        scope_proximity,
+                        Specificity::ZERO,
+                        cascade_u32_rank(declaration.source_order),
+                    ),
+                    OpenWorldTieEvidence::new(ModuleRank::new(
                         cascade_inverse_rank(
                             declaration.import_graph_distance.unwrap_or(usize::MAX),
                         ),
                         cascade_inverse_rank(declaration.import_graph_order.unwrap_or(usize::MAX)),
                         cascade_inverse_rank(file_rank),
-                    ),
-                    cascade_u32_rank(declaration.source_order),
+                    )),
                 )
             }
         }
@@ -1220,7 +1225,7 @@ mod layer_rank_fallback_tests {
     use std::collections::BTreeMap;
 
     #[test]
-    fn unresolved_layer_selector_uses_the_unlayered_normal_ordering_token() {
+    fn unresolved_layer_selector_uses_the_weakest_layered_ordering_token() {
         let context = DesignTokenCascadeContext {
             layer_name_ranks: BTreeMap::new(),
             layer_name_depths: BTreeMap::new(),
@@ -1232,7 +1237,7 @@ mod layer_rank_fallback_tests {
             context
                 .layer_rank_for(&[], &[".unresolved".to_string()], true)
                 .get(),
-            i32::MAX
+            0
         );
         assert_eq!(
             context.layer_resolution_status_for(&[], &[".unresolved".to_string()], true),

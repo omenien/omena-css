@@ -1,7 +1,7 @@
 use crate::diagnostics_scheduler::{diagnostics_schedule_event, run_diagnostics_schedule_effects};
 use crate::lsp_output::ScheduledLspOutput;
 use crate::{
-    CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST,
+    CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, CLEAR_CACHES_REQUEST, DEBUG_STATE_REQUEST,
     EXPLAIN_HOVER_TRACE_REQUEST, EXPLAIN_REQUEST, LspDeferredDiagnosticsDispatchV0,
     LspQueryReadView, LspQuerySnapshotV0, LspShellState, LspWorkspaceIndexJobV0,
     LspWorkspaceIndexResultV0, REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST,
@@ -203,6 +203,11 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
                 })),
             }
         }
+        (Some(CLEAR_CACHES_REQUEST), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": crate::cache_maintenance::clear_owned_cache_paths(state),
+        })),
         (Some("shutdown"), Some(request_id)) => {
             state.shutdown_requested = true;
             Some(json!({
@@ -251,6 +256,10 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
         return;
     };
     apply_feature_settings(state, settings.get("features"));
+    state
+        .resolution
+        .cache_storage
+        .apply_location_setting(settings.pointer("/cache/location"));
     if apply_diagnostic_settings(state, settings.get("diagnostics")) {
         // Changed diagnostics settings owe a workspace republish: published
         // diagnostics must re-render under the new severity / deep-analysis

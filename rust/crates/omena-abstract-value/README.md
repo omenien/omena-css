@@ -13,12 +13,14 @@ Current public product:
   prefix, suffix, character-inclusion, and composite class-value domains.
 - `join_abstract_class_values` — least-upper-bound merge for branch-sensitive
   class-value flow.
-- `analyze_class_value_flow` — V0 1-CFA flow analysis over explicit
-  class-value flow graphs with assign/refine/join transfers.
+- `analyze_class_value_flow` — per-supplied-graph flow analysis with
+  assign/refine/join transfers; it does not derive call sites or a call graph.
 - `analyze_class_value_control_flow_graph` — CFG-aware flow analysis that
   prunes unreachable blocks before evaluating class-value transfer facts.
-- `analyze_k_limited_call_site_flows` — k-limited call-site context analysis
-  for dynamic class helpers that need deeper-than-1-CFA discrimination.
+- `analyze_k_limited_call_site_flows` — k-limited partitioning over
+  caller-supplied call-site stacks, followed by one join pass per retained
+  context; it does not derive a call graph or run an interprocedural fixed
+  point.
 - `analyze_class_value_flow_incremental` — the same flow analysis surfaced with
   an `omena-incremental` recomputation plan and next snapshot.
 - `analyze_class_value_flow_incremental_with_reuse` — incremental flow analysis
@@ -34,8 +36,8 @@ Current public product:
   and flow-produced abstract class values.
 - `summarize_cascade_value_family_v0` — M6 research-staged, framing-neutral
   cascade-family substrate for context-indexed property values and
-  parent-to-child restriction morphisms. This is not a sheaf/cosheaf theorem
-  claim.
+  parent-to-child restriction records. This is a cascade-section scaffold, not
+  a completed gluing theorem.
 
 Primary check:
 

@@ -17,6 +17,7 @@ use omena_query::{
     OmenaQueryStyleCascadeNarrowingSubstrateV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, ParserByteSpanV0, append_omena_query_utility_class_intelligence,
     load_omena_query_workspace_utility_class_intelligence,
+    summarize_omena_query_source_binding_index_for_source_language,
 };
 use omena_sif::compute_omena_sif_leaf_hash_v1;
 use serde::Serialize;
@@ -47,7 +48,6 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "sourceSelectorCandidates",
             "sourceTypeFactCache",
             "sourceDocumentIndexSidecar",
-            "sourceSelectorOccurrenceSidecar",
             "cascadeNarrowingSubstrate",
             "visibleSassSymbolCompletionSubstrate",
         ],
@@ -58,9 +58,8 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "refreshOnResolutionConfigChange",
             "refreshOnResolutionSettingsChange",
             "rebuildCascadeNarrowingSubstrateOnInputContentMismatch",
-            "rebuildSourceTypeFactCacheOnContentConfigOrWorkspaceSourceMismatch",
+            "validateSourceTypeFactCacheAgainstCurrentContentEnvironmentBinaryAndWorkspaceInputs",
             "rebuildSourceDocumentIndexSidecarOnTextResolutionOrLanguageMismatch",
-            "rebuildSourceSelectorOccurrenceSidecarOnDocumentKeyMismatch",
         ],
         request_path_policy: vec![
             "noPackageManifestOrConfigReadOnProviderRequest",
@@ -192,6 +191,24 @@ pub(crate) fn refresh_document_reusable_indexes(
     }
     document.has_unresolved_style_import =
         collect_source_imports(document, resolution_inputs).has_unresolved_style_import;
+    if is_style_document_uri(document.uri.as_str()) {
+        document.source_module_specifiers.clear();
+        document.source_module_specifier_index_complete = true;
+    } else {
+        document.source_module_specifiers =
+            summarize_omena_query_source_binding_index_for_source_language(
+                document.uri.as_str(),
+                document.text.as_str(),
+                Some(document.language_id.as_str()),
+                Vec::new(),
+                Vec::new(),
+            )
+            .module_specifiers
+            .into_iter()
+            .map(|fact| fact.specifier)
+            .collect();
+        document.source_module_specifier_index_complete = true;
+    }
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
     document.source_syntax_index = source_syntax_index;

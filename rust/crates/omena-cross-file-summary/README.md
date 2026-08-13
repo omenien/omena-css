@@ -9,7 +9,7 @@ deltas.
 ## Contract
 
 The crate provides hypergraph and SCC summaries, reverse-dependency
-construction and updates, diagnostics read sets, and IFDS summary-edge
+construction and updates, diagnostics read sets, and monotone fact propagation summary-edge
 tabulation over caller-supplied nodes and edges.
 
 ## Consumers

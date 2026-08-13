@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const RUNNER_PATH = path.join(process.cwd(), "rust/crates/engine-shadow-runner/src/main.rs");
 const RUNNER_CARGO_PATH = path.join(process.cwd(), "rust/crates/engine-shadow-runner/Cargo.toml");
@@ -11,23 +12,80 @@ const runnerSource = readFileSync(RUNNER_PATH, "utf8");
 const runnerCargoToml = readFileSync(RUNNER_CARGO_PATH, "utf8");
 const packageJsonSource = readFileSync(PACKAGE_JSON_PATH, "utf8");
 const commandBodies = extractCommandBodies(runnerSource);
-const STREAMING_IFDS_BOUNDARY_PRODUCT = "omena-diff-test.boundary";
-const STREAMING_IFDS_SLOPE_PRODUCT = "omena-benchmarks.z5-perf-complexity-slope";
-const STREAMING_IFDS_APPROVAL_PRODUCT = "omena-streaming-ifds.relocation-gate";
-const STREAMING_IFDS_BOUNDARY_SHA256 = "a".repeat(64);
-const STREAMING_IFDS_SLOPE_SHA256 = "b".repeat(64);
-const STREAMING_IFDS_APPROVAL_SHA256 = "c".repeat(64);
+const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_PRODUCT = "omena-diff-test.boundary";
+const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_PRODUCT =
+  "omena-benchmarks.z5-perf-complexity-slope";
+const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_APPROVAL_PRODUCT =
+  "omena-streaming-ifds.relocation-gate";
+const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_SHA256 = "a".repeat(64);
+const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_SHA256 = "b".repeat(64);
+const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_APPROVAL_SHA256 = "c".repeat(64);
+
+/**
+ * @deprecated Compatibility owner: engine-shadow-runner maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const COMPATIBILITY_PROPAGATION_EVALUATIONS_COMMAND_V0 = "omena-checker-streaming-ifds-evaluations";
+
+/**
+ * @deprecated Compatibility owner: engine-shadow-runner maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const COMPATIBILITY_PROPAGATION_EVALUATIONS_PRODUCT_V0 = "omena-checker.streaming-ifds-evaluations";
+
+/**
+ * @deprecated Compatibility owner: engine-shadow-runner maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const COMPATIBILITY_MULTISCALE_EVALUATIONS_COMMAND_V0 = "omena-checker-rg-flow-evaluations";
+
+/**
+ * @deprecated Compatibility owner: engine-shadow-runner maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const COMPATIBILITY_MULTISCALE_EVALUATIONS_PRODUCT_V0 = "omena-checker.rg-flow-evaluations";
+const CANONICAL_PROPAGATION_EVALUATIONS_JSON_SHA256 =
+  "1823baeaa6bd5f77bd6fac02980857f244736b4410eec3d65fe5a2ce1b90c2a2";
+const COMPATIBILITY_PROPAGATION_EVALUATIONS_JSON_SHA256 =
+  "50e34cc243d7aca270908348ac24367de0a880c8b8ee7822e095910d2f54c9e3";
+const CANONICAL_MULTISCALE_EVALUATIONS_JSON_SHA256 =
+  "d458431055d97a4d7c0b3152304aa50fe17a53f0d76d1e1e0aa2544f83cc63f2";
+const COMPATIBILITY_MULTISCALE_EVALUATIONS_JSON_SHA256 =
+  "eb913f69469cf4d10d8506b449416d1952ceb633ce08a38abe6a5c2bab36b81d";
+
+/**
+ * @deprecated Compatibility owner: omena-checker maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const LEGACY_MULTISCALE_COMMAND_STATUS_V0 =
+  "rgFlowCommand=omena-checker-multiscale-complexity-heuristic-evaluations";
+
+/**
+ * @deprecated Compatibility owner: omena-checker maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const LEGACY_MULTISCALE_RULE_CODE_V0 = "rg-flow-relevant-operator";
+
+/**
+ * @deprecated Compatibility owner: omena-categorical maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const LEGACY_AGGREGATION_ROLE_V0 = "cosheaf colimit witness";
 
 const checkerMTierBody = commandBodies.get("omena-checker-m-tier-evaluations");
 const checkerCascadeBody = commandBodies.get("omena-checker-cascade-evaluations");
 const checkerGrnBody = commandBodies.get("omena-checker-grn-evaluations");
 const checkerSmtBody = commandBodies.get("omena-checker-smt-evaluations");
 const checkerMdlBody = commandBodies.get("omena-checker-mdl-evaluations");
-const checkerStreamingIfdsBody = commandBodies.get("omena-checker-streaming-ifds-evaluations");
-const checkerStreamingIfdsSettleBody = commandBodies.get(
-  "omena-checker-streaming-ifds-settle-soak",
+const checkerDemandSlicedMonotoneFactPropagationBody = commandBodies.get(
+  "omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
 );
-const checkerRgFlowBody = commandBodies.get("omena-checker-rg-flow-evaluations");
+const checkerDemandSlicedMonotoneFactPropagationSettleBody = commandBodies.get(
+  "omena-checker-demand-sliced-monotone-fact-propagation-settle-soak",
+);
+const checkerMultiscaleComplexityHeuristicBody = commandBodies.get(
+  "omena-checker-multiscale-complexity-heuristic-evaluations",
+);
 const checkerReplicaEnsembleBody = commandBodies.get("omena-checker-replica-ensemble-evaluations");
 const checkerCategoricalBody = commandBodies.get("omena-checker-categorical-evaluations");
 assert.ok(
@@ -51,16 +109,16 @@ assert.ok(
   "missing engine-shadow-runner command arm: omena-checker-mdl-evaluations",
 );
 assert.ok(
-  checkerStreamingIfdsBody,
-  "missing engine-shadow-runner command arm: omena-checker-streaming-ifds-evaluations",
+  checkerDemandSlicedMonotoneFactPropagationBody,
+  "missing engine-shadow-runner command arm: omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
 );
 assert.ok(
-  checkerStreamingIfdsSettleBody,
-  "missing engine-shadow-runner command arm: omena-checker-streaming-ifds-settle-soak",
+  checkerDemandSlicedMonotoneFactPropagationSettleBody,
+  "missing engine-shadow-runner command arm: omena-checker-demand-sliced-monotone-fact-propagation-settle-soak",
 );
 assert.ok(
-  checkerRgFlowBody,
-  "missing engine-shadow-runner command arm: omena-checker-rg-flow-evaluations",
+  checkerMultiscaleComplexityHeuristicBody,
+  "missing engine-shadow-runner command arm: omena-checker-multiscale-complexity-heuristic-evaluations",
 );
 assert.ok(
   checkerReplicaEnsembleBody,
@@ -91,16 +149,22 @@ assert.ok(
   "omena-checker-mdl-evaluations must deserialize the runner MDL input product",
 );
 assert.ok(
-  checkerStreamingIfdsSettleBody.includes("OmenaCheckerStreamingIfdsSettleSoakInputV0"),
-  "omena-checker-streaming-ifds-settle-soak must deserialize the settle soak input product",
+  checkerDemandSlicedMonotoneFactPropagationSettleBody.includes(
+    "OmenaCheckerDemandSlicedMonotoneFactPropagationSettleSoakInputV0",
+  ),
+  "omena-checker-demand-sliced-monotone-fact-propagation-settle-soak must deserialize the settle soak input product",
 );
 assert.ok(
-  checkerStreamingIfdsBody.includes("OmenaCheckerStreamingIfdsEvaluationInputV0"),
-  "omena-checker-streaming-ifds-evaluations must deserialize the runner streaming IFDS input product",
+  checkerDemandSlicedMonotoneFactPropagationBody.includes(
+    "OmenaCheckerDemandSlicedMonotoneFactPropagationEvaluationInputV0",
+  ),
+  "omena-checker-demand-sliced-monotone-fact-propagation-evaluations must deserialize the runner demand-sliced monotone fact propagation input product",
 );
 assert.ok(
-  checkerRgFlowBody.includes("OmenaCheckerRgFlowEvaluationInputV0"),
-  "omena-checker-rg-flow-evaluations must deserialize the runner RG-flow input product",
+  checkerMultiscaleComplexityHeuristicBody.includes(
+    "OmenaCheckerMultiscaleComplexityHeuristicEvaluationInputV0",
+  ),
+  "omena-checker-multiscale-complexity-heuristic-evaluations must deserialize the runner multiscale-complexity-heuristic input product",
 );
 assert.ok(
   checkerReplicaEnsembleBody.includes("OmenaCheckerReplicaEnsembleEvaluationInputV0"),
@@ -131,12 +195,16 @@ assert.ok(
   "omena-checker-mdl-evaluations must route through the runner-owned checker MDL summary wrapper",
 );
 assert.ok(
-  checkerStreamingIfdsBody.includes("summarize_omena_checker_streaming_ifds_evaluations"),
-  "omena-checker-streaming-ifds-evaluations must route through the runner-owned checker streaming IFDS summary wrapper",
+  checkerDemandSlicedMonotoneFactPropagationBody.includes(
+    "summarize_omena_checker_demand_sliced_monotone_fact_propagation_evaluations",
+  ),
+  "omena-checker-demand-sliced-monotone-fact-propagation-evaluations must route through the runner-owned checker demand-sliced monotone fact propagation summary wrapper",
 );
 assert.ok(
-  checkerRgFlowBody.includes("summarize_omena_checker_rg_flow_evaluations"),
-  "omena-checker-rg-flow-evaluations must route through the runner-owned checker RG-flow summary wrapper",
+  checkerMultiscaleComplexityHeuristicBody.includes(
+    "summarize_omena_checker_multiscale_complexity_heuristic_evaluations",
+  ),
+  "omena-checker-multiscale-complexity-heuristic-evaluations must route through the runner-owned checker multiscale-complexity-heuristic summary wrapper",
 );
 assert.ok(
   checkerReplicaEnsembleBody.includes("summarize_omena_checker_replica_ensemble_evaluations"),
@@ -167,30 +235,30 @@ assert.ok(
   "engine-shadow-runner must build MDL evidence from omena-query before checker evaluation",
 );
 assert.ok(
-  runnerSource.includes("run_streaming_ifds_exact_v0"),
-  "engine-shadow-runner must build streaming IFDS evidence before checker evaluation",
+  runnerSource.includes("run_demand_sliced_monotone_fact_propagation_exact_v0"),
+  "engine-shadow-runner must build demand-sliced monotone fact propagation evidence before checker evaluation",
 );
 assert.ok(
   runnerSource.includes('Some("lessImport") => UnifiedHypergraphEdgeKindV0::LessImport'),
-  "engine-shadow-runner must preserve Less import edge labels in streaming IFDS fixtures",
+  "engine-shadow-runner must preserve Less import edge labels in demand-sliced monotone fact propagation fixtures",
 );
 assert.ok(
   runnerSource.includes(
     'Some("lessModuleGraphClosure") => UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure',
   ),
-  "engine-shadow-runner must preserve Less module-closure edge labels in streaming IFDS fixtures",
+  "engine-shadow-runner must preserve Less module-closure edge labels in demand-sliced monotone fact propagation fixtures",
 );
 assert.ok(
   runnerSource.includes("evaluate_omena_checker_mdl_rules"),
   "engine-shadow-runner must call omena-checker's MDL evaluator",
 );
 assert.ok(
-  runnerSource.includes("evaluate_omena_checker_streaming_ifds_rules"),
-  "engine-shadow-runner must call omena-checker's streaming IFDS evaluator",
+  runnerSource.includes("evaluate_omena_checker_demand_sliced_monotone_fact_propagation_rules"),
+  "engine-shadow-runner must call omena-checker's demand-sliced monotone fact propagation evaluator",
 );
 assert.ok(
-  runnerSource.includes("evaluate_omena_checker_rg_flow_rules"),
-  "engine-shadow-runner must call omena-checker's RG-flow evaluator",
+  runnerSource.includes("evaluate_omena_checker_multiscale_complexity_heuristic_rules"),
+  "engine-shadow-runner must call omena-checker's multiscale-complexity-heuristic evaluator",
 );
 assert.ok(
   runnerSource.includes("build_cross_file_inconsistency_report"),
@@ -225,12 +293,12 @@ assert.ok(
   "engine-shadow-runner daemon must support omena-checker-mdl-evaluations",
 );
 assert.ok(
-  runnerSource.includes('"omena-checker-streaming-ifds-evaluations" =>'),
-  "engine-shadow-runner daemon must support omena-checker-streaming-ifds-evaluations",
+  runnerSource.includes('"omena-checker-demand-sliced-monotone-fact-propagation-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
 );
 assert.ok(
-  runnerSource.includes('"omena-checker-rg-flow-evaluations" =>'),
-  "engine-shadow-runner daemon must support omena-checker-rg-flow-evaluations",
+  runnerSource.includes('"omena-checker-multiscale-complexity-heuristic-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-multiscale-complexity-heuristic-evaluations",
 );
 assert.ok(
   runnerSource.includes('"omena-checker-replica-ensemble-evaluations" =>'),
@@ -328,7 +396,7 @@ assert.notEqual(mdlClearSummary.evaluationCount, mdlEmitSummary.evaluationCount)
 // reuses the now-stale c (it is outside the dirty region), so the two fact sets
 // diverge and the diagnostic fires. No incrementalPrecisionParityWithBatch literal is fed
 // in; the runner computes it from the two real runs.
-const streamingNoVerdictSummary = runStreamingIfdsEvaluationFixture(true);
+const streamingNoVerdictSummary = runDemandSlicedMonotoneFactPropagationEvaluationFixture(true);
 assert.equal(streamingNoVerdictSummary.demandPrimaryReady, false);
 assert.equal(streamingNoVerdictSummary.demandFactKeyGateRefusal, "absent artifact verdict");
 assert.equal(streamingNoVerdictSummary.demandDeletionCorpusRefusal, "absent artifact verdict");
@@ -337,8 +405,36 @@ assert.equal(streamingNoVerdictSummary.demandRelocationApprovalRefusal, "absent 
 assert.equal(streamingNoVerdictSummary.demandRouteEquivalentToEager, true);
 assert.equal(streamingNoVerdictSummary.demandRouteRefusal, "approval-bound readiness is not green");
 assert.equal(streamingNoVerdictSummary.factKeyRouteEngine, "batch");
-const streamingSummary = runStreamingIfdsEvaluationFixture(true, greenStreamingIfdsGateOptions());
-assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations");
+const streamingSummary = runDemandSlicedMonotoneFactPropagationEvaluationFixture(
+  true,
+  greenDemandSlicedMonotoneFactPropagationGateOptions(),
+);
+assert.equal(
+  streamingSummary.product,
+  "omena-checker.demand-sliced-monotone-fact-propagation-evaluations",
+);
+const compatibilityStreamingSummary = runDemandSlicedMonotoneFactPropagationEvaluationFixture(
+  true,
+  greenDemandSlicedMonotoneFactPropagationGateOptions(),
+  COMPATIBILITY_PROPAGATION_EVALUATIONS_COMMAND_V0,
+);
+assert.equal(
+  compatibilityStreamingSummary.product,
+  COMPATIBILITY_PROPAGATION_EVALUATIONS_PRODUCT_V0,
+);
+assert.deepEqual(
+  { ...compatibilityStreamingSummary, product: streamingSummary.product },
+  streamingSummary,
+  "compatibility and canonical propagation commands must differ only in the retained product byte",
+);
+assert.equal(
+  serializedProjectionSha256(streamingSummary),
+  CANONICAL_PROPAGATION_EVALUATIONS_JSON_SHA256,
+);
+assert.equal(
+  serializedProjectionSha256(compatibilityStreamingSummary),
+  COMPATIBILITY_PROPAGATION_EVALUATIONS_JSON_SHA256,
+);
 assert.equal(streamingSummary.reportProduct, "omena-streaming-ifds.analysis-report");
 assert.equal(streamingSummary.settleReportProduct, "omena-streaming-ifds.settle-soak-report");
 assert.equal(
@@ -349,25 +445,43 @@ assert.equal(streamingSummary.incrementalPrecisionParityWithBatch, true);
 assert.equal(streamingSummary.reachabilityFallbackApplied, false);
 assert.equal(streamingSummary.factFallbackApplied, false);
 assert.equal(streamingSummary.demandFactKeyGateGreen, true);
-assert.equal(streamingSummary.demandFactKeyGateSourceProduct, STREAMING_IFDS_BOUNDARY_PRODUCT);
-assert.equal(streamingSummary.demandFactKeyGateArtifactSha256, STREAMING_IFDS_BOUNDARY_SHA256);
+assert.equal(
+  streamingSummary.demandFactKeyGateSourceProduct,
+  DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_PRODUCT,
+);
+assert.equal(
+  streamingSummary.demandFactKeyGateArtifactSha256,
+  DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_SHA256,
+);
 assert.equal(streamingSummary.demandFactKeyGateRefusal, null);
 assert.equal(streamingSummary.demandDeletionCorpusGreen, true);
-assert.equal(streamingSummary.demandDeletionCorpusSourceProduct, STREAMING_IFDS_BOUNDARY_PRODUCT);
-assert.equal(streamingSummary.demandDeletionCorpusArtifactSha256, STREAMING_IFDS_BOUNDARY_SHA256);
+assert.equal(
+  streamingSummary.demandDeletionCorpusSourceProduct,
+  DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_PRODUCT,
+);
+assert.equal(
+  streamingSummary.demandDeletionCorpusArtifactSha256,
+  DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_SHA256,
+);
 assert.equal(streamingSummary.demandDeletionCorpusRefusal, null);
 assert.equal(streamingSummary.demandComplexitySlopeGreen, true);
-assert.equal(streamingSummary.demandComplexitySlopeSourceProduct, STREAMING_IFDS_SLOPE_PRODUCT);
-assert.equal(streamingSummary.demandComplexitySlopeArtifactSha256, STREAMING_IFDS_SLOPE_SHA256);
+assert.equal(
+  streamingSummary.demandComplexitySlopeSourceProduct,
+  DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_PRODUCT,
+);
+assert.equal(
+  streamingSummary.demandComplexitySlopeArtifactSha256,
+  DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_SHA256,
+);
 assert.equal(streamingSummary.demandComplexitySlopeRefusal, null);
 assert.equal(streamingSummary.demandRelocationApprovalGreen, true);
 assert.equal(
   streamingSummary.demandRelocationApprovalSourceProduct,
-  STREAMING_IFDS_APPROVAL_PRODUCT,
+  DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_APPROVAL_PRODUCT,
 );
 assert.equal(
   streamingSummary.demandRelocationApprovalArtifactSha256,
-  STREAMING_IFDS_APPROVAL_SHA256,
+  DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_APPROVAL_SHA256,
 );
 assert.equal(streamingSummary.demandRelocationApprovalRefusal, null);
 assert.equal(
@@ -398,11 +512,11 @@ assert.equal(streamingSummary.factKeyRouteScope, "queryShaped");
 assert.equal(streamingSummary.factKeyRouteEngine, "demand");
 assert.equal(streamingSummary.factKeyRouteRelocationGateGreen, true);
 assert.equal(streamingSummary.evaluationCount, 0);
-const streamingBlockedSummary = runStreamingIfdsEvaluationFixture(true, {
-  ...greenStreamingIfdsGateOptions(),
+const streamingBlockedSummary = runDemandSlicedMonotoneFactPropagationEvaluationFixture(true, {
+  ...greenDemandSlicedMonotoneFactPropagationGateOptions(),
   factKeyGateVerdict: redGateArtifactVerdict(
-    STREAMING_IFDS_BOUNDARY_PRODUCT,
-    STREAMING_IFDS_BOUNDARY_SHA256,
+    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_PRODUCT,
+    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_SHA256,
   ),
 });
 assert.equal(streamingBlockedSummary.demandSettleAllEqual, true);
@@ -413,40 +527,49 @@ assert.equal(streamingBlockedSummary.demandRouteRefusal, "approval-bound readine
 assert.equal(streamingBlockedSummary.factKeyRouteScope, "queryShaped");
 assert.equal(streamingBlockedSummary.factKeyRouteEngine, "batch");
 assert.equal(streamingBlockedSummary.factKeyRouteRelocationGateGreen, false);
-const streamingWrongProductSummary = runStreamingIfdsEvaluationFixture(true, {
-  ...greenStreamingIfdsGateOptions(),
+const streamingWrongProductSummary = runDemandSlicedMonotoneFactPropagationEvaluationFixture(true, {
+  ...greenDemandSlicedMonotoneFactPropagationGateOptions(),
   factKeyGateVerdict: {
     green: true,
     sourceProduct: "fabricated.boundary",
-    artifactSha256: STREAMING_IFDS_BOUNDARY_SHA256,
+    artifactSha256: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_SHA256,
   },
 });
 assert.equal(streamingWrongProductSummary.demandPrimaryReady, false);
 assert.equal(streamingWrongProductSummary.demandFactKeyGateRefusal, "unexpected source product");
-const streamingMalformedDigestSummary = runStreamingIfdsEvaluationFixture(true, {
-  ...greenStreamingIfdsGateOptions(),
-  deletionCorpusVerdict: {
-    green: true,
-    sourceProduct: STREAMING_IFDS_BOUNDARY_PRODUCT,
-    artifactSha256: "not-a-sha256",
+const streamingMalformedDigestSummary = runDemandSlicedMonotoneFactPropagationEvaluationFixture(
+  true,
+  {
+    ...greenDemandSlicedMonotoneFactPropagationGateOptions(),
+    deletionCorpusVerdict: {
+      green: true,
+      sourceProduct: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_PRODUCT,
+      artifactSha256: "not-a-sha256",
+    },
   },
-});
+);
 assert.equal(streamingMalformedDigestSummary.demandPrimaryReady, false);
 assert.equal(
   streamingMalformedDigestSummary.demandDeletionCorpusRefusal,
   "malformed artifact sha256",
 );
-const streamingAbsentVerdictSummary = runStreamingIfdsEvaluationFixture(true, {
-  ...greenStreamingIfdsGateOptions(),
-  omitComplexitySlopeVerdict: true,
-});
+const streamingAbsentVerdictSummary = runDemandSlicedMonotoneFactPropagationEvaluationFixture(
+  true,
+  {
+    ...greenDemandSlicedMonotoneFactPropagationGateOptions(),
+    omitComplexitySlopeVerdict: true,
+  },
+);
 assert.equal(streamingAbsentVerdictSummary.demandPrimaryReady, false);
 assert.equal(streamingAbsentVerdictSummary.demandComplexitySlopeRefusal, "absent artifact verdict");
-const streamingDivergeSummary = runStreamingIfdsEvaluationFixture(
+const streamingDivergeSummary = runDemandSlicedMonotoneFactPropagationEvaluationFixture(
   false,
-  greenStreamingIfdsGateOptions(),
+  greenDemandSlicedMonotoneFactPropagationGateOptions(),
 );
-assert.equal(streamingDivergeSummary.product, "omena-checker.streaming-ifds-evaluations");
+assert.equal(
+  streamingDivergeSummary.product,
+  "omena-checker.demand-sliced-monotone-fact-propagation-evaluations",
+);
 assert.equal(streamingDivergeSummary.incrementalPrecisionParityWithBatch, false);
 assert.equal(streamingDivergeSummary.reachabilityFallbackApplied, false);
 assert.equal(streamingDivergeSummary.factFallbackApplied, true);
@@ -461,14 +584,39 @@ assert.notEqual(
   streamingSummary.incrementalPrecisionParityWithBatch,
 );
 assert.notEqual(streamingDivergeSummary.evaluationCount, streamingSummary.evaluationCount);
-const rgFlowSummary = runRgFlowEvaluationFixture();
-assert.equal(rgFlowSummary.product, "omena-checker.rg-flow-evaluations");
-assert.equal(rgFlowSummary.flowCount, 2);
-assert.ok(
-  rgFlowSummary.ruleCodeNames.includes("rg-flow-relevant-operator"),
-  "RG-flow runner output must include rg-flow-relevant-operator",
+const multiscaleComplexityHeuristicSummary = runMultiscaleComplexityHeuristicEvaluationFixture();
+assert.equal(
+  multiscaleComplexityHeuristicSummary.product,
+  "omena-checker.multiscale-complexity-heuristic-evaluations",
 );
-assert.equal(rgFlowSummary.evaluationCount, 1);
+assert.equal(multiscaleComplexityHeuristicSummary.flowCount, 2);
+assert.ok(
+  multiscaleComplexityHeuristicSummary.ruleCodeNames.includes(
+    "multiscale-complexity-heuristic-relevant-operator",
+  ),
+  "canonical multiscale-complexity-heuristic runner output must use the accurate rule-code wire value",
+);
+assert.equal(multiscaleComplexityHeuristicSummary.evaluationCount, 1);
+const compatibilityMultiscaleSummary = runMultiscaleComplexityHeuristicEvaluationFixture(
+  COMPATIBILITY_MULTISCALE_EVALUATIONS_COMMAND_V0,
+);
+assert.equal(
+  compatibilityMultiscaleSummary.product,
+  COMPATIBILITY_MULTISCALE_EVALUATIONS_PRODUCT_V0,
+);
+assert.ok(
+  compatibilityMultiscaleSummary.ruleCodeNames.includes(LEGACY_MULTISCALE_RULE_CODE_V0),
+  "compatibility multiscale command must retain its historical rule-code wire value",
+);
+assert.equal(compatibilityMultiscaleSummary.evaluationCount, 1);
+assert.equal(
+  serializedProjectionSha256(multiscaleComplexityHeuristicSummary),
+  CANONICAL_MULTISCALE_EVALUATIONS_JSON_SHA256,
+);
+assert.equal(
+  serializedProjectionSha256(compatibilityMultiscaleSummary),
+  COMPATIBILITY_MULTISCALE_EVALUATIONS_JSON_SHA256,
+);
 
 // End-to-end mechanism-depth proof: drive the real overlap-Q/SBM algorithm with
 // two ensembles that differ ONLY in their replica winners. Disagreeing winners
@@ -516,7 +664,7 @@ assert.notEqual(replicaDisagreeSummary.recommendation, replicaAgreeSummary.recom
 // the runner computes the verdict from the real functor. A constant verdict would
 // make both runs tie and one of these assertions would fail.
 const categoricalClearSummary = runCategoricalEvaluationFixture([
-  ["cascade_property", "cosheaf colimit witness"],
+  ["cascade_property", "cascade section aggregation witness"],
   ["prove_layer_flatten_candidate", "beck-chevalley witness"],
   ["evaluate_static_supports_condition", "site decidability witness"],
 ]);
@@ -524,7 +672,7 @@ assert.equal(categoricalClearSummary.product, "omena-checker.categorical-evaluat
 assert.equal(categoricalClearSummary.mappingCount, 1);
 assert.equal(categoricalClearSummary.evaluationCount, 0);
 const categoricalEmitSummary = runCategoricalEvaluationFixture([
-  ["cascade_property", "cosheaf colimit witness"],
+  ["cascade_property", "cascade section aggregation witness"],
   ["prove_layer_flatten_candidate", "beck-chevalley witness"],
 ]);
 assert.equal(categoricalEmitSummary.evaluationCount, 1);
@@ -536,6 +684,16 @@ assert.ok(
 // diagnostic outcome between the two runs.
 assert.notEqual(categoricalEmitSummary.evaluationCount, categoricalClearSummary.evaluationCount);
 
+const categoricalLegacyRoleSummary = runCategoricalEvaluationFixture([
+  ["cascade_property", LEGACY_AGGREGATION_ROLE_V0],
+  ["prove_layer_flatten_candidate", "beck-chevalley witness"],
+]);
+assert.deepEqual(
+  categoricalLegacyRoleSummary,
+  categoricalEmitSummary,
+  "the deprecated categorical role wire value must produce the canonical summary bytes",
+);
+
 process.stdout.write(
   [
     "validated omena-checker runner boundary:",
@@ -544,8 +702,8 @@ process.stdout.write(
     "grnCommand=omena-checker-grn-evaluations",
     "smtCommand=omena-checker-smt-evaluations",
     "mdlCommand=omena-checker-mdl-evaluations",
-    "streamingIfdsCommand=omena-checker-streaming-ifds-evaluations",
-    "rgFlowCommand=omena-checker-rg-flow-evaluations",
+    "demandSlicedMonotoneFactPropagationCommand=omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
+    LEGACY_MULTISCALE_COMMAND_STATUS_V0,
     "replicaEnsembleCommand=omena-checker-replica-ensemble-evaluations",
     "categoricalCommand=omena-checker-categorical-evaluations",
     "runtime=engine-shadow-runner",
@@ -566,6 +724,10 @@ function extractCommandBodies(source: string): Map<string, string> {
   }
 
   return bodies;
+}
+
+function serializedProjectionSha256(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 function readBraceBody(source: string, bodyStart: number): string {
@@ -607,7 +769,7 @@ interface MdlEvaluationSummary {
   readonly ruleCodeNames: readonly string[];
 }
 
-interface StreamingIfdsEvaluationSummary {
+interface DemandSlicedMonotoneFactPropagationEvaluationSummary {
   readonly product: string;
   readonly reportProduct: string;
   readonly settleReportProduct: string;
@@ -654,21 +816,21 @@ interface StreamingIfdsEvaluationSummary {
   readonly evaluationCount: number;
 }
 
-interface StreamingIfdsGateArtifactVerdict {
+interface DemandSlicedMonotoneFactPropagationGateArtifactVerdict {
   readonly green: boolean;
   readonly sourceProduct: string;
   readonly artifactSha256: string;
 }
 
-interface StreamingIfdsGateOptions {
-  readonly factKeyGateVerdict?: StreamingIfdsGateArtifactVerdict;
-  readonly deletionCorpusVerdict?: StreamingIfdsGateArtifactVerdict;
-  readonly complexitySlopeVerdict?: StreamingIfdsGateArtifactVerdict;
-  readonly relocationApprovalVerdict?: StreamingIfdsGateArtifactVerdict;
+interface DemandSlicedMonotoneFactPropagationGateOptions {
+  readonly factKeyGateVerdict?: DemandSlicedMonotoneFactPropagationGateArtifactVerdict;
+  readonly deletionCorpusVerdict?: DemandSlicedMonotoneFactPropagationGateArtifactVerdict;
+  readonly complexitySlopeVerdict?: DemandSlicedMonotoneFactPropagationGateArtifactVerdict;
+  readonly relocationApprovalVerdict?: DemandSlicedMonotoneFactPropagationGateArtifactVerdict;
   readonly omitComplexitySlopeVerdict?: boolean;
 }
 
-interface RgFlowEvaluationSummary {
+interface MultiscaleComplexityHeuristicEvaluationSummary {
   readonly product: string;
   readonly flowCount: number;
   readonly evaluationCount: number;
@@ -847,7 +1009,7 @@ function runMdlEvaluationFixture(valueFrequencies: readonly number[]): MdlEvalua
 function greenGateArtifactVerdict(
   sourceProduct: string,
   artifactSha256: string,
-): StreamingIfdsGateArtifactVerdict {
+): DemandSlicedMonotoneFactPropagationGateArtifactVerdict {
   return {
     green: true,
     sourceProduct,
@@ -858,7 +1020,7 @@ function greenGateArtifactVerdict(
 function redGateArtifactVerdict(
   sourceProduct: string,
   artifactSha256: string,
-): StreamingIfdsGateArtifactVerdict {
+): DemandSlicedMonotoneFactPropagationGateArtifactVerdict {
   return {
     green: false,
     sourceProduct,
@@ -866,31 +1028,32 @@ function redGateArtifactVerdict(
   };
 }
 
-function greenStreamingIfdsGateOptions(): StreamingIfdsGateOptions {
+function greenDemandSlicedMonotoneFactPropagationGateOptions(): DemandSlicedMonotoneFactPropagationGateOptions {
   return {
     factKeyGateVerdict: greenGateArtifactVerdict(
-      STREAMING_IFDS_BOUNDARY_PRODUCT,
-      STREAMING_IFDS_BOUNDARY_SHA256,
+      DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_PRODUCT,
+      DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_SHA256,
     ),
     deletionCorpusVerdict: greenGateArtifactVerdict(
-      STREAMING_IFDS_BOUNDARY_PRODUCT,
-      STREAMING_IFDS_BOUNDARY_SHA256,
+      DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_PRODUCT,
+      DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_SHA256,
     ),
     complexitySlopeVerdict: greenGateArtifactVerdict(
-      STREAMING_IFDS_SLOPE_PRODUCT,
-      STREAMING_IFDS_SLOPE_SHA256,
+      DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_PRODUCT,
+      DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_SHA256,
     ),
     relocationApprovalVerdict: greenGateArtifactVerdict(
-      STREAMING_IFDS_APPROVAL_PRODUCT,
-      STREAMING_IFDS_APPROVAL_SHA256,
+      DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_APPROVAL_PRODUCT,
+      DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_APPROVAL_SHA256,
     ),
   };
 }
 
-function runStreamingIfdsEvaluationFixture(
+function runDemandSlicedMonotoneFactPropagationEvaluationFixture(
   consistent: boolean,
-  gateOptions: StreamingIfdsGateOptions = {},
-): StreamingIfdsEvaluationSummary {
+  gateOptions: DemandSlicedMonotoneFactPropagationGateOptions = {},
+  command = "omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
+): DemandSlicedMonotoneFactPropagationEvaluationSummary {
   // Both variants re-seed node a with the same exact value and carry the same
   // prior fact-key cache {a, b, c} from an earlier revision. The ONLY difference
   // is whether the current graph still has edge-b-c. With it, c is reachable and
@@ -943,7 +1106,7 @@ function runStreamingIfdsEvaluationFixture(
       "engine-shadow-runner",
       "--quiet",
       "--",
-      "omena-checker-streaming-ifds-evaluations",
+      command,
     ],
     {
       cwd: process.cwd(),
@@ -955,23 +1118,25 @@ function runStreamingIfdsEvaluationFixture(
   assert.equal(
     result.status,
     0,
-    `engine-shadow-runner streaming IFDS command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    `engine-shadow-runner demand-sliced monotone fact propagation command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
-  return JSON.parse(result.stdout) as StreamingIfdsEvaluationSummary;
+  return JSON.parse(result.stdout) as DemandSlicedMonotoneFactPropagationEvaluationSummary;
 }
 
-function runRgFlowEvaluationFixture(): RgFlowEvaluationSummary {
+function runMultiscaleComplexityHeuristicEvaluationFixture(
+  command = "omena-checker-multiscale-complexity-heuristic-evaluations",
+): MultiscaleComplexityHeuristicEvaluationSummary {
   const input = {
     flows: [
       {
         workspacePath: "workspace://critical-token-graph",
-        before: rgFlowCoupling(1, 1, 0, 0),
-        after: rgFlowCoupling(5, 0, 0, 8),
+        before: multiscaleComplexityHeuristicCoupling(1, 1, 0, 0),
+        after: multiscaleComplexityHeuristicCoupling(5, 0, 0, 8),
       },
       {
         workspacePath: "workspace://settled-token-graph",
-        before: rgFlowCoupling(4, 2, 0, 0),
-        after: rgFlowCoupling(3, 1, 0, 0),
+        before: multiscaleComplexityHeuristicCoupling(4, 2, 0, 0),
+        after: multiscaleComplexityHeuristicCoupling(3, 1, 0, 0),
       },
     ],
   };
@@ -985,7 +1150,7 @@ function runRgFlowEvaluationFixture(): RgFlowEvaluationSummary {
       "engine-shadow-runner",
       "--quiet",
       "--",
-      "omena-checker-rg-flow-evaluations",
+      command,
     ],
     {
       cwd: process.cwd(),
@@ -997,9 +1162,9 @@ function runRgFlowEvaluationFixture(): RgFlowEvaluationSummary {
   assert.equal(
     result.status,
     0,
-    `engine-shadow-runner RG-flow command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    `engine-shadow-runner multiscale-complexity-heuristic command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
-  return JSON.parse(result.stdout) as RgFlowEvaluationSummary;
+  return JSON.parse(result.stdout) as MultiscaleComplexityHeuristicEvaluationSummary;
 }
 
 function runReplicaEnsembleEvaluationFixture(agree: boolean): ReplicaEnsembleEvaluationSummary {
@@ -1125,7 +1290,12 @@ function grnVertex(vertexId: string, selector: string, property: string, state: 
   };
 }
 
-function rgFlowCoupling(kEnv: number, kDecl: number, kCycle: number, kDirty: number) {
+function multiscaleComplexityHeuristicCoupling(
+  kEnv: number,
+  kDecl: number,
+  kCycle: number,
+  kDirty: number,
+) {
   return {
     kEnv,
     kDecl,

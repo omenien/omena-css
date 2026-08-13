@@ -7,10 +7,11 @@ use std::{
 use crate::{
     ChangePolicyV0, ReactiveNodeIdV0, ReactiveNodeKindV0, ReactiveStateV0, ReactiveUnavailableV0,
     ReactiveValueV0,
-    graph::{NodeBlueprintV0, NodeOperationV0},
+    graph::{NodeBlueprintV0, NodeOperationV0, ReactiveGraphIdV0},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct EffectReceiptV0 {
     pub channel: String,
     pub wave: u64,
@@ -18,11 +19,14 @@ pub struct EffectReceiptV0 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StabilizeStatusV0 {
+    #[non_exhaustive]
     Settled {
         wave: u64,
         recomputed_node_count: usize,
     },
+    #[non_exhaustive]
     Pending {
         wave: u64,
         recomputed_node_count: usize,
@@ -30,9 +34,22 @@ pub enum StabilizeStatusV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReactiveEngineErrorV0 {
-    InvalidNode { node_index: usize },
-    NodeDoesNotAcceptDeposits { node_index: usize },
+    #[non_exhaustive]
+    InvalidNode {
+        node_index: usize,
+    },
+    #[non_exhaustive]
+    ForeignNodeId {
+        node_index: usize,
+        expected_graph: u64,
+        actual_graph: u64,
+    },
+    #[non_exhaustive]
+    NodeDoesNotAcceptDeposits {
+        node_index: usize,
+    },
     ObserverMutationDuringWave,
     ZeroStepBudget,
 }
@@ -43,6 +60,14 @@ impl fmt::Display for ReactiveEngineErrorV0 {
             Self::InvalidNode { node_index } => {
                 write!(formatter, "reactive node {node_index} does not exist")
             }
+            Self::ForeignNodeId {
+                node_index,
+                expected_graph,
+                actual_graph,
+            } => write!(
+                formatter,
+                "reactive node {node_index} belongs to reactive graph {actual_graph}, not {expected_graph}"
+            ),
             Self::NodeDoesNotAcceptDeposits { node_index } => {
                 write!(
                     formatter,
@@ -63,13 +88,19 @@ impl fmt::Display for ReactiveEngineErrorV0 {
 impl Error for ReactiveEngineErrorV0 {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DeltaFoldParityErrorV0 {
-    InvalidNode {
+    #[non_exhaustive]
+    InvalidNode { node_index: usize },
+    #[non_exhaustive]
+    ForeignNodeId {
         node_index: usize,
+        expected_graph: u64,
+        actual_graph: u64,
     },
-    NotDeltaFold {
-        node: ReactiveNodeIdV0,
-    },
+    #[non_exhaustive]
+    NotDeltaFold { node: ReactiveNodeIdV0 },
+    #[non_exhaustive]
     Diverged {
         node: ReactiveNodeIdV0,
         incremental_digest: [u8; 32],
@@ -83,6 +114,14 @@ impl fmt::Display for DeltaFoldParityErrorV0 {
             Self::InvalidNode { node_index } => {
                 write!(formatter, "reactive node {node_index} does not exist")
             }
+            Self::ForeignNodeId {
+                node_index,
+                expected_graph,
+                actual_graph,
+            } => write!(
+                formatter,
+                "reactive node {node_index} belongs to reactive graph {actual_graph}, not {expected_graph}"
+            ),
             Self::NotDeltaFold { node } => {
                 write!(
                     formatter,
@@ -120,6 +159,7 @@ struct RuntimeNodeV0 {
 }
 
 pub struct ReactiveEngineV0 {
+    graph_id: ReactiveGraphIdV0,
     nodes: Vec<RuntimeNodeV0>,
     deferred_deposits: BTreeMap<ReactiveNodeIdV0, ReactiveStateV0>,
     activation_nodes: BTreeSet<ReactiveNodeIdV0>,
@@ -131,7 +171,10 @@ pub struct ReactiveEngineV0 {
 }
 
 impl ReactiveEngineV0 {
-    pub(crate) fn from_blueprints(blueprints: Vec<NodeBlueprintV0>) -> Self {
+    pub(crate) fn from_blueprints(
+        graph_id: ReactiveGraphIdV0,
+        blueprints: Vec<NodeBlueprintV0>,
+    ) -> Self {
         let mut nodes: Vec<_> = blueprints
             .into_iter()
             .map(|blueprint| {
@@ -160,13 +203,17 @@ impl ReactiveEngineV0 {
             .collect();
 
         for node_index in 0..nodes.len() {
-            let parent = ReactiveNodeIdV0(node_index);
+            let parent = ReactiveNodeIdV0 {
+                index: node_index,
+                graph: graph_id,
+            };
             for dependency in nodes[node_index].dependencies.clone() {
                 nodes[dependency.index()].parents.push(parent);
             }
         }
 
         Self {
+            graph_id,
             nodes,
             deferred_deposits: BTreeMap::new(),
             activation_nodes: BTreeSet::new(),
@@ -352,6 +399,13 @@ impl ReactiveEngineV0 {
     }
 
     pub fn verify_delta_fold(&self, node: ReactiveNodeIdV0) -> Result<(), DeltaFoldParityErrorV0> {
+        if node.graph != self.graph_id {
+            return Err(DeltaFoldParityErrorV0::ForeignNodeId {
+                node_index: node.index(),
+                expected_graph: self.graph_id.value(),
+                actual_graph: node.graph.value(),
+            });
+        }
         let Some(runtime) = self.nodes.get(node.index()) else {
             return Err(DeltaFoldParityErrorV0::InvalidNode {
                 node_index: node.index(),
@@ -365,8 +419,11 @@ impl ReactiveEngineV0 {
         else {
             return Ok(());
         };
-        let rebuilt_digest = full_delta_digest(&runtime.delta_entries);
-        if *incremental_digest == rebuilt_digest {
+        let Some(rebuilt_entries) = self.rebuild_delta_fold_from_dependencies(node) else {
+            return Err(DeltaFoldParityErrorV0::NotDeltaFold { node });
+        };
+        let rebuilt_digest = full_delta_digest(&rebuilt_entries);
+        if *incremental_digest == rebuilt_digest && runtime.delta_entries == rebuilt_entries {
             Ok(())
         } else {
             Err(DeltaFoldParityErrorV0::Diverged {
@@ -375,6 +432,24 @@ impl ReactiveEngineV0 {
                 rebuilt_digest,
             })
         }
+    }
+
+    fn rebuild_delta_fold_from_dependencies(
+        &self,
+        node: ReactiveNodeIdV0,
+    ) -> Option<BTreeMap<String, ReactiveStateV0>> {
+        let runtime = self.nodes.get(node.index())?;
+        let NodeOperationV0::DeltaFold { keys } = &runtime.operation else {
+            return None;
+        };
+        Some(
+            keys.iter()
+                .zip(&runtime.dependencies)
+                .map(|(key, dependency)| {
+                    (key.clone(), self.nodes[dependency.index()].state.clone())
+                })
+                .collect(),
+        )
     }
 
     fn begin_wave(&mut self) {
@@ -569,6 +644,13 @@ impl ReactiveEngineV0 {
     }
 
     fn node(&self, node: ReactiveNodeIdV0) -> Result<&RuntimeNodeV0, ReactiveEngineErrorV0> {
+        if node.graph != self.graph_id {
+            return Err(ReactiveEngineErrorV0::ForeignNodeId {
+                node_index: node.index(),
+                expected_graph: self.graph_id.value(),
+                actual_graph: node.graph.value(),
+            });
+        }
         self.nodes
             .get(node.index())
             .ok_or(ReactiveEngineErrorV0::InvalidNode {
@@ -586,6 +668,15 @@ impl ReactiveEngineV0 {
         self.nodes[node.index()]
             .delta_entries
             .insert(key.to_string(), state);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replace_state_without_scheduling_for_test(
+        &mut self,
+        node: ReactiveNodeIdV0,
+        state: ReactiveStateV0,
+    ) {
+        self.nodes[node.index()].state = state;
     }
 }
 
@@ -812,6 +903,76 @@ mod tests {
     }
 
     #[test]
+    fn runtime_entry_points_reject_foreign_graph_node_ids() -> Result<(), Box<dyn Error>> {
+        let mut first_graph = ReactiveGraphBuilderV0::new();
+        let first_input = first_graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(1)),
+            exact_policy(),
+        );
+        let first_second_input = first_graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(2)),
+            exact_policy(),
+        );
+        let mut first_engine = first_graph.build()?;
+
+        let mut second_graph = ReactiveGraphBuilderV0::new();
+        let _second_input = second_graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(100)),
+            exact_policy(),
+        );
+        let second_second_input = second_graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(200)),
+            exact_policy(),
+        );
+        let _second_engine = second_graph.build()?;
+
+        for result in [
+            first_engine.node_kind(second_second_input).map(|_| ()),
+            first_engine.state(second_second_input).map(|_| ()),
+            first_engine.is_necessary(second_second_input).map(|_| ()),
+            first_engine.is_stale(second_second_input).map(|_| ()),
+            first_engine
+                .node_recompute_count(second_second_input)
+                .map(|_| ()),
+            first_engine
+                .delta_update_count(second_second_input)
+                .map(|_| ()),
+            first_engine.observe(second_second_input),
+            first_engine.unobserve(second_second_input),
+            first_engine.deposit(
+                second_second_input,
+                ReactiveStateV0::available(ReactiveValueV0::Counter(777)),
+            ),
+        ] {
+            assert!(matches!(
+                result,
+                Err(ReactiveEngineErrorV0::ForeignNodeId {
+                    node_index: 1,
+                    expected_graph,
+                    actual_graph,
+                }) if expected_graph != actual_graph
+            ));
+        }
+        assert!(matches!(
+            first_engine.verify_delta_fold(second_second_input),
+            Err(DeltaFoldParityErrorV0::ForeignNodeId {
+                node_index: 1,
+                expected_graph,
+                actual_graph,
+            }) if expected_graph != actual_graph
+        ));
+        assert_eq!(
+            first_engine.state(first_second_input)?,
+            &ReactiveStateV0::available(ReactiveValueV0::Counter(2))
+        );
+        assert_eq!(
+            first_engine.state(first_input)?,
+            &ReactiveStateV0::available(ReactiveValueV0::Counter(1))
+        );
+        Ok(())
+    }
+
+    #[test]
     fn deposits_arriving_mid_wave_wait_for_the_next_wave() -> Result<(), Box<dyn Error>> {
         let mut graph = ReactiveGraphBuilderV0::new();
         let input = graph.add_input(
@@ -895,8 +1056,75 @@ mod tests {
             "first",
             ReactiveStateV0::available(ReactiveValueV0::Counter(99)),
         );
-        assert!(engine.verify_delta_fold(fold).is_err());
+        assert!(matches!(
+            engine.verify_delta_fold(fold),
+            Err(DeltaFoldParityErrorV0::Diverged {
+                incremental_digest,
+                rebuilt_digest,
+                ..
+            }) if incremental_digest == rebuilt_digest
+        ));
         Ok(())
+    }
+
+    #[test]
+    fn delta_fold_detects_dependency_changes_missed_by_dirty_tracking() -> Result<(), Box<dyn Error>>
+    {
+        let mut graph = ReactiveGraphBuilderV0::new();
+        let first = graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(1)),
+            exact_policy(),
+        );
+        let second = graph.add_input(
+            ReactiveStateV0::available(ReactiveValueV0::Counter(2)),
+            exact_policy(),
+        );
+        let fold = graph.add_delta_fold(
+            vec![("first".to_string(), first), ("second".to_string(), second)],
+            exact_policy(),
+        )?;
+        let mut engine = graph.build()?;
+        engine.observe(fold)?;
+        settled(&mut engine)?;
+
+        engine.replace_state_without_scheduling_for_test(
+            first,
+            ReactiveStateV0::available(ReactiveValueV0::Counter(999)),
+        );
+
+        assert!(matches!(
+            engine.verify_delta_fold(fold),
+            Err(DeltaFoldParityErrorV0::Diverged {
+                incremental_digest,
+                rebuilt_digest,
+                ..
+            }) if incremental_digest != rebuilt_digest
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn dependency_rebuild_does_not_read_incremental_entries() {
+        let source = include_str!("engine.rs");
+        let marker = "fn rebuild_delta_fold_from_dependencies";
+        let start = source.find(marker).unwrap_or(source.len());
+        assert!(
+            start < source.len(),
+            "dependency rebuild function is missing"
+        );
+        let after_start = &source[start..];
+        let end = after_start
+            .find("\n    fn begin_wave")
+            .unwrap_or(after_start.len());
+        assert!(
+            end < after_start.len(),
+            "dependency rebuild function boundary is missing"
+        );
+        let function = &after_start[..end];
+        assert!(
+            !function.contains("delta_entries"),
+            "dependency rebuild must not read incremental fold entries"
+        );
     }
 
     #[test]

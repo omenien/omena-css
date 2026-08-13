@@ -1,4 +1,86 @@
+impl<'ir> omena_query_transform_runner::PluginTransformIrV0<'ir>
+impl<'snapshot> omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>
+pub const fn omena_query_transform_runner::PluginTransformIrV0<'ir>::mutation_count(&self) -> usize
+pub const fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::new(omena_incremental::OmenaWorkspaceSnapshotIdV0, omena_bridge::style_intelligence::StyleIntelligenceSnapshotV0<'snapshot>) -> Self
+pub const fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::snapshot_id(&self) -> omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub const omena_query_transform_runner::OMENA_PLUGIN_ABI_VERSION_V0: &str
+pub const omena_query_transform_runner::OMENA_QUERY_TRANSFORM_RUNNER_COLLAPSED_CRATES_V0: [&str; 6]
+pub enum omena_query_transform_runner::PluginKindV0
+pub enum omena_query_transform_runner::PluginOutcomeValidationErrorV0
+pub fn omena_query_transform_runner::OmenaPlugin::analyze(&self, &omena_query_transform_runner::PluginWorkspaceSnapshotV0<'_>) -> omena_query_transform_runner::PluginAnalysisV0
+pub fn omena_query_transform_runner::OmenaPlugin::metadata(&self) -> &'static omena_query_transform_runner::PluginMetadataV0
+pub fn omena_query_transform_runner::OmenaPlugin::transform(&self, &mut omena_query_transform_runner::PluginTransformIrV0<'_>, omena_query_transform_runner::PluginTransformContextV0) -> omena_query_transform_runner::PluginOutcomeV0
+pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::new(&'ir mut omena_transform_cst::transform_ir::TransformIrV0, &'static str) -> Self
+pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::nodes(&self) -> alloc::vec::Vec<omena_query_transform_runner::PluginIrNodeV0>
+pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::printed_css(&self) -> core::result::Result<alloc::string::String, omena_transform_cst::transform_ir::TransformIrPrintErrorV0>
+pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::replace_node(&mut self, omena_transform_cst::transform_ir::IrNodeIdV0, impl core::convert::Into<alloc::string::String>) -> core::result::Result<(), omena_transform_cst::transform_ir::IrTransactionErrorV0>
+pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::source_byte_len(&self) -> usize
+pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::source_id(&self) -> &str
+pub fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::class_universe(&self, &str) -> core::option::Option<omena_bridge::style_intelligence::StyleIntelligenceClassUniverseV0>
+pub fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::completions_at_offset(&self, usize) -> alloc::vec::Vec<omena_bridge::style_intelligence::StyleIntelligenceCompletionV0>
+pub fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::hover_at_offset(&self, usize) -> core::option::Option<omena_bridge::style_intelligence::StyleIntelligenceHoverV0>
+pub fn omena_query_transform_runner::built_in_omena_plugins() -> &'static [&'static dyn omena_query_transform_runner::OmenaPlugin]
+pub fn omena_query_transform_runner::execute_built_in_omena_plugin(&str, &omena_query_transform_runner::PluginWorkspaceSnapshotV0<'_>, &mut omena_query_transform_runner::PluginTransformIrV0<'_>, omena_query_transform_runner::PluginTransformContextV0) -> core::option::Option<core::result::Result<(omena_query_transform_runner::PluginAnalysisV0, omena_query_transform_runner::PluginOutcomeV0), omena_query_transform_runner::PluginOutcomeValidationErrorV0>>
+pub fn omena_query_transform_runner::materialize_transform_module_evaluation_native_edits(&str, &[omena_transform_passes::model::TransformModuleEvaluationNativeEditV0]) -> core::option::Option<alloc::string::String>
+pub fn omena_query_transform_runner::summarize_omena_query_transform_runner_boundary_v0() -> omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0
+pub fn omena_query_transform_runner::summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0() -> omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0
+pub fn omena_query_transform_runner::validate_plugin_outcome(&omena_query_transform_runner::PluginMetadataV0, omena_query_transform_runner::PluginTransformContextV0, usize, &omena_query_transform_runner::PluginOutcomeV0) -> core::result::Result<(), omena_query_transform_runner::PluginOutcomeValidationErrorV0>
 pub mod omena_query_transform_runner
+pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::boundary_kind: &'static str
+pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::collapsed_transform_crate_count: usize
+pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::collapsed_transform_crates: alloc::vec::Vec<&'static str>
+pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::direct_query_dependency_replacement: &'static str
+pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::product: &'static str
+pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::ready_surfaces: alloc::vec::Vec<&'static str>
+pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::schema_version: &'static str
+pub omena_query_transform_runner::PluginAnalysisV0::evidence_reference: omena_evidence_graph::EvidenceNodeKeyV0
+pub omena_query_transform_runner::PluginAnalysisV0::precision: omena_abstract_value::types::FactPrecision
+pub omena_query_transform_runner::PluginAnalysisV0::summary: alloc::string::String
+pub omena_query_transform_runner::PluginChangeSummaryV0::mutation_count: usize
+pub omena_query_transform_runner::PluginChangeSummaryV0::observed_node_count: usize
+pub omena_query_transform_runner::PluginChangeSummaryV0::output_changed: bool
+pub omena_query_transform_runner::PluginIrNodeV0::kind: omena_transform_cst::transform_ir::IrNodeKindV0
+pub omena_query_transform_runner::PluginIrNodeV0::node_id: omena_transform_cst::transform_ir::IrNodeIdV0
+pub omena_query_transform_runner::PluginIrNodeV0::source_span_end: usize
+pub omena_query_transform_runner::PluginIrNodeV0::source_span_start: usize
+pub omena_query_transform_runner::PluginKindV0::BundleHost
+pub omena_query_transform_runner::PluginKindV0::Transform
+pub omena_query_transform_runner::PluginMetadataV0::abi_version: &'static str
+pub omena_query_transform_runner::PluginMetadataV0::capabilities: &'static [&'static str]
+pub omena_query_transform_runner::PluginMetadataV0::kind: omena_query_transform_runner::PluginKindV0
+pub omena_query_transform_runner::PluginMetadataV0::plugin_id: &'static str
+pub omena_query_transform_runner::PluginMetadataV0::stability: &'static str
+pub omena_query_transform_runner::PluginMetadataV0::version: &'static str
+pub omena_query_transform_runner::PluginOutcomeV0::change_summary: omena_query_transform_runner::PluginChangeSummaryV0
+pub omena_query_transform_runner::PluginOutcomeV0::decision: omena_transform_passes::model::TransformDecision
+pub omena_query_transform_runner::PluginOutcomeV0::evidence_reference: omena_evidence_graph::EvidenceNodeKeyV0
+pub omena_query_transform_runner::PluginOutcomeV0::precision: omena_abstract_value::types::FactPrecision
+pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::AbiVersionMismatch
+pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::ChangeSummaryMismatch
+pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::DecisionMismatch
+pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::EvidenceReferenceMismatch
+pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::PassIdentityMismatch
+pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::PrecisionBelowRequired
+pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::SnapshotIdentityMismatch
+pub omena_query_transform_runner::PluginTransformContextV0::required_precision: omena_abstract_value::types::FactPrecision
+pub omena_query_transform_runner::PluginTransformContextV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
+pub struct omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0
+pub struct omena_query_transform_runner::PluginAnalysisV0
+pub struct omena_query_transform_runner::PluginChangeSummaryV0
+pub struct omena_query_transform_runner::PluginIrNodeV0
+pub struct omena_query_transform_runner::PluginMetadataV0
+pub struct omena_query_transform_runner::PluginOutcomeV0
+pub struct omena_query_transform_runner::PluginTransformContextV0
+pub struct omena_query_transform_runner::PluginTransformIrV0<'ir>
+pub struct omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>
+pub trait omena_query_transform_runner::OmenaPlugin: core::marker::Sync
+pub use omena_query_transform_runner::BundleDependencyResolutionDisclosureV0
+pub use omena_query_transform_runner::BundleResolutionAuthorityV0
+pub use omena_query_transform_runner::CssModuleTokenCollisionPathScopeV0
+pub use omena_query_transform_runner::CssModuleTokenCollisionV0
+pub use omena_query_transform_runner::CssModuleTokenInterfaceMismatchV0
+pub use omena_query_transform_runner::CssModuleTokenOwnershipCensusV0
+pub use omena_query_transform_runner::CssModuleTokenOwnershipV0
 pub use omena_query_transform_runner::CustomPropertyLeastFixedPointSummaryV0
 pub use omena_query_transform_runner::EggRewriteSourceWitnessV0
 pub use omena_query_transform_runner::EmissionOrderingPolicyV0
@@ -9,9 +91,12 @@ pub use omena_query_transform_runner::ExternalCssSemanticChangeV0
 pub use omena_query_transform_runner::ExternalCssSemanticDiffV0
 pub use omena_query_transform_runner::ExternalCssSemanticEntryV0
 pub use omena_query_transform_runner::FactPrecision
+pub use omena_query_transform_runner::InstanceReachabilityDerivationV0
 pub use omena_query_transform_runner::LinkedEmissionArtifactV0
 pub use omena_query_transform_runner::LinkedEmissionItemMaterializationErrorV0
 pub use omena_query_transform_runner::LinkedEmissionMaterializationErrorV0
+pub use omena_query_transform_runner::LinkedEmissionModuleRegionV0
+pub use omena_query_transform_runner::LinkedEmissionOrderEntryRegionV0
 pub use omena_query_transform_runner::LinkedStylesheetV0
 pub use omena_query_transform_runner::LinkedStylesheetWithEmissionItemsV0
 pub use omena_query_transform_runner::MinifyPassClassificationV0
@@ -33,6 +118,7 @@ pub use omena_query_transform_runner::TransformBundleDependencyResolutionV0
 pub use omena_query_transform_runner::TransformBundleEdgeKind
 pub use omena_query_transform_runner::TransformBundleEmissionAdmissionV0
 pub use omena_query_transform_runner::TransformBundleEmissionItemProjectionV0
+pub use omena_query_transform_runner::TransformBundleInstanceReachabilityInputV0
 pub use omena_query_transform_runner::TransformBundleLinkErrorV0
 pub use omena_query_transform_runner::TransformBundleLinkOptionsV0
 pub use omena_query_transform_runner::TransformBundleLinkProjectionSetV0
@@ -56,6 +142,7 @@ pub use omena_query_transform_runner::TransformExecutionPolicyV0
 pub use omena_query_transform_runner::TransformExecutionSummaryV0
 pub use omena_query_transform_runner::TransformImportInlineV0
 pub use omena_query_transform_runner::TransformLessInlineLiteralPlaceholderV0
+pub use omena_query_transform_runner::TransformModuleCssModuleContextV0
 pub use omena_query_transform_runner::TransformModuleEvaluationNativeEditV0
 pub use omena_query_transform_runner::TransformModuleEvaluationNativeReplacementV0
 pub use omena_query_transform_runner::TransformModuleEvaluationOracleV0
@@ -109,12 +196,14 @@ pub use omena_query_transform_runner::expand_css_nested_selector
 pub use omena_query_transform_runner::external_css_semantic_diff_is_total_v0
 pub use omena_query_transform_runner::inline_css_imports
 pub use omena_query_transform_runner::inline_css_imports_for_static_module_evaluation
+pub use omena_query_transform_runner::link_legacy_path_inferred_bundle
 pub use omena_query_transform_runner::link_omena_transform_bundle_modules
 pub use omena_query_transform_runner::link_omena_transform_bundle_modules_with_options
 pub use omena_query_transform_runner::link_omena_transform_bundle_modules_with_semantic_reachability
 pub use omena_query_transform_runner::link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata
 pub use omena_query_transform_runner::link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options
 pub use omena_query_transform_runner::link_omena_transform_bundle_projection_with_resolved_dependencies_and_options
+pub use omena_query_transform_runner::link_resolved_bundle
 pub use omena_query_transform_runner::materialize_omena_transform_bundle_linked_stylesheet
 pub use omena_query_transform_runner::materialize_omena_transform_bundle_linked_stylesheet_with_emission_items
 pub use omena_query_transform_runner::modern_feature_support
@@ -128,6 +217,7 @@ pub use omena_query_transform_runner::print_transform_cst_source_with_dialect_an
 pub use omena_query_transform_runner::print_transform_execution_artifact_with_dialect_and_source
 pub use omena_query_transform_runner::project_omena_transform_bundle_linker_and_emission_items
 pub use omena_query_transform_runner::project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules
+pub use omena_query_transform_runner::project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability
 pub use omena_query_transform_runner::project_omena_transform_bundle_linker_inputs
 pub use omena_query_transform_runner::project_omena_transform_bundle_linker_inputs_from_parsed_modules
 pub use omena_query_transform_runner::reduce_static_numeric_expression
@@ -145,77 +235,3 @@ pub use omena_query_transform_runner::summarize_static_css_custom_property_fixed
 pub use omena_query_transform_runner::transform_pass_requires_closed_world_bundle
 pub use omena_query_transform_runner::transform_pass_sort_ordinal
 pub use omena_query_transform_runner::transform_source_map_point
-pub enum omena_query_transform_runner::PluginKindV0
-pub omena_query_transform_runner::PluginKindV0::BundleHost
-pub omena_query_transform_runner::PluginKindV0::Transform
-pub enum omena_query_transform_runner::PluginOutcomeValidationErrorV0
-pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::AbiVersionMismatch
-pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::ChangeSummaryMismatch
-pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::DecisionMismatch
-pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::EvidenceReferenceMismatch
-pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::PassIdentityMismatch
-pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::PrecisionBelowRequired
-pub omena_query_transform_runner::PluginOutcomeValidationErrorV0::SnapshotIdentityMismatch
-pub struct omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0
-pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::boundary_kind: &'static str
-pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::collapsed_transform_crate_count: usize
-pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::collapsed_transform_crates: alloc::vec::Vec<&'static str>
-pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::direct_query_dependency_replacement: &'static str
-pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::product: &'static str
-pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::ready_surfaces: alloc::vec::Vec<&'static str>
-pub omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0::schema_version: &'static str
-pub struct omena_query_transform_runner::PluginAnalysisV0
-pub omena_query_transform_runner::PluginAnalysisV0::evidence_reference: omena_evidence_graph::EvidenceNodeKeyV0
-pub omena_query_transform_runner::PluginAnalysisV0::precision: omena_abstract_value::types::FactPrecision
-pub omena_query_transform_runner::PluginAnalysisV0::summary: alloc::string::String
-pub struct omena_query_transform_runner::PluginChangeSummaryV0
-pub omena_query_transform_runner::PluginChangeSummaryV0::mutation_count: usize
-pub omena_query_transform_runner::PluginChangeSummaryV0::observed_node_count: usize
-pub omena_query_transform_runner::PluginChangeSummaryV0::output_changed: bool
-pub struct omena_query_transform_runner::PluginIrNodeV0
-pub omena_query_transform_runner::PluginIrNodeV0::kind: omena_transform_cst::transform_ir::IrNodeKindV0
-pub omena_query_transform_runner::PluginIrNodeV0::node_id: omena_transform_cst::transform_ir::IrNodeIdV0
-pub omena_query_transform_runner::PluginIrNodeV0::source_span_end: usize
-pub omena_query_transform_runner::PluginIrNodeV0::source_span_start: usize
-pub struct omena_query_transform_runner::PluginMetadataV0
-pub omena_query_transform_runner::PluginMetadataV0::abi_version: &'static str
-pub omena_query_transform_runner::PluginMetadataV0::capabilities: &'static [&'static str]
-pub omena_query_transform_runner::PluginMetadataV0::kind: omena_query_transform_runner::PluginKindV0
-pub omena_query_transform_runner::PluginMetadataV0::plugin_id: &'static str
-pub omena_query_transform_runner::PluginMetadataV0::stability: &'static str
-pub omena_query_transform_runner::PluginMetadataV0::version: &'static str
-pub struct omena_query_transform_runner::PluginOutcomeV0
-pub omena_query_transform_runner::PluginOutcomeV0::change_summary: omena_query_transform_runner::PluginChangeSummaryV0
-pub omena_query_transform_runner::PluginOutcomeV0::decision: omena_transform_passes::model::TransformDecision
-pub omena_query_transform_runner::PluginOutcomeV0::evidence_reference: omena_evidence_graph::EvidenceNodeKeyV0
-pub omena_query_transform_runner::PluginOutcomeV0::precision: omena_abstract_value::types::FactPrecision
-pub struct omena_query_transform_runner::PluginTransformContextV0
-pub omena_query_transform_runner::PluginTransformContextV0::required_precision: omena_abstract_value::types::FactPrecision
-pub omena_query_transform_runner::PluginTransformContextV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
-pub struct omena_query_transform_runner::PluginTransformIrV0<'ir>
-impl<'ir> omena_query_transform_runner::PluginTransformIrV0<'ir>
-pub const fn omena_query_transform_runner::PluginTransformIrV0<'ir>::mutation_count(&self) -> usize
-pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::new(&'ir mut omena_transform_cst::transform_ir::TransformIrV0, &'static str) -> Self
-pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::nodes(&self) -> alloc::vec::Vec<omena_query_transform_runner::PluginIrNodeV0>
-pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::printed_css(&self) -> core::result::Result<alloc::string::String, omena_transform_cst::transform_ir::TransformIrPrintErrorV0>
-pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::replace_node(&mut self, omena_transform_cst::transform_ir::IrNodeIdV0, impl core::convert::Into<alloc::string::String>) -> core::result::Result<(), omena_transform_cst::transform_ir::IrTransactionErrorV0>
-pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::source_byte_len(&self) -> usize
-pub fn omena_query_transform_runner::PluginTransformIrV0<'ir>::source_id(&self) -> &str
-pub struct omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>
-impl<'snapshot> omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>
-pub fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::class_universe(&self, &str) -> core::option::Option<omena_bridge::style_intelligence::StyleIntelligenceClassUniverseV0>
-pub fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::completions_at_offset(&self, usize) -> alloc::vec::Vec<omena_bridge::style_intelligence::StyleIntelligenceCompletionV0>
-pub fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::hover_at_offset(&self, usize) -> core::option::Option<omena_bridge::style_intelligence::StyleIntelligenceHoverV0>
-pub const fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::new(omena_incremental::OmenaWorkspaceSnapshotIdV0, omena_bridge::style_intelligence::StyleIntelligenceSnapshotV0<'snapshot>) -> Self
-pub const fn omena_query_transform_runner::PluginWorkspaceSnapshotV0<'snapshot>::snapshot_id(&self) -> omena_incremental::OmenaWorkspaceSnapshotIdV0
-pub const omena_query_transform_runner::OMENA_PLUGIN_ABI_VERSION_V0: &str
-pub const omena_query_transform_runner::OMENA_QUERY_TRANSFORM_RUNNER_COLLAPSED_CRATES_V0: [&str; 6]
-pub trait omena_query_transform_runner::OmenaPlugin: core::marker::Sync
-pub fn omena_query_transform_runner::OmenaPlugin::analyze(&self, &omena_query_transform_runner::PluginWorkspaceSnapshotV0<'_>) -> omena_query_transform_runner::PluginAnalysisV0
-pub fn omena_query_transform_runner::OmenaPlugin::metadata(&self) -> &'static omena_query_transform_runner::PluginMetadataV0
-pub fn omena_query_transform_runner::OmenaPlugin::transform(&self, &mut omena_query_transform_runner::PluginTransformIrV0<'_>, omena_query_transform_runner::PluginTransformContextV0) -> omena_query_transform_runner::PluginOutcomeV0
-pub fn omena_query_transform_runner::built_in_omena_plugins() -> &'static [&'static dyn omena_query_transform_runner::OmenaPlugin]
-pub fn omena_query_transform_runner::execute_built_in_omena_plugin(&str, &omena_query_transform_runner::PluginWorkspaceSnapshotV0<'_>, &mut omena_query_transform_runner::PluginTransformIrV0<'_>, omena_query_transform_runner::PluginTransformContextV0) -> core::option::Option<core::result::Result<(omena_query_transform_runner::PluginAnalysisV0, omena_query_transform_runner::PluginOutcomeV0), omena_query_transform_runner::PluginOutcomeValidationErrorV0>>
-pub fn omena_query_transform_runner::materialize_transform_module_evaluation_native_edits(&str, &[omena_transform_passes::model::TransformModuleEvaluationNativeEditV0]) -> core::option::Option<alloc::string::String>
-pub fn omena_query_transform_runner::summarize_omena_query_transform_runner_boundary_v0() -> omena_query_transform_runner::OmenaQueryTransformRunnerBoundaryV0
-pub fn omena_query_transform_runner::validate_plugin_outcome(&omena_query_transform_runner::PluginMetadataV0, omena_query_transform_runner::PluginTransformContextV0, usize, &omena_query_transform_runner::PluginOutcomeV0) -> core::result::Result<(), omena_query_transform_runner::PluginOutcomeValidationErrorV0>

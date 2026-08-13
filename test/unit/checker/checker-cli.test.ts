@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runCheckerCli } from "../../../server/checker-cli/src";
+import { countAutomatonPreconstructionCutoffProvenances } from "../../../server/checker-cli/src/rust-flow-analysis-consumer";
 
 const tempDirs: string[] = [];
 const STYLELINT_SMOKE_ROOT = path.join(process.cwd(), "test/_fixtures/stylelint-plugin-smoke");
@@ -12,6 +13,57 @@ afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+it("counts automaton preconstruction cutoff provenances without folding their causes", () => {
+  const counts = countAutomatonPreconstructionCutoffProvenances([
+    {
+      graphId: "cutoff-graph",
+      filePath: "/fixture/cutoff.tsx",
+      analysis: {
+        schemaVersion: "0",
+        product: "omena-abstract-value.flow-analysis",
+        contextSensitivity: "perSuppliedGraph",
+        converged: true,
+        iterationCount: 1,
+        nodes: [
+          {
+            id: "cardinality",
+            predecessorIds: [],
+            transferKind: "concatFacts",
+            valueKind: "top",
+            value: { kind: "top", provenance: "automatonLanguageCardinalityLimit" },
+          },
+          {
+            id: "materialized-bytes",
+            predecessorIds: [],
+            transferKind: "concatFacts",
+            valueKind: "top",
+            value: { kind: "top", provenance: "automatonMaterializedByteLimit" },
+          },
+          {
+            id: "post-build-state-limit",
+            predecessorIds: [],
+            transferKind: "assignFacts",
+            valueKind: "top",
+            value: { kind: "top", provenance: "automatonStateLimit" },
+          },
+          {
+            id: "wrong-value-kind",
+            predecessorIds: [],
+            transferKind: "assignFacts",
+            valueKind: "composite",
+            value: { kind: "composite", provenance: "automatonLanguageCardinalityLimit" },
+          },
+        ],
+      },
+    },
+  ]);
+
+  expect(counts).toEqual({
+    automatonLanguageCardinalityLimit: 1,
+    automatonMaterializedByteLimit: 1,
+  });
 });
 
 describe("runCheckerCli", () => {
@@ -625,6 +677,10 @@ describe("runCheckerCli", () => {
       graphCount: 1,
       convergedGraphCount: 1,
       unconvergedGraphCount: 0,
+      automatonPreconstructionCutoffProvenanceCounts: {
+        automatonLanguageCardinalityLimit: 0,
+        automatonMaterializedByteLimit: 0,
+      },
       flowAnalysis: {
         product: "engine-input-producers.expression-domain-flow-analysis",
         analyses: [
@@ -635,6 +691,30 @@ describe("runCheckerCli", () => {
       },
     });
     expect(payload.rustFlowAnalysisConsumer.nodeCount).toBeGreaterThan(0);
+
+    const textStdout: string[] = [];
+    const textExitCode = await runCheckerCli(
+      [
+        workspaceRoot,
+        "--source-file",
+        "src/App.tsx",
+        "--style-file",
+        "src/Button.module.scss",
+        "--fail-on",
+        "none",
+        "--rust-flow-analysis-consumer",
+      ],
+      {
+        stdout: (message) => textStdout.push(message),
+        stderr: () => {},
+        cwd: () => workspaceRoot,
+      },
+    );
+
+    expect(textExitCode).toBe(0);
+    expect(textStdout.join("")).toContain(
+      "automatonLanguageCardinalityLimit=0 automatonMaterializedByteLimit=0",
+    );
   }, 120000);
 
   it("emits rust source-missing producer and consistency in json output", async () => {

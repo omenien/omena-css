@@ -1636,10 +1636,11 @@ assert.equal(escapedClassHashResult.status, 0, escapedClassHashResult.stderr);
 assert.equal(escapedClassHashResult.error, undefined);
 
 const escapedClassHashSummary = JSON.parse(escapedClassHashResult.stdout) as ConsumerBuildSummaryV0;
+const escapedClassToken = moduleScopedToken(escapedClassHashSummary.execution.outputCss, "foo_bar");
 
 assert.equal(
   escapedClassHashSummary.execution.outputCss,
-  "._foo_bar_0{ color: red; } ._foo_bar_0{ color: blue; } .foo\\:bar ._foo_bar_0{ color: green; }",
+  `.${escapedClassToken}{ color: red; } .${escapedClassToken}{ color: blue; } .foo\\:bar .${escapedClassToken}{ color: green; }`,
 );
 assert.deepEqual(escapedClassHashSummary.execution.executedPassIds, [
   "css-modules-class-hashing",
@@ -1677,10 +1678,15 @@ assert.equal(hexEscapedClassHashResult.error, undefined);
 const hexEscapedClassHashSummary = JSON.parse(
   hexEscapedClassHashResult.stdout,
 ) as ConsumerBuildSummaryV0;
+const hexEscapedClassTokens = moduleScopedTokens(
+  hexEscapedClassHashSummary.execution.outputCss,
+  "hex_bar",
+);
+assert.equal(new Set(hexEscapedClassTokens).size, 2);
 
 assert.equal(
   hexEscapedClassHashSummary.execution.outputCss,
-  "._hex_bar_0{ color: red; } ._hex_bar_0{ color: blue; }",
+  `.${hexEscapedClassTokens[0]}{ color: red; } .${hexEscapedClassTokens[1]}{ color: blue; }`,
 );
 assert.deepEqual(hexEscapedClassHashSummary.execution.executedPassIds, [
   "css-modules-class-hashing",
@@ -3541,7 +3547,14 @@ assert.equal(
   staticScssEvaluationSummary.execution.cssModuleEvaluation?.nativeEditOutput,
   "  .button { color: red; }",
 );
-assert.equal(staticScssEvaluationSummary.execution.outputCss, "  ._button_0{ color: red; }");
+const staticScssToken = moduleScopedToken(
+  staticScssEvaluationSummary.execution.outputCss,
+  "button",
+);
+assert.equal(
+  staticScssEvaluationSummary.execution.outputCss,
+  `  .${staticScssToken}{ color: red; }`,
+);
 
 const importAwareScssEvaluationResult = spawnSync(
   "cargo",
@@ -4359,7 +4372,7 @@ assert.equal(
 );
 assert.equal(
   staticScssDefaultEvaluationSummary.execution.outputCss.trim(),
-  "._button_0{ color: blue; }",
+  `.${moduleScopedToken(staticScssDefaultEvaluationSummary.execution.outputCss, "button")}{ color: blue; }`,
 );
 
 const staticScssScopedEvaluationResult = spawnSync(
@@ -4493,7 +4506,14 @@ assert.equal(
   staticLessEvaluationSummary.execution.cssModuleEvaluation?.nativeEditOutput,
   "  .button { color: red; }",
 );
-assert.equal(staticLessEvaluationSummary.execution.outputCss, "  ._button_0{ color: red; }");
+const staticLessToken = moduleScopedToken(
+  staticLessEvaluationSummary.execution.outputCss,
+  "button",
+);
+assert.equal(
+  staticLessEvaluationSummary.execution.outputCss,
+  `  .${staticLessToken}{ color: red; }`,
+);
 
 const importAwareLessEvaluationResult = spawnSync(
   "cargo",
@@ -4980,7 +5000,7 @@ assert.equal(
 );
 assert.equal(
   staticLessForwardEvaluationSummary.execution.outputCss.trim(),
-  "._button_0{ color: red; }",
+  `.${moduleScopedToken(staticLessForwardEvaluationSummary.execution.outputCss, "button")}{ color: red; }`,
 );
 
 const staticLessLastWinsEvaluationResult = spawnSync(
@@ -5029,7 +5049,7 @@ assert.equal(
 );
 assert.equal(
   staticLessLastWinsEvaluationSummary.execution.outputCss.trim(),
-  "._button_0{ color: blue; }",
+  `.${moduleScopedToken(staticLessLastWinsEvaluationSummary.execution.outputCss, "button")}{ color: blue; }`,
 );
 
 const staticLessScopedEvaluationResult = spawnSync(
@@ -5208,7 +5228,7 @@ assert.equal(
 );
 assert.equal(
   staticStylesheetCompositeEvaluationSummary.execution.outputCss.trim(),
-  "._button_0{ border: 1px solid red; }",
+  `.${moduleScopedToken(staticStylesheetCompositeEvaluationSummary.execution.outputCss, "button")}{ border: 1px solid red; }`,
 );
 assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 3);
 
@@ -5261,4 +5281,21 @@ function assertIncludesAll(actual: readonly string[], expected: readonly string[
   for (const value of expected) {
     assert.ok(actual.includes(value), `${label} must include ${value}`);
   }
+}
+
+function moduleScopedToken(outputCss: string, sanitizedLocal: string): string {
+  const matches = moduleScopedTokens(outputCss, sanitizedLocal);
+  assert.equal(new Set(matches).size, 1, `one raw local class must retain one scoped token`);
+  return matches[0];
+}
+
+function moduleScopedTokens(outputCss: string, sanitizedLocal: string): string[] {
+  const escapedLocal = sanitizedLocal.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const matches = [
+    ...outputCss.matchAll(
+      new RegExp(`\\.(_[A-Za-z0-9_-]{6}_${escapedLocal})(?=[^A-Za-z0-9_-]|$)`, "gu"),
+    ),
+  ].map((match) => match[1]);
+  assert.ok(matches.length > 0, `scoped output must include the local suffix ${sanitizedLocal}`);
+  return matches;
 }

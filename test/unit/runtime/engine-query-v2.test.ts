@@ -42,7 +42,12 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-function makeDeps(options: { readonly multiSymbolRefs?: boolean } = {}) {
+function makeDeps(
+  options: {
+    readonly multiSymbolRefs?: boolean;
+    readonly selectorNames?: readonly string[];
+  } = {},
+) {
   const sourceFrontendAnalysis = createTestSourceFrontendAnalysis({
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
@@ -95,10 +100,7 @@ function makeDeps(options: { readonly multiSymbolRefs?: boolean } = {}) {
   return makeBaseDeps({
     analysisCache,
     selectorMapForPath: () =>
-      new Map([
-        ["indicator", info("indicator")],
-        ["active", info("active")],
-      ]),
+      new Map((options.selectorNames ?? ["indicator", "active"]).map((name) => [name, info(name)])),
     workspaceRoot: "/fake",
   });
 }
@@ -108,6 +110,34 @@ function buildResults(options: Parameters<typeof buildSelectedQueryResultsV2>[0]
 }
 
 describe("buildSelectedQueryResultsV2", () => {
+  it("orders non-ASCII query IDs by locale-invariant UTF-8 bytes", () => {
+    const deps = makeDeps({
+      selectorNames: ["카드-활성", "카드-x-활성", "카드-long-활성"],
+    });
+
+    const results = buildResults({
+      workspaceRoot: "/fake",
+      classnameTransform: "asIs",
+      pathAlias: {},
+      sourceDocuments: [],
+      styleFiles: ["/fake/src/Button.module.scss"],
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      semanticReferenceIndex: deps.semanticReferenceIndex,
+      styleDependencyGraph: deps.styleDependencyGraph,
+      env: {
+        OMENA_SELECTED_QUERY_BACKEND: "typescript-current",
+      } as NodeJS.ProcessEnv,
+    });
+
+    expect(results.map((result) => result.queryId)).toEqual([
+      "카드-long-활성",
+      "카드-x-활성",
+      "카드-활성",
+    ]);
+  });
+
   it("can source source-resolution query results from the rust backend", () => {
     const deps = makeDeps();
     const sourceDocuments = [

@@ -1,4 +1,9 @@
-use omena_cascade::{CascadeDeclaration, cascade_margin_for_outcome, cascade_property};
+use std::sync::OnceLock;
+
+use omena_cascade::{
+    CascadeDeclaration, cascade_margin_for_outcome, cascade_property,
+    summarize_cascade_margin_schema_v0,
+};
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
 };
@@ -84,16 +89,13 @@ fn query_diagnostic_cascade_declaration_from_input(
 }
 
 fn query_cascade_confidence_axis_weight_basis_points(axis: &str) -> u16 {
-    match axis {
-        "level" => 7_000,
-        "layerRank" => 6_000,
-        "scopeProximity" => 5_000,
-        "specificityIds" => 4_000,
-        "specificityClasses" => 3_000,
-        "specificityElements" => 2_000,
-        "sourceOrder" => 1_000,
-        _ => 500,
-    }
+    static AXIS_ORDER: OnceLock<Vec<&'static str>> = OnceLock::new();
+    let axis_order = AXIS_ORDER.get_or_init(|| summarize_cascade_margin_schema_v0().axis_order);
+    axis_order
+        .iter()
+        .position(|candidate| *candidate == axis)
+        .and_then(|position| u16::try_from((axis_order.len() - position) * 1_000).ok())
+        .unwrap_or(500)
 }
 
 fn query_cascade_confidence_score_basis_points(

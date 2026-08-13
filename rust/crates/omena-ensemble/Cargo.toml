@@ -25,5 +25,8 @@ sequential = []
 omena-cascade = { path = "../omena-cascade", version = "=0.3.0" }
 serde.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [package.metadata.docs.rs]
 all-features = true

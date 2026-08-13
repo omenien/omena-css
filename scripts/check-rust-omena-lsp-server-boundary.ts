@@ -45,7 +45,7 @@ interface RustOmenaLspServerBoundarySummary {
     readonly verificationOwner: string;
     readonly requestPathPolicy: readonly string[];
     readonly forbiddenRuntimeCapabilities: readonly string[];
-    readonly diskWriteSurfaces: readonly string[];
+    readonly diskWriteSurfaces: readonly CacheWriteSurface[];
   };
   readonly migrationPhases: readonly {
     readonly phase: string;
@@ -93,7 +93,7 @@ interface RustOmenaLspServerBoundarySummary {
     readonly product: string;
     readonly owner: string;
     readonly cacheModel: string;
-    readonly storageLocation: string;
+    readonly storageLocation: readonly CacheWriteSurface[];
     readonly reusePolicy: readonly string[];
     readonly writePolicy: readonly string[];
     readonly killSwitches: readonly string[];
@@ -116,7 +116,23 @@ interface RustOmenaLspServerBoundarySummary {
   readonly nextDecouplingTargets: readonly string[];
 }
 
+interface CacheWriteSurface {
+  readonly rootKind: "lspWorkspaceCache" | "bridgeExternalSifCache";
+  readonly resolvedRung:
+    | "initializationOptions"
+    | "environment"
+    | "platform"
+    | "workspace"
+    | "disabled";
+  readonly rootShape: string;
+  readonly cacheDirectories: readonly string[];
+}
+
 const rustSummary = readRustBoundarySummary();
+const environmentRustSummary = readRustBoundarySummary({
+  OMENA_CACHE_DIR: "/forced-cache-root",
+  OMENA_GLOBAL_CACHE_DIR: "",
+});
 const nodeCapabilities = buildServerCapabilities();
 const repoRoot = process.cwd();
 const lspPackageMetadata = readRustPackageMetadata("omena-lsp-server", repoRoot);
@@ -151,17 +167,52 @@ for (const requiredTrustPolicy of [
   "attestationVerificationOwnedByCli",
   "noRegistryFetchOnLspRequestPath",
   "noTransparencyLogLookupOnLspRequestPath",
-  "diskDiagnosticsCacheLocalWorkspaceWritesOnly",
+  "cacheWritesConfinedToDeclaredOwnedRootsNeverNetwork",
 ]) {
   assert.ok(
     rustSummary.trustBoundary.requestPathPolicy.includes(requiredTrustPolicy),
     `Rust LSP trust boundary must include ${requiredTrustPolicy}`,
   );
 }
-// RFC 0009 Pillar C (rfcs#66): the disk diagnostics cache is the ONLY declared
-// local-disk write surface; the neverFetch network invariant stays untouched.
+// The hand-authored rung table stays independent of the Rust declaration.
+// It includes bridge writes because those execute inside the LSP process.
 assert.deepEqual(rustSummary.trustBoundary.diskWriteSurfaces, [
-  "<workspaceFolder>/.cache/omena/**",
+  {
+    rootKind: "lspWorkspaceCache",
+    resolvedRung: "platform",
+    rootShape: "<platformCacheHome>/omena/workspaces/<workspaceIdentityHash>/**",
+    cacheDirectories: [
+      "diagnostics-cache-v1",
+      "source-document-index-v1",
+      "source-type-fact-cache-v1",
+      "workspace-occurrence-shards-v1",
+    ],
+  },
+  {
+    rootKind: "bridgeExternalSifCache",
+    resolvedRung: "platform",
+    rootShape: "<platformCacheHome>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+    cacheDirectories: ["external-sif-v0"],
+  },
+]);
+assert.deepEqual(environmentRustSummary.trustBoundary.diskWriteSurfaces, [
+  {
+    rootKind: "lspWorkspaceCache",
+    resolvedRung: "environment",
+    rootShape: "<environmentCacheDir>/omena/workspaces/<workspaceIdentityHash>/**",
+    cacheDirectories: [
+      "diagnostics-cache-v1",
+      "source-document-index-v1",
+      "source-type-fact-cache-v1",
+      "workspace-occurrence-shards-v1",
+    ],
+  },
+  {
+    rootKind: "bridgeExternalSifCache",
+    resolvedRung: "environment",
+    rootShape: "<environmentCacheDir>/omena/workspaces/<bridgeWorkspaceIdentityHash>/**",
+    cacheDirectories: ["external-sif-v0"],
+  },
 ]);
 assert.ok(
   !/^\s*engine-style-parser\s*=/.test(lspServerCargoToml),
@@ -199,6 +250,7 @@ assert.deepEqual(
   rustSummary.handlerSurfaces.map((surface) => surface.method).toSorted(),
   [
     "$/cancelRequest",
+    "omena/clearCaches",
     "omena/explain",
     "omena/explainHoverTrace",
     "omena/rustCascadeAtPosition",
@@ -401,30 +453,28 @@ assert.ok(
 assert.equal(rustSummary.queryReuse.product, "omena-lsp-server.query-reuse");
 assert.equal(rustSummary.queryReuse.owner, "omena-lsp-server/documentQueryReuse");
 assert.equal(rustSummary.queryReuse.reuseModel, "documentRevisionOwnedReusableIndexes");
-assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceSyntaxIndex"));
-assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceTypeFactCache"));
-assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceSelectorOccurrenceSidecar"));
-assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceDocumentIndexSidecar"));
-assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("optimizingTierFeedback"));
-assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("styleHoverCandidates"));
-assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("workspaceStyleResolutionInputs"));
-assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnDocumentContentChange"));
-assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnResolutionConfigChange"));
-assert.ok(
-  rustSummary.queryReuse.invalidationPolicy.includes(
-    "rebuildSourceTypeFactCacheOnContentConfigOrWorkspaceSourceMismatch",
-  ),
-);
-assert.ok(
-  rustSummary.queryReuse.invalidationPolicy.includes(
-    "rebuildSourceSelectorOccurrenceSidecarOnDocumentKeyMismatch",
-  ),
-);
-assert.ok(
-  rustSummary.queryReuse.invalidationPolicy.includes(
-    "rebuildSourceDocumentIndexSidecarOnTextResolutionOrLanguageMismatch",
-  ),
-);
+assert.deepEqual(rustSummary.queryReuse.cachedSurfaces, [
+  "workspaceStyleResolutionInputs",
+  "styleDocumentSummary",
+  "styleHoverCandidates",
+  "optimizingTierFeedback",
+  "sourceSyntaxIndex",
+  "sourceSelectorCandidates",
+  "sourceTypeFactCache",
+  "sourceDocumentIndexSidecar",
+  "cascadeNarrowingSubstrate",
+  "visibleSassSymbolCompletionSubstrate",
+]);
+assert.deepEqual(rustSummary.queryReuse.invalidationPolicy, [
+  "refreshOnDocumentOpen",
+  "refreshOnDocumentContentChange",
+  "refreshOnWorkspaceFileReload",
+  "refreshOnResolutionConfigChange",
+  "refreshOnResolutionSettingsChange",
+  "rebuildCascadeNarrowingSubstrateOnInputContentMismatch",
+  "validateSourceTypeFactCacheAgainstCurrentContentEnvironmentBinaryAndWorkspaceInputs",
+  "rebuildSourceDocumentIndexSidecarOnTextResolutionOrLanguageMismatch",
+]);
 assert.ok(
   rustSummary.queryReuse.requestPathPolicy.includes(
     "typeFactRefreshConsumesCacheBeforeTsgoTransport",
@@ -441,10 +491,22 @@ assert.ok(
 assert.equal(rustSummary.diskDiagnosticsCache.product, "omena-lsp-server.disk-diagnostics-cache");
 assert.equal(rustSummary.diskDiagnosticsCache.owner, "omena-lsp-server/diskDiagnosticsCache");
 assert.equal(rustSummary.diskDiagnosticsCache.cacheModel, "verifyingTraceStableAddressShardStore");
-assert.equal(
-  rustSummary.diskDiagnosticsCache.storageLocation,
-  "<workspaceFolder>/.cache/omena/diagnostics-cache-v1",
-);
+assert.deepEqual(rustSummary.diskDiagnosticsCache.storageLocation, [
+  {
+    rootKind: "lspWorkspaceCache",
+    resolvedRung: "platform",
+    rootShape: "<platformCacheHome>/omena/workspaces/<workspaceIdentityHash>/**",
+    cacheDirectories: ["diagnostics-cache-v1"],
+  },
+]);
+assert.deepEqual(environmentRustSummary.diskDiagnosticsCache.storageLocation, [
+  {
+    rootKind: "lspWorkspaceCache",
+    resolvedRung: "environment",
+    rootShape: "<environmentCacheDir>/omena/workspaces/<workspaceIdentityHash>/**",
+    cacheDirectories: ["diagnostics-cache-v1"],
+  },
+]);
 for (const requiredReusePolicy of [
   "stableAddressPerTargetOneShardEach",
   "recordedReadSetVerifiedPerDependencyContentHash",
@@ -464,7 +526,7 @@ for (const requiredWritePolicy of [
   "atomicTempFileRenameWrites",
   "failSoftDisableWritesAfterRepeatedIoFailures",
   "boundedShardCountAndTotalBytesWithOldestMtimeEviction",
-  "localWorkspaceDiskOnlyNeverNetwork",
+  "declaredOwnedCacheRootsOnlyNeverNetwork",
 ]) {
   assert.ok(
     rustSummary.diskDiagnosticsCache.writePolicy.includes(requiredWritePolicy),
@@ -549,7 +611,9 @@ process.stdout.write(
 );
 process.stdout.write("\n");
 
-function readRustBoundarySummary(): RustOmenaLspServerBoundarySummary {
+function readRustBoundarySummary(
+  environment: Readonly<Record<string, string>> = {},
+): RustOmenaLspServerBoundarySummary {
   const result = spawnSync(
     "cargo",
     [
@@ -565,6 +629,7 @@ function readRustBoundarySummary(): RustOmenaLspServerBoundarySummary {
     {
       cwd: process.cwd(),
       encoding: "utf8",
+      env: { ...process.env, ...environment },
       stdio: ["ignore", "pipe", "pipe"],
     },
   );

@@ -1,5 +1,5 @@
 use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerOrdinal, ModuleRank,
+    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerOrdinal, OpenWorldTieEvidence,
     Specificity, SpecificityExactnessV0, classify_cascade_ranked_set_loss, normalized_layer_rank,
 };
 use serde::Serialize;
@@ -89,9 +89,9 @@ fn declaration(
             normalized_layer_rank(false, LayerOrdinal::new(0)),
             0,
             specificity,
-            ModuleRank::ZERO,
             0,
         ),
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: exactness,
     }
 }

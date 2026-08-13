@@ -485,7 +485,7 @@ export function App({ variant }) {
             .pointer("/data/provenance/1")
             .and_then(Value::as_str),
         Some("omena-abstract-value.k-limited-call-site-flow"),
-        "the LSP diagnostic must be backed by the query/checker k-CFA flow, not a local scan"
+        "the LSP diagnostic must be backed by flow analysis over the supplied graph, not a local source scan"
     );
     assert!(
         diagnostics

@@ -215,6 +215,10 @@ function provenanceTreeRootOperation(
       return "concatenationWidening";
     case "unconstrainedInput":
       return "unconstrainedInput";
+    case "automatonLanguageCardinalityLimit":
+      return "automatonLanguageCardinalityWidening";
+    case "automatonMaterializedByteLimit":
+      return "automatonMaterializedByteWidening";
     case "automatonStateLimit":
       return "automatonStateWidening";
     case "flowIterationLimit":
@@ -281,6 +285,10 @@ function provenanceTreeRootReason(
       return "known constraints were preserved while concatenating an unknown edge";
     case "unconstrainedInput":
       return "the producing input did not provide a finite class-value constraint";
+    case "automatonLanguageCardinalityLimit":
+      return "the finite language exceeded the preconstruction cardinality limit";
+    case "automatonMaterializedByteLimit":
+      return "the finite language exceeded the preconstruction materialized-byte limit";
     case "automatonStateLimit":
       return "the finite language exceeded the bounded automaton state limit";
     case "flowIterationLimit":
@@ -458,11 +466,11 @@ function provenanceForAbstractValue(
     case "prefixSuffix":
     case "charInclusion":
     case "composite":
+    case "top":
       return abstractValue.provenance;
     case "bottom":
     case "exact":
     case "finiteSet":
-    case "top":
       return undefined;
     default:
       abstractValue satisfies never;

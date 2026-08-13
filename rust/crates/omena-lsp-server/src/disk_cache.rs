@@ -18,7 +18,7 @@
 //! recompute. Read-set completeness is oracle-gated, not assumed.
 //! Everything here is fail-soft: read errors, unparsable or oversized
 //! shards, and write failures degrade to cache misses without ever
-//! surfacing into the LSP loop. The store is local-workspace-disk only —
+//! surfacing into the LSP loop. The store is resolver-owned-cache-disk only —
 //! the trust boundary's `neverFetch` network invariant is untouched.
 
 use crate::protocol::file_uri_to_path;
@@ -28,7 +28,10 @@ use omena_query::{
     OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0,
 };
-use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
+use omena_sif::{
+    compute_omena_sif_leaf_hash_v1, compute_omena_stable_cache_shard_address_v1,
+    write_omena_canonical_json_bytes_v1,
+};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::cell::RefCell;
@@ -52,7 +55,10 @@ pub(crate) const DISK_DIAGNOSTICS_CACHE_ORACLE_ENV: &str = "OMENA_LSP_DISK_CACHE
 /// Lives under `.cache/`, which the workspace style indexer skip-list already
 /// excludes; shard filenames are hex digests so they can never collide with
 /// the thin-client watcher globs (package.json, tsconfig*.json, *.module.*).
-const DISK_DIAGNOSTICS_CACHE_RELATIVE_DIR_V1: &str = ".cache/omena/diagnostics-cache-v1";
+const DISK_DIAGNOSTICS_CACHE_DIR_V1: &str = "diagnostics-cache-v1";
+pub(crate) const OMENA_CACHE_GITIGNORE_BYTES: &[u8] =
+    b"# machine-generated omena cache - safe to delete\n*\n";
+pub(crate) const OMENA_CACHEDIR_TAG_BYTES: &[u8] = b"Signature: 8a477f597d28d172789f06886806bc55\n# This directory is an omena cache; contents are regenerable.\n";
 /// After this many write failures (read-only fs, sandbox, permissions) the
 /// session stops attempting writes entirely instead of retrying hot.
 const DISK_DIAGNOSTICS_CACHE_MAX_WRITE_FAILURES: usize = 3;
@@ -114,7 +120,7 @@ pub struct DiskDiagnosticsCacheBoundaryV0 {
     pub product: &'static str,
     pub owner: &'static str,
     pub cache_model: &'static str,
-    pub storage_location: &'static str,
+    pub storage_location: Vec<crate::CacheWriteSurfaceV0>,
     pub reuse_policy: Vec<&'static str>,
     pub write_policy: Vec<&'static str>,
     pub kill_switches: Vec<&'static str>,
@@ -125,7 +131,7 @@ pub fn disk_diagnostics_cache_contract() -> DiskDiagnosticsCacheBoundaryV0 {
         product: "omena-lsp-server.disk-diagnostics-cache",
         owner: "omena-lsp-server/diskDiagnosticsCache",
         cache_model: "verifyingTraceStableAddressShardStore",
-        storage_location: "<workspaceFolder>/.cache/omena/diagnostics-cache-v1",
+        storage_location: crate::boundary::declared_disk_diagnostics_storage_locations(),
         reuse_policy: vec![
             "stableAddressPerTargetOneShardEach",
             "recordedReadSetVerifiedPerDependencyContentHash",
@@ -144,7 +150,7 @@ pub fn disk_diagnostics_cache_contract() -> DiskDiagnosticsCacheBoundaryV0 {
             "atomicTempFileRenameWrites",
             "failSoftDisableWritesAfterRepeatedIoFailures",
             "boundedShardCountAndTotalBytesWithOldestMtimeEviction",
-            "localWorkspaceDiskOnlyNeverNetwork",
+            "declaredOwnedCacheRootsOnlyNeverNetwork",
         ],
         kill_switches: vec![
             "envOmenaLspDiskCacheOff",
@@ -384,6 +390,7 @@ pub(crate) fn store_disk_diagnostics_shard_for_serial_resolve(
 #[derive(Debug, Clone)]
 pub(crate) struct DiskDiagnosticsCacheSlotV0 {
     dir: PathBuf,
+    workspace_identity: String,
     address: String,
     target_style_path: String,
     environment_fingerprint: String,
@@ -442,17 +449,11 @@ pub(crate) fn ensure_omena_cache_root_markers(cache_subdir: &Path) {
     };
     let gitignore = omena_root.join(".gitignore");
     if !gitignore.exists() {
-        let _ = fs::write(
-            gitignore,
-            "# machine-generated omena cache - safe to delete\n*\n",
-        );
+        let _ = fs::write(gitignore, OMENA_CACHE_GITIGNORE_BYTES);
     }
     let cachedir_tag = omena_root.join("CACHEDIR.TAG");
     if !cachedir_tag.exists() {
-        let _ = fs::write(
-            cachedir_tag,
-            "Signature: 8a477f597d28d172789f06886806bc55\n# This directory is an omena cache; contents are regenerable.\n",
-        );
+        let _ = fs::write(cachedir_tag, OMENA_CACHEDIR_TAG_BYTES);
     }
 }
 
@@ -462,10 +463,13 @@ pub(crate) fn disk_diagnostics_cache_slot_for_resolve(
     target_style_path: &str,
     plan: &DiskDiagnosticsCacheWavePlanV0,
 ) -> Option<DiskDiagnosticsCacheSlotV0> {
+    let (workspace_identity, _) =
+        disk_diagnostics_cache_workspace_root(state, workspace_folder_uri)?;
     let dir = disk_diagnostics_cache_dir(state, workspace_folder_uri)?;
     let address = disk_diagnostics_stable_shard_address_v1(target_style_path)?;
     Some(DiskDiagnosticsCacheSlotV0 {
         dir,
+        workspace_identity,
         address,
         target_style_path: target_style_path.to_string(),
         environment_fingerprint: plan.environment_fingerprint.clone(),
@@ -496,24 +500,32 @@ pub(crate) fn disk_diagnostics_cache_dir_with_kill_switch(
     if kill_switch_engaged {
         return None;
     }
-    let root = disk_diagnostics_cache_workspace_root(state, workspace_folder_uri)?;
-    Some(root.join(DISK_DIAGNOSTICS_CACHE_RELATIVE_DIR_V1))
+    let (workspace_identity, workspace_root) =
+        disk_diagnostics_cache_workspace_root(state, workspace_folder_uri)?;
+    crate::cache_root::resolved_workspace_cache_dir(
+        &state.query_resolution().cache_storage,
+        workspace_identity.as_str(),
+        workspace_root.as_path(),
+        DISK_DIAGNOSTICS_CACHE_DIR_V1,
+    )
 }
 
 fn disk_diagnostics_cache_workspace_root(
     state: &dyn LspQueryReadView,
     workspace_folder_uri: Option<&str>,
-) -> Option<PathBuf> {
+) -> Option<(String, PathBuf)> {
     if let Some(uri) = workspace_folder_uri
         && state.query_workspace_runtime_registry().get(uri).is_some()
         && let Some(path) = file_uri_to_path(uri)
     {
-        return Some(path);
+        return Some((uri.to_string(), path));
     }
     state
         .query_workspace_runtime_registry()
         .folders()
-        .find_map(|folder| file_uri_to_path(folder.uri.as_str()))
+        .find_map(|folder| {
+            file_uri_to_path(folder.uri.as_str()).map(|path| (folder.uri.clone(), path))
+        })
 }
 
 fn disk_diagnostics_cache_kill_switch_engaged() -> bool {
@@ -790,9 +802,9 @@ pub(crate) fn store_disk_diagnostics_shard_with_limits(
     if bytes.len() as u64 > limits.max_shard_bytes {
         return;
     }
-    remove_legacy_disk_diagnostics_cache_dir_once(slot.dir.as_path());
     match write_disk_diagnostics_shard_atomically(
         slot.dir.as_path(),
+        slot.workspace_identity.as_str(),
         slot.address.as_str(),
         bytes.as_slice(),
     ) {
@@ -838,36 +850,187 @@ fn disk_diagnostics_shard_workspace_snapshot_id(
     serde_json::from_value(shard.get("workspaceSnapshotId")?.clone()).ok()
 }
 
-/// The content-keyed stage-1 stores this crate has replaced with stable-
-/// address stores. Their shards were dead weight on any input change and
-/// the directories accumulated without bound; every directory here is
-/// regenerable by contract.
-const LEGACY_CACHE_DIR_NAMES: &[&str] = &[
+const RETIRED_WORKSPACE_CACHE_DIR_NAMES: &[&str] = &[
     "diagnostics-cache-v0",
-    "source-occurrence-index-v0",
     "source-document-index-v0",
+    "source-occurrence-index-v0",
+    "source-occurrence-index-v1",
     "source-type-fact-cache-v0",
     "style-symbol-occurrence-index-v0",
+    "style-symbol-occurrence-index-v1",
     "workspace-occurrence-shards-v0",
 ];
+const RELOCATED_CURRENT_WORKSPACE_CACHE_DIR_NAMES: &[&str] = &[
+    "diagnostics-cache-v1",
+    "external-sif-v0",
+    "source-document-index-v1",
+    "source-type-fact-cache-v1",
+    "workspace-occurrence-shards-v1",
+];
 
-/// Best-effort, once per process: drop the abandoned content-keyed stores
-/// next to this one.
-fn remove_legacy_disk_diagnostics_cache_dir_once(current_dir: &Path) {
-    static LEGACY_SWEEP: std::sync::Once = std::sync::Once::new();
-    LEGACY_SWEEP.call_once(|| remove_legacy_cache_dirs(current_dir));
+pub(crate) fn sweep_relocated_workspace_cache_roots(state: &mut crate::LspShellState) {
+    let remove_current_caches =
+        state.resolution.cache_storage.location != crate::cache_root::CacheLocationV0::Workspace;
+    let workspace_roots = state
+        .workspace_runtime_registry
+        .folder_snapshots()
+        .into_iter()
+        .filter_map(|folder| file_uri_to_path(folder.uri.as_str()))
+        .map(|root| root.join(".cache").join("omena"))
+        .collect::<Vec<_>>();
+    for omena_root in workspace_roots {
+        if !state.swept_legacy_cache_roots.insert(omena_root.clone()) {
+            continue;
+        }
+        sweep_relocated_workspace_cache_root(omena_root.as_path(), remove_current_caches);
+    }
 }
 
-fn remove_legacy_cache_dirs(current_dir: &Path) {
-    let Some(omena_root) = current_dir.parent() else {
+fn sweep_relocated_workspace_cache_root(omena_root: &Path, remove_current_caches: bool) {
+    if !cache_path_is_real_directory(omena_root)
+        || !omena_root
+            .parent()
+            .is_some_and(cache_path_is_real_directory)
+    {
         return;
-    };
-    for legacy_name in LEGACY_CACHE_DIR_NAMES {
-        let legacy_dir = omena_root.join(legacy_name);
-        if legacy_dir != current_dir && legacy_dir.is_dir() {
-            let _ = fs::remove_dir_all(legacy_dir);
+    }
+    let mut removed_selected_cache_paths = true;
+    for cache_dir_name in RETIRED_WORKSPACE_CACHE_DIR_NAMES {
+        let owned_path = omena_root.join(cache_dir_name);
+        removed_selected_cache_paths &= remove_relocated_owned_cache_path(owned_path.as_path());
+    }
+    if remove_current_caches {
+        for cache_dir_name in RELOCATED_CURRENT_WORKSPACE_CACHE_DIR_NAMES {
+            let owned_path = omena_root.join(cache_dir_name);
+            removed_selected_cache_paths &= remove_relocated_owned_cache_path(owned_path.as_path());
         }
     }
+
+    // The ignore marker is the visibility barrier. Keep it whenever an owned
+    // cache path could not be removed or a foreign entry remains, so a partial
+    // sweep cannot turn a clean repository dirty. Once every named cache is
+    // absent and only owned markers remain, remove the other marker files first
+    // and the ignore marker last. `remove_dir` then removes the empty subtree.
+    if !removed_selected_cache_paths
+        || RETIRED_WORKSPACE_CACHE_DIR_NAMES
+            .iter()
+            .chain(RELOCATED_CURRENT_WORKSPACE_CACHE_DIR_NAMES)
+            .any(|cache_dir_name| {
+                !cache_path_is_definitely_absent(omena_root.join(cache_dir_name).as_path())
+            })
+    {
+        return;
+    }
+    if !relocated_cache_root_contains_only_owned_markers(omena_root) {
+        return;
+    }
+    let owned_markers = [
+        (
+            ".omena-cache-owner.json",
+            RelocatedOwnedMarkerV0::Attribution,
+        ),
+        (
+            "CACHEDIR.TAG",
+            RelocatedOwnedMarkerV0::Exact(OMENA_CACHEDIR_TAG_BYTES),
+        ),
+        (
+            ".gitignore",
+            RelocatedOwnedMarkerV0::Exact(OMENA_CACHE_GITIGNORE_BYTES),
+        ),
+    ];
+    if owned_markers.iter().any(|(owned_file_name, marker)| {
+        !relocated_marker_is_absent_or_owned(omena_root.join(owned_file_name).as_path(), *marker)
+    }) {
+        return;
+    }
+    for (owned_file_name, marker) in owned_markers {
+        let owned_path = omena_root.join(owned_file_name);
+        if !remove_relocated_owned_marker(owned_path.as_path(), marker) {
+            return;
+        }
+    }
+    let _ = fs::remove_dir(omena_root);
+}
+
+fn relocated_cache_root_contains_only_owned_markers(omena_root: &Path) -> bool {
+    let entries = match fs::read_dir(omena_root) {
+        Ok(entries) => entries,
+        Err(_) => return false,
+    };
+    entries.into_iter().all(|entry| {
+        entry.ok().is_some_and(|entry| {
+            matches!(
+                entry.file_name().to_str(),
+                Some(".omena-cache-owner.json" | "CACHEDIR.TAG" | ".gitignore")
+            )
+        })
+    })
+}
+
+fn remove_relocated_owned_cache_path(path: &Path) -> bool {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
+    };
+    let removed = if metadata.file_type().is_dir() && !metadata.file_type().is_symlink() {
+        fs::remove_dir_all(path)
+    } else {
+        fs::remove_file(path)
+    };
+    removed.is_ok() && cache_path_is_definitely_absent(path)
+}
+
+#[derive(Clone, Copy)]
+enum RelocatedOwnedMarkerV0 {
+    Attribution,
+    Exact(&'static [u8]),
+}
+
+fn relocated_marker_is_absent_or_owned(path: &Path, marker: RelocatedOwnedMarkerV0) -> bool {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
+    };
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return false;
+    }
+    let Ok(bytes) = fs::read(path) else {
+        return false;
+    };
+    match marker {
+        RelocatedOwnedMarkerV0::Exact(expected) => bytes == expected,
+        RelocatedOwnedMarkerV0::Attribution => serde_json::from_slice::<Value>(&bytes)
+            .ok()
+            .is_some_and(|value| {
+                value.pointer("/schemaVersion").and_then(Value::as_str) == Some("0")
+                    && value.pointer("/product").and_then(Value::as_str)
+                        == Some("omena.cache-root-attribution")
+                    && value
+                        .pointer("/workspaceIdentity")
+                        .and_then(Value::as_str)
+                        .is_some()
+            }),
+    }
+}
+
+fn remove_relocated_owned_marker(path: &Path, marker: RelocatedOwnedMarkerV0) -> bool {
+    if !relocated_marker_is_absent_or_owned(path, marker) {
+        return false;
+    }
+    match fs::remove_file(path) {
+        Ok(()) => cache_path_is_definitely_absent(path),
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    }
+}
+
+fn cache_path_is_definitely_absent(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+}
+
+fn cache_path_is_real_directory(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .ok()
+        .is_some_and(|metadata| metadata.file_type().is_dir())
 }
 
 /// Stable shard address for ANY cache subsystem: IDENTITY parts only —
@@ -877,14 +1040,9 @@ fn remove_legacy_cache_dirs(current_dir: &Path) {
 /// shared by every sidecar (the content-keyed alternative grew without
 /// bound: one new file per corpus state, no eviction).
 pub(crate) fn stable_cache_shard_address(product: &str, identity_parts: &[&str]) -> Option<String> {
-    let input = json!({
-        "schemaVersion": "address-v1",
-        "product": product,
-        "identityParts": identity_parts,
-    });
-    let canonical_bytes = write_omena_canonical_json_bytes_v1(&input).ok()?;
     Some(
-        compute_omena_sif_leaf_hash_v1(canonical_bytes.as_slice())
+        compute_omena_stable_cache_shard_address_v1(product, identity_parts)
+            .ok()?
             .as_str()
             .to_string(),
     )
@@ -895,11 +1053,13 @@ pub(crate) fn stable_cache_shard_address(product: &str, identity_parts: &[&str])
 /// grow the store, so only creations pay the eviction sweep.
 fn write_disk_diagnostics_shard_atomically(
     dir: &Path,
+    workspace_identity: &str,
     key: &str,
     bytes: &[u8],
 ) -> std::io::Result<bool> {
     fs::create_dir_all(dir)?;
     ensure_omena_cache_root_markers(dir);
+    crate::cache_limits::ensure_cache_root_attribution(dir, workspace_identity);
     let final_path = disk_diagnostics_shard_file_path(dir, key).ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidInput, "non-hex shard key")
     })?;
@@ -971,7 +1131,10 @@ mod tests {
     #[test]
     fn cache_writes_stamp_self_ignore_markers_at_omena_root() -> Result<(), &'static str> {
         let base = temp_cache_dir("markers");
-        let dir = base.join(DISK_DIAGNOSTICS_CACHE_RELATIVE_DIR_V1);
+        let dir = base
+            .join(".cache")
+            .join("omena")
+            .join(DISK_DIAGNOSTICS_CACHE_DIR_V1);
         fs::create_dir_all(dir.as_path()).map_err(|_| "create cache dir")?;
         ensure_omena_cache_root_markers(dir.as_path());
         let omena_root = dir.parent().ok_or("omena root")?;
@@ -1072,6 +1235,7 @@ mod tests {
             let plan = self.plan()?;
             let mut slot = DiskDiagnosticsCacheSlotV0 {
                 dir: dir.to_path_buf(),
+                workspace_identity: "test-workspace".to_string(),
                 address: disk_diagnostics_stable_shard_address_v1(self.target_style_path.as_str())?,
                 target_style_path: self.target_style_path.clone(),
                 environment_fingerprint: plan.environment_fingerprint.clone(),
@@ -1502,6 +1666,7 @@ mod tests {
         let plan = fixture.plan().ok_or("plan")?;
         let undeclared = DiskDiagnosticsCacheSlotV0 {
             dir: dir.clone(),
+            workspace_identity: "test-workspace".to_string(),
             address: disk_diagnostics_stable_shard_address_v1(FIXTURE_TARGET).ok_or("address")?,
             target_style_path: FIXTURE_TARGET.to_string(),
             environment_fingerprint: plan.environment_fingerprint.clone(),
@@ -1715,21 +1880,6 @@ mod tests {
             "one target must own exactly one shard file across content edits"
         );
         assert!(slot.load().is_some(), "the overwrite serves the new trace");
-        Ok(())
-    }
-
-    #[test]
-    fn legacy_stage_one_store_is_swept() -> Result<(), &'static str> {
-        let base = temp_cache_dir("legacy-sweep");
-        let omena_root = base.join(".cache/omena");
-        let legacy_dir = omena_root.join("diagnostics-cache-v0");
-        let current_dir = omena_root.join("diagnostics-cache-v1");
-        fs::create_dir_all(legacy_dir.as_path()).map_err(|_| "create legacy")?;
-        fs::create_dir_all(current_dir.as_path()).map_err(|_| "create current")?;
-        fs::write(legacy_dir.join("dead.json"), b"{}").map_err(|_| "write dead shard")?;
-        remove_legacy_cache_dirs(current_dir.as_path());
-        assert!(!legacy_dir.exists(), "the stage-1 store must be removed");
-        assert!(current_dir.exists());
         Ok(())
     }
 

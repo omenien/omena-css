@@ -40,6 +40,28 @@ interface PersonaManifest {
   }[];
 }
 
+interface CssModuleTokenLiteralPolicy {
+  readonly schemaVersion: "1";
+  readonly product: "omena-css-module-token-literal-policy";
+  readonly scope: "internal-test-inventory-only";
+  readonly regex: string;
+  readonly selectedFormatRegex: string;
+  readonly expectedSiteCount: number;
+  readonly expectedFileCount: number;
+  readonly wholeFileTestInternal: readonly string[];
+  readonly cfgTestRegions: readonly {
+    readonly path: string;
+    readonly marker: string;
+    readonly endMarker?: string;
+  }[];
+  readonly internalRegions: readonly {
+    readonly path: string;
+    readonly startMarker: string;
+    readonly endMarker: string;
+  }[];
+  readonly legacyFormatJustifications: Readonly<Record<string, string>>;
+}
+
 interface LspBoundarySummary {
   readonly capabilities: Readonly<Record<string, unknown>>;
 }
@@ -121,6 +143,11 @@ const expectedUnwiredChecks = [
   "check-rust-m6-dimensional-refinement.ts",
 ] as const;
 const editorSettingContracts = {
+  "omena.cache.location": {
+    owner: "extension-client",
+    source: "client/src/extension.ts",
+    anchor: '.get("cache.location")',
+  },
   "omena.features.definition": {
     owner: "rust-server",
     source: "rust/crates/omena-lsp-server/src/settings.rs",
@@ -291,6 +318,7 @@ verifyReadmeBudget();
 const readmeLinks = verifyReadmeLinkMap();
 verifyCheckScriptReachability();
 verifyExecutableTomlExamples();
+const cssModuleTokenLiterals = verifyCssModuleTokenLiteralPolicy();
 
 process.stdout.write(
   `${JSON.stringify(
@@ -309,6 +337,7 @@ process.stdout.write(
       architectureCitations,
       operationalGuideLines,
       readmeLinks,
+      cssModuleTokenLiterals,
       generatedFragments: 2,
       mode: writeMode ? "write" : "check",
     },
@@ -583,6 +612,10 @@ sourceOfTruth: generated
 ${generatedNotice}
 
 # CLI reference
+
+For CSS Modules, the emitted token is not a contract; \`classMap\`, \`namedExports\`,
+and the generated \`.d.ts\` are. Hand-writing an emitted token into markup, tests,
+or CSS is unsupported.
 
 ## Product verbs
 
@@ -926,6 +959,146 @@ function verifyExecutableTomlExamples(): void {
   const examples = markdownFiles.flatMap((file) => extractTomlFences(file));
   assert.ok(examples.length > 0, "the public docs must retain executable omena.toml examples");
   for (const example of examples) verifyTomlExample(example);
+}
+
+function verifyCssModuleTokenLiteralPolicy(): {
+  readonly regex: string;
+  readonly siteCount: number;
+  readonly fileCount: number;
+  readonly testInternalCount: number;
+  readonly shippedSurfaceCount: number;
+  readonly selectedFormatSiteCount: number;
+  readonly justifiedLegacySiteCount: number;
+} {
+  const policyPath = "rust/omena-css-module-token-literal-policy.json";
+  const policy = JSON.parse(read(policyPath)) as CssModuleTokenLiteralPolicy;
+  assert.equal(policy.schemaVersion, "1");
+  assert.equal(policy.product, "omena-css-module-token-literal-policy");
+  assert.equal(policy.scope, "internal-test-inventory-only");
+
+  const listed = spawnSync(
+    "git",
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(listed.status, 0, listed.stderr);
+  const repositoryFiles = listed.stdout.split("\0").filter(Boolean);
+  const wholeFileTestInternal = new Set(policy.wholeFileTestInternal);
+  const cfgTestRegions = new Map(policy.cfgTestRegions.map((region) => [region.path, region]));
+  const internalRegions = new Map<string, CssModuleTokenLiteralPolicy["internalRegions"]>();
+  for (const region of policy.internalRegions) {
+    internalRegions.set(region.path, [...(internalRegions.get(region.path) ?? []), region]);
+  }
+  const tokenPattern = new RegExp(policy.regex, "gu");
+  const selectedFormatPattern = new RegExp(policy.selectedFormatRegex, "u");
+  const matchedFiles = new Set<string>();
+  const testInternalSites: string[] = [];
+  const shippedSurfaceSites: string[] = [];
+  const selectedFormatSites: string[] = [];
+  const legacySitesByFile = new Map<string, string[]>();
+
+  for (const relativePath of repositoryFiles) {
+    const absolutePath = path.join(repoRoot, relativePath);
+    let source: string;
+    try {
+      source = readFileSync(absolutePath, "utf8");
+    } catch {
+      continue;
+    }
+    tokenPattern.lastIndex = 0;
+    for (const match of source.matchAll(tokenPattern)) {
+      const offset = match.index;
+      const line = source.slice(0, offset).split("\n").length;
+      const site = `${relativePath}:${line}:${match[0]}`;
+      matchedFiles.add(relativePath);
+      if (selectedFormatPattern.test(match[0])) {
+        selectedFormatSites.push(site);
+      } else {
+        assert.ok(
+          policy.legacyFormatJustifications[relativePath]?.trim(),
+          `${site} is not satisfiable by the selected token format and needs a named legacy justification`,
+        );
+        legacySitesByFile.set(relativePath, [...(legacySitesByFile.get(relativePath) ?? []), site]);
+      }
+      const cfgTestRegion = cfgTestRegions.get(relativePath);
+      const regionOffset = cfgTestRegion === undefined ? -1 : source.indexOf(cfgTestRegion.marker);
+      assert.notEqual(
+        cfgTestRegion === undefined ? 0 : regionOffset,
+        -1,
+        `${relativePath} is missing configured test-region marker ${JSON.stringify(cfgTestRegion?.marker)}`,
+      );
+      const regionEndOffset =
+        cfgTestRegion?.endMarker === undefined
+          ? source.length
+          : source.indexOf(cfgTestRegion.endMarker, regionOffset + cfgTestRegion.marker.length);
+      // FALSIFIER: the policy producer can name a missing or preceding end
+      // marker; owner=docs-reference-surface, re-entry=test-region-boundary-change.
+      assert.ok(
+        cfgTestRegion === undefined || regionEndOffset > regionOffset,
+        `${relativePath} is missing configured test-region end marker ${JSON.stringify(cfgTestRegion?.endMarker)}`,
+      );
+      const insideInternalRegion = (internalRegions.get(relativePath) ?? []).some((region) => {
+        const start = source.indexOf(region.startMarker);
+        const end = source.indexOf(region.endMarker, start + region.startMarker.length);
+        // FALSIFIER: the policy producer can name absent, reversed, or stale
+        // markers; owner=docs-reference-surface, re-entry=fixture-region-boundary-change.
+        assert.ok(
+          start >= 0 && end > start,
+          `${relativePath} is missing configured internal region ${JSON.stringify(region)}`,
+        );
+        return offset >= start && offset < end;
+      });
+      if (
+        wholeFileTestInternal.has(relativePath) ||
+        (regionOffset >= 0 && offset >= regionOffset && offset < regionEndOffset) ||
+        insideInternalRegion
+      ) {
+        testInternalSites.push(site);
+      } else {
+        shippedSurfaceSites.push(site);
+      }
+    }
+  }
+
+  const classifiedFiles = new Set([
+    ...wholeFileTestInternal,
+    ...cfgTestRegions.keys(),
+    ...internalRegions.keys(),
+  ]);
+  assert.deepEqual(
+    [...classifiedFiles].toSorted(),
+    [...matchedFiles].toSorted(),
+    "the committed token-literal partition must classify every and only matching file",
+  );
+  assert.equal(
+    testInternalSites.length + shippedSurfaceSites.length,
+    policy.expectedSiteCount,
+    `token-literal site count drifted under ${policy.regex}`,
+  );
+  assert.equal(matchedFiles.size, policy.expectedFileCount, "token-literal file count drifted");
+  assert.deepEqual(
+    Object.keys(policy.legacyFormatJustifications).toSorted(),
+    [...legacySitesByFile.keys()].toSorted(),
+    "legacy token-format justifications must match every and only observed legacy file",
+  );
+  assert.deepEqual(
+    shippedSurfaceSites,
+    [],
+    `emitted token-shaped literals are unsupported on shipped surfaces: ${shippedSurfaceSites.join(", ")}`,
+  );
+
+  return {
+    regex: policy.regex,
+    siteCount: policy.expectedSiteCount,
+    fileCount: policy.expectedFileCount,
+    testInternalCount: testInternalSites.length,
+    shippedSurfaceCount: shippedSurfaceSites.length,
+    selectedFormatSiteCount: selectedFormatSites.length,
+    justifiedLegacySiteCount: [...legacySitesByFile.values()].flat().length,
+  };
 }
 
 function verifyTomlExample(example: {

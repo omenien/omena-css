@@ -11,12 +11,21 @@ use omena_cascade::{
     css_property_metadata_for_property_in_records,
 };
 use omena_cross_file_summary::{UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0};
+use omena_parser::StyleDialect;
 use omena_query::{
     OmenaQueryStyleMemoHostV0, OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
 };
 use omena_streaming_ifds::{
-    StreamingIFDSDemandIndexV0, StreamingIfdsEventInputV0, run_streaming_ifds_demand_with_index_v0,
-    streaming_ifds_demand_index_v0, streaming_ifds_event_input_v0,
+    DemandSlicedMonotoneFactPropagationDemandIndexV0,
+    DemandSlicedMonotoneFactPropagationEventInputV0,
+    demand_sliced_monotone_fact_propagation_demand_index_v0,
+    demand_sliced_monotone_fact_propagation_event_input_v0,
+    run_demand_sliced_monotone_fact_propagation_demand_with_index_v0,
+};
+use omena_transform_cst::{
+    IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrTransactionV0, TransformIrV0,
+    lower_transform_ir_from_source, reset_transform_ir_metadata_telemetry,
+    transform_ir_metadata_telemetry_snapshot,
 };
 
 #[library_benchmark(setup = setup_property_metadata_lookup_registry_n)]
@@ -59,36 +68,74 @@ fn committed_graph_edit_query_corpus_2n(fixture: RecheckFixture) -> usize {
     measure_committed_graph_edit_query_corpus(fixture)
 }
 
-#[library_benchmark(
-    config = demand_query_callgrind_config(),
-    setup = setup_demand_ifds_fixed_query_corpus_n
-)]
-fn demand_ifds_fixed_query_corpus_n(fixture: ManuallyDrop<DemandFixture>) -> usize {
-    measure_demand_ifds_fixed_query_corpus(&fixture)
+#[library_benchmark(setup = setup_transform_ir_mutation_density_m)]
+fn transform_ir_mutation_density_m(fixture: TransformIrMutationFixture) -> usize {
+    measure_transform_ir_mutation_density(fixture)
+}
+
+#[library_benchmark(setup = setup_transform_ir_mutation_density_2m)]
+fn transform_ir_mutation_density_2m(fixture: TransformIrMutationFixture) -> usize {
+    measure_transform_ir_mutation_density(fixture)
+}
+
+#[library_benchmark(setup = setup_transform_ir_mutation_density_4m)]
+fn transform_ir_mutation_density_4m(fixture: TransformIrMutationFixture) -> usize {
+    measure_transform_ir_mutation_density(fixture)
+}
+
+#[library_benchmark(setup = setup_transform_ir_lowering_n)]
+fn transform_ir_lowering_n(source: String) -> usize {
+    measure_transform_ir_lowering(source)
+}
+
+#[library_benchmark(setup = setup_transform_ir_lowering_2n)]
+fn transform_ir_lowering_2n(source: String) -> usize {
+    measure_transform_ir_lowering(source)
+}
+
+#[library_benchmark(setup = setup_transform_ir_lowering_4n)]
+fn transform_ir_lowering_4n(source: String) -> usize {
+    measure_transform_ir_lowering(source)
 }
 
 #[library_benchmark(
     config = demand_query_callgrind_config(),
-    setup = setup_demand_ifds_fixed_query_corpus_2n
+    setup = setup_demand_monotone_fact_propagation_fixed_query_corpus_n
 )]
-fn demand_ifds_fixed_query_corpus_2n(fixture: ManuallyDrop<DemandFixture>) -> usize {
-    measure_demand_ifds_fixed_query_corpus(&fixture)
+fn demand_monotone_fact_propagation_fixed_query_corpus_n(
+    fixture: ManuallyDrop<DemandFixture>,
+) -> usize {
+    measure_demand_monotone_fact_propagation_fixed_query_corpus(&fixture)
 }
 
 #[library_benchmark(
     config = demand_query_callgrind_config(),
-    setup = setup_demand_ifds_fixed_query_corpus_4n
+    setup = setup_demand_monotone_fact_propagation_fixed_query_corpus_2n
 )]
-fn demand_ifds_fixed_query_corpus_4n(fixture: ManuallyDrop<DemandFixture>) -> usize {
-    measure_demand_ifds_fixed_query_corpus(&fixture)
+fn demand_monotone_fact_propagation_fixed_query_corpus_2n(
+    fixture: ManuallyDrop<DemandFixture>,
+) -> usize {
+    measure_demand_monotone_fact_propagation_fixed_query_corpus(&fixture)
 }
 
 #[library_benchmark(
     config = demand_query_callgrind_config(),
-    setup = setup_demand_ifds_fixed_query_corpus_8n
+    setup = setup_demand_monotone_fact_propagation_fixed_query_corpus_4n
 )]
-fn demand_ifds_fixed_query_corpus_8n(fixture: ManuallyDrop<DemandFixture>) -> usize {
-    measure_demand_ifds_fixed_query_corpus(&fixture)
+fn demand_monotone_fact_propagation_fixed_query_corpus_4n(
+    fixture: ManuallyDrop<DemandFixture>,
+) -> usize {
+    measure_demand_monotone_fact_propagation_fixed_query_corpus(&fixture)
+}
+
+#[library_benchmark(
+    config = demand_query_callgrind_config(),
+    setup = setup_demand_monotone_fact_propagation_fixed_query_corpus_8n
+)]
+fn demand_monotone_fact_propagation_fixed_query_corpus_8n(
+    fixture: ManuallyDrop<DemandFixture>,
+) -> usize {
+    measure_demand_monotone_fact_propagation_fixed_query_corpus(&fixture)
 }
 
 fn demand_query_callgrind_config() -> LibraryBenchmarkConfig {
@@ -117,8 +164,8 @@ fn measure_cold_open_query_corpus(repetitions: usize) -> usize {
 struct DemandFixture {
     start_node_ids: Vec<String>,
     target_node_ids: Vec<String>,
-    index: StreamingIFDSDemandIndexV0,
-    events: Vec<StreamingIfdsEventInputV0>,
+    index: DemandSlicedMonotoneFactPropagationDemandIndexV0,
+    events: Vec<DemandSlicedMonotoneFactPropagationEventInputV0>,
     source_hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
     corpus_edge_count: usize,
 }
@@ -128,6 +175,11 @@ struct RecheckFixture {
     host: OmenaQueryStyleMemoHostV0,
     resolution_inputs: OmenaQueryStyleResolutionInputsV0,
     target_path: String,
+}
+
+struct TransformIrMutationFixture {
+    ir: TransformIrV0,
+    value_ids: Vec<IrNodeIdV0>,
 }
 
 type PropertyMetadataLookup = fn(
@@ -193,20 +245,66 @@ fn setup_committed_graph_edit_query_corpus_2n() -> RecheckFixture {
     setup_memoized_recheck_query_corpus(2)
 }
 
-fn setup_demand_ifds_fixed_query_corpus_n() -> ManuallyDrop<DemandFixture> {
-    ManuallyDrop::new(setup_demand_ifds_fixed_query_corpus(1))
+fn setup_transform_ir_mutation_density_m() -> TransformIrMutationFixture {
+    setup_transform_ir_mutation_density(8)
 }
 
-fn setup_demand_ifds_fixed_query_corpus_2n() -> ManuallyDrop<DemandFixture> {
-    ManuallyDrop::new(setup_demand_ifds_fixed_query_corpus(2))
+fn setup_transform_ir_mutation_density_2m() -> TransformIrMutationFixture {
+    setup_transform_ir_mutation_density(16)
 }
 
-fn setup_demand_ifds_fixed_query_corpus_4n() -> ManuallyDrop<DemandFixture> {
-    ManuallyDrop::new(setup_demand_ifds_fixed_query_corpus(4))
+fn setup_transform_ir_mutation_density_4m() -> TransformIrMutationFixture {
+    setup_transform_ir_mutation_density(32)
 }
 
-fn setup_demand_ifds_fixed_query_corpus_8n() -> ManuallyDrop<DemandFixture> {
-    ManuallyDrop::new(setup_demand_ifds_fixed_query_corpus(8))
+fn setup_transform_ir_mutation_density(mutation_count: usize) -> TransformIrMutationFixture {
+    let source = transform_ir_corpus(512);
+    let ir = lower_transform_ir_from_source(
+        source.as_str(),
+        StyleDialect::Css,
+        "z5-transform-ir-mutation-density.css",
+    );
+    let value_ids = ir
+        .nodes
+        .iter()
+        .filter(|node| node.kind == IrNodeKindV0::Value)
+        .take(mutation_count)
+        .map(|node| node.node_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        value_ids.len(),
+        mutation_count,
+        "fixed-N transform corpus must supply every requested mutation"
+    );
+    TransformIrMutationFixture { ir, value_ids }
+}
+
+fn setup_transform_ir_lowering_n() -> String {
+    transform_ir_corpus(128)
+}
+
+fn setup_transform_ir_lowering_2n() -> String {
+    transform_ir_corpus(256)
+}
+
+fn setup_transform_ir_lowering_4n() -> String {
+    transform_ir_corpus(512)
+}
+
+fn setup_demand_monotone_fact_propagation_fixed_query_corpus_n() -> ManuallyDrop<DemandFixture> {
+    ManuallyDrop::new(setup_demand_monotone_fact_propagation_fixed_query_corpus(1))
+}
+
+fn setup_demand_monotone_fact_propagation_fixed_query_corpus_2n() -> ManuallyDrop<DemandFixture> {
+    ManuallyDrop::new(setup_demand_monotone_fact_propagation_fixed_query_corpus(2))
+}
+
+fn setup_demand_monotone_fact_propagation_fixed_query_corpus_4n() -> ManuallyDrop<DemandFixture> {
+    ManuallyDrop::new(setup_demand_monotone_fact_propagation_fixed_query_corpus(4))
+}
+
+fn setup_demand_monotone_fact_propagation_fixed_query_corpus_8n() -> ManuallyDrop<DemandFixture> {
+    ManuallyDrop::new(setup_demand_monotone_fact_propagation_fixed_query_corpus(8))
 }
 
 fn setup_memoized_recheck_query_corpus(repetitions: usize) -> RecheckFixture {
@@ -232,7 +330,7 @@ fn setup_memoized_recheck_query_corpus(repetitions: usize) -> RecheckFixture {
     }
 }
 
-fn setup_demand_ifds_fixed_query_corpus(scale: usize) -> DemandFixture {
+fn setup_demand_monotone_fact_propagation_fixed_query_corpus(scale: usize) -> DemandFixture {
     let branch_count = 128 * scale;
     let chain_depth = 8;
     let mut hyperedges = Vec::<UnifiedHypergraphHyperedgeV0>::new();
@@ -250,12 +348,12 @@ fn setup_demand_ifds_fixed_query_corpus(scale: usize) -> DemandFixture {
     }
     let target_node_ids = vec![format!("branch-0-node-{}", chain_depth - 1)];
     let corpus_edge_count = hyperedges.len();
-    let index = streaming_ifds_demand_index_v0(hyperedges.as_slice());
+    let index = demand_sliced_monotone_fact_propagation_demand_index_v0(hyperedges.as_slice());
     DemandFixture {
         start_node_ids: vec!["root".to_string()],
         target_node_ids,
         index,
-        events: vec![streaming_ifds_event_input_v0(
+        events: vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-root",
             1,
             "root",
@@ -287,10 +385,10 @@ fn measure_memoized_recheck_query_corpus(mut fixture: RecheckFixture) -> usize {
         .sum()
 }
 
-fn measure_demand_ifds_fixed_query_corpus(fixture: &DemandFixture) -> usize {
+fn measure_demand_monotone_fact_propagation_fixed_query_corpus(fixture: &DemandFixture) -> usize {
     black_box(fixture.source_hyperedges.len());
     callgrind::start_instrumentation();
-    let report = run_streaming_ifds_demand_with_index_v0(
+    let report = run_demand_sliced_monotone_fact_propagation_demand_with_index_v0(
         fixture.start_node_ids.as_slice(),
         fixture.target_node_ids.as_slice(),
         &fixture.index,
@@ -325,14 +423,63 @@ fn measure_committed_graph_edit_query_corpus(mut fixture: RecheckFixture) -> usi
         .sum()
 }
 
+fn measure_transform_ir_mutation_density(mut fixture: TransformIrMutationFixture) -> usize {
+    reset_transform_ir_metadata_telemetry();
+    let source_byte_len = fixture.ir.source_byte_len;
+    let mut transaction = IrTransactionV0::new(
+        &mut fixture.ir,
+        "z5-transform-ir-mutation-density",
+        IrEditRegionV0::full(source_byte_len),
+    );
+    for (ordinal, node_id) in fixture.value_ids.iter().copied().enumerate() {
+        assert!(
+            transaction
+                .rewrite_value(node_id, format!("rgb({ordinal} 0 0)"))
+                .is_ok(),
+            "fixed-N transform mutation must succeed"
+        );
+    }
+    assert!(
+        transaction.commit().is_ok(),
+        "fixed-N transform transaction must commit"
+    );
+    let telemetry = transform_ir_metadata_telemetry_snapshot();
+    assert!(telemetry.refresh_conservation_holds());
+    assert_eq!(
+        telemetry.ir_mutation_count as usize,
+        fixture.value_ids.len()
+    );
+    black_box(telemetry);
+    fixture.ir.nodes.len()
+}
+
+fn measure_transform_ir_lowering(source: String) -> usize {
+    let ir = lower_transform_ir_from_source(
+        source.as_str(),
+        StyleDialect::Css,
+        "z5-transform-ir-lowering.css",
+    );
+    black_box(ir.indexes().by_parent.len())
+}
+
+fn transform_ir_corpus(rule_count: usize) -> String {
+    let mut source = String::with_capacity(rule_count * 48);
+    for index in 0..rule_count {
+        source.push_str(
+            format!(".perf-{index} {{ color: rgb({index} 0 0); margin: 0; }}\n").as_str(),
+        );
+    }
+    source
+}
+
 fn demand_hyperedge(id: String, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {
     let edge_kind = UnifiedHypergraphEdgeKindV0::ComposesLocal;
     let source_edge_kind = edge_kind.as_wire_label();
     UnifiedHypergraphHyperedgeV0 {
         schema_version: "0",
-        product: "omena-benchmarks.demand-ifds-fixed-query",
-        layer_marker: "hypergraph-ifds",
-        feature_gate: "hypergraph-ifds",
+        product: "omena-benchmarks.demand-monotone-fact-propagation-fixed-query",
+        layer_marker: "hypergraph-monotone-fact-propagation",
+        feature_gate: "hypergraph-monotone-fact-propagation",
         hyperedge_id: id.clone(),
         edge_kind,
         source_summary_edge_id: id,
@@ -369,10 +516,16 @@ library_benchmark_group!(
         committed_graph_edit_query_corpus_2n,
         property_metadata_lookup_registry_n,
         property_metadata_lookup_registry_full,
-        demand_ifds_fixed_query_corpus_n,
-        demand_ifds_fixed_query_corpus_2n,
-        demand_ifds_fixed_query_corpus_4n,
-        demand_ifds_fixed_query_corpus_8n
+        transform_ir_mutation_density_m,
+        transform_ir_mutation_density_2m,
+        transform_ir_mutation_density_4m,
+        transform_ir_lowering_n,
+        transform_ir_lowering_2n,
+        transform_ir_lowering_4n,
+        demand_monotone_fact_propagation_fixed_query_corpus_n,
+        demand_monotone_fact_propagation_fixed_query_corpus_2n,
+        demand_monotone_fact_propagation_fixed_query_corpus_4n,
+        demand_monotone_fact_propagation_fixed_query_corpus_8n
 );
 
 main!(

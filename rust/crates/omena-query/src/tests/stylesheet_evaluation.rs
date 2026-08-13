@@ -28,7 +28,7 @@ fn consumer_build_derives_static_scss_evaluator_context() {
             .contains(&"scss-module-evaluate")
     );
     assert!(summary.execution.output_css.contains("color: red"));
-    assert!(summary.execution.output_css.contains("._button_0"));
+    assert!(summary.execution.output_css.contains("_button"));
     assert_eq!(
         summary
             .execution
@@ -445,7 +445,7 @@ fn consumer_build_derives_static_less_evaluator_context() {
             .contains(&"less-module-evaluate")
     );
     assert!(summary.execution.output_css.contains("color: red"));
-    assert!(summary.execution.output_css.contains("._button_0"));
+    assert!(summary.execution.output_css.contains("_button"));
     assert_eq!(
         summary
             .execution

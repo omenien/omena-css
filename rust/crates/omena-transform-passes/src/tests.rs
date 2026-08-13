@@ -5,16 +5,17 @@ use super::{
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle,
 };
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 use super::{
-    evaluate_lawvere_reorderability_with_differential_corpus,
-    execute_transform_passes_on_source_with_lawvere_trace,
-    plan_transform_passes_parallel_lawvere_layers,
+    evaluate_transform_catalog_reorderability_with_differential_corpus,
+    execute_transform_passes_on_source_with_transform_catalog_trace,
+    plan_transform_passes_parallel_transform_catalog_layers,
 };
 use crate::domains::css_modules_classes::local_css_module_composes_resolutions_with_lexer;
 use omena_parser::{
-    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
-    ModuleInstanceKeyV0, StyleDialect,
+    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ClosedWorldModuleMetadataV0,
+    ClosedWorldModuleReachabilityEvidenceV0, ClosedWorldSourcePrecisionSummaryV0,
+    ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, StyleDialect,
 };
 use omena_transform_cst::TransformPassKind;
 use std::collections::BTreeSet;
@@ -83,9 +84,29 @@ fn test_closed_world_bundle_from_context(
         module = module.with_custom_property_name(name.clone());
     }
 
-    closed_world_bundle_or_abort(ClosedWorldBundleV0::try_from_linked_modules(
-        vec![instance],
-        vec![module],
+    test_closed_world_bundle(vec![instance], vec![module])
+}
+
+fn test_closed_world_bundle(
+    entrypoints: Vec<ModuleInstanceKeyV0>,
+    linked_modules: Vec<ClosedWorldLinkedModuleV0>,
+) -> ClosedWorldBundleV0 {
+    let metadata = linked_modules
+        .iter()
+        .map(|module| {
+            ClosedWorldModuleMetadataV0::new(module.instance.clone())
+                .with_interface_hash("test-interface")
+                .with_source_precision(ClosedWorldSourcePrecisionSummaryV0 {
+                    exact_source_count: 1,
+                    ..ClosedWorldSourcePrecisionSummaryV0::default()
+                })
+                .with_reachability_evidence(ClosedWorldModuleReachabilityEvidenceV0::Supplied)
+        })
+        .collect();
+    closed_world_bundle_or_abort(ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
+        entrypoints,
+        linked_modules,
+        metadata,
     ))
 }
 

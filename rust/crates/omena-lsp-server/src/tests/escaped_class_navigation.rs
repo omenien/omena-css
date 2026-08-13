@@ -22,7 +22,7 @@ fn open_document(state: &mut LspShellState, uri: &str, language_id: &str, text: 
 fn escaped_css_module_member_supports_navigation_diagnostics_and_completion() -> TestResult {
     let style_uri = "file:///workspace-a/src/App.module.css";
     let source_uri = "file:///workspace-a/src/App.tsx";
-    let style_text = r#".md\:flex { display: flex; }
+    let style_text = r#".\6d d\:flex { display: flex; }
 .plain { display: block; }
 "#;
     let source_text = r#"import styles from "./App.module.css";
@@ -39,7 +39,7 @@ export const plainClass = styles.plain;
             + "styles.".len()
             + 2;
     let escaped_style_offset =
-        fixture_find(style_text, r#"md\:flex"#, "style contains escaped class")? + 2;
+        fixture_find(style_text, r#"\6d d\:flex"#, "style contains escaped class")? + 2;
     let mut state = LspShellState::default();
     handle_lsp_message(
         &mut state,
@@ -166,12 +166,12 @@ export const plainClass = styles.plain;
         .and_then(|items| {
             items
                 .iter()
-                .find(|item| item.get("label") == Some(&json!(r#"md\:flex"#)))
+                .find(|item| item.get("label") == Some(&json!(r#"\6d d\:flex"#)))
         })
         .ok_or_else(|| std::io::Error::other("escaped class completion should be present"))?;
     assert_eq!(
         escaped_item.get("insertText"),
-        Some(&json!(r#"md\\:flex"#)),
+        Some(&json!(r#"\\6d d\\:flex"#)),
         "computed-member completion must escape the CSS spelling for a JS string"
     );
     Ok(())

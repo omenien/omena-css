@@ -353,6 +353,7 @@ pub fn collect_expression_domain_flow_graphs(
                 nodes: vec![omena_abstract_value::ClassValueFlowNodeV0 {
                     id: entry.expression_id.clone(),
                     predecessors: Vec::new(),
+                    boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
                     transfer: omena_abstract_value::ClassValueFlowTransferV0::AssignFacts(
                         abstract_value_facts(&entry.facts),
                     ),
@@ -372,7 +373,68 @@ pub fn collect_expression_domain_flow_graphs(
 struct ExpressionDomainControlFlowGraphEntryV0 {
     graph_id: String,
     file_path: String,
+    expression_id: String,
     graph: omena_abstract_value::ClassValueControlFlowGraphV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ExpressionDomainSelectorCertaintyFlowHedgeV0 {
+    pub(crate) graph_converged: bool,
+    pub(crate) contains_flow_iteration_limit: bool,
+}
+
+pub(crate) type ExpressionDomainSelectorCertaintyFlowHedgesV0 =
+    BTreeMap<(String, String), ExpressionDomainSelectorCertaintyFlowHedgeV0>;
+
+pub(crate) fn collect_expression_domain_selector_certainty_flow_hedges(
+    input: &EngineInputV2,
+) -> ExpressionDomainSelectorCertaintyFlowHedgesV0 {
+    let mut hedges = ExpressionDomainSelectorCertaintyFlowHedgesV0::new();
+    for entry in collect_expression_domain_control_flow_graphs(input) {
+        let analysis = omena_abstract_value::analyze_class_value_control_flow_graph(&entry.graph);
+        let contains_flow_iteration_limit = analysis
+            .flow_analysis
+            .nodes
+            .iter()
+            .any(|node| abstract_value_contains_flow_iteration_limit(&node.value));
+        let key = (entry.file_path, entry.expression_id);
+        let previous = hedges.insert(
+            key.clone(),
+            ExpressionDomainSelectorCertaintyFlowHedgeV0 {
+                graph_converged: analysis.flow_analysis.converged,
+                contains_flow_iteration_limit,
+            },
+        );
+        assert!(
+            previous.is_none(),
+            "selector-certainty flow hedge duplicate type-fact key: file_path={:?} expression_id={:?}",
+            key.0,
+            key.1
+        );
+    }
+
+    hedges
+}
+
+fn abstract_value_contains_flow_iteration_limit(
+    value: &omena_abstract_value::AbstractClassValueV0,
+) -> bool {
+    use omena_abstract_value::{AbstractClassValueProvenanceV0, AbstractClassValueV0};
+
+    let provenance = match value {
+        AbstractClassValueV0::Automaton { provenance, .. }
+        | AbstractClassValueV0::Prefix { provenance, .. }
+        | AbstractClassValueV0::Suffix { provenance, .. }
+        | AbstractClassValueV0::PrefixSuffix { provenance, .. }
+        | AbstractClassValueV0::CharInclusion { provenance, .. }
+        | AbstractClassValueV0::Composite { provenance, .. }
+        | AbstractClassValueV0::Top { provenance } => *provenance,
+        AbstractClassValueV0::Bottom
+        | AbstractClassValueV0::Exact { .. }
+        | AbstractClassValueV0::FiniteSet { .. } => None,
+    };
+
+    provenance == Some(AbstractClassValueProvenanceV0::FlowIterationLimit)
 }
 
 fn collect_expression_domain_control_flow_graphs(
@@ -390,6 +452,7 @@ fn collect_expression_domain_control_flow_graphs(
                 ExpressionDomainControlFlowGraphEntryV0 {
                     graph_id: graph_id.clone(),
                     file_path: entry.file_path.clone(),
+                    expression_id: entry.expression_id.clone(),
                     graph: expression_domain_control_flow_graph_from_type_fact_graph(
                         &graph_id, entry, graph,
                     ),
@@ -495,6 +558,7 @@ fn expression_domain_control_flow_graph_from_type_fact_graph(
                 nodes: vec![omena_abstract_value::ClassValueFlowNodeV0 {
                     id: node_id,
                     predecessors,
+                    boundary_effect: type_fact_class_boundary_effect(block),
                     transfer: type_fact_control_flow_transfer(block, &entry.facts),
                 }],
                 successor_block_ids: block.successor_block_ids.clone(),
@@ -554,10 +618,23 @@ fn type_fact_control_flow_transfer(
     }
 }
 
+fn type_fact_class_boundary_effect(
+    block: &TypeFactControlFlowBlockV2,
+) -> omena_abstract_value::ClassBoundaryEffectV0 {
+    match block.boundary_effect.as_str() {
+        "concatInsideToken" => omena_abstract_value::ClassBoundaryEffectV0::ConcatInsideToken,
+        "concatAtTokenBoundary" => {
+            omena_abstract_value::ClassBoundaryEffectV0::ConcatAtTokenBoundary
+        }
+        _ => omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         collect_expression_domain_flow_graphs,
+        collect_expression_domain_selector_certainty_flow_hedges,
         summarize_expression_domain_call_site_flow_analysis_input,
         summarize_expression_domain_candidates_input,
         summarize_expression_domain_canonical_candidate_bundle_input,
@@ -571,7 +648,7 @@ mod tests {
     };
     use crate::{
         StringTypeFactsV2, TypeFactControlFlowBlockV2, TypeFactControlFlowGraphV2, TypeFactEntryV2,
-        test_support::sample_input,
+        configure_nonconvergent_selector_certainty_fixture, test_support::sample_input,
     };
     use omena_abstract_value::AbstractClassValueV0;
 
@@ -754,7 +831,7 @@ mod tests {
     }
 
     #[test]
-    fn summarizes_expression_domain_flow_analysis() {
+    fn summarizes_expression_domain_flow_analysis() -> Result<(), serde_json::Error> {
         let mut input = sample_input();
         input.type_facts = vec![
             exact_type_fact("expr-branch-a", "btn-primary"),
@@ -771,7 +848,15 @@ mod tests {
         );
         assert_eq!(summary.analyses.len(), 3);
         assert_eq!(summary.analyses[0].file_path, "/tmp/App.tsx");
-        assert_eq!(summary.analyses[0].analysis.context_sensitivity, "1-cfa");
+        assert_eq!(
+            summary.analyses[0].analysis.context_sensitivity,
+            "perSuppliedGraph"
+        );
+        let wire = serde_json::to_value(&summary)?;
+        assert_eq!(
+            wire["analyses"][0]["analysis"]["contextSensitivity"],
+            "perSuppliedGraph"
+        );
         assert!(
             summary
                 .analyses
@@ -799,6 +884,7 @@ mod tests {
                 .iter()
                 .all(|node| node.id != "file-merge")
         }));
+        Ok(())
     }
 
     #[test]
@@ -843,6 +929,30 @@ mod tests {
             "engine-input-producers.expression-domain-control-flow-analysis"
         );
         assert!(summary.analyses.is_empty());
+    }
+
+    #[test]
+    fn selector_certainty_flow_hedge_collector_records_nonconvergent_source_cfg() {
+        let mut input = sample_input();
+        configure_nonconvergent_selector_certainty_fixture(&mut input.type_facts[0], "x");
+
+        let hedges = collect_expression_domain_selector_certainty_flow_hedges(&input);
+        let key = ("/tmp/App.tsx".to_string(), "expr-1".to_string());
+
+        assert!(hedges.contains_key(&key));
+        let hedge = &hedges[&key];
+        assert!(!hedge.graph_converged);
+        assert!(hedge.contains_flow_iteration_limit);
+    }
+
+    #[test]
+    #[should_panic(expected = "selector-certainty flow hedge duplicate type-fact key")]
+    fn duplicate_selector_certainty_type_fact_key_fails_closed() {
+        let mut input = sample_input();
+        configure_nonconvergent_selector_certainty_fixture(&mut input.type_facts[0], "x");
+        input.type_facts.push(input.type_facts[0].clone());
+
+        let _ = collect_expression_domain_selector_certainty_flow_hedges(&input);
     }
 
     #[test]
@@ -1121,6 +1231,7 @@ mod tests {
             symbol_ordinal: None,
             variable_name: None,
             expression_kind: None,
+            boundary_effect: "unknownBoundary".to_string(),
             facts: None,
         }
     }

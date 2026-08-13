@@ -241,6 +241,7 @@ model OmenaBundlerHostCapabilitiesV0 {
 
 model OmenaBundlerHostResolveModuleRequestV0 {
   snapshotId: OmenaWorkspaceSnapshotIdV0;
+  workspaceRoot: string;
   stylePath: string;
   styleSources: Omena.EngineNapi.EngineNapiStyleSourceInputV0[];
   packageManifests: Omena.EngineNapi.EngineNapiStylePackageManifestV0[];
@@ -368,6 +369,13 @@ model OmenaClosedWorldSourcePrecisionSummaryV0 {
   unknownSourceCount: safeint;
 }
 
+model OmenaClosedWorldComposesEdgeV0 {
+  fromModule: OmenaModuleInstanceKeyV0;
+  fromSymbol: string;
+  toModule: OmenaModuleInstanceKeyV0;
+  toSymbol: string;
+}
+
 model OmenaClosedWorldBundleV0 {
   entrypoints: OmenaModuleInstanceKeyV0[];
   linkedModules: OmenaModuleInstanceKeyV0[];
@@ -375,6 +383,7 @@ model OmenaClosedWorldBundleV0 {
   closureHash: string;
   interfaceHashes?: OmenaClosedWorldInterfaceHashSetV0;
   sourcePrecision?: OmenaClosedWorldSourcePrecisionSummaryV0;
+  composesEdges?: OmenaClosedWorldComposesEdgeV0[];
 }
 
 model OmenaClosedWorldClosedOutcomeV0 {
