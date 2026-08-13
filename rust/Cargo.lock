@@ -2994,6 +2994,7 @@ name = "omena-transform-egg"
 version = "0.3.0"
 dependencies = [
  "egg",
+ "omena-cascade-proof",
  "omena-evidence-graph",
  "omena-lawvere",
  "omena-parser",

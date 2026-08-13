@@ -292,14 +292,15 @@ pub(crate) fn summarize_cascade_proof_obligations(
     }
 }
 
-/// Discharge the SMT obligation for a cascade-proof candidate and report whether
-/// the solver accepted it.
+/// Classify producer-authored canonical requirement strings with the default
+/// solver-free backend.
 ///
-/// The transform records the obligation's `accepted` outcome from the SMT
-/// solver's `sat_result` (`Sat` => accepted, `Unsat`/`Unknown` => rejected),
-/// not from the L1 proof flag. The canonical input the solver consumed is
-/// returned so it can be carried on the obligation for audit.
-fn discharge_smt_obligation(
+/// `StubSmtBackendV0` parses `require:<name>=<bool>` values produced upstream;
+/// it does not independently re-derive their semantics. The returned input is
+/// carried for audit. Scope/layer admission has a separate, real conjunct in
+/// `has_matching_discharge_evidence`, which requires a pinned matched and
+/// accepted ledger cell.
+fn classify_canonical_requirements_v0(
     canonical_input: CanonicalSmtInputV0,
     backend: &StubSmtBackendV0,
 ) -> (bool, CanonicalSmtInputV0) {
@@ -326,7 +327,7 @@ fn shorthand_obligation(
         &StubSmtBackendV0::default(),
     );
     let (accepted, canonical_smt_input) =
-        discharge_smt_obligation(smt_proof.canonical_input, &StubSmtBackendV0::default());
+        classify_canonical_requirements_v0(smt_proof.canonical_input, &StubSmtBackendV0::default());
     let provenance_preserved = accepted && proof.provenance_preserved;
     let blocked_reason = smt_blocked_reason(accepted, proof.blocked_reason.map(str::to_string));
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
@@ -361,7 +362,7 @@ fn scope_obligation(
     let smt_proof = smt_prove_scope_flatten_candidate_v0(input, &StubSmtBackendV0::default());
     let discharge_evidence = ledger_backed_discharge_evidence(&smt_proof);
     let (accepted, canonical_smt_input) =
-        discharge_smt_obligation(smt_proof.canonical_input, &StubSmtBackendV0::default());
+        classify_canonical_requirements_v0(smt_proof.canonical_input, &StubSmtBackendV0::default());
     let provenance_preserved = accepted && proof.provenance_preserved;
     let blocked_reason = smt_blocked_reason(accepted, proof.blocked_reason.map(str::to_string));
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
@@ -401,7 +402,7 @@ fn layer_obligation(
     let smt_proof = smt_prove_layer_flatten_candidate_v0(local_input, &StubSmtBackendV0::default());
     let discharge_evidence = ledger_backed_discharge_evidence(&smt_proof);
     let (accepted, canonical_smt_input) =
-        discharge_smt_obligation(smt_proof.canonical_input, &StubSmtBackendV0::default());
+        classify_canonical_requirements_v0(smt_proof.canonical_input, &StubSmtBackendV0::default());
     let provenance_preserved = accepted && proof.provenance_preserved;
     let blocked_reason = smt_blocked_reason(accepted, proof.blocked_reason.map(str::to_string));
     let cascade_safe_witness = proof.cascade_safe_witness.clone();

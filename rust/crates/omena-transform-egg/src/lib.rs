@@ -10,6 +10,12 @@ use egg::{
     Analysis, Applier, EGraph, Extractor, Id, Pattern, PatternAst, RecExpr, Rewrite, Runner, Subst,
     Symbol, Var, define_language, rewrite as egg_rewrite,
 };
+use omena_cascade_proof::{
+    CanonicalRewriteAssumptionsV0, REWRITE_CERTIFICATE_SCHEMA_VERSION_V0,
+    RewriteCertificateEnvelopeV0, RewriteCertificateV0, RewriteIssuanceTokenV0,
+    RewriteSubstitutionEntryV0, RewriteTermV0, SideConditionCertV0, check_rewrite_certificate_v0,
+    selector_rewrite_rule_catalog_v0,
+};
 use omena_evidence_graph::ObligationFamilyIdV0;
 use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
@@ -80,6 +86,93 @@ impl EggRewriteProofV0 {
     }
 }
 
+/// Evidence disposition for one caller-owned e-graph admission claim.
+///
+/// An issued token is bound to exact rewrite endpoints. A gap remains legal
+/// only as an explicit owner/re-entry declaration; it is never represented by
+/// a favourable Boolean.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EggRewriteClaimEvidenceV0 {
+    IndependentlyChecked {
+        token: RewriteIssuanceTokenV0,
+    },
+    NotIndependentlyChecked {
+        owner: String,
+        reentry_condition: String,
+    },
+}
+
+impl EggRewriteClaimEvidenceV0 {
+    pub fn independently_checked(token: RewriteIssuanceTokenV0) -> Self {
+        Self::IndependentlyChecked { token }
+    }
+
+    pub fn not_independently_checked(
+        owner: impl Into<String>,
+        reentry_condition: impl Into<String>,
+    ) -> Self {
+        Self::NotIndependentlyChecked {
+            owner: owner.into(),
+            reentry_condition: reentry_condition.into(),
+        }
+    }
+
+    fn issued_token(&self) -> Option<&RewriteIssuanceTokenV0> {
+        match self {
+            Self::IndependentlyChecked { token } => Some(token),
+            Self::NotIndependentlyChecked { .. } => None,
+        }
+    }
+
+    fn is_well_formed(&self) -> bool {
+        match self {
+            Self::IndependentlyChecked { .. } => true,
+            Self::NotIndependentlyChecked {
+                owner,
+                reentry_condition,
+            } => !owner.trim().is_empty() && !reentry_condition.trim().is_empty(),
+        }
+    }
+}
+
+/// Additive typed replacement for the legacy Boolean proof carrier.
+///
+/// Computed-value preservation remains the existing obligation-family lookup;
+/// it is intentionally not represented as a fourth evidence claim.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CheckedEggRewriteProofV0 {
+    pub specificity: EggRewriteClaimEvidenceV0,
+    obligation_family: ObligationFamilyIdV0,
+    pub provenance: EggRewriteClaimEvidenceV0,
+    pub cascade_safety: EggRewriteClaimEvidenceV0,
+}
+
+impl CheckedEggRewriteProofV0 {
+    pub fn new(
+        specificity: EggRewriteClaimEvidenceV0,
+        obligation_family: ObligationFamilyIdV0,
+        provenance: EggRewriteClaimEvidenceV0,
+        cascade_safety: EggRewriteClaimEvidenceV0,
+    ) -> Self {
+        Self {
+            specificity,
+            obligation_family,
+            provenance,
+            cascade_safety,
+        }
+    }
+
+    pub const fn obligation_family(&self) -> ObligationFamilyIdV0 {
+        self.obligation_family
+    }
+
+    pub const fn computed_value_preserved(&self) -> bool {
+        self.obligation_family.preserves_computed_value()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EggRewriteCandidateV0 {
@@ -87,6 +180,31 @@ pub struct EggRewriteCandidateV0 {
     pub before: String,
     pub after: String,
     pub proof: EggRewriteProofV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CheckedEggRewriteCandidateV0 {
+    pub pass_id: &'static str,
+    pub before: String,
+    pub after: String,
+    pub proof: CheckedEggRewriteProofV0,
+}
+
+impl CheckedEggRewriteCandidateV0 {
+    pub fn new(
+        pass_id: &'static str,
+        before: impl Into<String>,
+        after: impl Into<String>,
+        proof: CheckedEggRewriteProofV0,
+    ) -> Self {
+        Self {
+            pass_id,
+            before: before.into(),
+            after: after.into(),
+            proof,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -333,6 +451,11 @@ pub fn summarize_contextual_eqsat_scaffold_v0() -> ContextualEqSatScaffoldV0 {
 }
 
 pub fn decide_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteDecisionV0 {
+    // E7 measured every one of these seven blocking predicates constant-true
+    // on production witness paths. They remain here as the legacy contract and
+    // as a record of what callers claimed. Production selector safety actually
+    // comes from `selector_witness_candidate`'s syntax filter; the checked path
+    // below additionally requires an endpoint-bound kernel token.
     let blocked_reason = if !is_managed_egg_pass_id(candidate.pass_id) {
         Some("pass is not managed by omena-transform-egg")
     } else if candidate.proof.cascade_safe_witness.is_empty() {
@@ -368,19 +491,110 @@ pub fn decide_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteDecisio
     }
 }
 
+pub fn decide_checked_egg_rewrite(
+    candidate: &CheckedEggRewriteCandidateV0,
+) -> EggRewriteDecisionV0 {
+    let endpoint_terms = selector_kernel_terms_v0(&candidate.before, &candidate.after);
+    let evidence = [
+        &candidate.proof.specificity,
+        &candidate.proof.provenance,
+        &candidate.proof.cascade_safety,
+    ];
+    let blocked_reason = if !is_managed_egg_pass_id(candidate.pass_id) {
+        Some("pass is not managed by omena-transform-egg")
+    } else if evidence.iter().any(|claim| !claim.is_well_formed()) {
+        Some("independent-check gap is missing an owner or re-entry condition")
+    } else if candidate.pass_id == TransformPassKind::SelectorIsWhereCompression.id()
+        && candidate.proof.specificity.issued_token().is_none()
+    {
+        Some("selector rewrite requires an independently checked specificity claim")
+    } else if candidate.pass_id == TransformPassKind::SelectorIsWhereCompression.id()
+        && candidate.proof.cascade_safety.issued_token().is_none()
+    {
+        Some("selector rewrite requires an independently checked cascade-safety claim")
+    } else if evidence
+        .iter()
+        .filter_map(|claim| claim.issued_token())
+        .any(|token| {
+            endpoint_terms
+                .as_ref()
+                .is_none_or(|(before, after)| !token.matches_endpoints_v0(before, after))
+        })
+    {
+        Some("rewrite certificate token does not match candidate endpoints")
+    } else if candidate.pass_id == TransformPassKind::CalcReduction.id()
+        && !candidate.proof.computed_value_preserved()
+    {
+        Some("calc rewrite does not preserve computed value")
+    } else if candidate.pass_id == TransformPassKind::ShorthandCombining.id()
+        && !candidate.proof.computed_value_preserved()
+    {
+        Some("shorthand rewrite does not preserve computed value")
+    } else if candidate.pass_id == TransformPassKind::StalePrefixRemoval.id()
+        && !candidate.proof.computed_value_preserved()
+    {
+        Some("stale-prefix removal does not preserve computed value")
+    } else {
+        None
+    };
+
+    EggRewriteDecisionV0 {
+        schema_version: "0",
+        product: "omena-transform-egg.decision",
+        pass_id: candidate.pass_id,
+        accepted: blocked_reason.is_none(),
+        blocked_reason,
+    }
+}
+
 pub fn execute_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteExecutionV0 {
     let decision = decide_egg_rewrite(candidate.clone());
+    execute_egg_rewrite_after_decision(
+        candidate.pass_id,
+        candidate.before,
+        candidate.after,
+        decision,
+    )
+}
+
+pub fn execute_checked_egg_rewrite(
+    candidate: CheckedEggRewriteCandidateV0,
+) -> EggRewriteExecutionV0 {
+    let decision = decide_checked_egg_rewrite(&candidate);
+    execute_egg_rewrite_after_decision(
+        candidate.pass_id,
+        candidate.before,
+        candidate.after,
+        decision,
+    )
+}
+
+fn execute_egg_rewrite_after_decision(
+    pass_id: &'static str,
+    before: String,
+    expected_after: String,
+    decision: EggRewriteDecisionV0,
+) -> EggRewriteExecutionV0 {
     if !decision.accepted {
-        return blocked_execution(candidate, decision.blocked_reason);
+        return blocked_execution_parts(pass_id, before, expected_after, decision.blocked_reason);
     }
 
-    let expression = match candidate.before.parse::<RecExpr<CssRewriteLanguage>>() {
+    let expression = match before.parse::<RecExpr<CssRewriteLanguage>>() {
         Ok(expression) => expression,
-        Err(_) => return blocked_execution(candidate, Some("rewrite expression could not parse")),
+        Err(_) => {
+            return blocked_execution_parts(
+                pass_id,
+                before,
+                expected_after,
+                Some("rewrite expression could not parse"),
+            );
+        }
     };
-    let Some(rules) = rewrite_rules_for_pass::<()>(candidate.pass_id) else {
-        return blocked_execution(
-            candidate,
+    let Some(rules) = rewrite_rules_for_pass::<()>(pass_id) else {
+        return blocked_execution_parts(
+            pass_id,
+            before,
+            expected_after,
             Some("pass is not managed by omena-transform-egg"),
         );
     };
@@ -394,18 +608,18 @@ pub fn execute_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteExecut
     let extractor = Extractor::new(&runner.egraph, MdlExtractionCostV0::default_ast_size());
     let (_, extracted) = extractor.find_best(root);
     let after = extracted.to_string();
-    let after_matches_candidate = after == candidate.after;
+    let after_matches_candidate = after == expected_after;
 
     EggRewriteExecutionV0 {
         schema_version: "0",
         product: "omena-transform-egg.execution",
-        pass_id: candidate.pass_id,
+        pass_id,
         accepted: after_matches_candidate,
         blocked_reason: (!after_matches_candidate)
             .then_some("egg extraction did not match candidate output"),
-        before: candidate.before,
+        before,
         after,
-        expected_after: candidate.after,
+        expected_after,
         after_matches_candidate,
         engine: "egg",
         iteration_limit,
@@ -481,20 +695,21 @@ fn selector_rewrite_witnesses(
             let inner = source[inner_start..end].trim();
             let css_before = source[start..=end].to_string();
             let pseudo_name = prefix.trim_start_matches(':').trim_end_matches('(');
-            if let Some((source_kind, css_after, before, after, witness)) =
+            if let Some((source_kind, css_after, before, after, _legacy_witness)) =
                 selector_witness_candidate(pseudo_name, source_kind, inner)
                 && transformed_source.contains(&css_after)
                 && !transformed_source.contains(&css_before)
+                && let Some(token) = selector_rewrite_issuance_token_v0(&before, &after)
             {
-                let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+                let execution = execute_checked_egg_rewrite(CheckedEggRewriteCandidateV0 {
                     pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
                     before,
                     after,
-                    proof: EggRewriteProofV0::new(
-                        true,
+                    proof: CheckedEggRewriteProofV0::new(
+                        EggRewriteClaimEvidenceV0::independently_checked(token.clone()),
                         ObligationFamilyIdV0::CascadeSafetyFloor,
-                        true,
-                        witness,
+                        declared_provenance_gap_v0(),
+                        EggRewriteClaimEvidenceV0::independently_checked(token),
                     ),
                 });
                 witnesses.push(EggRewriteSourceWitnessV0 {
@@ -531,15 +746,15 @@ fn calc_rewrite_witnesses(
             && transformed_source.contains(candidate.css_after.as_str())
             && !transformed_source.contains(&css_before)
         {
-            let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+            let execution = execute_checked_egg_rewrite(CheckedEggRewriteCandidateV0 {
                 pass_id: TransformPassKind::CalcReduction.id(),
                 before: format!("(calc {})", candidate.before),
                 after: candidate.after,
-                proof: EggRewriteProofV0::new(
-                    false,
+                proof: CheckedEggRewriteProofV0::new(
+                    declared_specificity_gap_v0(),
                     ObligationFamilyIdV0::ComputedValuePreservation,
-                    true,
-                    candidate.witness,
+                    declared_provenance_gap_v0(),
+                    declared_cascade_safety_gap_v0(candidate.witness),
                 ),
             });
             witnesses.push(EggRewriteSourceWitnessV0 {
@@ -584,20 +799,20 @@ fn stale_prefix_removal_witnesses(
             } else {
                 "normal"
             };
-            let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+            let execution = execute_checked_egg_rewrite(CheckedEggRewriteCandidateV0 {
                 pass_id: TransformPassKind::StalePrefixRemoval.id(),
                 before: format!(
                     "(stale-prefix-decl {prefixed_property} {unprefixed_property} {value} {importance})"
                 ),
                 after: format!("(decl {unprefixed_property} {value} {importance})"),
-                proof: EggRewriteProofV0::new(
-                    false,
+                proof: CheckedEggRewriteProofV0::new(
+                    declared_specificity_gap_v0(),
                     ObligationFamilyIdV0::ComputedValuePreservation,
-                    true,
-                    format!(
+                    declared_provenance_gap_v0(),
+                    declared_cascade_safety_gap_v0(format!(
                         "{} has exact unprefixed declaration peer {} with the same value and importance",
                         candidate.prefixed_property, candidate.unprefixed_property
-                    ),
+                    )),
                 ),
             });
             Some(EggRewriteSourceWitnessV0 {
@@ -610,6 +825,175 @@ fn stale_prefix_removal_witnesses(
             })
         })
         .collect()
+}
+
+fn declared_specificity_gap_v0() -> EggRewriteClaimEvidenceV0 {
+    EggRewriteClaimEvidenceV0::not_independently_checked(
+        "omena-transform-egg maintainers",
+        "supply an endpoint-bound specificity certificate before requiring this claim for non-selector rewrites",
+    )
+}
+
+fn declared_provenance_gap_v0() -> EggRewriteClaimEvidenceV0 {
+    EggRewriteClaimEvidenceV0::not_independently_checked(
+        "omena-transform-egg maintainers",
+        "supply SourceMapTraceCertV0 from emitted segments before treating provenance as independently checked",
+    )
+}
+
+fn declared_cascade_safety_gap_v0(producer_claim: impl Into<String>) -> EggRewriteClaimEvidenceV0 {
+    EggRewriteClaimEvidenceV0::not_independently_checked(
+        "omena-transform-egg maintainers",
+        format!(
+            "replace producer claim {:?} with a matching S1 certificate before tightening cascade-safety admission",
+            producer_claim.into()
+        ),
+    )
+}
+
+fn selector_rewrite_issuance_token_v0(before: &str, after: &str) -> Option<RewriteIssuanceTokenV0> {
+    let (before_term, after_term) = selector_kernel_terms_v0(before, after)?;
+    let certificate = selector_rewrite_certificate_v0(&before_term, &after_term)?;
+    check_rewrite_certificate_v0(
+        &before_term,
+        &after_term,
+        &selector_rewrite_rule_catalog_v0(),
+        &certificate,
+        &CanonicalRewriteAssumptionsV0::default(),
+    )
+    .ok()
+}
+
+fn selector_rewrite_certificate_v0(
+    before: &RewriteTermV0,
+    after: &RewriteTermV0,
+) -> Option<RewriteCertificateEnvelopeV0> {
+    let rewrite = match (before, after) {
+        (RewriteTermV0::Apply { operator, operands }, after)
+            if operator == "selectorIs" && operands.as_slice() == [after.clone()] =>
+        {
+            selector_rule_application_v0("selector-is-single-v0", after)
+        }
+        (RewriteTermV0::Apply { operator, operands }, after) if operator == "selectorIs" => {
+            let [
+                RewriteTermV0::Apply {
+                    operator: list_operator,
+                    operands: list_operands,
+                },
+            ] = operands.as_slice()
+            else {
+                return None;
+            };
+            let [left, right] = list_operands.as_slice() else {
+                return None;
+            };
+            if list_operator != "selectorList2" || left != right || left != after {
+                return None;
+            }
+            RewriteCertificateV0::Trans {
+                left: Box::new(RewriteCertificateV0::Cong {
+                    operator: "selectorIs".to_owned(),
+                    certificates: vec![selector_rule_application_v0(
+                        "selector-list-deduplicate-v0",
+                        left,
+                    )],
+                }),
+                right: Box::new(selector_rule_application_v0("selector-is-single-v0", left)),
+            }
+        }
+        (
+            RewriteTermV0::Apply {
+                operator: before_operator,
+                operands: before_operands,
+            },
+            RewriteTermV0::Apply {
+                operator: after_operator,
+                operands: after_operands,
+            },
+        ) if before_operator == "selectorWhere" && after_operator == "selectorWhere" => {
+            let [
+                RewriteTermV0::Apply {
+                    operator: list_operator,
+                    operands: list_operands,
+                },
+            ] = before_operands.as_slice()
+            else {
+                return None;
+            };
+            let [left, right] = list_operands.as_slice() else {
+                return None;
+            };
+            let [after_operand] = after_operands.as_slice() else {
+                return None;
+            };
+            if list_operator != "selectorList2" || left != right || left != after_operand {
+                return None;
+            }
+            RewriteCertificateV0::Cong {
+                operator: "selectorWhere".to_owned(),
+                certificates: vec![selector_rule_application_v0(
+                    "selector-list-deduplicate-v0",
+                    left,
+                )],
+            }
+        }
+        _ => return None,
+    };
+    Some(RewriteCertificateEnvelopeV0 {
+        schema_version: REWRITE_CERTIFICATE_SCHEMA_VERSION_V0.to_owned(),
+        max_depth: 8,
+        max_nodes: 16,
+        certificate: rewrite,
+    })
+}
+
+fn selector_rule_application_v0(rule_id: &str, term: &RewriteTermV0) -> RewriteCertificateV0 {
+    RewriteCertificateV0::Rewrite {
+        rule_id: rule_id.to_owned(),
+        substitution: vec![RewriteSubstitutionEntryV0 {
+            variable: "x".to_owned(),
+            term: term.clone(),
+        }],
+        side_condition: SideConditionCertV0::NoSideCondition,
+    }
+}
+
+fn selector_kernel_terms_v0(before: &str, after: &str) -> Option<(RewriteTermV0, RewriteTermV0)> {
+    Some((
+        selector_kernel_term_v0(before)?,
+        selector_kernel_term_v0(after)?,
+    ))
+}
+
+fn selector_kernel_term_v0(source: &str) -> Option<RewriteTermV0> {
+    let expression = source.parse::<RecExpr<CssRewriteLanguage>>().ok()?;
+    let root = Id::from(expression.as_ref().len().checked_sub(1)?);
+    selector_kernel_term_at_v0(&expression, root)
+}
+
+fn selector_kernel_term_at_v0(
+    expression: &RecExpr<CssRewriteLanguage>,
+    id: Id,
+) -> Option<RewriteTermV0> {
+    match &expression[id] {
+        CssRewriteLanguage::Symbol(symbol) => Some(RewriteTermV0::atom(symbol.to_string())),
+        CssRewriteLanguage::Is(child) => Some(RewriteTermV0::apply(
+            "selectorIs",
+            vec![selector_kernel_term_at_v0(expression, *child)?],
+        )),
+        CssRewriteLanguage::Where(child) => Some(RewriteTermV0::apply(
+            "selectorWhere",
+            vec![selector_kernel_term_at_v0(expression, *child)?],
+        )),
+        CssRewriteLanguage::List(children) => Some(RewriteTermV0::apply(
+            "selectorList2",
+            vec![
+                selector_kernel_term_at_v0(expression, children[0])?,
+                selector_kernel_term_at_v0(expression, children[1])?,
+            ],
+        )),
+        _ => None,
+    }
 }
 
 fn selector_witness_candidate(
@@ -955,15 +1339,29 @@ fn blocked_execution(
     candidate: EggRewriteCandidateV0,
     blocked_reason: Option<&'static str>,
 ) -> EggRewriteExecutionV0 {
+    blocked_execution_parts(
+        candidate.pass_id,
+        candidate.before,
+        candidate.after,
+        blocked_reason,
+    )
+}
+
+fn blocked_execution_parts(
+    pass_id: &'static str,
+    before: String,
+    expected_after: String,
+    blocked_reason: Option<&'static str>,
+) -> EggRewriteExecutionV0 {
     EggRewriteExecutionV0 {
         schema_version: "0",
         product: "omena-transform-egg.execution",
-        pass_id: candidate.pass_id,
+        pass_id,
         accepted: false,
         blocked_reason,
-        before: candidate.before.clone(),
-        after: candidate.before,
-        expected_after: candidate.after,
+        before: before.clone(),
+        after: before,
+        expected_after,
         after_matches_candidate: false,
         engine: "egg",
         iteration_limit: 0,
@@ -978,13 +1376,7 @@ fn blocked_execution(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        EggRewriteCandidateV0, EggRewriteProofV0, decide_egg_rewrite, execute_egg_rewrite,
-        execute_egg_rewrite_witnesses_for_css_source, plan_egg_rewrite_passes,
-        plan_egg_rewrite_passes_for_source, rewrite_rules_for_pass,
-        summarize_contextual_eqsat_scaffold_v0, summarize_mdl_extraction_mode,
-        summarize_omena_transform_egg_boundary,
-    };
+    use super::*;
     use omena_evidence_graph::ObligationFamilyIdV0;
     use omena_parser::StyleDialect;
     use omena_transform_cst::TransformPassKind;
@@ -1173,6 +1565,92 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn checked_selector_certificate_preserves_execution_bytes() -> Result<(), serde_json::Error> {
+        let before = "(is (list ready ready))";
+        let after = "ready";
+        let token = selector_rewrite_issuance_token_v0(before, after);
+        assert!(token.is_some(), "fixture certificate must issue a token");
+        let Some(token) = token else {
+            return Ok(());
+        };
+        let checked = execute_checked_egg_rewrite(CheckedEggRewriteCandidateV0 {
+            pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+            before: before.to_owned(),
+            after: after.to_owned(),
+            proof: CheckedEggRewriteProofV0::new(
+                EggRewriteClaimEvidenceV0::independently_checked(token.clone()),
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                declared_provenance_gap_v0(),
+                EggRewriteClaimEvidenceV0::independently_checked(token),
+            ),
+        });
+        let legacy = execute_egg_rewrite(EggRewriteCandidateV0 {
+            pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+            before: before.to_owned(),
+            after: after.to_owned(),
+            proof: EggRewriteProofV0::new(
+                true,
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                true,
+                "duplicate :is() argument keeps specificity",
+            ),
+        });
+
+        assert!(checked.accepted);
+        assert_eq!(serde_json::to_vec(&checked)?, serde_json::to_vec(&legacy)?);
+        Ok(())
+    }
+
+    #[test]
+    fn checked_selector_rejects_token_for_different_endpoints() {
+        let token = selector_rewrite_issuance_token_v0("(is ready)", "ready");
+        assert!(token.is_some(), "fixture certificate must issue a token");
+        let Some(token) = token else {
+            return;
+        };
+        let decision = decide_checked_egg_rewrite(&CheckedEggRewriteCandidateV0 {
+            pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+            before: "(is other)".to_owned(),
+            after: "other".to_owned(),
+            proof: CheckedEggRewriteProofV0::new(
+                EggRewriteClaimEvidenceV0::independently_checked(token.clone()),
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                declared_provenance_gap_v0(),
+                EggRewriteClaimEvidenceV0::independently_checked(token),
+            ),
+        });
+
+        assert!(!decision.accepted);
+        assert_eq!(
+            decision.blocked_reason,
+            Some("rewrite certificate token does not match candidate endpoints")
+        );
+    }
+
+    #[test]
+    fn favourable_legacy_booleans_cannot_replace_checked_selector_token() {
+        let decision = decide_checked_egg_rewrite(&CheckedEggRewriteCandidateV0 {
+            pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+            before: "(is ready)".to_owned(),
+            after: "ready".to_owned(),
+            proof: CheckedEggRewriteProofV0::new(
+                declared_specificity_gap_v0(),
+                ObligationFamilyIdV0::CascadeSafetyFloor,
+                declared_provenance_gap_v0(),
+                declared_cascade_safety_gap_v0(
+                    "legacy caller would have supplied true/true/non-empty",
+                ),
+            ),
+        });
+
+        assert!(!decision.accepted);
+        assert_eq!(
+            decision.blocked_reason,
+            Some("selector rewrite requires an independently checked specificity claim")
+        );
     }
 
     #[test]

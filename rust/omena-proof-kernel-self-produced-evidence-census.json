@@ -1,0 +1,1125 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-proof-kernel.self-produced-evidence-census",
+  "committedSourceFiles": [
+    "rust/crates/omena-cascade-proof/src/lib.rs",
+    "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+    "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+    "rust/crates/omena-transform-egg/src/lib.rs",
+    "rust/crates/omena-evidence-graph/src/lib.rs"
+  ],
+  "cannotCheck": [
+    "rule catalog soundness",
+    "whether an observer profile models browser behaviour",
+    "a defect shared with an external side-condition source",
+    "a defect that changes both comparison sides identically",
+    "independent semantic strength for genuinely IR-computed requirements"
+  ],
+  "defaultBackendDisposition": "StubSmtBackendV0 re-reads require:<name>=<bool>; non-require audit labels are satisfied by unwrap_or(true) and do not contribute a checked formula.",
+  "entry": {
+    "sourceRef": "0749a00707b07070ec0fed3342c836a674facd14",
+    "sourceFileSha256": "dc9d32965458dca92752802644a5237e78705c312256413e1e7d217cc6aa1acf",
+    "rowCount": 16,
+    "planeCounts": {
+      "cascadeObligation": 12,
+      "eGraph": 3,
+      "evidenceMint": 1
+    },
+    "rows": [
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:layer_flatten_missing_bundle_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> layer_flatten_missing_bundle_obligation",
+          "lineHint": 239,
+          "lineSha256": "0d3b497242424774e6249775bb4b69b3b05a4a98de9abe4a3e8b1926024e9f94"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "literal rejected missing-bundle obligation",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:layer_inversion_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> layer_inversion_obligation",
+          "lineHint": 229,
+          "lineSha256": "a88af79dd1855e2e0ee699765b9fe179e4983f16324a4e5a209a9d92687666d8"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from inversion backend verdict plus ledger-backed evidence",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:layer_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> layer_obligation",
+          "lineHint": 218,
+          "lineSha256": "86cd35de895b5f9e3e64339c67ff24bc2dbf3cb0b0c8bbb8fb6e78004142a338"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:scope_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> scope_obligation",
+          "lineHint": 204,
+          "lineSha256": "24705189d912903d9a225f1fafc969e187563a35e64605ccce2283ac5faa71cb"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:supports_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> supports_obligation",
+          "lineHint": 248,
+          "lineSha256": "e4b1251c87c9737b06e77f34d47392c43410e1b5a2a0614b6a3240f49d444f8f"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-owned static-supports verdict",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:layer_flatten_missing_bundle_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> layer_flatten_missing_bundle_obligation",
+          "lineHint": 118,
+          "lineSha256": "0d3b497242424774e6249775bb4b69b3b05a4a98de9abe4a3e8b1926024e9f94"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "literal rejected missing-bundle obligation",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:layer_inversion_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> layer_inversion_obligation",
+          "lineHint": 108,
+          "lineSha256": "a88af79dd1855e2e0ee699765b9fe179e4983f16324a4e5a209a9d92687666d8"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from inversion backend verdict plus ledger-backed evidence",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:layer_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> layer_obligation",
+          "lineHint": 93,
+          "lineSha256": "86cd35de895b5f9e3e64339c67ff24bc2dbf3cb0b0c8bbb8fb6e78004142a338"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:scope_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> scope_obligation",
+          "lineHint": 78,
+          "lineSha256": "f57b19f4f1bab9ec32a46b7583a437c09bd4bebbc9a527213eb0125ba0e3047b"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:shorthand_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> shorthand_obligation",
+          "lineHint": 62,
+          "lineSha256": "93d5cf2b0a68d2f6dfee19c364044ce83d4ca75f6f29fce36116b208cd51f35d"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:stale_prefix_removal_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> stale_prefix_removal_obligation",
+          "lineHint": 140,
+          "lineSha256": "72cadfd68151093e0a064f91675db699fc790adb750001adce808b3d18f0ea96"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "literal accepted exact-peer obligation",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:supports_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> supports_obligation",
+          "lineHint": 128,
+          "lineSha256": "e4b1251c87c9737b06e77f34d47392c43410e1b5a2a0614b6a3240f49d444f8f"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-owned static-supports verdict",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "eGraph:calc_rewrite_witnesses",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
+          "symbol": "calc_rewrite_witnesses",
+          "lineHint": 538,
+          "lineSha256": "c6a14a3d61ea472cf355af02f747bfbdf7e84cba25a813292bb4b92594d66075"
+        },
+        "plane": "eGraph",
+        "decidingValue": "calc_rewrite_witnesses legacy admission disposition",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "EggRewriteProofV0 accepted caller-owned specificity/provenance/witness values without an outside endpoint derivation"
+      },
+      {
+        "siteKey": "eGraph:selector_rewrite_witnesses",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
+          "symbol": "selector_rewrite_witnesses",
+          "lineHint": 493,
+          "lineSha256": "7e00413a6f36decf09e3e4505eb16dd037b2c30b37e5b99884165766881ad298"
+        },
+        "plane": "eGraph",
+        "decidingValue": "selector rewrite admission",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "EggRewriteProofV0 accepted caller-owned specificity/provenance/witness values without an outside endpoint derivation"
+      },
+      {
+        "siteKey": "eGraph:stale_prefix_removal_witnesses",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
+          "symbol": "stale_prefix_removal_witnesses",
+          "lineHint": 593,
+          "lineSha256": "c6a14a3d61ea472cf355af02f747bfbdf7e84cba25a813292bb4b92594d66075"
+        },
+        "plane": "eGraph",
+        "decidingValue": "stale_prefix_removal_witnesses legacy admission disposition",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "EggRewriteProofV0 accepted caller-owned specificity/provenance/witness values without an outside endpoint derivation"
+      },
+      {
+        "siteKey": "evidenceMint:LedgerDischargeWitnessV0::from_discharge_cell_key_v0",
+        "site": {
+          "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
+          "symbol": "LedgerDischargeWitnessV0::from_discharge_cell_key_v0",
+          "lineHint": 188,
+          "lineSha256": "072a6605d742077b3cbffa1b6497a7bdb67089af633241280db8b2dbbe830e1b"
+        },
+        "plane": "evidenceMint",
+        "decidingValue": "64-character ASCII-hex key shape",
+        "independentlyRecheckedBy": "NONE",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "a correctly shaped missing ledger key could mint a witness without a ledger verdict"
+      }
+    ],
+    "requirementCountsByConstructor": {
+      "canonical_box_shorthand_combination_input_v0": 5,
+      "canonical_layer_flatten_candidate_input_v0": 4,
+      "canonical_longhand_merge_input_v0": 5,
+      "canonical_scope_flatten_candidate_input_v0": 5,
+      "canonical_static_supports_condition_input_v0": 2,
+      "canonical_transform_rewrite_candidate_input_v0": 5
+    },
+    "requirementClassificationCounts": {
+      "IR_COMPUTED": 0,
+      "PRODUCER_PASS_THROUGH": 0,
+      "UNCLASSIFIED": 26
+    },
+    "requirements": [
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "adjacent-source-order",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:adjacent-source-order",
+          "lineHint": 585,
+          "lineSha256": "1e83bfd330e38e9d4e700d906a03c253fac2d88507e79f52c27de958b0a9a6be"
+        }
+      },
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "canonical-longhand-quartet",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:canonical-longhand-quartet",
+          "lineHint": 576,
+          "lineSha256": "8ba200c6b6032e49457309780c70de7c2b04a4b03d6fd3d64c672f565ac0aeea"
+        }
+      },
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "no-empty-longhand-value",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:no-empty-longhand-value",
+          "lineHint": 581,
+          "lineSha256": "1e83bfd330e38e9d4e700d906a03c253fac2d88507e79f52c27de958b0a9a6be"
+        }
+      },
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "no-important-longhand",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:no-important-longhand",
+          "lineHint": 577,
+          "lineSha256": "1e83bfd330e38e9d4e700d906a03c253fac2d88507e79f52c27de958b0a9a6be"
+        }
+      },
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "supported-shorthand-property",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:supported-shorthand-property",
+          "lineHint": 575,
+          "lineSha256": "95e72bf6570d1cc6dda40b691a7dbefeca1dfd42ec6083c4e3811ac8a49f4d14"
+        }
+      },
+      {
+        "constructor": "canonical_layer_flatten_candidate_input_v0",
+        "name": "closed-bundle",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_layer_flatten_candidate_input_v0:closed-bundle",
+          "lineHint": 656,
+          "lineSha256": "d359c585b8d01b34653b2f9489cd6e15df2981738df7cb4ebf997c6fac484fb6"
+        }
+      },
+      {
+        "constructor": "canonical_layer_flatten_candidate_input_v0",
+        "name": "no-important-declaration",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_layer_flatten_candidate_input_v0:no-important-declaration",
+          "lineHint": 659,
+          "lineSha256": "1e83bfd330e38e9d4e700d906a03c253fac2d88507e79f52c27de958b0a9a6be"
+        }
+      },
+      {
+        "constructor": "canonical_layer_flatten_candidate_input_v0",
+        "name": "no-peer-layer",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_layer_flatten_candidate_input_v0:no-peer-layer",
+          "lineHint": 657,
+          "lineSha256": "52e7aee81197961b88bd553c6aa28c7650ea852ef111e5ffd4eb098ac6ec5188"
+        }
+      },
+      {
+        "constructor": "canonical_layer_flatten_candidate_input_v0",
+        "name": "no-unlayered-rule",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_layer_flatten_candidate_input_v0:no-unlayered-rule",
+          "lineHint": 658,
+          "lineSha256": "ff4dd150dc62cd9ed32189528817a96411b6be12552fa6d1132461d083f6fe91"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "adjacent-source-order",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:adjacent-source-order",
+          "lineHint": 623,
+          "lineSha256": "1e83bfd330e38e9d4e700d906a03c253fac2d88507e79f52c27de958b0a9a6be"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "canonical-longhand-order",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:canonical-longhand-order",
+          "lineHint": 614,
+          "lineSha256": "c87e543766853680f264db40524ec42123c755767f9a9fd417eb575c8a394e5a"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "no-empty-longhand-value",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:no-empty-longhand-value",
+          "lineHint": 619,
+          "lineSha256": "1e83bfd330e38e9d4e700d906a03c253fac2d88507e79f52c27de958b0a9a6be"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "no-important-longhand",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:no-important-longhand",
+          "lineHint": 615,
+          "lineSha256": "1e83bfd330e38e9d4e700d906a03c253fac2d88507e79f52c27de958b0a9a6be"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "supported-merge-family",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:supported-merge-family",
+          "lineHint": 613,
+          "lineSha256": "4968fd55f478e9a988e9614c35d2512a291c4d4f7f804409fd302f926c729ce6"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "no-competing-unscoped-rule",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:no-competing-unscoped-rule",
+          "lineHint": 642,
+          "lineSha256": "1e83bfd330e38e9d4e700d906a03c253fac2d88507e79f52c27de958b0a9a6be"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "no-limit-selector",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:no-limit-selector",
+          "lineHint": 639,
+          "lineSha256": "6153e139553dc61e01c2f6f7958dc4854773c7cb75c8450e529f4b42abe30241"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "no-peer-scope",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:no-peer-scope",
+          "lineHint": 641,
+          "lineSha256": "ec298654af45ab9ff3b48c09545d589a2a6937302065af87ad7e057d22681ab7"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "not-inside-layer",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:not-inside-layer",
+          "lineHint": 646,
+          "lineSha256": "fe1c3d5e08e343569e070aec3692b5dbb47b151705254391af3d687beb6b01a3"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "root-scope",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:root-scope",
+          "lineHint": 640,
+          "lineSha256": "4b5c6b1d365d868c14c295f32f3c8c1875c23db313a69884ec07c51a1a828afd"
+        }
+      },
+      {
+        "constructor": "canonical_static_supports_condition_input_v0",
+        "name": "supports-condition-known-true",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_static_supports_condition_input_v0:supports-condition-known-true",
+          "lineHint": 672,
+          "lineSha256": "da931db1824b6827043eda6f6e2ecd895fb44662c8dda44c026cc4fd2434b203"
+        }
+      },
+      {
+        "constructor": "canonical_static_supports_condition_input_v0",
+        "name": "supports-condition-known-true",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_static_supports_condition_input_v0:supports-condition-known-true",
+          "lineHint": 675,
+          "lineSha256": "680409fc46961789c0dba8e42ef05c9cdb23213c0533999dd20a809330fbf6da"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "cascade-obligation-declared",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:cascade-obligation-declared",
+          "lineHint": 694,
+          "lineSha256": "1e83bfd330e38e9d4e700d906a03c253fac2d88507e79f52c27de958b0a9a6be"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "no-bogus-or-trivia",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:no-bogus-or-trivia",
+          "lineHint": 700,
+          "lineSha256": "079eb3a5c68672ccd3f7ea1087c397be89d7a9f1befdf9b4b1faa684bdf1e4a3"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "provenance-preserved",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:provenance-preserved",
+          "lineHint": 699,
+          "lineSha256": "f8b2163eabcb940112a736d1423ce0d62ac60943d4c6765482577c21e51ca619"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "provenance-recomputed",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:provenance-recomputed",
+          "lineHint": 698,
+          "lineSha256": "7e2ce4e8ed22856fb401da8ed3ea1314ddf5bc977164be6de40f3d1b79fdf254"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "stable-post-semantic-ir",
+        "classification": "UNCLASSIFIED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:stable-post-semantic-ir",
+          "lineHint": 701,
+          "lineSha256": "a0764edcb8bec324dadbc4d46df7760dc15a6b7f0577572b80f5ed36ceeffbfe"
+        }
+      }
+    ]
+  },
+  "exit": {
+    "sourceRef": "WORKTREE",
+    "sourceFileSha256": "fb29b901840a26f1516264e04af7363017207b38da42c24a3680d5014f8e3077",
+    "rowCount": 16,
+    "planeCounts": {
+      "cascadeObligation": 12,
+      "eGraph": 3,
+      "evidenceMint": 1
+    },
+    "rows": [
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:layer_flatten_missing_bundle_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> layer_flatten_missing_bundle_obligation",
+          "lineHint": 239,
+          "lineSha256": "0d3b497242424774e6249775bb4b69b3b05a4a98de9abe4a3e8b1926024e9f94"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "literal rejected missing-bundle obligation",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "omena-transform-passes maintainers",
+        "reentryCondition": "add a certificate or independently produced ledger cell for this obligation before strengthening its acceptance claim",
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:layer_inversion_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> layer_inversion_obligation",
+          "lineHint": 229,
+          "lineSha256": "a88af79dd1855e2e0ee699765b9fe179e4983f16324a4e5a209a9d92687666d8"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from inversion backend verdict plus ledger-backed evidence",
+        "independentlyRecheckedBy": "omena_transform_passes::runtime::executor::has_matching_discharge_evidence",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:layer_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> layer_obligation",
+          "lineHint": 218,
+          "lineSha256": "86cd35de895b5f9e3e64339c67ff24bc2dbf3cb0b0c8bbb8fb6e78004142a338"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "omena_transform_passes::runtime::executor::has_matching_discharge_evidence",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:scope_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> scope_obligation",
+          "lineHint": 204,
+          "lineSha256": "24705189d912903d9a225f1fafc969e187563a35e64605ccce2283ac5faa71cb"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "omena_transform_passes::runtime::executor::has_matching_discharge_evidence",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_ir_pass_input:supports_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_ir_pass_input -> supports_obligation",
+          "lineHint": 248,
+          "lineSha256": "e4b1251c87c9737b06e77f34d47392c43410e1b5a2a0614b6a3240f49d444f8f"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-owned static-supports verdict",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "omena-transform-passes maintainers",
+        "reentryCondition": "add a certificate or independently produced ledger cell for this obligation before strengthening its acceptance claim",
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:layer_flatten_missing_bundle_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> layer_flatten_missing_bundle_obligation",
+          "lineHint": 118,
+          "lineSha256": "0d3b497242424774e6249775bb4b69b3b05a4a98de9abe4a3e8b1926024e9f94"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "literal rejected missing-bundle obligation",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "omena-transform-passes maintainers",
+        "reentryCondition": "add a certificate or independently produced ledger cell for this obligation before strengthening its acceptance claim",
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:layer_inversion_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> layer_inversion_obligation",
+          "lineHint": 108,
+          "lineSha256": "a88af79dd1855e2e0ee699765b9fe179e4983f16324a4e5a209a9d92687666d8"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from inversion backend verdict plus ledger-backed evidence",
+        "independentlyRecheckedBy": "omena_transform_passes::runtime::executor::has_matching_discharge_evidence",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:layer_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> layer_obligation",
+          "lineHint": 93,
+          "lineSha256": "86cd35de895b5f9e3e64339c67ff24bc2dbf3cb0b0c8bbb8fb6e78004142a338"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "omena_transform_passes::runtime::executor::has_matching_discharge_evidence",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:scope_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> scope_obligation",
+          "lineHint": 78,
+          "lineSha256": "f57b19f4f1bab9ec32a46b7583a437c09bd4bebbc9a527213eb0125ba0e3047b"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "omena_transform_passes::runtime::executor::has_matching_discharge_evidence",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:shorthand_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> shorthand_obligation",
+          "lineHint": 62,
+          "lineSha256": "93d5cf2b0a68d2f6dfee19c364044ce83d4ca75f6f29fce36116b208cd51f35d"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-authored require:<name>=<bool> strings",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "omena-transform-passes maintainers",
+        "reentryCondition": "add a certificate or independently produced ledger cell for this obligation before strengthening its acceptance claim",
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:stale_prefix_removal_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> stale_prefix_removal_obligation",
+          "lineHint": 140,
+          "lineSha256": "72cadfd68151093e0a064f91675db699fc790adb750001adce808b3d18f0ea96"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "literal accepted exact-peer obligation",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "omena-transform-passes maintainers",
+        "reentryCondition": "add a certificate or independently produced ledger cell for this obligation before strengthening its acceptance claim",
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "cascadeObligation:collect_cascade_proof_obligations_for_pass_input:supports_obligation:1",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-passes/src/runtime/cascade_proof.rs",
+          "symbol": "collect_cascade_proof_obligations_for_pass_input -> supports_obligation",
+          "lineHint": 128,
+          "lineSha256": "e4b1251c87c9737b06e77f34d47392c43410e1b5a2a0614b6a3240f49d444f8f"
+        },
+        "plane": "cascadeObligation",
+        "decidingValue": "accepted from producer-owned static-supports verdict",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "omena-transform-passes maintainers",
+        "reentryCondition": "add a certificate or independently produced ledger cell for this obligation before strengthening its acceptance claim",
+        "entryStateObservation": "the producer emitted an accepted/provenance value before any census field named an outside recheck"
+      },
+      {
+        "siteKey": "eGraph:calc_rewrite_witnesses",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
+          "symbol": "calc_rewrite_witnesses",
+          "lineHint": 753,
+          "lineSha256": "e313c582aafb10184fc7ae26b8a8fce5c1bd0aeb733626eae0cf9ef525f48c08"
+        },
+        "plane": "eGraph",
+        "decidingValue": "calc_rewrite_witnesses legacy admission disposition",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "omena-transform-egg maintainers",
+        "reentryCondition": "replace the declared structural disposition with a matching S1 certificate before tightening this producer",
+        "entryStateObservation": "EggRewriteProofV0 accepted caller-owned specificity/provenance/witness values without an outside endpoint derivation"
+      },
+      {
+        "siteKey": "eGraph:selector_rewrite_witnesses",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
+          "symbol": "selector_rewrite_witnesses",
+          "lineHint": 708,
+          "lineSha256": "a48e10cb67c41b3f739c1051eaba71cecf5aa3aed7ca1e4a99cd6f7615e4e76b"
+        },
+        "plane": "eGraph",
+        "decidingValue": "selector rewrite admission",
+        "independentlyRecheckedBy": "omena_cascade_proof::check_rewrite_certificate_v0",
+        "owner": null,
+        "reentryCondition": null,
+        "entryStateObservation": "EggRewriteProofV0 accepted caller-owned specificity/provenance/witness values without an outside endpoint derivation"
+      },
+      {
+        "siteKey": "eGraph:stale_prefix_removal_witnesses",
+        "site": {
+          "sourcePath": "rust/crates/omena-transform-egg/src/lib.rs",
+          "symbol": "stale_prefix_removal_witnesses",
+          "lineHint": 808,
+          "lineSha256": "e313c582aafb10184fc7ae26b8a8fce5c1bd0aeb733626eae0cf9ef525f48c08"
+        },
+        "plane": "eGraph",
+        "decidingValue": "stale_prefix_removal_witnesses legacy admission disposition",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "omena-transform-egg maintainers",
+        "reentryCondition": "replace the declared structural disposition with a matching S1 certificate before tightening this producer",
+        "entryStateObservation": "EggRewriteProofV0 accepted caller-owned specificity/provenance/witness values without an outside endpoint derivation"
+      },
+      {
+        "siteKey": "evidenceMint:LedgerDischargeWitnessV0::from_discharge_cell_key_v0",
+        "site": {
+          "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
+          "symbol": "LedgerDischargeWitnessV0::from_discharge_cell_key_v0",
+          "lineHint": 188,
+          "lineSha256": "072a6605d742077b3cbffa1b6497a7bdb67089af633241280db8b2dbbe830e1b"
+        },
+        "plane": "evidenceMint",
+        "decidingValue": "64-character ASCII-hex key shape",
+        "independentlyRecheckedBy": "NONE",
+        "owner": "omena-evidence-graph maintainers",
+        "reentryCondition": "replace shape-only minting with a matched accepted discharge-ledger lookup before treating this witness as semantic evidence",
+        "entryStateObservation": "a correctly shaped missing ledger key could mint a witness without a ledger verdict"
+      }
+    ],
+    "requirementCountsByConstructor": {
+      "canonical_box_shorthand_combination_input_v0": 5,
+      "canonical_layer_flatten_candidate_input_v0": 4,
+      "canonical_longhand_merge_input_v0": 5,
+      "canonical_scope_flatten_candidate_input_v0": 5,
+      "canonical_static_supports_condition_input_v0": 2,
+      "canonical_transform_rewrite_candidate_input_v0": 5
+    },
+    "requirementClassificationCounts": {
+      "IR_COMPUTED": 24,
+      "PRODUCER_PASS_THROUGH": 2,
+      "UNCLASSIFIED": 0
+    },
+    "requirements": [
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "adjacent-source-order",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:adjacent-source-order",
+          "lineHint": 589,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      },
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "canonical-longhand-quartet",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:canonical-longhand-quartet",
+          "lineHint": 580,
+          "lineSha256": "18b3cd44421452e6273864b1ef096559d92ebe48794e74276279f2e28c514ad3"
+        }
+      },
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "no-empty-longhand-value",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:no-empty-longhand-value",
+          "lineHint": 585,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      },
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "no-important-longhand",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:no-important-longhand",
+          "lineHint": 581,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      },
+      {
+        "constructor": "canonical_box_shorthand_combination_input_v0",
+        "name": "supported-shorthand-property",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_box_shorthand_combination_input_v0:supported-shorthand-property",
+          "lineHint": 579,
+          "lineSha256": "6001e9298287a3de0b15aab090b59c226ce54158da5fdde1057599ec7500bf1b"
+        }
+      },
+      {
+        "constructor": "canonical_layer_flatten_candidate_input_v0",
+        "name": "closed-bundle",
+        "classification": "PRODUCER_PASS_THROUGH",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_layer_flatten_candidate_input_v0:closed-bundle",
+          "lineHint": 663,
+          "lineSha256": "458737241bd2789c10c8472f0b4cc507589f3fdc9ed3a61343d7f4e2d9b3379f"
+        }
+      },
+      {
+        "constructor": "canonical_layer_flatten_candidate_input_v0",
+        "name": "no-important-declaration",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_layer_flatten_candidate_input_v0:no-important-declaration",
+          "lineHint": 666,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      },
+      {
+        "constructor": "canonical_layer_flatten_candidate_input_v0",
+        "name": "no-peer-layer",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_layer_flatten_candidate_input_v0:no-peer-layer",
+          "lineHint": 664,
+          "lineSha256": "0b49d91ea12b50b284f1ce9f07c6fb0288390cc92613043aa0d67e6044d79734"
+        }
+      },
+      {
+        "constructor": "canonical_layer_flatten_candidate_input_v0",
+        "name": "no-unlayered-rule",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_layer_flatten_candidate_input_v0:no-unlayered-rule",
+          "lineHint": 665,
+          "lineSha256": "686ef49c1eff33e1e1a353a14b916b10a9346aef5fbf7bcb70a9e6854a732839"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "adjacent-source-order",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:adjacent-source-order",
+          "lineHint": 630,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "canonical-longhand-order",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:canonical-longhand-order",
+          "lineHint": 621,
+          "lineSha256": "6c69d88989d4ec35459177ed3ac7bed425003bbfecb6449c1413b63d60bf97be"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "no-empty-longhand-value",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:no-empty-longhand-value",
+          "lineHint": 626,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "no-important-longhand",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:no-important-longhand",
+          "lineHint": 622,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      },
+      {
+        "constructor": "canonical_longhand_merge_input_v0",
+        "name": "supported-merge-family",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_longhand_merge_input_v0:supported-merge-family",
+          "lineHint": 617,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "no-competing-unscoped-rule",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:no-competing-unscoped-rule",
+          "lineHint": 649,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "no-limit-selector",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:no-limit-selector",
+          "lineHint": 646,
+          "lineSha256": "d684ea745b46abf9e970f059bae56ee449714c990ca60d36a96ea123fc96ede1"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "no-peer-scope",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:no-peer-scope",
+          "lineHint": 648,
+          "lineSha256": "61beccbcbf7b934245ab875199b1e15b49b9b5a98249babda1b574552310b103"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "not-inside-layer",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:not-inside-layer",
+          "lineHint": 653,
+          "lineSha256": "4e6cf49ef0bafff765058a6ef82cdd6b25a0019c847fea2f31552f95782f8721"
+        }
+      },
+      {
+        "constructor": "canonical_scope_flatten_candidate_input_v0",
+        "name": "root-scope",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_scope_flatten_candidate_input_v0:root-scope",
+          "lineHint": 647,
+          "lineSha256": "ac82a272ae83fddfa37b03e73687f97d5dbe061ebfc68b51c320eb3bdff672a2"
+        }
+      },
+      {
+        "constructor": "canonical_static_supports_condition_input_v0",
+        "name": "supports-condition-known-true",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_static_supports_condition_input_v0:supports-condition-known-true",
+          "lineHint": 679,
+          "lineSha256": "a14165a6c429d1e7dcef92e57e11f0415b24344cbf3bbdfec37c5ebddd37435a"
+        }
+      },
+      {
+        "constructor": "canonical_static_supports_condition_input_v0",
+        "name": "supports-condition-known-true",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_static_supports_condition_input_v0:supports-condition-known-true",
+          "lineHint": 685,
+          "lineSha256": "a14165a6c429d1e7dcef92e57e11f0415b24344cbf3bbdfec37c5ebddd37435a"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "cascade-obligation-declared",
+        "classification": "PRODUCER_PASS_THROUGH",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:cascade-obligation-declared",
+          "lineHint": 707,
+          "lineSha256": "85781eb9245b10ac2851a5121699c804a7fbfd0517890df4c5255212c796b179"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "no-bogus-or-trivia",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:no-bogus-or-trivia",
+          "lineHint": 713,
+          "lineSha256": "f76f0d9e4cd960b4d5e3b12a9da3961b775da26e98f4916d3457b507c7565496"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "provenance-preserved",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:provenance-preserved",
+          "lineHint": 712,
+          "lineSha256": "00d82eb152d68b08cc3fe3a257e154a99568939e68666fd90c6e7db74e234855"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "provenance-recomputed",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:provenance-recomputed",
+          "lineHint": 711,
+          "lineSha256": "53d38124d764da8bfe9b5caaeff240e9bf68ea0af031987c5522d30196639ad9"
+        }
+      },
+      {
+        "constructor": "canonical_transform_rewrite_candidate_input_v0",
+        "name": "stable-post-semantic-ir",
+        "classification": "IR_COMPUTED",
+        "site": {
+          "sourcePath": "rust/crates/omena-cascade-proof/src/lib.rs",
+          "symbol": "canonical_transform_rewrite_candidate_input_v0:stable-post-semantic-ir",
+          "lineHint": 714,
+          "lineSha256": "77dd513870e8bec35913c6319d1496108e981a37461e9ac0dcb6b39e1909b862"
+        }
+      }
+    ]
+  }
+}

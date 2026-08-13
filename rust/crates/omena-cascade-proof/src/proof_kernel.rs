@@ -578,6 +578,12 @@ impl RewriteIssuanceTokenV0 {
     pub fn checked_rule_ids_v0(&self) -> &[String] {
         self.checked_rule_ids.as_slice()
     }
+
+    /// Re-bind a sealed issuance token to the exact endpoints a consumer is
+    /// about to apply. A token for a different rewrite pair is not reusable.
+    pub fn matches_endpoints_v0(&self, before: &RewriteTermV0, after: &RewriteTermV0) -> bool {
+        self.before_digest == term_digest_v0(before) && self.after_digest == term_digest_v0(after)
+    }
 }
 
 struct ValidatedCatalogV0<'a> {
@@ -702,6 +708,10 @@ pub fn selector_rewrite_rule_catalog_v0() -> RewriteRuleCatalogV0 {
             },
             RewriteOperatorV0 {
                 operator: "selectorIs".to_owned(),
+                arity: 1,
+            },
+            RewriteOperatorV0 {
+                operator: "selectorWhere".to_owned(),
                 arity: 1,
             },
             RewriteOperatorV0 {
