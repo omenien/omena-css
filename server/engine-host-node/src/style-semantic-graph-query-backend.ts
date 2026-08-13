@@ -219,7 +219,9 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceReadModel {
 }
 
 type MutableStyleSemanticGraphDesignTokenRankedReferenceReadModel = {
-  -readonly [K in keyof StyleSemanticGraphDesignTokenRankedReferenceReadModel]: StyleSemanticGraphDesignTokenRankedReferenceReadModel[K];
+  -readonly [
+    K in keyof StyleSemanticGraphDesignTokenRankedReferenceReadModel
+  ]: StyleSemanticGraphDesignTokenRankedReferenceReadModel[K];
 };
 
 export interface StyleSemanticGraphSelectorIdentityEngineV0 {
