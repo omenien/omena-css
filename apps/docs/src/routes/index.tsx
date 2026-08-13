@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  createDocumentationHead,
   DocumentationPage,
   loadDocumentationPage,
   preloadDocumentationPage,
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/")({
     const data = await loadDocumentationPage({ data: [] });
     return preloadDocumentationPage(data);
   },
+  head: ({ loaderData }) => createDocumentationHead(loaderData),
 });
 
 function RouteComponent() {

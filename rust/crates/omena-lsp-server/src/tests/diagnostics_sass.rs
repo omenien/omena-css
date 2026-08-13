@@ -1,4 +1,5 @@
 #![allow(clippy::expect_used)]
+#![allow(deprecated)]
 
 use super::*;
 
@@ -311,7 +312,8 @@ fn style_diagnostics_keep_relative_import_symbols_visible() {
 }
 
 #[test]
-fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
+fn style_diagnostics_surface_demand_sliced_monotone_fact_propagation_cross_file_reachability_from_lsp()
+ {
     let mut state = LspShellState::default();
     for (uri, text) in [
         (
@@ -360,7 +362,7 @@ fn style_diagnostics_surface_streaming_ifds_cross_file_reachability_from_lsp() {
         .find(|diagnostic| {
             diagnostic.pointer("/code") == Some(&json!("crossFileStreamingReachability"))
         })
-        .expect("LSP style diagnostics should surface streaming-IFDS reachability");
+        .expect("LSP style diagnostics should surface demand-sliced-monotone-fact-propagation reachability");
     assert_eq!(
         streaming.pointer("/data/provenance/1"),
         Some(&json!(
@@ -452,7 +454,7 @@ fn style_diagnostics_surface_less_module_streaming_reachability_from_lsp() {
         .find(|diagnostic| {
             diagnostic.pointer("/code") == Some(&json!("crossFileStreamingReachability"))
         })
-        .expect("LSP Less diagnostics should surface streaming-IFDS reachability");
+        .expect("LSP Less diagnostics should surface demand-sliced-monotone-fact-propagation reachability");
     assert_eq!(
         streaming.pointer("/data/provenance/1"),
         Some(&json!(
@@ -686,7 +688,7 @@ fn style_diagnostics_surface_replica_ensemble_inconsistency_from_lsp() {
 }
 
 #[test]
-fn style_diagnostics_surface_rg_flow_only_when_deep_analysis_is_enabled() {
+fn style_diagnostics_surface_multiscale_complexity_heuristic_only_when_deep_analysis_is_enabled() {
     let mut state = LspShellState::default();
     handle_lsp_message(
         &mut state,
@@ -695,7 +697,7 @@ fn style_diagnostics_surface_rg_flow_only_when_deep_analysis_is_enabled() {
             "method": "textDocument/didOpen",
             "params": {
                 "textDocument": {
-                    "uri": "file:///workspace-a/src/RgFlow.module.scss",
+                    "uri": "file:///workspace-a/src/MultiscaleComplexityHeuristic.module.scss",
                     "languageId": "scss",
                     "version": 1,
                     "text": ":root {\n  --seed: 1px;\n  --a: var(--seed);\n  --b: var(--seed);\n  --c: var(--seed);\n  --d: var(--seed);\n}\n",
@@ -712,7 +714,7 @@ fn style_diagnostics_surface_rg_flow_only_when_deep_analysis_is_enabled() {
             "method": STYLE_DIAGNOSTICS_REQUEST,
             "params": {
                 "textDocument": {
-                    "uri": "file:///workspace-a/src/RgFlow.module.scss",
+                    "uri": "file:///workspace-a/src/MultiscaleComplexityHeuristic.module.scss",
                 },
             },
         }),
@@ -725,8 +727,13 @@ fn style_diagnostics_surface_rg_flow_only_when_deep_analysis_is_enabled() {
     assert!(
         default_diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.pointer("/code") != Some(&json!("rgFlowRelevantOperator"))),
-        "RG-flow must stay off by default: {default_diagnostics:?}"
+            .all(|diagnostic| {
+                diagnostic.pointer("/code")
+                    != Some(&json!(
+                        omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
+                    ))
+            }),
+        "multiscale-complexity-heuristic must stay off by default: {default_diagnostics:?}"
     );
 
     handle_lsp_message(
@@ -754,7 +761,7 @@ fn style_diagnostics_surface_rg_flow_only_when_deep_analysis_is_enabled() {
             "method": STYLE_DIAGNOSTICS_REQUEST,
             "params": {
                 "textDocument": {
-                    "uri": "file:///workspace-a/src/RgFlow.module.scss",
+                    "uri": "file:///workspace-a/src/MultiscaleComplexityHeuristic.module.scss",
                 },
             },
         }),
@@ -764,17 +771,22 @@ fn style_diagnostics_surface_rg_flow_only_when_deep_analysis_is_enabled() {
         .and_then(|value| value.pointer("/result"))
         .and_then(Value::as_array)
         .expect("deep-analysis style diagnostics response contains an array");
-    let rg_flow = deep_diagnostics
+    let multiscale_complexity_heuristic = deep_diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!("rgFlowRelevantOperator")))
-        .expect("opt-in deep analysis should surface RG-flow hint");
+        .find(|diagnostic| {
+            diagnostic.pointer("/code")
+                == Some(&json!(
+                    omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
+                ))
+        })
+        .expect("opt-in deep analysis should surface multiscale-complexity-heuristic hint");
     assert_eq!(
-        rg_flow.pointer("/data/provenance/3"),
+        multiscale_complexity_heuristic.pointer("/data/provenance/3"),
         Some(&json!("omena-rg-flow.coupling-jacobian-spectrum")),
     );
     assert_eq!(
-        rg_flow.pointer("/severity"),
+        multiscale_complexity_heuristic.pointer("/severity"),
         Some(&json!(4)),
-        "RG-flow remains a hint-level opt-in diagnostic"
+        "multiscale-complexity-heuristic remains a hint-level opt-in diagnostic"
     );
 }

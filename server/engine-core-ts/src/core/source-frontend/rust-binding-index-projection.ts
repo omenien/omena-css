@@ -23,6 +23,7 @@ import {
   type UtilityBindingHIR,
 } from "../hir/source-types";
 import type { SourceLanguage } from "../hir/shared-types";
+import { utf16OffsetAtUtf8ByteOffset } from "./source-text-offsets";
 
 export interface RustSourceFrontendByteSpanV0 {
   readonly start: number;
@@ -705,27 +706,6 @@ function sourceSlice(source: string, byteSpan: RustSourceFrontendByteSpanV0): st
     utf16OffsetAtUtf8ByteOffset(source, byteSpan.start),
     utf16OffsetAtUtf8ByteOffset(source, byteSpan.end),
   );
-}
-
-function utf16OffsetAtUtf8ByteOffset(source: string, byteOffset: number): number {
-  let bytes = 0;
-  for (let offset = 0; offset < source.length;) {
-    if (bytes >= byteOffset) return offset;
-    const codePoint = source.codePointAt(offset) ?? 0;
-    const width = codePoint > 0xffff ? 2 : 1;
-    const nextBytes = bytes + utf8CodePointByteLength(codePoint);
-    if (nextBytes > byteOffset) return offset;
-    bytes = nextBytes;
-    offset += width;
-  }
-  return source.length;
-}
-
-function utf8CodePointByteLength(codePoint: number): number {
-  if (codePoint <= 0x7f) return 1;
-  if (codePoint <= 0x7ff) return 2;
-  if (codePoint <= 0xffff) return 3;
-  return 4;
 }
 
 function positionAtUtf16Offset(source: string, offset: number) {

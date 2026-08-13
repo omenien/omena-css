@@ -1,0 +1,1146 @@
+pub mod omena_cascade
+pub mod omena_cascade::class_tokens
+pub enum omena_cascade::class_tokens::DomClassTokenizationUnknownCauseV0
+pub omena_cascade::class_tokens::DomClassTokenizationUnknownCauseV0::InputUnavailable
+pub enum omena_cascade::class_tokens::DomClassTokenizationV0
+pub omena_cascade::class_tokens::DomClassTokenizationV0::Known
+pub omena_cascade::class_tokens::DomClassTokenizationV0::Known::token_spans: alloc::vec::Vec<omena_cascade::DomClassTokenSpanV0>
+pub omena_cascade::class_tokens::DomClassTokenizationV0::Known::word: omena_cascade::OrderedTokenWordV0
+pub omena_cascade::class_tokens::DomClassTokenizationV0::Unknown
+pub omena_cascade::class_tokens::DomClassTokenizationV0::Unknown::cause: omena_cascade::DomClassTokenizationUnknownCauseV0
+pub struct omena_cascade::class_tokens::DomClassTokenSpanV0
+pub omena_cascade::class_tokens::DomClassTokenSpanV0::end: usize
+pub omena_cascade::class_tokens::DomClassTokenSpanV0::start: usize
+pub omena_cascade::class_tokens::DomClassTokenSpanV0::word_index: usize
+pub struct omena_cascade::class_tokens::OrderedTokenWordV0
+impl omena_cascade::OrderedTokenWordV0
+pub fn omena_cascade::OrderedTokenWordV0::combine_first_occurrence(&self, &Self) -> Self
+pub fn omena_cascade::OrderedTokenWordV0::from_keys(impl core::iter::traits::collect::IntoIterator<Item = omena_syntax::ident::CanonicalClassKeyV0>) -> Self
+pub fn omena_cascade::OrderedTokenWordV0::tokens(&self) -> &[omena_syntax::ident::CanonicalClassKeyV0]
+impl serde_core::ser::Serialize for omena_cascade::OrderedTokenWordV0
+pub fn omena_cascade::OrderedTokenWordV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+pub struct omena_cascade::class_tokens::TokenSupportV0
+impl omena_cascade::TokenSupportV0
+pub fn omena_cascade::TokenSupportV0::may(&self) -> &alloc::collections::btree::set::BTreeSet<omena_syntax::ident::CanonicalClassKeyV0>
+pub fn omena_cascade::TokenSupportV0::must(&self) -> &alloc::collections::btree::set::BTreeSet<omena_syntax::ident::CanonicalClassKeyV0>
+pub fn omena_cascade::TokenSupportV0::new(impl core::iter::traits::collect::IntoIterator<Item = omena_syntax::ident::CanonicalClassKeyV0>, impl core::iter::traits::collect::IntoIterator<Item = omena_syntax::ident::CanonicalClassKeyV0>) -> core::option::Option<Self>
+impl serde_core::ser::Serialize for omena_cascade::TokenSupportV0
+pub fn omena_cascade::TokenSupportV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+pub const fn omena_cascade::class_tokens::is_dom_class_ascii_whitespace_v0(char) -> bool
+pub fn omena_cascade::class_tokens::token_support_v0(&omena_cascade::OrderedTokenWordV0) -> omena_cascade::TokenSupportV0
+pub fn omena_cascade::class_tokens::tokenize_dom_class_attribute_v0(core::option::Option<&str>) -> omena_cascade::DomClassTokenizationV0
+pub mod omena_cascade::first_witness
+pub enum omena_cascade::first_witness::BooleanOperationV0
+pub omena_cascade::first_witness::BooleanOperationV0::And
+pub omena_cascade::first_witness::BooleanOperationV0::Or
+pub omena_cascade::first_witness::BooleanOperationV0::Xor
+pub enum omena_cascade::first_witness::FirstWitnessErrorV0
+pub omena_cascade::first_witness::FirstWitnessErrorV0::InvalidNode(omena_cascade::NodeId)
+pub omena_cascade::first_witness::FirstWitnessErrorV0::InvalidTerminal(u32)
+pub omena_cascade::first_witness::FirstWitnessErrorV0::UnknownAtom(alloc::string::String)
+pub omena_cascade::first_witness::FirstWitnessErrorV0::VariableCapacityExceeded
+pub omena_cascade::first_witness::FirstWitnessErrorV0::VariableOrderViolation
+pub omena_cascade::first_witness::FirstWitnessErrorV0::VariableOrderViolation::child: u16
+pub omena_cascade::first_witness::FirstWitnessErrorV0::VariableOrderViolation::parent: u16
+impl core::error::Error for omena_cascade::FirstWitnessErrorV0
+impl core::fmt::Display for omena_cascade::FirstWitnessErrorV0
+pub fn omena_cascade::FirstWitnessErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub enum omena_cascade::first_witness::Node
+pub omena_cascade::first_witness::Node::Int
+pub omena_cascade::first_witness::Node::Int::hi: omena_cascade::NodeId
+pub omena_cascade::first_witness::Node::Int::lo: omena_cascade::NodeId
+pub omena_cascade::first_witness::Node::Int::var: u16
+pub omena_cascade::first_witness::Node::Term(u32)
+pub enum omena_cascade::first_witness::VariableOrderDomainV0
+pub omena_cascade::first_witness::VariableOrderDomainV0::SiteFirstAppearance
+impl omena_cascade::VariableOrderDomainV0
+pub const fn omena_cascade::VariableOrderDomainV0::name(self) -> &'static str
+pub struct omena_cascade::first_witness::FirstWitnessManagerConfigV0
+pub omena_cascade::first_witness::FirstWitnessManagerConfigV0::apply_cache_capacity: usize
+pub omena_cascade::first_witness::FirstWitnessManagerConfigV0::rebuild_interval_operations: u64
+pub omena_cascade::first_witness::FirstWitnessManagerConfigV0::shortcuts: bool
+impl core::default::Default for omena_cascade::FirstWitnessManagerConfigV0
+pub fn omena_cascade::FirstWitnessManagerConfigV0::default() -> Self
+pub struct omena_cascade::first_witness::FirstWitnessManagerV0
+impl omena_cascade::FirstWitnessManagerV0
+pub fn omena_cascade::FirstWitnessManagerV0::and(&mut self, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::apply(&mut self, omena_cascade::BooleanOperationV0, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::apply_cache_len(&self) -> usize
+pub fn omena_cascade::FirstWitnessManagerV0::choose(&mut self, u16, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub const fn omena_cascade::FirstWitnessManagerV0::config(&self) -> omena_cascade::FirstWitnessManagerConfigV0
+pub const fn omena_cascade::FirstWitnessManagerV0::counters(&self) -> omena_cascade::FirstWitnessOperationCountersV0
+pub fn omena_cascade::FirstWitnessManagerV0::is_satisfiable(&self, omena_cascade::NodeId) -> bool
+pub fn omena_cascade::FirstWitnessManagerV0::is_tautology(&self, omena_cascade::NodeId) -> bool
+pub fn omena_cascade::FirstWitnessManagerV0::new(omena_cascade::VariableOrderRegistrationV0, omena_cascade::FirstWitnessManagerConfigV0) -> Self
+pub fn omena_cascade::FirstWitnessManagerV0::node(&self, omena_cascade::NodeId) -> core::option::Option<omena_cascade::Node>
+pub fn omena_cascade::FirstWitnessManagerV0::node_count(&self) -> usize
+pub fn omena_cascade::FirstWitnessManagerV0::not(&mut self, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::or(&mut self, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::order(&self) -> &omena_cascade::VariableOrderRegistrationV0
+pub fn omena_cascade::FirstWitnessManagerV0::reclaim_if_due(&mut self, &mut [omena_cascade::NodeId]) -> core::result::Result<core::option::Option<omena_cascade::FirstWitnessRebuildReportV0>, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::unique_table_len(&self) -> usize
+pub fn omena_cascade::FirstWitnessManagerV0::variable(&mut self, &str) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::xor(&mut self, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub struct omena_cascade::first_witness::FirstWitnessOperationCountersV0
+pub omena_cascade::first_witness::FirstWitnessOperationCountersV0::apply_cache_hits: u64
+pub omena_cascade::first_witness::FirstWitnessOperationCountersV0::apply_cache_lookups: u64
+pub omena_cascade::first_witness::FirstWitnessOperationCountersV0::apply_invocations: u64
+pub omena_cascade::first_witness::FirstWitnessOperationCountersV0::choose_invocations: u64
+pub omena_cascade::first_witness::FirstWitnessOperationCountersV0::rebuild_node_visits: u64
+pub omena_cascade::first_witness::FirstWitnessOperationCountersV0::rebuilds: u64
+impl omena_cascade::FirstWitnessOperationCountersV0
+pub const fn omena_cascade::FirstWitnessOperationCountersV0::recursive_operations(self) -> u64
+pub struct omena_cascade::first_witness::FirstWitnessRebuildReportV0
+pub omena_cascade::first_witness::FirstWitnessRebuildReportV0::live_root_count: usize
+pub omena_cascade::first_witness::FirstWitnessRebuildReportV0::nodes_after: usize
+pub omena_cascade::first_witness::FirstWitnessRebuildReportV0::nodes_before: usize
+pub omena_cascade::first_witness::FirstWitnessRebuildReportV0::operations_since_previous_rebuild: u64
+pub omena_cascade::first_witness::FirstWitnessRebuildReportV0::visited_node_count: usize
+pub struct omena_cascade::first_witness::VariableOrderRegistrationV0
+impl omena_cascade::VariableOrderRegistrationV0
+pub fn omena_cascade::VariableOrderRegistrationV0::atoms(&self) -> &[alloc::string::String]
+pub const fn omena_cascade::VariableOrderRegistrationV0::domain(&self) -> omena_cascade::VariableOrderDomainV0
+pub fn omena_cascade::VariableOrderRegistrationV0::site_first_appearance(impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> core::result::Result<Self, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::VariableOrderRegistrationV0::variable_index(&self, &str) -> core::option::Option<u16>
+pub const omena_cascade::first_witness::DEFAULT_APPLY_CACHE_CAPACITY_V0: usize
+pub const omena_cascade::first_witness::DEFAULT_REBUILD_INTERVAL_OPERATIONS_V0: u64
+pub const omena_cascade::first_witness::FALSE_NODE_ID_V0: omena_cascade::NodeId
+pub const omena_cascade::first_witness::SITE_FIRST_APPEARANCE_ORDERING_DOMAIN_V0: &str
+pub const omena_cascade::first_witness::TRUE_NODE_ID_V0: omena_cascade::NodeId
+pub fn omena_cascade::first_witness::first_witness_fold_v0<T: core::clone::Clone + core::cmp::Ord>(&[T], &[T]) -> alloc::vec::Vec<T>
+pub fn omena_cascade::first_witness::merge_first_witness_by_key_v0<T: core::clone::Clone, K: core::cmp::Ord>(&[T], &[T], impl core::ops::function::Fn(&T) -> K) -> alloc::vec::Vec<T>
+pub type omena_cascade::first_witness::NodeId = u32
+pub enum omena_cascade::AttractorEnumerationStrategyV0
+pub omena_cascade::AttractorEnumerationStrategyV0::Bdd
+pub omena_cascade::AttractorEnumerationStrategyV0::Deferred
+pub omena_cascade::AttractorEnumerationStrategyV0::Explicit
+pub omena_cascade::AttractorEnumerationStrategyV0::Lumped
+pub omena_cascade::AttractorEnumerationStrategyV0::Sampled
+pub enum omena_cascade::BooleanOperationV0
+pub omena_cascade::BooleanOperationV0::And
+pub omena_cascade::BooleanOperationV0::Or
+pub omena_cascade::BooleanOperationV0::Xor
+#[non_exhaustive] pub enum omena_cascade::CascadeAxisNamedDriverV0
+pub omena_cascade::CascadeAxisNamedDriverV0::LegacySelectorContextFallback
+#[non_exhaustive] pub enum omena_cascade::CascadeAxisOutOfFragmentReasonV0
+pub omena_cascade::CascadeAxisOutOfFragmentReasonV0::ShadowTreeEncapsulationContextUnmodeled
+pub enum omena_cascade::CascadeAxisPrefixV0
+pub omena_cascade::CascadeAxisPrefixV0::LayerRank
+pub omena_cascade::CascadeAxisPrefixV0::Level
+pub omena_cascade::CascadeAxisPrefixV0::ScopeProximity
+#[non_exhaustive] pub enum omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachStatusV0::Modeled
+pub omena_cascade::CascadeAxisReachStatusV0::NotReachedByProduct
+pub omena_cascade::CascadeAxisReachStatusV0::NotReachedByProduct::named_driver: omena_cascade::CascadeAxisNamedDriverV0
+pub omena_cascade::CascadeAxisReachStatusV0::OutOfFragment
+pub omena_cascade::CascadeAxisReachStatusV0::OutOfFragment::reason: omena_cascade::CascadeAxisOutOfFragmentReasonV0
+pub enum omena_cascade::CascadeLevel
+pub omena_cascade::CascadeLevel::Animation
+pub omena_cascade::CascadeLevel::AuthorImportant
+pub omena_cascade::CascadeLevel::AuthorNormal
+pub omena_cascade::CascadeLevel::InlineImportant
+pub omena_cascade::CascadeLevel::InlineNormal
+pub omena_cascade::CascadeLevel::Transition
+pub omena_cascade::CascadeLevel::UserAgentImportant
+pub omena_cascade::CascadeLevel::UserAgentNormal
+pub omena_cascade::CascadeLevel::UserImportant
+pub omena_cascade::CascadeLevel::UserNormal
+pub enum omena_cascade::CascadeOriginV0
+pub omena_cascade::CascadeOriginV0::Author
+pub omena_cascade::CascadeOriginV0::Inline
+pub omena_cascade::CascadeOriginV0::User
+pub omena_cascade::CascadeOriginV0::UserAgent
+impl omena_cascade::CascadeOriginV0
+pub const fn omena_cascade::CascadeOriginV0::is_author(&self) -> bool
+pub enum omena_cascade::CascadeOutcome
+pub omena_cascade::CascadeOutcome::Definite
+pub omena_cascade::CascadeOutcome::Definite::also_considered: alloc::vec::Vec<omena_cascade::CascadeDeclaration>
+pub omena_cascade::CascadeOutcome::Definite::proof: alloc::boxed::Box<omena_cascade::CascadeProof>
+pub omena_cascade::CascadeOutcome::Definite::winner: omena_cascade::CascadeDeclaration
+pub omena_cascade::CascadeOutcome::Inherit
+pub omena_cascade::CascadeOutcome::RankedSet(alloc::vec::Vec<omena_cascade::CascadeDeclaration>)
+pub omena_cascade::CascadeOutcome::Top
+pub enum omena_cascade::CascadeRankedSetFunctionV0
+pub omena_cascade::CascadeRankedSetFunctionV0::CascadeProperty
+pub omena_cascade::CascadeRankedSetFunctionV0::CascadePropertyOpenWorld
+pub enum omena_cascade::CascadeRankedSetLossClassV0
+pub omena_cascade::CascadeRankedSetLossClassV0::AxisWinnerInexact
+pub omena_cascade::CascadeRankedSetLossClassV0::NoStrictAxisDominance
+pub omena_cascade::CascadeRankedSetLossClassV0::RecoverableAxisDominant
+pub omena_cascade::CascadeRankedSetLossClassV0::RecoverableAxisDominant::axis: omena_cascade::CascadeAxisPrefixV0
+pub omena_cascade::CascadeRankedSetLossClassV0::SingleInexactCandidate
+pub enum omena_cascade::CascadeRegisteredValueVerdictV0
+pub omena_cascade::CascadeRegisteredValueVerdictV0::Matched
+pub omena_cascade::CascadeRegisteredValueVerdictV0::Unknown
+pub omena_cascade::CascadeRegisteredValueVerdictV0::Unmatched
+pub enum omena_cascade::CascadeStandardValueVerdictV0
+pub omena_cascade::CascadeStandardValueVerdictV0::Matched
+pub omena_cascade::CascadeStandardValueVerdictV0::Unknown
+pub omena_cascade::CascadeStandardValueVerdictV0::Unmatched
+pub enum omena_cascade::CascadeValue
+pub omena_cascade::CascadeValue::Composite(alloc::vec::Vec<omena_cascade::CascadeValue>)
+pub omena_cascade::CascadeValue::GuaranteedInvalid
+pub omena_cascade::CascadeValue::Indeterminate
+pub omena_cascade::CascadeValue::Inherit
+pub omena_cascade::CascadeValue::Initial
+pub omena_cascade::CascadeValue::Literal(alloc::string::String)
+pub omena_cascade::CascadeValue::Unset
+pub omena_cascade::CascadeValue::Var
+pub omena_cascade::CascadeValue::Var::fallback: core::option::Option<alloc::boxed::Box<omena_cascade::CascadeValue>>
+pub omena_cascade::CascadeValue::Var::name: alloc::string::String
+pub enum omena_cascade::CascadeWinnerAxisV0
+pub omena_cascade::CascadeWinnerAxisV0::CascadeLevel
+pub omena_cascade::CascadeWinnerAxisV0::LayerRank
+pub omena_cascade::CascadeWinnerAxisV0::ScopeProximity
+pub omena_cascade::CascadeWinnerAxisV0::SourceOrder
+pub omena_cascade::CascadeWinnerAxisV0::Specificity
+pub enum omena_cascade::ComputedCascadeIndeterminateReasonV0
+pub omena_cascade::ComputedCascadeIndeterminateReasonV0::CascadeOutcomeIndeterminate
+pub omena_cascade::ComputedCascadeIndeterminateReasonV0::InheritedFromIndeterminateParent
+pub omena_cascade::ComputedCascadeIndeterminateReasonV0::PropertyInheritanceMetadataUnavailable
+pub omena_cascade::ComputedCascadeIndeterminateReasonV0::PropertyInitialValueMetadataUnavailable
+pub omena_cascade::ComputedCascadeIndeterminateReasonV0::RegisteredPropertySyntaxIndeterminate
+pub omena_cascade::ComputedCascadeIndeterminateReasonV0::StandardPropertySyntaxIndeterminate
+impl omena_cascade::ComputedCascadeIndeterminateReasonV0
+pub const fn omena_cascade::ComputedCascadeIndeterminateReasonV0::wire_name(self) -> &'static str
+pub enum omena_cascade::ComputedCascadeValueStatusV0
+pub omena_cascade::ComputedCascadeValueStatusV0::Indeterminate
+pub omena_cascade::ComputedCascadeValueStatusV0::Inherited
+pub omena_cascade::ComputedCascadeValueStatusV0::Initial
+pub omena_cascade::ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+pub omena_cascade::ComputedCascadeValueStatusV0::Resolved
+pub enum omena_cascade::CssPropertyInheritanceV0
+pub omena_cascade::CssPropertyInheritanceV0::Inherited
+pub omena_cascade::CssPropertyInheritanceV0::NotInherited
+pub omena_cascade::CssPropertyInheritanceV0::Unknown
+pub enum omena_cascade::CssPropertyInitialValueV0
+pub omena_cascade::CssPropertyInitialValueV0::GuaranteedInvalid
+pub omena_cascade::CssPropertyInitialValueV0::Literal(&'static str)
+pub omena_cascade::CssPropertyInitialValueV0::Unknown
+pub enum omena_cascade::DomClassTokenizationUnknownCauseV0
+pub omena_cascade::DomClassTokenizationUnknownCauseV0::InputUnavailable
+pub enum omena_cascade::DomClassTokenizationV0
+pub omena_cascade::DomClassTokenizationV0::Known
+pub omena_cascade::DomClassTokenizationV0::Known::token_spans: alloc::vec::Vec<omena_cascade::DomClassTokenSpanV0>
+pub omena_cascade::DomClassTokenizationV0::Known::word: omena_cascade::OrderedTokenWordV0
+pub omena_cascade::DomClassTokenizationV0::Unknown
+pub omena_cascade::DomClassTokenizationV0::Unknown::cause: omena_cascade::DomClassTokenizationUnknownCauseV0
+pub enum omena_cascade::ElementParentChainStatusV0
+pub omena_cascade::ElementParentChainStatusV0::AmbiguousParent
+pub omena_cascade::ElementParentChainStatusV0::Complete
+pub omena_cascade::ElementParentChainStatusV0::Cycle
+pub omena_cascade::ElementParentChainStatusV0::MissingElement
+pub omena_cascade::ElementParentChainStatusV0::MissingSource
+pub enum omena_cascade::FirstWitnessErrorV0
+pub omena_cascade::FirstWitnessErrorV0::InvalidNode(omena_cascade::NodeId)
+pub omena_cascade::FirstWitnessErrorV0::InvalidTerminal(u32)
+pub omena_cascade::FirstWitnessErrorV0::UnknownAtom(alloc::string::String)
+pub omena_cascade::FirstWitnessErrorV0::VariableCapacityExceeded
+pub omena_cascade::FirstWitnessErrorV0::VariableOrderViolation
+pub omena_cascade::FirstWitnessErrorV0::VariableOrderViolation::child: u16
+pub omena_cascade::FirstWitnessErrorV0::VariableOrderViolation::parent: u16
+impl core::error::Error for omena_cascade::FirstWitnessErrorV0
+impl core::fmt::Display for omena_cascade::FirstWitnessErrorV0
+pub fn omena_cascade::FirstWitnessErrorV0::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub enum omena_cascade::GrnBooleanState
+pub omena_cascade::GrnBooleanState::Applied
+pub omena_cascade::GrnBooleanState::Inactive
+pub omena_cascade::GrnBooleanState::LosingButEligible
+pub omena_cascade::GrnBooleanState::Top
+pub enum omena_cascade::GrnTopHandlingPolicyV0
+pub omena_cascade::GrnTopHandlingPolicyV0::ScBoolSeqUnknown
+pub enum omena_cascade::KauffmanRegimeKindV0
+pub omena_cascade::KauffmanRegimeKindV0::Chaotic
+pub omena_cascade::KauffmanRegimeKindV0::Critical
+pub omena_cascade::KauffmanRegimeKindV0::Ordered
+pub omena_cascade::KauffmanRegimeKindV0::Unknown
+pub enum omena_cascade::ModalCheckWitnessSourceV0
+pub omena_cascade::ModalCheckWitnessSourceV0::LayerFlatten(omena_cascade::LayerFlattenProofV0)
+pub omena_cascade::ModalCheckWitnessSourceV0::ScopeFlatten(omena_cascade::ScopeFlattenProofV0)
+pub omena_cascade::ModalCheckWitnessSourceV0::ShorthandCombination(omena_cascade::ShorthandCombinationProofV0)
+pub omena_cascade::ModalCheckWitnessSourceV0::StaticSupportsEval(omena_cascade::StaticSupportsEvalWitnessV0)
+pub enum omena_cascade::Node
+pub omena_cascade::Node::Int
+pub omena_cascade::Node::Int::hi: omena_cascade::NodeId
+pub omena_cascade::Node::Int::lo: omena_cascade::NodeId
+pub omena_cascade::Node::Int::var: u16
+pub omena_cascade::Node::Term(u32)
+pub enum omena_cascade::RgFixedPointTagV0
+pub omena_cascade::RgFixedPointTagV0::Deferred
+pub omena_cascade::RgFixedPointTagV0::Exact
+pub omena_cascade::RgFixedPointTagV0::Lumped
+pub omena_cascade::RgFixedPointTagV0::SampledAdvisory
+pub enum omena_cascade::ScopeProximityStatusV0
+pub omena_cascade::ScopeProximityStatusV0::IncompleteParentChain
+pub omena_cascade::ScopeProximityStatusV0::Known
+pub omena_cascade::ScopeProximityStatusV0::MissingElementSignature
+pub omena_cascade::ScopeProximityStatusV0::NoMatchingRoot
+pub omena_cascade::ScopeProximityStatusV0::UnsupportedRootSelector
+pub enum omena_cascade::SelectorContextMatchKind
+pub omena_cascade::SelectorContextMatchKind::ApproximateSelector
+pub omena_cascade::SelectorContextMatchKind::ContainsSelector
+pub omena_cascade::SelectorContextMatchKind::Exact
+pub omena_cascade::SelectorContextMatchKind::Global
+pub omena_cascade::SelectorContextMatchKind::NoMatch
+pub omena_cascade::SelectorContextMatchKind::Root
+pub enum omena_cascade::SelectorMatchReason
+pub omena_cascade::SelectorMatchReason::MissingAttribute
+pub omena_cascade::SelectorMatchReason::MissingClass
+pub omena_cascade::SelectorMatchReason::MissingId
+pub omena_cascade::SelectorMatchReason::MissingPseudoState
+pub omena_cascade::SelectorMatchReason::MissingTag
+pub omena_cascade::SelectorMatchReason::SelectorList
+pub omena_cascade::SelectorMatchReason::SimpleCompound
+pub omena_cascade::SelectorMatchReason::Universal
+pub omena_cascade::SelectorMatchReason::UnsupportedSelector
+pub enum omena_cascade::SelectorMatchVerdict
+pub omena_cascade::SelectorMatchVerdict::Maybe
+pub omena_cascade::SelectorMatchVerdict::No
+pub omena_cascade::SelectorMatchVerdict::Yes
+pub enum omena_cascade::SpecificityExactnessV0
+pub omena_cascade::SpecificityExactnessV0::Exact
+pub omena_cascade::SpecificityExactnessV0::Inexact
+pub enum omena_cascade::StaticSupportsAssumptionV0
+pub omena_cascade::StaticSupportsAssumptionV0::ModernBrowser
+pub omena_cascade::StaticSupportsAssumptionV0::TargetCapability(omena_cascade::SupportsTargetCapabilityV0)
+pub enum omena_cascade::StaticSupportsEvalVerdictV0
+pub omena_cascade::StaticSupportsEvalVerdictV0::AlwaysFalse
+pub omena_cascade::StaticSupportsEvalVerdictV0::AlwaysTrue
+pub omena_cascade::StaticSupportsEvalVerdictV0::Unknown
+pub enum omena_cascade::VariableOrderDomainV0
+pub omena_cascade::VariableOrderDomainV0::SiteFirstAppearance
+impl omena_cascade::VariableOrderDomainV0
+pub const fn omena_cascade::VariableOrderDomainV0::name(self) -> &'static str
+pub struct omena_cascade::BooleanGRNStateV0
+pub omena_cascade::BooleanGRNStateV0::feature_gate: &'static str
+pub omena_cascade::BooleanGRNStateV0::layer_marker: &'static str
+pub omena_cascade::BooleanGRNStateV0::product: &'static str
+pub omena_cascade::BooleanGRNStateV0::schema_version: &'static str
+pub omena_cascade::BooleanGRNStateV0::top_policy: omena_cascade::GrnTopHandlingPolicyV0
+pub omena_cascade::BooleanGRNStateV0::vertices: alloc::vec::Vec<omena_cascade::GrnVertexStateV0>
+pub struct omena_cascade::BoxLonghandInputV0
+pub omena_cascade::BoxLonghandInputV0::important: bool
+pub omena_cascade::BoxLonghandInputV0::property: alloc::string::String
+pub omena_cascade::BoxLonghandInputV0::source_order: u32
+pub omena_cascade::BoxLonghandInputV0::value: alloc::string::String
+pub struct omena_cascade::CascadeAttractorBasinProofV0
+pub omena_cascade::CascadeAttractorBasinProofV0::conservative: bool
+pub omena_cascade::CascadeAttractorBasinProofV0::deterministic: bool
+pub omena_cascade::CascadeAttractorBasinProofV0::feature_gate: &'static str
+pub omena_cascade::CascadeAttractorBasinProofV0::fixed_point_tag: omena_cascade::RgFixedPointTagV0
+pub omena_cascade::CascadeAttractorBasinProofV0::layer_marker: &'static str
+pub omena_cascade::CascadeAttractorBasinProofV0::product: &'static str
+pub omena_cascade::CascadeAttractorBasinProofV0::schema_version: &'static str
+pub struct omena_cascade::CascadeAttractorBasinV0
+pub omena_cascade::CascadeAttractorBasinV0::basin_id: alloc::string::String
+pub omena_cascade::CascadeAttractorBasinV0::feature_gate: &'static str
+pub omena_cascade::CascadeAttractorBasinV0::fixed_point_count: usize
+pub omena_cascade::CascadeAttractorBasinV0::fixed_point_states: alloc::vec::Vec<u64>
+pub omena_cascade::CascadeAttractorBasinV0::layer_marker: &'static str
+pub omena_cascade::CascadeAttractorBasinV0::product: &'static str
+pub omena_cascade::CascadeAttractorBasinV0::proof: omena_cascade::CascadeAttractorBasinProofV0
+pub omena_cascade::CascadeAttractorBasinV0::schema_version: &'static str
+pub omena_cascade::CascadeAttractorBasinV0::state_count: usize
+pub omena_cascade::CascadeAttractorBasinV0::strategy: omena_cascade::AttractorEnumerationStrategyV0
+pub omena_cascade::CascadeAttractorBasinV0::transition_count: usize
+pub omena_cascade::CascadeAttractorBasinV0::transition_digest: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeAttractorBasinV0::variable_count: usize
+#[non_exhaustive] pub struct omena_cascade::CascadeAxisReachDisclosureV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::encapsulation_context: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::layers: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::order_of_appearance: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::origin_and_importance: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::scope_proximity: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::specificity: omena_cascade::CascadeAxisReachStatusV0
+pub omena_cascade::CascadeAxisReachDisclosureV0::style_attribute: omena_cascade::CascadeAxisReachStatusV0
+pub struct omena_cascade::CascadeBoundarySummary
+pub omena_cascade::CascadeBoundarySummary::least_fixed_point_proof_model: &'static str
+pub omena_cascade::CascadeBoundarySummary::not_ready_surfaces: alloc::vec::Vec<&'static str>
+pub omena_cascade::CascadeBoundarySummary::ordering_model: &'static str
+pub omena_cascade::CascadeBoundarySummary::product: &'static str
+pub omena_cascade::CascadeBoundarySummary::ready_surfaces: alloc::vec::Vec<&'static str>
+pub omena_cascade::CascadeBoundarySummary::substitution_model: &'static str
+pub struct omena_cascade::CascadeComputedValueInputV0
+pub omena_cascade::CascadeComputedValueInputV0::custom_property_env: omena_cascade::CustomPropertyEnv
+pub omena_cascade::CascadeComputedValueInputV0::declarations: alloc::vec::Vec<omena_cascade::CascadeDeclaration>
+pub omena_cascade::CascadeComputedValueInputV0::parent_computed_value: core::option::Option<omena_cascade::CascadeValue>
+pub omena_cascade::CascadeComputedValueInputV0::property: alloc::string::String
+pub omena_cascade::CascadeComputedValueInputV0::registered_custom_property: core::option::Option<omena_cascade::CascadeRegisteredCustomPropertyV0>
+pub omena_cascade::CascadeComputedValueInputV0::standard_property_value_verdicts: alloc::collections::btree::map::BTreeMap<alloc::string::String, omena_cascade::CascadeStandardValueVerdictV0>
+pub struct omena_cascade::CascadeComputedValueResultV0
+pub omena_cascade::CascadeComputedValueResultV0::derivation_steps: alloc::vec::Vec<&'static str>
+pub omena_cascade::CascadeComputedValueResultV0::fallback_indeterminate_reason: core::option::Option<omena_cascade::ComputedCascadeIndeterminateReasonV0>
+pub omena_cascade::CascadeComputedValueResultV0::indeterminate_reason: core::option::Option<omena_cascade::ComputedCascadeIndeterminateReasonV0>
+pub omena_cascade::CascadeComputedValueResultV0::inherited: bool
+pub omena_cascade::CascadeComputedValueResultV0::invalid_at_computed_value_time: bool
+pub omena_cascade::CascadeComputedValueResultV0::product: &'static str
+pub omena_cascade::CascadeComputedValueResultV0::property: alloc::string::String
+pub omena_cascade::CascadeComputedValueResultV0::schema_version: &'static str
+pub omena_cascade::CascadeComputedValueResultV0::status: omena_cascade::ComputedCascadeValueStatusV0
+pub omena_cascade::CascadeComputedValueResultV0::used_initial_value: bool
+pub omena_cascade::CascadeComputedValueResultV0::value: omena_cascade::CascadeValue
+pub omena_cascade::CascadeComputedValueResultV0::winner_declaration_id: core::option::Option<alloc::string::String>
+pub struct omena_cascade::CascadeConformanceSeedCase
+pub omena_cascade::CascadeConformanceSeedCase::declarations: alloc::vec::Vec<omena_cascade::CascadeDeclaration>
+pub omena_cascade::CascadeConformanceSeedCase::expected_outcome: &'static str
+pub omena_cascade::CascadeConformanceSeedCase::expected_winner_id: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeConformanceSeedCase::name: alloc::string::String
+pub omena_cascade::CascadeConformanceSeedCase::property: &'static str
+pub struct omena_cascade::CascadeConformanceSeedReport
+pub omena_cascade::CascadeConformanceSeedReport::case_count: usize
+pub omena_cascade::CascadeConformanceSeedReport::failed_count: usize
+pub omena_cascade::CascadeConformanceSeedReport::passed_count: usize
+pub omena_cascade::CascadeConformanceSeedReport::product: &'static str
+pub omena_cascade::CascadeConformanceSeedReport::results: alloc::vec::Vec<omena_cascade::CascadeConformanceSeedResult>
+pub omena_cascade::CascadeConformanceSeedReport::schema_version: &'static str
+pub struct omena_cascade::CascadeConformanceSeedResult
+pub omena_cascade::CascadeConformanceSeedResult::actual_outcome: &'static str
+pub omena_cascade::CascadeConformanceSeedResult::actual_winner_id: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeConformanceSeedResult::expected_outcome: &'static str
+pub omena_cascade::CascadeConformanceSeedResult::expected_winner_id: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeConformanceSeedResult::name: alloc::string::String
+pub omena_cascade::CascadeConformanceSeedResult::passed: bool
+pub struct omena_cascade::CascadeDeclaration
+pub omena_cascade::CascadeDeclaration::id: alloc::string::String
+pub omena_cascade::CascadeDeclaration::key: omena_cascade::CascadeKey
+pub omena_cascade::CascadeDeclaration::open_world_tie_evidence: omena_cascade::OpenWorldTieEvidence
+pub omena_cascade::CascadeDeclaration::property: alloc::string::String
+pub omena_cascade::CascadeDeclaration::specificity_exactness: omena_cascade::SpecificityExactnessV0
+pub omena_cascade::CascadeDeclaration::value: omena_cascade::CascadeValue
+pub struct omena_cascade::CascadeDeepConflictReportV0
+pub omena_cascade::CascadeDeepConflictReportV0::conflicting_vertex_count: usize
+pub omena_cascade::CascadeDeepConflictReportV0::conservative: bool
+pub omena_cascade::CascadeDeepConflictReportV0::feature_gate: &'static str
+pub omena_cascade::CascadeDeepConflictReportV0::layer_marker: &'static str
+pub omena_cascade::CascadeDeepConflictReportV0::lint_code: &'static str
+pub omena_cascade::CascadeDeepConflictReportV0::product: &'static str
+pub omena_cascade::CascadeDeepConflictReportV0::regime: omena_cascade::KauffmanRegimeV0
+pub omena_cascade::CascadeDeepConflictReportV0::schema_version: &'static str
+pub struct omena_cascade::CascadeEvaluationFuzzCaseV0
+pub omena_cascade::CascadeEvaluationFuzzCaseV0::declaration_count: usize
+pub omena_cascade::CascadeEvaluationFuzzCaseV0::seed: u64
+pub struct omena_cascade::CascadeEvaluationFuzzResultV0
+pub omena_cascade::CascadeEvaluationFuzzResultV0::actual_winner_id: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeEvaluationFuzzResultV0::declaration_count: usize
+pub omena_cascade::CascadeEvaluationFuzzResultV0::expected_winner_id: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeEvaluationFuzzResultV0::passed: bool
+pub omena_cascade::CascadeEvaluationFuzzResultV0::ranked_count: usize
+pub omena_cascade::CascadeEvaluationFuzzResultV0::seed: u64
+pub struct omena_cascade::CascadeEvidenceV0
+pub omena_cascade::CascadeEvidenceV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::CascadeEvidenceV0::property: alloc::string::String
+pub omena_cascade::CascadeEvidenceV0::selector: alloc::string::String
+pub struct omena_cascade::CascadeFrustrationV0
+pub omena_cascade::CascadeFrustrationV0::advisory_only: bool
+pub omena_cascade::CascadeFrustrationV0::feature_gate: &'static str
+pub omena_cascade::CascadeFrustrationV0::frustrated_edge_count: usize
+pub omena_cascade::CascadeFrustrationV0::layer_marker: &'static str
+pub omena_cascade::CascadeFrustrationV0::product: &'static str
+pub omena_cascade::CascadeFrustrationV0::schema_version: &'static str
+pub omena_cascade::CascadeFrustrationV0::total_edge_count: usize
+pub struct omena_cascade::CascadeFuzzSeedReportV0
+pub omena_cascade::CascadeFuzzSeedReportV0::cascade_results: alloc::vec::Vec<omena_cascade::CascadeEvaluationFuzzResultV0>
+pub omena_cascade::CascadeFuzzSeedReportV0::case_count: usize
+pub omena_cascade::CascadeFuzzSeedReportV0::failed_count: usize
+pub omena_cascade::CascadeFuzzSeedReportV0::passed_count: usize
+pub omena_cascade::CascadeFuzzSeedReportV0::product: &'static str
+pub omena_cascade::CascadeFuzzSeedReportV0::schema_version: &'static str
+pub omena_cascade::CascadeFuzzSeedReportV0::var_results: alloc::vec::Vec<omena_cascade::VarSubstitutionFuzzResultV0>
+pub struct omena_cascade::CascadeKey
+pub omena_cascade::CascadeKey::layer_rank: omena_cascade::LayerRank
+pub omena_cascade::CascadeKey::level: omena_cascade::CascadeLevel
+pub omena_cascade::CascadeKey::scope_proximity: u32
+pub omena_cascade::CascadeKey::source_order: u32
+pub omena_cascade::CascadeKey::specificity: omena_cascade::Specificity
+impl omena_cascade::CascadeKey
+pub const fn omena_cascade::CascadeKey::new(omena_cascade::CascadeLevel, omena_cascade::LayerRank, u32, omena_cascade::Specificity, u32) -> Self
+impl core::cmp::Ord for omena_cascade::CascadeKey
+pub fn omena_cascade::CascadeKey::cmp(&self, &Self) -> core::cmp::Ordering
+impl core::cmp::PartialOrd for omena_cascade::CascadeKey
+pub fn omena_cascade::CascadeKey::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+pub struct omena_cascade::CascadeMarginSchemaV0
+pub omena_cascade::CascadeMarginSchemaV0::axis_order: alloc::vec::Vec<&'static str>
+pub omena_cascade::CascadeMarginSchemaV0::calibration_stage: &'static str
+pub omena_cascade::CascadeMarginSchemaV0::margin_kind: &'static str
+pub omena_cascade::CascadeMarginSchemaV0::product: &'static str
+pub omena_cascade::CascadeMarginSchemaV0::public_safety_claim_ready: bool
+pub omena_cascade::CascadeMarginSchemaV0::schema_version: &'static str
+pub struct omena_cascade::CascadeMarginV0
+pub omena_cascade::CascadeMarginV0::calibration_stage: &'static str
+pub omena_cascade::CascadeMarginV0::challenger_declaration_id: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeMarginV0::challenger_key: core::option::Option<omena_cascade::CascadeKey>
+pub omena_cascade::CascadeMarginV0::dominant_axis: &'static str
+pub omena_cascade::CascadeMarginV0::margin_kind: &'static str
+pub omena_cascade::CascadeMarginV0::product: &'static str
+pub omena_cascade::CascadeMarginV0::public_safety_claim_ready: bool
+pub omena_cascade::CascadeMarginV0::schema_version: &'static str
+pub omena_cascade::CascadeMarginV0::signed_distance: i64
+pub omena_cascade::CascadeMarginV0::winner_declaration_id: alloc::string::String
+pub omena_cascade::CascadeMarginV0::winner_key: omena_cascade::CascadeKey
+pub struct omena_cascade::CascadeOriginDriverV0
+pub omena_cascade::CascadeOriginDriverV0::important: bool
+pub omena_cascade::CascadeOriginDriverV0::level: omena_cascade::CascadeLevel
+pub omena_cascade::CascadeOriginDriverV0::origin: omena_cascade::CascadeOriginV0
+pub struct omena_cascade::CascadeOutcomeProjectionRecordV0
+pub omena_cascade::CascadeOutcomeProjectionRecordV0::deep_conflict_report: omena_cascade::CascadeDeepConflictReportV0
+pub omena_cascade::CascadeOutcomeProjectionRecordV0::feature_gate: &'static str
+pub omena_cascade::CascadeOutcomeProjectionRecordV0::kauffman_regime: omena_cascade::KauffmanRegimeV0
+pub omena_cascade::CascadeOutcomeProjectionRecordV0::layer_marker: &'static str
+pub omena_cascade::CascadeOutcomeProjectionRecordV0::lint_codes: alloc::vec::Vec<&'static str>
+pub omena_cascade::CascadeOutcomeProjectionRecordV0::mode_distribution: omena_cascade::GrnModeDistributionV0
+pub omena_cascade::CascadeOutcomeProjectionRecordV0::product: &'static str
+pub omena_cascade::CascadeOutcomeProjectionRecordV0::schema_version: &'static str
+pub struct omena_cascade::CascadeProof
+pub omena_cascade::CascadeProof::declaration_id: alloc::string::String
+pub omena_cascade::CascadeProof::layer_rank: omena_cascade::LayerRank
+pub omena_cascade::CascadeProof::level: omena_cascade::CascadeLevel
+pub omena_cascade::CascadeProof::module_rank: omena_cascade::ModuleRank
+pub omena_cascade::CascadeProof::property: alloc::string::String
+pub omena_cascade::CascadeProof::scope_proximity: u32
+pub omena_cascade::CascadeProof::source_order: u32
+pub omena_cascade::CascadeProof::specificity: omena_cascade::Specificity
+impl omena_cascade::CascadeProof
+pub fn omena_cascade::CascadeProof::from_declaration(&omena_cascade::CascadeDeclaration) -> Self
+pub struct omena_cascade::CascadeRankedSetLossCandidateV0
+pub omena_cascade::CascadeRankedSetLossCandidateV0::declaration_id: alloc::string::String
+pub omena_cascade::CascadeRankedSetLossCandidateV0::layer_rank: i32
+pub omena_cascade::CascadeRankedSetLossCandidateV0::level: omena_cascade::CascadeLevel
+pub omena_cascade::CascadeRankedSetLossCandidateV0::scope_proximity: u32
+pub omena_cascade::CascadeRankedSetLossCandidateV0::specificity_exactness: omena_cascade::SpecificityExactnessV0
+pub struct omena_cascade::CascadeRankedSetLossCaptureV0
+pub omena_cascade::CascadeRankedSetLossCaptureV0::capture_state_recovery_count: usize
+pub omena_cascade::CascadeRankedSetLossCaptureV0::measurement_invocation_count: usize
+pub omena_cascade::CascadeRankedSetLossCaptureV0::multi_candidate_inexact_ranked_set_count: usize
+pub omena_cascade::CascadeRankedSetLossCaptureV0::product: &'static str
+pub omena_cascade::CascadeRankedSetLossCaptureV0::ranked_set_outcome_count: usize
+pub omena_cascade::CascadeRankedSetLossCaptureV0::rows: alloc::vec::Vec<omena_cascade::CascadeRankedSetLossCensusRowV0>
+pub omena_cascade::CascadeRankedSetLossCaptureV0::schema_version: &'static str
+pub struct omena_cascade::CascadeRankedSetLossCensusRowV0
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::candidate_count: usize
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::candidates: alloc::vec::Vec<omena_cascade::CascadeRankedSetLossCandidateV0>
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::classification: omena_cascade::CascadeRankedSetLossClassV0
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::function: omena_cascade::CascadeRankedSetFunctionV0
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::invocation_site: &'static str
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::property: alloc::string::String
+pub omena_cascade::CascadeRankedSetLossCensusRowV0::source_path: alloc::string::String
+pub struct omena_cascade::CascadeRefinementContextV0
+pub omena_cascade::CascadeRefinementContextV0::closed_bundle: bool
+pub omena_cascade::CascadeRefinementContextV0::layer_name: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeRefinementContextV0::scope_root_selector: core::option::Option<alloc::string::String>
+pub omena_cascade::CascadeRefinementContextV0::supports_condition: core::option::Option<alloc::string::String>
+impl core::default::Default for omena_cascade::CascadeRefinementContextV0
+pub fn omena_cascade::CascadeRefinementContextV0::default() -> Self
+pub struct omena_cascade::CascadeRegisteredCustomPropertyV0
+pub omena_cascade::CascadeRegisteredCustomPropertyV0::declaration_value_verdicts: alloc::collections::btree::map::BTreeMap<alloc::string::String, omena_cascade::CascadeRegisteredValueVerdictV0>
+pub omena_cascade::CascadeRegisteredCustomPropertyV0::inherits: bool
+pub omena_cascade::CascadeRegisteredCustomPropertyV0::initial_value: omena_cascade::CascadeValue
+pub omena_cascade::CascadeRegisteredCustomPropertyV0::name: alloc::string::String
+pub struct omena_cascade::CascadeReplicaOverlapV0
+pub omena_cascade::CascadeReplicaOverlapV0::advisory_only: bool
+pub omena_cascade::CascadeReplicaOverlapV0::feature_gate: &'static str
+pub omena_cascade::CascadeReplicaOverlapV0::layer_marker: &'static str
+pub omena_cascade::CascadeReplicaOverlapV0::overlap_bucket_count: usize
+pub omena_cascade::CascadeReplicaOverlapV0::parisi_breakpoint_m: core::option::Option<f64>
+pub omena_cascade::CascadeReplicaOverlapV0::product: &'static str
+pub omena_cascade::CascadeReplicaOverlapV0::schema_version: &'static str
+pub struct omena_cascade::CascadeSpinGlassHamiltonianV0
+pub omena_cascade::CascadeSpinGlassHamiltonianV0::deterministic: bool
+pub omena_cascade::CascadeSpinGlassHamiltonianV0::energy_bits: f64
+pub omena_cascade::CascadeSpinGlassHamiltonianV0::feature_gate: &'static str
+pub omena_cascade::CascadeSpinGlassHamiltonianV0::layer_marker: &'static str
+pub omena_cascade::CascadeSpinGlassHamiltonianV0::product: &'static str
+pub omena_cascade::CascadeSpinGlassHamiltonianV0::schema_version: &'static str
+pub omena_cascade::CascadeSpinGlassHamiltonianV0::unit: &'static str
+pub struct omena_cascade::CascadeSpinGlassSummaryV0
+pub omena_cascade::CascadeSpinGlassSummaryV0::advisory_policy: omena_cascade::SpinGlassMonteCarloPolicyV0
+pub omena_cascade::CascadeSpinGlassSummaryV0::feature_gate: &'static str
+pub omena_cascade::CascadeSpinGlassSummaryV0::frustration: omena_cascade::CascadeFrustrationV0
+pub omena_cascade::CascadeSpinGlassSummaryV0::hamiltonian: omena_cascade::CascadeSpinGlassHamiltonianV0
+pub omena_cascade::CascadeSpinGlassSummaryV0::layer_marker: &'static str
+pub omena_cascade::CascadeSpinGlassSummaryV0::product: &'static str
+pub omena_cascade::CascadeSpinGlassSummaryV0::replica_overlap: omena_cascade::CascadeReplicaOverlapV0
+pub omena_cascade::CascadeSpinGlassSummaryV0::schema_version: &'static str
+pub omena_cascade::CascadeSpinGlassSummaryV0::stability_score: omena_cascade::CascadeStabilityScoreV0
+pub omena_cascade::CascadeSpinGlassSummaryV0::theorem_contracts: alloc::vec::Vec<omena_cascade::CascadeSpinGlassTheoremV0>
+pub omena_cascade::CascadeSpinGlassSummaryV0::ultrametric_corpus: omena_cascade::CascadeSpinGlassUltrametricCorpusV0
+pub struct omena_cascade::CascadeSpinGlassTheoremV0
+pub omena_cascade::CascadeSpinGlassTheoremV0::deterministic: bool
+pub omena_cascade::CascadeSpinGlassTheoremV0::feature_gate: &'static str
+pub omena_cascade::CascadeSpinGlassTheoremV0::layer_marker: &'static str
+pub omena_cascade::CascadeSpinGlassTheoremV0::passed: bool
+pub omena_cascade::CascadeSpinGlassTheoremV0::product: &'static str
+pub omena_cascade::CascadeSpinGlassTheoremV0::schema_version: &'static str
+pub omena_cascade::CascadeSpinGlassTheoremV0::statement: &'static str
+pub omena_cascade::CascadeSpinGlassTheoremV0::theorem_id: &'static str
+pub struct omena_cascade::CascadeSpinGlassUltrametricCorpusV0
+pub omena_cascade::CascadeSpinGlassUltrametricCorpusV0::exhaustive_binary_five_tier_domain: bool
+pub omena_cascade::CascadeSpinGlassUltrametricCorpusV0::feature_gate: &'static str
+pub omena_cascade::CascadeSpinGlassUltrametricCorpusV0::layer_marker: &'static str
+pub omena_cascade::CascadeSpinGlassUltrametricCorpusV0::max_distance: u8
+pub omena_cascade::CascadeSpinGlassUltrametricCorpusV0::path_count: usize
+pub omena_cascade::CascadeSpinGlassUltrametricCorpusV0::product: &'static str
+pub omena_cascade::CascadeSpinGlassUltrametricCorpusV0::schema_version: &'static str
+pub omena_cascade::CascadeSpinGlassUltrametricCorpusV0::strong_triangle_passed: bool
+pub omena_cascade::CascadeSpinGlassUltrametricCorpusV0::triple_count: usize
+pub struct omena_cascade::CascadeStabilityScoreV0
+pub omena_cascade::CascadeStabilityScoreV0::advisory_only: bool
+pub omena_cascade::CascadeStabilityScoreV0::deterministic_component_passed: bool
+pub omena_cascade::CascadeStabilityScoreV0::feature_gate: &'static str
+pub omena_cascade::CascadeStabilityScoreV0::layer_marker: &'static str
+pub omena_cascade::CascadeStabilityScoreV0::product: &'static str
+pub omena_cascade::CascadeStabilityScoreV0::schema_version: &'static str
+pub omena_cascade::CascadeStabilityScoreV0::score: f64
+pub struct omena_cascade::CascadeUltrametricPathV0
+pub omena_cascade::CascadeUltrametricPathV0::declaration: u8
+pub omena_cascade::CascadeUltrametricPathV0::layer: u8
+pub omena_cascade::CascadeUltrametricPathV0::origin: u8
+pub omena_cascade::CascadeUltrametricPathV0::rule: u8
+pub omena_cascade::CascadeUltrametricPathV0::scope: u8
+pub struct omena_cascade::CssCustomPropertyPolicyStaticV1
+pub omena_cascade::CssCustomPropertyPolicyStaticV1::inherited: bool
+pub omena_cascade::CssCustomPropertyPolicyStaticV1::initial_value: &'static str
+pub struct omena_cascade::CssCustomPropertyPolicyV1Json
+pub omena_cascade::CssCustomPropertyPolicyV1Json::inherited: bool
+pub omena_cascade::CssCustomPropertyPolicyV1Json::initial_value: alloc::string::String
+pub struct omena_cascade::CssPropertyMetadataRecordStaticV1
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::animation_type: core::option::Option<&'static str>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::applies_to: core::option::Option<&'static str>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::boundary_classification: &'static str
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::boundary_reason: &'static str
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::canonical_name: &'static str
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::computed_value: core::option::Option<&'static str>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::href: &'static str
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::inherited: core::option::Option<bool>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::initial_value: core::option::Option<&'static str>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::legacy_alias_of: core::option::Option<&'static str>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::longhands: &'static [&'static str]
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::override_reason: core::option::Option<&'static str>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::percentages: core::option::Option<&'static str>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::property_id: &'static str
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::syntax: core::option::Option<&'static str>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::upstream_inherited: core::option::Option<&'static str>
+pub omena_cascade::CssPropertyMetadataRecordStaticV1::upstream_initial: core::option::Option<&'static str>
+pub struct omena_cascade::CssPropertyMetadataRecordV1Json
+pub omena_cascade::CssPropertyMetadataRecordV1Json::animation_type: core::option::Option<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::applies_to: core::option::Option<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::boundary_classification: alloc::string::String
+pub omena_cascade::CssPropertyMetadataRecordV1Json::boundary_reason: alloc::string::String
+pub omena_cascade::CssPropertyMetadataRecordV1Json::canonical_name: alloc::string::String
+pub omena_cascade::CssPropertyMetadataRecordV1Json::computed_value: core::option::Option<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::href: alloc::string::String
+pub omena_cascade::CssPropertyMetadataRecordV1Json::inherited: core::option::Option<bool>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::initial_value: core::option::Option<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::legacy_alias_of: core::option::Option<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::longhands: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::override_reason: core::option::Option<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::percentages: core::option::Option<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::property_id: alloc::string::String
+pub omena_cascade::CssPropertyMetadataRecordV1Json::syntax: core::option::Option<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::upstream_inherited: core::option::Option<alloc::string::String>
+pub omena_cascade::CssPropertyMetadataRecordV1Json::upstream_initial: core::option::Option<alloc::string::String>
+pub struct omena_cascade::CssPropertyMetadataSourceStaticV1
+pub omena_cascade::CssPropertyMetadataSourceStaticV1::package: &'static str
+pub omena_cascade::CssPropertyMetadataSourceStaticV1::source_path: &'static str
+pub omena_cascade::CssPropertyMetadataSourceStaticV1::tool: &'static str
+pub omena_cascade::CssPropertyMetadataSourceStaticV1::version: &'static str
+pub struct omena_cascade::CssPropertyMetadataSourceV1Json
+pub omena_cascade::CssPropertyMetadataSourceV1Json::package: alloc::string::String
+pub omena_cascade::CssPropertyMetadataSourceV1Json::source_path: alloc::string::String
+pub omena_cascade::CssPropertyMetadataSourceV1Json::tool: alloc::string::String
+pub omena_cascade::CssPropertyMetadataSourceV1Json::version: alloc::string::String
+pub struct omena_cascade::CssPropertyMetadataStaticV1
+pub omena_cascade::CssPropertyMetadataStaticV1::custom_property_policy: omena_cascade::CssCustomPropertyPolicyStaticV1
+pub omena_cascade::CssPropertyMetadataStaticV1::product: &'static str
+pub omena_cascade::CssPropertyMetadataStaticV1::properties: &'static [omena_cascade::CssPropertyMetadataRecordStaticV1]
+pub omena_cascade::CssPropertyMetadataStaticV1::schema_version: &'static str
+pub omena_cascade::CssPropertyMetadataStaticV1::source: omena_cascade::CssPropertyMetadataSourceStaticV1
+pub struct omena_cascade::CssPropertyMetadataV1Json
+pub omena_cascade::CssPropertyMetadataV1Json::custom_property_policy: omena_cascade::CssCustomPropertyPolicyV1Json
+pub omena_cascade::CssPropertyMetadataV1Json::product: alloc::string::String
+pub omena_cascade::CssPropertyMetadataV1Json::properties: alloc::vec::Vec<omena_cascade::CssPropertyMetadataRecordV1Json>
+pub omena_cascade::CssPropertyMetadataV1Json::schema_version: alloc::string::String
+pub omena_cascade::CssPropertyMetadataV1Json::source: omena_cascade::CssPropertyMetadataSourceV1Json
+pub struct omena_cascade::CustomPropertyEvidenceV0
+pub omena_cascade::CustomPropertyEvidenceV0::custom_property_name: alloc::string::String
+pub omena_cascade::CustomPropertyEvidenceV0::dependency_names: alloc::vec::Vec<alloc::string::String>
+pub struct omena_cascade::CustomPropertyLeastFixedPointEntryV0
+pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::changed: bool
+pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::guaranteed_invalid: bool
+pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::input: omena_cascade::CascadeValue
+pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::name: alloc::string::String
+pub omena_cascade::CustomPropertyLeastFixedPointEntryV0::resolved: omena_cascade::CascadeValue
+pub struct omena_cascade::CustomPropertyLeastFixedPointIterationV0
+pub omena_cascade::CustomPropertyLeastFixedPointIterationV0::changed_count: usize
+pub omena_cascade::CustomPropertyLeastFixedPointIterationV0::guaranteed_invalid_count: usize
+pub omena_cascade::CustomPropertyLeastFixedPointIterationV0::iteration: usize
+pub omena_cascade::CustomPropertyLeastFixedPointIterationV0::settled_count: usize
+pub struct omena_cascade::CustomPropertyLeastFixedPointProofV0
+pub omena_cascade::CustomPropertyLeastFixedPointProofV0::bounded_fixed_point_computation_witness: &'static str
+pub omena_cascade::CustomPropertyLeastFixedPointProofV0::cycle_policy: &'static str
+pub omena_cascade::CustomPropertyLeastFixedPointProofV0::finite_domain: &'static str
+pub omena_cascade::CustomPropertyLeastFixedPointProofV0::iteration_bound_formula: &'static str
+pub omena_cascade::CustomPropertyLeastFixedPointProofV0::monotone_witness: &'static str
+pub omena_cascade::CustomPropertyLeastFixedPointProofV0::monotonic_progress_witness: &'static str
+pub omena_cascade::CustomPropertyLeastFixedPointProofV0::proof_obligations: alloc::vec::Vec<&'static str>
+pub omena_cascade::CustomPropertyLeastFixedPointProofV0::transfer_function: &'static str
+pub struct omena_cascade::CustomPropertyLeastFixedPointSummaryV0
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::entries: alloc::vec::Vec<omena_cascade::CustomPropertyLeastFixedPointEntryV0>
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::guaranteed_invalid_count: usize
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::input_count: usize
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::iteration_bound: usize
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::iteration_count: usize
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::iteration_trace: alloc::vec::Vec<omena_cascade::CustomPropertyLeastFixedPointIterationV0>
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::monotone_witness_valid: bool
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::product: &'static str
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::proof: omena_cascade::CustomPropertyLeastFixedPointProofV0
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::reached_fixed_point: bool
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::ready_surfaces: alloc::vec::Vec<&'static str>
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::resolved_count: usize
+pub omena_cascade::CustomPropertyLeastFixedPointSummaryV0::schema_version: &'static str
+pub struct omena_cascade::DiagnosticFrameFootprintV0
+pub omena_cascade::DiagnosticFrameFootprintV0::cascade_evidence: alloc::vec::Vec<omena_cascade::CascadeEvidenceV0>
+pub omena_cascade::DiagnosticFrameFootprintV0::conservative: bool
+pub omena_cascade::DiagnosticFrameFootprintV0::custom_property_evidence: alloc::vec::Vec<omena_cascade::CustomPropertyEvidenceV0>
+pub omena_cascade::DiagnosticFrameFootprintV0::diagnostic_code: alloc::string::String
+pub omena_cascade::DiagnosticFrameFootprintV0::diagnostic_instance_id: alloc::string::String
+pub omena_cascade::DiagnosticFrameFootprintV0::evidence_module_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::DiagnosticFrameFootprintV0::feature_gate: &'static str
+pub omena_cascade::DiagnosticFrameFootprintV0::layer_marker: &'static str
+pub omena_cascade::DiagnosticFrameFootprintV0::outcome_conjunction_witness: core::option::Option<omena_cascade::OutcomeConjunctionWitnessV0>
+pub omena_cascade::DiagnosticFrameFootprintV0::product: &'static str
+pub omena_cascade::DiagnosticFrameFootprintV0::resolver_evidence: alloc::vec::Vec<omena_cascade::ResolverEvidenceV0>
+pub omena_cascade::DiagnosticFrameFootprintV0::schema_version: &'static str
+pub struct omena_cascade::DomClassTokenSpanV0
+pub omena_cascade::DomClassTokenSpanV0::end: usize
+pub omena_cascade::DomClassTokenSpanV0::start: usize
+pub omena_cascade::DomClassTokenSpanV0::word_index: usize
+pub struct omena_cascade::ElementIdentityV0
+pub omena_cascade::ElementIdentityV0::byte_end: usize
+pub omena_cascade::ElementIdentityV0::byte_start: usize
+pub omena_cascade::ElementIdentityV0::source_path: alloc::string::String
+pub struct omena_cascade::ElementParentChainV0
+pub omena_cascade::ElementParentChainV0::ancestors: alloc::vec::Vec<omena_cascade::ElementIdentityV0>
+pub omena_cascade::ElementParentChainV0::status: omena_cascade::ElementParentChainStatusV0
+pub omena_cascade::ElementParentChainV0::target: omena_cascade::ElementIdentityV0
+impl omena_cascade::ElementParentChainV0
+pub fn omena_cascade::ElementParentChainV0::is_complete(&self) -> bool
+pub struct omena_cascade::ElementSignature
+pub omena_cascade::ElementSignature::attributes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::ElementSignature::attributes_are_exact: bool
+pub omena_cascade::ElementSignature::classes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::ElementSignature::classes_are_exact: bool
+pub omena_cascade::ElementSignature::id: core::option::Option<alloc::string::String>
+pub omena_cascade::ElementSignature::id_is_exact: bool
+pub omena_cascade::ElementSignature::pseudo_states: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::ElementSignature::pseudo_states_are_exact: bool
+pub omena_cascade::ElementSignature::tag: core::option::Option<alloc::string::String>
+pub omena_cascade::ElementSignature::tag_is_exact: bool
+impl omena_cascade::ElementSignature
+pub fn omena_cascade::ElementSignature::at_least_classes(impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> Self
+pub fn omena_cascade::ElementSignature::concrete(core::option::Option<impl core::convert::Into<alloc::string::String>>, core::option::Option<impl core::convert::Into<alloc::string::String>>, impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> Self
+pub struct omena_cascade::ElementSignatureWithParentsV0
+pub omena_cascade::ElementSignatureWithParentsV0::identity: omena_cascade::ElementIdentityV0
+pub omena_cascade::ElementSignatureWithParentsV0::parent_chain: alloc::vec::Vec<omena_cascade::ElementIdentityV0>
+pub omena_cascade::ElementSignatureWithParentsV0::parent_chain_complete: bool
+pub omena_cascade::ElementSignatureWithParentsV0::signature: omena_cascade::ElementSignature
+pub struct omena_cascade::FirstWitnessManagerConfigV0
+pub omena_cascade::FirstWitnessManagerConfigV0::apply_cache_capacity: usize
+pub omena_cascade::FirstWitnessManagerConfigV0::rebuild_interval_operations: u64
+pub omena_cascade::FirstWitnessManagerConfigV0::shortcuts: bool
+impl core::default::Default for omena_cascade::FirstWitnessManagerConfigV0
+pub fn omena_cascade::FirstWitnessManagerConfigV0::default() -> Self
+pub struct omena_cascade::FirstWitnessManagerV0
+impl omena_cascade::FirstWitnessManagerV0
+pub fn omena_cascade::FirstWitnessManagerV0::and(&mut self, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::apply(&mut self, omena_cascade::BooleanOperationV0, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::apply_cache_len(&self) -> usize
+pub fn omena_cascade::FirstWitnessManagerV0::choose(&mut self, u16, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub const fn omena_cascade::FirstWitnessManagerV0::config(&self) -> omena_cascade::FirstWitnessManagerConfigV0
+pub const fn omena_cascade::FirstWitnessManagerV0::counters(&self) -> omena_cascade::FirstWitnessOperationCountersV0
+pub fn omena_cascade::FirstWitnessManagerV0::is_satisfiable(&self, omena_cascade::NodeId) -> bool
+pub fn omena_cascade::FirstWitnessManagerV0::is_tautology(&self, omena_cascade::NodeId) -> bool
+pub fn omena_cascade::FirstWitnessManagerV0::new(omena_cascade::VariableOrderRegistrationV0, omena_cascade::FirstWitnessManagerConfigV0) -> Self
+pub fn omena_cascade::FirstWitnessManagerV0::node(&self, omena_cascade::NodeId) -> core::option::Option<omena_cascade::Node>
+pub fn omena_cascade::FirstWitnessManagerV0::node_count(&self) -> usize
+pub fn omena_cascade::FirstWitnessManagerV0::not(&mut self, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::or(&mut self, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::order(&self) -> &omena_cascade::VariableOrderRegistrationV0
+pub fn omena_cascade::FirstWitnessManagerV0::reclaim_if_due(&mut self, &mut [omena_cascade::NodeId]) -> core::result::Result<core::option::Option<omena_cascade::FirstWitnessRebuildReportV0>, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::unique_table_len(&self) -> usize
+pub fn omena_cascade::FirstWitnessManagerV0::variable(&mut self, &str) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::FirstWitnessManagerV0::xor(&mut self, omena_cascade::NodeId, omena_cascade::NodeId) -> core::result::Result<omena_cascade::NodeId, omena_cascade::FirstWitnessErrorV0>
+pub struct omena_cascade::FirstWitnessOperationCountersV0
+pub omena_cascade::FirstWitnessOperationCountersV0::apply_cache_hits: u64
+pub omena_cascade::FirstWitnessOperationCountersV0::apply_cache_lookups: u64
+pub omena_cascade::FirstWitnessOperationCountersV0::apply_invocations: u64
+pub omena_cascade::FirstWitnessOperationCountersV0::choose_invocations: u64
+pub omena_cascade::FirstWitnessOperationCountersV0::rebuild_node_visits: u64
+pub omena_cascade::FirstWitnessOperationCountersV0::rebuilds: u64
+impl omena_cascade::FirstWitnessOperationCountersV0
+pub const fn omena_cascade::FirstWitnessOperationCountersV0::recursive_operations(self) -> u64
+pub struct omena_cascade::FirstWitnessRebuildReportV0
+pub omena_cascade::FirstWitnessRebuildReportV0::live_root_count: usize
+pub omena_cascade::FirstWitnessRebuildReportV0::nodes_after: usize
+pub omena_cascade::FirstWitnessRebuildReportV0::nodes_before: usize
+pub omena_cascade::FirstWitnessRebuildReportV0::operations_since_previous_rebuild: u64
+pub omena_cascade::FirstWitnessRebuildReportV0::visited_node_count: usize
+pub struct omena_cascade::GrnExplicitAttractorEnumerationV0
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::complete: bool
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::feature_gate: &'static str
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::fixed_point_count: usize
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::fixed_point_states: alloc::vec::Vec<u64>
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::layer_marker: &'static str
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::product: &'static str
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::schema_version: &'static str
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::state_count: usize
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::transition_count: usize
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::transition_digest: alloc::string::String
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::transitions: alloc::vec::Vec<omena_cascade::GrnTransitionRecordV0>
+pub omena_cascade::GrnExplicitAttractorEnumerationV0::variable_count: usize
+pub struct omena_cascade::GrnModeDistributionV0
+pub omena_cascade::GrnModeDistributionV0::applied_count: usize
+pub omena_cascade::GrnModeDistributionV0::feature_gate: &'static str
+pub omena_cascade::GrnModeDistributionV0::inactive_count: usize
+pub omena_cascade::GrnModeDistributionV0::layer_marker: &'static str
+pub omena_cascade::GrnModeDistributionV0::losing_but_eligible_count: usize
+pub omena_cascade::GrnModeDistributionV0::product: &'static str
+pub omena_cascade::GrnModeDistributionV0::schema_version: &'static str
+pub omena_cascade::GrnModeDistributionV0::top_count: usize
+pub struct omena_cascade::GrnTransitionRecordV0
+pub omena_cascade::GrnTransitionRecordV0::fixed_point: bool
+pub omena_cascade::GrnTransitionRecordV0::from_state: u64
+pub omena_cascade::GrnTransitionRecordV0::to_state: u64
+pub struct omena_cascade::GrnVertexStateV0
+pub omena_cascade::GrnVertexStateV0::state: omena_cascade::GrnBooleanState
+pub omena_cascade::GrnVertexStateV0::vertex: omena_cascade::GrnVertexV0
+pub struct omena_cascade::GrnVertexV0
+pub omena_cascade::GrnVertexV0::property: alloc::string::String
+pub omena_cascade::GrnVertexV0::selector: alloc::string::String
+pub omena_cascade::GrnVertexV0::vertex_id: alloc::string::String
+pub struct omena_cascade::KauffmanRegimeV0
+pub omena_cascade::KauffmanRegimeV0::conservative: bool
+pub omena_cascade::KauffmanRegimeV0::feature_gate: &'static str
+pub omena_cascade::KauffmanRegimeV0::layer_marker: &'static str
+pub omena_cascade::KauffmanRegimeV0::product: &'static str
+pub omena_cascade::KauffmanRegimeV0::regime: omena_cascade::KauffmanRegimeKindV0
+pub omena_cascade::KauffmanRegimeV0::schema_version: &'static str
+pub omena_cascade::KauffmanRegimeV0::variable_count: usize
+pub struct omena_cascade::LayerFlattenInputV0
+pub omena_cascade::LayerFlattenInputV0::closed_bundle: bool
+pub omena_cascade::LayerFlattenInputV0::important_declaration_count: usize
+pub omena_cascade::LayerFlattenInputV0::layer_name: core::option::Option<alloc::string::String>
+pub omena_cascade::LayerFlattenInputV0::layer_rule_count: usize
+pub omena_cascade::LayerFlattenInputV0::peer_layer_count: usize
+pub omena_cascade::LayerFlattenInputV0::unlayered_rule_count: usize
+pub struct omena_cascade::LayerFlattenProofV0
+pub omena_cascade::LayerFlattenProofV0::accepted: bool
+pub omena_cascade::LayerFlattenProofV0::blocked_reason: core::option::Option<&'static str>
+pub omena_cascade::LayerFlattenProofV0::cascade_safe_witness: alloc::string::String
+pub omena_cascade::LayerFlattenProofV0::layer_name: core::option::Option<alloc::string::String>
+pub omena_cascade::LayerFlattenProofV0::product: &'static str
+pub omena_cascade::LayerFlattenProofV0::provenance_preserved: bool
+pub omena_cascade::LayerFlattenProofV0::schema_version: &'static str
+pub struct omena_cascade::LayerOrdinal(_)
+impl omena_cascade::LayerOrdinal
+pub const fn omena_cascade::LayerOrdinal::get(self) -> i32
+pub const fn omena_cascade::LayerOrdinal::new(i32) -> core::option::Option<Self>
+pub struct omena_cascade::LayerRank(_)
+impl omena_cascade::LayerRank
+pub const fn omena_cascade::LayerRank::get(self) -> i32
+pub struct omena_cascade::ModalCheckWitnessV0
+pub omena_cascade::ModalCheckWitnessV0::accepted_count: usize
+pub omena_cascade::ModalCheckWitnessV0::all_provenance_preserved: bool
+pub omena_cascade::ModalCheckWitnessV0::blocked_count: usize
+pub omena_cascade::ModalCheckWitnessV0::modal_family: &'static str
+pub omena_cascade::ModalCheckWitnessV0::obligation_count: usize
+pub omena_cascade::ModalCheckWitnessV0::product: &'static str
+pub omena_cascade::ModalCheckWitnessV0::schema_version: &'static str
+pub omena_cascade::ModalCheckWitnessV0::source_products: alloc::vec::Vec<&'static str>
+pub omena_cascade::ModalCheckWitnessV0::substrate: &'static str
+pub omena_cascade::ModalCheckWitnessV0::witnesses: alloc::vec::Vec<omena_cascade::ModalCheckWitnessSourceV0>
+pub struct omena_cascade::ModuleFootprintV0
+pub omena_cascade::ModuleFootprintV0::feature_gate: &'static str
+pub omena_cascade::ModuleFootprintV0::layer_marker: &'static str
+pub omena_cascade::ModuleFootprintV0::module_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::ModuleFootprintV0::product: &'static str
+pub omena_cascade::ModuleFootprintV0::schema_version: &'static str
+pub struct omena_cascade::ModuleRank
+pub omena_cascade::ModuleRank::distance_priority: u32
+pub omena_cascade::ModuleRank::file_order_priority: u32
+pub omena_cascade::ModuleRank::import_order_priority: u32
+impl omena_cascade::ModuleRank
+pub const omena_cascade::ModuleRank::ZERO: Self
+pub const fn omena_cascade::ModuleRank::new(u32, u32, u32) -> Self
+impl core::cmp::Ord for omena_cascade::ModuleRank
+pub fn omena_cascade::ModuleRank::cmp(&self, &Self) -> core::cmp::Ordering
+impl core::cmp::PartialOrd for omena_cascade::ModuleRank
+pub fn omena_cascade::ModuleRank::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+#[non_exhaustive] pub struct omena_cascade::OpenWorldTieEvidence
+pub omena_cascade::OpenWorldTieEvidence::module_rank: omena_cascade::ModuleRank
+impl omena_cascade::OpenWorldTieEvidence
+pub const omena_cascade::OpenWorldTieEvidence::NONE: Self
+pub const omena_cascade::OpenWorldTieEvidence::ZERO: Self
+pub const fn omena_cascade::OpenWorldTieEvidence::new(omena_cascade::ModuleRank) -> Self
+pub struct omena_cascade::OrderedTokenWordV0
+impl omena_cascade::OrderedTokenWordV0
+pub fn omena_cascade::OrderedTokenWordV0::combine_first_occurrence(&self, &Self) -> Self
+pub fn omena_cascade::OrderedTokenWordV0::from_keys(impl core::iter::traits::collect::IntoIterator<Item = omena_syntax::ident::CanonicalClassKeyV0>) -> Self
+pub fn omena_cascade::OrderedTokenWordV0::tokens(&self) -> &[omena_syntax::ident::CanonicalClassKeyV0]
+impl serde_core::ser::Serialize for omena_cascade::OrderedTokenWordV0
+pub fn omena_cascade::OrderedTokenWordV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+pub struct omena_cascade::OutcomeConjunctionWitnessV0
+pub omena_cascade::OutcomeConjunctionWitnessV0::conservative: bool
+pub omena_cascade::OutcomeConjunctionWitnessV0::feature_gate: &'static str
+pub omena_cascade::OutcomeConjunctionWitnessV0::layer_marker: &'static str
+pub omena_cascade::OutcomeConjunctionWitnessV0::outcome_key_count: usize
+pub omena_cascade::OutcomeConjunctionWitnessV0::partition_id: alloc::string::String
+pub omena_cascade::OutcomeConjunctionWitnessV0::product: &'static str
+pub omena_cascade::OutcomeConjunctionWitnessV0::schema_version: &'static str
+pub struct omena_cascade::RecheckSelectionV0
+pub omena_cascade::RecheckSelectionV0::conservative: bool
+pub omena_cascade::RecheckSelectionV0::feature_gate: &'static str
+pub omena_cascade::RecheckSelectionV0::layer_marker: &'static str
+pub omena_cascade::RecheckSelectionV0::product: &'static str
+pub omena_cascade::RecheckSelectionV0::schema_version: &'static str
+pub omena_cascade::RecheckSelectionV0::selected_diagnostic_instance_ids: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::RecheckSelectionV0::skipped_diagnostic_instance_ids: alloc::vec::Vec<alloc::string::String>
+pub struct omena_cascade::ResolverEvidenceV0
+pub omena_cascade::ResolverEvidenceV0::resolved_module_id: alloc::string::String
+pub omena_cascade::ResolverEvidenceV0::specifier: alloc::string::String
+pub struct omena_cascade::ScopeFlattenInputV0
+pub omena_cascade::ScopeFlattenInputV0::competing_unscoped_rule_count: usize
+pub omena_cascade::ScopeFlattenInputV0::inside_layer: bool
+pub omena_cascade::ScopeFlattenInputV0::limit_selector: core::option::Option<alloc::string::String>
+pub omena_cascade::ScopeFlattenInputV0::peer_scope_count: usize
+pub omena_cascade::ScopeFlattenInputV0::root_selector: alloc::string::String
+pub omena_cascade::ScopeFlattenInputV0::scoped_rule_count: usize
+pub struct omena_cascade::ScopeFlattenProofV0
+pub omena_cascade::ScopeFlattenProofV0::accepted: bool
+pub omena_cascade::ScopeFlattenProofV0::blocked_reason: core::option::Option<&'static str>
+pub omena_cascade::ScopeFlattenProofV0::cascade_safe_witness: alloc::string::String
+pub omena_cascade::ScopeFlattenProofV0::product: &'static str
+pub omena_cascade::ScopeFlattenProofV0::provenance_preserved: bool
+pub omena_cascade::ScopeFlattenProofV0::root_selector: alloc::string::String
+pub omena_cascade::ScopeFlattenProofV0::schema_version: &'static str
+pub struct omena_cascade::ScopeProximityV0
+pub omena_cascade::ScopeProximityV0::distance: core::option::Option<u32>
+pub omena_cascade::ScopeProximityV0::examined_element_count: usize
+pub omena_cascade::ScopeProximityV0::matched_root: core::option::Option<omena_cascade::ElementIdentityV0>
+pub omena_cascade::ScopeProximityV0::status: omena_cascade::ScopeProximityStatusV0
+impl omena_cascade::ScopeProximityV0
+pub const fn omena_cascade::ScopeProximityV0::unknown(omena_cascade::ScopeProximityStatusV0) -> Self
+pub struct omena_cascade::SelectorContextWitness
+pub omena_cascade::SelectorContextWitness::declaration_selector: core::option::Option<alloc::string::String>
+pub omena_cascade::SelectorContextWitness::kind: omena_cascade::SelectorContextMatchKind
+pub omena_cascade::SelectorContextWitness::matched: bool
+pub omena_cascade::SelectorContextWitness::rank: usize
+pub omena_cascade::SelectorContextWitness::reference_selector: core::option::Option<alloc::string::String>
+pub omena_cascade::SelectorContextWitness::verdict: omena_cascade::SelectorMatchVerdict
+impl omena_cascade::SelectorContextWitness
+pub fn omena_cascade::SelectorContextWitness::no_match() -> Self
+pub struct omena_cascade::SelectorFunctionalPseudoConstraintV0
+pub omena_cascade::SelectorFunctionalPseudoConstraintV0::arguments: alloc::string::String
+pub omena_cascade::SelectorFunctionalPseudoConstraintV0::name: alloc::string::String
+pub struct omena_cascade::SelectorMatchWitness
+pub omena_cascade::SelectorMatchWitness::matched_branch: core::option::Option<alloc::string::String>
+pub omena_cascade::SelectorMatchWitness::missing_attributes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::SelectorMatchWitness::missing_classes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::SelectorMatchWitness::missing_id: core::option::Option<alloc::string::String>
+pub omena_cascade::SelectorMatchWitness::missing_pseudo_states: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::SelectorMatchWitness::missing_tag: core::option::Option<alloc::string::String>
+pub omena_cascade::SelectorMatchWitness::reason: omena_cascade::SelectorMatchReason
+pub omena_cascade::SelectorMatchWitness::selector: alloc::string::String
+pub omena_cascade::SelectorMatchWitness::specificity: omena_cascade::Specificity
+pub omena_cascade::SelectorMatchWitness::specificity_exactness: omena_cascade::SpecificityExactnessV0
+pub omena_cascade::SelectorMatchWitness::unsupported_branches: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::SelectorMatchWitness::verdict: omena_cascade::SelectorMatchVerdict
+pub struct omena_cascade::SelectorSignature
+pub omena_cascade::SelectorSignature::functional_pseudo_constraints: alloc::vec::Vec<omena_cascade::SelectorFunctionalPseudoConstraintV0>
+pub omena_cascade::SelectorSignature::required_attributes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::SelectorSignature::required_classes: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::SelectorSignature::required_id: core::option::Option<alloc::string::String>
+pub omena_cascade::SelectorSignature::required_pseudo_states: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub omena_cascade::SelectorSignature::required_tag: core::option::Option<alloc::string::String>
+pub omena_cascade::SelectorSignature::selector: alloc::string::String
+pub omena_cascade::SelectorSignature::specificity: omena_cascade::Specificity
+pub omena_cascade::SelectorSignature::specificity_exactness: omena_cascade::SpecificityExactnessV0
+pub struct omena_cascade::ShorthandCombinationProofV0
+pub omena_cascade::ShorthandCombinationProofV0::accepted: bool
+pub omena_cascade::ShorthandCombinationProofV0::blocked_reason: core::option::Option<&'static str>
+pub omena_cascade::ShorthandCombinationProofV0::cascade_safe_witness: alloc::string::String
+pub omena_cascade::ShorthandCombinationProofV0::ordered_longhand_properties: alloc::vec::Vec<alloc::string::String>
+pub omena_cascade::ShorthandCombinationProofV0::product: &'static str
+pub omena_cascade::ShorthandCombinationProofV0::provenance_preserved: bool
+pub omena_cascade::ShorthandCombinationProofV0::schema_version: &'static str
+pub omena_cascade::ShorthandCombinationProofV0::shorthand_property: alloc::string::String
+pub struct omena_cascade::Specificity
+pub omena_cascade::Specificity::classes: u32
+pub omena_cascade::Specificity::elements: u32
+pub omena_cascade::Specificity::ids: u32
+impl omena_cascade::Specificity
+pub const omena_cascade::Specificity::ZERO: Self
+pub const fn omena_cascade::Specificity::new(u32, u32, u32) -> Self
+impl core::cmp::Ord for omena_cascade::Specificity
+pub fn omena_cascade::Specificity::cmp(&self, &Self) -> core::cmp::Ordering
+impl core::cmp::PartialOrd for omena_cascade::Specificity
+pub fn omena_cascade::Specificity::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+pub struct omena_cascade::SpinGlassMonteCarloBucketV0
+pub omena_cascade::SpinGlassMonteCarloBucketV0::bucket: &'static str
+pub omena_cascade::SpinGlassMonteCarloBucketV0::feature_gate: &'static str
+pub omena_cascade::SpinGlassMonteCarloBucketV0::layer_marker: &'static str
+pub omena_cascade::SpinGlassMonteCarloBucketV0::max_variable_count: usize
+pub omena_cascade::SpinGlassMonteCarloBucketV0::product: &'static str
+pub omena_cascade::SpinGlassMonteCarloBucketV0::sample_count: usize
+pub omena_cascade::SpinGlassMonteCarloBucketV0::schema_version: &'static str
+pub struct omena_cascade::SpinGlassMonteCarloPolicyV0
+pub omena_cascade::SpinGlassMonteCarloPolicyV0::advisory_only: bool
+pub omena_cascade::SpinGlassMonteCarloPolicyV0::bucket_count: usize
+pub omena_cascade::SpinGlassMonteCarloPolicyV0::buckets: alloc::vec::Vec<omena_cascade::SpinGlassMonteCarloBucketV0>
+pub omena_cascade::SpinGlassMonteCarloPolicyV0::debounce_ms: u64
+pub omena_cascade::SpinGlassMonteCarloPolicyV0::feature_gate: &'static str
+pub omena_cascade::SpinGlassMonteCarloPolicyV0::layer_marker: &'static str
+pub omena_cascade::SpinGlassMonteCarloPolicyV0::product: &'static str
+pub omena_cascade::SpinGlassMonteCarloPolicyV0::schema_version: &'static str
+pub omena_cascade::SpinGlassMonteCarloPolicyV0::task_budget_ms: u64
+pub struct omena_cascade::StaticSupportsEvalWitnessV0
+pub omena_cascade::StaticSupportsEvalWitnessV0::assumption: omena_cascade::StaticSupportsAssumptionV0
+pub omena_cascade::StaticSupportsEvalWitnessV0::condition: alloc::string::String
+pub omena_cascade::StaticSupportsEvalWitnessV0::product: &'static str
+pub omena_cascade::StaticSupportsEvalWitnessV0::provenance_preserved: bool
+pub omena_cascade::StaticSupportsEvalWitnessV0::reason: &'static str
+pub omena_cascade::StaticSupportsEvalWitnessV0::schema_version: &'static str
+pub omena_cascade::StaticSupportsEvalWitnessV0::verdict: omena_cascade::StaticSupportsEvalVerdictV0
+pub struct omena_cascade::SupportsTargetCapabilityV0
+pub omena_cascade::SupportsTargetCapabilityV0::supports_cascade_layers: bool
+pub omena_cascade::SupportsTargetCapabilityV0::supports_color_function: bool
+pub omena_cascade::SupportsTargetCapabilityV0::supports_color_mix: bool
+pub omena_cascade::SupportsTargetCapabilityV0::supports_css_nesting: bool
+pub omena_cascade::SupportsTargetCapabilityV0::supports_css_scope: bool
+pub omena_cascade::SupportsTargetCapabilityV0::supports_light_dark: bool
+pub omena_cascade::SupportsTargetCapabilityV0::supports_logical_properties: bool
+pub omena_cascade::SupportsTargetCapabilityV0::supports_oklch_oklab: bool
+pub omena_cascade::SupportsTargetCapabilityV0::supports_relative_color: bool
+impl omena_cascade::SupportsTargetCapabilityV0
+pub const fn omena_cascade::SupportsTargetCapabilityV0::all_supported() -> Self
+pub const fn omena_cascade::SupportsTargetCapabilityV0::none_supported() -> Self
+impl core::default::Default for omena_cascade::SupportsTargetCapabilityV0
+pub fn omena_cascade::SupportsTargetCapabilityV0::default() -> Self
+pub struct omena_cascade::TokenSupportV0
+impl omena_cascade::TokenSupportV0
+pub fn omena_cascade::TokenSupportV0::may(&self) -> &alloc::collections::btree::set::BTreeSet<omena_syntax::ident::CanonicalClassKeyV0>
+pub fn omena_cascade::TokenSupportV0::must(&self) -> &alloc::collections::btree::set::BTreeSet<omena_syntax::ident::CanonicalClassKeyV0>
+pub fn omena_cascade::TokenSupportV0::new(impl core::iter::traits::collect::IntoIterator<Item = omena_syntax::ident::CanonicalClassKeyV0>, impl core::iter::traits::collect::IntoIterator<Item = omena_syntax::ident::CanonicalClassKeyV0>) -> core::option::Option<Self>
+impl serde_core::ser::Serialize for omena_cascade::TokenSupportV0
+pub fn omena_cascade::TokenSupportV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
+pub struct omena_cascade::VarSubstitutionFuzzCaseV0
+pub omena_cascade::VarSubstitutionFuzzCaseV0::chain_len: usize
+pub omena_cascade::VarSubstitutionFuzzCaseV0::cycle: bool
+pub omena_cascade::VarSubstitutionFuzzCaseV0::seed: u64
+pub struct omena_cascade::VarSubstitutionFuzzResultV0
+pub omena_cascade::VarSubstitutionFuzzResultV0::chain_len: usize
+pub omena_cascade::VarSubstitutionFuzzResultV0::cycle: bool
+pub omena_cascade::VarSubstitutionFuzzResultV0::expected: omena_cascade::CascadeValue
+pub omena_cascade::VarSubstitutionFuzzResultV0::passed: bool
+pub omena_cascade::VarSubstitutionFuzzResultV0::result: omena_cascade::CascadeValue
+pub omena_cascade::VarSubstitutionFuzzResultV0::seed: u64
+pub struct omena_cascade::VariableOrderRegistrationV0
+impl omena_cascade::VariableOrderRegistrationV0
+pub fn omena_cascade::VariableOrderRegistrationV0::atoms(&self) -> &[alloc::string::String]
+pub const fn omena_cascade::VariableOrderRegistrationV0::domain(&self) -> omena_cascade::VariableOrderDomainV0
+pub fn omena_cascade::VariableOrderRegistrationV0::site_first_appearance(impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> core::result::Result<Self, omena_cascade::FirstWitnessErrorV0>
+pub fn omena_cascade::VariableOrderRegistrationV0::variable_index(&self, &str) -> core::option::Option<u16>
+pub const omena_cascade::BOX_LONGHAND_MERGE_SHORTHAND_FAMILIES_V0: [&str; 7]
+pub const omena_cascade::CSS_PROPERTY_METADATA_RECORDS_V1: &[omena_cascade::CssPropertyMetadataRecordStaticV1]
+pub const omena_cascade::CSS_PROPERTY_METADATA_V1: omena_cascade::CssPropertyMetadataStaticV1
+pub const omena_cascade::DEFAULT_APPLY_CACHE_CAPACITY_V0: usize
+pub const omena_cascade::DEFAULT_REBUILD_INTERVAL_OPERATIONS_V0: u64
+pub const omena_cascade::FALSE_NODE_ID_V0: omena_cascade::NodeId
+pub const omena_cascade::LONGHAND_MERGE_SHORTHAND_FAMILIES_V0: [&str; 38]
+pub const omena_cascade::SITE_FIRST_APPEARANCE_ORDERING_DOMAIN_V0: &str
+pub const omena_cascade::TRUE_NODE_ID_V0: omena_cascade::NodeId
+pub fn omena_cascade::box_shorthand_longhands_v0(&str) -> core::option::Option<[&'static str; 4]>
+pub fn omena_cascade::capture_cascade_ranked_set_losses<R>(impl core::ops::function::FnOnce() -> R) -> core::result::Result<(R, omena_cascade::CascadeRankedSetLossCaptureV0), &'static str>
+pub fn omena_cascade::cascade_driven_levels_v0() -> alloc::vec::Vec<omena_cascade::CascadeLevel>
+pub fn omena_cascade::cascade_driven_winner_axes_v0() -> alloc::vec::Vec<omena_cascade::CascadeWinnerAxisV0>
+pub fn omena_cascade::cascade_driver_census_is_consistent_v0() -> bool
+pub const fn omena_cascade::cascade_level_catalog_v0() -> [omena_cascade::CascadeLevel; 10]
+pub const fn omena_cascade::cascade_level_for_origin(omena_cascade::CascadeOriginV0, bool) -> omena_cascade::CascadeLevel
+pub const fn omena_cascade::cascade_level_name_v0(omena_cascade::CascadeLevel) -> &'static str
+pub fn omena_cascade::cascade_margin_for_outcome(&omena_cascade::CascadeOutcome) -> core::option::Option<omena_cascade::CascadeMarginV0>
+pub const fn omena_cascade::cascade_origin_driver_catalog_v0() -> [omena_cascade::CascadeOriginDriverV0; 8]
+pub fn omena_cascade::cascade_property(impl core::iter::traits::collect::IntoIterator<Item = omena_cascade::CascadeDeclaration>, &str) -> omena_cascade::CascadeOutcome
+pub fn omena_cascade::cascade_property_open_world(impl core::iter::traits::collect::IntoIterator<Item = omena_cascade::CascadeDeclaration>, &str) -> omena_cascade::CascadeOutcome
+pub fn omena_cascade::cascade_ultrametric_distance_v0(omena_cascade::CascadeUltrametricPathV0, omena_cascade::CascadeUltrametricPathV0) -> u8
+pub fn omena_cascade::choose_grn_attractor_strategy(usize) -> omena_cascade::AttractorEnumerationStrategyV0
+pub fn omena_cascade::classify_cascade_ranked_set_loss(&[omena_cascade::CascadeDeclaration]) -> omena_cascade::CascadeRankedSetLossClassV0
+pub fn omena_cascade::classify_kauffman_regime(usize) -> omena_cascade::KauffmanRegimeV0
+pub fn omena_cascade::compute_cascade_computed_value(omena_cascade::CascadeComputedValueInputV0) -> omena_cascade::CascadeComputedValueResultV0
+pub fn omena_cascade::compute_edit_footprint(alloc::vec::Vec<alloc::string::String>) -> omena_cascade::ModuleFootprintV0
+pub fn omena_cascade::css_property_initial_value(&str) -> omena_cascade::CssPropertyInitialValueV0
+pub fn omena_cascade::css_property_is_inherited(&str) -> omena_cascade::CssPropertyInheritanceV0
+pub fn omena_cascade::css_property_metadata_for_property(&str) -> core::option::Option<&'static omena_cascade::CssPropertyMetadataRecordStaticV1>
+pub fn omena_cascade::custom_property_bounded_fixed_point_computation_witness() -> omena_cascade::CustomPropertyBoundedFixedPointComputationWitnessV0
+pub fn omena_cascade::derive_frame_for_diagnostic(impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>, alloc::vec::Vec<alloc::string::String>) -> omena_cascade::DiagnosticFrameFootprintV0
+pub fn omena_cascade::derive_frames_for_diagnostic_set(alloc::vec::Vec<(alloc::string::String, alloc::string::String, alloc::vec::Vec<alloc::string::String>)>) -> alloc::vec::Vec<omena_cascade::DiagnosticFrameFootprintV0>
+pub fn omena_cascade::enumerate_explicit_grn_attractor_v0(usize) -> omena_cascade::GrnExplicitAttractorEnumerationV0
+pub fn omena_cascade::evaluate_static_supports_condition(&str, omena_cascade::StaticSupportsAssumptionV0) -> omena_cascade::StaticSupportsEvalWitnessV0
+pub fn omena_cascade::first_witness_fold_v0<T: core::clone::Clone + core::cmp::Ord>(&[T], &[T]) -> alloc::vec::Vec<T>
+pub fn omena_cascade::grn_shadow_omena_verbs() -> alloc::vec::Vec<&'static str>
+pub fn omena_cascade::intersect_frame_with_footprint(&omena_cascade::DiagnosticFrameFootprintV0, &omena_cascade::ModuleFootprintV0) -> bool
+pub const fn omena_cascade::is_dom_class_ascii_whitespace_v0(char) -> bool
+pub fn omena_cascade::merge_first_witness_by_key_v0<T: core::clone::Clone, K: core::cmp::Ord>(&[T], &[T], impl core::ops::function::Fn(&T) -> K) -> alloc::vec::Vec<T>
+pub const fn omena_cascade::normalized_layer_rank(bool, core::option::Option<omena_cascade::LayerOrdinal>) -> omena_cascade::LayerRank
+pub fn omena_cascade::outcome_conjunction_witness(&[alloc::string::String]) -> omena_cascade::OutcomeConjunctionWitnessV0
+pub fn omena_cascade::parse_simple_selector_signature(&str) -> core::option::Option<omena_cascade::SelectorSignature>
+pub fn omena_cascade::partition_into_outcome_conjunction_classes(&[omena_cascade::DiagnosticFrameFootprintV0]) -> alloc::vec::Vec<omena_cascade::OutcomeConjunctionWitnessV0>
+pub fn omena_cascade::project_grn_outcome(&[omena_cascade::GrnVertexStateV0]) -> omena_cascade::CascadeOutcomeProjectionRecordV0
+pub fn omena_cascade::prove_box_shorthand_combination(&str, &[omena_cascade::BoxLonghandInputV0]) -> omena_cascade::ShorthandCombinationProofV0
+pub fn omena_cascade::prove_cascade_attractor_basin(usize) -> omena_cascade::CascadeAttractorBasinV0
+pub fn omena_cascade::prove_cascade_ultrametric_strong_triangle_v0(omena_cascade::CascadeUltrametricPathV0, omena_cascade::CascadeUltrametricPathV0, omena_cascade::CascadeUltrametricPathV0) -> bool
+pub fn omena_cascade::prove_layer_flatten_candidate(omena_cascade::LayerFlattenInputV0) -> omena_cascade::LayerFlattenProofV0
+pub fn omena_cascade::prove_longhand_merge<S>(&str, &[S], &[omena_cascade::LonghandMergeInputV0]) -> omena_cascade::LonghandMergeProofV0 where S: core::convert::AsRef<str>
+pub fn omena_cascade::prove_scope_flatten_candidate(omena_cascade::ScopeFlattenInputV0) -> omena_cascade::ScopeFlattenProofV0
+pub fn omena_cascade::prove_strong_triangle_inequality(u32, u32, u32) -> bool
+pub fn omena_cascade::prove_tropical_hamiltonian_monotone(&[u32]) -> bool
+pub fn omena_cascade::prove_ultrametric_isomorphism(&[u32]) -> bool
+pub fn omena_cascade::rank_cascade_items<T>(impl core::iter::traits::collect::IntoIterator<Item = T>, impl core::ops::function::Fn(&T) -> omena_cascade::CascadeKey) -> alloc::vec::Vec<T>
+pub fn omena_cascade::refine_declaration_in_context(&omena_cascade::CascadeDeclaration, &omena_cascade::CascadeRefinementContextV0) -> omena_refinement_trait::RefinementWitnessV0
+pub fn omena_cascade::resolve_custom_property_env_least_fixed_point(&omena_cascade::CustomPropertyEnv) -> omena_cascade::CustomPropertyEnv
+pub fn omena_cascade::run_cascade_conformance_seed_corpus() -> omena_cascade::CascadeConformanceSeedReport
+pub fn omena_cascade::run_cascade_evaluation_fuzz_case(omena_cascade::CascadeEvaluationFuzzCaseV0) -> omena_cascade::CascadeEvaluationFuzzResultV0
+pub fn omena_cascade::run_cascade_ordering_axis_self_check_corpus() -> omena_cascade::CascadeConformanceSeedReport
+pub fn omena_cascade::run_generated_cascade_invariant_self_check_corpus() -> omena_cascade::CascadeFuzzSeedReportV0
+pub fn omena_cascade::run_var_substitution_fuzz_case(omena_cascade::VarSubstitutionFuzzCaseV0) -> omena_cascade::VarSubstitutionFuzzResultV0
+pub fn omena_cascade::scope_proximity_from_ancestor_signatures(&str, &[(omena_cascade::ElementIdentityV0, omena_cascade::ElementSignature)], bool) -> omena_cascade::ScopeProximityV0
+pub fn omena_cascade::select_cascade_winner<T>(impl core::iter::traits::collect::IntoIterator<Item = T>, impl core::ops::function::Fn(&T) -> omena_cascade::CascadeKey) -> core::option::Option<(T, alloc::vec::Vec<T>)>
+pub fn omena_cascade::select_open_world_cascade_winner<T>(impl core::iter::traits::collect::IntoIterator<Item = T>, impl core::ops::function::Fn(&T) -> (omena_cascade::CascadeKey, omena_cascade::OpenWorldTieEvidence)) -> core::option::Option<(T, alloc::vec::Vec<T>)>
+pub fn omena_cascade::select_recheck_set(&[omena_cascade::DiagnosticFrameFootprintV0], &omena_cascade::ModuleFootprintV0) -> omena_cascade::RecheckSelectionV0
+pub fn omena_cascade::selector_co_match_verdict(&str, &str) -> omena_cascade::SelectorMatchVerdict
+pub fn omena_cascade::selector_context_witness(&[alloc::string::String], &[alloc::string::String]) -> omena_cascade::SelectorContextWitness
+pub fn omena_cascade::selector_context_witness_for_declaration(&str, &[alloc::string::String]) -> omena_cascade::SelectorContextWitness
+pub fn omena_cascade::selector_match_witness(&str, &omena_cascade::ElementSignature) -> omena_cascade::SelectorMatchWitness
+pub fn omena_cascade::selector_signature_co_match_verdict(&omena_cascade::SelectorSignature, &omena_cascade::SelectorSignature) -> omena_cascade::SelectorMatchVerdict
+pub fn omena_cascade::spin_glass_monte_carlo_policy() -> omena_cascade::SpinGlassMonteCarloPolicyV0
+pub fn omena_cascade::spin_glass_ultrametric_binary_five_tier_corpus_v0() -> alloc::vec::Vec<omena_cascade::CascadeUltrametricPathV0>
+pub fn omena_cascade::substitute_custom_properties(&omena_cascade::CascadeValue, &omena_cascade::CustomPropertyEnv) -> omena_cascade::CascadeValue
+pub fn omena_cascade::summarize_cascade_axis_reach_v0() -> core::option::Option<omena_cascade::CascadeAxisReachDisclosureV0>
+pub fn omena_cascade::summarize_cascade_boundary() -> omena_cascade::CascadeBoundarySummary
+pub fn omena_cascade::summarize_cascade_frustration(usize, usize) -> omena_cascade::CascadeFrustrationV0
+pub fn omena_cascade::summarize_cascade_margin_schema_v0() -> omena_cascade::CascadeMarginSchemaV0
+pub fn omena_cascade::summarize_cascade_spin_glass_statistics() -> omena_cascade::CascadeSpinGlassSummaryV0
+pub fn omena_cascade::summarize_cascade_stability_score(f64) -> omena_cascade::CascadeStabilityScoreV0
+pub fn omena_cascade::summarize_custom_property_least_fixed_point(&omena_cascade::CustomPropertyEnv) -> omena_cascade::CustomPropertyLeastFixedPointSummaryV0
+pub fn omena_cascade::summarize_grn_state(alloc::vec::Vec<omena_cascade::GrnVertexStateV0>) -> omena_cascade::BooleanGRNStateV0
+pub fn omena_cascade::summarize_modal_check_witness_v0(alloc::vec::Vec<omena_cascade::ModalCheckWitnessSourceV0>) -> omena_cascade::ModalCheckWitnessV0
+pub fn omena_cascade::summarize_replica_overlap(usize, core::option::Option<f64>) -> omena_cascade::CascadeReplicaOverlapV0
+pub fn omena_cascade::summarize_spin_glass_hamiltonian(&[u32]) -> omena_cascade::CascadeSpinGlassHamiltonianV0
+pub fn omena_cascade::token_support_v0(&omena_cascade::OrderedTokenWordV0) -> omena_cascade::TokenSupportV0
+pub fn omena_cascade::tokenize_dom_class_attribute_v0(core::option::Option<&str>) -> omena_cascade::DomClassTokenizationV0
+pub fn omena_cascade::transition_cascade_grn_state_v0(usize, u64) -> u64
+pub fn omena_cascade::verify_spin_glass_ultrametric_corpus_v0() -> omena_cascade::CascadeSpinGlassUltrametricCorpusV0
+pub type omena_cascade::CustomPropertyBoundedFixedPointComputationWitnessV0 = omena_cascade::CustomPropertyLeastFixedPointProofV0
+pub type omena_cascade::CustomPropertyEnv = alloc::collections::btree::map::BTreeMap<alloc::string::String, omena_cascade::CascadeValue>
+pub type omena_cascade::LonghandMergeInputV0 = omena_cascade::BoxLonghandInputV0
+pub type omena_cascade::LonghandMergeProofV0 = omena_cascade::ShorthandCombinationProofV0
+pub type omena_cascade::NodeId = u32

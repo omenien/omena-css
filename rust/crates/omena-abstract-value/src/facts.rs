@@ -1,7 +1,63 @@
 use std::collections::BTreeSet;
 
 use crate::automaton::finite_language_values;
+use crate::domain::{
+    composite_min_length_for_constraints, prefix_suffix_min_length, prefix_suffix_overlap_len,
+};
 use crate::*;
+
+/// Measures one Rust string in the unit carried by
+/// [`ExternalStringTypeFactsV0`]. This is the single concrete-string
+/// measurement authority for that boundary; callers reuse the measured value
+/// for both bounds.
+pub fn external_utf16_code_unit_length(value: &str) -> Utf16CodeUnitLengthV0 {
+    value.encode_utf16().count()
+}
+
+/// Projects the byte-based lower bound of an internal abstract value into a
+/// sound UTF-16-code-unit lower bound for the external contract.
+///
+/// A byte count cannot be converted exactly without the represented strings.
+/// This projection retains the shape's overlap-aware minimum and applies the
+/// universal `utf8_bytes <= 3 * utf16_code_units` inequality only to byte
+/// length beyond that structural witness. It may weaken a bound, but it never
+/// turns an internal member into an external rejection.
+pub fn external_utf16_code_unit_min_length_lower_bound(
+    value: &AbstractClassValueV0,
+) -> Option<Utf16CodeUnitLengthV0> {
+    match value {
+        AbstractClassValueV0::PrefixSuffix {
+            prefix,
+            suffix,
+            min_length,
+            ..
+        } => Some(external_utf16_lower_bound_from_byte_minimum(
+            prefix_suffix_min_length(prefix, suffix),
+            prefix_suffix_utf16_code_unit_min_length(prefix, suffix),
+            *min_length,
+        )),
+        AbstractClassValueV0::Composite {
+            prefix,
+            suffix,
+            min_length,
+            must_chars,
+            ..
+        } => {
+            let prefix = prefix.as_deref().unwrap_or("");
+            let suffix = suffix.as_deref().unwrap_or("");
+            let structural_utf16_minimum =
+                composite_utf16_code_unit_min_length(prefix, suffix, must_chars);
+            let structural_byte_minimum =
+                composite_min_length_for_constraints(prefix, suffix, must_chars);
+            Some(external_utf16_lower_bound_from_byte_minimum(
+                structural_byte_minimum,
+                structural_utf16_minimum,
+                min_length.unwrap_or(structural_byte_minimum),
+            ))
+        }
+        _ => None,
+    }
+}
 
 pub fn reduced_abstract_class_value_from_facts(
     facts: &ExternalStringTypeFactsV0,
@@ -56,7 +112,13 @@ fn reduce_abstract_class_value_with_steps(
     if !matches!(facts.kind.as_str(), "exact" | "finiteSet")
         && let Some(values) = facts.values.as_ref().filter(|values| !values.is_empty())
     {
-        let refinement = finite_set_class_value(values.clone());
+        let refinement = finite_set_class_value(
+            values
+                .iter()
+                .filter(|value| value_matches_external_length_bounds(value, facts))
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
         let result = intersect_abstract_class_values(&value, &refinement);
         steps.push(ReducedClassValueDerivationStepV0 {
             operation: "intersectFiniteValues",
@@ -97,8 +159,26 @@ pub fn abstract_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> Abs
             .values
             .as_ref()
             .and_then(|values| values.first())
-            .map_or_else(top_class_value, |value| exact_class_value(value.clone())),
-        "finiteSet" => finite_set_class_value(facts.values.clone().unwrap_or_default()),
+            .map_or_else(top_class_value, |value| {
+                if value_matches_external_length_bounds(value, facts) {
+                    exact_class_value(value.clone())
+                } else {
+                    bottom_class_value()
+                }
+            }),
+        "finiteSet" => finite_set_class_value(
+            facts
+                .values
+                .as_ref()
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter(|value| value_matches_external_length_bounds(value, facts))
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default(),
+        ),
         "constrained" => constrained_class_value_from_facts(facts),
         "unknown" | "top" => top_class_value(),
         _ => top_class_value(),
@@ -108,15 +188,16 @@ pub fn abstract_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> Abs
 /// Lower an abstract class value back into the external-string-type facts that
 /// the flow analyser consumes as an `AssignFacts` transfer.
 ///
-/// This is the inverse direction of [`abstract_class_value_from_facts`]: it lets
-/// a product-path caller seed a [`crate::ClassValueFlowGraphV0`] node from an
-/// already-computed abstract value (for example, a dynamic-className call-site
-/// exit value), so the k-limited call-string analysis can re-derive and join the
-/// value under a context key.
+/// This sound external lowering lets a product-path caller seed a
+/// [`crate::ClassValueFlowGraphV0`] node from an already-computed abstract value
+/// (for example, a dynamic-className call-site exit value). A byte-only lower
+/// bound cannot be inverted into UTF-16 exactly, so a round trip may weaken that
+/// bound while retaining the value's structural constraints.
 pub fn external_string_type_facts_from_abstract_class_value(
     value: &AbstractClassValueV0,
 ) -> ExternalStringTypeFactsV0 {
     let mut facts = empty_external_string_type_facts("top");
+    let external_min_len = external_utf16_code_unit_min_length_lower_bound(value);
     match value {
         AbstractClassValueV0::Bottom => {
             facts.kind = "finiteSet".to_string();
@@ -144,17 +225,12 @@ pub fn external_string_type_facts_from_abstract_class_value(
             facts.constraint_kind = Some("suffix".to_string());
             facts.suffix = Some(suffix.clone());
         }
-        AbstractClassValueV0::PrefixSuffix {
-            prefix,
-            suffix,
-            min_length,
-            ..
-        } => {
+        AbstractClassValueV0::PrefixSuffix { prefix, suffix, .. } => {
             facts.kind = "constrained".to_string();
             facts.constraint_kind = Some("prefixSuffix".to_string());
             facts.prefix = Some(prefix.clone());
             facts.suffix = Some(suffix.clone());
-            facts.min_len = Some(*min_length);
+            facts.min_len = external_min_len;
         }
         AbstractClassValueV0::CharInclusion {
             must_chars,
@@ -171,7 +247,6 @@ pub fn external_string_type_facts_from_abstract_class_value(
         AbstractClassValueV0::Composite {
             prefix,
             suffix,
-            min_length,
             must_chars,
             may_chars,
             may_include_other_chars,
@@ -181,7 +256,7 @@ pub fn external_string_type_facts_from_abstract_class_value(
             facts.constraint_kind = Some("composite".to_string());
             facts.prefix = prefix.clone();
             facts.suffix = suffix.clone();
-            facts.min_len = *min_length;
+            facts.min_len = external_min_len;
             facts.char_must = Some(must_chars.clone());
             facts.char_may = Some(may_chars.clone());
             facts.may_include_other_chars = Some(*may_include_other_chars);
@@ -338,19 +413,29 @@ fn facts_have_constraint_details(facts: &ExternalStringTypeFactsV0) -> bool {
         || facts.prefix.is_some()
         || facts.suffix.is_some()
         || facts.min_len.is_some()
+        || facts.max_len.is_some()
         || facts.char_must.is_some()
         || facts.char_may.is_some()
         || facts.may_include_other_chars.is_some()
 }
 
 fn constrained_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> AbstractClassValueV0 {
+    // An arbitrary UTF-16 scalar bound cannot be represented exactly by the
+    // byte-only internal domain. Because every UTF-8 string has at least as
+    // many bytes as UTF-16 code units, reusing the numeric lower bound here is
+    // a sound over-approximation. The exact check stays at the external
+    // concrete-string boundary. The byte domain has no max-length axis, so the
+    // external maximum is deliberately not lowered into it.
+    let sound_byte_minimum = facts
+        .min_len
+        .map(sound_internal_byte_minimum_from_external_utf16_minimum);
     match facts.constraint_kind.as_deref() {
         Some("prefix") => prefix_class_value(facts.prefix.clone().unwrap_or_default(), None),
         Some("suffix") => suffix_class_value(facts.suffix.clone().unwrap_or_default(), None),
         Some("prefixSuffix") => prefix_suffix_class_value(
             facts.prefix.clone().unwrap_or_default(),
             facts.suffix.clone().unwrap_or_default(),
-            facts.min_len,
+            sound_byte_minimum,
             None,
         ),
         Some("charInclusion") => char_inclusion_class_value(
@@ -362,7 +447,7 @@ fn constrained_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> Abst
         Some("composite") => composite_class_value(CompositeClassValueInputV0 {
             prefix: facts.prefix.clone(),
             suffix: facts.suffix.clone(),
-            min_length: facts.min_len,
+            min_length: sound_byte_minimum,
             must_chars: facts.char_must.clone().unwrap_or_default(),
             may_chars: facts.char_may.clone().unwrap_or_default(),
             may_include_other_chars: facts.may_include_other_chars.unwrap_or(false),
@@ -370,6 +455,61 @@ fn constrained_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> Abst
         }),
         _ => top_class_value(),
     }
+}
+
+fn sound_internal_byte_minimum_from_external_utf16_minimum(
+    minimum: Utf16CodeUnitLengthV0,
+) -> Utf8ByteLengthV0 {
+    // For every valid string, UTF-8 bytes >= UTF-16 code units. Reusing the
+    // numeric lower bound therefore cannot reject an external member, although
+    // it may admit additional non-ASCII values in the byte-only domain.
+    minimum
+}
+
+fn value_matches_external_length_bounds(value: &str, facts: &ExternalStringTypeFactsV0) -> bool {
+    let length = external_utf16_code_unit_length(value);
+    facts.min_len.is_none_or(|minimum| length >= minimum)
+        && facts.max_len.is_none_or(|maximum| length <= maximum)
+}
+
+fn prefix_suffix_utf16_code_unit_min_length(prefix: &str, suffix: &str) -> usize {
+    let overlap = prefix_suffix_overlap_len(prefix, suffix);
+    external_utf16_code_unit_length(prefix) + external_utf16_code_unit_length(&suffix[overlap..])
+}
+
+fn external_utf16_lower_bound_from_byte_minimum(
+    structural_byte_minimum: usize,
+    structural_utf16_minimum: usize,
+    byte_minimum: usize,
+) -> usize {
+    structural_utf16_minimum.saturating_add(
+        byte_minimum
+            .saturating_sub(structural_byte_minimum)
+            .div_ceil(3),
+    )
+}
+
+fn composite_utf16_code_unit_min_length(prefix: &str, suffix: &str, must_chars: &str) -> usize {
+    let overlap = prefix_suffix_overlap_len(prefix, suffix);
+    let edge = format!("{prefix}{}", &suffix[overlap..]);
+    let edge_chars = edge.chars().collect::<BTreeSet<_>>();
+    let missing_required_chars = must_chars
+        .chars()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .filter(|character| !edge_chars.contains(character))
+        .collect::<Vec<_>>();
+
+    if missing_required_chars.is_empty() {
+        return external_utf16_code_unit_length(&edge);
+    }
+
+    external_utf16_code_unit_length(prefix)
+        + external_utf16_code_unit_length(suffix)
+        + missing_required_chars
+            .into_iter()
+            .map(char::len_utf16)
+            .sum::<usize>()
 }
 
 fn finite_value_count_for_facts(facts: &ExternalStringTypeFactsV0) -> usize {

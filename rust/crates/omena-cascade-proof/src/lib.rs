@@ -20,6 +20,7 @@ use serde::Serialize;
 
 pub mod discharge_ledger;
 pub mod fuzz;
+pub mod proof_kernel;
 
 pub use discharge_ledger::{
     DISCHARGE_LEDGER_PRODUCT_V1, DISCHARGE_LEDGER_SCHEMA_VERSION_V1, DischargeLedgerLookupStatusV0,
@@ -30,6 +31,7 @@ pub use fuzz::{
     SmtBisimulationFuzzCaseV0, SmtBisimulationFuzzReportV0, run_smt_bisimulation_fuzz_case_v0,
     run_smt_bisimulation_fuzz_seed_corpus_v0, smt_bisimulation_fuzz_case_v0,
 };
+pub use proof_kernel::*;
 
 pub const SMT_SCHEMA_VERSION_V0: &str = "0";
 pub const SMT_LAYER_MARKER_V0: &str = "smt-cascade-verification";
@@ -204,6 +206,10 @@ pub trait SmtBackendV0 {
         } else if input
             .canonical_terms
             .iter()
+            // Non-`require:` audit labels (`pass:...`, `decl:...`, and similar)
+            // are deliberately neutral here. This default backend re-reads only
+            // producer-authored Boolean requirement strings; it is not an
+            // independent semantic verification step.
             .all(|term| canonical_requirement_value_v0(term).unwrap_or(true))
         {
             SmtBackendSatResultV0::Sat
@@ -570,17 +576,17 @@ fn canonical_box_shorthand_combination_input_v0(
         "box-shorthand-combination",
         "prove_box_shorthand_combination",
         vec![
-            smt_require_term_v0("supported-shorthand-property", expected.is_some()),
-            smt_require_term_v0("canonical-longhand-quartet", canonical_order),
-            smt_require_term_v0(
+            smt_ir_computed_requirement_v0("supported-shorthand-property", expected.is_some()),
+            smt_ir_computed_requirement_v0("canonical-longhand-quartet", canonical_order),
+            smt_ir_computed_requirement_v0(
                 "no-important-longhand",
                 longhands.iter().all(|longhand| !longhand.important),
             ),
-            smt_require_term_v0(
+            smt_ir_computed_requirement_v0(
                 "no-empty-longhand-value",
                 longhands.iter().all(|longhand| !longhand.value.is_empty()),
             ),
-            smt_require_term_v0(
+            smt_ir_computed_requirement_v0(
                 "adjacent-source-order",
                 longhands
                     .windows(2)
@@ -608,17 +614,20 @@ where
         "longhand-merge",
         "prove_longhand_merge",
         vec![
-            smt_require_term_v0("supported-merge-family", !expected_longhands.is_empty()),
-            smt_require_term_v0("canonical-longhand-order", canonical_order),
-            smt_require_term_v0(
+            smt_ir_computed_requirement_v0(
+                "supported-merge-family",
+                !expected_longhands.is_empty(),
+            ),
+            smt_ir_computed_requirement_v0("canonical-longhand-order", canonical_order),
+            smt_ir_computed_requirement_v0(
                 "no-important-longhand",
                 longhands.iter().all(|longhand| !longhand.important),
             ),
-            smt_require_term_v0(
+            smt_ir_computed_requirement_v0(
                 "no-empty-longhand-value",
                 longhands.iter().all(|longhand| !longhand.value.is_empty()),
             ),
-            smt_require_term_v0(
+            smt_ir_computed_requirement_v0(
                 "adjacent-source-order",
                 longhands
                     .windows(2)
@@ -634,14 +643,14 @@ fn canonical_scope_flatten_candidate_input_v0(input: &ScopeFlattenInputV0) -> Ca
         "scope-flatten-candidate",
         "prove_scope_flatten_candidate",
         vec![
-            smt_require_term_v0("no-limit-selector", input.limit_selector.is_none()),
-            smt_require_term_v0("root-scope", input.root_selector.trim() == ":root"),
-            smt_require_term_v0("no-peer-scope", input.peer_scope_count == 0),
-            smt_require_term_v0(
+            smt_ir_computed_requirement_v0("no-limit-selector", input.limit_selector.is_none()),
+            smt_ir_computed_requirement_v0("root-scope", input.root_selector.trim() == ":root"),
+            smt_ir_computed_requirement_v0("no-peer-scope", input.peer_scope_count == 0),
+            smt_ir_computed_requirement_v0(
                 "no-competing-unscoped-rule",
                 input.competing_unscoped_rule_count == 0,
             ),
-            smt_require_term_v0("not-inside-layer", !input.inside_layer),
+            smt_ir_computed_requirement_v0("not-inside-layer", !input.inside_layer),
         ],
     )
 }
@@ -651,10 +660,10 @@ fn canonical_layer_flatten_candidate_input_v0(input: &LayerFlattenInputV0) -> Ca
         "layer-flatten-candidate",
         "prove_layer_flatten_candidate",
         vec![
-            smt_require_term_v0("closed-bundle", input.closed_bundle),
-            smt_require_term_v0("no-peer-layer", input.peer_layer_count == 0),
-            smt_require_term_v0("no-unlayered-rule", input.unlayered_rule_count == 0),
-            smt_require_term_v0(
+            smt_producer_pass_through_requirement_v0("closed-bundle", input.closed_bundle),
+            smt_ir_computed_requirement_v0("no-peer-layer", input.peer_layer_count == 0),
+            smt_ir_computed_requirement_v0("no-unlayered-rule", input.unlayered_rule_count == 0),
+            smt_ir_computed_requirement_v0(
                 "no-important-declaration",
                 input.important_declaration_count == 0,
             ),
@@ -667,10 +676,16 @@ fn canonical_static_supports_condition_input_v0(
 ) -> CanonicalSmtInputV0 {
     let canonical_terms = match verdict {
         StaticSupportsEvalVerdictV0::AlwaysTrue => {
-            vec![smt_require_term_v0("supports-condition-known-true", true)]
+            vec![smt_ir_computed_requirement_v0(
+                "supports-condition-known-true",
+                true,
+            )]
         }
         StaticSupportsEvalVerdictV0::AlwaysFalse => {
-            vec![smt_require_term_v0("supports-condition-known-true", false)]
+            vec![smt_ir_computed_requirement_v0(
+                "supports-condition-known-true",
+                false,
+            )]
         }
         StaticSupportsEvalVerdictV0::Unknown => vec!["unknown:supports-condition".to_string()],
     };
@@ -689,20 +704,37 @@ fn canonical_transform_rewrite_candidate_input_v0(
         "verify_transform_rewrite_candidate",
         vec![
             format!("pass:{}", input.pass_id),
-            smt_require_term_v0(
+            smt_producer_pass_through_requirement_v0(
                 "cascade-obligation-declared",
                 input.cascade_obligation_declared,
             ),
-            smt_require_term_v0("provenance-recomputed", input.provenance_recomputed),
-            smt_require_term_v0("provenance-preserved", input.provenance_preserved),
-            smt_require_term_v0("no-bogus-or-trivia", !input.contains_bogus_or_trivia),
-            smt_require_term_v0("stable-post-semantic-ir", input.stable_post_semantic_ir),
+            smt_ir_computed_requirement_v0("provenance-recomputed", input.provenance_recomputed),
+            smt_ir_computed_requirement_v0("provenance-preserved", input.provenance_preserved),
+            smt_ir_computed_requirement_v0("no-bogus-or-trivia", !input.contains_bogus_or_trivia),
+            smt_ir_computed_requirement_v0(
+                "stable-post-semantic-ir",
+                input.stable_post_semantic_ir,
+            ),
         ],
     )
 }
 
 fn smt_require_term_v0(name: &str, value: bool) -> String {
     format!("require:{name}={value}")
+}
+
+/// Record a requirement whose Boolean was recomputed from product IR, source
+/// syntax, or a product evaluator before this canonical input was assembled.
+fn smt_ir_computed_requirement_v0(name: &str, value: bool) -> String {
+    smt_require_term_v0(name, value)
+}
+
+/// Record a requirement copied from a producer-owned declaration or witness.
+///
+/// The default backend only parses this Boolean back out of the string; this
+/// label is disclosure, not additional semantic strength.
+fn smt_producer_pass_through_requirement_v0(name: &str, value: bool) -> String {
+    smt_require_term_v0(name, value)
 }
 
 fn smt_box_shorthand_longhands_v0(shorthand_property: &str) -> Option<[&'static str; 4]> {
@@ -975,6 +1007,49 @@ mod tests {
         } else {
             SmtVerdictV0::Rejected
         }
+    }
+
+    #[test]
+    fn requirement_origin_labels_preserve_wire_and_non_require_terms_are_neutral() {
+        assert_eq!(
+            smt_ir_computed_requirement_v0("from-ir", true),
+            "require:from-ir=true"
+        );
+        assert_eq!(
+            smt_producer_pass_through_requirement_v0("from-producer", false),
+            "require:from-producer=false"
+        );
+
+        let neutral_audit_label = canonical_smt_input_v0(
+            "classification-control",
+            "classification_control",
+            vec![
+                smt_ir_computed_requirement_v0("from-ir", true),
+                "pass:not-a-requirement".to_owned(),
+            ],
+        );
+        let rejected_pass_through = canonical_smt_input_v0(
+            "classification-negative",
+            "classification_control",
+            vec![smt_producer_pass_through_requirement_v0(
+                "from-producer",
+                false,
+            )],
+        );
+        let backend = StubSmtBackendV0::default();
+
+        assert_eq!(
+            backend
+                .check_canonical_input_v0(&neutral_audit_label)
+                .sat_result,
+            SmtBackendSatResultV0::Sat
+        );
+        assert_eq!(
+            backend
+                .check_canonical_input_v0(&rejected_pass_through)
+                .sat_result,
+            SmtBackendSatResultV0::Unsat
+        );
     }
 
     #[test]

@@ -17,11 +17,15 @@ workspace = true
 
 [features]
 default = []
-lawvere-saturation = ["dep:omena-lawvere"]
+transform-catalog-saturation = ["dep:omena-lawvere"]
+# compatibility-owner: omena-transform-egg maintainers
+# compatibility-removal: not before 1.0, and only after downstream migration and audited zero in-repo non-compat uses
+lawvere-saturation = ["transform-catalog-saturation"]
 mdl = []
 
 [dependencies]
 egg.workspace = true
+omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.3.0" }
 omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.3.0" }
 omena-lawvere = { path = "../omena-lawvere", version = "=0.3.0", optional = true }
 omena-parser = { path = "../omena-parser", version = "=0.3.0" }
@@ -31,6 +35,7 @@ serde.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+sha2.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

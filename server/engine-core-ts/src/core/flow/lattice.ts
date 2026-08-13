@@ -4,6 +4,7 @@ import {
   finiteSetClassValue,
   joinClassValues,
   type AbstractClassValue,
+  type Utf16CodeUnitLength,
 } from "../abstract-value/class-value-domain";
 import type { EdgeCertainty } from "../semantic/certainty";
 
@@ -90,7 +91,7 @@ function sameAbstractValue(left: AbstractClassValue, right: AbstractClassValue):
     return (
       left.prefix === right.prefix &&
       left.suffix === right.suffix &&
-      left.minLength === right.minLength
+      sameUtf16CodeUnitLength(left.minLength, right.minLength)
     );
   }
   if (left.kind === "charInclusion" && right.kind === "charInclusion") {
@@ -104,7 +105,7 @@ function sameAbstractValue(left: AbstractClassValue, right: AbstractClassValue):
     return (
       left.prefix === right.prefix &&
       left.suffix === right.suffix &&
-      left.minLength === right.minLength &&
+      sameOptionalUtf16CodeUnitLength(left.minLength, right.minLength) &&
       left.mustChars === right.mustChars &&
       left.mayChars === right.mayChars &&
       Boolean(left.mayIncludeOtherChars) === Boolean(right.mayIncludeOtherChars)
@@ -116,4 +117,15 @@ function sameAbstractValue(left: AbstractClassValue, right: AbstractClassValue):
       : false;
   }
   return false;
+}
+
+function sameUtf16CodeUnitLength(left: Utf16CodeUnitLength, right: Utf16CodeUnitLength): boolean {
+  return left === right;
+}
+
+function sameOptionalUtf16CodeUnitLength(
+  left: Utf16CodeUnitLength | undefined,
+  right: Utf16CodeUnitLength | undefined,
+): boolean {
+  return left === right;
 }

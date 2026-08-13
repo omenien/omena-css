@@ -6,6 +6,14 @@ use crate::{
     summarize_omena_query_evaluation_runtime,
 };
 
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy categorical endpoint fixture owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_categorical_endpoint_id_v0() -> &'static str {
+    "rust/omena-categorical/verify-site-stability"
+}
+
 #[test]
 fn read_cascade_at_position_is_query_owned() {
     let source = ":root { --surface: white; }\n:root { --surface: black; }\n.button { color: var(--surface); }\n";
@@ -28,7 +36,8 @@ fn read_cascade_at_position_is_query_owned() {
     assert_eq!(cascade.cascade_engine, "omena-cascade");
     assert_eq!(cascade.reference_name.as_deref(), Some("--surface"));
     assert_eq!(cascade.winner_declaration_source_order, Some(1));
-    assert_eq!(cascade.winner_declaration_layer_rank, Some(1));
+    // Unlayered ranks are opaque ordering tokens, not layer-count magnitudes.
+    assert_eq!(cascade.winner_declaration_layer_rank, Some(i32::MAX));
     assert_eq!(cascade.candidate_declaration_count, 2);
     assert_eq!(cascade.shadowed_declaration_source_orders, vec![0]);
     assert_eq!(
@@ -181,6 +190,7 @@ fn read_cascade_at_position_analysis_result_carries_revision_aligned_precision()
 }
 
 #[test]
+#[allow(deprecated)]
 fn read_cascade_at_position_can_attach_categorical_evidence_when_requested() {
     let source = ":root { --surface: white; }\n.button { color: var(--surface); }\n";
     let cascade = read_omena_query_cascade_at_position_with_categorical_evidence(
@@ -220,7 +230,7 @@ fn read_cascade_at_position_can_attach_categorical_evidence_when_requested() {
         evidence
             .endpoints
             .iter()
-            .any(|endpoint| endpoint.endpoint_id == "rust/omena-categorical/verify-site-stability")
+            .any(|endpoint| endpoint.endpoint_id == compatibility_categorical_endpoint_id_v0())
     );
 
     // The attached functor application is the real verdict over this cascade's
@@ -335,7 +345,8 @@ fn read_cascade_at_position_uses_layer_ranked_lfp_winner() {
     assert_eq!(cascade.status, "resolved");
     assert_eq!(cascade.reference_name.as_deref(), Some("--surface"));
     assert_eq!(cascade.winner_declaration_source_order, Some(0));
-    assert_eq!(cascade.winner_declaration_layer_rank, Some(2));
+    // Unlayered ranks are opaque ordering tokens, not layer-count magnitudes.
+    assert_eq!(cascade.winner_declaration_layer_rank, Some(i32::MAX));
     assert_eq!(
         cascade
             .reference_custom_property_fixed_point_value

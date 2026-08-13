@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cascade.layer-rank-construction-census",
+  "sourceRoot": "rust/crates/omena-cascade/src",
+  "publicSurfaceAuthority": "rust/published-crate-surface-register",
+  "partitions": [
+    {
+      "id": "declaration-shape",
+      "expectedCount": 1,
+      "reason": "The public tuple type has one private scalar field; construction remains module-owned."
+    },
+    {
+      "id": "normalizer-body",
+      "expectedCount": 4,
+      "reason": "The four exhaustive importance and layer-presence arms are the only production constructors."
+    },
+    {
+      "id": "fixture-builder",
+      "expectedCount": 0,
+      "reason": "Fixtures currently consume the public normalizer and need no raw-rank construction exemption."
+    },
+    {
+      "id": "unclassified",
+      "expectedCount": 0,
+      "reason": "No unclassified direct construction is accepted."
+    }
+  ],
+  "summary": {
+    "occurrenceCount": 5,
+    "declarationShapeCount": 1,
+    "normalizerBodyCount": 4,
+    "fixtureBuilderCount": 0,
+    "unclassifiedCount": 0
+  },
+  "rows": [
+    {
+      "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+      "occurrenceOrdinal": 1,
+      "partition": "declaration-shape",
+      "source": "pub struct LayerRank(i32);",
+      "reason": "The exact declaration pins a public type with a private scalar field."
+    },
+    {
+      "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+      "occurrenceOrdinal": 2,
+      "partition": "normalizer-body",
+      "source": "(false, Some(ordinal)) => LayerRank(ordinal.get()),",
+      "reason": "This tuple construction belongs to an exhaustive normalization match arm."
+    },
+    {
+      "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+      "occurrenceOrdinal": 3,
+      "partition": "normalizer-body",
+      "source": "(false, None) => LayerRank(i32::MAX),",
+      "reason": "This tuple construction belongs to an exhaustive normalization match arm."
+    },
+    {
+      "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+      "occurrenceOrdinal": 4,
+      "partition": "normalizer-body",
+      "source": "(true, Some(ordinal)) => LayerRank(-ordinal.get()),",
+      "reason": "This tuple construction belongs to an exhaustive normalization match arm."
+    },
+    {
+      "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+      "occurrenceOrdinal": 5,
+      "partition": "normalizer-body",
+      "source": "(true, None) => LayerRank(i32::MIN),",
+      "reason": "This tuple construction belongs to an exhaustive normalization match arm."
+    }
+  ],
+  "limitations": [
+    "This census covers direct LayerRank tuple syntax inside omena-cascade; Rust field privacy is the cross-crate construction fence.",
+    "The published-crate surface register compares the generated public API with the committed snapshot and rejects additional public rank constructors."
+  ]
+}

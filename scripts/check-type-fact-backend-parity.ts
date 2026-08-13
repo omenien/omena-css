@@ -47,6 +47,26 @@ const parityFixtures = [
     expectedFacts: { kind: "finiteSet", values: ["button-primary", "button-secondary"] },
   },
   {
+    fixture: "non-ascii-exact-span",
+    workspaceRoot: path.join(
+      repoRoot,
+      "test/_fixtures/type-fact-backend-parity/non-ascii-exact-span",
+    ),
+    sourceFilePaths: [
+      path.join(
+        repoRoot,
+        "test/_fixtures/type-fact-backend-parity/non-ascii-exact-span/src/App.ts",
+      ),
+    ],
+    styleFilePaths: [
+      path.join(
+        repoRoot,
+        "test/_fixtures/type-fact-backend-parity/non-ascii-exact-span/src/App.module.scss",
+      ),
+    ],
+    expectedFacts: { kind: "finiteSet", values: ["card-large", "card-small"] },
+  },
+  {
     fixture: "composite",
     workspaceRoot: path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/composite"),
     sourceFilePaths: [
@@ -85,7 +105,10 @@ void (async () => {
       };
     }),
   );
-  const exactSpanParity = await verifyExactSpanTypeFactParity();
+  const exactSpanParity = {
+    ascii: await verifyExactSpanTypeFactParity(),
+    nonAscii: await verifyNonAsciiExactSpanTypeFactParity(),
+  };
   const reasonVocabulary = auditExactSpanReasonVocabulary();
 
   process.stdout.write(
@@ -208,6 +231,105 @@ async function verifyExactSpanTypeFactParity(): Promise<Readonly<Record<string, 
       admittedDeltaClasses,
       admittedDeltas,
       oversizedUnion,
+    };
+  } finally {
+    await snapshot?.dispose();
+    await api.close();
+  }
+}
+
+async function verifyNonAsciiExactSpanTypeFactParity(): Promise<Readonly<Record<string, unknown>>> {
+  const workspaceRoot = path.join(
+    repoRoot,
+    "test/_fixtures/type-fact-backend-parity/non-ascii-exact-span",
+  );
+  const configPath = path.join(workspaceRoot, "tsconfig.json");
+  const filePath = path.join(workspaceRoot, "src/App.ts");
+  const source = readFileSync(filePath, "utf8");
+  const target = spanTarget(source, filePath, "non-ascii-exact", "tone");
+  const utf8ByteTarget = {
+    ...target,
+    expressionId: "utf8-byte-offsets",
+    startPosition: Buffer.byteLength(source.slice(0, target.startPosition), "utf8"),
+    endPosition: Buffer.byteLength(source.slice(0, target.endPosition), "utf8"),
+  };
+  assert.notDeepEqual(
+    [utf8ByteTarget.startPosition, utf8ByteTarget.endPosition],
+    [target.startPosition, target.endPosition],
+    "non-ASCII exact-span fixture must distinguish UTF-16 positions from UTF-8 byte offsets",
+  );
+
+  const api = new API(buildTsgoTypeFactApiOptions(workspaceRoot));
+  let snapshot: Awaited<ReturnType<API["updateSnapshot"]>> | undefined;
+  try {
+    snapshot = await api.updateSnapshot({ openProject: configPath });
+    const project = await snapshot.getDefaultProjectForFile(filePath);
+    assert(project, `non-ASCII exact-span fixture has no tsgo project: ${filePath}`);
+
+    const nodeResult = normalizeExactSpanResult(await resolveTsgoSpanTypeFact(project, target));
+    const nodeUtf8ByteResult = normalizeExactSpanResult(
+      await resolveTsgoSpanTypeFact(project, utf8ByteTarget),
+    );
+    const [rustResult, rustUtf8ByteResult] = captureRustExactSpanTypeFacts(
+      workspaceRoot,
+      configPath,
+      [target, utf8ByteTarget],
+    ).map(normalizeExactSpanResult);
+    assert(rustResult);
+    assert(rustUtf8ByteResult);
+
+    assert.deepEqual(
+      rustResult,
+      nodeResult,
+      "Node API and Rust JSON-RPC non-ASCII exact-span backends must agree",
+    );
+    const expectedExactFiniteDomain = {
+      expressionId: "non-ascii-exact",
+      outcome: "resolved",
+      reason: "exactFiniteDomain",
+      spanExact: true,
+      nonNullishMemberCount: 2,
+      resolvedMemberCount: 2,
+      resolvedType: { kind: "union", values: ["card-large", "card-small"] },
+    } as const;
+    assert.notEqual(
+      nodeResult.outcome,
+      "refused",
+      "non-ASCII exact-span target must not be accepted as backend parity by silently refusing",
+    );
+    assert.deepEqual(nodeResult, expectedExactFiniteDomain);
+
+    const expectedUtf8ByteRefusal = {
+      expressionId: "utf8-byte-offsets",
+      outcome: "refused",
+      reason: "nodeSpanMismatch",
+      spanExact: false,
+      nonNullishMemberCount: 0,
+      resolvedMemberCount: 0,
+      resolvedType: { kind: "unresolvable", values: [] },
+    } as const;
+    assert.deepEqual(nodeUtf8ByteResult, expectedUtf8ByteRefusal);
+    assert.deepEqual(rustUtf8ByteResult, expectedUtf8ByteRefusal);
+    assert.notEqual(nodeUtf8ByteResult.reason, nodeResult.reason);
+    assert.notEqual(rustUtf8ByteResult.reason, rustResult.reason);
+
+    return {
+      utf16Positions: {
+        start: target.startPosition,
+        end: target.endPosition,
+      },
+      utf8ByteOffsets: {
+        start: utf8ByteTarget.startPosition,
+        end: utf8ByteTarget.endPosition,
+      },
+      expectedExactFiniteDomain,
+      nodeResult,
+      rustResult,
+      utf8ByteOffsetProbe: {
+        expected: expectedUtf8ByteRefusal,
+        nodeResult: nodeUtf8ByteResult,
+        rustResult: rustUtf8ByteResult,
+      },
     };
   } finally {
     await snapshot?.dispose();
@@ -414,6 +536,11 @@ function auditExactSpanReasonVocabulary(): Readonly<Record<string, unknown>> {
     nodeEmitted.every((reason) => declared.includes(reason)),
     "Node emitted undeclared reason",
   );
+  assert.equal(
+    nodeEmitted.length,
+    5,
+    "Node exact-span reason-site census drifted; inspect the producer-body extractor and update the contract deliberately",
+  );
   assert.deepEqual(
     [...new Set([...rustEmitted, ...nodeEmitted])].sort(),
     declared,
@@ -446,7 +573,19 @@ function extractRustFunctionSource(source: string, name: string): string {
 function extractFunctionBody(source: string, signature: string): string {
   const signatureIndex = source.indexOf(signature);
   assert(signatureIndex >= 0, `missing function ${signature}`);
-  const open = source.indexOf("{", signatureIndex);
+  const parameterOpen = source.indexOf("(", signatureIndex + signature.length);
+  assert(parameterOpen >= 0, `missing parameter list ${signature}`);
+  const parameterClose = matchingDelimiter(source, parameterOpen, "(", ")");
+  let angleDepth = 0;
+  let open = -1;
+  for (let index = parameterClose + 1; index < source.length; index += 1) {
+    if (source[index] === "<") angleDepth += 1;
+    if (source[index] === ">") angleDepth -= 1;
+    if (source[index] === "{" && angleDepth === 0) {
+      open = index;
+      break;
+    }
+  }
   assert(open >= 0, `missing function body ${signature}`);
   let depth = 0;
   for (let index = open; index < source.length; index += 1) {
@@ -457,6 +596,23 @@ function extractFunctionBody(source: string, signature: string): string {
     }
   }
   throw new Error(`unterminated function body ${signature}`);
+}
+
+function matchingDelimiter(
+  source: string,
+  open: number,
+  openCharacter: string,
+  closeCharacter: string,
+): number {
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === openCharacter) depth += 1;
+    if (source[index] === closeCharacter) {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error(`unterminated ${openCharacter}${closeCharacter} pair`);
 }
 
 function spanTarget(source: string, filePath: string, expressionId: string, needle: string) {

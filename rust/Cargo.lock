@@ -1315,6 +1315,7 @@ dependencies = [
 name = "engine-style-parser"
 version = "0.3.0"
 dependencies = [
+ "omena-syntax",
  "serde",
  "serde_json",
 ]
@@ -2450,9 +2451,11 @@ dependencies = [
 name = "omena-abstract-value"
 version = "0.3.0"
 dependencies = [
+ "omena-cascade",
  "omena-evidence-graph",
  "omena-incremental",
  "omena-spec-audit",
+ "omena-syntax",
  "omena-value-lattice",
  "serde",
  "serde_json",
@@ -2490,6 +2493,7 @@ dependencies = [
  "omena-resolver",
  "omena-semantic",
  "omena-sif",
+ "omena-syntax",
  "oxc_allocator",
  "oxc_ast",
  "oxc_ast_visit",
@@ -2520,6 +2524,7 @@ version = "0.3.0"
 dependencies = [
  "omena-refinement-trait",
  "omena-syntax",
+ "proptest",
  "serde",
  "serde_json",
 ]
@@ -2543,6 +2548,8 @@ version = "0.3.0"
 dependencies = [
  "omena-cascade",
  "serde",
+ "serde_json",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -2556,6 +2563,8 @@ dependencies = [
  "omena-resolver",
  "omena-smt",
  "serde",
+ "serde_json",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -2588,6 +2597,8 @@ version = "0.3.0"
 dependencies = [
  "omena-abstract-value",
  "serde",
+ "serde_json",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -2624,9 +2635,12 @@ dependencies = [
  "omena-transform-cst",
  "omena-transform-passes",
  "omena-value-lattice",
+ "proc-macro2",
+ "quote",
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "syn 2.0.117",
  "toml",
 ]
 
@@ -2645,6 +2659,7 @@ version = "0.3.0"
 dependencies = [
  "omena-cascade",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2680,6 +2695,7 @@ dependencies = [
 name = "omena-lawvere"
 version = "0.3.0"
 dependencies = [
+ "omena-cascade-proof",
  "omena-evidence-graph",
  "omena-transform-cst",
  "serde",
@@ -2690,12 +2706,14 @@ dependencies = [
 name = "omena-lsp-server"
 version = "0.3.0"
 dependencies = [
+ "clap",
  "omena-cascade",
  "omena-incremental",
  "omena-query",
  "omena-reactive",
  "omena-sif",
  "omena-streaming-ifds",
+ "omena-syntax",
  "omena-testkit",
  "omena-tsgo-client",
  "rayon",
@@ -2737,12 +2755,14 @@ version = "0.3.0"
 dependencies = [
  "omena-cascade",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
 name = "omena-query"
 version = "0.3.0"
 dependencies = [
+ "base64",
  "omena-bridge",
  "omena-cascade",
  "omena-cross-file-summary",
@@ -2760,6 +2780,7 @@ dependencies = [
  "salsa",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -2770,6 +2791,7 @@ dependencies = [
  "omena-checker",
  "omena-product-hints",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2800,6 +2822,7 @@ dependencies = [
  "omena-transform-print",
  "omena-transform-target",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2852,6 +2875,8 @@ version = "0.3.0"
 dependencies = [
  "omena-cascade",
  "serde",
+ "serde_json",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -2970,6 +2995,7 @@ name = "omena-transform-egg"
 version = "0.3.0"
 dependencies = [
  "egg",
+ "omena-cascade-proof",
  "omena-evidence-graph",
  "omena-lawvere",
  "omena-parser",
@@ -2977,6 +3003,7 @@ dependencies = [
  "omena-transform-passes",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -3090,6 +3117,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-cascade",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

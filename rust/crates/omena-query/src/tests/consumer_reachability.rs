@@ -5,15 +5,17 @@ use crate::{
     OmenaQueryExplainFactValueV0, OmenaQueryExplainInputV0, OmenaQueryExplainSymbolKindV0,
     OmenaQueryModuleReachabilityAttributionReportV0, OmenaQueryStyleResolutionInputsV0,
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, PositionV2, RangeV2, SourceAnalysisInputV2,
-    SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
-    TypeFactEntryV2, derive_omena_query_module_reachability_from_engine_input,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformStrictPolicyReasonV0, PositionV2,
+    RangeV2, SourceAnalysisInputV2, SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2,
+    StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
+    derive_omena_query_module_reachability_from_engine_input,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context, explain_omena_query,
     explain_omena_query_tree_shake_for_module,
+    run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options,
     run_omena_query_bundle_with_module_reachability_and_options,
     summarize_omena_query_expression_domain_selector_projection_with_precision,
 };
@@ -549,25 +551,29 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     let passes = vec!["tree-shake-class".to_string()];
     let context = OmenaQueryTransformExecutionContextV0::default();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
-    let result = run_omena_query_bundle_with_module_reachability_and_options(
-        OmenaQueryBundlePlanInputV0 {
-            target_style_path: entry_path,
-            style_sources: &style_sources,
-            source_map_sources: &style_sources,
-            requested_pass_ids: &passes,
-            context: &context,
-            resolution_inputs: &resolution_inputs,
-            asset_rewrites: Vec::new(),
-            bundle_entry_style_paths: &[],
-        },
-        &[],
-        &OmenaQueryConsumerBuildOptionsV0 {
-            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
-            ..OmenaQueryConsumerBuildOptionsV0::default()
-        },
-        &reachability,
-    )?;
-    let report = result.reachability_attribution();
+    let result =
+        run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options(
+            OmenaQueryBundlePlanInputV0 {
+                target_style_path: entry_path,
+                style_sources: &style_sources,
+                source_map_sources: &style_sources,
+                requested_pass_ids: &passes,
+                context: &context,
+                resolution_inputs: &resolution_inputs,
+                asset_rewrites: Vec::new(),
+                bundle_entry_style_paths: &[],
+            },
+            &[],
+            &OmenaQueryConsumerBuildOptionsV0 {
+                bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+                ..OmenaQueryConsumerBuildOptionsV0::default()
+            },
+            &reachability,
+        )?;
+    let report = result
+        .reachability_attribution
+        .as_ref()
+        .ok_or_else(|| "module-attributed run should retain reachability evidence".to_string())?;
     assert_eq!(report.projection_summary_evaluation_count(), 1);
     assert_eq!(
         report.projected_class_names(),
@@ -578,7 +584,7 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     assert!(report.unmatched_target_style_paths().is_empty());
 
     let bundle = result
-        .bundle_result()
+        .bundle_result
         .closed_world_outcome
         .bundle()
         .ok_or_else(|| "module-attributed bundle should close".to_string())?;
@@ -608,7 +614,7 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
         bundle.reachability().class_names(),
         &["dependency-own".to_string(), "shared".to_string()]
     );
-    let output_css = &result.bundle_result().artifact.output_css;
+    let output_css = &result.bundle_result.artifact.output_css;
     let flat_explanation = explain_omena_query(OmenaQueryExplainInputV0::TreeShake {
         bundle,
         symbol_kind: OmenaQueryExplainSymbolKindV0::Class,
@@ -634,17 +640,14 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     );
     assert_eq!(dependency_shared.reachable(), Some(false));
     assert!(dependency_shared.flat_reachable());
-    assert!(dependency_shared.emission_guard_retained());
+    assert!(!dependency_shared.emission_guard_retained());
     assert_eq!(
         dependency_shared.ownership_digest(),
         bundle.module_qualified_ownership_digest()
     );
     assert_eq!(
         dependency_shared.provenance_labels(),
-        &[
-            "moduleQualifiedOwnershipObserved",
-            "emissionTokenCollisionGuardApplied"
-        ]
+        &["moduleQualifiedOwnershipObserved"]
     );
     assert!(output_css.contains("padding: 8px"));
 
@@ -657,8 +660,40 @@ fn module_reachability_preserves_projection_union_without_flattening_ownership()
     assert_eq!(dependency_owned.reachable(), Some(true));
     assert!(!dependency_owned.emission_guard_retained());
     assert!(output_css.contains("color: blue"));
-    assert!(!output_css.contains("color: tan"));
-    assert!(!output_css.contains("color: gray"));
+    assert!(output_css.contains("color: tan"));
+    assert!(output_css.contains("color: gray"));
+
+    let execution_scope = result
+        .execution_scope
+        .as_ref()
+        .ok_or_else(|| "linked-order run should retain bundle execution evidence".to_string())?;
+    assert_eq!(
+        execution_scope
+            .bundle_execution
+            .aggregate_closed_world_refusal_count,
+        2
+    );
+    for module_execution in &execution_scope.bundle_execution.module_executions {
+        assert!(matches!(
+            module_execution
+                .execution
+                .closed_world_admission
+                .refusal_reasons
+                .as_slice(),
+            [event]
+                if event.module_instance.as_ref() == Some(&module_execution.module_instance)
+                    && matches!(
+                        event.reasons.as_slice(),
+                        [OmenaQueryTransformStrictPolicyReasonV0::OwnershipNotSeparable {
+                            token,
+                            module_paths,
+                        }] if token == "shared" && module_paths == &[
+                            dependency_path.to_string(),
+                            entry_path.to_string(),
+                        ]
+                    )
+        ));
+    }
 
     let unknown = explain_omena_query_tree_shake_for_module(
         bundle,
@@ -922,6 +957,31 @@ fn production_attribution_domains_assign_every_admitted_name() -> Result<(), Str
 }
 
 #[test]
+fn equivalent_class_spellings_have_one_attribution_identity() {
+    let style_path = "src/entry.module.css";
+    let input = module_reachability_input(
+        &[("entry-ref", style_path, "card")],
+        &[(style_path, r#".c\61 rd {}"#, &[r#"c\61 rd"#])],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, style_path, true);
+    let flat_class_names =
+        reachability.flat_class_names_for_style_paths([style_path], &["card".to_string()]);
+    let report = OmenaQueryModuleReachabilityAttributionReportV0::from_style_paths(
+        &reachability,
+        [style_path],
+        flat_class_names.as_slice(),
+    );
+
+    assert!(report.lost_class_names().is_empty());
+    assert_eq!(report.attributed_class_names().len(), 1);
+    assert!(
+        omena_syntax::ident::ClassNameV0::new(&report.attributed_class_names()[0])
+            .same_as(&omena_syntax::ident::ClassNameV0::new("card"))
+    );
+}
+
+#[test]
 fn ambiguous_build_path_keeps_every_matching_owner_in_the_attribution_domain() {
     let first_style_path = "/workspace/first/Button.module.css";
     let second_style_path = "/workspace/second/Button.module.css";
@@ -1059,6 +1119,77 @@ fn composes_closure_is_partitioned_to_the_declaring_module() -> Result<(), Strin
     assert!(output_css.contains("padding: 2px"));
     assert!(output_css.contains("color: blue"));
     assert!(!output_css.contains("color: gray"));
+    Ok(())
+}
+
+#[test]
+fn composes_closure_survives_equivalent_engine_and_build_path_forms() -> Result<(), String> {
+    let engine_entry_path = "/workspace/src/entry.module.css";
+    let engine_base_path = "/workspace/src/base.module.css";
+    let build_entry_path = "src/entry.module.css";
+    let build_base_path = "src/base.module.css";
+    let entry_source = "@import \"./base.module.css\"; \
+        .card { composes: base from \"./base.module.css\"; color: red; }";
+    let base_source =
+        ".base { padding: 2px; } .base-live { color: blue; } .base-dead { color: gray; }";
+    let input = module_reachability_input(
+        &[
+            ("entry-card", engine_entry_path, "card"),
+            ("base-live", engine_base_path, "base-live"),
+        ],
+        &[
+            (engine_entry_path, entry_source, &["card"]),
+            (
+                engine_base_path,
+                base_source,
+                &["base", "base-live", "base-dead"],
+            ),
+        ],
+    );
+    let reachability =
+        derive_omena_query_module_reachability_from_engine_input(&input, build_entry_path, true);
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: build_entry_path.to_string(),
+            style_source: entry_source.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: build_base_path.to_string(),
+            style_source: base_source.to_string(),
+        },
+    ];
+    let result = run_omena_query_bundle_with_module_reachability_and_options(
+        OmenaQueryBundlePlanInputV0 {
+            target_style_path: build_entry_path,
+            style_sources: &style_sources,
+            source_map_sources: &style_sources,
+            requested_pass_ids: &["tree-shake-class".to_string()],
+            context: &OmenaQueryTransformExecutionContextV0::default(),
+            resolution_inputs: &OmenaQueryStyleResolutionInputsV0::default(),
+            asset_rewrites: Vec::new(),
+            bundle_entry_style_paths: &[],
+        },
+        &[],
+        &OmenaQueryConsumerBuildOptionsV0 {
+            bundle_emission_path: OmenaQueryBundleEmissionPathV0::LinkedOrder,
+            ..OmenaQueryConsumerBuildOptionsV0::default()
+        },
+        &reachability,
+    )?;
+
+    assert!(
+        result
+            .bundle_result()
+            .artifact
+            .output_css
+            .contains("padding: 2px")
+    );
+    assert!(
+        result
+            .reachability_attribution()
+            .unmatched_target_style_paths()
+            .is_empty()
+    );
     Ok(())
 }
 

@@ -7,6 +7,29 @@ use serde::{Deserialize, Serialize};
 
 pub const MAX_FINITE_CLASS_VALUES: usize = 8;
 pub const MAX_STRING_AUTOMATON_STATES: usize = 64;
+/// Bounds candidate entries before normalization and accepted-language width before enumeration
+/// or automaton build.
+///
+/// The wall is the 64-state automaton budget times the eight-value finite-set budget: at most
+/// eight accepted strings per state that may survive the existing post-build state cap. Compact
+/// acyclic automata that accept more than 512 strings are deliberately widened to `Top`; a raw
+/// candidate list with more than 512 entries is also widened so duplicates cannot make
+/// normalization unbounded.
+pub const MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY: usize =
+    MAX_STRING_AUTOMATON_STATES * MAX_FINITE_CLASS_VALUES;
+/// Bounds UTF-8 string payload materialized before normalization or automaton build.
+///
+/// The 4 KiB wall is the square of the 64-state automaton budget: one state-cap-sized byte
+/// allowance for every state that may survive the post-build cap. This keeps trie construction
+/// and Cartesian concatenation bounded before allocation, and bounds hand-constructed automata
+/// before validation by both transition count and cumulative transition-symbol UTF-8 bytes. Every
+/// well-formed transition carries one Unicode scalar (at least one byte); the count check also
+/// bounds malformed empty-symbol vectors before their contents are validated. Exact and finite
+/// values with at most eight raw candidates retain their existing precision; automaton-branch
+/// inputs, automaton representations, and products above the wall are deliberately widened to
+/// `Top`.
+pub const MAX_STRING_AUTOMATON_MATERIALIZED_BYTES: usize =
+    MAX_STRING_AUTOMATON_STATES * MAX_STRING_AUTOMATON_STATES;
 pub const MAX_FLOW_ANALYSIS_ITERATIONS: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -129,7 +152,7 @@ pub struct ReducedClassValueProductIterationStepV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BeliefPropagationMessageV0 {
+pub struct ReducedProductConstraintMessageV0 {
     pub iteration: usize,
     pub from_factor: &'static str,
     pub to_variable: &'static str,
@@ -143,7 +166,81 @@ pub struct BeliefPropagationMessageV0 {
 /// V0 algorithm-view substrate over the reduced-product class-value iterator.
 ///
 /// This records compatibility evidence for the current message-passing view; it
-/// is not a belief-propagation paper result or mechanism-completeness claim.
+/// is not a probabilistic factor-graph result or mechanism-completeness claim.
+pub struct ReducedProductConstraintPropagationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub algorithm_view: &'static str,
+    pub substrate: &'static str,
+    pub equation_system: &'static str,
+    pub input_count: usize,
+    pub message_count: usize,
+    pub iteration_count: usize,
+    pub converged: bool,
+    pub monotone_witness_valid: bool,
+    pub fixed_point_reached: bool,
+    pub messages: Vec<ReducedProductConstraintMessageV0>,
+    pub source_iteration: ReducedClassValueProductIterationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedProductConstraintGraphV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub algorithm_view: &'static str,
+    pub substrate: &'static str,
+    pub variable_count: usize,
+    pub factor_count: usize,
+    pub edge_count: usize,
+    pub converged: bool,
+    pub monotone_witness_valid: bool,
+    pub variables: Vec<ReducedProductConstraintVariableV0>,
+    pub factors: Vec<ReducedProductConstraintFactorV0>,
+    pub messages: Vec<ReducedProductConstraintMessageV0>,
+    pub source_iteration: ReducedClassValueProductIterationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedProductConstraintVariableV0 {
+    pub variable_id: &'static str,
+    pub axis: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedProductConstraintFactorV0 {
+    pub factor_id: String,
+    pub input_value_kind: &'static str,
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BeliefPropagationMessageV0 {
+    pub iteration: usize,
+    pub from_factor: &'static str,
+    pub to_variable: &'static str,
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+    pub monotone_with_previous: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BeliefPropagationIterationV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -160,6 +257,11 @@ pub struct BeliefPropagationIterationV0 {
     pub source_iteration: ReducedClassValueProductIterationV0,
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BeliefPropagationDomainGraphV0 {
@@ -180,6 +282,10 @@ pub struct BeliefPropagationDomainGraphV0 {
     pub source_iteration: ReducedClassValueProductIterationV0,
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BeliefPropagationDomainVariableV0 {
@@ -187,6 +293,10 @@ pub struct BeliefPropagationDomainVariableV0 {
     pub axis: &'static str,
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BeliefPropagationDomainFactorV0 {
@@ -544,6 +654,8 @@ pub enum AbstractClassValueProvenanceV0 {
     JoinUnrepresentable,
     ConcatenationUnrepresentable,
     ReducedProductUnconstrained,
+    AutomatonLanguageCardinalityLimit,
+    AutomatonMaterializedByteLimit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -604,7 +716,8 @@ impl LinearProvenancePathV0 {
 /// V0 freeze-candidate provenance contract over the existing label vector.
 ///
 /// The shape is a strict-superset bridge for staged query provenance evidence;
-/// it does not declare Cargo 1.0 API finality or a completed QTT/sheaf model.
+/// it does not declare Cargo 1.0 API finality or a completed context-indexed
+/// aggregation model.
 pub struct LinearProvenanceV0<K: ProvenanceSemiringV0> {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -849,6 +962,12 @@ pub struct CompositeClassValueInputV0 {
     pub provenance: Option<AbstractClassValueProvenanceV0>,
 }
 
+/// A JavaScript-compatible string length measured in UTF-16 code units.
+pub type Utf16CodeUnitLengthV0 = usize;
+
+/// An internal Rust string length measured in UTF-8 bytes.
+pub type Utf8ByteLengthV0 = usize;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalStringTypeFactsV0 {
     pub kind: String,
@@ -856,8 +975,8 @@ pub struct ExternalStringTypeFactsV0 {
     pub values: Option<Vec<String>>,
     pub prefix: Option<String>,
     pub suffix: Option<String>,
-    pub min_len: Option<usize>,
-    pub max_len: Option<usize>,
+    pub min_len: Option<Utf16CodeUnitLengthV0>,
+    pub max_len: Option<Utf16CodeUnitLengthV0>,
     pub char_must: Option<String>,
     pub char_may: Option<String>,
     pub may_include_other_chars: Option<bool>,
@@ -887,7 +1006,17 @@ pub struct ClassValueControlFlowBlockV0 {
 pub struct ClassValueFlowNodeV0 {
     pub id: String,
     pub predecessors: Vec<String>,
+    pub boundary_effect: ClassBoundaryEffectV0,
     pub transfer: ClassValueFlowTransferV0,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClassBoundaryEffectV0 {
+    ConcatInsideToken,
+    ConcatAtTokenBoundary,
+    #[default]
+    UnknownBoundary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1068,6 +1197,7 @@ pub struct OneCfaCallSiteDerivationStepV0 {
 pub struct ClassValueFlowNodeResultV0 {
     pub id: String,
     pub predecessor_ids: Vec<String>,
+    pub boundary_effect: ClassBoundaryEffectV0,
     pub transfer_kind: &'static str,
     pub value_kind: &'static str,
     pub value: AbstractClassValueV0,

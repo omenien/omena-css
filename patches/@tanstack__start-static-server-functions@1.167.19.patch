@@ -1,0 +1,51 @@
+diff --git a/dist/esm/staticFunctionMiddleware.js b/dist/esm/staticFunctionMiddleware.js
+--- a/dist/esm/staticFunctionMiddleware.js
++++ b/dist/esm/staticFunctionMiddleware.js
+@@ -27,3 +27,9 @@
+-var getStaticCacheUrl = async (opts) => {
+-	return `/__tsr/staticServerFnCache/${await sha1Hash(`${opts.functionId}__${opts.hash}`)}.json`;
+-};
++var getStaticCachePath = async (opts) => {
++	return `/__tsr/staticServerFnCache/${await sha1Hash(`${opts.functionId}__${opts.hash}`)}.json`;
++};
++var getStaticCacheUrl = async (opts) => {
++	const cachePath = await getStaticCachePath(opts);
++	const routerBasePath = process.env.TSS_ROUTER_BASEPATH;
++	if (!routerBasePath || routerBasePath === "/") return cachePath;
++	return `/${routerBasePath.replace(/^\/+|\/+$/g, "")}${cachePath}`;
++};
+@@ -40 +46 @@
+-		const url = await getStaticCacheUrl({
++		const url = await getStaticCachePath({
+diff --git a/src/staticFunctionMiddleware.ts b/src/staticFunctionMiddleware.ts
+--- a/src/staticFunctionMiddleware.ts
++++ b/src/staticFunctionMiddleware.ts
+@@ -43,7 +43,18 @@
+-const getStaticCacheUrl = async (opts: {
+-  functionId: string
+-  hash: string
+-}) => {
+-  const filename = await sha1Hash(`${opts.functionId}__${opts.hash}`)
+-  return `/__tsr/staticServerFnCache/${filename}.json`
+-}
++const getStaticCachePath = async (opts: {
++  functionId: string
++  hash: string
++}) => {
++  const filename = await sha1Hash(`${opts.functionId}__${opts.hash}`)
++  return `/__tsr/staticServerFnCache/${filename}.json`
++}
++
++const getStaticCacheUrl = async (opts: {
++  functionId: string
++  hash: string
++}) => {
++  const cachePath = await getStaticCachePath(opts)
++  const routerBasePath = process.env.TSS_ROUTER_BASEPATH
++  if (!routerBasePath || routerBasePath === '/') return cachePath
++  const normalizedBasePath = `/${routerBasePath.replace(/^\/+|\/+$/g, '')}`
++  return `${normalizedBasePath}${cachePath}`
++}
+@@ -86 +97 @@
+-    const url = await getStaticCacheUrl({ functionId, hash })
++    const url = await getStaticCachePath({ functionId, hash })

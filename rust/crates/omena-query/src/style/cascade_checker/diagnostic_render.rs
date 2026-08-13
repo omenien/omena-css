@@ -49,6 +49,7 @@ pub(super) fn query_cascade_checker_diagnostic_tags(code: &'static str) -> Vec<u
 pub(super) fn summarize_query_cascade_narrowing_for_evaluation(
     evaluation: &OmenaCheckerCascadeEvaluationV0,
     declarations: &[OmenaCheckerCascadeDeclarationInputV0],
+    topology_incomplete_unresolved_count: Option<usize>,
 ) -> Option<OmenaQueryCascadeNarrowingEvidenceV0> {
     let anchor_id = evaluation.declaration_ids.first()?;
     let anchor = declarations
@@ -109,6 +110,10 @@ pub(super) fn summarize_query_cascade_narrowing_for_evaluation(
             .collect(),
         element_class_iteration,
         property_value_narrowing,
-        runtime_state: summarize_query_runtime_state_for_evaluation(evaluation, declarations),
+        runtime_state: summarize_query_runtime_state_for_evaluation(
+            evaluation,
+            declarations,
+            topology_incomplete_unresolved_count,
+        ),
     })
 }

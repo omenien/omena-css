@@ -12,7 +12,6 @@ use crate::{
     LspQueryReadView, collect_source_selector_reference_candidates, document_has_style_index,
     occurrence_mapping::{
         source_selector_occurrence_from_workspace_occurrence_for_lsp,
-        style_symbol_occurrence_from_workspace_occurrence_for_lsp,
         workspace_occurrence_from_source_selector_occurrence_for_lsp,
         workspace_occurrence_kind_from_source_reference_kind_for_lsp,
     },
@@ -23,7 +22,6 @@ use crate::{
         LspSourceSelectorOccurrenceDocumentKey, LspTextDocumentState,
         LspWorkspaceOccurrenceIndexMemo,
     },
-    store_source_selector_occurrence_sidecar, store_style_symbol_occurrence_sidecar,
     style_selector_definitions_from_open_documents,
     style_symbol_workspace_occurrences_for_document,
     workspace_occurrence_cache::{
@@ -147,25 +145,6 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         ],
     };
     let index = Arc::new(index);
-    store_source_selector_occurrence_sidecar(
-        state,
-        workspace_folder_uri,
-        source_document_keys.as_slice(),
-        definitions.as_slice(),
-        &index,
-    );
-    let style_occurrences = workspace_index
-        .by_moniker
-        .values()
-        .flat_map(|occurrences| occurrences.iter())
-        .filter_map(style_symbol_occurrence_from_workspace_occurrence_for_lsp)
-        .collect::<Vec<_>>();
-    store_style_symbol_occurrence_sidecar(
-        state,
-        workspace_folder_uri,
-        style_document_keys.as_slice(),
-        style_occurrences.as_slice(),
-    );
     *state.workspace_occurrence_index_memo_lock() = Some(LspWorkspaceOccurrenceIndexMemo {
         workspace_folder_uri: memo_workspace_folder_uri,
         environment_digest,
@@ -223,6 +202,7 @@ fn source_selector_workspace_occurrences_for_document(
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
     if let Some(shard) = load_workspace_occurrence_shard(
+        &state.query_resolution().cache_storage,
         document.workspace_folder_uri.as_deref(),
         document.uri.as_str(),
         document.language_id.as_str(),
@@ -272,6 +252,7 @@ fn source_selector_workspace_occurrences_for_document(
     occurrences.sort();
     occurrences.dedup();
     store_workspace_occurrence_shard(
+        &state.query_resolution().cache_storage,
         document.workspace_folder_uri.as_deref(),
         document.uri.as_str(),
         document.language_id.as_str(),

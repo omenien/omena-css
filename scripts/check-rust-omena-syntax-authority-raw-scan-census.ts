@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
 
 type SiteDisposition = "migration-target" | "named-exempt";
 
@@ -60,6 +61,13 @@ interface RawScanCensus {
   readonly currentNamedExemptSiteCount: number;
   readonly sites: readonly RawScanSite[];
   readonly siteDigest: string;
+  readonly classSelectorScanner: {
+    readonly policy: "decrease-only";
+    readonly baselineSiteCount: number;
+    readonly currentSiteCount: number;
+    readonly sites: readonly RawScanSite[];
+    readonly siteDigest: string;
+  };
   readonly moduleInterfaceLessScanner: {
     readonly policy: "single-named-seam";
     readonly path: "rust/crates/omena-sif/src/generator.rs";
@@ -110,6 +118,11 @@ interface ProductPathMatrix {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const censusPath = path.join(repoRoot, "rust/omena-syntax-authority-raw-scan-census.json");
 const writeMode = process.argv.includes("--write");
+const acceptNewlyVisibleSites = process.argv.includes("--accept-newly-visible-sites");
+assert.ok(
+  !acceptNewlyVisibleSites || writeMode,
+  "--accept-newly-visible-sites is valid only while writing a reviewed baseline",
+);
 const injectRawScan = process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_RAW_SCAN === "1";
 const injectTokenCaseComparison =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_TOKEN_CASE_COMPARE === "1";
@@ -119,6 +132,8 @@ const injectNamedTokenCaseExemptionDrift =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_TOKEN_CASE_EXEMPTION_DRIFT === "1";
 const injectModuleInterfaceLessScannerCall =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_LESS_SCANNER_CALL === "1";
+const injectClassSelectorScanner =
+  process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_CLASS_SCANNER === "1";
 
 const sourceRoots = ["rust/crates"] as const;
 const productPathMatrix = JSON.parse(
@@ -181,6 +196,17 @@ const patterns: readonly IdiomPattern[] = [
   },
 ] as const;
 
+const classSelectorScannerPatterns: readonly IdiomPattern[] = [
+  {
+    id: "class-dot-byte-walk",
+    expression: /\bbytes\s*\[[^\]\n]+\]\s*(?:==|!=)\s*b'\.'/gu,
+  },
+  {
+    id: "char-identifier-reader",
+    expression: /\bfn\s+read_identifier\s*\(\s*chars\s*:\s*&\s*\[\s*char\s*\]/gu,
+  },
+] as const;
+
 const namedTokenCaseOperationRules: readonly NamedTokenCaseOperationRule[] = [
   {
     path: "rust/crates/omena-parser/src/extension.rs",
@@ -214,15 +240,22 @@ const namedTokenCaseOperationRules: readonly NamedTokenCaseOperationRule[] = [
 
 const existing = readExistingCensus();
 const sites = scanRawSyntaxSites();
+const classSelectorScannerSites = scanClassSelectorScannerSites();
 const tokenCaseOperations = scanTokenCaseOperations();
 const moduleInterfaceLessScanner = scanModuleInterfaceLessScanner();
 const tokenCaseComparisonSites = tokenCaseOperations.adHocSites;
 const currentNamedExemptSiteCount = sites.filter(
   (site) => site.disposition === "named-exempt",
 ).length;
-const baselineSiteCount = existing?.baselineSiteCount ?? sites.length;
-const baselineNamedExemptSiteCount =
-  existing?.baselineNamedExemptSiteCount ?? currentNamedExemptSiteCount;
+const baselineSiteCount = acceptNewlyVisibleSites
+  ? sites.length
+  : (existing?.baselineSiteCount ?? sites.length);
+const baselineNamedExemptSiteCount = acceptNewlyVisibleSites
+  ? currentNamedExemptSiteCount
+  : (existing?.baselineNamedExemptSiteCount ?? currentNamedExemptSiteCount);
+const baselineClassSelectorScannerSiteCount = acceptNewlyVisibleSites
+  ? classSelectorScannerSites.length
+  : (existing?.classSelectorScanner?.baselineSiteCount ?? classSelectorScannerSites.length);
 
 assert.ok(sites.length > 0, "raw syntax scan census must be non-vacuous");
 assert.ok(
@@ -237,13 +270,21 @@ assert.ok(
   currentNamedExemptSiteCount <= baselineNamedExemptSiteCount,
   `named-exempt raw syntax scan count increased: baseline=${baselineNamedExemptSiteCount} current=${currentNamedExemptSiteCount}`,
 );
+assert.ok(
+  classSelectorScannerSites.length > 0,
+  "class selector scanner census must remain non-vacuous",
+);
+assert.ok(
+  classSelectorScannerSites.length <= baselineClassSelectorScannerSiteCount,
+  `class selector scanner count increased: baseline=${baselineClassSelectorScannerSiteCount} current=${classSelectorScannerSites.length}`,
+);
 assert.deepEqual(
   tokenCaseComparisonSites,
   [],
   "parser syntax-token case comparisons must route through matches_ignore_ascii_case",
 );
 
-if (existing && writeMode) {
+if (existing && writeMode && !acceptNewlyVisibleSites) {
   const previousKeys = new Set(existing.sites.map(stableSiteKey));
   const addedSites = sites.filter((site) => !previousKeys.has(stableSiteKey(site)));
   assert.deepEqual(
@@ -251,6 +292,19 @@ if (existing && writeMode) {
     [],
     "the decrease-only census cannot adopt new raw syntax scan sites during regeneration",
   );
+  if (existing.classSelectorScanner !== undefined) {
+    const previousClassScannerKeys = new Set(
+      existing.classSelectorScanner.sites.map(stableSiteKey),
+    );
+    const addedClassScannerSites = classSelectorScannerSites.filter(
+      (site) => !previousClassScannerKeys.has(stableSiteKey(site)),
+    );
+    assert.deepEqual(
+      addedClassScannerSites,
+      [],
+      "the decrease-only census cannot adopt new class selector scanner sites during regeneration",
+    );
+  }
 }
 
 const census: RawScanCensus = {
@@ -271,6 +325,15 @@ const census: RawScanCensus = {
   currentNamedExemptSiteCount,
   sites,
   siteDigest: `sha256:${createHash("sha256").update(JSON.stringify(sites)).digest("hex")}`,
+  classSelectorScanner: {
+    policy: "decrease-only",
+    baselineSiteCount: baselineClassSelectorScannerSiteCount,
+    currentSiteCount: classSelectorScannerSites.length,
+    sites: classSelectorScannerSites,
+    siteDigest: `sha256:${createHash("sha256")
+      .update(JSON.stringify(classSelectorScannerSites))
+      .digest("hex")}`,
+  },
   moduleInterfaceLessScanner,
   tokenCaseComparison: {
     policy: "helper-only",
@@ -289,7 +352,8 @@ if (writeMode) {
       !injectTokenCaseComparison &&
       !injectLexerCaseComparison &&
       !injectNamedTokenCaseExemptionDrift &&
-      !injectModuleInterfaceLessScannerCall,
+      !injectModuleInterfaceLessScannerCall &&
+      !injectClassSelectorScanner,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -323,6 +387,8 @@ process.stdout.write(
       migrationTargetSiteCount: sites.length - currentNamedExemptSiteCount,
       namedExemptSiteCount: currentNamedExemptSiteCount,
       siteDigest: census.siteDigest,
+      classSelectorScannerSiteCount: census.classSelectorScanner.currentSiteCount,
+      classSelectorScannerSiteDigest: census.classSelectorScanner.siteDigest,
       moduleInterfaceLessScannerCallCount: census.moduleInterfaceLessScanner.directCallCount,
       direction: census.policy.direction,
       enforced: census.policy.enforced,
@@ -383,6 +449,20 @@ function readExistingCensus(): RawScanCensus | undefined {
       "committed module-interface Less scanner seam",
     );
   }
+  if (parsed.classSelectorScanner !== undefined) {
+    assert.equal(
+      parsed.classSelectorScanner.currentSiteCount,
+      parsed.classSelectorScanner.sites.length,
+      "committed class selector scanner site count",
+    );
+    assert.equal(
+      parsed.classSelectorScanner.siteDigest,
+      `sha256:${createHash("sha256")
+        .update(JSON.stringify(parsed.classSelectorScanner.sites))
+        .digest("hex")}`,
+      "committed class selector scanner site digest",
+    );
+  }
   return parsed;
 }
 
@@ -394,7 +474,7 @@ function scanModuleInterfaceLessScanner(): RawScanCensus["moduleInterfaceLessSca
       "fn injected_less_scanner_call(source: &str) { let _ = split_legacy_less_statements(source); }\n" +
       source;
   }
-  const scannable = maskCommentsAndTestTail(source);
+  const scannable = maskCommentsAndTestItems(source);
   const directCallFunctions = [...scannable.matchAll(/\bsplit_legacy_less_statements\s*\(/gu)]
     .filter((match) => {
       const line = source.split(/\r?\n/u)[lineNumberAt(source, match.index) - 1]?.trim() ?? "";
@@ -467,7 +547,7 @@ function scanTokenCaseOperations(): {
         "let duplicate = text.to_ascii_lowercase(); let lowered = duplicate.to_ascii_lowercase();",
       );
     }
-    const scannable = maskCommentsAndTestTail(source);
+    const scannable = maskCommentsAndTestItems(source);
     for (const match of scannable.matchAll(caseOperation)) {
       const line = lineNumberAt(source, match.index);
       const operation = match[1] as TokenCaseOperation;
@@ -534,7 +614,7 @@ function scanRawSyntaxSites(): RawScanSite[] {
     if (injectRawScan && relativePath === "rust/crates/omena-parser/src/facts/mod.rs") {
       source = `fn injected_raw_scan(source: &str) { let _ = source.find('{'); }\n${source}`;
     }
-    const scannable = maskCommentsAndTestTail(source);
+    const scannable = maskCommentsAndTestItems(source);
     const occupied = new Set<string>();
 
     for (const pattern of patterns) {
@@ -593,6 +673,44 @@ function scanRawSyntaxSites(): RawScanSite[] {
     }
   }
   return sites;
+}
+
+function scanClassSelectorScannerSites(): RawScanSite[] {
+  const found: RawScanSite[] = [];
+  for (const relativePath of trackedRawSyntaxSources()) {
+    let source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+    if (
+      injectClassSelectorScanner &&
+      relativePath === "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs"
+    ) {
+      source =
+        "fn injected_class_scanner(bytes: &[u8], index: usize) -> bool { bytes[index] == b'.' }\n" +
+        source;
+    }
+    const scannable = maskCommentsAndTestItems(source);
+    for (const pattern of classSelectorScannerPatterns) {
+      pattern.expression.lastIndex = 0;
+      for (const match of scannable.matchAll(pattern.expression)) {
+        const line = lineNumberAt(source, match.index);
+        const classification = classify(relativePath);
+        found.push({
+          path: relativePath,
+          line,
+          idiom: pattern.id,
+          family: classification.family,
+          disposition: classification.disposition,
+          evidence: source.split(/\r?\n/u)[line - 1]?.trim().replace(/\s+/gu, " ") ?? "",
+          ...(classification.reason ? { reason: classification.reason } : {}),
+        });
+      }
+    }
+  }
+  return found.toSorted(
+    (left, right) =>
+      left.path.localeCompare(right.path) ||
+      left.line - right.line ||
+      left.idiom.localeCompare(right.idiom),
+  );
 }
 
 function trackedRustSources(pathspec: string): string[] {
@@ -716,7 +834,7 @@ function classify(relativePath: string): {
   };
 }
 
-function maskCommentsAndTestTail(source: string): string {
+function maskCommentsAndTestItems(source: string): string {
   const chars = [...source];
   let inBlockComment = 0;
   let inLineComment = false;
@@ -774,14 +892,7 @@ function maskCommentsAndTestTail(source: string): string {
     }
   }
 
-  let masked = chars.join("");
-  const testModule = masked.match(/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*mod\s+[A-Za-z0-9_]+\s*\{/u);
-  if (testModule?.index !== undefined) {
-    masked = `${masked.slice(0, testModule.index)}${masked
-      .slice(testModule.index)
-      .replace(/[^\n]/gu, " ")}`;
-  }
-  return masked;
+  return maskRustCfgTestItems(chars.join(""));
 }
 
 function lineNumberAt(source: string, offset: number): number {

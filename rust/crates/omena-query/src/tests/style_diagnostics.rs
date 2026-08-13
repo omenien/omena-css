@@ -1,4 +1,5 @@
 #![allow(clippy::expect_used)]
+#![allow(deprecated)]
 use crate::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorReferenceFactV0,
@@ -142,6 +143,291 @@ fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_jso
             .contains(&"checkerProductDiagnosticGate")
     );
     Ok(())
+}
+
+#[test]
+fn statement_layer_order_controls_the_winner_and_dead_layer_anchor() {
+    // Reversion witness: replace the semantic layer ordinal with declaration encounter order.
+    let source = r#"
+@layer overrides, base;
+@layer base {
+  .target { color: red; }
+}
+@layer overrides {
+  .target { color: blue; }
+}
+"#;
+    let outcomes = crate::summarize_omena_query_cascade_section_outcomes_from_source(source);
+    let outcome = outcomes
+        .iter()
+        .filter(|outcome| outcome.selector == ".target" && outcome.property == "color")
+        .collect::<Vec<_>>();
+    // For normal declarations, the later declared layer `base` outranks `overrides`.
+    assert_eq!(outcome.len(), 1);
+    assert!(outcome.iter().all(|outcome| outcome.winning_value == "red"));
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/test.css",
+        source,
+        &[],
+    );
+    let dead_layer = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .collect::<Vec<_>>();
+    assert_eq!(dead_layer.len(), 1);
+    let runtime_state = dead_layer[0]
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("statement-order diagnostic should carry runtime state");
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
+    assert!(
+        dead_layer
+            .iter()
+            .all(|diagnostic| diagnostic.range.start.line == 6)
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "unspecifiedCascadeTie")
+    );
+}
+
+#[test]
+fn nested_layer_paths_do_not_collapse_into_a_source_order_tie() {
+    // Reversion witness: replace canonical nested bindings with the local layer name.
+    let source = r#"
+@layer b {
+  .target { color: blue; }
+}
+@layer a {
+  @layer b {
+    .target { color: purple; }
+  }
+}
+"#;
+    let outcomes = crate::summarize_omena_query_cascade_section_outcomes_from_source(source);
+    let outcome = outcomes
+        .iter()
+        .filter(|outcome| outcome.selector == ".target" && outcome.property == "color")
+        .collect::<Vec<_>>();
+    // The nested `a.b` layer is a distinct later layer and therefore wins.
+    assert_eq!(outcome.len(), 1);
+    assert!(
+        outcome
+            .iter()
+            .all(|outcome| outcome.winning_value == "purple")
+    );
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/test.css",
+        source,
+        &[],
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "unspecifiedCascadeTie")
+    );
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("nested-layer diagnostic should carry runtime state");
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
+}
+
+#[test]
+fn important_statement_layer_order_is_reversed_on_both_cascade_planes() {
+    // Reversion witness: normalize important layers without reversing their ordinal.
+    assert_important_layer_order_is_reversed(
+        r#"
+@layer base, overrides;
+@layer base { .target { color: red !important; } }
+@layer overrides { .target { color: blue !important; } }
+"#,
+    );
+}
+
+#[test]
+fn important_block_layer_order_is_reversed_on_both_cascade_planes() {
+    // Reversion witness: normalize important layers without reversing their ordinal.
+    assert_important_layer_order_is_reversed(
+        r#"
+@layer base { .target { color: red !important; } }
+@layer overrides { .target { color: blue !important; } }
+"#,
+    );
+}
+
+fn assert_important_layer_order_is_reversed(source: &str) {
+    let outcomes = crate::summarize_omena_query_cascade_section_outcomes_from_source(source);
+    assert_eq!(outcomes.len(), 1);
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/important-layers.css",
+        source,
+        &[],
+    );
+    let diagnostic = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .expect("important layered declarations should expose the losing layer");
+    let runtime_state = diagnostic
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("important layered diagnostic should carry runtime state");
+    let runtime_winner = runtime_state.scenarios[0]
+        .winner_value
+        .as_deref()
+        .expect("important layered runtime state should select a winner");
+    assert_eq!(
+        outcomes[0].winning_value, runtime_winner,
+        "replica and runtime cascade planes must agree"
+    );
+    assert_eq!(outcomes[0].winning_value, "red");
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
+    assert_eq!(
+        diagnostic
+            .cascade_confidence
+            .as_ref()
+            .map(|confidence| confidence.dominant_axis),
+        Some("layerRank")
+    );
+}
+
+#[test]
+fn unlayered_normal_declaration_outranks_layered_normal_declaration() {
+    // Reversion witness: normalize an unlayered normal declaration to rank zero.
+    let source = r#"
+.target { color: blue; }
+@layer base { .target { color: red; } }
+"#;
+    let outcomes = crate::summarize_omena_query_cascade_section_outcomes_from_source(source);
+    assert_eq!(outcomes.len(), 1);
+    assert_eq!(outcomes[0].winning_value, "blue");
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/unlayered-normal.css",
+        source,
+        &[],
+    );
+    let diagnostic = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .expect("layered declaration should be reported as the losing layer");
+    let runtime_state = diagnostic
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("layered diagnostic should carry runtime state");
+    assert_eq!(
+        runtime_state.scenarios[0].winner_value.as_deref(),
+        Some("blue")
+    );
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
+    assert_eq!(
+        diagnostic
+            .cascade_confidence
+            .as_ref()
+            .map(|confidence| confidence.dominant_axis),
+        Some("layerRank")
+    );
+}
+
+#[test]
+fn ordinary_named_layer_order_remains_a_green_control() {
+    let source = r#"
+@layer base { .target { color: red; } }
+@layer overrides { .target { color: blue; } }
+"#;
+    let outcomes = crate::summarize_omena_query_cascade_section_outcomes_from_source(source);
+    assert_eq!(outcomes.len(), 1);
+    assert_eq!(outcomes[0].winning_value, "blue");
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/normal-layer-control.css",
+        source,
+        &[],
+    );
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("normal-layer control should carry runtime state");
+    assert_eq!(
+        runtime_state.scenarios[0].winner_value.as_deref(),
+        Some("blue")
+    );
+    assert_eq!(runtime_state.result_certainty(), "staticDefinite");
+}
+
+#[test]
+fn incomplete_layer_topology_is_typed_and_never_static_definite() {
+    assert_incomplete_layer_topology(
+        r#"
+@layer stable { .target { color: red; } }
+@layer { .target { color: blue; } }
+"#,
+    );
+}
+
+#[test]
+fn anonymous_only_layer_topology_is_never_static_definite() {
+    for source in [
+        r#"
+@layer { .target { color: red; } }
+.target { color: blue; }
+"#,
+        r#"
+@layer { .target { color: red !important; } }
+.target { color: blue !important; }
+"#,
+    ] {
+        assert_incomplete_layer_topology(source);
+    }
+}
+
+fn assert_incomplete_layer_topology(source: &str) {
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///tmp/incomplete-layers.css",
+        source,
+        &[],
+    );
+
+    assert!(diagnostics.diagnostics.iter().all(|diagnostic| !matches!(
+        diagnostic.code,
+        "deadCascadeLayer" | "unspecifiedCascadeTie"
+    )));
+    let diagnostic = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .expect("conservative unlayered evaluation should retain actionable diagnostics");
+    let runtime_state = diagnostic
+        .cascade_narrowing
+        .as_ref()
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .expect("incomplete topology should be disclosed with the runtime result");
+    assert_eq!(runtime_state.confidence_tier, "staticDefinite");
+    assert_eq!(runtime_state.result_certainty(), "staticIndeterminate");
+    assert_eq!(
+        runtime_state
+            .cascade_layer_topology_incomplete()
+            .map(|reason| reason.unresolved_count),
+        Some(1)
+    );
 }
 
 #[test]
@@ -594,11 +880,9 @@ export function App() {
         runtime_state
             .driver_summaries
             .iter()
-            .any(
-                |driver| driver.driver == "inlineStyleHighestSpecificityTier"
-                    && driver.status == "sourceFactsJoined"
-                    && driver.scenario_count == 1
-            )
+            .any(|driver| driver.driver == "inlineStyleCascadeJoin"
+                && driver.status == "sourceFactsJoined"
+                && driver.scenario_count == 1)
     );
     assert!(runtime_state.scenarios.iter().any(|scenario| {
         scenario.pseudo_state.as_deref() == Some("hover")
@@ -623,7 +907,10 @@ export function App() {
     );
     assert!(runtime_state.scenarios.iter().any(|scenario| {
         scenario.scenario_kind == "inlineStyleOverride"
-            && scenario.winner_declaration_id.as_deref() == Some("inline-style-author-tier")
+            && scenario
+                .winner_declaration_id
+                .as_deref()
+                .is_some_and(|id| id.starts_with("inline-style:"))
             && scenario.winner_value.as_deref() == Some("\"rebeccapurple\"")
     }));
     assert!(
@@ -632,6 +919,120 @@ export function App() {
             .static_value_assuming_no_runtime_override
     );
     assert!(!runtime_state.static_boundary.tracks_class_list_mutation);
+    Ok(())
+}
+
+#[test]
+fn workspace_inline_override_joins_the_author_cascade_before_selecting_a_winner()
+-> Result<(), &'static str> {
+    let target_style_path = "file:///workspace/src/App.module.css";
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: target_style_path.to_string(),
+        style_source: ".btn { color: black; color: red !important; }".to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "file:///workspace/src/App.tsx".to_string(),
+        source_source: r#"import styles from "./App.module.css";
+export function App() {
+  return <button className={styles.btn} style={{ color: "blue" }} />;
+}"#
+        .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_style_path,
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .ok_or("runtime state scenario evidence")?;
+    let inline_scenario = runtime_state
+        .scenarios
+        .iter()
+        .find(|scenario| scenario.scenario_kind == "inlineStyleOverride")
+        .ok_or("joined inline scenario")?;
+
+    assert_eq!(runtime_state.result_certainty(), "conditionalDefinite");
+    assert_eq!(inline_scenario.winner_value.as_deref(), Some("red"));
+    assert!(
+        inline_scenario
+            .declaration_ids
+            .iter()
+            .any(|id| id.starts_with("inline-style:"))
+    );
+    assert!(
+        inline_scenario
+            .declaration_ids
+            .iter()
+            .any(|id| id.starts_with("decl-"))
+    );
+    Ok(())
+}
+
+#[test]
+fn workspace_inline_important_suffix_fact_stays_observational() -> Result<(), &'static str> {
+    let target_style_path = "file:///workspace/src/App.module.css";
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: target_style_path.to_string(),
+        style_source: ".btn { color: black; color: red; }".to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "file:///workspace/src/App.tsx".to_string(),
+        source_source: r#"import styles from "./App.module.css";
+export function App() {
+  return <button className={styles.btn} style={{ color: "blue !important" }} />;
+}"#
+        .to_string(),
+        source_syntax_index: None,
+        has_unresolved_style_import: false,
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_style_path,
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let runtime_state = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+        .and_then(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+        .and_then(|narrowing| narrowing.runtime_state.as_ref())
+        .ok_or("runtime state scenario evidence")?;
+    let inline_scenario = runtime_state
+        .scenarios
+        .iter()
+        .find(|scenario| scenario.scenario_kind == "inlineStyleOverride")
+        .ok_or("joined inline scenario")?;
+
+    assert_eq!(inline_scenario.winner_value.as_deref(), Some("red"));
+    assert!(
+        inline_scenario
+            .winner_declaration_id
+            .as_deref()
+            .is_some_and(|id| id.starts_with("decl-"))
+    );
+    assert!(
+        inline_scenario
+            .declaration_ids
+            .iter()
+            .all(|id| !id.starts_with("inline-style:"))
+    );
+    assert_eq!(runtime_state.inline_style_overrides.len(), 1);
+    assert!(runtime_state.inline_style_overrides[0].important_suffix_present());
     Ok(())
 }
 
@@ -1092,14 +1493,15 @@ fn cascade_aware_lints_carry_variational_designer_intent_evidence() -> Result<()
 }
 
 #[test]
-fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), &'static str> {
+fn cascade_aware_lints_carry_multiscale_complexity_heuristic_coupling_spectrum_evidence()
+-> Result<(), &'static str> {
     // Divergent stylesheet: the custom-property reference graph has a cycle
     // (--a -> --b -> --a), so the extracted coupling space grows its k_cycle
     // coordinate between the before/after RG step. The real
     // estimate_coupling_jacobian_spectrum_v0 linearization drives the spectral
-    // radius above one and the rg-flow theory gate fires.
+    // radius above one and the multiscale-complexity-heuristic theory gate fires.
     //
-    // WP7-b (#38): the rg-flow hint is an opt-in deep-analysis diagnostic and is
+    // WP7-b (#38): the multiscale-complexity-heuristic hint is an opt-in deep-analysis diagnostic and is
     // deduplicated against the product `circularVar` warning. On the DEFAULT
     // surface the hint is off entirely; with deep-analysis ON it is folded into
     // the `circularVar` diagnostic's provenance instead of triple-firing.
@@ -1113,7 +1515,7 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
         crate::summarize_omena_query_style_hover_candidates("Tokens.module.css", divergent)
             .ok_or("divergent candidates")?;
 
-    // Default surface: the rg-flow theory hint must NOT appear.
+    // Default surface: the multiscale-complexity-heuristic theory hint must NOT appear.
     let default_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
         "file:///workspace/src/Tokens.module.css",
         divergent,
@@ -1123,12 +1525,15 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
         default_diagnostics
             .diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code != "rgFlowRelevantOperator"),
-        "rg-flow hint must be off on the default surface"
+            .all(|diagnostic| {
+                diagnostic.code
+                    != crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
+            }),
+        "multiscale-complexity-heuristic hint must be off on the default surface"
     );
 
     // Deep-analysis surface: the hint is deduplicated into `circularVar`, so no
-    // standalone `rgFlowRelevantOperator` diagnostic surfaces, but its provenance
+    // standalone compatibility diagnostic surfaces, but its provenance
     // is folded into the surviving `circularVar` warning.
     let deep_diagnostics =
         crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
@@ -1141,8 +1546,11 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
         deep_diagnostics
             .diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code != "rgFlowRelevantOperator"),
-        "rg-flow hint must be deduplicated against circularVar under deep analysis"
+            .all(|diagnostic| {
+                diagnostic.code
+                    != crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
+            }),
+        "multiscale-complexity-heuristic hint must be deduplicated against circularVar under deep analysis"
     );
     let circular_var = deep_diagnostics
         .diagnostics
@@ -1153,14 +1561,14 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
         circular_var
             .provenance
             .contains(&"omena-rg-flow.coupling-jacobian-spectrum"),
-        "rg-flow coupling-spectrum provenance should be folded into circularVar: {:?}",
+        "multiscale-complexity-heuristic coupling-spectrum provenance should be folded into circularVar: {:?}",
         circular_var.provenance
     );
     assert!(
-        circular_var
-            .provenance
-            .contains(&"omena-query-checker-orchestrator.rg-flow-gate"),
-        "rg-flow gate provenance should be folded into circularVar: {:?}",
+        circular_var.provenance.contains(
+            &crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0[0],
+        ),
+        "multiscale-complexity-heuristic gate provenance should be folded into circularVar: {:?}",
         circular_var.provenance
     );
 
@@ -1185,17 +1593,16 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
             settled_candidates.candidates.as_slice(),
             true,
         );
-    assert!(
-        settled_diagnostics
-            .diagnostics
-            .iter()
-            .all(|diagnostic| diagnostic.code != "rgFlowRelevantOperator")
-    );
+    assert!(settled_diagnostics.diagnostics.iter().all(|diagnostic| {
+        diagnostic.code
+            != crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
+    }));
     Ok(())
 }
 
 #[test]
-fn cascade_aware_lints_surface_standalone_rg_flow_for_acyclic_high_gain_hub() {
+fn cascade_aware_lints_surface_standalone_multiscale_complexity_heuristic_for_acyclic_high_gain_hub()
+ {
     let high_gain = r#"
 :root {
   --seed: 1px;
@@ -1218,8 +1625,11 @@ fn cascade_aware_lints_surface_standalone_rg_flow_for_acyclic_high_gain_hub() {
         default_diagnostics
             .diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code != "rgFlowRelevantOperator"),
-        "rg-flow hint must stay off on the default surface"
+            .all(|diagnostic| {
+                diagnostic.code
+                    != crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
+            }),
+        "multiscale-complexity-heuristic hint must stay off on the default surface"
     );
 
     let deep_diagnostics =
@@ -1229,36 +1639,41 @@ fn cascade_aware_lints_surface_standalone_rg_flow_for_acyclic_high_gain_hub() {
             candidates.candidates.as_slice(),
             true,
         );
-    let rg_flow = deep_diagnostics
+    let multiscale_complexity_heuristic = deep_diagnostics
         .diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.code == "rgFlowRelevantOperator")
-        .expect("acyclic high-gain hub should surface a standalone rg-flow hint");
+        .find(|diagnostic| {
+            diagnostic.code
+                == crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
+        })
+        .expect("acyclic high-gain hub should surface a standalone multiscale-complexity-heuristic hint");
     assert!(
         deep_diagnostics
             .diagnostics
             .iter()
             .all(|diagnostic| diagnostic.code != "circularVar"),
-        "standalone rg-flow hint must not depend on circularVar"
+        "standalone multiscale-complexity-heuristic hint must not depend on circularVar"
     );
     assert!(
-        rg_flow
+        multiscale_complexity_heuristic
             .provenance
             .contains(&"omena-rg-flow.coupling-jacobian-spectrum"),
-        "rg-flow coupling-spectrum provenance should be carried: {:?}",
-        rg_flow.provenance
+        "multiscale-complexity-heuristic coupling-spectrum provenance should be carried: {:?}",
+        multiscale_complexity_heuristic.provenance
     );
     assert!(
-        rg_flow.message.contains("opt-in deep-analysis hint"),
-        "rg-flow product message must name the opt-in surface: {}",
-        rg_flow.message
+        multiscale_complexity_heuristic
+            .message
+            .contains("opt-in deep-analysis hint"),
+        "multiscale-complexity-heuristic product message must name the opt-in surface: {}",
+        multiscale_complexity_heuristic.message
     );
     assert!(
-        rg_flow
+        multiscale_complexity_heuristic
             .message
             .contains("not a default product decision mechanism"),
-        "rg-flow product message must not overclaim default decision status: {}",
-        rg_flow.message
+        "multiscale-complexity-heuristic product message must not overclaim default decision status: {}",
+        multiscale_complexity_heuristic.message
     );
 }
 
@@ -1459,7 +1874,10 @@ fn lab_backed_style_diagnostics_keep_serialized_contract() -> Result<(), &'stati
         rg_diagnostics
             .diagnostics
             .iter()
-            .filter(|diagnostic| diagnostic.code == "rgFlowRelevantOperator")
+            .filter(|diagnostic| {
+                diagnostic.code
+                    == crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0
+            })
             .map(|diagnostic| {
                 serde_json::json!({
                     "code": diagnostic.code,
@@ -1548,9 +1966,25 @@ fn lab_backed_style_diagnostics_keep_serialized_contract() -> Result<(), &'stati
     let expected = concat!(
         r#"[{"code":"designerIntentInconsistency","severity":"hint","message":"Variational designer-intent posterior classifies this selector as BEM, but the declarations rely on source order as the final tie-breaker.","provenance":["omena-query-checker-orchestrator.cascade-gate","omena-checker.cascade-rules","omena-query.cascade-checker","omena-variational.designer-intent-posterior","omena-query.cascade-narrowing","omena-abstract-value.property-value-narrowing","omena-abstract-value.reduced-product-iteration","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
         r#",{"code":"cascadeSmtViolation","severity":"warning","message":"Box-shorthand combination proof obligation is unsatisfiable: these longhands cannot be safely combined into the shorthand without changing the cascade outcome.","provenance":["omena-query-checker-orchestrator.smt-gate","omena-checker.smt-rules","omena-query.cascade-checker","omena-smt.backend-check","omena-smt.backend.stub","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
-        r#",{"code":"rgFlowRelevantOperator","severity":"hint","message":"RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.","provenance":["omena-query-checker-orchestrator.rg-flow-gate","omena-checker.rg-flow-rules","omena-query.cascade-checker","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
-        r#",{"code":"circularVar","severity":"warning","message":"Custom property dependency graph contains a cycle.","provenance":["omena-query-checker-orchestrator.cascade-gate","omena-checker.cascade-rules","omena-query.cascade-checker","omena-query-checker-orchestrator.rg-flow-gate","omena-checker.rg-flow-rules","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.categorical-gate","omena-checker.categorical-rules","omena-categorical.cascade-primitive-role-functor","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
+        r#",{"code":"__MULTISCALE_COMPAT_CODE__","severity":"hint","message":"__MULTISCALE_COMPAT_MESSAGE__","provenance":["__MULTISCALE_COMPAT_GATE__","__MULTISCALE_COMPAT_RULES__","omena-query.cascade-checker","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
+        r#",{"code":"circularVar","severity":"warning","message":"Custom property dependency graph contains a cycle.","provenance":["omena-query-checker-orchestrator.cascade-gate","omena-checker.cascade-rules","omena-query.cascade-checker","__MULTISCALE_COMPAT_GATE__","__MULTISCALE_COMPAT_RULES__","omena-rg-flow.coupling-jacobian-spectrum","omena-query-checker-orchestrator.categorical-gate","omena-checker.categorical-rules","omena-categorical.cascade-primitive-role-functor","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}"#,
         r#",{"code":"replicaEnsembleInconsistency","severity":"hint","message":"Replica-ensemble cross-file consistency hint found inconsistent cascade outcomes; this is not a default product decision mechanism.","provenance":["omena-query-checker-orchestrator.replica-ensemble-gate","omena-checker.replica-ensemble-rules","omena-ensemble.cross-file-inconsistency-report","omena-query.cross-file-replica-ensemble","omena-ensemble.cross-file-inconsistency-report","omena-query-checker-orchestrator.product-diagnostic-gate","omena-checker.rule-registry"]}]"#,
+    )
+    .replace(
+        "__MULTISCALE_COMPAT_CODE__",
+        crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0,
+    )
+    .replace(
+        "__MULTISCALE_COMPAT_MESSAGE__",
+        crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_MESSAGE_V0,
+    )
+    .replace(
+        "__MULTISCALE_COMPAT_GATE__",
+        crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0[0],
+    )
+    .replace(
+        "__MULTISCALE_COMPAT_RULES__",
+        crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0[1],
     )
     .replace(
         "omena-smt.backend.stub",
@@ -4356,7 +4790,7 @@ fn style_diagnostics_for_workspace_file_flag_sass_use_cycle() -> Result<(), &'st
     Ok(())
 }
 
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 #[test]
 fn style_diagnostics_for_workspace_file_flags_unified_cross_file_composes_cycle()
 -> Result<(), &'static str> {

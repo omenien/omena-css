@@ -2,16 +2,18 @@ use omena_query_transform_runner::{
     NATIVE_CSS_STATIC_EVAL_DIALECT_RESTRICTION_V0, NATIVE_CSS_STATIC_EVAL_OPT_IN_POLICY_V0,
     NATIVE_CSS_STATIC_EVAL_SPEC_SNAPSHOT_V0,
 };
+#[allow(deprecated)]
+use omena_scss_eval::OmenaScssEvalControlFlowWideningWitnessV0;
 use omena_scss_eval::{
-    OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowWideningWitnessV0,
-    OmenaScssEvalStaticStylesheetEvaluationV0, OmenaScssEvalStaticStylesheetOracleCorpusReportV0,
-    OmenaScssEvalStaticValueResolutionReportV0, analyze_scss_control_flow_values,
-    derive_static_stylesheet_module_evaluation, summarize_native_css_function_call_evaluations,
-    summarize_native_css_function_surface, summarize_native_css_if_function_decisions,
-    summarize_native_css_static_edit_plan, summarize_scss_call_return_ir,
-    summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
-    summarize_scss_control_flow_prune_reachability, summarize_static_stylesheet_oracle_corpus,
-    summarize_static_stylesheet_value_resolution,
+    OmenaScssEvalControlFlowAscendingChainWitnessV0, OmenaScssEvalControlFlowOracleCorpusReportV0,
+    OmenaScssEvalControlFlowPropagationDepthWitnessV0, OmenaScssEvalStaticStylesheetEvaluationV0,
+    OmenaScssEvalStaticStylesheetOracleCorpusReportV0, OmenaScssEvalStaticValueResolutionReportV0,
+    analyze_scss_control_flow_values, derive_static_stylesheet_module_evaluation,
+    summarize_native_css_function_call_evaluations, summarize_native_css_function_surface,
+    summarize_native_css_if_function_decisions, summarize_native_css_static_edit_plan,
+    summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
+    summarize_scss_control_flow_oracle_corpus, summarize_scss_control_flow_prune_reachability,
+    summarize_static_stylesheet_oracle_corpus, summarize_static_stylesheet_value_resolution,
 };
 use serde::Serialize;
 
@@ -60,6 +62,7 @@ pub struct OmenaQueryScssEvaluatorControlFlowSummaryV0 {
     pub call_return_ir: Option<OmenaQueryScssEvalCallReturnIrSummaryV0>,
 }
 
+#[allow(deprecated)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
@@ -84,7 +87,16 @@ pub struct OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
     pub recursive_call_fixture_count: usize,
     pub converged_value_analysis_fixture_count: usize,
     pub widened_to_top_fixture_count: usize,
+    pub propagation_depth_witness_widened_to_top_count: usize,
+    pub propagation_depth_witness_converged: bool,
+    pub ascending_chain_witness_converged: bool,
+    pub ascending_chain_witness_result_kind: &'static str,
+    #[deprecated(
+        since = "0.4.0",
+        note = "use propagation_depth_witness_widened_to_top_count"
+    )]
     pub widening_witness_widened_to_top_count: usize,
+    #[deprecated(since = "0.4.0", note = "use propagation_depth_witness_converged")]
     pub widening_witness_converged: bool,
     pub prune_reachability_fixture_count: usize,
     pub prune_reachability_changed_fixture_count: usize,
@@ -94,6 +106,10 @@ pub struct OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
     pub all_supported_fixtures_converged: bool,
     pub no_flat_css_cfg_built: bool,
     pub no_merged_cross_file_graph: bool,
+    pub propagation_depth_witness: OmenaScssEvalControlFlowPropagationDepthWitnessV0,
+    pub ascending_chain_witness: OmenaScssEvalControlFlowAscendingChainWitnessV0,
+    #[allow(deprecated)]
+    #[deprecated(since = "0.4.0", note = "use propagation_depth_witness")]
     pub widening_witness: OmenaScssEvalControlFlowWideningWitnessV0,
     pub corpus: OmenaScssEvalControlFlowOracleCorpusReportV0,
 }
@@ -685,6 +701,7 @@ pub fn summarize_omena_query_native_css_evaluator_from_engine_input(
     ))
 }
 
+#[allow(deprecated)]
 pub fn summarize_omena_query_scss_evaluator_control_flow_oracle_corpus()
 -> OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 {
     let corpus = summarize_scss_control_flow_oracle_corpus();
@@ -710,6 +727,11 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_oracle_corpus()
         recursive_call_fixture_count: corpus.recursive_call_fixture_count,
         converged_value_analysis_fixture_count: corpus.converged_value_analysis_fixture_count,
         widened_to_top_fixture_count: corpus.widened_to_top_fixture_count,
+        propagation_depth_witness_widened_to_top_count: corpus
+            .propagation_depth_witness_widened_to_top_count,
+        propagation_depth_witness_converged: corpus.propagation_depth_witness_converged,
+        ascending_chain_witness_converged: corpus.ascending_chain_witness_converged,
+        ascending_chain_witness_result_kind: corpus.ascending_chain_witness_result_kind,
         widening_witness_widened_to_top_count: corpus.widening_witness_widened_to_top_count,
         widening_witness_converged: corpus.widening_witness_converged,
         prune_reachability_fixture_count: corpus.prune_reachability_fixture_count,
@@ -721,6 +743,8 @@ pub fn summarize_omena_query_scss_evaluator_control_flow_oracle_corpus()
         all_supported_fixtures_converged: corpus.all_supported_fixtures_converged,
         no_flat_css_cfg_built: corpus.no_flat_css_cfg_built,
         no_merged_cross_file_graph: corpus.no_merged_cross_file_graph,
+        propagation_depth_witness: corpus.propagation_depth_witness.clone(),
+        ascending_chain_witness: corpus.ascending_chain_witness.clone(),
         widening_witness: corpus.widening_witness.clone(),
         corpus,
     }

@@ -1,17 +1,18 @@
 use super::{
     CssModulesComposesEdgeFactV0, CssModulesCrossFileStyleFactsV0, CssModulesIcssExportEdgeFactV0,
     CssModulesIcssImportEdgeFactV0, CssModulesValueDefinitionEdgeFactV0,
-    CssModulesValueImportEdgeFactV0, SassModuleConfigurableNamesResolverV0,
-    SassModuleForwardConfigurationRequestV0, SassModuleGraphConfigurationResolverV0,
-    SassModuleGraphEdgeFactV0, SassModuleUseConfigurationRequestV0,
-    SassModuleVisibleSymbolsResolverV0, SassSymbolKeyV0, StyleImportReachabilityEdgeFactV0,
-    TheoryObservationHarnessInput, collect_visible_sass_symbol_keys,
-    derive_sass_forward_effective_variable_overrides, derive_sass_forward_export_prefix_at_ordinal,
-    derive_sass_module_configurable_variable_names,
+    CssModulesValueImportEdgeFactV0, DesignTokenWorkspaceDeclarationFactV0,
+    LayerBindingResolutionV0, ParserByteSpanV0, ParserRangeV0,
+    SassModuleConfigurableNamesResolverV0, SassModuleForwardConfigurationRequestV0,
+    SassModuleGraphConfigurationResolverV0, SassModuleGraphEdgeFactV0,
+    SassModuleUseConfigurationRequestV0, SassModuleVisibleSymbolsResolverV0, SassSymbolKeyV0,
+    StyleImportReachabilityEdgeFactV0, TheoryObservationHarnessInput,
+    collect_visible_sass_symbol_keys, derive_sass_forward_effective_variable_overrides,
+    derive_sass_forward_export_prefix_at_ordinal, derive_sass_module_configurable_variable_names,
     derive_sass_module_forward_variable_overrides_at_ordinal,
     derive_sass_module_rule_variable_overrides_at_ordinal,
-    filter_sass_forward_configurable_variable_names, parse_style_module,
-    resolve_sass_module_effective_variable_overrides,
+    filter_sass_forward_configurable_variable_names, layer_ordinal_for_byte_span,
+    parse_style_module, resolve_sass_module_effective_variable_overrides,
     sass_module_configuration_variables_are_valid, summarize_css_modules_cross_file_closure,
     summarize_css_modules_cross_file_resolution, summarize_lossless_cst_contract,
     summarize_omena_parser_contract_facts,
@@ -20,11 +21,12 @@ use super::{
     summarize_sass_module_graph_resolution, summarize_sass_module_instance_identity_key,
     summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
     summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
-    summarize_style_import_reachability, summarize_style_runtime_index_facts_from_source,
-    summarize_style_semantic_boundary, summarize_style_semantic_facts,
-    summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
-    summarize_style_semantic_soa_tables, summarize_theory_observation_contract,
-    summarize_theory_observation_harness,
+    summarize_style_import_reachability, summarize_style_layer_order_from_source,
+    summarize_style_runtime_index_facts_from_source, summarize_style_semantic_boundary,
+    summarize_style_semantic_facts, summarize_style_semantic_graph,
+    summarize_style_semantic_graph_for_path_with_workspace_declarations,
+    summarize_style_semantic_graph_from_source, summarize_style_semantic_soa_tables,
+    summarize_theory_observation_contract, summarize_theory_observation_harness,
 };
 use engine_input_producers::{
     ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
@@ -1051,9 +1053,7 @@ fn context_index_ignores_layer_tokens_inside_comments_strings_and_interpolation(
 
 #[test]
 fn resolves_nested_layer_order_from_statements_and_blocks() {
-    let summary = summarize_omena_parser_style_semantic_boundary_from_source(
-        "layers.css",
-        r#"
+    let source = r#"
 @layer framework {
   @layer reset, theme;
   @layer theme { .theme { color: blue; } }
@@ -1061,8 +1061,8 @@ fn resolves_nested_layer_order_from_statements_and_blocks() {
   .direct { color: green; }
 }
 @layer utilities { .utility { color: black; } }
-"#,
-    );
+"#;
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source("layers.css", source);
     let layers = summary.semantic_facts.context_index.layer_index;
 
     assert!(layers.topology_complete);
@@ -1083,6 +1083,35 @@ fn resolves_nested_layer_order_from_statements_and_blocks() {
     assert!(layers.block_bindings.iter().any(|binding| {
         binding.canonical_name == "framework.theme" && binding.nesting_depth == 1
     }));
+    let selector_start = source.find(".theme").unwrap_or_default();
+    // False if the static fixture no longer contains the measured selector;
+    // the literal source above is the producer and can emit that edit.
+    assert_eq!(
+        source.get(selector_start..selector_start + ".theme".len()),
+        Some(".theme")
+    );
+    // False if span resolution selects an outer block or a different ordinal;
+    // the CST-backed block binding producer emits this nested span.
+    assert_eq!(
+        layer_ordinal_for_byte_span(&layers, selector_start, selector_start + ".theme".len()),
+        LayerBindingResolutionV0::Resolved(omena_cascade::LayerOrdinal::new(1))
+    );
+}
+
+#[test]
+fn layer_order_without_layer_at_keyword_is_empty_and_complete() {
+    let (layers, instrumentation) = omena_parser::with_omena_parser_parse_instrumentation(|| {
+        summarize_style_layer_order_from_source(
+            ".card { color: red; } @media (width > 1px) { .wide { color: blue; } }",
+            omena_parser::StyleDialect::Css,
+        )
+    });
+
+    assert_eq!(instrumentation.parse_invocation_count, 0);
+    assert!(layers.topology_complete);
+    assert!(layers.order_nodes.is_empty());
+    assert!(layers.block_bindings.is_empty());
+    assert_eq!(layers.unresolved_topology_count, 0);
 }
 
 #[test]
@@ -1149,6 +1178,28 @@ fn anonymous_layer_parent_keeps_nested_topology_unresolved() {
     assert_eq!(layers.anonymous_layer_block_count, 1);
     assert!(layers.unresolved_topology_count >= 2);
     assert!(layers.order_nodes.is_empty());
+}
+
+#[test]
+fn layer_binding_resolution_discloses_incomplete_mixed_topology() {
+    let source = "@layer stable { .item { color: red; } } @layer { .anonymous { color: blue; } }";
+    let summary = summarize_omena_parser_style_semantic_boundary_from_source("layers.css", source);
+    let layers = summary.semantic_facts.context_index.layer_index;
+    let selector_start = source.find(".item").unwrap_or_default();
+    // False if the static fixture no longer contains the measured selector;
+    // the literal source above is the producer and can emit that edit.
+    assert_eq!(
+        source.get(selector_start..selector_start + ".item".len()),
+        Some(".item")
+    );
+    // False if an incomplete tree is silently promoted to a resolved ordinal;
+    // mixed named and anonymous blocks are a production-emittable topology.
+    assert!(matches!(
+        layer_ordinal_for_byte_span(&layers, selector_start, selector_start + ".item".len()),
+        LayerBindingResolutionV0::TopologyIncomplete {
+            unresolved_count: 1..
+        }
+    ));
 }
 
 #[test]
@@ -1886,8 +1937,10 @@ fn ranks_unlayered_design_tokens_above_later_layered_tokens() -> Result<(), Stri
     let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
     assert_eq!(ranked_reference.reference_name, "--surface");
     assert_eq!(ranked_reference.winner_declaration_source_order, 0);
-    assert_eq!(ranked_reference.winner_declaration_layer_rank, 2);
+    // Unlayered ranks are opaque ordering tokens, not layer-count magnitudes.
+    assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);
     assert_eq!(ranked_reference.winner_declaration_layer_name, None);
+    assert_eq!(ranked_reference.winner_layer_resolution_status, "unlayered");
     assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![1]);
     Ok(())
 }
@@ -1926,7 +1979,150 @@ fn ranks_named_layer_order_above_later_layer_source_order() -> Result<(), String
         ranked_reference.winner_declaration_layer_name.as_deref(),
         Some("components")
     );
+    assert_eq!(
+        ranked_reference.winner_layer_resolution_status,
+        "resolvedLayer"
+    );
     assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![1]);
+    Ok(())
+}
+
+#[test]
+fn discloses_unmodeled_design_token_importance_without_ranking_it() -> Result<(), String> {
+    for source in [
+        ".button { --surface: normal; --surface: important !important; color: var(--surface); }",
+        ".button { --surface: important !important; --surface: normal; color: var(--surface); }",
+    ] {
+        let sheet = parse_style_module("Component.module.css", source)
+            .ok_or_else(|| "CSS module path should parse".to_string())?;
+        let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
+        let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
+
+        assert_eq!(
+            ranked_reference.winner_declaration_source_order, 1,
+            "reversion: threading source-text importance into the ranking key manufactures a definite importance model that the parser facts do not carry"
+        );
+        assert_eq!(
+            ranked_reference.winner_importance_status,
+            "importanceUnmodeled"
+        );
+        assert_eq!(
+            ranked_reference.winner_source_order_status,
+            "singleFileOrdinal"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn design_token_workspace_provenance_is_permutation_invariant_and_load_bearing()
+-> Result<(), String> {
+    let sheet = parse_style_module("Component.module.css", ".button { color: var(--brand); }")
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+    let workspace_candidate = |file_path: &str, value: &str, import_graph_distance: usize| {
+        DesignTokenWorkspaceDeclarationFactV0 {
+            file_path: file_path.to_string(),
+            name: "--brand".to_string(),
+            value: value.to_string(),
+            source_order: 0,
+            import_graph_distance: Some(import_graph_distance),
+            import_graph_order: Some(0),
+            byte_span: ParserByteSpanV0::default(),
+            range: ParserRangeV0::default(),
+            selector_contexts: vec![".button".to_string()],
+            condition_context: Vec::new(),
+            layer_names: Vec::new(),
+            under_media: false,
+            under_supports: false,
+            under_layer: false,
+        }
+    };
+    let near = workspace_candidate("/tmp/a-near.css", "near", 1);
+    let far = workspace_candidate("/tmp/z-far.css", "far", 2);
+
+    // Both candidates intentionally tie on source_order. Without that
+    // precondition CascadeKey::Ord decides before module provenance is read.
+    for candidates in [
+        vec![near.clone(), far.clone()],
+        vec![far.clone(), near.clone()],
+    ] {
+        let summary = summarize_style_semantic_graph_for_path_with_workspace_declarations(
+            &sheet,
+            &sample_engine_input(),
+            Some("/tmp/Component.module.css"),
+            &candidates,
+        );
+        let ranked_reference = &summary
+            .design_token_semantics
+            .cascade_ranking_signal
+            .ranked_references[0];
+        assert_eq!(
+            ranked_reference.winner_declaration_file_path.as_deref(),
+            Some("/tmp/a-near.css"),
+            "reversion: sorting candidates before selection hides the input-order dependency instead of fixing provenance ranking"
+        );
+        assert_eq!(ranked_reference.winner_import_graph_distance, Some(1));
+    }
+
+    let far_promoted = workspace_candidate("/tmp/z-far.css", "far", 0);
+    let summary = summarize_style_semantic_graph_for_path_with_workspace_declarations(
+        &sheet,
+        &sample_engine_input(),
+        Some("/tmp/Component.module.css"),
+        &[near, far_promoted],
+    );
+    let ranked_reference = &summary
+        .design_token_semantics
+        .cascade_ranking_signal
+        .ranked_references[0];
+    assert_eq!(
+        ranked_reference.winner_declaration_file_path.as_deref(),
+        Some("/tmp/z-far.css"),
+        "reversion: ignoring import_graph_distance leaves the near candidate selected"
+    );
+    assert_eq!(ranked_reference.winner_import_graph_distance, Some(0));
+    Ok(())
+}
+
+#[test]
+fn design_token_full_tie_pins_local_before_workspace_chain_order() -> Result<(), String> {
+    let sheet = parse_style_module(
+        "Component.module.css",
+        ".button { --brand: local; color: var(--brand); }",
+    )
+    .ok_or_else(|| "CSS module path should parse".to_string())?;
+    let workspace_candidate = DesignTokenWorkspaceDeclarationFactV0 {
+        file_path: "/tmp/workspace.css".to_string(),
+        name: "--brand".to_string(),
+        value: "workspace".to_string(),
+        source_order: 0,
+        import_graph_distance: Some(0),
+        import_graph_order: Some(0),
+        byte_span: ParserByteSpanV0::default(),
+        range: ParserRangeV0::default(),
+        selector_contexts: vec![".button".to_string()],
+        condition_context: Vec::new(),
+        layer_names: Vec::new(),
+        under_media: false,
+        under_supports: false,
+        under_layer: false,
+    };
+
+    let summary = summarize_style_semantic_graph_for_path_with_workspace_declarations(
+        &sheet,
+        &sample_engine_input(),
+        Some("/tmp/Component.module.css"),
+        &[workspace_candidate],
+    );
+    let ranked_reference = &summary
+        .design_token_semantics
+        .cascade_ranking_signal
+        .ranked_references[0];
+
+    assert_eq!(
+        ranked_reference.winner_declaration_file_path, None,
+        "the public API admits a full tie, so local-before-workspace chain order is structural"
+    );
     Ok(())
 }
 

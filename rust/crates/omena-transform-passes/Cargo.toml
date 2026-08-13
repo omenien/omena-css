@@ -17,7 +17,10 @@ workspace = true
 
 [features]
 default = []
-lawvere-trace = ["dep:omena-lawvere"]
+transform-catalog-trace = ["dep:omena-lawvere"]
+# compatibility-owner: omena-transform-passes maintainers
+# compatibility-removal: not before 1.0, and only after downstream migration and audited zero in-repo non-compat uses
+lawvere-trace = ["transform-catalog-trace"]
 # Discharge the cross-layer flatten inversion obligation with the z3 backend.
 # Default builds stay solver-free and conservatively block multi-layer flattens.
 smt-z3 = ["dep:omena-smt", "omena-smt/smt-z3"]
@@ -42,4 +45,4 @@ serde.workspace = true
 serde_json.workspace = true
 
 [package.metadata.docs.rs]
-features = ["lawvere-trace"]
+features = ["transform-catalog-trace"]

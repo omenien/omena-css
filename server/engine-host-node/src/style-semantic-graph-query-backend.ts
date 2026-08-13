@@ -152,6 +152,12 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceV0 {
   readonly winnerDeclarationRange?: Range;
   readonly winnerImportGraphDistance?: number;
   readonly winnerImportGraphOrder?: number;
+  readonly winnerDeclarationLayerRank: number;
+  readonly winnerScopeProximityStatus: string;
+  readonly winnerImportanceStatus: "importanceUnmodeled";
+  readonly winnerSourceOrderStatus: "singleFileOrdinal" | "crossFileOrdinalUncalibrated";
+  readonly winnerLayerResolutionStatus: "unlayered" | "resolvedLayer" | "layerTopologyUnavailable";
+  readonly winnerDeclarationLayerName?: string;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
   readonly winnerContextKind?: string;
@@ -195,6 +201,12 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceReadModel {
   readonly winnerDeclarationRange?: Range;
   readonly winnerImportGraphDistance?: number;
   readonly winnerImportGraphOrder?: number;
+  readonly winnerDeclarationLayerRank: number;
+  readonly winnerScopeProximityStatus: string;
+  readonly winnerImportanceStatus: "importanceUnmodeled";
+  readonly winnerSourceOrderStatus: "singleFileOrdinal" | "crossFileOrdinalUncalibrated";
+  readonly winnerLayerResolutionStatus: "unlayered" | "resolvedLayer" | "layerTopologyUnavailable";
+  readonly winnerDeclarationLayerName?: string;
   readonly crossFileCandidateScope?: string;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
@@ -1052,6 +1064,11 @@ export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
         referenceName: reference.referenceName,
         referenceSourceOrder: reference.referenceSourceOrder,
         winnerDeclarationSourceOrder: reference.winnerDeclarationSourceOrder,
+        winnerDeclarationLayerRank: reference.winnerDeclarationLayerRank,
+        winnerScopeProximityStatus: reference.winnerScopeProximityStatus,
+        winnerImportanceStatus: reference.winnerImportanceStatus,
+        winnerSourceOrderStatus: reference.winnerSourceOrderStatus,
+        winnerLayerResolutionStatus: reference.winnerLayerResolutionStatus,
         shadowedDeclarationSourceOrders: reference.shadowedDeclarationSourceOrders,
         candidateDeclarationCount: reference.candidateDeclarationCount,
         crossFileCandidateDeclarationCount: reference.crossFileCandidateDeclarationCount ?? 0,
@@ -1062,6 +1079,9 @@ export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
       }
       if (reference.winnerImportGraphOrder !== undefined) {
         readModel.winnerImportGraphOrder = reference.winnerImportGraphOrder;
+      }
+      if (reference.winnerDeclarationLayerName !== undefined) {
+        readModel.winnerDeclarationLayerName = reference.winnerDeclarationLayerName;
       }
       if (reference.winnerContextKind !== undefined) {
         readModel.winnerContextKind = reference.winnerContextKind;

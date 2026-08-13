@@ -22,8 +22,18 @@ use omena_parser::{
 use serde::{Serialize, ser::SerializeStruct};
 use std::{borrow::Cow, collections::BTreeMap, sync::OnceLock};
 
+mod observation_equivalence;
 mod pass_descriptor;
 mod transform_ir;
+pub use observation_equivalence::{
+    OBSERVATION_KIND_COUNT_V0, ObservationProjectionValueV0, TransformObservationEquivalenceV0,
+    TransformObservationMatrixV0, TransformObservationOutputErrorV0, TransformObservationOutputV0,
+    TransformObservationProfileErrorV0, TransformObservationProfileV0,
+    TransformObservationProjectionV0, TransformObserverClassV0, TransformObserverV0,
+    all_observation_kinds_v0, compare_transform_observation_outputs_v0,
+    default_transform_observation_matrix_v0, observation_indexed_equivalent_v0,
+    observation_kind_observer_class_v0, project_transform_observation_v0,
+};
 pub use pass_descriptor::{
     MinifyPassClassificationDerivationV0, MinifyPassClassificationV0, MinifyPassProfileClassV0,
     ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, PassSemanticContractV0,
@@ -41,10 +51,11 @@ pub use transform_ir::{
     IrBlockSpanV0, IrEditRegionV0, IrNodeIdV0, IrNodeKindV0, IrNodeV0, IrTargetV0,
     IrTransactionErrorV0, IrTransactionV0, IrTransactionValidationErrorV0, NodeTextOriginV0,
     TransformIrIdentityRoundTripV0, TransformIrIndexesV0, TransformIrKindIndexV0,
-    TransformIrParentIndexV0, TransformIrParseErrorSpanV0, TransformIrPrintErrorV0, TransformIrV0,
-    lower_transform_ir_from_source, materialize_transform_ir_printed_source,
-    print_transform_ir_css, structural_block_spans_for_source,
-    summarize_transform_ir_identity_round_trip,
+    TransformIrMetadataTelemetryV0, TransformIrParentIndexV0, TransformIrParseErrorSpanV0,
+    TransformIrPrintErrorV0, TransformIrV0, lower_transform_ir_from_source,
+    materialize_transform_ir_printed_source, print_transform_ir_css,
+    reset_transform_ir_metadata_telemetry, structural_block_spans_for_source,
+    summarize_transform_ir_identity_round_trip, transform_ir_metadata_telemetry_snapshot,
 };
 
 use std::cell::RefCell;
@@ -1937,6 +1948,11 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "hashing must run after composed class expansion",
         },
         TransformDagEdgeV0 {
+            from: "composes-resolution",
+            to: "tree-shake-class",
+            reason: "class liveness admission consumes composed selector adjacency",
+        },
+        TransformDagEdgeV0 {
             from: "nesting-unwrap",
             to: "css-modules-class-hashing",
             reason: "hashing must run after nested selectors are expanded into final selector branches",
@@ -2175,10 +2191,11 @@ mod tests {
         all_transform_pass_kinds, apply_verified_rewrite, build_stable_transform_ir_from_source,
         build_transform_cst_artifact, build_verified_transform_cst_artifact_with_dialect,
         cascade_safe_obligation, cascade_safe_obligation_reference, cascade_safety_witness,
-        default_transform_pass_descriptors, obligation_family_for_transform_pass,
-        pass_observation_contract, summarize_omena_transform_cst_boundary,
-        transform_build_profile_from_passes, verify_rewrite_candidate,
-        verify_rewrite_candidate_with_backend, verify_rewrite_candidate_with_closed_world_bundle,
+        default_transform_dag_edges, default_transform_pass_descriptors,
+        obligation_family_for_transform_pass, pass_observation_contract,
+        summarize_omena_transform_cst_boundary, transform_build_profile_from_passes,
+        verify_rewrite_candidate, verify_rewrite_candidate_with_backend,
+        verify_rewrite_candidate_with_closed_world_bundle,
     };
     use omena_cascade_proof::{
         CanonicalSmtInputV0, SMT_FEATURE_GATE_V0, SMT_LAYER_MARKER_V0, SMT_SCHEMA_VERSION_V0,
@@ -2189,8 +2206,56 @@ mod tests {
         ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
         ModuleInstanceKeyV0,
     };
+    use std::collections::{BTreeMap, BTreeSet};
 
     struct RejectingBackend;
+
+    #[test]
+    fn default_transform_dag_edges_are_independently_acyclic() -> Result<(), String> {
+        let edges = default_transform_dag_edges();
+        assert!(
+            edges.iter().any(|edge| {
+                edge.from == "composes-resolution" && edge.to == "tree-shake-class"
+            })
+        );
+        let mut nodes = BTreeSet::new();
+        let mut incoming = BTreeMap::<&str, usize>::new();
+        for edge in &edges {
+            nodes.insert(edge.from);
+            nodes.insert(edge.to);
+            incoming.entry(edge.from).or_default();
+            *incoming.entry(edge.to).or_default() += 1;
+        }
+        let mut ready = incoming
+            .iter()
+            .filter_map(|(node, count)| (*count == 0).then_some(*node))
+            .collect::<BTreeSet<_>>();
+        let mut visited = BTreeSet::new();
+        while let Some(node) = ready.pop_first() {
+            visited.insert(node);
+            for edge in edges.iter().filter(|edge| edge.from == node) {
+                let count = incoming
+                    .get_mut(edge.to)
+                    .ok_or_else(|| format!("missing DAG node {}", edge.to))?;
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    ready.insert(edge.to);
+                }
+            }
+        }
+        if visited.len() == nodes.len() {
+            return Ok(());
+        }
+        let cycle_edges = edges
+            .iter()
+            .filter(|edge| !visited.contains(edge.from) && !visited.contains(edge.to))
+            .map(|edge| format!("{} -> {}", edge.from, edge.to))
+            .collect::<Vec<_>>();
+        Err(format!(
+            "default transform DAG contains a cycle across edges: {}",
+            cycle_edges.join(", ")
+        ))
+    }
 
     impl SmtBackendV0 for RejectingBackend {
         fn backend_kind(&self) -> SmtBackendKindV0 {

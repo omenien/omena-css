@@ -376,6 +376,10 @@ export function describeAbstractValueReason(
       switch (abstractValue.provenance) {
         case "unconstrainedInput":
           return "the producing input did not provide a finite class-value constraint";
+        case "automatonLanguageCardinalityLimit":
+          return "the finite language exceeded the preconstruction cardinality limit";
+        case "automatonMaterializedByteLimit":
+          return "the finite language exceeded the preconstruction materialized-byte limit";
         case "automatonStateLimit":
           return "the finite language exceeded the bounded automaton state limit";
         case "flowIterationLimit":

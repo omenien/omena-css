@@ -6,3 +6,7 @@ packages:
   - "examples"
   - "server"
   - "shared"
+
+patchedDependencies:
+  # Keep static server-function cache requests inside the configured router base path.
+  "@tanstack/start-static-server-functions@1.167.19": patches/@tanstack__start-static-server-functions@1.167.19.patch

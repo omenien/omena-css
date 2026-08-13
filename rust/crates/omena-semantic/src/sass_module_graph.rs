@@ -1024,7 +1024,7 @@ fn sass_variable_names_equal(left: &str, right: &str) -> bool {
 }
 
 fn sass_identifier_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+    omena_syntax::ident::is_ascii_word_continue(ch)
 }
 
 fn token_start(token: &LexedToken) -> usize {

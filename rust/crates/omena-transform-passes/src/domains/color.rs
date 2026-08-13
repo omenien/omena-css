@@ -1,5 +1,8 @@
 use omena_parser::StyleDialect;
-use omena_syntax::SyntaxKind;
+use omena_syntax::{
+    SyntaxKind,
+    ident::{is_css_name_continue, is_css_name_start},
+};
 
 use crate::runtime::lex_cache::lex_cached as lex;
 
@@ -11,7 +14,6 @@ use crate::{
             collect_simple_declarations_in_block, declaration_ranges_are_adjacent,
             format_replacement_declaration_like_source,
         },
-        identifiers::{is_css_ident_continue, is_css_ident_start},
         source_rewrite::remove_source_ranges,
         tokens::{
             is_comment_token, is_declaration_boundary_end, is_declaration_boundary_start,
@@ -566,11 +568,11 @@ fn compress_static_named_srgb_color_references_in_value(
                 quote = Some(ch);
                 index += ch.len_utf8();
             }
-            _ if is_css_ident_start(ch) => {
+            _ if is_css_name_start(ch) => {
                 let start = index;
                 index += ch.len_utf8();
                 while let Some(next_ch) = value[index..].chars().next() {
-                    if !is_css_ident_continue(next_ch) {
+                    if !is_css_name_continue(next_ch) {
                         break;
                     }
                     index += next_ch.len_utf8();

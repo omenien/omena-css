@@ -1,7 +1,9 @@
 //! Semantic preservation comparator for transform outputs (adoption gate for external lowering).
 
 #[cfg(test)]
-use omena_cascade::{run_cascade_conformance_seed_corpus, run_wpt_cascade_seed_corpus};
+use omena_cascade::{
+    run_cascade_conformance_seed_corpus, run_cascade_ordering_axis_self_check_corpus,
+};
 use omena_parser::{ClosedWorldBundleV0, ModuleQualifiedSymbolSetV0, StyleDialect};
 use omena_syntax::css_keyword;
 use omena_transform_cst::{
@@ -47,6 +49,13 @@ impl TransformSemanticPreservationTelemetryV0 {
         } else {
             self.blocked_pass_count += 1;
         }
+    }
+
+    /// Records an executor-observed pass that admission blocked before semantic comparison.
+    /// It is deliberately not counted as preserved.
+    pub(crate) fn record_blocked_before_observation(&mut self) {
+        self.observed_pass_count += 1;
+        self.blocked_pass_count += 1;
     }
 }
 
@@ -673,10 +682,10 @@ pub(crate) struct TransformSemanticModelConformanceReportV0 {
     pub cascade_seed_case_count: usize,
     pub cascade_seed_failed_count: usize,
     pub cascade_seed_digest: String,
-    pub wpt_seed_product: String,
-    pub wpt_seed_case_count: usize,
-    pub wpt_seed_failed_count: usize,
-    pub wpt_seed_digest: String,
+    pub ordering_axis_self_check_product: String,
+    pub ordering_axis_self_check_case_count: usize,
+    pub ordering_axis_self_check_failed_count: usize,
+    pub ordering_axis_self_check_digest: String,
     pub semantic_observation_case_count: usize,
     pub semantic_observation_failed_count: usize,
     pub model_conformance_passed: bool,
@@ -686,9 +695,9 @@ pub(crate) struct TransformSemanticModelConformanceReportV0 {
 pub(crate) fn summarize_semantic_preservation_model_conformance()
 -> Result<TransformSemanticModelConformanceReportV0, serde_json::Error> {
     let cascade_seed = run_cascade_conformance_seed_corpus();
-    let wpt_seed = run_wpt_cascade_seed_corpus();
+    let ordering_axis_self_check = run_cascade_ordering_axis_self_check_corpus();
     let cascade_seed_source = serde_json::to_string(&cascade_seed)?;
-    let wpt_seed_source = serde_json::to_string(&wpt_seed)?;
+    let ordering_axis_self_check_source = serde_json::to_string(&ordering_axis_self_check)?;
     let semantic_observation_results = semantic_model_conformance_case_results();
     let semantic_observation_failed_count = semantic_observation_results
         .iter()
@@ -705,14 +714,17 @@ pub(crate) fn summarize_semantic_preservation_model_conformance()
             "cascade-seed",
             cascade_seed_source.as_str(),
         ]),
-        wpt_seed_product: wpt_seed.product.to_string(),
-        wpt_seed_case_count: wpt_seed.case_count,
-        wpt_seed_failed_count: wpt_seed.failed_count,
-        wpt_seed_digest: stable_semantic_report_digest(&["wpt-seed", wpt_seed_source.as_str()]),
+        ordering_axis_self_check_product: ordering_axis_self_check.product.to_string(),
+        ordering_axis_self_check_case_count: ordering_axis_self_check.case_count,
+        ordering_axis_self_check_failed_count: ordering_axis_self_check.failed_count,
+        ordering_axis_self_check_digest: stable_semantic_report_digest(&[
+            "ordering-axis-self-check",
+            ordering_axis_self_check_source.as_str(),
+        ]),
         semantic_observation_case_count: semantic_observation_results.len(),
         semantic_observation_failed_count,
         model_conformance_passed: cascade_seed.failed_count == 0
-            && wpt_seed.failed_count == 0
+            && ordering_axis_self_check.failed_count == 0
             && semantic_observation_failed_count == 0,
     })
 }
@@ -2824,7 +2836,7 @@ mod tests {
         assert_eq!(actual, expected);
         assert!(actual.model_conformance_passed);
         assert_eq!(actual.cascade_seed_failed_count, 0);
-        assert_eq!(actual.wpt_seed_failed_count, 0);
+        assert_eq!(actual.ordering_axis_self_check_failed_count, 0);
         assert_eq!(actual.semantic_observation_failed_count, 0);
         Ok(())
     }

@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { runDeclaredRustSemverCheck } from "./lib/rust-semver-intent.ts";
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const snapshotPath = path.join(
   repoRoot,
@@ -72,27 +74,24 @@ if (writeSnapshot) {
   }
 }
 
-const baseline = semverChecksRequired ? resolveBaselineRev() : null;
-if (baseline) {
+const baseline = semverChecksRequired ? resolveSemverBaseline() : null;
+if (baseline?.kind === "revision") {
   ensureGitRevision(baseline);
-  execFileSync(
-    "cargo",
-    [
-      "semver-checks",
-      "--manifest-path",
-      "rust/Cargo.toml",
-      "-p",
-      "omena-bundler",
-      "--baseline-rev",
-      baseline.rev,
-      "--all-features",
-      "--release-type",
-      "patch",
-      "--color",
-      "never",
-    ],
-    { cwd: repoRoot, stdio: "inherit" },
-  );
+}
+let semverPolicy = semverChecksRequired ? "steady-state" : "genesis-snapshot-only";
+let declaredFailureCount = 0;
+let declaredReleaseVersion: string | null = null;
+if (baseline) {
+  const result = runDeclaredRustSemverCheck({
+    repoRoot,
+    crate: "omena-bundler",
+    workspaceVersion,
+    baselineArgs: semverBaselineArgs(baseline),
+    allFeatures: true,
+  });
+  semverPolicy = result.policy;
+  declaredFailureCount = result.declaredFailureCount;
+  declaredReleaseVersion = result.declaredReleaseVersion;
 }
 
 process.stdout.write(
@@ -102,8 +101,11 @@ process.stdout.write(
       product: "rust.omena-bundler.public-surface",
       snapshot: path.relative(repoRoot, snapshotPath),
       workspaceVersion,
-      semverPolicy: semverChecksRequired ? "steady-state" : "genesis-snapshot-only",
-      baselineRev: baseline?.rev ?? null,
+      semverPolicy,
+      declaredFailureCount,
+      declaredReleaseVersion,
+      baselineKind: baseline?.kind ?? null,
+      baselineRev: baseline?.kind === "revision" ? baseline.rev : null,
       cargoPublicApiVersion: "0.52.0",
       cargoSemverChecksVersion: "0.48.0",
     },
@@ -212,63 +214,37 @@ function requiresSteadyStateSemver(version: string): boolean {
   return major > 0 || minor >= 3;
 }
 
-function resolveBaselineRev(): { readonly rev: string; readonly fetch?: readonly string[] } {
+type SemverBaseline =
+  | {
+      readonly kind: "revision";
+      readonly rev: string;
+      readonly fetch?: readonly string[];
+    }
+  | {
+      readonly kind: "publishedRegistry";
+    };
+
+function resolveSemverBaseline(): SemverBaseline {
   const explicit = process.env.OMENA_BUNDLER_PUBLIC_SURFACE_BASELINE_REV;
   if (explicit) {
-    return { rev: explicit };
-  }
-
-  const baseRef = process.env.GITHUB_BASE_REF;
-  if (baseRef) {
     return {
-      rev: `origin/${baseRef}`,
-      fetch: [
-        "fetch",
-        "--no-tags",
-        "--depth=1",
-        "origin",
-        `${baseRef}:refs/remotes/origin/${baseRef}`,
-      ],
+      kind: "revision",
+      rev: explicit,
+      fetch: ["fetch", "--no-tags", "--depth=1", "origin", explicit],
     };
   }
 
-  const before = githubEventBeforeSha();
-  if (before && !/^0+$/u.test(before)) {
-    return {
-      rev: before,
-      fetch: ["fetch", "--no-tags", "--depth=1", "origin", before],
-    };
-  }
-
+  // A published baseline is stable across failed pushes and intermediate commits.
   return {
-    rev: "HEAD~1",
-    fetch: fallbackHeadParentFetchCommand(),
+    kind: "publishedRegistry",
   };
 }
 
-function githubEventBeforeSha(): string | null {
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath || !existsSync(eventPath)) {
-    return null;
+function semverBaselineArgs(baseline: SemverBaseline): readonly string[] {
+  if (baseline.kind === "revision") {
+    return ["--baseline-rev", baseline.rev];
   }
-  const event = JSON.parse(readFileSync(eventPath, "utf8")) as { readonly before?: unknown };
-  return typeof event.before === "string" ? event.before : null;
-}
-
-function fallbackHeadParentFetchCommand(): readonly string[] {
-  const githubRef = process.env.GITHUB_REF;
-  if (githubRef?.startsWith("refs/heads/")) {
-    const branch = githubRef.slice("refs/heads/".length);
-    return [
-      "fetch",
-      "--no-tags",
-      "--depth=2",
-      "origin",
-      `${githubRef}:refs/remotes/origin/${branch}`,
-    ];
-  }
-
-  return ["fetch", "--no-tags", "--depth=2", "origin", "HEAD"];
+  return [];
 }
 
 function ensureGitRevision(baseline: {

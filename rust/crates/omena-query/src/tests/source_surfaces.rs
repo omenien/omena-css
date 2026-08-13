@@ -752,6 +752,47 @@ fn selector_rename_edit_planning_is_query_owned() {
 }
 
 #[test]
+fn selector_rename_matches_escaped_identity_across_style_and_tsx() {
+    let range = ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: 1,
+            character: 2,
+        },
+        end: ParserPositionV0 {
+            line: 1,
+            character: 9,
+        },
+    };
+    let edits = resolve_omena_query_selector_rename_edits(
+        r"\6d d\:flex",
+        ".renamed",
+        Some("file:///workspace/src/App.module.css"),
+        &[OmenaQueryStyleSelectorDefinitionV0 {
+            uri: "file:///workspace/src/App.module.css".to_string(),
+            name: "md:flex".to_string(),
+            range,
+        }],
+        &[OmenaQuerySourceSelectorReferenceEditTargetV0 {
+            uri: "file:///workspace/src/App.tsx".to_string(),
+            name: "md:flex".to_string(),
+            range,
+            target_style_uri: Some("file:///workspace/src/App.module.css".to_string()),
+        }],
+    );
+
+    assert_eq!(
+        edits
+            .iter()
+            .map(|edit| (edit.uri.as_str(), edit.new_text.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("file:///workspace/src/App.module.css", "renamed"),
+            ("file:///workspace/src/App.tsx", "renamed"),
+        ]
+    );
+}
+
+#[test]
 fn sass_symbol_matching_is_query_owned() {
     let source = "$accent: red;\n.button { color: $accent; }\n";
     let Some(candidates) =

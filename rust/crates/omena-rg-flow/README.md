@@ -1,6 +1,7 @@
 # omena-rg-flow
 
-Renormalization-group flow contract surface for Omena CSS design-system
-complexity. The crate reads cascade fixed-point traces as a stable V0 input and
-emits beta vectors, universality classifications, branching estimates, tier
-aggregates, ecosystem summaries, and cross-tier observability contracts.
+Design-system complexity diagnostic scaffold for Omena CSS. The crate reads
+cascade fixed-point trace fixtures and serializes opt-in V0 heuristic records
+for coupling deltas, classification labels, branching summaries, tier
+aggregates, ecosystem summaries, and cross-tier observations. These records are
+not a completed multiscale theory and do not drive default product decisions.

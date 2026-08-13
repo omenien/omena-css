@@ -6,7 +6,7 @@ use omena_cascade::{
     substitute_custom_properties,
 };
 use omena_parser::{LexedToken, StyleDialect};
-use omena_syntax::{SyntaxKind, css_keyword};
+use omena_syntax::{SyntaxKind, css_keyword, ident::is_css_name_continue};
 use omena_transform_cst::{IrNodeIdV0, IrNodeKindV0, IrNodeV0, TransformIrV0};
 
 use crate::runtime::lex_cache::lex_cached as lex;
@@ -31,7 +31,7 @@ use crate::helpers::{
     blocks::{at_rule_block_start, at_rule_prelude_end_index, rule_block_token_indexes},
     collections::push_unique_string,
     declarations::collect_simple_declarations_in_block,
-    identifiers::{is_css_ident_continue, normalize_custom_property_name},
+    identifiers::normalize_custom_property_name,
     ir_transaction::{
         TransformIrReplacementKindV0, TransformIrSourceReplacementErrorV0,
         TransformIrSourceReplacementV0, delete_ir_nodes_in_ir,
@@ -1921,7 +1921,7 @@ fn custom_property_name_end(value: &str, mut index: usize) -> usize {
         let Some(ch) = value[index..].chars().next() else {
             break;
         };
-        if !is_css_ident_continue(ch) {
+        if !is_css_name_continue(ch) {
             break;
         }
         index += ch.len_utf8();
@@ -2258,7 +2258,7 @@ fn css_function_name_starts_at(value: &str, index: usize, function_name: &str) -
     let Some(previous) = value[..index].chars().next_back() else {
         return true;
     };
-    !is_css_ident_continue(previous)
+    !is_css_name_continue(previous)
 }
 
 fn parse_static_composite_custom_property_env_value(value: &str) -> Option<CascadeValue> {

@@ -3,6 +3,8 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+use omena_syntax::ident::ClassNameV0;
+
 use super::shared::*;
 
 mod shared_walk;
@@ -138,7 +140,9 @@ pub fn summarize_omena_query_css_modules_export_usage(
         {
             let status = if !skip_reasons.is_empty() {
                 OmenaQueryCssModuleExportUsageStatusV0::Skipped
-            } else if used_in_module.is_some_and(|used| used.contains(export_name.as_str())) {
+            } else if used_in_module
+                .is_some_and(|used| class_name_set_contains(used, export_name.as_str()))
+            {
                 OmenaQueryCssModuleExportUsageStatusV0::Used
             } else {
                 OmenaQueryCssModuleExportUsageStatusV0::Unused
@@ -323,7 +327,7 @@ pub(in crate::style) fn summarize_omena_query_unused_selector_style_diagnostics_
         .selectors
         .into_iter()
         .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
-        .filter(|selector| !used_in_target.contains(selector.name.as_str()))
+        .filter(|selector| !class_name_set_contains(&used_in_target, selector.name.as_str()))
         .filter_map(|selector| {
             let start: u32 = selector.range.start().into();
             let end: u32 = selector.range.end().into();
@@ -495,7 +499,7 @@ fn collect_omena_query_source_selector_usage_by_style(
             if let Some(canonical_names) = context
                 .aliases_by_path
                 .get(target_style_path.as_str())
-                .and_then(|aliases| aliases.get(selector_name.as_str()))
+                .and_then(|aliases| class_name_aliases(aliases, selector_name.as_str()))
             {
                 used_for_style.extend(canonical_names.iter().cloned());
             } else {
@@ -522,6 +526,13 @@ fn collect_omena_query_source_selector_usage_from_syntax_index(
     let single_imported_style_target_uri = (index.imported_style_bindings.len() == 1)
         .then(|| index.imported_style_bindings[0].style_uri.clone());
     for access in &index.style_property_accesses {
+        if index.selector_references.iter().any(|reference| {
+            reference.byte_span == access.byte_span
+                && reference.target_style_uri == access.target_style_uri
+                && reference.selector_name.is_some()
+        }) {
+            continue;
+        }
         let Some(target_style_path) = access
             .target_style_uri
             .clone()
@@ -696,12 +707,32 @@ fn record_omena_query_used_source_selector(
     let used_for_style = used_selectors.entry(target_style_path.clone()).or_default();
     if let Some(canonical_names) = aliases_by_path
         .get(target_style_path.as_str())
-        .and_then(|aliases| aliases.get(selector_name.as_str()))
+        .and_then(|aliases| class_name_aliases(aliases, selector_name.as_str()))
     {
         used_for_style.extend(canonical_names.iter().cloned());
     } else {
         used_for_style.insert(selector_name);
     }
+}
+
+fn class_name_set_contains(names: &BTreeSet<String>, candidate: &str) -> bool {
+    let candidate = ClassNameV0::new(candidate);
+    names
+        .iter()
+        .any(|name| ClassNameV0::new(name).same_as(&candidate))
+}
+
+fn class_name_aliases<'a>(
+    aliases: &'a BTreeMap<String, BTreeSet<String>>,
+    selector_name: &str,
+) -> Option<&'a BTreeSet<String>> {
+    aliases.get(selector_name).or_else(|| {
+        let selector_name = ClassNameV0::new(selector_name);
+        aliases
+            .iter()
+            .find(|(alias, _)| ClassNameV0::new(alias.as_str()).same_as(&selector_name))
+            .map(|(_, canonical_names)| canonical_names)
+    })
 }
 
 /// Whether an import specifier names a CSS-family style module (so failing to resolve it is a
@@ -793,10 +824,7 @@ fn propagate_omena_query_composes_usage(
         .flat_map(|(style_path, selectors)| {
             selectors
                 .iter()
-                .map(|selector_name| CssModulesComposesNode {
-                    style_path: style_path.clone(),
-                    selector_name: selector_name.clone(),
-                })
+                .map(move |selector_name| CssModulesComposesNode::new(style_path, selector_name))
         })
         .collect::<BTreeSet<_>>();
 

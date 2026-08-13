@@ -3,7 +3,7 @@ use std::hint::black_box;
 use criterion::{Criterion, criterion_group, criterion_main};
 use engine_style_parser::parse_style_module;
 use omena_abstract_value::{
-    ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
+    ClassBoundaryEffectV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
     ExternalStringTypeFactsV0, OneCfaCallSiteFlowInputV0, analyze_class_value_flow,
     analyze_one_cfa_call_site_flows, finite_set_class_value, intersect_abstract_class_values,
     prefix_class_value,
@@ -153,6 +153,7 @@ fn build_flow_graph(node_count: usize) -> ClassValueFlowGraphV0 {
         nodes.push(ClassValueFlowNodeV0 {
             id,
             predecessors,
+            boundary_effect: ClassBoundaryEffectV0::UnknownBoundary,
             transfer,
         });
     }

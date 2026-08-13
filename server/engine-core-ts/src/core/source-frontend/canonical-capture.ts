@@ -3,6 +3,7 @@ import type ts from "../../ts-facade";
 import { positionOfLineChar } from "../../ts-facade";
 import { buildFlowBlockGraphSnapshot, type FlowBlockGraphSnapshot } from "./ts-source-cfg-oracle";
 import { buildFlowSlice } from "./ts-flow-slice-oracle";
+import { utf8ByteOffsetAtUtf16Offset } from "./source-text-offsets";
 import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
@@ -689,8 +690,11 @@ function templatePrefixByteSpan(
   if (sourceText.startsWith("`") && expression.rawTemplate.startsWith("`")) {
     const prefixStart = start + 1;
     return {
-      start: utf8ByteOffsetAtPosition(sourceFile.text, prefixStart),
-      end: utf8ByteOffsetAtPosition(sourceFile.text, prefixStart + expression.staticPrefix.length),
+      start: utf8ByteOffsetAtUtf16Offset(sourceFile.text, prefixStart),
+      end: utf8ByteOffsetAtUtf16Offset(
+        sourceFile.text,
+        prefixStart + expression.staticPrefix.length,
+      ),
     };
   }
   return rangeToUtf8ByteSpan(sourceFile, expression.range);
@@ -704,7 +708,7 @@ function canonicalCfgCapture(
   if (!slice) return null;
   return {
     variableName: cfg.variableName,
-    referenceByteOffset: utf8ByteOffsetAtPosition(sourceFile.text, slice.referencePos),
+    referenceByteOffset: utf8ByteOffsetAtUtf16Offset(sourceFile.text, slice.referencePos),
     snapshot: buildFlowBlockGraphSnapshot(slice.nodes),
   };
 }
@@ -713,8 +717,8 @@ function rangeToUtf8ByteSpan(sourceFile: ts.SourceFile, range: Range): Canonical
   const start = positionOfLineChar(sourceFile, range.start);
   const end = positionOfLineChar(sourceFile, range.end);
   return {
-    start: utf8ByteOffsetAtPosition(sourceFile.text, start),
-    end: utf8ByteOffsetAtPosition(sourceFile.text, end),
+    start: utf8ByteOffsetAtUtf16Offset(sourceFile.text, start),
+    end: utf8ByteOffsetAtUtf16Offset(sourceFile.text, end),
   };
 }
 
@@ -723,13 +727,9 @@ function textSpanToUtf8ByteSpan(
   span: { readonly start: number; readonly end: number },
 ): CanonicalByteSpanV0 {
   return {
-    start: utf8ByteOffsetAtPosition(sourceFile.text, span.start),
-    end: utf8ByteOffsetAtPosition(sourceFile.text, span.end),
+    start: utf8ByteOffsetAtUtf16Offset(sourceFile.text, span.start),
+    end: utf8ByteOffsetAtUtf16Offset(sourceFile.text, span.end),
   };
-}
-
-function utf8ByteOffsetAtPosition(text: string, position: number): number {
-  return Buffer.byteLength(text.slice(0, position), "utf8");
 }
 
 function fileUriForAbsolutePath(absolutePath: string): string {

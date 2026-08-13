@@ -96,3 +96,19 @@ pub(crate) fn normalize_reachable_class_name(name: &str) -> Option<&str> {
     }
     Some(name)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::class_name_is_reachable;
+
+    #[test]
+    fn reachability_uses_decoded_class_identity_but_not_emitted_tokens() {
+        let author_spelling = vec![r"c\61 rd".to_string()];
+
+        // Raw and decoded names are both source-producible. The emitted token
+        // belongs to the later rewrite plane and is not an author-name alias.
+        assert!(class_name_is_reachable(r"c\61 rd", &author_spelling));
+        assert!(class_name_is_reachable("card", &author_spelling));
+        assert!(!class_name_is_reachable("_card_0", &author_spelling));
+    }
+}

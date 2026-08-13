@@ -21,5 +21,5 @@ describe("check orchestrator bundle shards", () => {
     );
     expect(bundleShardNames("rust/closure-fast")).toContain("query-api");
     expect(bundleShardNames("rust/closure-fast").at(-1)).toBe("rest");
-  });
+  }, 5_000);
 });

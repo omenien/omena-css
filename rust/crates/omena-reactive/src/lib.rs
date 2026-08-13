@@ -13,6 +13,7 @@
 //! let mut graph = ReactiveGraphBuilderV0::new();
 //! graph.add_input(ReactiveStateV0::available(ReactiveValueV0::Counter(1)));
 //! ```
+#![doc = include_str!("../docs/public-api-evolution.md")]
 
 mod divergence;
 mod engine;

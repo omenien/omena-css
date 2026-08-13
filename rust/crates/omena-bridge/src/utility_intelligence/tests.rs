@@ -4,11 +4,17 @@ use super::*;
 use crate::summarize_omena_bridge_source_syntax_index;
 
 #[test]
+fn utility_class_tokens_use_dom_whitespace_and_first_occurrence_spans() {
+    assert_eq!(class_tokens("b a b"), vec![(0, 1, "b"), (2, 3, "a")]);
+    assert_eq!(class_tokens("a\u{00a0}b"), vec![(0, 4, "a\u{00a0}b")]);
+}
+
+#[test]
 fn static_tailwind_config_preserves_enumerated_pattern_and_unresolved_parts() {
     let report = summarize_omena_bridge_utility_class_intelligence_for_config(
         Path::new("tailwind.config.ts"),
         r##"export default {
-          safelist: ["flex items-center", /^data-/],
+          safelist: ["flex items-center flex", "a b", /^data-/],
           theme: { extend: {
             colors: { brand: { 500: "#123456" } },
             spacing: { 18: "4.5rem" }
@@ -21,6 +27,8 @@ fn static_tailwind_config_preserves_enumerated_pattern_and_unresolved_parts() {
     assert!(entry.class_names.contains(&"bg-brand-500".to_string()));
     assert!(entry.class_names.contains(&"p-18".to_string()));
     assert!(entry.class_names.contains(&"flex".to_string()));
+    assert!(entry.class_names.contains(&"a b".to_string()));
+    assert!(!entry.class_names.contains(&"a".to_string()));
     assert!(
         entry
             .patterns

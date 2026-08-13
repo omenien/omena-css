@@ -515,7 +515,7 @@ fn resolved_parallel_style_wave_targets_with_host(
         ))
     };
     let shared_reachability = std::sync::Arc::new(
-        crate::streaming_ifds_diagnostics::shared_streaming_reachability_for_lsp(
+        crate::demand_sliced_monotone_fact_propagation_diagnostics::shared_streaming_reachability_for_lsp(
             &committed_graph.cross_file_summary,
         ),
     );

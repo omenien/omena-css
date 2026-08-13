@@ -1,13 +1,15 @@
 use std::collections::BTreeMap;
 
 use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeValue, LayerRank, ModuleRank, Specificity,
-    cascade_level_for_origin, cascade_property, parse_simple_selector_signature,
+    CascadeDeclaration, CascadeKey, CascadeValue, LayerOrdinal, OpenWorldTieEvidence, Specificity,
+    cascade_level_for_origin, cascade_property, normalized_layer_rank,
+    parse_simple_selector_signature,
 };
+#[allow(deprecated)]
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
     REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0,
-    site as replica_ensemble_site,
+    cascade_section_key, compatibility_key_from_cascade_section_key_v0,
 };
 
 use super::collect_query_checker_cascade_declarations;
@@ -31,6 +33,7 @@ use super::collect_query_checker_cascade_declarations;
 /// Custom-property declarations (`--*`) are excluded: their winner is a token
 /// whose meaning depends on the whole-graph fixed point, not a directly
 /// comparable per-file value.
+#[allow(deprecated)]
 pub(in crate::style) fn collect_query_replica_ensemble_site_outcomes(
     source: &str,
 ) -> Vec<ReplicaSiteOutcomeV0> {
@@ -64,7 +67,9 @@ pub(in crate::style) fn collect_query_replica_ensemble_site_outcomes(
                 product: "omena-ensemble.replica-site-outcome",
                 layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
                 feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-                site: replica_ensemble_site(selector, property),
+                site: compatibility_key_from_cascade_section_key_v0(cascade_section_key(
+                    selector, property,
+                )),
                 outcome,
                 provenance: None,
             })
@@ -80,7 +85,10 @@ fn query_cascade_declaration_from_input(
     input: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> CascadeDeclaration {
     let level = cascade_level_for_origin(input.origin, input.important);
-    let layer_rank = LayerRank(input.layer_order.unwrap_or(0));
+    let layer_rank = normalized_layer_rank(
+        input.important,
+        input.layer_order.and_then(LayerOrdinal::new),
+    );
     let (specificity, specificity_exactness) =
         parse_simple_selector_signature(input.selector.as_str()).map_or(
             (
@@ -95,14 +103,8 @@ fn query_cascade_declaration_from_input(
         id: value.clone(),
         property: input.property.clone(),
         value: CascadeValue::Literal(value),
-        key: CascadeKey::new(
-            level,
-            layer_rank,
-            0,
-            specificity,
-            ModuleRank::ZERO,
-            input.source_order,
-        ),
+        key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness,
     }
 }

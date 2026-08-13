@@ -72,25 +72,6 @@ pub(super) fn workspace_occurrence_matches_target_style(
     })
 }
 
-pub(super) fn style_symbol_occurrence_from_workspace_occurrence_for_lsp(
-    occurrence: &OmenaWorkspaceOccurrenceV0,
-) -> Option<LspStyleSymbolOccurrenceV0> {
-    let family = occurrence.family?;
-    if family == OmenaWorkspaceOccurrenceFamilyV0::CssModuleSelector {
-        return None;
-    }
-    Some(LspStyleSymbolOccurrenceV0 {
-        moniker: occurrence.moniker.clone(),
-        uri: occurrence.uri.clone(),
-        kind: occurrence.kind,
-        family,
-        name: occurrence.name.clone(),
-        range: occurrence.range,
-        role: occurrence.role,
-        namespace: occurrence.namespace.clone(),
-    })
-}
-
 pub(super) fn workspace_occurrence_from_style_symbol_occurrence(
     document: &LspTextDocumentState,
     occurrence: &LspStyleSymbolOccurrenceV0,

@@ -28,6 +28,15 @@ describe("affected check planning", () => {
     expect(plan.requiresFullCi).toBe(false);
   });
 
+  it("keeps demand-sliced fact-propagation tooling on the Linux benchmark profile", () => {
+    const plan = buildAffectedCheckPlan([
+      "scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate.ts",
+    ]);
+
+    expect(plan.profiles).toEqual(["rust-workspace", "linux-benchmark"]);
+    expect(plan.requiresFullCi).toBe(false);
+  });
+
   it("fails closed for workflow topology and unknown paths", () => {
     const plan = buildAffectedCheckPlan([".github/workflows/ci.yml", "schema/new-format.json"]);
 
@@ -54,7 +63,7 @@ describe("CI probe profiles", () => {
       expect(target, profile.id).not.toBeNull();
       expect(target?.ciTier, profile.id).toBe("manual");
     }
-  });
+  }, 5_000);
 
   it("keeps workflow choices synchronized with the profile registry", () => {
     const workflow = readFileSync(path.join(repoRoot, ".github/workflows/ci-probe.yml"), "utf8");

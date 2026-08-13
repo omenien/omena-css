@@ -1,13 +1,114 @@
 {
   "schemaVersion": "0",
   "product": "omena.linked-emission-instrument-domain",
+  "minimumFileCount": 13,
   "files": [
     "rust/crates/omena-diff-test/src/linked_emission.rs",
     "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+    "rust/crates/omena-bundler/tests/linked_stylesheet_byte_identity.rs",
+    "scripts/check-rust-omena-bundler-resolution-authority-honesty.ts",
+    "rust/crates/omena-bundler/src/carrier_hygiene_assertions.rs",
+    "rust/crates/omena-query/src/style/transform/carrier_hygiene_assertions.rs",
     "rust/crates/omena-cli/tests/linked_emission_order.rs",
     "scripts/check-rust-omena-query-linked-source-map-fallback.ts",
     "scripts/check-rust-omena-module-qualified-product-path.ts",
-    "scripts/check-rust-omena-query-module-reachability-hoist.ts"
+    "scripts/check-rust-omena-query-module-reachability-hoist.ts",
+    "scripts/check-rust-omena-closed-world-admission-tier.ts",
+    "scripts/check-rust-contract-shape-census.ts",
+    "scripts/check-rust-omena-query-bundle-execution-scope.ts"
+  ],
+  "excludedAssertionForms": [
+    {
+      "file": "rust/crates/omena-diff-test/src/linked_emission.rs",
+      "syntax": "assert_ne!",
+      "expectedCount": 3,
+      "owner": "linked-emission differential tests",
+      "reentry": "a not-equal assertion is added or removed from the bounded domain"
+    },
+    {
+      "file": "scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts",
+      "syntax": "assert.equal",
+      "expectedCount": 63,
+      "owner": "linked-emission byte differential",
+      "reentry": "an equality assertion is added or removed without a falsifier disclosure"
+    },
+    {
+      "file": "scripts/check-rust-omena-module-qualified-product-path.ts",
+      "syntax": "assert.equal",
+      "expectedCount": 3,
+      "owner": "module-qualified product-path gate",
+      "reentry": "an equality assertion is added or removed without a falsifier disclosure"
+    },
+    {
+      "file": "scripts/check-rust-omena-module-qualified-product-path.ts",
+      "syntax": "assert.notEqual",
+      "expectedCount": 1,
+      "owner": "module-qualified product-path gate",
+      "reentry": "a not-equal assertion is added or removed without a falsifier disclosure"
+    },
+    {
+      "file": "scripts/check-rust-contract-shape-census.ts",
+      "syntax": "assert.deepEqual",
+      "expectedCount": 2,
+      "owner": "contract shape census",
+      "reentry": "an unannotated deep-equality assertion is added or removed from the contract census"
+    },
+    {
+      "file": "scripts/check-rust-contract-shape-census.ts",
+      "syntax": "assert.equal",
+      "expectedCount": 4,
+      "owner": "contract shape census",
+      "reentry": "an unannotated equality assertion is added or removed from the contract census"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.deepEqual",
+      "expectedCount": 12,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated deep-equality assertion is added or removed from the widened gate"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.equal",
+      "expectedCount": 20,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated equality assertion is added or removed from the widened gate"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.match",
+      "expectedCount": 11,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated match assertion is added or removed from the widened gate"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.notEqual",
+      "expectedCount": 12,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated not-equal assertion is added or removed from the widened gate"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-bundle-execution-scope.ts",
+      "syntax": "assert.ok",
+      "expectedCount": 14,
+      "owner": "bundle execution scope gate",
+      "reentry": "an unannotated truth assertion is added or removed from the widened gate"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-module-reachability-hoist.ts",
+      "syntax": "assert.equal",
+      "expectedCount": 5,
+      "owner": "module-reachability hoist gate",
+      "reentry": "an equality assertion is added or removed without a falsifier disclosure"
+    },
+    {
+      "file": "scripts/check-rust-omena-query-module-reachability-hoist.ts",
+      "syntax": "assert.match",
+      "expectedCount": 1,
+      "owner": "module-reachability hoist gate",
+      "reentry": "a match assertion is added or removed without a falsifier disclosure"
+    }
   ],
   "widenWhen": "A new assertion participates in linked-emission correctness, liveness attribution, placement, collision accounting, or its product-path reachability."
 }

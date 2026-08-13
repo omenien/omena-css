@@ -124,7 +124,19 @@ pub fn plan_transform_passes_checked(
     }
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+pub fn plan_transform_passes_parallel_transform_catalog_layers(
+    requested: &[TransformPassKind],
+) -> omena_lawvere::TransformCatalogTransformPassParallelPlanV0 {
+    omena_lawvere::plan_transform_catalog_parallel_layers_v0(requested)
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use plan_transform_passes_parallel_transform_catalog_layers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn plan_transform_passes_parallel_lawvere_layers(
     requested: &[TransformPassKind],
 ) -> omena_lawvere::TransformPassParallelPlanV0 {

@@ -76,7 +76,7 @@ pub fn summarize_omena_query_refs_for_class(
         locations.extend(
             definitions
                 .iter()
-                .filter(|definition| definition.name == selector_name)
+                .filter(|definition| class_names_match(definition.name.as_str(), selector_name))
                 .filter(|definition| {
                     target_style_uri.is_none_or(|target_uri| {
                         file_uri_equivalent(target_uri, definition.uri.as_str())
@@ -108,7 +108,10 @@ pub fn summarize_omena_query_refs_for_class(
             definitions,
             target_style_uri,
         );
-        if selector_names.iter().any(|name| name == selector_name) {
+        if selector_names
+            .iter()
+            .any(|name| class_names_match(name.as_str(), selector_name))
+        {
             locations.push(OmenaQueryReferenceLocationV0 {
                 uri: reference.uri.clone(),
                 range: reference.range,
@@ -261,7 +264,7 @@ pub fn summarize_omena_query_refs_for_class_from_occurrence_index(
         locations.extend(
             definitions
                 .iter()
-                .filter(|definition| definition.name == selector_name)
+                .filter(|definition| class_names_match(definition.name.as_str(), selector_name))
                 .filter(|definition| {
                     target_style_uri.is_none_or(|target_uri| {
                         file_uri_equivalent(target_uri, definition.uri.as_str())
@@ -1615,7 +1618,7 @@ pub fn resolve_omena_query_selector_rename_edits(
 
     let mut edits = definitions
         .iter()
-        .filter(|definition| definition.name == selector_name)
+        .filter(|definition| class_names_match(definition.name.as_str(), selector_name))
         .filter(|definition| {
             target_style_uri
                 .is_none_or(|target_uri| file_uri_equivalent(target_uri, definition.uri.as_str()))
@@ -1628,7 +1631,7 @@ pub fn resolve_omena_query_selector_rename_edits(
         .chain(
             references
                 .iter()
-                .filter(|reference| reference.name == selector_name)
+                .filter(|reference| class_names_match(reference.name.as_str(), selector_name))
                 .filter(|reference| {
                     source_reference_matches_target_style(reference, target_style_uri)
                 })
@@ -1656,9 +1659,12 @@ fn source_selector_candidate_matches_definition(
     definition: &OmenaQueryStyleSelectorDefinitionV0,
 ) -> bool {
     let selector_matches = if candidate.kind == "sourceSelectorPrefixReference" {
-        definition.name.starts_with(candidate.name.as_str())
+        ClassNameV0::new(definition.name.as_str())
+            .decoded()
+            .starts_with(ClassNameV0::new(candidate.name.as_str()).decoded())
     } else {
-        definition.name == candidate.name
+        canonical_class_key(definition.name.as_str())
+            == canonical_class_key(candidate.name.as_str())
     };
     selector_matches
         && candidate
@@ -1686,21 +1692,20 @@ fn source_selector_occurrences_for_query(
     selector_name: &str,
     target_style_uri: Option<&str>,
 ) -> Vec<OmenaQuerySourceSelectorOccurrenceV0> {
-    let matching_monikers = if target_style_uri.is_some() {
-        BTreeSet::from([source_selector_occurrence_moniker(
-            selector_name,
-            target_style_uri,
-        )])
-    } else {
-        let suffix = format!("#.{selector_name}");
-        occurrence_index
-            .workspace_index
-            .by_moniker
-            .keys()
-            .filter(|moniker| moniker.ends_with(suffix.as_str()))
-            .cloned()
-            .collect()
-    };
+    let matching_monikers = occurrence_index
+        .occurrences
+        .iter()
+        .filter(|occurrence| class_names_match(occurrence.selector_name.as_str(), selector_name))
+        .filter(|occurrence| {
+            target_style_uri.is_none_or(|target_uri| {
+                occurrence
+                    .target_style_uri
+                    .as_deref()
+                    .is_some_and(|candidate_uri| file_uri_equivalent(candidate_uri, target_uri))
+            })
+        })
+        .map(|occurrence| occurrence.moniker.clone())
+        .collect::<BTreeSet<_>>();
     occurrences_for_monikers(&occurrence_index.workspace_index, &matching_monikers)
         .into_iter()
         .filter_map(source_selector_occurrence_from_workspace_occurrence)
@@ -1831,6 +1836,10 @@ fn source_selector_occurrence_moniker(
     })
 }
 
+fn class_names_match(left: &str, right: &str) -> bool {
+    ClassNameV0::new(left).same_as(&ClassNameV0::new(right))
+}
+
 fn reference_location_role_rank(role: &str) -> u8 {
     match role {
         "definition" => 0,
@@ -1926,5 +1935,58 @@ mod global_class_fallthrough_label_tests {
             "{}",
             diagnostic.message
         );
+    }
+}
+
+#[cfg(test)]
+mod class_reference_identity_tests {
+    use super::*;
+
+    #[test]
+    fn references_join_cross_spelling_names_in_direct_and_indexed_paths() {
+        let style_uri = "file:///workspace/App.module.css";
+        let source_uri = "file:///workspace/App.tsx";
+        let definitions = vec![OmenaQueryStyleSelectorDefinitionV0 {
+            uri: style_uri.to_string(),
+            name: r"\62 tn".to_string(),
+            range: ParserRangeV0::default(),
+        }];
+        let references = vec![OmenaQuerySourceSelectorReferenceCandidateV0 {
+            uri: source_uri.to_string(),
+            kind: "sourceSelectorReference",
+            name: "btn".to_string(),
+            range: ParserRangeV0::default(),
+            source: "omenaQuerySourceSyntaxIndex",
+            target_style_uri: Some(style_uri.to_string()),
+        }];
+
+        let direct = summarize_omena_query_refs_for_class(
+            r"\62 tn",
+            Some(style_uri),
+            true,
+            definitions.as_slice(),
+            references.as_slice(),
+        );
+        let occurrence_index = summarize_omena_query_source_selector_occurrence_index(
+            definitions.as_slice(),
+            references.as_slice(),
+        );
+        let indexed = summarize_omena_query_refs_for_class_from_occurrence_index(
+            r"\62 tn",
+            Some(style_uri),
+            true,
+            definitions.as_slice(),
+            &occurrence_index,
+        );
+
+        for summary in [direct, indexed] {
+            assert_eq!(summary.location_count, 2);
+            assert!(
+                summary
+                    .locations
+                    .iter()
+                    .any(|location| { location.role == "reference" && location.uri == source_uri })
+            );
+        }
     }
 }

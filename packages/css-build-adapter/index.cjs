@@ -53,7 +53,12 @@ async function runOmenaBuild(filePath, source, options, state) {
   const sources = collectStyleSources(filePath, source, options);
   const packageManifests = collectPackageManifests(options);
   const passIds = await resolvePassIds(options, engine, sources);
-  const context = normalizeContext(options);
+  const resolvedModuleInterface =
+    options.moduleInterface !== false && CSS_MODULE_PATH.test(filePath)
+      ? await resolveCssModuleInterface(engine, filePath, sources, packageManifests, state)
+      : null;
+  const moduleInterface = selectModuleInterfaceTokens(resolvedModuleInterface, options.context);
+  const context = normalizeContext(options, moduleInterface);
   const targetOptions = options.targetOptions ?? null;
   const includeSourceMap = options.sourceMap !== false;
 
@@ -89,11 +94,6 @@ async function runOmenaBuild(filePath, source, options, state) {
       packageManifests,
     });
   }
-
-  const moduleInterface =
-    options.moduleInterface !== false && CSS_MODULE_PATH.test(filePath)
-      ? await resolveCssModuleInterface(engine, filePath, sources, packageManifests, state)
-      : null;
 
   const outputCss = summary.outputCss ?? summary.execution?.outputCss;
   if (typeof outputCss !== "string") {
@@ -155,6 +155,7 @@ async function resolveCssModuleInterface(engine, filePath, sources, packageManif
   }
   const response = await engine.resolveCssModule({
     snapshotId: { value: state.generations.get(filePath) ?? 0 },
+    workspaceRoot: path.resolve(state.root),
     stylePath: path.resolve(filePath),
     styleSources: sources,
     packageManifests,
@@ -227,12 +228,70 @@ function appendPassIds(passIds, preset) {
   }
 }
 
-function normalizeContext(options) {
+function normalizeContext(options, moduleInterface) {
   const context = { ...options.context };
+  if (moduleInterface) {
+    context.classNameRewrites = Object.entries(moduleInterface.classMap).map(
+      ([originalName, emittedClasses]) => ({
+        originalName,
+        rewrittenName: firstEmittedClass(emittedClasses, originalName),
+      }),
+    );
+  }
   if (options.closedStyleWorld || options.treeShake) {
     context.closedStyleWorld = true;
   }
   return Object.keys(context).length > 0 ? context : null;
+}
+
+function firstEmittedClass(emittedClasses, originalName) {
+  const [first] = emittedClasses.trim().split(/\s+/u);
+  if (!first) {
+    throw new Error(
+      `[omena-css] CSS Module interface emitted no class token for ${JSON.stringify(originalName)}.`,
+    );
+  }
+  return first;
+}
+
+function selectModuleInterfaceTokens(moduleInterface, suppliedContext) {
+  if (!moduleInterface || !Array.isArray(suppliedContext?.classNameRewrites)) {
+    return moduleInterface;
+  }
+  const selectedByOriginalName = new Map(
+    suppliedContext.classNameRewrites.map(({ originalName, rewrittenName }) => [
+      originalName,
+      rewrittenName,
+    ]),
+  );
+  const selectedByResolvedToken = new Map();
+  const classMap = Object.fromEntries(
+    Object.entries(moduleInterface.classMap).map(([originalName, emittedClasses]) => {
+      const selected = selectedByOriginalName.get(originalName);
+      if (typeof selected !== "string" || selected.length === 0) {
+        return [originalName, emittedClasses];
+      }
+      const current = firstEmittedClass(emittedClasses, originalName);
+      selectedByResolvedToken.set(current, selected);
+      return [originalName, replaceFirstEmittedClass(emittedClasses, selected)];
+    }),
+  );
+  const namedExports = Object.fromEntries(
+    Object.entries(moduleInterface.namedExports).map(([exportName, emittedClasses]) => {
+      const current = firstEmittedClass(emittedClasses, exportName);
+      return [
+        exportName,
+        replaceFirstEmittedClass(emittedClasses, selectedByResolvedToken.get(current) ?? current),
+      ];
+    }),
+  );
+  return { ...moduleInterface, classMap, namedExports };
+}
+
+function replaceFirstEmittedClass(emittedClasses, selected) {
+  const classes = emittedClasses.trim().split(/\s+/u);
+  classes[0] = selected;
+  return classes.join(" ");
 }
 
 async function resolveEffectiveOptions(options, state) {

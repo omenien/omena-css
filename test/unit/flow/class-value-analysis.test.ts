@@ -463,6 +463,33 @@ function render(flag: number) {
 });
 
 describe("buildFlowBlockGraphSnapshot", () => {
+  it("derives class boundaries from literal and separator content", () => {
+    const source = `
+function render(token: string) {
+  const binary = "btn-" + token;
+  const template = \`btn-\${token}\`;
+  const explicitBoundary = "btn-" + " " + token;
+  const joinedInside = ["a", "b"].join("");
+  const joinedBoundary = ["a", "b"].join(" ");
+  const listed = clsx("a", "b");
+  const opaque = left() + right();
+  const size = opaque;
+  return cx(size);
+}
+`;
+    const graph = flowBlockGraphFor(source);
+    const boundaryFor = (variableName: string) =>
+      graph.blocks.find((block) => block.variableName === variableName)?.boundaryEffect;
+
+    expect(boundaryFor("binary")).toBe("concatInsideToken");
+    expect(boundaryFor("template")).toBe("concatInsideToken");
+    expect(boundaryFor("explicitBoundary")).toBe("concatAtTokenBoundary");
+    expect(boundaryFor("joinedInside")).toBe("concatInsideToken");
+    expect(boundaryFor("joinedBoundary")).toBe("concatAtTokenBoundary");
+    expect(boundaryFor("listed")).toBe("concatAtTokenBoundary");
+    expect(boundaryFor("opaque")).toBe("unknownBoundary");
+  });
+
   it.each([
     ["&&", 'flag && "is-active"', "logicalAnd"],
     ["||", 'sizeInput || "fallback"', "logicalOr"],

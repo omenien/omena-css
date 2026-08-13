@@ -21,7 +21,7 @@ against the stored raw-keyed field, and every raw key is checked against the
 typed vocabulary before it is accepted.
 
 Structural graph deltas record typed added and removed cross-file summary
-edges. They do not replace the reachability delta set in the streaming IFDS
+edges. They do not replace the reachability delta set in the demand-sliced monotone fact propagation
 engine and do not move committed graph storage.
 
 ## Residual Ledger

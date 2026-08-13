@@ -85,7 +85,7 @@ const dispositionTable: readonly ReleaseDisposition[] = [
     evidence: ["rust/crates/omena-cascade/src/model.rs", "rust/crates/omena-cascade/src/modal.rs"],
   },
   {
-    surface: "BeliefPropagationIterationV0",
+    surface: "ReducedProductConstraintPropagationV0",
     disposition: "v0ApiFreezeCandidate",
     evidence: [
       "rust/crates/omena-abstract-value/src/types.rs",
@@ -185,7 +185,7 @@ assertIncludes(historicalM5ReleaseNotes, "without introducing a\n  public plugin
 assertIncludes(historicalM5ReleaseNotes, "V0 theory contract substrate");
 assertIncludes(
   historicalM5ReleaseNotes,
-  "keeping Datalog host, modal theorem, belief-propagation paper, and safety-margin\n  claims out of public release wording",
+  "keeping Datalog host, modal theorem, probabilistic factor-graph paper, and safety-margin\n  claims out of public release wording",
 );
 assertIncludes(historicalM5ReleaseNotes, "staged research contracts");
 assertIncludes(historicalM5ReleaseNotes, "final APIs or completed theory claims");
@@ -352,9 +352,9 @@ function assertEvidenceMarkers(): void {
       "V0 freeze-candidate provenance contract",
       "not declare Cargo 1.0 API finality",
       "V0 algorithm-view substrate",
-      "not a belief-propagation paper result",
+      "not a probabilistic factor-graph result",
       "pub struct LinearProvenanceV0",
-      "pub struct BeliefPropagationIterationV0",
+      "pub struct ReducedProductConstraintPropagationV0",
     ],
     "rust/crates/omena-abstract-value/src/tests.rs": [
       "linear_provenance_preserves_ordered_legacy_labels_as_strict_superset",
@@ -444,7 +444,7 @@ function assertTheoryClaimAudit(audit: TheoryClaimGuardSummary): void {
   }
   assert.ok(audit.theoryClaimGuard.summary.descriptorOnly >= 1);
   // fixtureRecordOnly may legitimately reach 0 once mechanism work upgrades those crates up the
-  // ladder (M8 raised categorical/smt/lawvere past it). The canonical rust/m4-closure-audit guard
+  // ladder (M8 raised categorical/smt/transform_catalog past it). The canonical rust/m4-closure-audit guard
   // already exempts this rung (assertTheoryClaimGuard skips fixtureRecordOnly); mirror that here so
   // the release freeze audit does not penalise honest ladder progress.
   assert.ok(audit.theoryClaimGuard.summary.fixtureRecordOnly >= 0);

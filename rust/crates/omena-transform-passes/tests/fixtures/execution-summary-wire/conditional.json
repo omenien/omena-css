@@ -2,6 +2,7 @@
   "interfaceName": "OmenaTransformExecutionSummaryV0",
   "keys": [
     "cascadeProofObligations",
+    "closedWorldAdmission",
     "cssImportInlines",
     "cssModuleComposesExports",
     "cssModuleEvaluation",
@@ -34,6 +35,7 @@
   "schemaVersion": "0",
   "wireTypes": {
     "cascadeProofObligations": "object",
+    "closedWorldAdmission": "object",
     "cssImportInlines": "array",
     "cssModuleComposesExports": "array",
     "cssModuleEvaluation": "null",

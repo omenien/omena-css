@@ -520,6 +520,156 @@ fn style_semantic_graph_batch_prefers_nearer_import_graph_token_candidates() {
 }
 
 #[test]
+fn unresolved_workspace_layer_never_outranks_an_unlayered_design_token() -> Result<(), String> {
+    let input = sample_input();
+    for (ghost_path, plain_path, target_source) in [
+        (
+            "/tmp/_aghost.scss",
+            "/tmp/_bplain.scss",
+            "@use \"./aghost\";\n@use \"./bplain\";\n@layer base;\n.button { color: var(--surface); }",
+        ),
+        (
+            "/tmp/_bghost.scss",
+            "/tmp/_aplain.scss",
+            "@use \"./bghost\";\n@use \"./aplain\";\n@layer base;\n.button { color: var(--surface); }",
+        ),
+    ] {
+        let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+            [
+                (
+                    ghost_path,
+                    "@layer ghostlayer { :root { --surface: ghost; } }",
+                ),
+                (plain_path, ":root { --surface: plain; }"),
+                ("/tmp/App.module.scss", target_source),
+            ],
+            &input,
+        );
+        let ranked_reference = &batch
+            .graphs
+            .iter()
+            .find(|entry| entry.style_path == "/tmp/App.module.scss")
+            .and_then(|entry| entry.graph.as_ref())
+            .ok_or_else(|| "the target style graph must be present".to_string())?
+            .design_token_semantics
+            .cascade_ranking_signal
+            .ranked_references[0];
+
+        assert_eq!(
+            ranked_reference.winner_declaration_file_path.as_deref(),
+            Some(plain_path),
+            "renaming the unresolved layered file must not change the unlayered winner"
+        );
+        assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);
+        assert_eq!(ranked_reference.winner_layer_resolution_status, "unlayered");
+    }
+    Ok(())
+}
+
+#[test]
+fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_together()
+-> Result<(), String> {
+    let input = sample_input();
+    let workspace_source = "@layer theme { .button { --brand: workspace; } }";
+    let target_source = r#"
+@use "./theme";
+@layer base, theme;
+@layer base {
+  .button {
+    --brand: local;
+    color: var(--brand);
+  }
+}
+"#;
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/_theme.scss", workspace_source),
+            ("/tmp/App.module.scss", target_source),
+        ],
+        &input,
+    );
+    let app_graph = batch
+        .graphs
+        .iter()
+        .find(|entry| entry.style_path == "/tmp/App.module.scss")
+        .and_then(|entry| entry.graph.as_ref())
+        .ok_or_else(|| "the target style graph must be present".to_string())?;
+    let ranked_reference = &app_graph
+        .design_token_semantics
+        .cascade_ranking_signal
+        .ranked_references[0];
+
+    assert_eq!(
+        ranked_reference.winner_declaration_file_path.as_deref(),
+        Some("/tmp/_theme.scss"),
+        "reversion: restoring local_winner.or(workspace_winner) makes the local base-layer declaration win without a key comparison"
+    );
+    assert_eq!(ranked_reference.winner_declaration_layer_rank, 1);
+    assert_eq!(
+        ranked_reference.winner_source_order_status,
+        "crossFileOrdinalUncalibrated"
+    );
+
+    let control = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/_theme.scss", workspace_source),
+            (
+                "/tmp/App.module.scss",
+                "@use \"./theme\";\n@layer base, theme;\n.button { color: var(--brand); }",
+            ),
+        ],
+        &input,
+    );
+    let control_reference = &control
+        .graphs
+        .iter()
+        .find(|entry| entry.style_path == "/tmp/App.module.scss")
+        .and_then(|entry| entry.graph.as_ref())
+        .ok_or_else(|| "the control style graph must be present".to_string())?
+        .design_token_semantics
+        .cascade_ranking_signal
+        .ranked_references[0];
+    assert_eq!(
+        control_reference.winner_declaration_file_path.as_deref(),
+        Some("/tmp/_theme.scss")
+    );
+    assert_eq!(control_reference.winner_declaration_layer_rank, 1);
+    Ok(())
+}
+
+#[test]
+fn style_semantic_graph_batch_prefers_the_local_file_on_a_full_cascade_tie() -> Result<(), String> {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/_theme.scss", ".button { --brand: workspace; }"),
+            (
+                "/tmp/App.module.scss",
+                "@use \"./theme\";\n.button { --brand: local; color: var(--brand); }",
+            ),
+        ],
+        &input,
+    );
+    let ranked_reference = &batch
+        .graphs
+        .iter()
+        .find(|entry| entry.style_path == "/tmp/App.module.scss")
+        .and_then(|entry| entry.graph.as_ref())
+        .ok_or_else(|| "the target style graph must be present".to_string())?
+        .design_token_semantics
+        .cascade_ranking_signal
+        .ranked_references[0];
+
+    assert_eq!(
+        ranked_reference.winner_declaration_file_path, None,
+        "reversion: clearing the local open-world tie evidence makes workspace provenance win a full cascade tie"
+    );
+    assert_eq!(ranked_reference.winner_declaration_source_order, 0);
+    assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);
+    Ok(())
+}
+
+#[test]
 fn style_semantic_graph_batch_resolves_package_root_forward_chain_token_candidates() {
     let input = sample_input();
     let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(

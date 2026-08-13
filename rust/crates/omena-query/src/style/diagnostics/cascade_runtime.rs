@@ -107,7 +107,12 @@ pub(super) fn attach_omena_query_runtime_state_inline_overrides_for_workspace(
         resolution_inputs,
         resolver_identity_index,
     );
-    attach_omena_query_runtime_state_inline_overrides_from_overrides(summary, inline_overrides);
+    attach_omena_query_runtime_state_inline_overrides_from_overrides(
+        target_style_path,
+        summary,
+        style_sources,
+        inline_overrides,
+    );
 }
 
 /// The shared-pass arm: the per-wave bucket map replaces the per-target
@@ -115,22 +120,44 @@ pub(super) fn attach_omena_query_runtime_state_inline_overrides_for_workspace(
 pub(in crate::style) fn attach_omena_query_runtime_state_inline_overrides_with_shared(
     target_style_path: &str,
     summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
     overrides_by_style: &BTreeMap<String, Vec<OmenaQueryInlineStyleRuntimeOverrideV0>>,
 ) {
     let inline_overrides = overrides_by_style
         .get(target_style_path)
         .cloned()
         .unwrap_or_default();
-    attach_omena_query_runtime_state_inline_overrides_from_overrides(summary, inline_overrides);
+    attach_omena_query_runtime_state_inline_overrides_from_overrides(
+        target_style_path,
+        summary,
+        style_sources,
+        inline_overrides,
+    );
 }
 
 fn attach_omena_query_runtime_state_inline_overrides_from_overrides(
+    target_style_path: &str,
     summary: &mut OmenaQueryStyleDiagnosticsForFileV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
     inline_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
 ) {
     if inline_overrides.is_empty() {
         return;
     }
+
+    let cascade_declarations = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+        .map(|source| {
+            collect_query_checker_cascade_declarations_with_dialect(
+                source.style_source.as_str(),
+                omena_parser_dialect_for_style_path(source.style_path.as_str()),
+            )
+            .into_iter()
+            .map(|declaration| declaration.input)
+            .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
     for diagnostic in &mut summary.diagnostics {
         let Some(runtime_state) = diagnostic
@@ -147,14 +174,16 @@ fn attach_omena_query_runtime_state_inline_overrides_from_overrides(
                 .iter()
                 .filter(|override_fact| override_fact.property_name == property_name)
                 .map(|override_fact| {
-                    omena_query_inline_style_runtime_override_scenario(
+                    query_runtime_state_scenario_with_inline_override(
+                        runtime_state.selector.as_str(),
                         property_name.as_str(),
+                        cascade_declarations.as_slice(),
                         override_fact,
                     )
                 }),
         );
         for driver in &mut runtime_state.driver_summaries {
-            if driver.driver == "inlineStyleHighestSpecificityTier" {
+            if driver.driver == "inlineStyleCascadeJoin" {
                 driver.status = "sourceFactsJoined";
                 driver.scenario_count = runtime_state
                     .inline_style_overrides
@@ -172,46 +201,6 @@ fn attach_omena_query_runtime_state_inline_overrides_from_overrides(
         runtime_state.confidence_tier = confidence_tier;
         runtime_state.confidence_tier_within_modeled_environment =
             confidence_tier_within_modeled_environment;
-    }
-}
-
-fn omena_query_inline_style_runtime_override_scenario(
-    property_name: &str,
-    override_fact: &OmenaQueryInlineStyleRuntimeOverrideV0,
-) -> OmenaQueryRuntimeStateScenarioV0 {
-    let value = override_fact
-        .value
-        .clone()
-        .unwrap_or_else(|| "<dynamic>".to_string());
-    let property_value_narrowing = narrow_abstract_property_value_for_pseudo_state(
-        property_name,
-        None,
-        &[AbstractPropertyValueCandidateV0 {
-            property_name: property_name.to_string(),
-            value: value.clone(),
-            pseudo_state: None,
-            condition_context: Vec::new(),
-            layer_name: None,
-            layer_order: None,
-            source_order: Some(0),
-            important: true,
-            same_selector_ordering: true,
-        }],
-    );
-
-    OmenaQueryRuntimeStateScenarioV0 {
-        scenario_kind: "inlineStyleOverride",
-        pseudo_state: None,
-        condition_context: Vec::new(),
-        declaration_ids: vec![format!(
-            "inline-style:{}:{}:{}",
-            override_fact.source_path,
-            override_fact.range.start.line,
-            override_fact.range.start.character
-        )],
-        winner_declaration_id: Some("inline-style-author-tier".to_string()),
-        winner_value: Some(value),
-        property_value_narrowing,
     }
 }
 
@@ -309,6 +298,7 @@ pub(in crate::style) fn collect_omena_query_inline_style_runtime_overrides_by_st
                     property_name: declaration.property_name,
                     value: declaration.value,
                     cascade_tier: declaration.cascade_tier,
+                    important: declaration.important,
                     static_value: declaration.static_value,
                 });
         }

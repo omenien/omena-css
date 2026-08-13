@@ -34,21 +34,26 @@ mod variables;
 
 use transfer::ScssControlFlowTransfer;
 pub(crate) use value_analysis::analyze_scss_control_flow_values_with_initial_bindings;
-pub(super) use value_analysis::summarize_scss_control_flow_widening_witness;
 pub use value_analysis::{analyze_scss_control_flow_values, summarize_typed_value_lattice_witness};
+pub(super) use value_analysis::{
+    summarize_scss_control_flow_ascending_chain_witness,
+    summarize_scss_control_flow_propagation_depth_witness,
+};
 
 pub use edge_ir::build_scss_control_flow_graph;
+#[allow(deprecated)]
+pub use model::OmenaScssEvalControlFlowWideningWitnessV0;
 pub use model::{
     OmenaScssEvalCallArgumentValueV0, OmenaScssEvalCallLocalBindingV0,
     OmenaScssEvalCallParameterValueV0, OmenaScssEvalCallReturnEdgeV0,
     OmenaScssEvalCallReturnIrSummaryV0, OmenaScssEvalCallReturnNodeV0,
-    OmenaScssEvalControlFlowBindingValueV0, OmenaScssEvalControlFlowBlockIdV0,
-    OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowEdgeV0,
-    OmenaScssEvalControlFlowGraphBlockV0, OmenaScssEvalControlFlowGraphV0,
-    OmenaScssEvalControlFlowIrSummaryV0, OmenaScssEvalControlFlowPruneReachabilityV0,
+    OmenaScssEvalControlFlowAscendingChainWitnessV0, OmenaScssEvalControlFlowBindingValueV0,
+    OmenaScssEvalControlFlowBlockIdV0, OmenaScssEvalControlFlowBlockV0,
+    OmenaScssEvalControlFlowEdgeV0, OmenaScssEvalControlFlowGraphBlockV0,
+    OmenaScssEvalControlFlowGraphV0, OmenaScssEvalControlFlowIrSummaryV0,
+    OmenaScssEvalControlFlowPropagationDepthWitnessV0, OmenaScssEvalControlFlowPruneReachabilityV0,
     OmenaScssEvalControlFlowValueAnalysisV0, OmenaScssEvalControlFlowValueBlockV0,
-    OmenaScssEvalControlFlowWideningWitnessV0, OmenaScssEvalTypedValueKindCountV0,
-    OmenaScssEvalTypedValueLatticeWitnessV0,
+    OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
 };
 pub use oracle_corpus::{
     OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,

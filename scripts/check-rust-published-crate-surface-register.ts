@@ -3,6 +3,8 @@ import { strict as assert } from "node:assert";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { declaredRustSemverIntentCrates } from "./lib/rust-semver-intent.ts";
+
 type SurfaceDisposition = "snapshotGated" | "trainSemverOnly" | "noRustConsumerSurface";
 type RegistryBaseline = "present" | "firstPublish";
 
@@ -105,12 +107,27 @@ assert.match(
   /Skipping cargo-semver-checks for first-publish crate/u,
   "first-publish skip policy must remain explicit",
 );
+assert.match(
+  releaseWorkflow,
+  /omena-check run rust\/release-semver/u,
+  "the release train must consume the declared semver intent policy",
+);
 
 for (const crate of requiredSnapshotCrates) {
   assert.equal(
     register.rows.find((row) => row.crate === crate)?.disposition,
     "snapshotGated",
     `${crate} must remain snapshot-gated`,
+  );
+}
+
+for (const crate of declaredRustSemverIntentCrates(repoRoot)) {
+  const row = register.rows.find((candidate) => candidate.crate === crate);
+  assert(row, `${crate} semver intent must refer to a published-crate register row`);
+  assert.equal(
+    row.registryBaselineAtRegistration,
+    "present",
+    `${crate} cannot declare a compatibility break before its first registry publication`,
   );
 }
 

@@ -82,7 +82,7 @@ const singleSource = runRunner<ConsumerBuildSummaryV0>("consumer-build-style-sou
   requestedPassIds: [],
 });
 assert.deepEqual(singleSource.requestedPassIds, []);
-assert.equal(singleSource.execution.outputCss, "._a_0{color:#fff;margin:0}");
+assert.match(singleSource.execution.outputCss, /^\._[A-Za-z0-9_-]{6}_a\{color:#fff;margin:0\}$/u);
 assert.deepEqual(singleSource.effectivePassIds, expectedDefaultPassIds);
 assertExecutionUsesEffectivePasses(singleSource);
 assert.equal(singleSource.openWorldSnapshot, undefined);

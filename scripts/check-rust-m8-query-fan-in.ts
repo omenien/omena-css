@@ -168,8 +168,14 @@ assert.ok(
   !/\b(?:use|pub use)\s+omena_checker\b/u.test(queryCascadeCheckerSource),
   "omena-query cascade checker must not import omena-checker directly",
 );
+const cascadeCheckerGateEntrypoints = [
+  "run_omena_query_checker_cascade_gate_v0",
+  "run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0",
+];
 assert.ok(
-  queryCascadeCheckerSource.includes("run_omena_query_checker_cascade_gate_v0"),
+  cascadeCheckerGateEntrypoints.some((entrypoint) =>
+    queryCascadeCheckerSource.includes(entrypoint),
+  ),
   "omena-query cascade checker must route diagnostics through the checker gate",
 );
 

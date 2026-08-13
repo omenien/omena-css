@@ -7,8 +7,12 @@
 use std::cmp::{Ordering, Reverse};
 
 use crate::{
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeMarginSchemaV0, CascadeMarginV0,
-    CascadeOutcome, CascadeProof, SpecificityExactnessV0,
+    CascadeDeclaration, CascadeKey, CascadeMarginSchemaV0, CascadeMarginV0, CascadeOutcome,
+    CascadeProof, OpenWorldTieEvidence, SpecificityExactnessV0,
+    axis_order::{
+        cascade_key_axis_name_v0, cascade_key_axis_order_v0, cascade_key_axis_signed_distance_v0,
+        first_deciding_cascade_key_axis_v0,
+    },
 };
 
 pub fn cascade_property(
@@ -80,10 +84,20 @@ fn compare_open_world_declarations(
     left: &CascadeDeclaration,
     right: &CascadeDeclaration,
 ) -> Ordering {
+    compare_open_world_cascade_keys(
+        (left.key, left.open_world_tie_evidence),
+        (right.key, right.open_world_tie_evidence),
+    )
+}
+
+fn compare_open_world_cascade_keys(
+    left: (CascadeKey, OpenWorldTieEvidence),
+    right: (CascadeKey, OpenWorldTieEvidence),
+) -> Ordering {
     right
-        .key
-        .cmp(&left.key)
-        .then_with(|| right.key.module_rank.cmp(&left.key.module_rank))
+        .0
+        .cmp(&left.0)
+        .then_with(|| right.1.module_rank.cmp(&left.1.module_rank))
 }
 
 pub fn rank_cascade_items<T>(
@@ -108,20 +122,37 @@ pub fn select_cascade_winner<T>(
     Some((winner, ranked))
 }
 
+/// Selects an open-world winner while retaining provenance as a final tiebreak.
+///
+/// `CascadeKey::Ord` owns the spec-defined cascade axes. The returned
+/// [`OpenWorldTieEvidence`] remains outside that order and is considered only
+/// after those axes compare equal.
+pub fn select_open_world_cascade_winner<T>(
+    items: impl IntoIterator<Item = T>,
+    key_and_evidence_for: impl Fn(&T) -> (CascadeKey, OpenWorldTieEvidence),
+) -> Option<(T, Vec<T>)> {
+    let mut ranked = items.into_iter().collect::<Vec<_>>();
+    ranked.sort_by(|left, right| {
+        compare_open_world_cascade_keys(key_and_evidence_for(left), key_and_evidence_for(right))
+    });
+    if ranked.is_empty() {
+        return None;
+    }
+
+    let winner = ranked.remove(0);
+    Some((winner, ranked))
+}
+
 pub fn summarize_cascade_margin_schema_v0() -> CascadeMarginSchemaV0 {
     CascadeMarginSchemaV0 {
         schema_version: "0",
         product: "omena-cascade.margin-schema",
         margin_kind: "lexicographicCascadeKeyDelta",
-        axis_order: vec![
-            "level",
-            "layerRank",
-            "scopeProximity",
-            "specificityIds",
-            "specificityClasses",
-            "specificityElements",
-            "sourceOrder",
-        ],
+        axis_order: cascade_key_axis_order_v0()
+            .iter()
+            .copied()
+            .map(cascade_key_axis_name_v0)
+            .collect(),
         calibration_stage: "schemaOnlyUncalibrated",
         public_safety_claim_ready: false,
     }
@@ -170,55 +201,10 @@ pub fn cascade_margin_for_outcome(outcome: &CascadeOutcome) -> Option<CascadeMar
 }
 
 fn dominant_cascade_key_margin(winner: CascadeKey, challenger: CascadeKey) -> (&'static str, i64) {
-    let level_delta = cascade_level_rank(winner.level) - cascade_level_rank(challenger.level);
-    if level_delta != 0 {
-        return ("level", level_delta);
-    }
-
-    let layer_delta = i64::from(winner.layer_rank.0) - i64::from(challenger.layer_rank.0);
-    if layer_delta != 0 {
-        return ("layerRank", layer_delta);
-    }
-
-    let scope_delta = i64::from(challenger.scope_proximity) - i64::from(winner.scope_proximity);
-    if scope_delta != 0 {
-        return ("scopeProximity", scope_delta);
-    }
-
-    let specificity_id_delta =
-        i64::from(winner.specificity.ids) - i64::from(challenger.specificity.ids);
-    if specificity_id_delta != 0 {
-        return ("specificityIds", specificity_id_delta);
-    }
-
-    let specificity_class_delta =
-        i64::from(winner.specificity.classes) - i64::from(challenger.specificity.classes);
-    if specificity_class_delta != 0 {
-        return ("specificityClasses", specificity_class_delta);
-    }
-
-    let specificity_element_delta =
-        i64::from(winner.specificity.elements) - i64::from(challenger.specificity.elements);
-    if specificity_element_delta != 0 {
-        return ("specificityElements", specificity_element_delta);
-    }
-
+    let axis = first_deciding_cascade_key_axis_v0(&winner, &challenger)
+        .unwrap_or(crate::axis_order::CascadeKeyAxisV0::SourceOrder);
     (
-        "sourceOrder",
-        i64::from(winner.source_order) - i64::from(challenger.source_order),
+        cascade_key_axis_name_v0(axis),
+        cascade_key_axis_signed_distance_v0(axis, &winner, &challenger),
     )
-}
-
-fn cascade_level_rank(level: CascadeLevel) -> i64 {
-    match level {
-        CascadeLevel::UserAgentNormal => 0,
-        CascadeLevel::UserNormal => 1,
-        CascadeLevel::AuthorNormal => 2,
-        CascadeLevel::InlineNormal => 3,
-        CascadeLevel::Animation => 4,
-        CascadeLevel::AuthorImportant => 5,
-        CascadeLevel::UserImportant => 6,
-        CascadeLevel::UserAgentImportant => 7,
-        CascadeLevel::Transition => 8,
-    }
 }

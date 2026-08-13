@@ -76,6 +76,61 @@ mod module_interface_projection_probe {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
+#[allow(dead_code)]
+mod source_workspace_projection_probe {
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
+
+    thread_local! {
+        static RUN_PATHS: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+    }
+
+    pub(super) fn record(source_path: &str) {
+        RUN_PATHS.with(|paths| {
+            paths.borrow_mut().insert(source_path.to_string());
+        });
+    }
+
+    pub(super) fn reset() {
+        RUN_PATHS.with(|paths| paths.borrow_mut().clear());
+    }
+
+    pub(super) fn read() -> BTreeSet<String> {
+        RUN_PATHS.with(|paths| paths.borrow().clone())
+    }
+}
+
+#[cfg(test)]
+mod source_workspace_query_probe {
+    use std::cell::Cell;
+
+    thread_local! {
+        static UNUSED_SELECTOR_COMPUTES: Cell<u64> = const { Cell::new(0) };
+        static CROSS_FILE_SUMMARY_COMPUTES: Cell<u64> = const { Cell::new(0) };
+    }
+
+    pub(super) fn record_unused_selector() {
+        UNUSED_SELECTOR_COMPUTES.with(|count| count.set(count.get().saturating_add(1)));
+    }
+
+    pub(super) fn record_cross_file_summary() {
+        CROSS_FILE_SUMMARY_COMPUTES.with(|count| count.set(count.get().saturating_add(1)));
+    }
+
+    pub(super) fn reset() {
+        UNUSED_SELECTOR_COMPUTES.with(|count| count.set(0));
+        CROSS_FILE_SUMMARY_COMPUTES.with(|count| count.set(0));
+    }
+
+    pub(super) fn read() -> (u64, u64) {
+        (
+            UNUSED_SELECTOR_COMPUTES.with(Cell::get),
+            CROSS_FILE_SUMMARY_COMPUTES.with(Cell::get),
+        )
+    }
+}
+
 #[cfg(test)]
 mod source_element_parent_chain_probe {
     use std::cell::RefCell;
@@ -209,6 +264,18 @@ pub fn read_module_interface_projection_probe_for_test() -> BTreeSet<String> {
     module_interface_projection_probe::read()
 }
 
+#[cfg(feature = "test-support")]
+#[allow(dead_code)]
+pub fn reset_source_workspace_projection_probe_for_test() {
+    source_workspace_projection_probe::reset();
+}
+
+#[cfg(feature = "test-support")]
+#[allow(dead_code)]
+pub fn read_source_workspace_projection_probe_for_test() -> BTreeSet<String> {
+    source_workspace_projection_probe::read()
+}
+
 #[cfg(any(test, feature = "test-support"))]
 pub fn reset_css_modules_import_edge_resolution_probe_for_test() {
     css_modules_import_edge_resolution_probe::reset();
@@ -291,6 +358,7 @@ pub struct OmenaQuerySourceFileInputV0 {
     pub source_source: String,
     #[returns(ref)]
     pub source_syntax_index: Option<OmenaQuerySourceSyntaxIndexV0>,
+    pub has_unresolved_style_import: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -363,6 +431,8 @@ pub struct OmenaQueryStyleParallelResolveSyncV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryCommittedStyleSemanticGraphV0 {
     style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
+    cascade_declarations_by_style:
+        BTreeMap<String, Vec<cascade_checker::QueryCheckerCascadeDeclaration>>,
     pub style_cross_file_summary: OmenaQueryCrossFileSummaryV0,
     pub cross_file_summary: OmenaQueryCrossFileSummaryV0,
     pub css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
@@ -505,9 +575,12 @@ impl OmenaQueryStyleRevisionSelectorV0 {
             .map(|entry| StyleCascadeNarrowingSubstrateEntry {
                 style_path: entry.style_path.clone(),
                 facts: entry.facts.clone(),
-                declarations: cascade_checker::collect_query_checker_cascade_declarations(
-                    entry.style_source.as_str(),
-                ),
+                declarations: self
+                    .committed_graph
+                    .cascade_declarations_by_style
+                    .get(entry.style_path.as_str())
+                    .cloned()
+                    .unwrap_or_default(),
             })
             .collect();
         OmenaQueryStyleCascadeNarrowingSubstrateV0 {
@@ -806,7 +879,7 @@ pub fn prepare_committed_workspace_wave_substrate(
                 resolver_identity_index,
             ),
         ),
-        #[cfg(feature = "hypergraph-ifds")]
+        #[cfg(feature = "hypergraph-monotone-fact-propagation")]
         cross_file_scc_report: Some(
             crate::style::diagnostics::collect_omena_query_unified_cross_file_scc_report_shared(
                 corpus.as_slice(),
@@ -1005,12 +1078,85 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
 /// Resolution mappings and disk identities are read through the workspace
 /// input so Salsa invalidates this result with the same revision that owns the
 /// source documents. Unchanged file facts remain memoized across revisions.
+#[salsa::tracked(returns(clone))]
+fn memo_source_workspace_projection(
+    db: &dyn salsa::Database,
+    file: OmenaQuerySourceFileInputV0,
+) -> OmenaQuerySourceDocumentInputV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    source_workspace_projection_probe::record(file.source_path(db));
+    let source_syntax_index = file.source_syntax_index(db).clone();
+    let source_source =
+        source_workspace_projected_text(file.source_source(db), source_syntax_index.as_ref());
+    OmenaQuerySourceDocumentInputV0 {
+        source_path: file.source_path(db).clone(),
+        source_source,
+        source_syntax_index,
+        has_unresolved_style_import: *file.has_unresolved_style_import(db),
+    }
+}
+
+fn source_workspace_projected_text(
+    source: &str,
+    source_syntax_index: Option<&OmenaQuerySourceSyntaxIndexV0>,
+) -> String {
+    let Some(index) = source_syntax_index else {
+        return source.to_string();
+    };
+    let index_is_consumable = !index.imported_style_bindings.is_empty()
+        || index
+            .selector_references
+            .iter()
+            .any(|reference| reference.target_style_uri.is_some());
+    if !index_is_consumable {
+        return source.to_string();
+    }
+    let mut spans = index
+        .selector_references
+        .iter()
+        .filter(|reference| reference.selector_name.is_none())
+        .map(|reference| reference.byte_span)
+        .collect::<Vec<_>>();
+    spans.extend(index.style_property_accesses.iter().filter_map(|access| {
+        (!index.selector_references.iter().any(|reference| {
+            reference.byte_span == access.byte_span
+                && reference.target_style_uri == access.target_style_uri
+                && reference.selector_name.is_some()
+        }))
+        .then_some(access.byte_span)
+    }));
+    if spans.is_empty() {
+        return String::new();
+    }
+    let mut projected = vec![b' '; source.len()];
+    for span in spans {
+        let Some(fragment) = source.as_bytes().get(span.start..span.end) else {
+            return source.to_string();
+        };
+        projected[span.start..span.end].copy_from_slice(fragment);
+    }
+    String::from_utf8(projected).unwrap_or_else(|_| source.to_string())
+}
+
+fn source_workspace_projections(
+    db: &dyn salsa::Database,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+) -> Vec<OmenaQuerySourceDocumentInputV0> {
+    workspace
+        .source_files(db)
+        .iter()
+        .map(|file| memo_source_workspace_projection(db, *file))
+        .collect()
+}
+
 #[salsa::tracked(returns(ref))]
 fn memo_workspace_unused_selector_shared(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
     source_corpus_complete: bool,
 ) -> Option<OmenaQueryUnusedSelectorSharedV0> {
+    #[cfg(test)]
+    source_workspace_query_probe::record_unused_selector();
     let style_fact_entries = workspace
         .files(db)
         .iter()
@@ -1019,7 +1165,7 @@ fn memo_workspace_unused_selector_shared(
     let resolution_inputs = workspace.resolution_inputs(db);
     crate::style::diagnostics::collect_omena_query_unused_selector_shared(
         style_fact_entries.as_slice(),
-        workspace.source_documents(db).as_slice(),
+        source_workspace_projections(db, workspace).as_slice(),
         workspace.package_manifests(db).as_slice(),
         None,
         resolution_inputs.bundler_path_mappings.as_slice(),
@@ -1063,6 +1209,14 @@ fn memo_style_fact_entry(
     #[cfg(any(test, feature = "test-support"))]
     style_fact_entry_probe::record(file.style_path(db));
     collect_omena_query_style_fact_entry(file.style_path(db), file.style_source(db))
+}
+
+#[salsa::tracked(returns(clone))]
+fn memo_style_cascade_declarations(
+    db: &dyn salsa::Database,
+    file: OmenaQueryStyleFileInputV0,
+) -> Vec<cascade_checker::QueryCheckerCascadeDeclaration> {
+    cascade_checker::collect_query_checker_cascade_declarations(file.style_source(db))
 }
 
 #[salsa::tracked(returns(clone))]
@@ -1487,12 +1641,14 @@ fn memo_workspace_cross_file_summary_from_module_interfaces(
     db: &dyn salsa::Database,
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> OmenaQueryCrossFileSummaryV0 {
+    #[cfg(test)]
+    source_workspace_query_probe::record_cross_file_summary();
     let module_interfaces = module_interfaces_for_workspace(db, workspace);
     let style_cross_file_summary =
         memo_style_cross_file_summary_from_module_interfaces(db, workspace);
     summarize_omena_query_workspace_cross_file_summary_from_module_interfaces(
         module_interfaces.as_slice(),
-        workspace.source_documents(db).as_slice(),
+        source_workspace_projections(db, workspace).as_slice(),
         workspace.package_manifests(db).as_slice(),
         style_cross_file_summary,
         workspace.resolution_inputs(db),
@@ -1505,6 +1661,16 @@ fn memo_committed_style_semantic_graph_from_module_interfaces(
     workspace: OmenaQueryStyleWorkspaceInputV0,
 ) -> OmenaQueryCommittedStyleSemanticGraphV0 {
     let style_fact_entries = style_fact_entries_for_workspace(db, workspace);
+    let cascade_declarations_by_style = workspace
+        .files(db)
+        .iter()
+        .map(|file| {
+            (
+                file.style_path(db).clone(),
+                memo_style_cascade_declarations(db, *file),
+            )
+        })
+        .collect();
     let css_modules_resolution =
         memo_css_modules_cross_file_resolution_from_module_interfaces(db, workspace);
     let sass_module_resolution =
@@ -1527,6 +1693,7 @@ fn memo_committed_style_semantic_graph_from_module_interfaces(
         memo_workspace_cross_file_summary_from_module_interfaces(db, workspace);
     OmenaQueryCommittedStyleSemanticGraphV0 {
         style_fact_entries,
+        cascade_declarations_by_style,
         style_cross_file_summary,
         cross_file_summary,
         css_modules_resolution,
@@ -2451,6 +2618,12 @@ impl OmenaQueryStyleMemoHostV0 {
                             file.set_source_syntax_index(&mut self.db)
                                 .to(document.source_syntax_index.clone());
                         }
+                        if *file.has_unresolved_style_import(&self.db)
+                            != document.has_unresolved_style_import
+                        {
+                            file.set_has_unresolved_style_import(&mut self.db)
+                                .to(document.has_unresolved_style_import);
+                        }
                         *file
                     }
                     None => {
@@ -2459,6 +2632,7 @@ impl OmenaQueryStyleMemoHostV0 {
                             document.source_path.clone(),
                             document.source_source.clone(),
                             document.source_syntax_index.clone(),
+                            document.has_unresolved_style_import,
                         );
                         self.source_files_by_path
                             .insert(document.source_path.clone(), file);
@@ -2728,6 +2902,7 @@ pub fn memo_source_element_computed_value(
         CascadeComputedValueInputV0, CascadeValue, CustomPropertyEnv,
         compute_cascade_computed_value,
     };
+    use omena_query_checker_orchestrator::standard_property_value_verdict_v0;
 
     #[cfg(test)]
     source_element_computed_value_probe::record();
@@ -2769,12 +2944,24 @@ pub fn memo_source_element_computed_value(
                 None,
             );
         }
+        let standard_property_value_verdicts = projection
+            .declarations
+            .iter()
+            .filter_map(|declaration| match &declaration.value {
+                CascadeValue::Literal(value) if !declaration.property.starts_with("--") => Some((
+                    declaration.id.clone(),
+                    standard_property_value_verdict_v0(&declaration.property, value),
+                )),
+                _ => None,
+            })
+            .collect();
         let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
             property: property.clone(),
             declarations: projection.declarations,
             custom_property_env: CustomPropertyEnv::new(),
             parent_computed_value,
             registered_custom_property: None,
+            standard_property_value_verdicts,
         });
         parent_computed_value = Some(result.value.clone());
         target_result = Some(result);
@@ -2797,7 +2984,8 @@ fn memo_source_element_static_declarations(
     property: String,
 ) -> SourceElementDeclarationProjectionV0 {
     use omena_cascade::{
-        CascadeDeclaration, CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity,
+        CascadeDeclaration, CascadeKey, CascadeOriginV0, OpenWorldTieEvidence, Specificity,
+        cascade_level_for_origin, normalized_layer_rank,
     };
     use omena_query_transform_runner::parse_static_css_cascade_value;
 
@@ -2858,6 +3046,11 @@ fn memo_source_element_static_declarations(
                 OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue,
             );
         };
+        if declaration.important_suffix_present() {
+            return source_element_declaration_projection(
+                OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue,
+            );
+        }
         let Some(value) = parse_static_css_cascade_value(css_value_source.as_str()) else {
             return source_element_declaration_projection(
                 OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue,
@@ -2871,13 +3064,13 @@ fn memo_source_element_static_declarations(
             property: property.clone(),
             value,
             key: CascadeKey::new(
-                CascadeLevel::InlineNormal,
-                LayerRank(0),
+                cascade_level_for_origin(CascadeOriginV0::Inline, false),
+                normalized_layer_rank(false, None),
                 0,
                 Specificity::ZERO,
-                ModuleRank::ZERO,
                 declaration.byte_span.start.min(u32::MAX as usize) as u32,
             ),
+            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
             specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
         });
     }
@@ -2994,8 +3187,20 @@ pub(crate) fn build_committed_style_semantic_graph_monolith(
         style_cross_file_summary.clone(),
         resolution_inputs,
     );
+    let cascade_declarations_by_style = style_fact_entries
+        .iter()
+        .map(|entry| {
+            (
+                entry.style_path.clone(),
+                cascade_checker::collect_query_checker_cascade_declarations(
+                    entry.style_source.as_str(),
+                ),
+            )
+        })
+        .collect();
     OmenaQueryCommittedStyleSemanticGraphV0 {
         style_fact_entries,
+        cascade_declarations_by_style,
         style_cross_file_summary,
         cross_file_summary,
         css_modules_resolution,
@@ -3979,7 +4184,7 @@ const cls = styles.root;"#
     }
 
     #[test]
-    fn revision_selector_cascade_narrowing_substrate_reuses_committed_graph()
+    fn revision_selector_reuses_committed_resolution_and_per_file_cascade_declarations()
     -> Result<(), &'static str> {
         let corpus = parallel_probe_corpus();
         let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
@@ -4001,6 +4206,7 @@ const cls = styles.root;"#
             .map_err(|_| "registered transaction must commit")?;
 
         reset_sass_module_resolution_internal_compute_count_for_test();
+        cascade_declarations_collect_probe::reset();
         let first_substrate = commit.selector.style_cascade_narrowing_substrate();
         let second_substrate = commit.selector.style_cascade_narrowing_substrate();
         assert_eq!(first_substrate, direct_substrate);
@@ -4009,6 +4215,52 @@ const cls = styles.root;"#
             read_sass_module_resolution_internal_compute_count_for_test(),
             0,
             "selector substrate lookup must reuse the Sass resolution committed with the graph",
+        );
+        assert_eq!(
+            cascade_declarations_collect_probe::count(),
+            0,
+            "selector substrate lookups must reuse declarations committed through the per-file tracked queries",
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn revision_selector_recollects_cascade_declarations_for_only_the_edited_style_file()
+    -> Result<(), &'static str> {
+        let mut corpus = doubled_parallel_probe_corpus();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let initial = host
+            .workspace_revision_selector(corpus.as_slice(), &[], &[], &[], &resolution_inputs)
+            .ok_or("initial selector must commit")?;
+        let _ = initial.style_cascade_narrowing_substrate();
+
+        corpus[0]
+            .style_source
+            .push_str("\n.edited { color: currentColor; }\n");
+        cascade_declarations_collect_probe::reset();
+        let edited = host
+            .workspace_revision_selector(corpus.as_slice(), &[], &[], &[], &resolution_inputs)
+            .ok_or("edited selector must commit")?;
+        let incremental = edited.style_cascade_narrowing_substrate();
+        assert_eq!(
+            cascade_declarations_collect_probe::count(),
+            1,
+            "a single-file edit must recollect exactly that file's cascade declarations",
+        );
+        cascade_declarations_collect_probe::reset();
+        let direct = collect_omena_query_style_cascade_narrowing_substrate_with_external_sifs(
+            corpus.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+
+        assert_eq!(incremental, direct);
+        assert_eq!(
+            cascade_declarations_collect_probe::count(),
+            corpus.len(),
+            "the direct oracle must still exercise the full corpus",
         );
         Ok(())
     }
@@ -4733,6 +4985,173 @@ export const classes = [a.ghostA, b.usedB, c.usedC];
             set_of(["/workspace/src/App.module.scss"]),
             "editing one file must not dirty unchanged file fact entries",
         );
+    }
+
+    #[test]
+    fn source_workspace_projection_cuts_off_selector_stable_tsx_body_edits() {
+        let styles = source_workspace_projection_style_corpus();
+        let mut documents = vec![source_workspace_projection_document(
+            "/workspace/src/App.tsx",
+            "card",
+            "one",
+        )];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        exercise_source_workspace_projection_consumers(&host.db, workspace);
+
+        documents[0] =
+            source_workspace_projection_document("/workspace/src/App.tsx", "card", "two");
+        let edited_workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        source_workspace_projection_probe::reset();
+        source_workspace_query_probe::reset();
+        exercise_source_workspace_projection_consumers(&host.db, edited_workspace);
+
+        assert_eq!(
+            source_workspace_projection_probe::read(),
+            set_of(["/workspace/src/App.tsx"]),
+            "the edited file projection must run so zero workspace recomputes cannot be dead code",
+        );
+        assert_eq!(
+            source_workspace_query_probe::read(),
+            (0, 0),
+            "a selector-stable body edit must cut off both workspace consumers",
+        );
+    }
+
+    #[test]
+    fn source_workspace_projection_recomputes_for_selector_reference_changes() {
+        let styles = source_workspace_projection_style_corpus();
+        let mut documents = vec![source_workspace_projection_document(
+            "/workspace/src/App.tsx",
+            "card",
+            "one",
+        )];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        exercise_source_workspace_projection_consumers(&host.db, workspace);
+
+        documents[0] =
+            source_workspace_projection_document("/workspace/src/App.tsx", "tile", "one");
+        let edited_workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        source_workspace_projection_probe::reset();
+        source_workspace_query_probe::reset();
+        exercise_source_workspace_projection_consumers(&host.db, edited_workspace);
+
+        assert_eq!(
+            source_workspace_projection_probe::read(),
+            set_of(["/workspace/src/App.tsx"]),
+        );
+        assert_eq!(
+            source_workspace_query_probe::read(),
+            (1, 1),
+            "the negative control must recompute both consumers when a selector reference changes",
+        );
+    }
+
+    #[test]
+    fn source_workspace_projection_recompute_set_is_the_single_renamed_file() {
+        let styles = source_workspace_projection_style_corpus();
+        let mut documents = vec![
+            source_workspace_projection_document("/workspace/src/App.tsx", "card", "one"),
+            source_workspace_projection_document("/workspace/src/Peer.tsx", "tile", "one"),
+        ];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        exercise_source_workspace_projection_consumers(&host.db, workspace);
+
+        documents[1] =
+            source_workspace_projection_document("/workspace/src/Peer.tsx", "card", "one");
+        let edited_workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        source_workspace_projection_probe::reset();
+        source_workspace_query_probe::reset();
+        exercise_source_workspace_projection_consumers(&host.db, edited_workspace);
+
+        assert_eq!(
+            source_workspace_projection_probe::read(),
+            set_of(["/workspace/src/Peer.tsx"]),
+            "the recompute set must be the one source file whose selector reference changed",
+        );
+        assert_eq!(source_workspace_query_probe::read(), (1, 1));
+    }
+
+    fn source_workspace_projection_style_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
+        vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.scss".to_string(),
+            style_source: ".card { color: red; }\n.tile { color: blue; }\n".to_string(),
+        }]
+    }
+
+    fn source_workspace_projection_document(
+        source_path: &str,
+        selector_name: &str,
+        body_value: &str,
+    ) -> OmenaQuerySourceDocumentInputV0 {
+        let source = format!(
+            "import styles from './App.module.scss';\nexport const App = () => <div className={{styles.{selector_name}}} data-body=\"{body_value}\" />;\n"
+        );
+        let index = summarize_omena_query_source_syntax_index_for_source_language(
+            source_path,
+            source.as_str(),
+            Some("typescriptreact"),
+            vec![OmenaQuerySourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: "/workspace/src/App.module.scss".to_string(),
+            }],
+            Vec::new(),
+        );
+        OmenaQuerySourceDocumentInputV0 {
+            source_path: source_path.to_string(),
+            source_source: source,
+            source_syntax_index: Some(index),
+            has_unresolved_style_import: false,
+        }
+    }
+
+    fn exercise_source_workspace_projection_consumers(
+        db: &OmenaQueryStyleMemoDatabaseV0,
+        workspace: OmenaQueryStyleWorkspaceInputV0,
+    ) {
+        let _ = memo_workspace_unused_selector_shared(db, workspace, true);
+        let _ = memo_workspace_cross_file_summary_from_module_interfaces(db, workspace);
     }
 
     #[test]
@@ -5594,6 +6013,84 @@ $_private-token: changed;
     }
 
     #[test]
+    fn source_element_computed_value_rejects_jsx_inline_important_suffix() {
+        use omena_cascade::ElementIdentityV0;
+
+        let source_path = "/workspace/App.tsx";
+        let source = r#"export const App = () => <main style={{ color: "blue !important" }} />;"#;
+        let index = summarize_omena_query_source_syntax_index_for_source_language(
+            source_path,
+            source,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let element = index.source_elements[0].identity.clone();
+        let documents = [OmenaQuerySourceDocumentInputV0 {
+            source_path: source_path.to_string(),
+            source_source: source.to_string(),
+            source_syntax_index: Some(index),
+            has_unresolved_style_import: false,
+        }];
+        let target = ElementIdentityV0 {
+            source_path: element.source_path,
+            byte_start: element.byte_span.start,
+            byte_end: element.byte_span.end,
+        };
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+
+        assert_eq!(
+            color.status,
+            OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue
+        );
+        assert_eq!(color.computed_value, None);
+    }
+
+    #[test]
+    fn source_element_computed_value_consumes_standard_property_verdicts() {
+        use omena_cascade::{ComputedCascadeValueStatusV0, ElementIdentityV0};
+
+        let source_path = "/workspace/App.tsx";
+        let source =
+            r#"export const App = () => <main style={{ color: "definitely-not-a-color" }} />;"#;
+        let index = summarize_omena_query_source_syntax_index_for_source_language(
+            source_path,
+            source,
+            None,
+            Vec::new(),
+            Vec::new(),
+        );
+        let element = index.source_elements[0].identity.clone();
+        let documents = [OmenaQuerySourceDocumentInputV0 {
+            source_path: source_path.to_string(),
+            source_source: source.to_string(),
+            source_syntax_index: Some(index),
+            has_unresolved_style_import: false,
+        }];
+        let target = ElementIdentityV0 {
+            source_path: element.source_path,
+            byte_start: element.byte_span.start,
+            byte_end: element.byte_span.end,
+        };
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+
+        let color = host.source_element_computed_value(documents.as_slice(), target, "color");
+
+        assert_eq!(
+            color
+                .computed_value
+                .as_ref()
+                .map(|value| (&value.status, value.invalid_at_computed_value_time)),
+            Some((
+                &ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
+                true,
+            ))
+        );
+    }
+
+    #[test]
     fn evidence_graph_keys_changed_nodes_on_salsa_demand_edges() -> Result<(), &'static str> {
         let mut corpus = doubled_parallel_probe_corpus();
         let edited_path = corpus[0].style_path.clone();
@@ -5756,5 +6253,57 @@ $_private-token: changed;
             "post-wave edit resolve must serialize",
         );
         Ok(())
+    }
+
+    #[test]
+    fn source_workspace_projection_records_length_changing_selector_stable_edit_limitation() {
+        let styles = source_workspace_projection_style_corpus();
+        let mut documents = vec![source_workspace_projection_document(
+            "/workspace/src/App.tsx",
+            "card",
+            "one",
+        )];
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        exercise_source_workspace_projection_consumers(&host.db, workspace);
+
+        documents[0] = source_workspace_projection_document(
+            "/workspace/src/App.tsx",
+            "card",
+            "expanded-body-value",
+        );
+        let edited_workspace = host.sync_workspace(
+            styles.as_slice(),
+            documents.as_slice(),
+            &[],
+            &[],
+            &resolution_inputs,
+        );
+        source_workspace_projection_probe::reset();
+        source_workspace_query_probe::reset();
+        exercise_source_workspace_projection_consumers(&host.db, edited_workspace);
+
+        let projection_recompute_set = source_workspace_projection_probe::read();
+        let consumer_recompute_counts = source_workspace_query_probe::read();
+        eprintln!(
+            "projectionRecomputeSet={projection_recompute_set:?} consumerRecomputeCounts={consumer_recompute_counts:?}"
+        );
+        assert_eq!(
+            projection_recompute_set,
+            set_of(["/workspace/src/App.tsx"]),
+            "the length-changing edited file projection must execute"
+        );
+        assert_eq!(
+            consumer_recompute_counts,
+            (1, 1),
+            "the current zero-recompute guarantee is limited to byte-length-preserving edits"
+        );
     }
 }

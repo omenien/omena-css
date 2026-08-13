@@ -1,4 +1,4 @@
-//! Cross-file summary hypergraph substrate shared by query and streaming IFDS.
+//! Cross-file summary hypergraph substrate shared by query and demand-sliced monotone fact propagation.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -767,6 +767,31 @@ pub struct UnifiedHypergraphHyperedgeV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HypergraphMonotoneFactPropagationSummaryEdgeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub summary_edge_id: String,
+    pub projection_edge_id: String,
+    pub hyperedge_id: String,
+    pub from_node_id: String,
+    pub to_node_id: String,
+    pub edge_kind: UnifiedHypergraphEdgeKindV0,
+    pub status: &'static str,
+    pub provenance: Vec<&'static str>,
+    pub linear_provenance: OmenaCrossFileLinearProvenanceV0,
+}
+
+/// Compatibility summary edge retained for the published 0.3 nominal surface.
+/// Owner: `omena-cross-file-summary` maintainers. Removal condition: not before
+/// 1.0, after downstream migration and zero audited non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use HypergraphMonotoneFactPropagationSummaryEdgeV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HypergraphIFDSSummaryEdgeV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -783,6 +808,7 @@ pub struct HypergraphIFDSSummaryEdgeV0 {
     pub linear_provenance: OmenaCrossFileLinearProvenanceV0,
 }
 
+#[allow(deprecated)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryUnifiedCrossFileHypergraphV0 {
@@ -796,7 +822,30 @@ pub struct OmenaQueryUnifiedCrossFileHypergraphV0 {
     pub summary_edge_count: usize,
     pub projection_edge_ids: Vec<String>,
     pub hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
+    /// Published compatibility field. Use the monotone-fact-propagation aggregate
+    /// for new code.
+    #[deprecated(
+        since = "0.4.0",
+        note = "use OmenaQueryUnifiedCrossFileMonotoneFactPropagationHypergraphV0::summary_edges; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
     pub summary_edges: Vec<HypergraphIFDSSummaryEdgeV0>,
+    pub gate_predicates: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryUnifiedCrossFileMonotoneFactPropagationHypergraphV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub node_count: usize,
+    pub hyperedge_count: usize,
+    pub summary_edge_count: usize,
+    pub projection_edge_ids: Vec<String>,
+    pub hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
+    pub summary_edges: Vec<HypergraphMonotoneFactPropagationSummaryEdgeV0>,
     pub gate_predicates: Vec<&'static str>,
 }
 
@@ -1013,10 +1062,10 @@ impl DenseBitsetV0 {
     }
 }
 
-pub fn tabulate_hypergraph_ifds_summary_edges(
+pub fn tabulate_hypergraph_monotone_fact_propagation_summary_edges(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-    projected_edges: Vec<HypergraphIFDSSummaryEdgeV0>,
-) -> Vec<HypergraphIFDSSummaryEdgeV0> {
+    projected_edges: Vec<HypergraphMonotoneFactPropagationSummaryEdgeV0>,
+) -> Vec<HypergraphMonotoneFactPropagationSummaryEdgeV0> {
     let hyperedge_ids = hyperedges
         .iter()
         .map(|edge| edge.hyperedge_id.as_str())
@@ -1033,13 +1082,101 @@ pub fn tabulate_hypergraph_ifds_summary_edges(
     edges
 }
 
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-cross-file-summary maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn hypergraph_summary_edge_into_compatibility_wire_v0(
+    edge: HypergraphMonotoneFactPropagationSummaryEdgeV0,
+) -> HypergraphIFDSSummaryEdgeV0 {
+    HypergraphIFDSSummaryEdgeV0 {
+        schema_version: edge.schema_version,
+        product: "omena-query.hypergraph-ifds-summary-edge",
+        layer_marker: "hypergraph-ifds",
+        feature_gate: "hypergraph-ifds",
+        summary_edge_id: edge.summary_edge_id.replacen(
+            "monotone-fact-propagation-summary:",
+            "ifds-summary:",
+            1,
+        ),
+        projection_edge_id: edge.projection_edge_id,
+        hyperedge_id: edge.hyperedge_id,
+        from_node_id: edge.from_node_id,
+        to_node_id: edge.to_node_id,
+        edge_kind: edge.edge_kind,
+        status: edge.status,
+        provenance: edge.provenance,
+        linear_provenance: edge.linear_provenance,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-cross-file-summary maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn hypergraph_summary_edge_into_canonical_v0(
+    edge: HypergraphIFDSSummaryEdgeV0,
+) -> HypergraphMonotoneFactPropagationSummaryEdgeV0 {
+    HypergraphMonotoneFactPropagationSummaryEdgeV0 {
+        schema_version: edge.schema_version,
+        product: "omena-query.hypergraph-monotone-fact-propagation-summary-edge",
+        layer_marker: "hypergraph-monotone-fact-propagation",
+        feature_gate: "hypergraph-monotone-fact-propagation",
+        summary_edge_id: edge.summary_edge_id.replacen(
+            "ifds-summary:",
+            "monotone-fact-propagation-summary:",
+            1,
+        ),
+        projection_edge_id: edge.projection_edge_id,
+        hyperedge_id: edge.hyperedge_id,
+        from_node_id: edge.from_node_id,
+        to_node_id: edge.to_node_id,
+        edge_kind: edge.edge_kind,
+        status: edge.status,
+        provenance: edge.provenance,
+        linear_provenance: edge.linear_provenance,
+    }
+}
+
+/// Published 0.3 compatibility wrapper. New callers should use the monotone
+/// fact-propagation spelling above.
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use tabulate_hypergraph_monotone_fact_propagation_summary_edges; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn tabulate_hypergraph_ifds_summary_edges(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    projected_edges: Vec<HypergraphIFDSSummaryEdgeV0>,
+) -> Vec<HypergraphIFDSSummaryEdgeV0> {
+    tabulate_hypergraph_monotone_fact_propagation_summary_edges(
+        hyperedges,
+        projected_edges
+            .into_iter()
+            .map(hypergraph_summary_edge_into_canonical_v0)
+            .collect(),
+    )
+    .into_iter()
+    .map(hypergraph_summary_edge_into_compatibility_wire_v0)
+    .collect()
+}
+
 pub fn summarize_omena_query_unified_cross_file_scc_report(
     hypergraph: &OmenaQueryUnifiedCrossFileHypergraphV0,
 ) -> OmenaQueryUnifiedCrossFileSccReportV0 {
-    let adjacency = build_directed_projection_adjacency(&hypergraph.summary_edges);
+    #[allow(deprecated)]
+    let canonical_summary_edges = hypergraph
+        .summary_edges
+        .iter()
+        .cloned()
+        .map(hypergraph_summary_edge_into_canonical_v0)
+        .collect::<Vec<_>>();
+    let adjacency = build_directed_projection_adjacency(&canonical_summary_edges);
     let mut sccs = collect_directed_graph_sccs(&adjacency)
         .into_iter()
-        .filter_map(|node_ids| summarize_cyclic_scc(&node_ids, &hypergraph.summary_edges))
+        .filter_map(|node_ids| summarize_cyclic_scc(&node_ids, &canonical_summary_edges))
         .collect::<Vec<_>>();
     sccs.sort_by(|left, right| {
         left.node_ids
@@ -1059,8 +1196,7 @@ pub fn summarize_omena_query_unified_cross_file_scc_report(
         connectivity_backend: "exactTarjanScc",
         polylog_bound_scope: "notClaimedExactTraversal",
         node_count: adjacency.len(),
-        directed_edge_count: hypergraph
-            .summary_edges
+        directed_edge_count: canonical_summary_edges
             .iter()
             .filter(|edge| summary_edge_has_supported_target(edge.status))
             .count(),
@@ -1074,14 +1210,61 @@ pub fn summarize_omena_query_unified_cross_file_scc_report(
     }
 }
 
+#[allow(deprecated)]
 pub fn summarize_omena_query_unified_cross_file_hypergraph(
     summary: &OmenaQueryCrossFileSummaryV0,
 ) -> OmenaQueryUnifiedCrossFileHypergraphV0 {
+    hypergraph_into_compatibility_wire_v0(
+        summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph(summary),
+    )
+}
+
+pub fn summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph(
+    summary: &OmenaQueryCrossFileSummaryV0,
+) -> OmenaQueryUnifiedCrossFileMonotoneFactPropagationHypergraphV0 {
     let mut builder = UnifiedCrossFileHypergraphBuilder::default();
     for edge in &summary.edges {
         builder.add_summary_edge(edge);
     }
     builder.finish()
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-cross-file-summary maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn hypergraph_into_compatibility_wire_v0(
+    hypergraph: OmenaQueryUnifiedCrossFileMonotoneFactPropagationHypergraphV0,
+) -> OmenaQueryUnifiedCrossFileHypergraphV0 {
+    let hyperedges = hypergraph
+        .hyperedges
+        .into_iter()
+        .map(|mut edge| {
+            edge.layer_marker = "hypergraph-ifds";
+            edge.feature_gate = "hypergraph-ifds";
+            edge
+        })
+        .collect();
+    let summary_edges = hypergraph
+        .summary_edges
+        .into_iter()
+        .map(hypergraph_summary_edge_into_compatibility_wire_v0)
+        .collect();
+    OmenaQueryUnifiedCrossFileHypergraphV0 {
+        schema_version: hypergraph.schema_version,
+        product: hypergraph.product,
+        status: "hypergraphIfdsProjection",
+        layer_marker: "hypergraph-ifds",
+        feature_gate: "hypergraph-ifds",
+        node_count: hypergraph.node_count,
+        hyperedge_count: hypergraph.hyperedge_count,
+        summary_edge_count: hypergraph.summary_edge_count,
+        projection_edge_ids: hypergraph.projection_edge_ids,
+        hyperedges,
+        summary_edges,
+        gate_predicates: hypergraph.gate_predicates,
+    }
 }
 
 pub fn collect_hypergraph_transitive_closure_paths<N, F>(
@@ -1258,7 +1441,7 @@ fn build_adjacency(
 struct UnifiedCrossFileHypergraphBuilder {
     node_ids: BTreeSet<String>,
     hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
-    summary_edges: Vec<HypergraphIFDSSummaryEdgeV0>,
+    summary_edges: Vec<HypergraphMonotoneFactPropagationSummaryEdgeV0>,
 }
 
 impl UnifiedCrossFileHypergraphBuilder {
@@ -1295,8 +1478,8 @@ impl UnifiedCrossFileHypergraphBuilder {
         self.hyperedges.push(UnifiedHypergraphHyperedgeV0 {
             schema_version: "0",
             product: "omena-query.unified-hypergraph-hyperedge",
-            layer_marker: "hypergraph-ifds",
-            feature_gate: "hypergraph-ifds",
+            layer_marker: "hypergraph-monotone-fact-propagation",
+            feature_gate: "hypergraph-monotone-fact-propagation",
             hyperedge_id: hyperedge_id.clone(),
             edge_kind,
             source_summary_edge_id: edge.edge_id.clone(),
@@ -1306,39 +1489,42 @@ impl UnifiedCrossFileHypergraphBuilder {
             head_node_id: to_node_id.clone(),
             order_significant_tail: edge_kind.is_order_significant(),
         });
-        self.summary_edges.push(HypergraphIFDSSummaryEdgeV0 {
-            schema_version: "0",
-            product: "omena-query.hypergraph-ifds-summary-edge",
-            layer_marker: "hypergraph-ifds",
-            feature_gate: "hypergraph-ifds",
-            summary_edge_id: format!("ifds-summary:{}", edge.edge_id),
-            projection_edge_id: edge.edge_id.clone(),
-            hyperedge_id,
-            from_node_id,
-            to_node_id,
-            edge_kind,
-            status: edge.status,
-            provenance: edge.provenance.clone(),
-            linear_provenance: edge.linear_provenance.clone(),
-        });
+        self.summary_edges
+            .push(HypergraphMonotoneFactPropagationSummaryEdgeV0 {
+                schema_version: "0",
+                product: "omena-query.hypergraph-monotone-fact-propagation-summary-edge",
+                layer_marker: "hypergraph-monotone-fact-propagation",
+                feature_gate: "hypergraph-monotone-fact-propagation",
+                summary_edge_id: format!("monotone-fact-propagation-summary:{}", edge.edge_id),
+                projection_edge_id: edge.edge_id.clone(),
+                hyperedge_id,
+                from_node_id,
+                to_node_id,
+                edge_kind,
+                status: edge.status,
+                provenance: edge.provenance.clone(),
+                linear_provenance: edge.linear_provenance.clone(),
+            });
     }
 
-    fn finish(mut self) -> OmenaQueryUnifiedCrossFileHypergraphV0 {
+    fn finish(mut self) -> OmenaQueryUnifiedCrossFileMonotoneFactPropagationHypergraphV0 {
         self.hyperedges
             .sort_by_key(|edge| edge.hyperedge_id.clone());
-        let summary_edges =
-            tabulate_hypergraph_ifds_summary_edges(&self.hyperedges, self.summary_edges);
+        let summary_edges = tabulate_hypergraph_monotone_fact_propagation_summary_edges(
+            &self.hyperedges,
+            self.summary_edges,
+        );
         let projection_edge_ids = summary_edges
             .iter()
             .map(|edge| edge.projection_edge_id.clone())
             .collect::<Vec<_>>();
 
-        OmenaQueryUnifiedCrossFileHypergraphV0 {
+        OmenaQueryUnifiedCrossFileMonotoneFactPropagationHypergraphV0 {
             schema_version: "0",
             product: "omena-query.unified-cross-file-hypergraph",
-            status: "hypergraphIfdsProjection",
-            layer_marker: "hypergraph-ifds",
-            feature_gate: "hypergraph-ifds",
+            status: "hypergraphMonotoneFactPropagationProjection",
+            layer_marker: "hypergraph-monotone-fact-propagation",
+            feature_gate: "hypergraph-monotone-fact-propagation",
             node_count: self.node_ids.len(),
             hyperedge_count: self.hyperedges.len(),
             summary_edge_count: summary_edges.len(),
@@ -1423,7 +1609,7 @@ fn unified_edge_kind_for_summary_edge(
 }
 
 fn build_directed_projection_adjacency(
-    summary_edges: &[HypergraphIFDSSummaryEdgeV0],
+    summary_edges: &[HypergraphMonotoneFactPropagationSummaryEdgeV0],
 ) -> BTreeMap<String, BTreeSet<String>> {
     let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
     for edge in summary_edges {
@@ -1512,7 +1698,7 @@ impl TarjanState {
 
 fn summarize_cyclic_scc(
     node_ids: &[String],
-    summary_edges: &[HypergraphIFDSSummaryEdgeV0],
+    summary_edges: &[HypergraphMonotoneFactPropagationSummaryEdgeV0],
 ) -> Option<OmenaQueryCrossFileSccEvidenceV0> {
     let node_set = node_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
     let internal_edges = summary_edges
@@ -1633,7 +1819,45 @@ fn stable_omena_query_hash_piece(hash: &mut u64, piece: &str) {
 
 #[cfg(test)]
 mod tests {
+    use sha2::{Digest, Sha256};
+
     use super::*;
+
+    #[test]
+    #[allow(deprecated)]
+    fn compatibility_and_canonical_hypergraphs_keep_distinct_exact_wire_bytes()
+    -> Result<(), serde_json::Error> {
+        let summary = summary_from_edges(vec![fixture_edge_with_kind(
+            "sassUse",
+            "style",
+            "/workspace/a.scss",
+            "style",
+            "/workspace/b.scss",
+        )]);
+        let compatibility = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+        let canonical =
+            summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph(&summary);
+        let compatibility_json = serde_json::to_string(&compatibility)?;
+        let canonical_json = serde_json::to_string(&canonical)?;
+        let digest = |bytes: &[u8]| {
+            Sha256::digest(bytes)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        };
+        assert_eq!(compatibility_json.len(), 2_109);
+        assert_eq!(
+            digest(compatibility_json.as_bytes()),
+            "3e937371e24d00ee36cc10874fb2b9a84e2e4d3b341c352e9fac7e96057a94ee"
+        );
+        assert_eq!(canonical_json.len(), 2_296);
+        assert_eq!(
+            digest(canonical_json.as_bytes()),
+            "1440656b0991e00dde7782e3cabc34037ce1eaf5ddaa91c3755f5d526fd08f12"
+        );
+        assert_ne!(compatibility_json, canonical_json);
+        Ok(())
+    }
 
     #[test]
     fn bitset_reachability_matches_btreeset_closure_order_and_cycles() {

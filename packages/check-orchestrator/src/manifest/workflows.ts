@@ -146,11 +146,6 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",
   },
   {
-    id: "contract/parity-v2-golden",
-    reason:
-      "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",
-  },
-  {
     id: "contract/parity-v2-smoke",
     reason:
       "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",
@@ -344,17 +339,17 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
   {
-    id: "rust/m4-beta-hypergraph-ifds",
+    id: "rust/m4-beta-hypergraph-monotone-fact-propagation",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
   {
-    id: "rust/m4-beta-lawvere",
+    id: "rust/m4-beta-transform-catalog",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
   {
-    id: "rust/m4-beta-rg-flow",
+    id: "rust/m4-beta-multiscale-complexity-heuristic",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
@@ -384,7 +379,7 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
   {
-    id: "rust/m4-gamma-streaming-ifds",
+    id: "rust/m4-gamma-demand-sliced-monotone-fact-propagation",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
@@ -434,7 +429,7 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
   {
-    id: "rust/omena-categorical/verify-cosheaf-covariance",
+    id: "rust/omena-categorical/verify-cascade-section-aggregation-covariance",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
@@ -459,7 +454,7 @@ const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] 
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },
   {
-    id: "rust/omena-categorical/verify-site-stability",
+    id: "rust/omena-categorical/verify-cascade-section-aggregation-plan-stability",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
   },

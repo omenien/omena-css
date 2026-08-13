@@ -33,6 +33,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm omena-check doctor
       - run: pnpm omena-check run tooling/orchestrator-inventory
+      - run: pnpm omena-check run rust/release-semver-intent-contract
       - id: closure-fast-shards
         run: echo "matrix=$(pnpm --silent omena-check shards rust/closure-fast --json)" >> "$GITHUB_OUTPUT"
 
@@ -82,6 +83,7 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run core/build/omena-napi
+      - run: pnpm omena-check run contract/parity-v2-golden
       - run: pnpm omena-check run contract/type-fact-backend-parity
       - run: pnpm omena-check run test/test
       - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform
@@ -193,6 +195,8 @@ jobs:
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm omena-check run rust/omena-reactive/contract
+      - run: pnpm omena-check run rust/omena-reactive/public-surface
+      - run: pnpm omena-check run rust/omena-reactive/public-surface:update && git diff --exit-code -- rust/crates/omena-reactive/tests/snapshots/public-api.txt
       - run: pnpm omena-check run rust/omena-lsp-server/tide-sole-authority
       - run: pnpm omena-check run rust/omena-lsp-server/reactive-shadow-parity
       - run: pnpm omena-check run rust/omena-cascade/property-metadata
@@ -375,7 +379,7 @@ jobs:
     timeout-minutes: 20
     env:
       OMENA_Z5_COMPLEXITY_SLOPE_REPORT: .omena-ci/z5-complexity-slope-report.json
-      OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT: .omena-ci/streaming-ifds-relocation-approval.json
+      OMENA_DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_REPORT: .omena-ci/demand-sliced-monotone-fact-propagation-relocation-approval.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -389,7 +393,7 @@ jobs:
           sudo apt-get install -y valgrind
           valgrind --version
       - run: pnpm omena-check run rust/z5-perf-complexity-slope
-      - run: pnpm omena-check run rust/streaming-ifds-relocation-gate-bound
+      - run: pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound
 
   benchmark-products:
     # omena-ci-tier: verify

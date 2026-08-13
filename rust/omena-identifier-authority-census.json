@@ -1,0 +1,898 @@
+{
+  "schemaVersion": "0",
+  "product": "omena.identifier-authority.census",
+  "policy": {
+    "expectedSide": "committed-authored-table",
+    "addedSiteAdoption": "forbidden",
+    "owningCheck": "rust/omena-syntax-authority-raw-scan-census",
+    "packageScript": "check:rust-omena-syntax-authority-raw-scan-census"
+  },
+  "sourceRoots": ["rust/crates"],
+  "scope": {
+    "scannedCrates": [
+      "engine-shadow-runner",
+      "engine-style-parser",
+      "omena-abstract-value",
+      "omena-benchmarks",
+      "omena-bridge",
+      "omena-bundler",
+      "omena-cascade",
+      "omena-cascade-proof",
+      "omena-categorical",
+      "omena-checker",
+      "omena-cli",
+      "omena-cross-file-summary",
+      "omena-cst-typed",
+      "omena-diff-test",
+      "omena-engine-input-producers",
+      "omena-ensemble",
+      "omena-evidence-graph",
+      "omena-incremental",
+      "omena-interner",
+      "omena-lawvere",
+      "omena-lsp-server",
+      "omena-meta-macros",
+      "omena-napi",
+      "omena-parser",
+      "omena-product-hints",
+      "omena-query",
+      "omena-query-checker-orchestrator",
+      "omena-query-core",
+      "omena-query-transform-runner",
+      "omena-reachability-datalog-lab",
+      "omena-reactive",
+      "omena-refinement",
+      "omena-refinement-trait",
+      "omena-resolver",
+      "omena-rg-flow",
+      "omena-scss-eval",
+      "omena-semantic",
+      "omena-sif",
+      "omena-smt",
+      "omena-spec-audit",
+      "omena-streaming-ifds",
+      "omena-syntax",
+      "omena-testkit",
+      "omena-transform-bundle",
+      "omena-transform-cst",
+      "omena-transform-egg",
+      "omena-transform-passes",
+      "omena-transform-print",
+      "omena-transform-target",
+      "omena-tsgo-client",
+      "omena-umbrella",
+      "omena-value-lattice",
+      "omena-variational",
+      "omena-wasm",
+      "omena-zk-audit",
+      "omena-zk-circuit"
+    ],
+    "scannedCratesDigest": "sha256:4989e67ee2565c64eff2218cd2804032c56ce1be6d4096d8e312347d50475262",
+    "engineCrates": [
+      "omena-abstract-value",
+      "omena-bridge",
+      "omena-bundler",
+      "omena-cascade",
+      "omena-cascade-proof",
+      "omena-categorical",
+      "omena-checker",
+      "omena-cross-file-summary",
+      "omena-cst-typed",
+      "omena-engine-input-producers",
+      "omena-ensemble",
+      "omena-evidence-graph",
+      "omena-incremental",
+      "omena-interner",
+      "omena-lawvere",
+      "omena-parser",
+      "omena-product-hints",
+      "omena-query",
+      "omena-query-checker-orchestrator",
+      "omena-query-core",
+      "omena-query-transform-runner",
+      "omena-reachability-datalog-lab",
+      "omena-reactive",
+      "omena-refinement",
+      "omena-refinement-trait",
+      "omena-resolver",
+      "omena-rg-flow",
+      "omena-scss-eval",
+      "omena-semantic",
+      "omena-sif",
+      "omena-smt",
+      "omena-spec-audit",
+      "omena-streaming-ifds",
+      "omena-syntax",
+      "omena-transform-bundle",
+      "omena-transform-cst",
+      "omena-transform-egg",
+      "omena-transform-passes",
+      "omena-transform-print",
+      "omena-transform-target",
+      "omena-value-lattice",
+      "omena-variational",
+      "omena-zk-audit",
+      "omena-zk-circuit"
+    ],
+    "engineCratesDigest": "sha256:76190d2f57735a22b6157a93688ba0fe1ef8af0a42aa92d3c344dffd9d869cbd"
+  },
+  "preflight": {
+    "productPin": "c18606086dc77101ad162c8d0ddb36ccae7e9d85",
+    "measuredSiteCount": 50,
+    "primitiveCounts": {
+      "str-eq": 24,
+      "contains": 9,
+      "insert": 10,
+      "map-get": 5,
+      "cmp": 2
+    }
+  },
+  "typeSeal": {
+    "path": "rust/crates/omena-syntax/src/ident.rs",
+    "classNameDerives": ["Debug", "Clone"],
+    "classNameEqualityDerives": [],
+    "canonicalKeyDerives": ["Debug", "Clone", "PartialEq", "Eq", "PartialOrd", "Ord", "Hash"],
+    "canonicalKeyFieldVisibility": "private",
+    "canonicalKeyConstructor": "ClassNameV0::canonical_key",
+    "equalityMethod": "ClassNameV0::same_as",
+    "mutatorCrates": [
+      "omena-cascade",
+      "omena-query",
+      "omena-semantic",
+      "omena-transform-passes",
+      "omena-bridge",
+      "omena-lsp-server",
+      "omena-abstract-value",
+      "omena-bundler"
+    ],
+    "privacyDiscriminator": "Rust field privacy is module-scoped, and every measured mutator is in a crate other than omena-syntax."
+  },
+  "egress": {
+    "direction": "decrease-only",
+    "baselineSiteCount": 2,
+    "currentSiteCount": 2,
+    "sites": [
+      {
+        "path": "rust/crates/omena-parser/src/public_product.rs",
+        "line": 2040,
+        "function": "class_names_in_selector",
+        "operation": "ClassNameV0::into_raw",
+        "evidence": "let name = entry.name.into_raw();",
+        "disposition": "named-exempt",
+        "reason": "The parser product preserves authored selector spelling together with its source span."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+        "line": 683,
+        "function": "query_selector_class_names",
+        "operation": "ClassNameV0::into_raw",
+        "evidence": "names.insert(entry.name.into_raw());",
+        "disposition": "named-exempt",
+        "reason": "Cascade diagnostics preserve authored selector spelling after shared lexical extraction."
+      }
+    ],
+    "siteDigest": "sha256:56748841afa6c93c63d927a51d27d222098e2850e2d2630cf7bcebb7832d5fd1"
+  },
+  "idiom": {
+    "granularity": "line",
+    "lexemeGlobs": [
+      "*_class_name",
+      "*_class_names",
+      "*_selector_name",
+      "*_selector_names",
+      "*_selector_universe",
+      "required_class",
+      "required_classes"
+    ],
+    "primitiveIds": ["str-eq", "contains", "insert", "map-get", "cmp"],
+    "unlabelledBindingBlindSpot": "Bindings without a class or selector label are intentionally invisible; typed carriers and API egresses are the backstops.",
+    "currentSiteCount": 65,
+    "primitiveCounts": {
+      "str-eq": 26,
+      "contains": 18,
+      "insert": 13,
+      "map-get": 6,
+      "cmp": 2
+    },
+    "sanctionedSiteCount": 43,
+    "namedExemptSiteCount": 22,
+    "sites": [
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 1342,
+        "function": "summarize_parser_evaluator_candidates",
+        "operation": "contains",
+        "evidence": "has_local_composes: local_selector_names.contains(selector),",
+        "disposition": "named-exempt",
+        "reason": "The legacy differential parser remains outside product identifier authority."
+      },
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 1343,
+        "function": "summarize_parser_evaluator_candidates",
+        "operation": "contains",
+        "evidence": "has_imported_composes: imported_selector_names.contains(selector),",
+        "disposition": "named-exempt",
+        "reason": "The legacy differential parser remains outside product identifier authority."
+      },
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 1344,
+        "function": "summarize_parser_evaluator_candidates",
+        "operation": "contains",
+        "evidence": "has_global_composes: global_selector_names.contains(selector),",
+        "disposition": "named-exempt",
+        "reason": "The legacy differential parser remains outside product identifier authority."
+      },
+      {
+        "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+        "line": 4029,
+        "function": "collect_computed_member_expression",
+        "operation": "insert",
+        "evidence": "self.style_property_access_selector_names.insert(",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+        "line": 4089,
+        "function": "static_string_expression_class_name",
+        "operation": "str-eq",
+        "evidence": "&& class_selector_name_end(selector_name.as_str(), 0) == Some(selector_name.len()))",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+        "line": 5755,
+        "function": "retire_template_prefix_reference",
+        "operation": "str-eq",
+        "evidence": "|| reference.selector_name.as_deref() != Some(prefix)",
+        "disposition": "named-exempt",
+        "reason": "This retires an exact template prefix rather than joining complete class names."
+      },
+      {
+        "path": "rust/crates/omena-bridge/src/style_intelligence.rs",
+        "line": 238,
+        "function": "hover",
+        "operation": "str-eq",
+        "evidence": ".filter(|binding| current_option.as_ref() == Some(&binding.class_name))",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-bridge/src/utility_intelligence/config.rs",
+        "line": 444,
+        "function": "collect_theme_container",
+        "operation": "insert",
+        "evidence": "enumerated.insert(class_name);",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-bridge/src/utility_intelligence/mod.rs",
+        "line": 241,
+        "function": "classify_omena_bridge_utility_class",
+        "operation": "str-eq",
+        "evidence": ".any(|candidate| candidate == class_name)",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-bundler/src/lib.rs",
+        "line": 2115,
+        "function": "instance_reachability_inputs_closed_over_composes",
+        "operation": "str-eq",
+        "evidence": "changed |= target.class_names.len() != before;",
+        "disposition": "named-exempt",
+        "reason": "This compares set cardinalities to detect fixed-point convergence, not identifiers."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/selector.rs",
+        "line": 394,
+        "function": "selector_match_branch_witness",
+        "operation": "contains",
+        "evidence": "if element.classes.contains(required_class) {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/selector.rs",
+        "line": 403,
+        "function": "selector_match_branch_witness",
+        "operation": "insert",
+        "evidence": "witness.missing_classes.insert(required_class.clone());",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/selector.rs",
+        "line": 480,
+        "function": "parse_simple_selector_signature_inner",
+        "operation": "insert",
+        "evidence": "required_classes.insert(name);",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-cli/src/migrate/mod.rs",
+        "line": 820,
+        "function": "build_css_modules_rename_plan",
+        "operation": "str-eq",
+        "evidence": "if selector_name == new_name {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
+        "line": 2508,
+        "function": "validate_authored_liveness_expectations_v0",
+        "operation": "contains",
+        "evidence": ".contains(expectation.class_name);",
+        "disposition": "named-exempt",
+        "reason": "The differential harness compares authored expectation data with measured output."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
+        "line": 2518,
+        "function": "validate_authored_liveness_expectations_v0",
+        "operation": "contains",
+        "evidence": ".is_some_and(|names| names.contains(expectation.class_name));",
+        "disposition": "named-exempt",
+        "reason": "The differential harness compares authored expectation data with measured output."
+      },
+      {
+        "path": "rust/crates/omena-diff-test/src/linked_emission.rs",
+        "line": 2595,
+        "function": "rule_declaration_counts_for_class_v0",
+        "operation": "str-eq",
+        "evidence": "&& selector.name == class_name",
+        "disposition": "named-exempt",
+        "reason": "The differential harness compares two already-emitted selector spellings."
+      },
+      {
+        "path": "rust/crates/omena-engine-input-producers/src/selector_usage.rs",
+        "line": 453,
+        "function": "build_incoming_style_dependencies",
+        "operation": "contains",
+        "evidence": "if !target_names.contains(&class_name) {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/code_actions.rs",
+        "line": 67,
+        "function": "resolve_lsp_code_actions",
+        "operation": "map-get",
+        "evidence": "let selector_name = payload.get(\"selectorName\").and_then(Value::as_str)?;",
+        "disposition": "named-exempt",
+        "reason": "This reads a JSON field name rather than a class-name map key."
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/source_document_cache.rs",
+        "line": 579,
+        "function": "class_value_universes_from_value",
+        "operation": "map-get",
+        "evidence": "class_names: strings_from_value(universe.get(\"classNames\")?)?,",
+        "disposition": "named-exempt",
+        "reason": "This reads a serialized field name rather than a class-name map key."
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/source_document_cache.rs",
+        "line": 692,
+        "function": "source_elements_from_value",
+        "operation": "map-get",
+        "evidence": "static_class_names: match fact.get(\"staticClassNames\") {",
+        "disposition": "named-exempt",
+        "reason": "This reads a serialized field name rather than a class-name map key."
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/source_selector_provider.rs",
+        "line": 146,
+        "function": "style_selector_definitions_from_open_documents",
+        "operation": "str-eq",
+        "evidence": "&& (selector_name.is_empty() || candidate.name == selector_name)",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/source_type_facts.rs",
+        "line": 1255,
+        "function": "take_type_fact_prefix_references",
+        "operation": "str-eq",
+        "evidence": "&& reference.selector_name.as_deref() == Some(prefix)",
+        "disposition": "named-exempt",
+        "reason": "This consumes an exact prefix reference rather than joining complete class names."
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/workspace_occurrences.rs",
+        "line": 245,
+        "function": "source_selector_workspace_occurrences_for_document",
+        "operation": "str-eq",
+        "evidence": "&& reference.name == selector_name,",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/closed_world/contract.rs",
+        "line": 590,
+        "function": "composes_origin_symbol_is_reachable",
+        "operation": "str-eq",
+        "evidence": ".is_some_and(|class_names| class_names.iter().any(|name| name == symbol)),",
+        "disposition": "sanctioned",
+        "reason": "Both operands come from the shared parser class-name extraction."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/facts/selectors.rs",
+        "line": 309,
+        "function": "resolve_selector_group",
+        "operation": "str-eq",
+        "evidence": "&& class_names.len() == 1",
+        "disposition": "named-exempt",
+        "reason": "This is a cardinality check, not class-name equality."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/public_product.rs",
+        "line": 689,
+        "function": "summarize_parser_evaluator_candidates",
+        "operation": "contains",
+        "evidence": "has_local_composes: local_selector_names.contains(selector),",
+        "disposition": "sanctioned",
+        "reason": "Both operands come from the shared parser class-name extraction."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/public_product.rs",
+        "line": 690,
+        "function": "summarize_parser_evaluator_candidates",
+        "operation": "contains",
+        "evidence": "has_imported_composes: imported_selector_names.contains(selector),",
+        "disposition": "sanctioned",
+        "reason": "Both operands come from the shared parser class-name extraction."
+      },
+      {
+        "path": "rust/crates/omena-parser/src/public_product.rs",
+        "line": 691,
+        "function": "summarize_parser_evaluator_candidates",
+        "operation": "contains",
+        "evidence": "has_global_composes: global_selector_names.contains(selector),",
+        "disposition": "sanctioned",
+        "reason": "Both operands come from the shared parser class-name extraction."
+      },
+      {
+        "path": "rust/crates/omena-query-core/src/lib.rs",
+        "line": 679,
+        "function": "selector_universe_for_targets",
+        "operation": "map-get",
+        "evidence": "if let Some(selector_names) = style_selectors_by_path.get(target_style_path) {",
+        "disposition": "named-exempt",
+        "reason": "This lookup is keyed by a normalized style path."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 1612,
+        "function": "summarize_omena_query_css_modules_interface_bundle_inner",
+        "operation": "insert",
+        "evidence": "emitted_class_names.insert(",
+        "disposition": "named-exempt",
+        "reason": "The interface bundle indexes each emitted token by module path and exact authored spelling because distinct raw spellings have distinct module-scoped token preimages."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 3297,
+        "function": "collect_css_modules_composes_adjacency_with_path_mappings",
+        "operation": "str-eq",
+        "evidence": "let target_class_names = if target_style_path == *style_path {",
+        "disposition": "named-exempt",
+        "reason": "This compares normalized style paths before selecting a class-name set."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 3312,
+        "function": "collect_css_modules_composes_adjacency_with_path_mappings",
+        "operation": "contains",
+        "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
+        "disposition": "sanctioned",
+        "reason": "Both operands are normalized through the shared canonical class-name key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 3318,
+        "function": "collect_css_modules_composes_adjacency_with_path_mappings",
+        "operation": "contains",
+        "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
+        "disposition": "sanctioned",
+        "reason": "Both operands are normalized through the shared canonical class-name key."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style.rs",
+        "line": 3655,
+        "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
+        "operation": "insert",
+        "evidence": "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
+        "disposition": "named-exempt",
+        "reason": "This tuple insertion deduplicates parser facts by span and authored spelling."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/code_actions.rs",
+        "line": 285,
+        "function": "collect_inline_declarations",
+        "operation": "str-eq",
+        "evidence": ".any(|owner| owner == selector_name)",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/css_modules.rs",
+        "line": 40,
+        "function": "summarize_omena_query_css_modules_local_composes_style_diagnostics",
+        "operation": "contains",
+        "evidence": "if target_class_names.contains(target_name.as_str()) {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/css_modules.rs",
+        "line": 176,
+        "function": "summarize_omena_query_css_modules_resolution_style_diagnostics_from_entries",
+        "operation": "contains",
+        "evidence": "if target_class_names.contains(target_name.as_str()) {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+        "line": 506,
+        "function": "collect_omena_query_source_selector_usage_by_style",
+        "operation": "insert",
+        "evidence": "used_for_style.insert(selector_name);",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+        "line": 714,
+        "function": "record_omena_query_used_source_selector",
+        "operation": "insert",
+        "evidence": "used_for_style.insert(selector_name);",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+        "line": 729,
+        "function": "class_name_aliases",
+        "operation": "map-get",
+        "evidence": "aliases.get(selector_name).or_else(|| {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+        "line": 767,
+        "function": "collect_classname_transform_aliases",
+        "operation": "insert",
+        "evidence": ".insert(selector_name.clone());",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
+        "line": 843,
+        "function": "propagate_omena_query_composes_usage",
+        "operation": "insert",
+        "evidence": ".insert(target.selector_name.clone());",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/source_refs.rs",
+        "line": 206,
+        "function": "summarize_omena_query_source_selector_occurrence_index",
+        "operation": "str-eq",
+        "evidence": "&& reference.name == selector_name,",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/source_refs.rs",
+        "line": 1360,
+        "function": "summarize_omena_query_unresolved_source_reference_diagnostic",
+        "operation": "str-eq",
+        "evidence": "OmenaQuerySourceSelectorReferenceMatchKindV0::Exact if reference_text == selector_name => {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/source_refs.rs",
+        "line": 1364,
+        "function": "summarize_omena_query_unresolved_source_reference_diagnostic",
+        "operation": "str-eq",
+        "evidence": "OmenaQuerySourceSelectorReferenceMatchKindV0::Prefix if reference_text == selector_name => {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/transform.rs",
+        "line": 1367,
+        "function": "closed_world_bound_reachability_precision",
+        "operation": "contains",
+        "evidence": ".any(|name| !closed_world_class_names.contains(name.as_str()))",
+        "disposition": "sanctioned",
+        "reason": "The closed-world carrier and query projection share the canonical class-name domain."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/transform/css_modules.rs",
+        "line": 144,
+        "function": "derive_class_name_rewrites_for_module_instance",
+        "operation": "contains",
+        "evidence": "if !unique_class_names.contains(name) {",
+        "disposition": "named-exempt",
+        "reason": "Token preimages preserve exact authored spelling so two spellings that decode alike can still receive distinct module-scoped rewrites."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/transform/css_modules.rs",
+        "line": 190,
+        "function": "derive_css_module_composes_resolutions_for_transform_context",
+        "operation": "insert",
+        "evidence": "exports.insert(target.selector_name);",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-resolver/src/module_graph.rs",
+        "line": 46,
+        "function": "summarize_omena_resolver_module_graph_index",
+        "operation": "insert",
+        "evidence": "module.selector_names.insert(selector.name.clone());",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-semantic/src/css_modules_cross_file.rs",
+        "line": 616,
+        "function": "collect_css_modules_composes_adjacency",
+        "operation": "str-eq",
+        "evidence": "let target_class_names = if target_style_path == *style_path {",
+        "disposition": "named-exempt",
+        "reason": "This compares normalized style paths before selecting a class-name set."
+      },
+      {
+        "path": "rust/crates/omena-semantic/src/css_modules_cross_file.rs",
+        "line": 631,
+        "function": "collect_css_modules_composes_adjacency",
+        "operation": "contains",
+        "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-semantic/src/css_modules_cross_file.rs",
+        "line": 637,
+        "function": "collect_css_modules_composes_adjacency",
+        "operation": "contains",
+        "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-semantic/src/source_evidence.rs",
+        "line": 434,
+        "function": "selector_certainty_reason",
+        "operation": "str-eq",
+        "evidence": "if payload.selector_names.len() == 1 {",
+        "disposition": "named-exempt",
+        "reason": "This is a cardinality check, not selector-name equality."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+        "line": 1092,
+        "function": "local_css_module_composes_resolutions_from_edges",
+        "operation": "insert",
+        "evidence": "if !visited_class_names.insert(class_name.clone()) {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+        "line": 1096,
+        "function": "local_css_module_composes_resolutions_from_edges",
+        "operation": "map-get",
+        "evidence": "let Some(edge) = graph.get(&class_name) else {",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+        "line": 1524,
+        "function": "rewritten_class_name_for",
+        "operation": "str-eq",
+        "evidence": "(original_name == class_name).then_some(rewritten_name)",
+        "disposition": "named-exempt",
+        "reason": "Exact authored spelling selects its distinct module-scoped rewrite before the canonical CSS identifier fallback is consulted."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/helpers/selectors.rs",
+        "line": 170,
+        "function": "selector_list_owner_class_names",
+        "operation": "str-eq",
+        "evidence": ".any(|existing| existing == &class_name)",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/registry.rs",
+        "line": 359,
+        "function": "css_module_composes_resolutions_for_ir",
+        "operation": "str-eq",
+        "evidence": ".find(|existing| existing.local_class_name == resolution.local_class_name)",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/registry.rs",
+        "line": 368,
+        "function": "css_module_composes_resolutions_for_ir",
+        "operation": "str-eq",
+        "evidence": ".any(|existing| existing == exported_class_name)",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/registry.rs",
+        "line": 376,
+        "function": "css_module_composes_resolutions_for_ir",
+        "operation": "cmp",
+        "evidence": "merged.sort_by(|left, right| left.local_class_name.cmp(&right.local_class_name));",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+        "line": 2015,
+        "function": "run_hash_css_module_class_names_structural",
+        "operation": "str-eq",
+        "evidence": "if mutation_count == 0 && class_name_rewrites.is_empty() {",
+        "disposition": "named-exempt",
+        "reason": "This checks whether transform outputs are empty rather than comparing identifiers."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/structural_shadow.rs",
+        "line": 1855,
+        "function": "css_module_composes_resolutions_for_fixture",
+        "operation": "str-eq",
+        "evidence": ".find(|existing| existing.local_class_name == resolution.local_class_name)",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/structural_shadow.rs",
+        "line": 1864,
+        "function": "css_module_composes_resolutions_for_fixture",
+        "operation": "str-eq",
+        "evidence": ".any(|existing| existing == exported_class_name)",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      },
+      {
+        "path": "rust/crates/omena-transform-passes/src/runtime/structural_shadow.rs",
+        "line": 1872,
+        "function": "css_module_composes_resolutions_for_fixture",
+        "operation": "cmp",
+        "evidence": "merged.sort_by(|left, right| left.local_class_name.cmp(&right.local_class_name));",
+        "disposition": "sanctioned",
+        "reason": "idiom site reviewed in the initial authored census."
+      }
+    ],
+    "siteDigest": "sha256:ae63d053992721d73a3fe9fb78a0b8b274443f2e6a566a7060f445635dd71ad0"
+  },
+  "predicateCopies": {
+    "derivation": "direct-character-predicate-body",
+    "blindSpots": [
+      "Methods and functions whose character input is not the sole typed parameter are outside this syntactic arm.",
+      "Character membership hidden behind a constant, helper call, or other indirection is outside this syntactic arm."
+    ],
+    "currentSiteCount": 11,
+    "sites": [
+      {
+        "path": "rust/crates/engine-style-parser/src/lib.rs",
+        "line": 3825,
+        "function": "is_value_ident_continue",
+        "operation": "character-predicate-copy",
+        "evidence": "fn is_value_ident_continue(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '$') }",
+        "disposition": "named-exempt",
+        "reason": "engine-style-parser owns CSS value tokenization, whose accepted alphabet includes '$' and is not the class-name grammar."
+      },
+      {
+        "path": "rust/crates/omena-bridge/src/source_syntax.rs",
+        "line": 1610,
+        "function": "is_html_attribute_name_byte",
+        "operation": "character-predicate-copy",
+        "evidence": "fn is_html_attribute_name_byte(byte: u8) -> bool { byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'-' | b'_' | b'.') }",
+        "disposition": "named-exempt",
+        "reason": "omena-bridge owns HTML attribute-name scanning, whose ':' and '.' alphabet is distinct from CSS class identity."
+      },
+      {
+        "path": "rust/crates/omena-cascade/src/proofs.rs",
+        "line": 631,
+        "function": "is_supports_declaration_token_char",
+        "operation": "character-predicate-copy",
+        "evidence": "fn is_supports_declaration_token_char(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') }",
+        "disposition": "named-exempt",
+        "reason": "is_supports_declaration_token_char owns a non-class identifier grammar and remains visible as a named exemption."
+      },
+      {
+        "path": "rust/crates/omena-lsp-server/src/explain.rs",
+        "line": 250,
+        "function": "is_identifier_byte",
+        "operation": "character-predicate-copy",
+        "evidence": "fn is_identifier_byte(byte: u8) -> bool { byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'$') }",
+        "disposition": "named-exempt",
+        "reason": "omena-lsp-server owns explanation-expression scanning, whose '$' alphabet is not a CSS class-name join."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/code_actions.rs",
+        "line": 511,
+        "function": "is_css_selector_identifier_char",
+        "operation": "character-predicate-copy",
+        "evidence": "fn is_css_selector_identifier_char(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '\\\\') }",
+        "disposition": "named-exempt",
+        "reason": "omena-query owns authored selector-fragment scanning here; the alphabet deliberately retains the escape introducer before decoding."
+      },
+      {
+        "path": "rust/crates/omena-query/src/style/transform/static_stylesheet/scss_module_rules.rs",
+        "line": 3,
+        "function": "static_scss_identifier_char",
+        "operation": "character-predicate-copy",
+        "evidence": "fn static_scss_identifier_char(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }",
+        "disposition": "named-exempt",
+        "reason": "static_scss_identifier_char owns a non-class identifier grammar and remains visible as a named exemption."
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/lib.rs",
+        "line": 276,
+        "function": "css_value_fragment_char_is_ident_like",
+        "operation": "character-predicate-copy",
+        "evidence": "fn css_value_fragment_char_is_ident_like(character: char) -> bool { character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '%' | '.' | '#') }",
+        "disposition": "named-exempt",
+        "reason": "omena-scss-eval owns value-fragment classification, which includes percentage, number, and color punctuation beyond identifier names."
+      },
+      {
+        "path": "rust/crates/omena-scss-eval/src/static_stylesheet/less_strings.rs",
+        "line": 276,
+        "function": "static_less_escape_byte_is_safe",
+        "operation": "character-predicate-copy",
+        "evidence": "fn static_less_escape_byte_is_safe(byte: u8) -> bool { matches!( byte, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\\'' | b'/' | b'?' | b'&' | b'@' | b'+' | b',' | b'$' ) }",
+        "disposition": "named-exempt",
+        "reason": "omena-scss-eval owns the Less string-escape safe set, which is an output encoding policy rather than identifier equality."
+      },
+      {
+        "path": "rust/crates/omena-syntax/src/ident.rs",
+        "line": 90,
+        "function": "is_css_name_continue",
+        "operation": "character-predicate-copy",
+        "evidence": "fn is_css_name_continue(ch: char) -> bool { is_css_name_start(ch) || ch.is_ascii_digit() }",
+        "disposition": "sanctioned",
+        "reason": "The shared syntax crate owns the identifier character predicate."
+      },
+      {
+        "path": "rust/crates/omena-syntax/src/ident.rs",
+        "line": 99,
+        "function": "is_ascii_word_continue",
+        "operation": "character-predicate-copy",
+        "evidence": "fn is_ascii_word_continue(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }",
+        "disposition": "sanctioned",
+        "reason": "The shared syntax crate owns the identifier character predicate."
+      },
+      {
+        "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
+        "line": 1777,
+        "function": "is_parse_error_context_byte",
+        "operation": "character-predicate-copy",
+        "evidence": "fn is_parse_error_context_byte(byte: u8) -> bool { byte.is_ascii_alphanumeric() || matches!( byte, b'-' | b'_' | b'.' | b'$' | b'#' | b'%' | b'@' | b'/' | b'\\\\' ) }",
+        "disposition": "named-exempt",
+        "reason": "omena-transform-cst owns diagnostic context extraction, whose punctuation set is intentionally broader than a CSS identifier."
+      }
+    ],
+    "siteDigest": "sha256:2cf9ca4dc41942d5d25b19dec45e21f521a91b15a79179b906ea063938146643"
+  }
+}

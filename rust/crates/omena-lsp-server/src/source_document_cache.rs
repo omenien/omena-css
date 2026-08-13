@@ -1,3 +1,8 @@
+use crate::cache_limits::{
+    DEFAULT_PERSISTENT_CACHE_LIMITS, PersistentCacheLimitsV0, ensure_cache_root_attribution,
+    read_cache_shard_with_limits, write_cache_shard_atomically_with_limits,
+};
+use crate::cache_root::LspCacheStorageConfigV0;
 use crate::protocol::file_uri_to_path;
 use omena_query::{
     OmenaQuerySourceClassValueUniverseAxisV0, OmenaQuerySourceClassValueUniverseEntryV0,
@@ -14,13 +19,14 @@ use omena_query::{
 use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::{fs, path::PathBuf};
+use std::path::{Path, PathBuf};
 
 const SOURCE_DOCUMENT_INDEX_SCHEMA_VERSION: &str = "0";
 const SOURCE_DOCUMENT_INDEX_SIDECAR_PRODUCT: &str =
     "omena-lsp-server.source-document-index-sidecar";
 const SOURCE_DOCUMENT_INDEX_KEY_PRODUCT: &str = "omena-lsp-server.source-document-index-key";
 const SOURCE_DOCUMENT_INDEX_DIR: &str = "source-document-index-v1";
+const SOURCE_DOCUMENT_INDEX_LIMITS: PersistentCacheLimitsV0 = DEFAULT_PERSISTENT_CACHE_LIMITS;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +49,7 @@ pub(crate) struct LspSourceDocumentIndexSidecarLoadV0 {
 }
 
 pub(crate) fn load_source_document_index_sidecar(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -56,8 +63,13 @@ pub(crate) fn load_source_document_index_sidecar(
         text_hash,
         resolution_inputs,
     )?;
-    let path = source_document_index_sidecar_path(workspace_folder_uri, document_uri, language_id)?;
-    let bytes = fs::read(path).ok()?;
+    let path = source_document_index_sidecar_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    )?;
+    let bytes = read_source_document_index_shard(path.as_path(), &SOURCE_DOCUMENT_INDEX_LIMITS)?;
     let shard: Value = serde_json::from_slice(bytes.as_slice()).ok()?;
     if shard.pointer("/schemaVersion").and_then(Value::as_str)
         != Some(SOURCE_DOCUMENT_INDEX_SCHEMA_VERSION)
@@ -91,6 +103,7 @@ pub(crate) fn load_source_document_index_sidecar(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn store_source_document_index_sidecar(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -109,18 +122,14 @@ pub(crate) fn store_source_document_index_sidecar(
     ) else {
         return;
     };
-    let Some(path) =
-        source_document_index_sidecar_path(workspace_folder_uri, document_uri, language_id)
-    else {
+    let Some(path) = source_document_index_sidecar_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    ) else {
         return;
     };
-    let Some(dir) = path.parent() else {
-        return;
-    };
-    if fs::create_dir_all(dir).is_err() {
-        return;
-    }
-    crate::disk_cache::ensure_omena_cache_root_markers(dir);
     let payload = json!({
         "sourceSyntaxIndex": source_syntax_index,
         "sourceTypeFactAttempts": source_type_fact_attempts,
@@ -143,10 +152,30 @@ pub(crate) fn store_source_document_index_sidecar(
     let Ok(bytes) = serde_json::to_vec(&shard) else {
         return;
     };
-    let temporary_path = path.with_extension(format!("tmp-{}", std::process::id()));
-    if fs::write(temporary_path.as_path(), bytes).is_ok() {
-        let _ = fs::rename(temporary_path, path);
+    if write_source_document_index_shard(
+        path.as_path(),
+        bytes.as_slice(),
+        &SOURCE_DOCUMENT_INDEX_LIMITS,
+    ) && let Some(dir) = path.parent()
+    {
+        crate::disk_cache::ensure_omena_cache_root_markers(dir);
+        ensure_cache_root_attribution(dir, workspace_folder_uri.unwrap_or(document_uri));
     }
+}
+
+fn read_source_document_index_shard(
+    path: &Path,
+    limits: &PersistentCacheLimitsV0,
+) -> Option<Vec<u8>> {
+    read_cache_shard_with_limits(path, limits)
+}
+
+fn write_source_document_index_shard(
+    path: &Path,
+    bytes: &[u8],
+    limits: &PersistentCacheLimitsV0,
+) -> bool {
+    write_cache_shard_atomically_with_limits(path, bytes, limits)
 }
 
 pub(crate) fn source_document_text_hash(text: &str) -> String {
@@ -157,11 +186,17 @@ pub(crate) fn source_document_text_hash(text: &str) -> String {
 
 #[cfg(test)]
 pub(crate) fn source_document_index_sidecar_file_path_for_test(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
 ) -> Option<PathBuf> {
-    source_document_index_sidecar_path(workspace_folder_uri, document_uri, language_id)
+    source_document_index_sidecar_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    )
 }
 
 fn source_document_index_key(
@@ -190,6 +225,7 @@ fn source_document_index_key(
 }
 
 fn source_document_index_sidecar_path(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -206,12 +242,13 @@ fn source_document_index_sidecar_path(
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }
-    Some(
-        root.join(".cache")
-            .join("omena")
-            .join(SOURCE_DOCUMENT_INDEX_DIR)
-            .join(format!("{hex}.json")),
+    crate::cache_root::resolved_workspace_cache_dir(
+        cache_storage,
+        workspace_folder_uri,
+        root.as_path(),
+        SOURCE_DOCUMENT_INDEX_DIR,
     )
+    .map(|dir| dir.join(format!("{hex}.json")))
 }
 
 fn source_document_index_payload_digest(value: &Value) -> Option<String> {
@@ -335,6 +372,7 @@ fn inline_style_declarations_from_value(
                     .and_then(Value::as_str)
                     .map(str::to_string),
                 cascade_tier: cascade_tier_from_value(declaration.get("cascadeTier")?)?,
+                important: declaration.get("important")?.as_bool()?,
                 static_value: declaration.get("staticValue")?.as_bool()?,
             })
         })
@@ -744,5 +782,102 @@ fn recipe_domain_from_value(value: &Value) -> Option<&'static str> {
         "cva-recipe" => Some("cva-recipe"),
         "vanilla-extract-recipe" => Some("vanilla-extract-recipe"),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod cache_limit_tests {
+    use super::*;
+    use crate::protocol::path_to_file_uri;
+
+    #[test]
+    fn source_document_store_enforces_reachable_count_byte_and_shard_limits() {
+        let root = std::env::temp_dir().join(format!(
+            "omena-source-document-store-limits-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(root.as_path());
+        assert!(std::fs::create_dir_all(root.join("src")).is_ok());
+        let workspace_uri = path_to_file_uri(root.as_path());
+        let editor_workspace_storage = root.join("editor-storage").join("workspace");
+        let cache_storage = LspCacheStorageConfigV0 {
+            initialization_global_storage: Some(root.join("editor-storage").join("global")),
+            initialization_workspace_storage: Some(editor_workspace_storage.clone()),
+            location: crate::cache_root::CacheLocationV0::Editor,
+            ..LspCacheStorageConfigV0::default()
+        };
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let syntax_index = OmenaQuerySourceSyntaxIndexV0::default();
+
+        let default_document_uri = path_to_file_uri(root.join("src/default-limit.tsx").as_path());
+        let default_path = source_document_index_sidecar_path(
+            &cache_storage,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+            "typescriptreact",
+        );
+        assert!(default_path.is_some(), "source-document default path");
+        let Some(default_path) = default_path else {
+            return;
+        };
+        assert!(
+            default_path.starts_with(editor_workspace_storage.as_path()),
+            "source-document production cap exercise must use the resolved editor root"
+        );
+        if let Some(parent) = default_path.parent() {
+            assert!(std::fs::create_dir_all(parent).is_ok());
+        }
+        let oversized_text_hash = "x".repeat(
+            usize::try_from(SOURCE_DOCUMENT_INDEX_LIMITS.max_shard_bytes)
+                .unwrap_or(8 * 1024 * 1024)
+                + 1,
+        );
+        store_source_document_index_sidecar(
+            &cache_storage,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+            "typescriptreact",
+            oversized_text_hash.as_str(),
+            &resolution_inputs,
+            &syntax_index,
+            &[],
+            false,
+        );
+        assert!(
+            !default_path.exists(),
+            "source-document default max-shard constant must be reachable through the real store"
+        );
+        let cache_dir = default_path.parent();
+        assert!(cache_dir.is_some(), "source-document default cache dir");
+        if let Some(cache_dir) = cache_dir {
+            crate::cache_limits::assert_production_store_enforces_default_count_and_total(
+                "source-document-index",
+                cache_dir,
+                default_path.as_path(),
+                || {
+                    store_source_document_index_sidecar(
+                        &cache_storage,
+                        Some(workspace_uri.as_str()),
+                        default_document_uri.as_str(),
+                        "typescriptreact",
+                        "blake3:default-cap-fixture",
+                        &resolution_inputs,
+                        &syntax_index,
+                        &[],
+                        false,
+                    );
+                },
+            );
+        }
+
+        crate::cache_limits::assert_real_cache_store_enforces_reachable_limits(
+            "source-document-index",
+            write_source_document_index_shard,
+            read_source_document_index_shard,
+        );
+        eprintln!(
+            "storeEntryCaps cache=source-document-index resolvedEditorRoot=true defaultCount=true defaultTotalBytes=true defaultMaxShardRefused=true lowLevelCount=true lowLevelTotalBytes=true lowLevelShardBytes=true"
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
 }
