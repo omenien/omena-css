@@ -111,11 +111,11 @@ const ownershipOutput = cargoTest(
 );
 const r15ObservationOutput = cargoTest(
   "omena-transform-passes",
-  "runtime::observation_projection::tests::r15_whitespace_pass_is_selector_equivalent_but_not_raw_equivalent",
+  "runtime::observation_projection::tests::executed_whitespace_pass_is_selector_equivalent_but_not_raw_equivalent",
 );
 const r16ObservationOutput = cargoTest(
   "omena-transform-passes",
-  "runtime::observation_projection::tests::r16_executed_pass_baseline_detects_cascade_winner_corruption",
+  "runtime::observation_projection::tests::executed_pass_baseline_detects_cascade_winner_corruption",
 );
 const executableTruthOutput = cargoTest(
   "omena-transform-passes",

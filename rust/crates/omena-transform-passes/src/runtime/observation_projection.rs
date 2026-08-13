@@ -186,7 +186,7 @@ mod tests {
     }
 
     #[test]
-    fn r15_whitespace_pass_is_selector_equivalent_but_not_raw_equivalent() {
+    fn executed_whitespace_pass_is_selector_equivalent_but_not_raw_equivalent() {
         let report = execute_transform_pass_selector_matching_observation_v0(
             ".a { color: red; }",
             TransformPassKind::WhitespaceStrip,
@@ -205,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn r16_executed_pass_baseline_detects_cascade_winner_corruption() {
+    fn executed_pass_baseline_detects_cascade_winner_corruption() {
         let source = ".a { color: red; } .a { color: blue; }";
         let report = execute_transform_pass_selector_matching_observation_v0(
             source,
