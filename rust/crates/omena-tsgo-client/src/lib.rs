@@ -596,13 +596,27 @@ impl TsgoTypeFactRpcClientV0 {
     ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
         self.request(
             "updateSnapshot",
-            Some(serde_json::json!({ "openProject": config_path })),
+            Some(serde_json::json!({
+                "openProject": config_path,
+                "openProjects": [config_path],
+            })),
         )
     }
 
     pub fn get_default_project_for_file(
         &mut self,
         snapshot: &str,
+        file_path: &str,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.get_default_project_for_file_with_snapshot(
+            &serde_json::Value::String(snapshot.to_string()),
+            file_path,
+        )
+    }
+
+    fn get_default_project_for_file_with_snapshot(
+        &mut self,
+        snapshot: &serde_json::Value,
         file_path: &str,
     ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
         self.request(
@@ -617,6 +631,19 @@ impl TsgoTypeFactRpcClientV0 {
     pub fn get_type_at_position(
         &mut self,
         snapshot: &str,
+        project: &str,
+        target: &TsgoTypeFactTargetV0,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.get_type_at_position_with_snapshot(
+            &serde_json::Value::String(snapshot.to_string()),
+            project,
+            target,
+        )
+    }
+
+    fn get_type_at_position_with_snapshot(
+        &mut self,
+        snapshot: &serde_json::Value,
         project: &str,
         target: &TsgoTypeFactTargetV0,
     ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
@@ -637,6 +664,19 @@ impl TsgoTypeFactRpcClientV0 {
         project: &str,
         file_path: &str,
     ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.get_source_file_with_snapshot(
+            &serde_json::Value::String(snapshot.to_string()),
+            project,
+            file_path,
+        )
+    }
+
+    fn get_source_file_with_snapshot(
+        &mut self,
+        snapshot: &serde_json::Value,
+        project: &str,
+        file_path: &str,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
         self.request(
             "getSourceFile",
             Some(serde_json::json!({
@@ -650,6 +690,19 @@ impl TsgoTypeFactRpcClientV0 {
     pub fn get_type_at_exact_span(
         &mut self,
         snapshot: &str,
+        project: &str,
+        location: &str,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.get_type_at_exact_span_with_snapshot(
+            &serde_json::Value::String(snapshot.to_string()),
+            project,
+            location,
+        )
+    }
+
+    fn get_type_at_exact_span_with_snapshot(
+        &mut self,
+        snapshot: &serde_json::Value,
         project: &str,
         location: &str,
     ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
@@ -668,11 +721,26 @@ impl TsgoTypeFactRpcClientV0 {
         snapshot: &str,
         type_id: &str,
     ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.get_types_of_type_with_handles(
+            &serde_json::Value::String(snapshot.to_string()),
+            &serde_json::Value::String(type_id.to_string()),
+            None,
+        )
+    }
+
+    fn get_types_of_type_with_handles(
+        &mut self,
+        snapshot: &serde_json::Value,
+        type_id: &serde_json::Value,
+        project: Option<&str>,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
         self.request(
             "getTypesOfType",
             Some(serde_json::json!({
                 "snapshot": snapshot,
                 "type": type_id,
+                "objectId": type_id,
+                "project": project,
             })),
         )
     }
@@ -681,7 +749,20 @@ impl TsgoTypeFactRpcClientV0 {
         &mut self,
         handle: &str,
     ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
-        self.request("release", Some(serde_json::json!({ "handle": handle })))
+        self.release_snapshot_handle(&serde_json::Value::String(handle.to_string()))
+    }
+
+    fn release_snapshot_handle(
+        &mut self,
+        snapshot: &serde_json::Value,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.request(
+            "release",
+            Some(serde_json::json!({
+                "handle": snapshot,
+                "snapshot": snapshot,
+            })),
+        )
     }
 
     fn request(
@@ -1230,14 +1311,13 @@ where
             self.send_result(request.workspace_root.as_str(), &snapshot_request)?;
         let snapshot = snapshot_result
             .get("snapshot")
-            .and_then(serde_json::Value::as_str)
+            .filter(|handle| handle.is_string() || handle.is_number())
             .ok_or(TsgoJsonRpcProviderErrorV0::MissingSnapshot)?
-            .to_string();
+            .clone();
 
         let collection_result =
-            self.collect_type_facts_for_snapshot(request, snapshot.as_str(), cancellation);
-        let release_result =
-            self.release_snapshot(request.workspace_root.as_str(), snapshot.as_str());
+            self.collect_type_facts_for_snapshot(request, &snapshot, cancellation);
+        let release_result = self.release_snapshot(request.workspace_root.as_str(), &snapshot);
 
         match (collection_result, release_result) {
             (Ok(entries), Ok(())) => Ok(entries),
@@ -1262,19 +1342,15 @@ where
             self.send_result(request.workspace_root.as_str(), &snapshot_request)?;
         let snapshot = snapshot_result
             .get("snapshot")
-            .and_then(serde_json::Value::as_str)
+            .filter(|handle| handle.is_string() || handle.is_number())
             .ok_or(TsgoJsonRpcProviderErrorV0::MissingSnapshot)?
-            .to_string();
+            .clone();
 
         let type_fact_entries =
-            self.collect_type_facts_for_snapshot(request, snapshot.as_str(), cancellation);
-        let span_type_fact_entries = self.collect_span_type_facts_for_snapshot(
-            span_request,
-            snapshot.as_str(),
-            cancellation,
-        );
-        let release_result =
-            self.release_snapshot(request.workspace_root.as_str(), snapshot.as_str());
+            self.collect_type_facts_for_snapshot(request, &snapshot, cancellation);
+        let span_type_fact_entries =
+            self.collect_span_type_facts_for_snapshot(span_request, &snapshot, cancellation);
+        let release_result = self.release_snapshot(request.workspace_root.as_str(), &snapshot);
 
         match (type_fact_entries, span_type_fact_entries, release_result) {
             (Ok(type_fact_entries), Ok(span_type_fact_entries), Ok(())) => {
@@ -1290,7 +1366,7 @@ where
     fn collect_type_facts_for_snapshot(
         &mut self,
         request: &TsgoTypeFactRequestV0,
-        snapshot: &str,
+        snapshot: &serde_json::Value,
         cancellation: &dyn TsgoCancellationTokenV0,
     ) -> Result<Vec<TsgoTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
         ensure_tsgo_request_not_cancelled(cancellation, "beforeProjectResolution")?;
@@ -1308,14 +1384,17 @@ where
                         resolved_type: unresolvable_tsgo_type(),
                     });
                 };
-                let type_request =
-                    self.rpc_client
-                        .get_type_at_position(snapshot, project.as_str(), target)?;
+                let type_request = self.rpc_client.get_type_at_position_with_snapshot(
+                    snapshot,
+                    project.as_str(),
+                    target,
+                )?;
                 let type_response =
                     self.send_result(request.workspace_root.as_str(), &type_request)?;
                 let resolved_type = self.resolve_type_response(
                     request.workspace_root.as_str(),
                     snapshot,
+                    project.as_str(),
                     &type_response,
                 )?;
                 Ok(TsgoTypeFactResultEntryV0 {
@@ -1330,7 +1409,7 @@ where
     fn resolve_projects_by_file(
         &mut self,
         request: &TsgoTypeFactRequestV0,
-        snapshot: &str,
+        snapshot: &serde_json::Value,
     ) -> Result<BTreeMap<String, Option<String>>, TsgoJsonRpcProviderErrorV0> {
         let unique_files = request
             .targets
@@ -1341,7 +1420,7 @@ where
         for file_path in unique_files {
             let project_request = self
                 .rpc_client
-                .get_default_project_for_file(snapshot, file_path)?;
+                .get_default_project_for_file_with_snapshot(snapshot, file_path)?;
             let project_response =
                 self.send_result(request.workspace_root.as_str(), &project_request)?;
             projects.insert(
@@ -1358,7 +1437,7 @@ where
     fn collect_span_type_facts_for_snapshot(
         &mut self,
         request: &TsgoSpanTypeFactRequestV0,
-        snapshot: &str,
+        snapshot: &serde_json::Value,
         cancellation: &dyn TsgoCancellationTokenV0,
     ) -> Result<Vec<TsgoSpanTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
         ensure_tsgo_request_not_cancelled(cancellation, "beforeSpanProjectResolution")?;
@@ -1371,7 +1450,7 @@ where
         for file_path in unique_files {
             let project_request = self
                 .rpc_client
-                .get_default_project_for_file(snapshot, file_path)?;
+                .get_default_project_for_file_with_snapshot(snapshot, file_path)?;
             let project_response =
                 self.send_result(request.workspace_root.as_str(), &project_request)?;
             project_by_file.insert(
@@ -1387,9 +1466,11 @@ where
             let Some(project) = project else {
                 continue;
             };
-            let source_request =
-                self.rpc_client
-                    .get_source_file(snapshot, project.as_str(), file_path.as_str())?;
+            let source_request = self.rpc_client.get_source_file_with_snapshot(
+                snapshot,
+                project.as_str(),
+                file_path.as_str(),
+            )?;
             let source_response =
                 self.send_result(request.workspace_root.as_str(), &source_request)?;
             source_by_file.insert(file_path.clone(), source_response);
@@ -1418,7 +1499,9 @@ where
                         0,
                     ));
                 };
-                let Some(location) = exact_span_node_location(source_response, target) else {
+                let Some(location) =
+                    exact_span_node_location(source_response, target, snapshot.is_number())
+                else {
                     return Ok(refused_span_type_fact(
                         target,
                         TSGO_SPAN_TYPE_FACT_REASON_NODE_SPAN_MISMATCH_V0,
@@ -1427,7 +1510,7 @@ where
                         0,
                     ));
                 };
-                let type_request = self.rpc_client.get_type_at_exact_span(
+                let type_request = self.rpc_client.get_type_at_exact_span_with_snapshot(
                     snapshot,
                     project.as_str(),
                     location.as_str(),
@@ -1437,6 +1520,7 @@ where
                 self.resolve_exact_span_type_response(
                     request.workspace_root.as_str(),
                     snapshot,
+                    project.as_str(),
                     target,
                     &type_response,
                 )
@@ -1447,7 +1531,8 @@ where
     fn resolve_exact_span_type_response(
         &mut self,
         workspace_root: &str,
-        snapshot: &str,
+        snapshot: &serde_json::Value,
+        project: &str,
         target: &TsgoSpanTypeFactTargetV0,
         type_response: &serde_json::Value,
     ) -> Result<TsgoSpanTypeFactResultEntryV0, TsgoJsonRpcProviderErrorV0> {
@@ -1468,7 +1553,10 @@ where
                 0,
             ));
         }
-        let Some(type_id) = type_response.get("id").and_then(serde_json::Value::as_str) else {
+        let Some(type_id) = type_response
+            .get("id")
+            .filter(|handle| handle.is_string() || handle.is_number())
+        else {
             return Ok(refused_span_type_fact(
                 target,
                 TSGO_SPAN_TYPE_FACT_REASON_MISSING_UNION_IDENTITY_V0,
@@ -1477,7 +1565,9 @@ where
                 0,
             ));
         };
-        let members_request = self.rpc_client.get_types_of_type(snapshot, type_id)?;
+        let members_request =
+            self.rpc_client
+                .get_types_of_type_with_handles(snapshot, type_id, Some(project))?;
         let members_response = self.send_result(workspace_root, &members_request)?;
         let Some(members) = members_response.as_array() else {
             return Ok(refused_span_type_fact(
@@ -1526,7 +1616,8 @@ where
     fn resolve_type_response(
         &mut self,
         workspace_root: &str,
-        snapshot: &str,
+        snapshot: &serde_json::Value,
+        project: &str,
         type_response: &serde_json::Value,
     ) -> Result<TsgoResolvedTypeV0, TsgoJsonRpcProviderErrorV0> {
         if let Some(value) = literal_type_response_value(type_response) {
@@ -1541,10 +1632,15 @@ where
             return Ok(unresolvable_tsgo_type());
         }
 
-        let Some(type_id) = type_response.get("id").and_then(serde_json::Value::as_str) else {
+        let Some(type_id) = type_response
+            .get("id")
+            .filter(|handle| handle.is_string() || handle.is_number())
+        else {
             return Ok(unresolvable_tsgo_type());
         };
-        let members_request = self.rpc_client.get_types_of_type(snapshot, type_id)?;
+        let members_request =
+            self.rpc_client
+                .get_types_of_type_with_handles(snapshot, type_id, Some(project))?;
         let members_response = self.send_result(workspace_root, &members_request)?;
         let Some(members) = members_response.as_array() else {
             return Ok(unresolvable_tsgo_type());
@@ -1555,7 +1651,7 @@ where
             if is_pure_nullish_tsgo_type_response(member) {
                 continue;
             }
-            let resolved = self.resolve_type_response(workspace_root, snapshot, member)?;
+            let resolved = self.resolve_type_response(workspace_root, snapshot, project, member)?;
             if resolved.kind != "union" || resolved.values.len() != 1 {
                 continue;
             }
@@ -1572,9 +1668,9 @@ where
     fn release_snapshot(
         &mut self,
         workspace_root: &str,
-        snapshot: &str,
+        snapshot: &serde_json::Value,
     ) -> Result<(), TsgoJsonRpcProviderErrorV0> {
-        let release_request = self.rpc_client.release(snapshot)?;
+        let release_request = self.rpc_client.release_snapshot_handle(snapshot)?;
         self.send_result(workspace_root, &release_request)?;
         Ok(())
     }
@@ -1689,6 +1785,7 @@ fn refused_span_type_fact(
 fn exact_span_node_location(
     response: &serde_json::Value,
     target: &TsgoSpanTypeFactTargetV0,
+    indexed_handle: bool,
 ) -> Option<String> {
     let encoded = response.get("data").and_then(serde_json::Value::as_str)?;
     let bytes = base64::engine::general_purpose::STANDARD
@@ -1750,9 +1847,12 @@ fn exact_span_node_location(
         if exact_node.is_some() {
             return None;
         }
-        exact_node = Some((kind, pos, end));
+        exact_node = Some((index, kind, pos, end));
     }
-    let (kind, pos, end) = exact_node?;
+    let (index, kind, pos, end) = exact_node?;
+    if indexed_handle {
+        return Some(format!("{index}.{kind}.{source_path}"));
+    }
     // Binary AST spans use UTF-16 offsets, while the raw location API expects byte offsets.
     let wire_pos = utf16_offset_to_byte_index(source_text, pos as u32)?;
     let wire_end = utf16_offset_to_byte_index(source_text, end as u32)?;
@@ -2230,12 +2330,60 @@ mod tests {
             payloads[1].pointer("/params/openProject"),
             Some(&json!("/repo/tsconfig.json"))
         );
+        assert_eq!(
+            payloads[1].pointer("/params/openProjects/0"),
+            Some(&json!("/repo/tsconfig.json"))
+        );
         assert_eq!(payloads[3].pointer("/params/position"), Some(&json!(42)));
         assert_eq!(payloads[4].pointer("/params/type"), Some(&json!("type-1")));
         assert_eq!(
             payloads[5].pointer("/params/handle"),
             Some(&json!("snapshot-1"))
         );
+        assert_eq!(
+            payloads[5].pointer("/params/snapshot"),
+            Some(&json!("snapshot-1"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn type_fact_rpc_client_preserves_numeric_wire_handles()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let target = TsgoTypeFactTargetV0 {
+            file_path: "/repo/src/App.tsx".to_string(),
+            expression_id: "expr-1".to_string(),
+            position: 42,
+        };
+        let snapshot = json!(7);
+        let type_id = json!(90);
+        let mut client = TsgoTypeFactRpcClientV0::default();
+        let requests = [
+            client.get_default_project_for_file_with_snapshot(&snapshot, "/repo/src/App.tsx")?,
+            client.get_type_at_position_with_snapshot(&snapshot, "project-1", &target)?,
+            client.get_types_of_type_with_handles(&snapshot, &type_id, Some("project-1"))?,
+            client.release_snapshot_handle(&snapshot)?,
+        ];
+
+        let mut payloads = Vec::new();
+        for request in requests {
+            let mut frame = request.frame;
+            let mut drained = drain_tsgo_json_rpc_frames(&mut frame)?;
+            assert_eq!(drained.len(), 1);
+            payloads.push(drained.remove(0));
+        }
+
+        assert_eq!(payloads[0].pointer("/params/snapshot"), Some(&snapshot));
+        assert_eq!(payloads[1].pointer("/params/snapshot"), Some(&snapshot));
+        assert_eq!(payloads[2].pointer("/params/snapshot"), Some(&snapshot));
+        assert_eq!(payloads[2].pointer("/params/type"), Some(&type_id));
+        assert_eq!(payloads[2].pointer("/params/objectId"), Some(&type_id));
+        assert_eq!(
+            payloads[2].pointer("/params/project"),
+            Some(&json!("project-1"))
+        );
+        assert_eq!(payloads[3].pointer("/params/handle"), Some(&snapshot));
+        assert_eq!(payloads[3].pointer("/params/snapshot"), Some(&snapshot));
         Ok(())
     }
 
@@ -2385,8 +2533,12 @@ mod tests {
         );
 
         assert_eq!(
-            exact_span_node_location(&response, &target).as_deref(),
+            exact_span_node_location(&response, &target, false).as_deref(),
             Some("13.20.213./repo/src/App.tsx")
+        );
+        assert_eq!(
+            exact_span_node_location(&response, &target, true).as_deref(),
+            Some("2.213./repo/src/App.tsx")
         );
 
         let wrong_span = TsgoSpanTypeFactTargetV0::new(
@@ -2395,7 +2547,10 @@ mod tests {
             15,
             20,
         );
-        assert_eq!(exact_span_node_location(&response, &wrong_span), None);
+        assert_eq!(
+            exact_span_node_location(&response, &wrong_span, false),
+            None
+        );
 
         let wrong_end = TsgoSpanTypeFactTargetV0::new(
             "/repo/src/App.tsx".to_string(),
@@ -2403,14 +2558,14 @@ mod tests {
             14,
             21,
         );
-        assert_eq!(exact_span_node_location(&response, &wrong_end), None);
+        assert_eq!(exact_span_node_location(&response, &wrong_end, false), None);
 
         let duplicate = binary_source_file_response(
             "const value = pick();",
             "/repo/src/App.tsx",
             &[(213, 13, 20), (214, 14, 20)],
         );
-        assert_eq!(exact_span_node_location(&duplicate, &target), None);
+        assert_eq!(exact_span_node_location(&duplicate, &target, false), None);
 
         let unicode_source = "// 기준\nconst value = pick();";
         let unicode_target = TsgoSpanTypeFactTargetV0::new(
@@ -2422,7 +2577,7 @@ mod tests {
         let unicode_response =
             binary_source_file_response(unicode_source, "/repo/src/App.tsx", &[(213, 19, 26)]);
         assert_eq!(
-            exact_span_node_location(&unicode_response, &unicode_target).as_deref(),
+            exact_span_node_location(&unicode_response, &unicode_target, false).as_deref(),
             Some("23.30.213./repo/src/App.tsx")
         );
     }
@@ -2444,7 +2599,8 @@ mod tests {
 
         let result = provider.resolve_exact_span_type_response(
             "/repo",
-            "snapshot-1",
+            &json!("snapshot-1"),
+            "project-1",
             &target,
             &json!({ "id": "union-1", "flags": TSGO_TYPE_FLAGS_UNION }),
         )?;
@@ -2474,7 +2630,8 @@ mod tests {
 
         let result = provider.resolve_exact_span_type_response(
             "/repo",
-            "snapshot-1",
+            &json!("snapshot-1"),
+            "project-1",
             &target,
             &json!({ "id": "union-1", "flags": TSGO_TYPE_FLAGS_UNION }),
         )?;
