@@ -186,10 +186,12 @@ if (!writeMode) {
   );
 }
 
-const rows = discovered.map((site): MappingRow => ({
-  ...site,
-  errorClass: existingById.get(site.siteId)?.errorClass ?? classifySite(site),
-}));
+const rows = discovered.map(
+  (site): MappingRow => ({
+    ...site,
+    errorClass: existingById.get(site.siteId)?.errorClass ?? classifySite(site),
+  }),
+);
 const census = buildCensus(rows);
 const serialized = `${JSON.stringify(census, null, 2)}\n`;
 

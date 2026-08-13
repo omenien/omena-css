@@ -1551,17 +1551,19 @@ function discoverCascadeKeyProducers(
   );
   const syntaxRows = JSON.parse(scan.stdout) as readonly CascadeKeyProducerSyntaxV0[];
   return syntaxRows
-    .map((row): CascadeKeyProducerV0 => ({
-      path: row.path,
-      symbol: row.symbol,
-      occurrence: row.occurrence,
-      disposition: classifyCascadeKeyProducerDisposition(
-        row.path,
-        row.symbol,
-        row.scopeProximitySource,
-      ),
-      scopeProximitySource: row.scopeProximitySource,
-    }))
+    .map(
+      (row): CascadeKeyProducerV0 => ({
+        path: row.path,
+        symbol: row.symbol,
+        occurrence: row.occurrence,
+        disposition: classifyCascadeKeyProducerDisposition(
+          row.path,
+          row.symbol,
+          row.scopeProximitySource,
+        ),
+        scopeProximitySource: row.scopeProximitySource,
+      }),
+    )
     .toSorted((left, right) =>
       cascadeKeyProducerId(left).localeCompare(cascadeKeyProducerId(right)),
     );
