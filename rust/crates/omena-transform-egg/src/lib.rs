@@ -1335,6 +1335,7 @@ where
     None
 }
 
+#[cfg(feature = "transform-catalog-saturation")]
 fn blocked_execution(
     candidate: EggRewriteCandidateV0,
     blocked_reason: Option<&'static str>,
