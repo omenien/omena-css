@@ -20,6 +20,7 @@ use serde::Serialize;
 
 pub mod discharge_ledger;
 pub mod fuzz;
+pub mod proof_kernel;
 
 pub use discharge_ledger::{
     DISCHARGE_LEDGER_PRODUCT_V1, DISCHARGE_LEDGER_SCHEMA_VERSION_V1, DischargeLedgerLookupStatusV0,
@@ -30,6 +31,7 @@ pub use fuzz::{
     SmtBisimulationFuzzCaseV0, SmtBisimulationFuzzReportV0, run_smt_bisimulation_fuzz_case_v0,
     run_smt_bisimulation_fuzz_seed_corpus_v0, smt_bisimulation_fuzz_case_v0,
 };
+pub use proof_kernel::*;
 
 pub const SMT_SCHEMA_VERSION_V0: &str = "0";
 pub const SMT_LAYER_MARKER_V0: &str = "smt-cascade-verification";
