@@ -1,11 +1,18 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+#[allow(deprecated)]
+use omena_query_checker_orchestrator::checker_cascade_primitive_role_catalog_v0;
+#[allow(deprecated)]
+use omena_query_checker_orchestrator::{
+    MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0,
+    run_omena_query_checker_multiscale_complexity_heuristic_compatibility_gate_v0,
+};
 use omena_query_checker_orchestrator::{
     OmenaCheckerCategoricalInputV0, OmenaCheckerCategoricalPrimitiveRolePairInputV0,
     OmenaCheckerCategoricalRoleMappingInputV0, OmenaCheckerCustomPropertyInputV0,
-    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
-    OmenaCheckerRgFlowInputV0, checker_cascade_primitive_role_catalog_v0,
-    run_omena_query_checker_categorical_gate_v0, run_omena_query_checker_rg_flow_gate_v0,
+    OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0,
+    OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
+    OmenaCheckerMultiscaleComplexityHeuristicInputV0, run_omena_query_checker_categorical_gate_v0,
 };
 
 use super::super::{
@@ -53,16 +60,20 @@ fn query_theory_hint_range_is_whole_file(range: &ParserRangeV0) -> bool {
     range.start.line == 0 && range.start.character == 0
 }
 
-pub(super) fn summarize_query_rg_flow_coupling_diagnostics(
+#[allow(deprecated)]
+pub(super) fn summarize_query_multiscale_complexity_heuristic_coupling_diagnostics(
     source: &str,
     custom_properties: &[OmenaCheckerCustomPropertyInputV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let Some(flow) = query_rg_flow_coupling_for_custom_properties(custom_properties) else {
+    let Some(flow) =
+        query_multiscale_complexity_heuristic_coupling_for_custom_properties(custom_properties)
+    else {
         return Vec::new();
     };
 
-    let gate =
-        run_omena_query_checker_rg_flow_gate_v0(OmenaCheckerRgFlowInputV0 { flows: vec![flow] });
+    let gate = run_omena_query_checker_multiscale_complexity_heuristic_compatibility_gate_v0(
+        OmenaCheckerMultiscaleComplexityHeuristicInputV0 { flows: vec![flow] },
+    );
     if !gate.enforcement_passed {
         return Vec::new();
     }
@@ -78,18 +89,19 @@ pub(super) fn summarize_query_rg_flow_coupling_diagnostics(
     gate.evaluations
         .into_iter()
         .map(|evaluation| {
-            let mut provenance = vec![
-                "omena-query-checker-orchestrator.rg-flow-gate",
-                "omena-checker.rg-flow-rules",
-                "omena-query.cascade-checker",
-            ];
+            let mut provenance =
+                crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0
+                    .to_vec();
+            provenance.push("omena-query.cascade-checker");
             provenance.extend(evaluation.mechanism_products.iter().copied());
             OmenaQueryStyleDiagnosticV0 {
-                code: "rgFlowRelevantOperator",
+                code: MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0,
                 severity: "hint",
                 provenance,
                 range: whole_file_range,
-                message: evaluation.message,
+                message:
+                    crate::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_MESSAGE_V0
+                        .to_string(),
                 tags: Vec::new(),
                 create_custom_property: None,
                 cascade_narrowing: None,
@@ -101,6 +113,7 @@ pub(super) fn summarize_query_rg_flow_coupling_diagnostics(
         .collect()
 }
 
+#[allow(deprecated)]
 pub(super) fn summarize_query_categorical_cascade_evidence_diagnostics(
     source: &str,
     custom_properties: &[OmenaCheckerCustomPropertyInputV0],
@@ -138,11 +151,8 @@ pub(super) fn summarize_query_categorical_cascade_evidence_diagnostics(
                 severity: "hint",
                 provenance,
                 range: whole_file_range,
-                message:
-                    "Cascade custom-property ranking forms a reference cycle, so the categorical \
-                     cosheaf-colimit witness for the cascade-ranking primitive is not functorial: \
-                     the ranking primitive plays conflicting categorical roles in this stylesheet."
-                        .to_string(),
+                message: crate::OMENA_QUERY_CASCADE_SECTION_AGGREGATION_COMPATIBILITY_MESSAGE_V0
+                    .to_string(),
                 tags: Vec::new(),
                 create_custom_property: None,
                 cascade_narrowing: None,
@@ -154,6 +164,7 @@ pub(super) fn summarize_query_categorical_cascade_evidence_diagnostics(
         .collect()
 }
 
+#[allow(deprecated)]
 fn query_categorical_role_mapping_for_cascade(
     custom_properties: &[OmenaCheckerCustomPropertyInputV0],
 ) -> Option<OmenaCheckerCategoricalRoleMappingInputV0> {
@@ -219,9 +230,9 @@ pub(crate) fn query_exercised_cascade_primitive_role_pairs_from_source(
     }
 }
 
-fn query_rg_flow_coupling_for_custom_properties(
+fn query_multiscale_complexity_heuristic_coupling_for_custom_properties(
     custom_properties: &[OmenaCheckerCustomPropertyInputV0],
-) -> Option<OmenaCheckerRgFlowCouplingInputV0> {
+) -> Option<OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0> {
     if custom_properties.is_empty() {
         return None;
     }
@@ -270,15 +281,15 @@ fn query_rg_flow_coupling_for_custom_properties(
     };
     let after_k_decl = k_decl.saturating_add(acyclic_high_gain_pressure);
 
-    Some(OmenaCheckerRgFlowCouplingInputV0 {
+    Some(OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0 {
         workspace_path: "stylesheet://custom-property-coupling".to_string(),
-        before: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+        before: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
             k_env,
             k_decl,
             k_cycle: 0,
             k_dirty: 0,
         },
-        after: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+        after: OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
             k_env,
             k_decl: after_k_decl,
             k_cycle,

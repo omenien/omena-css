@@ -1,0 +1,20 @@
+[
+  {
+    "site": "source_syntax::split_class_names",
+    "previous": "unicode-whitespace then lexical sort then dedup",
+    "current": "DOM ASCII whitespace then canonical first-occurrence dedup",
+    "retainedBehavior": []
+  },
+  {
+    "site": "utility_intelligence::class_tokens",
+    "previous": "Unicode whitespace with duplicate spans preserved",
+    "current": "DOM ASCII whitespace with canonical first-occurrence dedup",
+    "retainedBehavior": ["first-occurrence byte span"]
+  },
+  {
+    "site": "utility_intelligence::config::collect_safelist",
+    "previous": "Unicode whitespace with set-level dedup after splitting",
+    "current": "DOM ASCII whitespace with canonical first-occurrence dedup before set insertion",
+    "retainedBehavior": ["set-level ordering of the enclosing utility universe"]
+  }
+]

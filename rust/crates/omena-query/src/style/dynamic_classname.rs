@@ -1,7 +1,7 @@
 //! Context-sensitive (k-CFA) dynamic-className M-tier diagnostics for the
 //! consumer-facing `omena-query` source path.
 //!
-//! The cascade/RG-flow query diagnostics already route through the checker
+//! The cascade/multiscale-complexity-heuristic query diagnostics already route through the checker
 //! orchestrator gate. This module adds the missing M-tier handoff: dynamic
 //! className call sites are flowed through the real k-limited call-string
 //! analysis (`analyze_k_limited_call_site_flows`) and the joined per-context

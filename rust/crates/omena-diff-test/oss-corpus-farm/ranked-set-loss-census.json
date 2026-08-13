@@ -6,9 +6,18 @@
   "limitations": [
     "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
     "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
-    "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction."
+    "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction.",
+    "CascadeAxisPrefixV0::ScopeProximity is retained for 0.x compatibility but is unreachable from the pre-specificity classifier because specificity precedes scope proximity.",
+    "No multi-candidate inexact RankedSet outcome was observed in the bounded corpus.",
+    "The strict axis-prefix classifier had zero eligible product executions in the bounded corpus.",
+    "The bounded style corpus contains no @layer declaration or statement."
   ],
   "entryCount": 3,
+  "captureStateRecoveryCount": 0,
+  "measurementInvocationCount": 22,
+  "rankedSetOutcomeCount": 1,
+  "multiCandidateInexactRankedSetCount": 0,
+  "layerSyntaxFileCount": 0,
   "rowCount": 1,
   "recoverableCount": 0,
   "undecidableCount": 1,
@@ -32,18 +41,25 @@
   },
   "decidingAxisCounts": {
     "level": 0,
-    "layerRank": 0,
-    "scopeProximity": 0
+    "layerRank": 0
   },
   "unclassifiedInvocationCount": 0,
   "entries": [
     {
       "id": "local-examples-lint-census",
+      "captureStateRecoveryCount": 0,
+      "measurementInvocationCount": 13,
+      "rankedSetOutcomeCount": 0,
+      "multiCandidateInexactRankedSetCount": 0,
       "rowCount": 0,
       "rows": []
     },
     {
       "id": "local-real-workspace-lint-census",
+      "captureStateRecoveryCount": 0,
+      "measurementInvocationCount": 9,
+      "rankedSetOutcomeCount": 1,
+      "multiCandidateInexactRankedSetCount": 0,
       "rowCount": 1,
       "rows": [
         {
@@ -53,12 +69,25 @@
           "property": "border",
           "declarationIds": ["1px solid #d1d5db"],
           "candidateCount": 1,
+          "candidates": [
+            {
+              "declarationId": "1px solid #d1d5db",
+              "level": "authorNormal",
+              "layerRank": 2147483647,
+              "scopeProximity": 0,
+              "specificityExactness": "inexact"
+            }
+          ],
           "classification": "singleInexactCandidate"
         }
       ]
     },
     {
       "id": "local-unused-selector-fanout-lint-census",
+      "captureStateRecoveryCount": 0,
+      "measurementInvocationCount": 0,
+      "rankedSetOutcomeCount": 0,
+      "multiCandidateInexactRankedSetCount": 0,
       "rowCount": 0,
       "rows": []
     }

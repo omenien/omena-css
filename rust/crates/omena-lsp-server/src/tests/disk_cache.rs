@@ -42,7 +42,31 @@ fn run_disk_cache_session(
     style_uri: &str,
     style_text: &str,
 ) -> Vec<ScheduledLspOutput> {
+    run_disk_cache_session_with_state(
+        LspShellState::default(),
+        workspace_uri,
+        style_uri,
+        style_text,
+    )
+}
+
+fn run_disk_cache_standalone_session(
+    workspace_uri: &str,
+    style_uri: &str,
+    style_text: &str,
+    cache_dir: Option<PathBuf>,
+) -> Vec<ScheduledLspOutput> {
     let mut state = LspShellState::default();
+    state.configure_standalone_cache_storage(cache_dir);
+    run_disk_cache_session_with_state(state, workspace_uri, style_uri, style_text)
+}
+
+fn run_disk_cache_session_with_state(
+    mut state: LspShellState,
+    workspace_uri: &str,
+    style_uri: &str,
+    style_text: &str,
+) -> Vec<ScheduledLspOutput> {
     let initialize_response = handle_lsp_message(
         &mut state,
         json!({
@@ -100,6 +124,112 @@ fn shard_files(cache_dir: &Path) -> Vec<PathBuf> {
         .collect::<Vec<_>>();
     files.sort();
     files
+}
+
+fn cache_files_below(root: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut files = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            files.extend(cache_files_below(path.as_path()));
+        } else if path.is_file()
+            && path
+                .components()
+                .any(|component| component.as_os_str() == "omena")
+        {
+            files.push(path);
+        }
+    }
+    files.sort();
+    files
+}
+
+#[test]
+fn observed_cache_writes_are_contained_by_the_declared_surface() -> TestResult {
+    let fixture_root = disk_cache_workspace_root("declared-write-containment");
+    let (workspace_uri, style_uri) =
+        write_disk_cache_style_fixture(fixture_root.as_path(), DISK_CACHE_STYLE_TEXT);
+    let process_environment_root = std::env::var_os("OMENA_CACHE_DIR").map(PathBuf::from);
+    let forced_lsp_root = process_environment_root
+        .clone()
+        .unwrap_or_else(|| fixture_root.join("forced-cache-root"));
+    let outputs = run_disk_cache_standalone_session(
+        workspace_uri.as_str(),
+        style_uri.as_str(),
+        DISK_CACHE_STYLE_TEXT,
+        process_environment_root
+            .is_none()
+            .then(|| forced_lsp_root.clone()),
+    );
+    assert!(
+        !outputs.is_empty(),
+        "the LSP store pass must produce output"
+    );
+
+    let external_package = fixture_root.join("external-package");
+    std::fs::create_dir_all(external_package.as_path())?;
+    std::fs::write(
+        external_package.join("package.json"),
+        r#"{"name":"external-package"}"#,
+    )?;
+    let external_style = external_package.join("tokens.scss");
+    std::fs::write(external_style.as_path(), "$brand: #0af;\n")?;
+    let bridge_storage = omena_query::OmenaQueryExternalSifStorageV0::from_workspace_cache_root(
+        forced_lsp_root
+            .join("omena")
+            .join("workspaces")
+            .join("bridge-fixture"),
+    );
+    omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+        external_style.to_string_lossy().as_ref(),
+        &omena_query::OmenaQueryExternalSifCacheContextV0::default(),
+        Some(&bridge_storage),
+    )?;
+
+    let mut observed_files = cache_files_below(fixture_root.as_path());
+    observed_files.extend(cache_files_below(forced_lsp_root.as_path()));
+    observed_files.sort();
+    observed_files.dedup();
+    assert!(
+        !observed_files.is_empty(),
+        "the store pass must create observable cache files"
+    );
+
+    let declared_roots = crate::boundary::declared_cache_write_surfaces_for_rungs(
+        crate::CacheStorageRungV0::Environment,
+        crate::CacheStorageRungV0::Environment,
+    )
+    .into_iter()
+    .filter_map(|surface| match surface.resolved_rung {
+        crate::CacheStorageRungV0::Environment => {
+            Some(forced_lsp_root.join("omena").join("workspaces"))
+        }
+        crate::CacheStorageRungV0::Workspace => match surface.root_kind {
+            crate::CacheWriteSurfaceKindV0::LspWorkspaceCache => {
+                Some(fixture_root.join(".cache").join("omena"))
+            }
+            crate::CacheWriteSurfaceKindV0::BridgeExternalSifCache => {
+                Some(external_package.join(".cache").join("omena"))
+            }
+        },
+        crate::CacheStorageRungV0::InitializationOptions
+        | crate::CacheStorageRungV0::Platform
+        | crate::CacheStorageRungV0::Disabled => None,
+    })
+    .collect::<Vec<_>>();
+    println!("cacheContainment observed={observed_files:?} declared={declared_roots:?}");
+    assert!(
+        observed_files
+            .iter()
+            .all(|path| declared_roots.iter().any(|root| path.starts_with(root))),
+        "observed cache writes must stay inside the declared set: observed={observed_files:?} declared={declared_roots:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(fixture_root);
+    Ok(())
 }
 
 fn serialized_outputs(outputs: &[ScheduledLspOutput]) -> String {
@@ -196,6 +326,14 @@ fn first_resolve_writes_shard_and_fresh_state_replays_byte_identical_diagnostics
         1,
         "first resolve must write exactly one shard under {}",
         cache_dir.display(),
+    );
+    let attribution = workspace_root
+        .join(".cache")
+        .join("omena")
+        .join(".omena-cache-owner.json");
+    assert!(
+        attribution.is_file(),
+        "the diagnostics-only writer must stamp its resolved cache root"
     );
 
     let second_outputs = run_disk_cache_session(

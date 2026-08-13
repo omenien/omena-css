@@ -15,13 +15,16 @@ use std::borrow::Cow;
 #[derive(Debug, Clone)]
 pub struct ClassNameV0 {
     raw: String,
-    decoded: String,
+    decoded: Option<String>,
 }
 
 impl ClassNameV0 {
     pub fn new(raw: impl Into<String>) -> Self {
         let raw = raw.into();
-        let decoded = decode_css_identifier_escapes(&raw).into_owned();
+        let decoded = match decode_css_identifier_escapes(&raw) {
+            Cow::Borrowed(_) => None,
+            Cow::Owned(decoded) => Some(decoded),
+        };
         Self { raw, decoded }
     }
 
@@ -30,7 +33,7 @@ impl ClassNameV0 {
     }
 
     pub fn decoded(&self) -> &str {
-        &self.decoded
+        self.decoded.as_deref().unwrap_or(&self.raw)
     }
 
     pub fn into_raw(self) -> String {
@@ -38,11 +41,19 @@ impl ClassNameV0 {
     }
 
     pub fn same_as(&self, other: &Self) -> bool {
-        self.decoded == other.decoded
+        self.decoded() == other.decoded()
     }
 
-    pub fn canonical_key(&self) -> CanonicalClassKeyV0 {
-        CanonicalClassKeyV0(self.decoded.clone(), CanonicalClassKeySealV0(()))
+    pub fn canonical_key(self) -> CanonicalClassKeyV0 {
+        let decoded = self.decoded.unwrap_or(self.raw);
+        CanonicalClassKeyV0(decoded, CanonicalClassKeySealV0(()))
+    }
+
+    fn from_plain(raw: &str) -> Self {
+        Self {
+            raw: raw.to_owned(),
+            decoded: None,
+        }
     }
 }
 
@@ -134,7 +145,7 @@ pub fn decode_css_identifier_escapes(text: &str) -> Cow<'_, str> {
         let escape_start = index;
         index += ch.len_utf8();
         let Some(next) = text[index..].chars().next() else {
-            output.push('\\');
+            output.push(char::REPLACEMENT_CHARACTER);
             break;
         };
         if is_css_newline(next) {
@@ -208,6 +219,75 @@ pub fn class_selector_name_end(text: &str, start: usize) -> Option<usize> {
 }
 
 pub fn class_selector_names(selector: &str) -> Vec<ClassSelectorNameV0> {
+    if let Some(names) = ascii_class_selector_names(selector) {
+        return names;
+    }
+    general_class_selector_names(selector)
+}
+
+fn ascii_class_selector_names(selector: &str) -> Option<Vec<ClassSelectorNameV0>> {
+    let bytes = selector.as_bytes();
+    let mut names = Vec::new();
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None;
+
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if !byte.is_ascii() || byte == b'\\' {
+            return None;
+        }
+        if let Some(active_quote) = quote {
+            if byte == active_quote {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        match byte {
+            b'"' | b'\'' => quote = Some(byte),
+            b'(' => paren_depth += 1,
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth += 1,
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b'.' if paren_depth == 0 && bracket_depth == 0 => {
+                let start = index + 1;
+                let Some(first) = bytes.get(start).copied() else {
+                    index += 1;
+                    continue;
+                };
+                if !ascii_css_name_start(first) {
+                    index += 1;
+                    continue;
+                }
+                let mut end = start + 1;
+                while end < bytes.len() && ascii_css_name_continue(bytes[end]) {
+                    end += 1;
+                }
+                names.push(ClassSelectorNameV0 {
+                    name: ClassNameV0::from_plain(&selector[start..end]),
+                    position: ClassSelectorPositionV0 { start, end },
+                });
+                index = end;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    Some(names)
+}
+
+fn ascii_css_name_start(byte: u8) -> bool {
+    matches!(byte, b'-' | b'_') || byte.is_ascii_alphabetic()
+}
+
+fn ascii_css_name_continue(byte: u8) -> bool {
+    ascii_css_name_start(byte) || byte.is_ascii_digit()
+}
+
+fn general_class_selector_names(selector: &str) -> Vec<ClassSelectorNameV0> {
     let mut names = Vec::new();
     let mut index = 0usize;
     let mut paren_depth = 0usize;
@@ -255,7 +335,10 @@ pub fn class_selector_names(selector: &str) -> Vec<ClassSelectorNameV0> {
     names
 }
 
-fn css_identifier_escape_sequence_end(text: &str, slash_index: usize) -> Option<usize> {
+/// Returns the byte immediately after a valid CSS identifier escape.
+///
+/// A newline or end-of-input after the reverse solidus is not a valid escape.
+pub fn css_identifier_escape_sequence_end(text: &str, slash_index: usize) -> Option<usize> {
     if text[slash_index..].chars().next()? != '\\' {
         return None;
     }
@@ -306,7 +389,16 @@ mod tests {
         assert_eq!(decode_css_identifier_escapes(r"a\.b"), "a.b");
         assert_eq!(decode_css_identifier_escapes(r"\31 23"), "123");
         assert_eq!(decode_css_identifier_escapes(r"\0"), "\u{fffd}");
+        assert_eq!(decode_css_identifier_escapes("\\"), "\u{fffd}");
         assert_eq!(decode_css_identifier_escapes("\\\n"), "\\\n");
+    }
+
+    #[test]
+    fn identifier_escape_boundaries_reject_newline_and_end_of_input() {
+        assert_eq!(css_identifier_escape_sequence_end(r"\31 23", 0), Some(4));
+        assert_eq!(css_identifier_escape_sequence_end(r"\:", 0), Some(2));
+        assert_eq!(css_identifier_escape_sequence_end("\\\n", 0), None);
+        assert_eq!(css_identifier_escape_sequence_end("\\", 0), None);
     }
 
     #[test]
@@ -319,6 +411,32 @@ mod tests {
         assert!(escaped.same_as(&plain));
         assert_eq!(escaped.raw(), r"a\.b");
         assert_eq!(escaped.canonical_key().as_str(), "a.b");
+    }
+
+    #[test]
+    fn ascii_class_scanner_matches_the_general_authority() {
+        let selector = r#".card .title[data-x="a.b"]:is(.nested).plain"#;
+        let summarize = |names: Vec<ClassSelectorNameV0>| {
+            names
+                .into_iter()
+                .map(|entry| {
+                    (
+                        entry.name.into_raw(),
+                        entry.position.start,
+                        entry.position.end,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let fast = ascii_class_selector_names(selector);
+        assert!(fast.is_some(), "fixture must stay on the fast path");
+        if let Some(fast) = fast {
+            assert_eq!(
+                summarize(fast),
+                summarize(general_class_selector_names(selector))
+            );
+        }
     }
 
     #[test]

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Streaming IFDS contracts for live Omena LSP analysis"
+description = "Demand-sliced monotone fact propagation scaffold for Omena LSP analysis"
 repository = "https://github.com/omenien/omena-css"
 readme = "README.md"
 
@@ -18,7 +18,10 @@ workspace = true
 
 [features]
 default = []
-streaming-ifds = []
+demand-sliced-monotone-fact-propagation = []
+# compatibility-owner: omena-streaming-ifds maintainers
+# compatibility-removal: not before 1.0, and only after downstream migration and audited zero in-repo non-compat uses
+streaming-ifds = ["demand-sliced-monotone-fact-propagation"]
 with-frame-rule = []
 
 [dependencies]

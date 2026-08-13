@@ -406,21 +406,15 @@ fn declared_utility_config_settings(workspace_root: &Path) -> DeclaredUtilityCon
 }
 
 fn class_tokens(source: &str) -> Vec<(usize, usize, &str)> {
-    let mut tokens = Vec::new();
-    let mut start = None;
-    for (offset, character) in source.char_indices() {
-        if character.is_whitespace() {
-            if let Some(token_start) = start.take() {
-                tokens.push((token_start, offset, &source[token_start..offset]));
-            }
-        } else if start.is_none() {
-            start = Some(offset);
-        }
-    }
-    if let Some(token_start) = start {
-        tokens.push((token_start, source.len(), &source[token_start..]));
-    }
-    tokens
+    let omena_abstract_value::DomClassTokenizationV0::Known { token_spans, .. } =
+        omena_abstract_value::tokenize_dom_class_attribute_v0(Some(source))
+    else {
+        return Vec::new();
+    };
+    token_spans
+        .into_iter()
+        .map(|span| (span.start, span.end, &source[span.start..span.end]))
+        .collect()
 }
 
 #[cfg(test)]

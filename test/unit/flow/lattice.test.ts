@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  compositeClassValue,
+  joinClassValues,
+  prefixSuffixClassValue,
+} from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
+import {
   exactValue,
   markBranched,
   mergeValues,
@@ -41,6 +46,78 @@ describe("flow/lattice", () => {
         reason: "flowBranch",
       },
     );
+  });
+
+  it("compares constrained minimum lengths only in UTF-16 code units", () => {
+    const overlapValue = {
+      abstractValue: prefixSuffixClassValue("ab-", "-cd"),
+      reason: "flowLiteral" as const,
+    };
+    const overlapValueFromJoin = {
+      abstractValue: joinClassValues(
+        compositeClassValue({
+          prefix: "ab-",
+          suffix: "-cd",
+          mustChars: "-abcd",
+          mayChars: "-abcdx",
+        }),
+        prefixSuffixClassValue("ab-", "-cd"),
+      ),
+      reason: "flowLiteral" as const,
+    };
+    expect(overlapValueFromJoin.abstractValue).not.toBe(overlapValue.abstractValue);
+    expect(mergeValues(overlapValue, overlapValueFromJoin)).toMatchObject({
+      reason: "flowLiteral",
+    });
+    expect(
+      mergeValues(overlapValue, {
+        abstractValue: prefixSuffixClassValue("ab-", "-cd", 6),
+        reason: "flowLiteral",
+      }),
+    ).toMatchObject({ reason: "flowBranch" });
+
+    const compositeValue = {
+      abstractValue: compositeClassValue({
+        prefix: "ab-",
+        suffix: "-cd",
+        mustChars: "-abcd",
+        mayChars: "-abcdxy",
+      }),
+      reason: "flowLiteral" as const,
+    };
+    const compositeValueFromJoin = {
+      abstractValue: joinClassValues(
+        compositeClassValue({
+          prefix: "ab-",
+          suffix: "-cd",
+          mustChars: "-abcd",
+          mayChars: "-abcdx",
+        }),
+        compositeClassValue({
+          prefix: "ab-",
+          suffix: "-cd",
+          mustChars: "-abcd",
+          mayChars: "-abcdy",
+        }),
+      ),
+      reason: "flowLiteral" as const,
+    };
+    expect(compositeValueFromJoin.abstractValue).not.toBe(compositeValue.abstractValue);
+    expect(mergeValues(compositeValue, compositeValueFromJoin)).toMatchObject({
+      reason: "flowLiteral",
+    });
+    expect(
+      mergeValues(compositeValue, {
+        abstractValue: compositeClassValue({
+          prefix: "ab-",
+          suffix: "-cd",
+          minLength: 6,
+          mustChars: "-abcd",
+          mayChars: "-abcdxy",
+        }),
+        reason: "flowLiteral",
+      }),
+    ).toMatchObject({ reason: "flowBranch" });
   });
 
   it("derives finite type-union results through the shared domain", () => {

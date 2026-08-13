@@ -250,7 +250,7 @@ struct TransformPassCascadeOracleCaseV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct TransformPassCascadeSiteProjectionV0 {
+struct TransformPassCascadeSectionProjectionV0 {
     selector: String,
     value: String,
 }
@@ -391,21 +391,21 @@ fn transform_pass_cascade_conformance_record(
         .map(|outcome| outcome.status)
         .unwrap_or(TransformPassRuntimeStatus::PlannedOnly);
     let mutation_count = outcome.map(|outcome| outcome.mutation_count).unwrap_or(0);
-    let reference_site = transform_pass_cascade_site_projection(
+    let reference_section = transform_pass_cascade_section_projection(
         oracle_case.source.as_str(),
         oracle_case.property.as_str(),
     );
     let oracle_baseline_match = oracle_case.cascade_projection_supported.then(|| {
-        reference_site.as_ref().is_some_and(|site| {
+        reference_section.as_ref().is_some_and(|section| {
             transform_pass_cascade_values_match(
                 oracle_case.oracle,
                 oracle_case.property.as_str(),
-                site.value.as_str(),
+                section.value.as_str(),
                 oracle_case.expected_value.as_str(),
             )
         })
     });
-    let actual_site = transform_pass_cascade_site_projection(
+    let actual_section = transform_pass_cascade_section_projection(
         execution.output_css.as_str(),
         oracle_case.property.as_str(),
     );
@@ -416,9 +416,9 @@ fn transform_pass_cascade_conformance_record(
         && mutation_count > 0
         && oracle_baseline_match == Some(true);
     let oracle_match = comparison_performed.then(|| {
-        reference_site
+        reference_section
             .as_ref()
-            .zip(actual_site.as_ref())
+            .zip(actual_section.as_ref())
             .is_some_and(|(reference, actual)| {
                 reference.selector == actual.selector
                     && transform_pass_cascade_values_match(
@@ -433,7 +433,7 @@ fn transform_pass_cascade_conformance_record(
     let reason = match verdict {
         TransformPassCascadeConformanceVerdictV0::ModelConformant => None,
         TransformPassCascadeConformanceVerdictV0::DivergentWithReason => Some(format!(
-            "transformed cascade site does not match the {} oracle value",
+            "transformed cascade section does not match the {} oracle value",
             oracle_case.oracle.id()
         )),
         TransformPassCascadeConformanceVerdictV0::NotExercised => Some(
@@ -474,7 +474,7 @@ fn transform_pass_cascade_conformance_record(
         comparison_performed,
         oracle_match,
         expected_value: oracle_case.expected_value.clone(),
-        actual_value: actual_site.map(|site| site.value),
+        actual_value: actual_section.map(|section| section.value),
         verdict,
         reason,
     }
@@ -516,18 +516,18 @@ fn transform_pass_cascade_comparable_facts(
         .collect()
 }
 
-fn transform_pass_cascade_site_projection(
+fn transform_pass_cascade_section_projection(
     source: &str,
     property: &str,
-) -> Option<TransformPassCascadeSiteProjectionV0> {
-    let mut matching = summarize_omena_query_cascade_site_outcomes_from_source(source)
+) -> Option<TransformPassCascadeSectionProjectionV0> {
+    let mut matching = summarize_omena_query_cascade_section_outcomes_from_source(source)
         .into_iter()
         .filter(|outcome| outcome.property.eq_ignore_ascii_case(property));
     let first = matching.next()?;
     if matching.next().is_some() {
         return None;
     }
-    Some(TransformPassCascadeSiteProjectionV0 {
+    Some(TransformPassCascadeSectionProjectionV0 {
         selector: first.selector,
         value: first.winning_value,
     })
@@ -627,7 +627,7 @@ fn transform_pass_cascade_not_exercised_reason(
     } else if mutation_count == 0 {
         "oracle case does not drive a pass mutation"
     } else if oracle_baseline_match == Some(false) {
-        "oracle CSS cannot be projected to one matching cascade site"
+        "oracle CSS cannot be projected to one matching cascade section"
     } else {
         "oracle comparison was not performed"
     }
@@ -756,8 +756,8 @@ mod tests {
         let compared_facts = transform_pass_cascade_comparable_facts(&contract.preserves, "color");
         assert!(compared_facts.contains(&ObservationKindV0::Inheritance));
 
-        let reference = transform_pass_cascade_site_projection(".a { color: red; }", "color");
-        let changed = transform_pass_cascade_site_projection(".a { color: blue; }", "color");
+        let reference = transform_pass_cascade_section_projection(".a { color: red; }", "color");
+        let changed = transform_pass_cascade_section_projection(".a { color: blue; }", "color");
         let oracle_match =
             reference
                 .as_ref()

@@ -555,7 +555,9 @@ function writeResult(
     io.stdout(
       `Rust flow-analysis consumer: graphs=${rustFlowAnalysisConsumer.graphCount} ` +
         `nodes=${rustFlowAnalysisConsumer.nodeCount} ` +
-        `converged=${rustFlowAnalysisConsumer.convergedGraphCount}/${rustFlowAnalysisConsumer.graphCount}\n`,
+        `converged=${rustFlowAnalysisConsumer.convergedGraphCount}/${rustFlowAnalysisConsumer.graphCount} ` +
+        `automatonLanguageCardinalityLimit=${rustFlowAnalysisConsumer.automatonPreconstructionCutoffProvenanceCounts.automatonLanguageCardinalityLimit} ` +
+        `automatonMaterializedByteLimit=${rustFlowAnalysisConsumer.automatonPreconstructionCutoffProvenanceCounts.automatonMaterializedByteLimit}\n`,
     );
   }
 }

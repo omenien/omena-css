@@ -52,7 +52,13 @@ export interface RustFlowAnalysisConsumerV0 {
   readonly convergedGraphCount: number;
   readonly unconvergedGraphCount: number;
   readonly maxIterationCount: number;
+  readonly automatonPreconstructionCutoffProvenanceCounts: AutomatonPreconstructionCutoffProvenanceCountsV0;
   readonly flowAnalysis: ExpressionDomainFlowAnalysisV0;
+}
+
+export interface AutomatonPreconstructionCutoffProvenanceCountsV0 {
+  readonly automatonLanguageCardinalityLimit: number;
+  readonly automatonMaterializedByteLimit: number;
 }
 
 export async function buildRustFlowAnalysisConsumer(
@@ -103,6 +109,8 @@ export async function buildRustFlowAnalysisConsumer(
     (max, entry) => Math.max(max, entry.analysis.iterationCount),
     0,
   );
+  const automatonPreconstructionCutoffProvenanceCounts =
+    countAutomatonPreconstructionCutoffProvenances(analyses);
 
   return {
     schemaVersion: "0",
@@ -113,7 +121,33 @@ export async function buildRustFlowAnalysisConsumer(
     convergedGraphCount,
     unconvergedGraphCount: analyses.length - convergedGraphCount,
     maxIterationCount,
+    automatonPreconstructionCutoffProvenanceCounts,
     flowAnalysis,
+  };
+}
+
+/** @internal Count the two preconstruction cutoff causes without folding either into state-limit Top. */
+export function countAutomatonPreconstructionCutoffProvenances(
+  analyses: readonly ExpressionDomainFlowAnalysisEntryV0[],
+): AutomatonPreconstructionCutoffProvenanceCountsV0 {
+  let automatonLanguageCardinalityLimit = 0;
+  let automatonMaterializedByteLimit = 0;
+
+  for (const entry of analyses) {
+    for (const node of entry.analysis.nodes) {
+      if (node.valueKind !== "top") continue;
+      const provenance = node.value["provenance"];
+      if (provenance === "automatonLanguageCardinalityLimit") {
+        automatonLanguageCardinalityLimit += 1;
+      } else if (provenance === "automatonMaterializedByteLimit") {
+        automatonMaterializedByteLimit += 1;
+      }
+    }
+  }
+
+  return {
+    automatonLanguageCardinalityLimit,
+    automatonMaterializedByteLimit,
   };
 }
 

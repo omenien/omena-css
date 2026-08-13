@@ -1,25 +1,29 @@
 /// Reviewed mismatch classes for observations made before a wave flushes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum ReactiveDivergenceClassV0 {
     FlushConeClosureTiming,
     MidWaveReadTiming,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReactiveObservationPhaseV0 {
     DuringWave,
     Flush,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReactiveDivergenceDispositionV0 {
     BenignUntilFlush,
     Blocker,
 }
 
 impl ReactiveDivergenceClassV0 {
-    pub const fn all() -> [Self; 2] {
-        [Self::FlushConeClosureTiming, Self::MidWaveReadTiming]
+    /// Returns the reviewed classes without exposing their count in the type.
+    pub const fn all() -> &'static [Self] {
+        &[Self::FlushConeClosureTiming, Self::MidWaveReadTiming]
     }
 
     pub const fn id(self) -> &'static str {
@@ -30,7 +34,7 @@ impl ReactiveDivergenceClassV0 {
     }
 
     pub fn from_id(id: &str) -> Option<Self> {
-        Self::all().into_iter().find(|class| class.id() == id)
+        Self::all().iter().copied().find(|class| class.id() == id)
     }
 
     /// A reviewed timing difference is benign only while the graph is still

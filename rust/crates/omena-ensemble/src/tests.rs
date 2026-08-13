@@ -1,21 +1,79 @@
 #![allow(clippy::expect_used)]
+#![allow(deprecated)]
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeProof, CascadeValue,
-    LayerOrdinal, ModuleRank, Specificity, normalized_layer_rank, summarize_replica_overlap,
+    LayerOrdinal, OpenWorldTieEvidence, Specificity, normalized_layer_rank,
+    summarize_replica_overlap,
 };
 
-use crate::{ConsumerId, ProjectionFamily, TopVariantTreatment};
+#[allow(deprecated)]
+use crate::overlap::LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0;
+#[allow(deprecated)]
 use crate::{
-    DetectabilityPhase, DistributionModality, LinearProvenanceTagV0, ModuleGraphEdgeV0,
-    ModuleGraphV0, OutcomeMode, ParisiM4AlphaSource, ParisiSource, PartitionHypothesisLabel,
-    REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
-    REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReportOptionsV0,
-    ReportRecommendation, RgExponentHandleV0, SamplingPolicy, SpectralMethod,
-    UniversalityClassHint, build_cross_file_inconsistency_report, compute_overlap_distribution,
-    compute_replica_overlap, compute_sbm_detectability, grn_outcome_projection_policy,
-    outcome_projection_policy_for_mode, site,
+    CascadeSectionKeyV0, CascadeSiteKeyV0, DetectabilityPhase, DistributionModality,
+    LinearProvenanceTagV0, ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, ParisiM4AlphaSource,
+    ParisiSource, PartitionHypothesisLabel, REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
+    REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+    REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0, REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0,
+    REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReportOptionsV0, ReportRecommendation, RgExponentHandleV0,
+    SamplingPolicy, SpectralMethod, UniversalityClassHint, build_cross_file_inconsistency_report,
+    cascade_section_key, compute_overlap_distribution, compute_replica_overlap,
+    compute_sbm_detectability, grn_outcome_projection_policy, outcome_projection_policy_for_mode,
+    site,
 };
+use crate::{ConsumerId, ProjectionFamily, TopVariantTreatment};
+
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy key wire fixture owned by omena-ensemble maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+const LEGACY_CASCADE_SECTION_KEY_EXPECTED_WIRE_V0: &str = r#"{"schemaVersion":"0","product":"omena-ensemble.cascade-site-key","layerMarker":"replica-ensemble","featureGate":"replica-ensemble","elementSelector":".button","property":"color"}"#;
+
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy key conversion fixture owned by omena-ensemble maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+fn assert_compatibility_key_conversion_v0(
+    canonical: CascadeSectionKeyV0,
+    legacy: CascadeSiteKeyV0,
+) {
+    let canonical_from_legacy = crate::cascade_section_key_from_site_key_v0(legacy.clone());
+    let legacy_from_canonical =
+        crate::compatibility_key_from_cascade_section_key_v0(canonical.clone());
+    assert_eq!(canonical_from_legacy, canonical);
+    assert_eq!(legacy_from_canonical, legacy);
+}
+
+#[test]
+#[allow(deprecated)]
+fn cascade_section_key_adds_an_accurate_product_without_changing_legacy_fields() {
+    let canonical = cascade_section_key(".button", "color");
+    let legacy = site(".button", "color");
+
+    assert_eq!(canonical.product, "omena-ensemble.cascade-section-key");
+    assert_eq!(legacy.product, LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0);
+    assert_eq!(legacy.schema_version, "0");
+    assert_eq!(legacy.layer_marker, "replica-ensemble");
+    assert_eq!(legacy.feature_gate, "replica-ensemble");
+    assert_eq!(legacy.element_selector, ".button");
+    assert_eq!(legacy.property, "color");
+    assert_eq!(legacy.schema_version, canonical.schema_version);
+    assert_eq!(legacy.layer_marker, canonical.layer_marker);
+    assert_eq!(legacy.feature_gate, canonical.feature_gate);
+    assert_eq!(legacy.element_selector, canonical.element_selector);
+    assert_eq!(legacy.property, canonical.property);
+
+    assert_eq!(
+        serde_json::to_string(&legacy).expect("legacy key serializes"),
+        LEGACY_CASCADE_SECTION_KEY_EXPECTED_WIRE_V0
+    );
+    assert_eq!(
+        serde_json::to_string(&canonical).expect("canonical key serializes"),
+        r#"{"schemaVersion":"0","product":"omena-ensemble.cascade-section-key","layerMarker":"replica-ensemble","featureGate":"replica-ensemble","elementSelector":".button","property":"color"}"#
+    );
+
+    assert_compatibility_key_conversion_v0(canonical, legacy);
+}
 
 #[test]
 fn tier_one_pairwise_overlap_does_not_require_spin_glass_source() {
@@ -398,9 +456,9 @@ fn definite_outcome(id: &str) -> CascadeOutcome {
                 classes: 1,
                 elements: 0,
             },
-            module_rank: ModuleRank::ZERO,
             source_order: 0,
         },
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
     };
     CascadeOutcome::Definite {

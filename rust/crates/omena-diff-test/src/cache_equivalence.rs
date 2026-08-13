@@ -223,9 +223,9 @@ pub fn omena_diff_cache_equivalence_default_corpus_v0() -> (
             style_source: "$ds_gray-700: #374151;\n".to_string(),
         },
         // Cyclic / deep-chain corpus extension: the default corpus above is acyclic. Under
-        // omena-diff-test (built WITHOUT hypergraph-ifds) these fixtures pin the NATIVE
+        // omena-diff-test (built WITHOUT hypergraph-monotone-fact-propagation) these fixtures pin the NATIVE
         // sassUseCycle detector across the warm / salsa-memo / parallel-view arms; they do NOT
-        // reach the hypergraph-ifds-gated cross-file SCC/closure primitives (those are covered by
+        // reach the hypergraph-monotone-fact-propagation-gated cross-file SCC/closure primitives (those are covered by
         // the omena-streaming-ifds guard tests). A two-node `@use` ring -> sassUseCycle.
         OmenaQueryStyleSourceInputV0 {
             style_path: "/workspace/src/_cycle_a.scss".to_string(),

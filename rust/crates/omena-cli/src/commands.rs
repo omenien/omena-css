@@ -354,7 +354,7 @@ pub(crate) enum Command {
         /// External Sass module mode: omitted enables SIF discovery; use ignored as the compatibility opt-out.
         #[arg(long)]
         external: Option<String>,
-        /// Opt-in deep analysis: also surface the rg-flow / categorical theory hints
+        /// Opt-in deep analysis: also surface the multiscale-complexity-heuristic / categorical theory hints
         /// (off by default; deduplicated against the circular-var warning). Single-file path only.
         #[arg(long)]
         deep_analysis: bool,
@@ -614,6 +614,23 @@ pub(crate) enum ExplainCommand {
         /// Byte offset of the variable reference.
         #[arg(long = "byte-offset")]
         byte_offset: usize,
+        /// Optional source language id used by the source frontend.
+        #[arg(long = "source-language")]
+        source_language: Option<String>,
+        /// Print a machine-readable response envelope.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Explain the token value resolved for one class-carrying attribute site.
+    ClassSite {
+        /// JavaScript or TypeScript source containing the class site.
+        path: PathBuf,
+        /// Byte offset where the class/className attribute begins.
+        #[arg(long = "site-start")]
+        site_start: usize,
+        /// Byte offset immediately after the class/className attribute.
+        #[arg(long = "site-end")]
+        site_end: usize,
         /// Optional source language id used by the source frontend.
         #[arg(long = "source-language")]
         source_language: Option<String>,

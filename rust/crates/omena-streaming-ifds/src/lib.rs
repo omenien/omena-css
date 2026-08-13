@@ -1,7 +1,7 @@
-//! Streaming IFDS contracts for live LSP analysis.
+//! Demand-sliced monotone fact propagation scaffold for live LSP analysis.
 //!
 //! The default live-analysis path is exact (`delta = epsilon = 0`) and
-//! wire-compatible with the hypergraph IFDS substrate.
+//! wire-compatible with the existing hypergraph substrate.
 //!
 //! claim_level: product-wired exact default live-analysis mechanism; the polylog
 //! backend label is an implementation boundary, not an asymptotic proof claim.
@@ -19,19 +19,38 @@ use omena_cross_file_summary::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub const STREAMING_IFDS_SCHEMA_VERSION_V0: &str = "0";
-pub const STREAMING_IFDS_LAYER_MARKER_V0: &str = "streaming-ifds";
-pub const STREAMING_IFDS_FEATURE_GATE_V0: &str = "streaming-ifds";
-pub const STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0: &str = "omena-diff-test.boundary";
-pub const STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0: &str =
+pub const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0: &str = "0";
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy layer byte owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_PROPAGATION_LAYER_BYTES_V0: &str = "streaming-ifds";
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy feature byte owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_PROPAGATION_FEATURE_BYTES_V0: &str = "streaming-ifds";
+#[allow(deprecated)]
+const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0: &str =
+    LEGACY_PROPAGATION_LAYER_BYTES_V0;
+#[allow(deprecated)]
+const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0: &str =
+    LEGACY_PROPAGATION_FEATURE_BYTES_V0;
+pub const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0: &str =
+    "demand-sliced-monotone-fact-propagation";
+pub const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0: &str =
+    "demand-sliced-monotone-fact-propagation";
+pub const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0: &str =
+    "omena-diff-test.boundary";
+pub const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_ARTIFACT_PRODUCT_V0: &str =
     "omena-benchmarks.z5-perf-complexity-slope";
-pub const STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0: &str =
+pub const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_PRODUCT_V0: &str =
     "omena-streaming-ifds.relocation-gate";
-pub const STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0: usize = 4;
+pub const DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_MIN_SETTLE_SOAK_REVISION_COUNT_V0: usize = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSUpdateV0 {
+pub struct DemandSlicedMonotoneFactPropagationUpdateV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -46,6 +65,26 @@ pub struct StreamingIFDSUpdateV0 {
     pub epsilon: u8,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DemandSlicedMonotoneFactPropagationExactBfsConnectivityWitnessV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub start_node_id: String,
+    pub reachable_node_ids: Vec<String>,
+    pub polylog_query_bound: usize,
+    pub connectivity_algorithm: &'static str,
+    pub polylog_bound_scope: &'static str,
+    pub exact_default: bool,
+    pub wire_compatible_with_batch_oracle: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationExactBfsConnectivityWitnessV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PolylogConnectivityWitnessV0 {
@@ -64,14 +103,14 @@ pub struct PolylogConnectivityWitnessV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIfdsEventInputV0 {
+pub struct DemandSlicedMonotoneFactPropagationEventInputV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub event_id: String,
     pub revision: u64,
-    pub event_kind: StreamingIFDSEventKindV0,
+    pub event_kind: DemandSlicedMonotoneFactPropagationEventKindV0,
     pub node_id: String,
     pub value: AbstractClassValueV0,
     pub refinement_context_digest: Option<u64>,
@@ -80,7 +119,7 @@ pub struct StreamingIfdsEventInputV0 {
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", rename_all_fields = "camelCase")]
-pub enum StreamingIFDSEventKindV0 {
+pub enum DemandSlicedMonotoneFactPropagationEventKindV0 {
     EdgeInsert {
         from: String,
         to: String,
@@ -113,7 +152,7 @@ pub enum StreamingIFDSEventKindV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSFactV0 {
+pub struct DemandSlicedMonotoneFactPropagationFactV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -126,7 +165,7 @@ pub struct StreamingIFDSFactV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSTransferFunctionV0 {
+pub struct DemandSlicedMonotoneFactPropagationTransferFunctionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -140,7 +179,7 @@ pub struct StreamingIFDSTransferFunctionV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSSummaryCacheEntryV0 {
+pub struct DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -148,54 +187,57 @@ pub struct StreamingIFDSSummaryCacheEntryV0 {
     pub start_node_id: String,
     pub reachable_node_ids: Vec<String>,
     pub fact_keys: Vec<String>,
-    pub facts: Vec<StreamingIFDSFactV0>,
+    pub facts: Vec<DemandSlicedMonotoneFactPropagationFactV0>,
     pub summary_hash: String,
     pub reused_from_previous: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum StreamingIFDSFallbackCauseV0 {
+pub enum DemandSlicedMonotoneFactPropagationFallbackCauseV0 {
     ReachabilityMismatch,
     FactMismatch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSAnalysisReportV0 {
+pub struct DemandSlicedMonotoneFactPropagationAnalysisReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
-    pub update: StreamingIFDSUpdateV0,
-    pub witness: PolylogConnectivityWitnessV0,
+    pub update: DemandSlicedMonotoneFactPropagationUpdateV0,
+    pub witness: DemandSlicedMonotoneFactPropagationExactBfsConnectivityWitnessV0,
     pub event_count: usize,
     pub input_fact_count: usize,
     pub output_fact_count: usize,
     pub dirty_fact_count: usize,
     pub reused_fact_count: usize,
     pub transfer_function_count: usize,
-    pub fallback_causes: Vec<StreamingIFDSFallbackCauseV0>,
+    pub fallback_causes: Vec<DemandSlicedMonotoneFactPropagationFallbackCauseV0>,
     pub incremental_precision_parity_with_batch: bool,
     pub reachability_parity_with_batch: bool,
     pub reachability_delta_used: bool,
     pub reachability_dirty_node_count: usize,
     pub reachability_work_node_visits: usize,
     pub batch_reachability_work_node_visits: usize,
-    pub output_facts: Vec<StreamingIFDSFactV0>,
-    pub incremental_facts_for_diagnosis: Vec<StreamingIFDSFactV0>,
-    pub summary_cache: Vec<StreamingIFDSSummaryCacheEntryV0>,
+    pub output_facts: Vec<DemandSlicedMonotoneFactPropagationFactV0>,
+    pub incremental_facts_for_diagnosis: Vec<DemandSlicedMonotoneFactPropagationFactV0>,
+    pub summary_cache: Vec<DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0>,
 }
 
-impl StreamingIFDSAnalysisReportV0 {
-    pub fn fallback_applied_for(&self, cause: StreamingIFDSFallbackCauseV0) -> bool {
+impl DemandSlicedMonotoneFactPropagationAnalysisReportV0 {
+    pub fn fallback_applied_for(
+        &self,
+        cause: DemandSlicedMonotoneFactPropagationFallbackCauseV0,
+    ) -> bool {
         self.fallback_causes.contains(&cause)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSDemandReportV0 {
+pub struct DemandSlicedMonotoneFactPropagationDemandReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -211,7 +253,7 @@ pub struct StreamingIFDSDemandReportV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSRouteDecisionV0 {
+pub struct DemandSlicedMonotoneFactPropagationRouteDecisionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -223,7 +265,7 @@ pub struct StreamingIFDSRouteDecisionV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSDemandEagerEquivalenceReportV0 {
+pub struct DemandSlicedMonotoneFactPropagationDemandEagerEquivalenceReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -238,7 +280,7 @@ pub struct StreamingIFDSDemandEagerEquivalenceReportV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSSettleEqualReportV0 {
+pub struct DemandSlicedMonotoneFactPropagationSettleEqualReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -250,17 +292,17 @@ pub struct StreamingIFDSSettleEqualReportV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StreamingIFDSSettleSoakRevisionInputV0 {
+pub struct DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0 {
     pub revision_id: String,
     pub start_node_ids: Vec<String>,
     pub target_node_ids: Vec<String>,
     pub hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
-    pub events: Vec<StreamingIfdsEventInputV0>,
+    pub events: Vec<DemandSlicedMonotoneFactPropagationEventInputV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSSettleSoakRevisionReportV0 {
+pub struct DemandSlicedMonotoneFactPropagationSettleSoakRevisionReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -275,7 +317,7 @@ pub struct StreamingIFDSSettleSoakRevisionReportV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSSettleSoakReportV0 {
+pub struct DemandSlicedMonotoneFactPropagationSettleSoakReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -287,12 +329,12 @@ pub struct StreamingIFDSSettleSoakReportV0 {
     pub divergence_count: usize,
     pub all_revisions_equal: bool,
     pub has_in_scc_edge_removal: bool,
-    pub revisions: Vec<StreamingIFDSSettleSoakRevisionReportV0>,
+    pub revisions: Vec<DemandSlicedMonotoneFactPropagationSettleSoakRevisionReportV0>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSGateArtifactVerdictV0 {
+pub struct DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0 {
     pub green: bool,
     pub source_product: String,
     pub artifact_sha256: String,
@@ -300,7 +342,7 @@ pub struct StreamingIFDSGateArtifactVerdictV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSGateArtifactConjunctV0 {
+pub struct DemandSlicedMonotoneFactPropagationGateArtifactConjunctV0 {
     pub green: bool,
     pub source_product: String,
     pub artifact_sha256: String,
@@ -308,17 +350,17 @@ pub struct StreamingIFDSGateArtifactConjunctV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StreamingIFDSDemandReadinessInputV0 {
-    pub fact_key_gate_verdict: StreamingIFDSGateArtifactVerdictV0,
-    pub deletion_corpus_verdict: StreamingIFDSGateArtifactVerdictV0,
-    pub complexity_slope_verdict: StreamingIFDSGateArtifactVerdictV0,
-    pub relocation_approval_verdict: StreamingIFDSGateArtifactVerdictV0,
-    pub settle_report: StreamingIFDSSettleSoakReportV0,
+pub struct DemandSlicedMonotoneFactPropagationDemandReadinessInputV0 {
+    pub fact_key_gate_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
+    pub deletion_corpus_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
+    pub complexity_slope_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
+    pub relocation_approval_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
+    pub settle_report: DemandSlicedMonotoneFactPropagationSettleSoakReportV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSDemandReadinessReportV0 {
+pub struct DemandSlicedMonotoneFactPropagationDemandReadinessReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -327,10 +369,10 @@ pub struct StreamingIFDSDemandReadinessReportV0 {
     pub deletion_corpus_green: bool,
     pub complexity_slope_green: bool,
     pub relocation_approval_green: bool,
-    pub fact_key_gate: StreamingIFDSGateArtifactConjunctV0,
-    pub deletion_corpus: StreamingIFDSGateArtifactConjunctV0,
-    pub complexity_slope: StreamingIFDSGateArtifactConjunctV0,
-    pub relocation_approval: StreamingIFDSGateArtifactConjunctV0,
+    pub fact_key_gate: DemandSlicedMonotoneFactPropagationGateArtifactConjunctV0,
+    pub deletion_corpus: DemandSlicedMonotoneFactPropagationGateArtifactConjunctV0,
+    pub complexity_slope: DemandSlicedMonotoneFactPropagationGateArtifactConjunctV0,
+    pub relocation_approval: DemandSlicedMonotoneFactPropagationGateArtifactConjunctV0,
     pub settle_all_equal: bool,
     pub precondition_count: usize,
     pub green_precondition_count: usize,
@@ -367,7 +409,7 @@ pub struct ReachabilityDeltaComputationV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIFDSCrossFileReachabilityReportV0 {
+pub struct DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -383,7 +425,7 @@ pub struct StreamingIFDSCrossFileReachabilityReportV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIfdsFrameRuleBridgePolicyV0 {
+pub struct DemandSlicedMonotoneFactPropagationFrameRuleBridgePolicyV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -395,7 +437,7 @@ pub struct StreamingIfdsFrameRuleBridgePolicyV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIfdsSolverHygienePolicyV0 {
+pub struct DemandSlicedMonotoneFactPropagationSolverHygienePolicyV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -410,7 +452,7 @@ pub struct StreamingIfdsSolverHygienePolicyV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StreamingIfdsLatencyBudgetV0 {
+pub struct DemandSlicedMonotoneFactPropagationLatencyBudgetV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
@@ -422,6 +464,42 @@ pub struct StreamingIfdsLatencyBudgetV0 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+}
+
+impl Default for DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0 {
+    fn default() -> Self {
+        Self {
+            schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
+            product: "omena-streaming-ifds.exact-connectivity-oracle",
+            layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+            feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
+        }
+    }
+}
+
+impl OmenaUnifiedHypergraphConnectivityOracle
+    for DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0
+{
+    fn reachable_node_ids(
+        &self,
+        start_node_id: &str,
+        hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    ) -> Vec<String> {
+        exact_reachable_node_ids(start_node_id, hyperedges)
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExactStreamingConnectivityOracleV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -429,17 +507,19 @@ pub struct ExactStreamingConnectivityOracleV0 {
     pub feature_gate: &'static str,
 }
 
+#[allow(deprecated)]
 impl Default for ExactStreamingConnectivityOracleV0 {
     fn default() -> Self {
         Self {
-            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
             product: "omena-streaming-ifds.exact-connectivity-oracle",
-            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+            layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+            feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
         }
     }
 }
 
+#[allow(deprecated)]
 impl OmenaUnifiedHypergraphConnectivityOracle for ExactStreamingConnectivityOracleV0 {
     fn reachable_node_ids(
         &self,
@@ -452,6 +532,42 @@ impl OmenaUnifiedHypergraphConnectivityOracle for ExactStreamingConnectivityOrac
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DemandSlicedMonotoneFactPropagationExactBfsConnectivityBackendV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+}
+
+impl Default for DemandSlicedMonotoneFactPropagationExactBfsConnectivityBackendV0 {
+    fn default() -> Self {
+        Self {
+            schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
+            product: "omena-streaming-ifds.exact-bfs-connectivity-backend",
+            layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+            feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
+        }
+    }
+}
+
+impl OmenaUnifiedHypergraphConnectivityOracle
+    for DemandSlicedMonotoneFactPropagationExactBfsConnectivityBackendV0
+{
+    fn reachable_node_ids(
+        &self,
+        start_node_id: &str,
+        hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    ) -> Vec<String> {
+        exact_reachable_node_ids(start_node_id, hyperedges)
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationExactBfsConnectivityBackendV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PolylogDynamicConnectivityBackendV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -459,17 +575,19 @@ pub struct PolylogDynamicConnectivityBackendV0 {
     pub feature_gate: &'static str,
 }
 
+#[allow(deprecated)]
 impl Default for PolylogDynamicConnectivityBackendV0 {
     fn default() -> Self {
         Self {
-            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
             product: "omena-streaming-ifds.exact-bfs-connectivity-backend",
-            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+            layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+            feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
         }
     }
 }
 
+#[allow(deprecated)]
 impl OmenaUnifiedHypergraphConnectivityOracle for PolylogDynamicConnectivityBackendV0 {
     fn reachable_node_ids(
         &self,
@@ -480,16 +598,16 @@ impl OmenaUnifiedHypergraphConnectivityOracle for PolylogDynamicConnectivityBack
     }
 }
 
-pub fn streaming_ifds_update_v0(
+pub fn demand_sliced_monotone_fact_propagation_update_v0(
     update_id: impl Into<String>,
     changed_node_ids: Vec<String>,
     refinement_context_digest: Option<u64>,
-) -> StreamingIFDSUpdateV0 {
-    StreamingIFDSUpdateV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+) -> DemandSlicedMonotoneFactPropagationUpdateV0 {
+    DemandSlicedMonotoneFactPropagationUpdateV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.update",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         update_id: update_id.into(),
         revision: 0,
         previous_revision: None,
@@ -501,22 +619,22 @@ pub fn streaming_ifds_update_v0(
     }
 }
 
-pub fn streaming_ifds_event_input_v0(
+pub fn demand_sliced_monotone_fact_propagation_event_input_v0(
     event_id: impl Into<String>,
     revision: u64,
     node_id: impl Into<String>,
     value: AbstractClassValueV0,
     refinement_context_digest: Option<u64>,
-) -> StreamingIfdsEventInputV0 {
+) -> DemandSlicedMonotoneFactPropagationEventInputV0 {
     let node_id = node_id.into();
-    StreamingIfdsEventInputV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationEventInputV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.event-input",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         event_id: event_id.into(),
         revision,
-        event_kind: StreamingIFDSEventKindV0::DigestChange {
+        event_kind: DemandSlicedMonotoneFactPropagationEventKindV0::DigestChange {
             id: node_id.clone(),
         },
         node_id,
@@ -525,30 +643,33 @@ pub fn streaming_ifds_event_input_v0(
     }
 }
 
-pub fn streaming_ifds_refinement_revision_bump_v0(
+pub fn demand_sliced_monotone_fact_propagation_refinement_revision_bump_v0(
     update_id: impl Into<String>,
     previous_revision: u64,
     revision: u64,
     refinement_context_digest: u64,
-) -> StreamingIFDSUpdateV0 {
-    let mut update =
-        streaming_ifds_update_v0(update_id, Vec::new(), Some(refinement_context_digest));
+) -> DemandSlicedMonotoneFactPropagationUpdateV0 {
+    let mut update = demand_sliced_monotone_fact_propagation_update_v0(
+        update_id,
+        Vec::new(),
+        Some(refinement_context_digest),
+    );
     update.revision = revision;
     update.previous_revision = Some(previous_revision);
     update.refinement_context_changed = true;
     update
 }
 
-pub fn polylog_connectivity_witness_v0(
+pub fn demand_sliced_monotone_fact_propagation_exact_bfs_connectivity_witness_v0(
     start_node_id: impl Into<String>,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> PolylogConnectivityWitnessV0 {
+) -> DemandSlicedMonotoneFactPropagationExactBfsConnectivityWitnessV0 {
     let start_node_id = start_node_id.into();
-    PolylogConnectivityWitnessV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationExactBfsConnectivityWitnessV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.exact-connectivity-witness",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         reachable_node_ids: exact_reachable_node_ids(&start_node_id, hyperedges),
         polylog_query_bound: polylog_query_bound(hyperedges.len().saturating_add(1)),
         connectivity_algorithm: "exactBfsReachability",
@@ -559,11 +680,72 @@ pub fn polylog_connectivity_witness_v0(
     }
 }
 
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_exact_bfs_connectivity_witness_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn polylog_connectivity_witness_v0(
+    start_node_id: impl Into<String>,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> PolylogConnectivityWitnessV0 {
+    witness_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_exact_bfs_connectivity_witness_v0(
+            start_node_id,
+            hyperedges,
+        ),
+    )
+}
+
+pub fn summarize_demand_sliced_monotone_fact_propagation_reachability_dirty_set_profile_v0<O>(
+    start_node_id: impl Into<String>,
+    previous_hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    current_hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    oracle: &O,
+) -> ReachabilityDirtySetProfileV0
+where
+    O: OmenaUnifiedHypergraphConnectivityOracle,
+{
+    summarize_reachability_dirty_set_profile_with_wire_v0(
+        start_node_id,
+        previous_hyperedges,
+        current_hyperedges,
+        oracle,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
+    )
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use summarize_demand_sliced_monotone_fact_propagation_reachability_dirty_set_profile_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn summarize_reachability_dirty_set_profile_v0<O>(
     start_node_id: impl Into<String>,
     previous_hyperedges: &[UnifiedHypergraphHyperedgeV0],
     current_hyperedges: &[UnifiedHypergraphHyperedgeV0],
     oracle: &O,
+) -> ReachabilityDirtySetProfileV0
+where
+    O: OmenaUnifiedHypergraphConnectivityOracle,
+{
+    summarize_reachability_dirty_set_profile_with_wire_v0(
+        start_node_id,
+        previous_hyperedges,
+        current_hyperedges,
+        oracle,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
+    )
+}
+
+fn summarize_reachability_dirty_set_profile_with_wire_v0<O>(
+    start_node_id: impl Into<String>,
+    previous_hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    current_hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    oracle: &O,
+    layer_marker: &'static str,
+    feature_gate: &'static str,
 ) -> ReachabilityDirtySetProfileV0
 where
     O: OmenaUnifiedHypergraphConnectivityOracle,
@@ -597,10 +779,10 @@ where
     };
 
     ReachabilityDirtySetProfileV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.reachability-dirty-set-profile",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker,
+        feature_gate,
         start_node_id,
         dirty_node_count,
         full_node_count,
@@ -610,14 +792,14 @@ where
     }
 }
 
-pub fn run_streaming_ifds_exact_v0<O>(
+pub fn run_demand_sliced_monotone_fact_propagation_exact_v0<O>(
     update_id: impl Into<String>,
     start_node_id: impl Into<String>,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-    events: &[StreamingIfdsEventInputV0],
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
     oracle: &O,
-    previous_cache: Option<&[StreamingIFDSSummaryCacheEntryV0]>,
-) -> StreamingIFDSAnalysisReportV0
+    previous_cache: Option<&[DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0]>,
+) -> DemandSlicedMonotoneFactPropagationAnalysisReportV0
 where
     O: OmenaUnifiedHypergraphConnectivityOracle,
 {
@@ -637,14 +819,17 @@ where
         .min()
         .and_then(|revision| revision.checked_sub(1));
     let revision = events.iter().map(|event| event.revision).max().unwrap_or(0);
-    let mut update =
-        streaming_ifds_update_v0(update_id, changed_node_ids, refinement_context_digest);
+    let mut update = demand_sliced_monotone_fact_propagation_update_v0(
+        update_id,
+        changed_node_ids,
+        refinement_context_digest,
+    );
     update.revision = revision;
     update.previous_revision = previous_revision;
     update.refinement_context_changed = events.iter().any(|event| {
         matches!(
             event.event_kind,
-            StreamingIFDSEventKindV0::RefinementContextChange { .. }
+            DemandSlicedMonotoneFactPropagationEventKindV0::RefinementContextChange { .. }
         )
     });
 
@@ -654,7 +839,7 @@ where
     let previous_reachable_node_ids =
         previous_reachable_node_ids_for_start(previous_cache, start_node_id.as_str());
     let reachability_delta = (!previous_reachable_node_ids.is_empty()).then(|| {
-        incremental_reachable_node_ids_zset(
+        demand_sliced_monotone_fact_propagation_reachability_delta_v0(
             start_node_id.as_str(),
             hyperedges,
             events,
@@ -684,11 +869,11 @@ where
         .as_ref()
         .map(|delta| delta.node_visit_count)
         .unwrap_or(batch_reachability_work_node_visits);
-    let witness = PolylogConnectivityWitnessV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    let witness = DemandSlicedMonotoneFactPropagationExactBfsConnectivityWitnessV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.exact-connectivity-witness",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         start_node_id: start_node_id.clone(),
         reachable_node_ids: reachable_node_ids.clone(),
         polylog_query_bound: polylog_query_bound(hyperedges.len().saturating_add(1)),
@@ -703,9 +888,9 @@ where
         .keys()
         .cloned()
         .collect::<BTreeSet<_>>();
-    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
+    let transfer_table = demand_sliced_monotone_fact_propagation_transfer_table_v0(hyperedges);
 
-    let batch_facts = propagate_ifds_facts_with_table(&transfer_table, events);
+    let batch_facts = propagate_monotone_facts_with_table(&transfer_table, events);
     let batch_fact_keys = fact_keys(&batch_facts);
     let (incremental_facts, incremental_fact_keys, fact_precision_parity_with_batch) =
         if previous_fact_keys.is_empty() {
@@ -719,8 +904,11 @@ where
             //     hyperedges and events.
             // A divergence means a reused prior fact survived even though the
             // current graph no longer produces it.
-            let incremental_facts =
-                incremental_propagate_ifds_facts(&transfer_table, events, &previous_facts_by_key);
+            let incremental_facts = incremental_propagate_monotone_facts(
+                &transfer_table,
+                events,
+                &previous_facts_by_key,
+            );
             let output_fact_keys =
                 incremental_fact_keys(&transfer_table, events, &previous_fact_keys);
             (
@@ -734,10 +922,11 @@ where
 
     let mut fallback_causes = Vec::new();
     if !reachability_parity_with_batch {
-        fallback_causes.push(StreamingIFDSFallbackCauseV0::ReachabilityMismatch);
+        fallback_causes
+            .push(DemandSlicedMonotoneFactPropagationFallbackCauseV0::ReachabilityMismatch);
     }
     if !fact_precision_parity_with_batch {
-        fallback_causes.push(StreamingIFDSFallbackCauseV0::FactMismatch);
+        fallback_causes.push(DemandSlicedMonotoneFactPropagationFallbackCauseV0::FactMismatch);
     }
     let output_facts = if fact_precision_parity_with_batch {
         incremental_facts.clone()
@@ -751,18 +940,20 @@ where
     let dirty_fact_count = incremental_fact_keys
         .len()
         .saturating_sub(reused_fact_count);
-    let summary_cache = vec![streaming_ifds_summary_cache_entry_with_facts_v0(
-        start_node_id,
-        reachable_node_ids,
-        output_facts.clone(),
-        reused_fact_count > 0,
-    )];
+    let summary_cache = vec![
+        demand_sliced_monotone_fact_propagation_summary_cache_entry_with_facts_v0(
+            start_node_id,
+            reachable_node_ids,
+            output_facts.clone(),
+            reused_fact_count > 0,
+        ),
+    ];
 
-    StreamingIFDSAnalysisReportV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationAnalysisReportV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.analysis-report",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         update,
         witness,
         event_count: events.len(),
@@ -784,15 +975,38 @@ where
     }
 }
 
+pub fn demand_sliced_monotone_fact_propagation_batch_fact_keys_v0(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+) -> Vec<String> {
+    let transfer_table = demand_sliced_monotone_fact_propagation_transfer_table_v0(hyperedges);
+    fact_keys(&propagate_monotone_facts_with_table(
+        &transfer_table,
+        events,
+    ))
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_batch_fact_keys_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
 pub fn omena_streaming_ifds_batch_fact_keys_v0(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
     events: &[StreamingIfdsEventInputV0],
 ) -> Vec<String> {
-    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
-    fact_keys(&propagate_ifds_facts_with_table(&transfer_table, events))
+    let canonical_events = events
+        .iter()
+        .cloned()
+        .map(event_into_canonical_v0)
+        .collect::<Vec<_>>();
+    demand_sliced_monotone_fact_propagation_batch_fact_keys_v0(
+        hyperedges,
+        canonical_events.as_slice(),
+    )
 }
 
-pub fn streaming_ifds_structural_projection_node_ids_v0(
+pub fn demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
     start_node_ids: &[String],
     target_node_ids: &[String],
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
@@ -832,23 +1046,33 @@ pub fn streaming_ifds_structural_projection_node_ids_v0(
         .collect()
 }
 
-pub fn streaming_ifds_fact_key_route_v0(
+pub fn demand_sliced_monotone_fact_propagation_fact_key_route_v0(
     target_node_ids: &[String],
-) -> StreamingIFDSRouteDecisionV0 {
-    streaming_ifds_fact_key_route_with_gate_v0(target_node_ids, false)
+) -> DemandSlicedMonotoneFactPropagationRouteDecisionV0 {
+    demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_v0(target_node_ids, false)
 }
 
-pub fn streaming_ifds_fact_key_route_with_gate_v0(
+pub fn demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_v0(
     target_node_ids: &[String],
     relocation_gate_green: bool,
-) -> StreamingIFDSRouteDecisionV0 {
+) -> DemandSlicedMonotoneFactPropagationRouteDecisionV0 {
+    demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_impl_v0(
+        target_node_ids,
+        relocation_gate_green,
+    )
+}
+
+fn demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_impl_v0(
+    target_node_ids: &[String],
+    relocation_gate_green: bool,
+) -> DemandSlicedMonotoneFactPropagationRouteDecisionV0 {
     let query_shaped = !target_node_ids.is_empty();
     let demand_primary = query_shaped && relocation_gate_green;
-    StreamingIFDSRouteDecisionV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationRouteDecisionV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.fact-key-route",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         request_scope: if query_shaped {
             "queryShaped"
         } else {
@@ -859,51 +1083,64 @@ pub fn streaming_ifds_fact_key_route_with_gate_v0(
     }
 }
 
-pub fn streaming_ifds_demand_eager_equivalence_v0(
+pub fn demand_sliced_monotone_fact_propagation_demand_eager_equivalence_v0(
     start_node_ids: &[String],
     target_node_ids: &[String],
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-    events: &[StreamingIfdsEventInputV0],
-) -> StreamingIFDSDemandEagerEquivalenceReportV0 {
-    let mut demand_fact_keys =
-        run_streaming_ifds_demand_v0(start_node_ids, target_node_ids, hyperedges, events).fact_keys;
-    demand_fact_keys.sort();
-    demand_fact_keys.dedup();
-
-    let projection_node_ids = streaming_ifds_structural_projection_node_ids_v0(
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+) -> DemandSlicedMonotoneFactPropagationDemandEagerEquivalenceReportV0 {
+    let mut demand_fact_keys = run_demand_sliced_monotone_fact_propagation_demand_v0(
         start_node_ids,
         target_node_ids,
         hyperedges,
-    );
+        events,
+    )
+    .fact_keys;
+    demand_fact_keys.sort();
+    demand_fact_keys.dedup();
+
+    let projection_node_ids =
+        demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
+            start_node_ids,
+            target_node_ids,
+            hyperedges,
+        );
     let mut eager_fact_keys = project_fact_keys_to_nodes(
-        &omena_streaming_ifds_batch_fact_keys_v0(hyperedges, events),
+        &demand_sliced_monotone_fact_propagation_batch_fact_keys_v0(hyperedges, events),
         &projection_node_ids,
     );
     eager_fact_keys.sort();
     eager_fact_keys.dedup();
 
-    streaming_ifds_demand_eager_equivalence_report_v0(demand_fact_keys, eager_fact_keys)
+    demand_sliced_monotone_fact_propagation_demand_eager_equivalence_report_v0(
+        demand_fact_keys,
+        eager_fact_keys,
+    )
 }
 
-fn streaming_ifds_demand_eager_equivalence_report_v0(
+fn demand_sliced_monotone_fact_propagation_demand_eager_equivalence_report_v0(
     demand_fact_keys: Vec<String>,
     eager_fact_keys: Vec<String>,
-) -> StreamingIFDSDemandEagerEquivalenceReportV0 {
-    StreamingIFDSDemandEagerEquivalenceReportV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+) -> DemandSlicedMonotoneFactPropagationDemandEagerEquivalenceReportV0 {
+    DemandSlicedMonotoneFactPropagationDemandEagerEquivalenceReportV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.demand-eager-equivalence",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         comparison_kind: "demandVsIndependentProjectedBatch",
         demand_fact_key_count: demand_fact_keys.len(),
         eager_fact_key_count: eager_fact_keys.len(),
-        demand_fact_key_sha256: streaming_ifds_fact_key_set_digest(&demand_fact_keys),
-        eager_fact_key_sha256: streaming_ifds_fact_key_set_digest(&eager_fact_keys),
+        demand_fact_key_sha256: demand_sliced_monotone_fact_propagation_fact_key_set_digest(
+            &demand_fact_keys,
+        ),
+        eager_fact_key_sha256: demand_sliced_monotone_fact_propagation_fact_key_set_digest(
+            &eager_fact_keys,
+        ),
         equivalent: demand_fact_keys == eager_fact_keys,
     }
 }
 
-fn streaming_ifds_fact_key_set_digest(fact_keys: &[String]) -> String {
+fn demand_sliced_monotone_fact_propagation_fact_key_set_digest(fact_keys: &[String]) -> String {
     let mut hasher = Sha256::new();
     for fact_key in fact_keys {
         update_digest_part(&mut hasher, fact_key);
@@ -916,28 +1153,30 @@ fn streaming_ifds_fact_key_set_digest(fact_keys: &[String]) -> String {
     digest
 }
 
-pub fn run_streaming_ifds_settle_equal_v0(
+pub fn run_demand_sliced_monotone_fact_propagation_settle_equal_v0(
     start_node_ids: &[String],
     target_node_ids: &[String],
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-    events: &[StreamingIfdsEventInputV0],
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
     requested_settle_count: usize,
-) -> StreamingIFDSSettleEqualReportV0 {
-    let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(hyperedges, events);
+) -> DemandSlicedMonotoneFactPropagationSettleEqualReportV0 {
+    let batch_fact_keys =
+        demand_sliced_monotone_fact_propagation_batch_fact_keys_v0(hyperedges, events);
     let mut equal_settle_count = 0usize;
-    let index = streaming_ifds_demand_index_v0(hyperedges);
+    let index = demand_sliced_monotone_fact_propagation_demand_index_v0(hyperedges);
     for _ in 0..requested_settle_count {
-        let demand = run_streaming_ifds_demand_with_index_v0(
+        let demand = run_demand_sliced_monotone_fact_propagation_demand_with_index_v0(
             start_node_ids,
             target_node_ids,
             &index,
             events,
         );
-        let projection_node_ids = streaming_ifds_structural_projection_node_ids_v0(
-            start_node_ids,
-            target_node_ids,
-            hyperedges,
-        );
+        let projection_node_ids =
+            demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
+                start_node_ids,
+                target_node_ids,
+                hyperedges,
+            );
         let projected_batch_fact_keys =
             project_fact_keys_to_nodes(&batch_fact_keys, &projection_node_ids);
         if demand.fact_keys == projected_batch_fact_keys {
@@ -946,11 +1185,11 @@ pub fn run_streaming_ifds_settle_equal_v0(
     }
     let all_settles_equal =
         requested_settle_count > 0 && equal_settle_count == requested_settle_count;
-    StreamingIFDSSettleEqualReportV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationSettleEqualReportV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.settle-equal-report",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         requested_settle_count,
         equal_settle_count,
         divergence_count: requested_settle_count.saturating_sub(equal_settle_count),
@@ -958,14 +1197,14 @@ pub fn run_streaming_ifds_settle_equal_v0(
     }
 }
 
-pub fn streaming_ifds_settle_soak_revision_v0(
+pub fn demand_sliced_monotone_fact_propagation_settle_soak_revision_v0(
     revision_id: impl Into<String>,
     start_node_ids: Vec<String>,
     target_node_ids: Vec<String>,
     hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
-    events: Vec<StreamingIfdsEventInputV0>,
-) -> StreamingIFDSSettleSoakRevisionInputV0 {
-    StreamingIFDSSettleSoakRevisionInputV0 {
+    events: Vec<DemandSlicedMonotoneFactPropagationEventInputV0>,
+) -> DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0 {
+    DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0 {
         revision_id: revision_id.into(),
         start_node_ids,
         target_node_ids,
@@ -974,12 +1213,12 @@ pub fn streaming_ifds_settle_soak_revision_v0(
     }
 }
 
-pub fn streaming_ifds_default_settle_soak_revisions_v0()
--> Vec<StreamingIFDSSettleSoakRevisionInputV0> {
+pub fn demand_sliced_monotone_fact_propagation_default_settle_soak_revisions_v0()
+-> Vec<DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0> {
     let starts = vec!["a".to_string()];
     let targets = vec!["c".to_string()];
     let event = |id: &str, revision: u64| {
-        streaming_ifds_event_input_v0(
+        demand_sliced_monotone_fact_propagation_event_input_v0(
             id,
             revision,
             "a",
@@ -990,66 +1229,69 @@ pub fn streaming_ifds_default_settle_soak_revisions_v0()
         )
     };
     vec![
-        streaming_ifds_settle_soak_revision_v0(
+        demand_sliced_monotone_fact_propagation_settle_soak_revision_v0(
             "base-cycle",
             starts.clone(),
             targets.clone(),
             vec![
-                streaming_ifds_soak_hyperedge("edge-a-b", "a", "b"),
-                streaming_ifds_soak_hyperedge("edge-b-c", "b", "c"),
-                streaming_ifds_soak_hyperedge("edge-c-b", "c", "b"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-a-b", "a", "b"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-b-c", "b", "c"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-c-b", "c", "b"),
             ],
             vec![event("event-base", 1)],
         ),
-        streaming_ifds_settle_soak_revision_v0(
+        demand_sliced_monotone_fact_propagation_settle_soak_revision_v0(
             "removed-cycle-edge",
             starts.clone(),
             targets.clone(),
             vec![
-                streaming_ifds_soak_hyperedge("edge-a-b", "a", "b"),
-                streaming_ifds_soak_hyperedge("edge-b-c", "b", "c"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-a-b", "a", "b"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-b-c", "b", "c"),
             ],
             vec![event("event-removed", 2)],
         ),
-        streaming_ifds_settle_soak_revision_v0(
+        demand_sliced_monotone_fact_propagation_settle_soak_revision_v0(
             "extended-tail",
             starts.clone(),
             targets.clone(),
             vec![
-                streaming_ifds_soak_hyperedge("edge-a-b", "a", "b"),
-                streaming_ifds_soak_hyperedge("edge-b-c", "b", "c"),
-                streaming_ifds_soak_hyperedge("edge-c-d", "c", "d"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-a-b", "a", "b"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-b-c", "b", "c"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-c-d", "c", "d"),
             ],
             vec![event("event-tail", 3)],
         ),
-        streaming_ifds_settle_soak_revision_v0(
+        demand_sliced_monotone_fact_propagation_settle_soak_revision_v0(
             "rerouted-tail",
             starts,
             targets,
             vec![
-                streaming_ifds_soak_hyperedge("edge-a-b", "a", "b"),
-                streaming_ifds_soak_hyperedge("edge-b-d", "b", "d"),
-                streaming_ifds_soak_hyperedge("edge-d-c", "d", "c"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-a-b", "a", "b"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-b-d", "b", "d"),
+                demand_sliced_monotone_fact_propagation_soak_hyperedge("edge-d-c", "d", "c"),
             ],
             vec![event("event-rerouted", 4)],
         ),
     ]
 }
 
-pub fn run_streaming_ifds_settle_soak_v0(
-    revisions: &[StreamingIFDSSettleSoakRevisionInputV0],
-) -> StreamingIFDSSettleSoakReportV0 {
+pub fn run_demand_sliced_monotone_fact_propagation_settle_soak_v0(
+    revisions: &[DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0],
+) -> DemandSlicedMonotoneFactPropagationSettleSoakReportV0 {
     let mut seen_digests = BTreeSet::<String>::new();
     let mut consecutive_equal_count = 0usize;
     let mut still_consecutive = true;
-    let mut revision_reports = Vec::<StreamingIFDSSettleSoakRevisionReportV0>::new();
+    let mut revision_reports =
+        Vec::<DemandSlicedMonotoneFactPropagationSettleSoakRevisionReportV0>::new();
     let mut previous_hyperedges: Option<&[UnifiedHypergraphHyperedgeV0]> = None;
 
     for revision in revisions {
-        let batch_fact_keys =
-            omena_streaming_ifds_batch_fact_keys_v0(&revision.hyperedges, &revision.events);
-        let index = streaming_ifds_demand_index_v0(&revision.hyperedges);
-        let demand = run_streaming_ifds_demand_with_index_v0(
+        let batch_fact_keys = demand_sliced_monotone_fact_propagation_batch_fact_keys_v0(
+            &revision.hyperedges,
+            &revision.events,
+        );
+        let index = demand_sliced_monotone_fact_propagation_demand_index_v0(&revision.hyperedges);
+        let demand = run_demand_sliced_monotone_fact_propagation_demand_with_index_v0(
             &revision.start_node_ids,
             &revision.target_node_ids,
             &index,
@@ -1065,23 +1307,26 @@ pub fn run_streaming_ifds_settle_soak_v0(
         } else {
             still_consecutive = false;
         }
-        let content_digest = streaming_ifds_settle_soak_revision_digest(revision);
+        let content_digest =
+            demand_sliced_monotone_fact_propagation_settle_soak_revision_digest(revision);
         let has_in_scc_edge_removal = previous_hyperedges.is_some_and(|previous| {
             settle_revision_has_in_scc_edge_removal(previous, revision.hyperedges.as_slice())
         });
         seen_digests.insert(content_digest.clone());
-        revision_reports.push(StreamingIFDSSettleSoakRevisionReportV0 {
-            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
-            product: "omena-streaming-ifds.settle-soak-revision-report",
-            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
-            revision_id: revision.revision_id.clone(),
-            content_digest,
-            demand_fact_count: demand.fact_keys.len(),
-            projected_batch_fact_count: projected_batch_fact_keys.len(),
-            equal,
-            has_in_scc_edge_removal,
-        });
+        revision_reports.push(
+            DemandSlicedMonotoneFactPropagationSettleSoakRevisionReportV0 {
+                schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
+                product: "omena-streaming-ifds.settle-soak-revision-report",
+                layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+                feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
+                revision_id: revision.revision_id.clone(),
+                content_digest,
+                demand_fact_count: demand.fact_keys.len(),
+                projected_batch_fact_count: projected_batch_fact_keys.len(),
+                equal,
+                has_in_scc_edge_removal,
+            },
+        );
         previous_hyperedges = Some(revision.hyperedges.as_slice());
     }
 
@@ -1095,18 +1340,19 @@ pub fn run_streaming_ifds_settle_soak_v0(
         .iter()
         .any(|revision| revision.has_in_scc_edge_removal);
     let all_revisions_equal = requested_revision_count
-        >= STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0
+        >= DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_MIN_SETTLE_SOAK_REVISION_COUNT_V0
         && distinct_revision_count == requested_revision_count
         && divergence_count == 0
         && has_in_scc_edge_removal;
 
-    StreamingIFDSSettleSoakReportV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationSettleSoakReportV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.settle-soak-report",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         requested_revision_count,
-        min_revision_count: STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0,
+        min_revision_count:
+            DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_MIN_SETTLE_SOAK_REVISION_COUNT_V0,
         distinct_revision_count,
         consecutive_equal_count,
         divergence_count,
@@ -1150,14 +1396,18 @@ fn settle_revision_has_in_scc_edge_removal(
     })
 }
 
-fn streaming_ifds_soak_hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {
+fn demand_sliced_monotone_fact_propagation_soak_hyperedge(
+    id: &str,
+    from: &str,
+    to: &str,
+) -> UnifiedHypergraphHyperedgeV0 {
     let edge_kind = UnifiedHypergraphEdgeKindV0::ComposesLocal;
     let source_edge_kind = edge_kind.as_wire_label();
     UnifiedHypergraphHyperedgeV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.settle-soak-hyperedge",
-        layer_marker: "hypergraph-ifds",
-        feature_gate: "hypergraph-ifds",
+        layer_marker: "hypergraph-monotone-fact-propagation",
+        feature_gate: "hypergraph-monotone-fact-propagation",
         hyperedge_id: id.to_string(),
         edge_kind,
         source_summary_edge_id: id.to_string(),
@@ -1169,8 +1419,8 @@ fn streaming_ifds_soak_hyperedge(id: &str, from: &str, to: &str) -> UnifiedHyper
     }
 }
 
-fn streaming_ifds_settle_soak_revision_digest(
-    revision: &StreamingIFDSSettleSoakRevisionInputV0,
+fn demand_sliced_monotone_fact_propagation_settle_soak_revision_digest(
+    revision: &DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0,
 ) -> String {
     let mut hasher = Sha256::new();
     for start in &revision.start_node_ids {
@@ -1224,10 +1474,10 @@ fn update_digest_part(hasher: &mut Sha256, part: &str) {
     hasher.update(b";");
 }
 
-fn streaming_ifds_gate_artifact_conjunct_v0(
-    verdict: StreamingIFDSGateArtifactVerdictV0,
+fn demand_sliced_monotone_fact_propagation_gate_artifact_conjunct_v0(
+    verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0,
     expected_product: &'static str,
-) -> StreamingIFDSGateArtifactConjunctV0 {
+) -> DemandSlicedMonotoneFactPropagationGateArtifactConjunctV0 {
     let refusal = if verdict.source_product.is_empty() && verdict.artifact_sha256.is_empty() {
         Some("absent artifact verdict")
     } else if verdict.source_product != expected_product {
@@ -1239,7 +1489,7 @@ fn streaming_ifds_gate_artifact_conjunct_v0(
     } else {
         None
     };
-    StreamingIFDSGateArtifactConjunctV0 {
+    DemandSlicedMonotoneFactPropagationGateArtifactConjunctV0 {
         green: refusal.is_none(),
         source_product: verdict.source_product,
         artifact_sha256: verdict.artifact_sha256,
@@ -1251,24 +1501,24 @@ fn is_sha256_hex(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
-pub fn streaming_ifds_demand_readiness_v0(
-    input: StreamingIFDSDemandReadinessInputV0,
-) -> StreamingIFDSDemandReadinessReportV0 {
-    let fact_key_gate = streaming_ifds_gate_artifact_conjunct_v0(
+pub fn demand_sliced_monotone_fact_propagation_demand_readiness_v0(
+    input: DemandSlicedMonotoneFactPropagationDemandReadinessInputV0,
+) -> DemandSlicedMonotoneFactPropagationDemandReadinessReportV0 {
+    let fact_key_gate = demand_sliced_monotone_fact_propagation_gate_artifact_conjunct_v0(
         input.fact_key_gate_verdict,
-        STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
     );
-    let deletion_corpus = streaming_ifds_gate_artifact_conjunct_v0(
+    let deletion_corpus = demand_sliced_monotone_fact_propagation_gate_artifact_conjunct_v0(
         input.deletion_corpus_verdict,
-        STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
     );
-    let complexity_slope = streaming_ifds_gate_artifact_conjunct_v0(
+    let complexity_slope = demand_sliced_monotone_fact_propagation_gate_artifact_conjunct_v0(
         input.complexity_slope_verdict,
-        STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_ARTIFACT_PRODUCT_V0,
     );
-    let relocation_approval = streaming_ifds_gate_artifact_conjunct_v0(
+    let relocation_approval = demand_sliced_monotone_fact_propagation_gate_artifact_conjunct_v0(
         input.relocation_approval_verdict,
-        STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_PRODUCT_V0,
     );
     let preconditions = [
         fact_key_gate.green,
@@ -1280,11 +1530,11 @@ pub fn streaming_ifds_demand_readiness_v0(
     let green_precondition_count = preconditions.iter().filter(|&&green| green).count();
     let demand_primary_ready = green_precondition_count == preconditions.len();
 
-    StreamingIFDSDemandReadinessReportV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationDemandReadinessReportV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.demand-readiness-report",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         fact_key_gate_green: fact_key_gate.green,
         deletion_corpus_green: deletion_corpus.green,
         complexity_slope_green: complexity_slope.green,
@@ -1300,38 +1550,44 @@ pub fn streaming_ifds_demand_readiness_v0(
     }
 }
 
-pub fn run_streaming_ifds_demand_v0(
+pub fn run_demand_sliced_monotone_fact_propagation_demand_v0(
     start_node_ids: &[String],
     target_node_ids: &[String],
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-    events: &[StreamingIfdsEventInputV0],
-) -> StreamingIFDSDemandReportV0 {
-    let index = streaming_ifds_demand_index_v0(hyperedges);
-    run_streaming_ifds_demand_with_index_v0(start_node_ids, target_node_ids, &index, events)
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+) -> DemandSlicedMonotoneFactPropagationDemandReportV0 {
+    let index = demand_sliced_monotone_fact_propagation_demand_index_v0(hyperedges);
+    run_demand_sliced_monotone_fact_propagation_demand_with_index_v0(
+        start_node_ids,
+        target_node_ids,
+        &index,
+        events,
+    )
 }
 
-pub fn run_streaming_ifds_demand_with_index_v0(
+pub fn run_demand_sliced_monotone_fact_propagation_demand_with_index_v0(
     start_node_ids: &[String],
     target_node_ids: &[String],
-    index: &StreamingIFDSDemandIndexV0,
-    events: &[StreamingIfdsEventInputV0],
-) -> StreamingIFDSDemandReportV0 {
+    index: &DemandSlicedMonotoneFactPropagationDemandIndexV0,
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+) -> DemandSlicedMonotoneFactPropagationDemandReportV0 {
     let slice = index.slice(start_node_ids, target_node_ids);
     let projection_nodes = slice
         .projection_node_ids
         .iter()
         .cloned()
         .collect::<BTreeSet<_>>();
-    let mut intern_table = StreamingIFDSRunInternTableV0::from_transfer_indices(
-        &index.transfer_table,
-        &slice.transfer_indices,
-        events,
-    );
+    let mut intern_table =
+        DemandSlicedMonotoneFactPropagationRunInternTableV0::from_transfer_indices(
+            &index.transfer_table,
+            &slice.transfer_indices,
+            events,
+        );
     let transfer_indices_by_tail =
         intern_table.transfer_indices_by_tail(&index.transfer_table, slice.transfer_indices());
-    let mut seen = BTreeSet::<StreamingIFDSInternedFactKeyV0>::new();
-    let mut pending = VecDeque::<StreamingIFDSInternedFactV0>::new();
-    let mut output = Vec::<StreamingIFDSInternedFactV0>::new();
+    let mut seen = BTreeSet::<DemandSlicedMonotoneFactPropagationInternedFactKeyV0>::new();
+    let mut pending = VecDeque::<DemandSlicedMonotoneFactPropagationInternedFactV0>::new();
+    let mut output = Vec::<DemandSlicedMonotoneFactPropagationInternedFactV0>::new();
     let start_nodes = start_node_ids.iter().collect::<BTreeSet<_>>();
     let mut transfer_visit_count = 0usize;
 
@@ -1339,7 +1595,7 @@ pub fn run_streaming_ifds_demand_with_index_v0(
         if !start_nodes.contains(&event.node_id) || !projection_nodes.contains(&event.node_id) {
             continue;
         }
-        let fact = StreamingIFDSInternedFactV0 {
+        let fact = DemandSlicedMonotoneFactPropagationInternedFactV0 {
             key: intern_table.intern_fact_key(&event.node_id, &event.value),
             provenance: vec![format!("event:{}", event.event_id)],
         };
@@ -1360,8 +1616,9 @@ pub fn run_streaming_ifds_demand_with_index_v0(
             transfer_visit_count = transfer_visit_count.saturating_add(1);
             let mut provenance = fact.provenance.clone();
             provenance.push(format!("transfer:{}", transfer.hyperedge_id));
-            let next_value = apply_streaming_ifds_transfer(transfer, &value);
-            let next_fact = StreamingIFDSInternedFactV0 {
+            let next_value =
+                apply_demand_sliced_monotone_fact_propagation_transfer(transfer, &value);
+            let next_fact = DemandSlicedMonotoneFactPropagationInternedFactV0 {
                 key: intern_table.intern_fact_key(&transfer.head_node_id, &next_value),
                 provenance,
             };
@@ -1384,11 +1641,11 @@ pub fn run_streaming_ifds_demand_with_index_v0(
     let fact_keys = fact_keys(&output);
     let strict_subset_of_forward_reachable_nodes =
         index.has_forward_reachable_node_outside_projection(target_node_ids, &projection_nodes);
-    StreamingIFDSDemandReportV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationDemandReportV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.demand-report",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         start_node_ids: start_node_ids.to_vec(),
         target_node_ids: target_node_ids.to_vec(),
         projection_node_ids: slice.projection_node_ids,
@@ -1403,13 +1660,17 @@ pub fn run_streaming_ifds_demand_with_index_v0(
 ///
 /// This is the crate-owned mechanism behind the CLI/product diagnostic. The
 /// caller supplies resolved cross-file hyperedges; this function seeds each node
-/// owned by the target style file, runs the exact streaming IFDS oracle, and
+/// owned by the target style file, runs the exact demand-sliced monotone fact propagation oracle, and
 /// reports the foreign module paths reached by propagated facts.
-pub fn summarize_streaming_ifds_cross_file_reachability_v0(
+pub fn summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0(
     target_style_path: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> StreamingIFDSCrossFileReachabilityReportV0 {
-    summarize_streaming_ifds_cross_file_reachability_fast_v0(target_style_path, hyperedges).report
+) -> DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0 {
+    summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_fast_v0(
+        target_style_path,
+        hyperedges,
+    )
+    .report
 }
 
 /// Target-INDEPENDENT condensation of the reachability graph (rfcs#111, the
@@ -1418,17 +1679,17 @@ pub fn summarize_streaming_ifds_cross_file_reachability_v0(
 /// reduces to a start-SCC lookup plus a BFS over the SCC DAG — the fast
 /// batch arm recomputed all of this on every one of N targets.
 #[derive(Debug, Clone)]
-pub struct StreamingIfdsReachabilityCondensationV0 {
+pub struct DemandSlicedMonotoneFactPropagationReachabilityCondensationV0 {
     sccs: Vec<Vec<String>>,
     scc_by_node: BTreeMap<String, usize>,
     scc_adjacency: BTreeMap<usize, BTreeSet<usize>>,
     node_ids_by_path: BTreeMap<String, Vec<String>>,
 }
 
-pub fn streaming_ifds_reachability_condensation_v0(
+pub fn demand_sliced_monotone_fact_propagation_reachability_condensation_v0(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> StreamingIfdsReachabilityCondensationV0 {
-    let adjacency = streaming_ifds_node_adjacency(hyperedges);
+) -> DemandSlicedMonotoneFactPropagationReachabilityCondensationV0 {
+    let adjacency = demand_sliced_monotone_fact_propagation_node_adjacency(hyperedges);
     let sccs = collect_directed_graph_sccs(&adjacency);
     let mut scc_by_node = BTreeMap::<String, usize>::new();
     for (index, scc) in sccs.iter().enumerate() {
@@ -1451,7 +1712,7 @@ pub fn streaming_ifds_reachability_condensation_v0(
             }
         }
     }
-    // Mirrors `streaming_ifds_node_ids_for_path` exactly: every node id from
+    // Mirrors `demand_sliced_monotone_fact_propagation_node_ids_for_path` exactly: every node id from
     // tails + heads, deduped and sorted per owning path.
     let mut grouped = BTreeMap::<String, BTreeSet<String>>::new();
     for edge in hyperedges {
@@ -1460,7 +1721,7 @@ pub fn streaming_ifds_reachability_condensation_v0(
             .iter()
             .chain(std::iter::once(&edge.head_node_id))
         {
-            if let Some(path) = streaming_ifds_node_path(node_id) {
+            if let Some(path) = demand_sliced_monotone_fact_propagation_node_path(node_id) {
                 grouped
                     .entry(path.to_string())
                     .or_default()
@@ -1468,7 +1729,7 @@ pub fn streaming_ifds_reachability_condensation_v0(
             }
         }
     }
-    StreamingIfdsReachabilityCondensationV0 {
+    DemandSlicedMonotoneFactPropagationReachabilityCondensationV0 {
         sccs,
         scc_by_node,
         scc_adjacency,
@@ -1480,12 +1741,12 @@ pub fn streaming_ifds_reachability_condensation_v0(
 }
 
 /// Per-target reachability over a prebuilt condensation. Byte-identical to
-/// [`summarize_streaming_ifds_cross_file_reachability_v0`] on the same
+/// [`summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0`] on the same
 /// hyperedges (gated by the parity test below).
-pub fn summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
+pub fn summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_with_condensation_v0(
     target_style_path: &str,
-    condensation: &StreamingIfdsReachabilityCondensationV0,
-) -> StreamingIFDSCrossFileReachabilityReportV0 {
+    condensation: &DemandSlicedMonotoneFactPropagationReachabilityCondensationV0,
+) -> DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0 {
     let start_node_ids = condensation
         .node_ids_by_path
         .get(target_style_path)
@@ -1513,7 +1774,7 @@ pub fn summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
             continue;
         };
         for node_id in node_ids {
-            if let Some(path) = streaming_ifds_node_path(node_id)
+            if let Some(path) = demand_sliced_monotone_fact_propagation_node_path(node_id)
                 && path != target_style_path
             {
                 reachable_foreign_paths.insert(path.to_string());
@@ -1521,11 +1782,11 @@ pub fn summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
         }
     }
     let reachable_foreign_paths = reachable_foreign_paths.into_iter().collect::<Vec<_>>();
-    StreamingIFDSCrossFileReachabilityReportV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.cross-file-reachability-report",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         target_style_path: target_style_path.to_string(),
         start_node_count: start_node_ids.len(),
         reachable_foreign_path_count: reachable_foreign_paths.len(),
@@ -1537,17 +1798,18 @@ pub fn summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct StreamingIfdsCrossFileReachabilityFastSummaryV0 {
-    report: StreamingIFDSCrossFileReachabilityReportV0,
+struct DemandSlicedMonotoneFactPropagationCrossFileReachabilityFastSummaryV0 {
+    report: DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0,
     traversal_step_count: usize,
 }
 
-fn summarize_streaming_ifds_cross_file_reachability_fast_v0(
+fn summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_fast_v0(
     target_style_path: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> StreamingIfdsCrossFileReachabilityFastSummaryV0 {
-    let start_node_ids = streaming_ifds_node_ids_for_path(target_style_path, hyperedges);
-    let adjacency = streaming_ifds_node_adjacency(hyperedges);
+) -> DemandSlicedMonotoneFactPropagationCrossFileReachabilityFastSummaryV0 {
+    let start_node_ids =
+        demand_sliced_monotone_fact_propagation_node_ids_for_path(target_style_path, hyperedges);
+    let adjacency = demand_sliced_monotone_fact_propagation_node_adjacency(hyperedges);
     let sccs = collect_directed_graph_sccs(&adjacency);
     let mut scc_by_node = BTreeMap::<String, usize>::new();
     for (index, scc) in sccs.iter().enumerate() {
@@ -1600,7 +1862,7 @@ fn summarize_streaming_ifds_cross_file_reachability_fast_v0(
             continue;
         };
         for node_id in node_ids {
-            if let Some(path) = streaming_ifds_node_path(node_id)
+            if let Some(path) = demand_sliced_monotone_fact_propagation_node_path(node_id)
                 && path != target_style_path
             {
                 reachable_foreign_paths.insert(path.to_string());
@@ -1609,12 +1871,12 @@ fn summarize_streaming_ifds_cross_file_reachability_fast_v0(
     }
 
     let reachable_foreign_paths = reachable_foreign_paths.into_iter().collect::<Vec<_>>();
-    StreamingIfdsCrossFileReachabilityFastSummaryV0 {
-        report: StreamingIFDSCrossFileReachabilityReportV0 {
-            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationCrossFileReachabilityFastSummaryV0 {
+        report: DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0 {
+            schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
             product: "omena-streaming-ifds.cross-file-reachability-report",
-            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+            layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+            feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
             target_style_path: target_style_path.to_string(),
             start_node_count: start_node_ids.len(),
             reachable_foreign_path_count: reachable_foreign_paths.len(),
@@ -1628,25 +1890,26 @@ fn summarize_streaming_ifds_cross_file_reachability_fast_v0(
 }
 
 #[cfg(test)]
-fn summarize_streaming_ifds_cross_file_reachability_oracle_v0(
+fn summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_oracle_v0(
     target_style_path: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> StreamingIFDSCrossFileReachabilityReportV0 {
-    let start_node_ids = streaming_ifds_node_ids_for_path(target_style_path, hyperedges);
-    let oracle = ExactStreamingConnectivityOracleV0::default();
+) -> DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0 {
+    let start_node_ids =
+        demand_sliced_monotone_fact_propagation_node_ids_for_path(target_style_path, hyperedges);
+    let oracle = DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default();
     let mut reachable_foreign_paths = BTreeSet::<String>::new();
     let mut precision_parity_with_batch = true;
     let mut analysis_report_count = 0usize;
 
     for start_node_id in &start_node_ids {
-        let event = streaming_ifds_event_input_v0(
+        let event = demand_sliced_monotone_fact_propagation_event_input_v0(
             format!("foreign-reference-seed:{start_node_id}"),
             0,
             start_node_id.clone(),
             top_class_value(),
             None,
         );
-        let report = run_streaming_ifds_exact_v0(
+        let report = run_demand_sliced_monotone_fact_propagation_exact_v0(
             format!("cross-file-reachability:{target_style_path}"),
             start_node_id.clone(),
             hyperedges,
@@ -1657,7 +1920,8 @@ fn summarize_streaming_ifds_cross_file_reachability_oracle_v0(
         analysis_report_count += 1;
         precision_parity_with_batch &= report.incremental_precision_parity_with_batch;
         for fact in &report.output_facts {
-            if let Some(path) = streaming_ifds_node_path(fact.node_id.as_str())
+            if let Some(path) =
+                demand_sliced_monotone_fact_propagation_node_path(fact.node_id.as_str())
                 && path != target_style_path
             {
                 reachable_foreign_paths.insert(path.to_string());
@@ -1666,11 +1930,11 @@ fn summarize_streaming_ifds_cross_file_reachability_oracle_v0(
     }
 
     let reachable_foreign_paths = reachable_foreign_paths.into_iter().collect::<Vec<_>>();
-    StreamingIFDSCrossFileReachabilityReportV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.cross-file-reachability-report",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         target_style_path: target_style_path.to_string(),
         start_node_count: start_node_ids.len(),
         reachable_foreign_path_count: reachable_foreign_paths.len(),
@@ -1681,16 +1945,16 @@ fn summarize_streaming_ifds_cross_file_reachability_oracle_v0(
     }
 }
 
-pub fn streaming_ifds_transfer_functions_v0(
+pub fn demand_sliced_monotone_fact_propagation_transfer_functions_v0(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> Vec<StreamingIFDSTransferFunctionV0> {
-    streaming_ifds_transfer_table_v0(hyperedges).transfers
+) -> Vec<DemandSlicedMonotoneFactPropagationTransferFunctionV0> {
+    demand_sliced_monotone_fact_propagation_transfer_table_v0(hyperedges).transfers
 }
 
-pub fn streaming_ifds_demand_index_v0(
+pub fn demand_sliced_monotone_fact_propagation_demand_index_v0(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> StreamingIFDSDemandIndexV0 {
-    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
+) -> DemandSlicedMonotoneFactPropagationDemandIndexV0 {
+    let transfer_table = demand_sliced_monotone_fact_propagation_transfer_table_v0(hyperedges);
     let mut incoming_transfers_by_head_node_id = HashMap::<String, Vec<usize>>::new();
     for (index, transfer) in transfer_table.transfers.iter().enumerate() {
         incoming_transfers_by_head_node_id
@@ -1707,7 +1971,7 @@ pub fn streaming_ifds_demand_index_v0(
                 .insert(transfer.head_node_id.clone());
         }
     }
-    StreamingIFDSDemandIndexV0 {
+    DemandSlicedMonotoneFactPropagationDemandIndexV0 {
         transfer_table,
         incoming_transfers_by_head_node_id,
         forward_adjacency,
@@ -1715,36 +1979,36 @@ pub fn streaming_ifds_demand_index_v0(
 }
 
 #[derive(Debug, Clone)]
-struct StreamingIFDSTransferTableV0 {
-    transfers: Vec<StreamingIFDSTransferFunctionV0>,
+struct DemandSlicedMonotoneFactPropagationTransferTableV0 {
+    transfers: Vec<DemandSlicedMonotoneFactPropagationTransferFunctionV0>,
 }
 
-impl StreamingIFDSTransferTableV0 {
+impl DemandSlicedMonotoneFactPropagationTransferTableV0 {
     fn len(&self) -> usize {
         self.transfers.len()
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct StreamingIFDSDemandIndexV0 {
-    transfer_table: StreamingIFDSTransferTableV0,
+pub struct DemandSlicedMonotoneFactPropagationDemandIndexV0 {
+    transfer_table: DemandSlicedMonotoneFactPropagationTransferTableV0,
     incoming_transfers_by_head_node_id: HashMap<String, Vec<usize>>,
     forward_adjacency: HashMap<String, BTreeSet<String>>,
 }
 
 #[derive(Debug, Clone)]
-struct StreamingIFDSDemandSliceV0 {
+struct DemandSlicedMonotoneFactPropagationDemandSliceV0 {
     projection_node_ids: Vec<String>,
     transfer_indices: Vec<usize>,
     adjacency: BTreeMap<String, BTreeSet<String>>,
 }
 
-impl StreamingIFDSDemandIndexV0 {
+impl DemandSlicedMonotoneFactPropagationDemandIndexV0 {
     fn slice(
         &self,
         start_node_ids: &[String],
         target_node_ids: &[String],
-    ) -> StreamingIFDSDemandSliceV0 {
+    ) -> DemandSlicedMonotoneFactPropagationDemandSliceV0 {
         let (projection_nodes, candidate_transfer_indices) =
             self.structural_projection_node_set_with_candidates(start_node_ids, target_node_ids);
         let transfer_indices = self.transfer_indices_for_projection(
@@ -1769,7 +2033,7 @@ impl StreamingIFDSDemandIndexV0 {
             }
         }
 
-        StreamingIFDSDemandSliceV0 {
+        DemandSlicedMonotoneFactPropagationDemandSliceV0 {
             projection_node_ids: projection_nodes.into_iter().collect(),
             transfer_indices: transfer_indices.into_iter().collect(),
             adjacency,
@@ -1913,47 +2177,47 @@ fn collect_forward_nodes_within(
     forward
 }
 
-impl StreamingIFDSDemandSliceV0 {
+impl DemandSlicedMonotoneFactPropagationDemandSliceV0 {
     fn transfer_indices(&self) -> impl Iterator<Item = usize> + '_ {
         self.transfer_indices.iter().copied()
     }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct StreamingIFDSPropagationStatsV0 {
+struct DemandSlicedMonotoneFactPropagationPropagationStatsV0 {
     popped_fact_count: usize,
     transfer_visit_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct StreamingIFDSInternedNodeKeyV0(u32);
+struct DemandSlicedMonotoneFactPropagationInternedNodeKeyV0(u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct StreamingIFDSInternedValueKeyV0(u32);
+struct DemandSlicedMonotoneFactPropagationInternedValueKeyV0(u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct StreamingIFDSInternedFactKeyV0 {
-    node: StreamingIFDSInternedNodeKeyV0,
-    value: StreamingIFDSInternedValueKeyV0,
+struct DemandSlicedMonotoneFactPropagationInternedFactKeyV0 {
+    node: DemandSlicedMonotoneFactPropagationInternedNodeKeyV0,
+    value: DemandSlicedMonotoneFactPropagationInternedValueKeyV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct StreamingIFDSInternedFactV0 {
-    key: StreamingIFDSInternedFactKeyV0,
+struct DemandSlicedMonotoneFactPropagationInternedFactV0 {
+    key: DemandSlicedMonotoneFactPropagationInternedFactKeyV0,
     provenance: Vec<String>,
 }
 
 #[derive(Debug, Default)]
-struct StreamingIFDSRunInternTableV0 {
-    node_ids_by_value: BTreeMap<String, StreamingIFDSInternedNodeKeyV0>,
+struct DemandSlicedMonotoneFactPropagationRunInternTableV0 {
+    node_ids_by_value: BTreeMap<String, DemandSlicedMonotoneFactPropagationInternedNodeKeyV0>,
     node_values: Vec<String>,
     value_values: Vec<AbstractClassValueV0>,
 }
 
-impl StreamingIFDSRunInternTableV0 {
+impl DemandSlicedMonotoneFactPropagationRunInternTableV0 {
     fn from_inputs(
-        transfer_table: &StreamingIFDSTransferTableV0,
-        events: &[StreamingIfdsEventInputV0],
+        transfer_table: &DemandSlicedMonotoneFactPropagationTransferTableV0,
+        events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
     ) -> Self {
         let node_capacity = events.len().saturating_add(
             transfer_table
@@ -1971,9 +2235,9 @@ impl StreamingIFDSRunInternTableV0 {
     }
 
     fn from_transfer_indices(
-        transfer_table: &StreamingIFDSTransferTableV0,
+        transfer_table: &DemandSlicedMonotoneFactPropagationTransferTableV0,
         transfer_indices: &[usize],
-        events: &[StreamingIfdsEventInputV0],
+        events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
     ) -> Self {
         let node_capacity = events.len().saturating_add(
             transfer_indices
@@ -1996,12 +2260,12 @@ impl StreamingIFDSRunInternTableV0 {
 
     fn from_transfer_functions<'a, I>(
         transfers: I,
-        events: &[StreamingIfdsEventInputV0],
+        events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
         node_capacity: usize,
         transfer_capacity: usize,
     ) -> Self
     where
-        I: IntoIterator<Item = &'a StreamingIFDSTransferFunctionV0>,
+        I: IntoIterator<Item = &'a DemandSlicedMonotoneFactPropagationTransferFunctionV0>,
     {
         let mut table = Self {
             node_ids_by_value: BTreeMap::new(),
@@ -2022,25 +2286,35 @@ impl StreamingIFDSRunInternTableV0 {
         table
     }
 
-    fn intern_node_id(&mut self, node_id: &str) -> StreamingIFDSInternedNodeKeyV0 {
+    fn intern_node_id(
+        &mut self,
+        node_id: &str,
+    ) -> DemandSlicedMonotoneFactPropagationInternedNodeKeyV0 {
         if let Some(key) = self.node_ids_by_value.get(node_id) {
             return *key;
         }
-        let key = StreamingIFDSInternedNodeKeyV0(next_intern_index(self.node_values.len()));
+        let key = DemandSlicedMonotoneFactPropagationInternedNodeKeyV0(next_intern_index(
+            self.node_values.len(),
+        ));
         self.node_values.push(node_id.to_string());
         self.node_ids_by_value.insert(node_id.to_string(), key);
         key
     }
 
-    fn intern_value(&mut self, value: &AbstractClassValueV0) -> StreamingIFDSInternedValueKeyV0 {
+    fn intern_value(
+        &mut self,
+        value: &AbstractClassValueV0,
+    ) -> DemandSlicedMonotoneFactPropagationInternedValueKeyV0 {
         if let Some(index) = self
             .value_values
             .iter()
             .position(|candidate| candidate == value)
         {
-            return StreamingIFDSInternedValueKeyV0(next_intern_index(index));
+            return DemandSlicedMonotoneFactPropagationInternedValueKeyV0(next_intern_index(index));
         }
-        let key = StreamingIFDSInternedValueKeyV0(next_intern_index(self.value_values.len()));
+        let key = DemandSlicedMonotoneFactPropagationInternedValueKeyV0(next_intern_index(
+            self.value_values.len(),
+        ));
         self.value_values.push(value.clone());
         key
     }
@@ -2049,35 +2323,45 @@ impl StreamingIFDSRunInternTableV0 {
         &mut self,
         node_id: &str,
         value: &AbstractClassValueV0,
-    ) -> StreamingIFDSInternedFactKeyV0 {
+    ) -> DemandSlicedMonotoneFactPropagationInternedFactKeyV0 {
         let node_key = self.intern_node_id(node_id);
         let value_key = self.intern_value(value);
-        StreamingIFDSInternedFactKeyV0 {
+        DemandSlicedMonotoneFactPropagationInternedFactKeyV0 {
             node: node_key,
             value: value_key,
         }
     }
 
-    fn node_key(&self, node_id: &str) -> Option<StreamingIFDSInternedNodeKeyV0> {
+    fn node_key(
+        &self,
+        node_id: &str,
+    ) -> Option<DemandSlicedMonotoneFactPropagationInternedNodeKeyV0> {
         self.node_ids_by_value.get(node_id).copied()
     }
 
-    fn value(&self, key: StreamingIFDSInternedValueKeyV0) -> &AbstractClassValueV0 {
+    fn value(
+        &self,
+        key: DemandSlicedMonotoneFactPropagationInternedValueKeyV0,
+    ) -> &AbstractClassValueV0 {
         &self.value_values[key.0 as usize]
     }
 
-    fn materialize_fact(&self, fact: &StreamingIFDSInternedFactV0) -> StreamingIFDSFactV0 {
+    fn materialize_fact(
+        &self,
+        fact: &DemandSlicedMonotoneFactPropagationInternedFactV0,
+    ) -> DemandSlicedMonotoneFactPropagationFactV0 {
         let node_id = self.node_values[fact.key.node.0 as usize].clone();
         let value = self.value(fact.key.value).clone();
-        streaming_ifds_fact_v0(node_id, value, fact.provenance.clone())
+        demand_sliced_monotone_fact_propagation_fact_v0(node_id, value, fact.provenance.clone())
     }
 
     fn transfer_indices_by_tail(
         &self,
-        transfer_table: &StreamingIFDSTransferTableV0,
+        transfer_table: &DemandSlicedMonotoneFactPropagationTransferTableV0,
         transfer_indices: impl IntoIterator<Item = usize>,
-    ) -> BTreeMap<StreamingIFDSInternedNodeKeyV0, Vec<usize>> {
-        let mut indices_by_tail = BTreeMap::<StreamingIFDSInternedNodeKeyV0, Vec<usize>>::new();
+    ) -> BTreeMap<DemandSlicedMonotoneFactPropagationInternedNodeKeyV0, Vec<usize>> {
+        let mut indices_by_tail =
+            BTreeMap::<DemandSlicedMonotoneFactPropagationInternedNodeKeyV0, Vec<usize>>::new();
         for index in transfer_indices {
             let transfer = &transfer_table.transfers[index];
             for tail_node_id in &transfer.tail_node_ids {
@@ -2094,41 +2378,47 @@ impl StreamingIFDSRunInternTableV0 {
 fn next_intern_index(len: usize) -> u32 {
     match u32::try_from(len) {
         Ok(index) => index,
-        Err(_) => panic!("run-local IFDS intern table exceeded the u32 key space"),
+        Err(_) => {
+            panic!("run-local monotone fact propagation intern table exceeded the u32 key space")
+        }
     }
 }
 
-fn streaming_ifds_transfer_table_v0(
+fn demand_sliced_monotone_fact_propagation_transfer_table_v0(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-) -> StreamingIFDSTransferTableV0 {
+) -> DemandSlicedMonotoneFactPropagationTransferTableV0 {
     let transfers = hyperedges
         .iter()
-        .map(|edge| StreamingIFDSTransferFunctionV0 {
-            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
-            product: "omena-streaming-ifds.transfer-function",
-            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
-            hyperedge_id: edge.hyperedge_id.clone(),
-            edge_kind: edge.edge_kind,
-            tail_node_ids: edge.tail_node_ids.clone(),
-            head_node_id: edge.head_node_id.clone(),
-            transfer_kind: streaming_ifds_transfer_kind(edge.edge_kind),
-        })
+        .map(
+            |edge| DemandSlicedMonotoneFactPropagationTransferFunctionV0 {
+                schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
+                product: "omena-streaming-ifds.transfer-function",
+                layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+                feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
+                hyperedge_id: edge.hyperedge_id.clone(),
+                edge_kind: edge.edge_kind,
+                tail_node_ids: edge.tail_node_ids.clone(),
+                head_node_id: edge.head_node_id.clone(),
+                transfer_kind: demand_sliced_monotone_fact_propagation_transfer_kind(
+                    edge.edge_kind,
+                ),
+            },
+        )
         .collect::<Vec<_>>();
-    StreamingIFDSTransferTableV0 { transfers }
+    DemandSlicedMonotoneFactPropagationTransferTableV0 { transfers }
 }
 
-pub fn streaming_ifds_summary_cache_entry_v0(
+pub fn demand_sliced_monotone_fact_propagation_summary_cache_entry_v0(
     start_node_id: impl Into<String>,
     reachable_node_ids: Vec<String>,
     fact_keys: Vec<String>,
     reused_from_previous: bool,
-) -> StreamingIFDSSummaryCacheEntryV0 {
+) -> DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0 {
     let facts = fact_keys
         .iter()
         .filter_map(|key| legacy_fact_from_key(key))
         .collect();
-    streaming_ifds_summary_cache_entry_from_parts_v0(
+    demand_sliced_monotone_fact_propagation_summary_cache_entry_from_parts_v0(
         start_node_id.into(),
         reachable_node_ids,
         fact_keys,
@@ -2137,14 +2427,14 @@ pub fn streaming_ifds_summary_cache_entry_v0(
     )
 }
 
-fn streaming_ifds_summary_cache_entry_with_facts_v0(
+fn demand_sliced_monotone_fact_propagation_summary_cache_entry_with_facts_v0(
     start_node_id: impl Into<String>,
     reachable_node_ids: Vec<String>,
-    facts: Vec<StreamingIFDSFactV0>,
+    facts: Vec<DemandSlicedMonotoneFactPropagationFactV0>,
     reused_from_previous: bool,
-) -> StreamingIFDSSummaryCacheEntryV0 {
+) -> DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0 {
     let fact_keys = fact_keys(&facts);
-    streaming_ifds_summary_cache_entry_from_parts_v0(
+    demand_sliced_monotone_fact_propagation_summary_cache_entry_from_parts_v0(
         start_node_id.into(),
         reachable_node_ids,
         fact_keys,
@@ -2153,21 +2443,21 @@ fn streaming_ifds_summary_cache_entry_with_facts_v0(
     )
 }
 
-fn streaming_ifds_summary_cache_entry_from_parts_v0(
+fn demand_sliced_monotone_fact_propagation_summary_cache_entry_from_parts_v0(
     start_node_id: String,
     reachable_node_ids: Vec<String>,
     fact_keys: Vec<String>,
-    facts: Vec<StreamingIFDSFactV0>,
+    facts: Vec<DemandSlicedMonotoneFactPropagationFactV0>,
     reused_from_previous: bool,
-) -> StreamingIFDSSummaryCacheEntryV0 {
+) -> DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0 {
     let mut canonical_parts = vec![start_node_id];
     canonical_parts.extend(reachable_node_ids.iter().cloned());
     canonical_parts.extend(fact_keys.iter().cloned());
-    StreamingIFDSSummaryCacheEntryV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.summary-cache-entry",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         start_node_id: canonical_parts.first().cloned().unwrap_or_default(),
         reachable_node_ids,
         fact_keys,
@@ -2178,24 +2468,26 @@ fn streaming_ifds_summary_cache_entry_from_parts_v0(
 }
 
 #[cfg(feature = "with-frame-rule")]
-pub fn streaming_ifds_frame_rule_bridge_policy_v0() -> StreamingIfdsFrameRuleBridgePolicyV0 {
-    StreamingIfdsFrameRuleBridgePolicyV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+pub fn demand_sliced_monotone_fact_propagation_frame_rule_bridge_policy_v0()
+-> DemandSlicedMonotoneFactPropagationFrameRuleBridgePolicyV0 {
+    DemandSlicedMonotoneFactPropagationFrameRuleBridgePolicyV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.frame-rule-bridge-policy",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
         feature_gate: "with-frame-rule",
         coarse_policy: "frameFootprintReachability",
         fine_policy: "incidfaTouchedFactFilter",
-        activation: "onlyWhenStreamingIfdsAndFrameRuleFeaturesAreEnabled",
+        activation: "onlyWhenDemandSlicedMonotoneFactPropagationAndFrameRuleFeaturesAreEnabled",
     }
 }
 
-pub fn streaming_ifds_solver_hygiene_policy_v0() -> StreamingIfdsSolverHygienePolicyV0 {
-    StreamingIfdsSolverHygienePolicyV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+pub fn demand_sliced_monotone_fact_propagation_solver_hygiene_policy_v0()
+-> DemandSlicedMonotoneFactPropagationSolverHygienePolicyV0 {
+    DemandSlicedMonotoneFactPropagationSolverHygienePolicyV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.solver-hygiene-policy",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         summary_cache_feedback_policy: "emitEvidenceCacheButDoNotFeedProductPaths",
         non_product_cache_feedback_scope: "engineShadowRunnerPrecisionEvidenceOnly",
         cache_feedback_activation: "requiresNonCountConsumerAndPrecisionParityFallback",
@@ -2208,12 +2500,13 @@ pub fn streaming_ifds_solver_hygiene_policy_v0() -> StreamingIfdsSolverHygienePo
     }
 }
 
-pub fn streaming_ifds_latency_budget_v0() -> StreamingIfdsLatencyBudgetV0 {
-    StreamingIfdsLatencyBudgetV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+pub fn demand_sliced_monotone_fact_propagation_latency_budget_v0()
+-> DemandSlicedMonotoneFactPropagationLatencyBudgetV0 {
+    DemandSlicedMonotoneFactPropagationLatencyBudgetV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.latency-budget",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         baseline_p95_ms: 50,
         optimizing_p95_ms: 250,
         batch_p95_ms: 5_000,
@@ -2221,35 +2514,39 @@ pub fn streaming_ifds_latency_budget_v0() -> StreamingIfdsLatencyBudgetV0 {
 }
 
 #[cfg(test)]
-fn propagate_ifds_facts(
+fn propagate_monotone_facts(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
-    events: &[StreamingIfdsEventInputV0],
-) -> Vec<StreamingIFDSFactV0> {
-    let transfer_table = streaming_ifds_transfer_table_v0(hyperedges);
-    propagate_ifds_facts_with_table(&transfer_table, events)
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+) -> Vec<DemandSlicedMonotoneFactPropagationFactV0> {
+    let transfer_table = demand_sliced_monotone_fact_propagation_transfer_table_v0(hyperedges);
+    propagate_monotone_facts_with_table(&transfer_table, events)
 }
 
-fn propagate_ifds_facts_with_table(
-    transfer_table: &StreamingIFDSTransferTableV0,
-    events: &[StreamingIfdsEventInputV0],
-) -> Vec<StreamingIFDSFactV0> {
-    propagate_ifds_facts_with_table_and_stats(transfer_table, events).0
+fn propagate_monotone_facts_with_table(
+    transfer_table: &DemandSlicedMonotoneFactPropagationTransferTableV0,
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+) -> Vec<DemandSlicedMonotoneFactPropagationFactV0> {
+    propagate_monotone_facts_with_table_and_stats(transfer_table, events).0
 }
 
-fn propagate_ifds_facts_with_table_and_stats(
-    transfer_table: &StreamingIFDSTransferTableV0,
-    events: &[StreamingIfdsEventInputV0],
-) -> (Vec<StreamingIFDSFactV0>, StreamingIFDSPropagationStatsV0) {
-    let mut intern_table = StreamingIFDSRunInternTableV0::from_inputs(transfer_table, events);
+fn propagate_monotone_facts_with_table_and_stats(
+    transfer_table: &DemandSlicedMonotoneFactPropagationTransferTableV0,
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+) -> (
+    Vec<DemandSlicedMonotoneFactPropagationFactV0>,
+    DemandSlicedMonotoneFactPropagationPropagationStatsV0,
+) {
+    let mut intern_table =
+        DemandSlicedMonotoneFactPropagationRunInternTableV0::from_inputs(transfer_table, events);
     let transfer_indices_by_tail =
         intern_table.transfer_indices_by_tail(transfer_table, 0..transfer_table.transfers.len());
-    let mut seen = BTreeSet::<StreamingIFDSInternedFactKeyV0>::new();
-    let mut pending = VecDeque::<StreamingIFDSInternedFactV0>::new();
-    let mut output = Vec::<StreamingIFDSInternedFactV0>::new();
-    let mut stats = StreamingIFDSPropagationStatsV0::default();
+    let mut seen = BTreeSet::<DemandSlicedMonotoneFactPropagationInternedFactKeyV0>::new();
+    let mut pending = VecDeque::<DemandSlicedMonotoneFactPropagationInternedFactV0>::new();
+    let mut output = Vec::<DemandSlicedMonotoneFactPropagationInternedFactV0>::new();
+    let mut stats = DemandSlicedMonotoneFactPropagationPropagationStatsV0::default();
 
     for event in events {
-        let fact = StreamingIFDSInternedFactV0 {
+        let fact = DemandSlicedMonotoneFactPropagationInternedFactV0 {
             key: intern_table.intern_fact_key(&event.node_id, &event.value),
             provenance: vec![format!("event:{}", event.event_id)],
         };
@@ -2271,8 +2568,9 @@ fn propagate_ifds_facts_with_table_and_stats(
             stats.transfer_visit_count = stats.transfer_visit_count.saturating_add(1);
             let mut provenance = fact.provenance.clone();
             provenance.push(format!("transfer:{}", transfer.hyperedge_id));
-            let next_value = apply_streaming_ifds_transfer(transfer, &value);
-            let next_fact = StreamingIFDSInternedFactV0 {
+            let next_value =
+                apply_demand_sliced_monotone_fact_propagation_transfer(transfer, &value);
+            let next_fact = DemandSlicedMonotoneFactPropagationInternedFactV0 {
                 key: intern_table.intern_fact_key(&transfer.head_node_id, &next_value),
                 provenance,
             };
@@ -2299,18 +2597,18 @@ fn propagate_ifds_facts_with_table_and_stats(
 /// This is the incremental dirty sub-graph: facts at these nodes are re-derived
 /// from scratch, everything else may be reused from the prior fact set.
 fn incremental_dirty_nodes(
-    transfer_table: &StreamingIFDSTransferTableV0,
-    events: &[StreamingIfdsEventInputV0],
+    transfer_table: &DemandSlicedMonotoneFactPropagationTransferTableV0,
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
 ) -> BTreeSet<String> {
-    propagate_ifds_facts_with_table(transfer_table, events)
+    propagate_monotone_facts_with_table(transfer_table, events)
         .into_iter()
         .map(|fact| fact.node_id)
         .collect()
 }
 
-/// Incremental/streaming IFDS fact-key set.
+/// Incremental/demand-sliced monotone fact propagation fact-key set.
 ///
-/// Distinct from [`propagate_ifds_facts`] (the batch oracle that recomputes
+/// Distinct from [`propagate_monotone_facts`] (the batch oracle that recomputes
 /// every fact from scratch): this path re-derives only the dirty sub-graph
 /// reachable from the changed event nodes and reuses prior fact keys that fall
 /// entirely outside it. A prior fact key is reused (not recomputed) iff its node
@@ -2319,18 +2617,18 @@ fn incremental_dirty_nodes(
 /// no longer produces it because a supporting edge was removed — the incremental
 /// key set retains it while the batch key set drops it, so the two diverge.
 fn incremental_fact_keys(
-    transfer_table: &StreamingIFDSTransferTableV0,
-    events: &[StreamingIfdsEventInputV0],
+    transfer_table: &DemandSlicedMonotoneFactPropagationTransferTableV0,
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
     previous_fact_keys: &BTreeSet<String>,
 ) -> Vec<String> {
     // Cold start (no prior facts): the dirty region is the whole reachable graph,
     // so the incremental path coincides with a full recompute.
     if previous_fact_keys.is_empty() {
-        return fact_keys(&propagate_ifds_facts_with_table(transfer_table, events));
+        return fact_keys(&propagate_monotone_facts_with_table(transfer_table, events));
     }
 
     let dirty_nodes = incremental_dirty_nodes(transfer_table, events);
-    let mut keys = fact_keys(&propagate_ifds_facts_with_table(transfer_table, events))
+    let mut keys = fact_keys(&propagate_monotone_facts_with_table(transfer_table, events))
         .into_iter()
         .collect::<BTreeSet<_>>();
     for key in previous_fact_keys {
@@ -2342,15 +2640,15 @@ fn incremental_fact_keys(
     keys.into_iter().collect()
 }
 
-/// Incremental/streaming IFDS facts whose key set equals [`incremental_fact_keys`].
+/// Incremental/demand-sliced monotone fact propagation facts whose key set equals [`incremental_fact_keys`].
 /// Dirty-region facts are re-derived with full provenance; reused prior facts
 /// outside the dirty region are carried forward verbatim from their key.
-fn incremental_propagate_ifds_facts(
-    transfer_table: &StreamingIFDSTransferTableV0,
-    events: &[StreamingIfdsEventInputV0],
-    previous_facts_by_key: &BTreeMap<String, StreamingIFDSFactV0>,
-) -> Vec<StreamingIFDSFactV0> {
-    let mut output = propagate_ifds_facts_with_table(transfer_table, events);
+fn incremental_propagate_monotone_facts(
+    transfer_table: &DemandSlicedMonotoneFactPropagationTransferTableV0,
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+    previous_facts_by_key: &BTreeMap<String, DemandSlicedMonotoneFactPropagationFactV0>,
+) -> Vec<DemandSlicedMonotoneFactPropagationFactV0> {
+    let mut output = propagate_monotone_facts_with_table(transfer_table, events);
     if !previous_facts_by_key.is_empty() {
         let dirty_nodes = incremental_dirty_nodes(transfer_table, events);
         let mut seen = output
@@ -2377,8 +2675,8 @@ fn incremental_propagate_ifds_facts(
 }
 
 fn previous_facts_by_key(
-    previous_cache: Option<&[StreamingIFDSSummaryCacheEntryV0]>,
-) -> BTreeMap<String, StreamingIFDSFactV0> {
+    previous_cache: Option<&[DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0]>,
+) -> BTreeMap<String, DemandSlicedMonotoneFactPropagationFactV0> {
     let mut facts_by_key = BTreeMap::new();
     for entry in previous_cache.into_iter().flatten() {
         for fact in &entry.facts {
@@ -2399,7 +2697,7 @@ fn previous_facts_by_key(
 /// Decode only value keys whose full typed meaning is present in the legacy
 /// representation. Rich values without typed payload are recomputed instead
 /// of being coerced into a different lattice variant.
-fn legacy_fact_from_key(key: &str) -> Option<StreamingIFDSFactV0> {
+fn legacy_fact_from_key(key: &str) -> Option<DemandSlicedMonotoneFactPropagationFactV0> {
     let (node_id, value_key) = key.split_once('|').unwrap_or((key, ""));
     let value = match value_key {
         "bottom" => AbstractClassValueV0::Bottom,
@@ -2417,11 +2715,11 @@ fn legacy_fact_from_key(key: &str) -> Option<StreamingIFDSFactV0> {
         },
         _ => return None,
     };
-    Some(StreamingIFDSFactV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    Some(DemandSlicedMonotoneFactPropagationFactV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.fact",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         fact_id: format!(
             "fact:{:016x}",
             stable_hash(std::slice::from_ref(&key.to_string()))
@@ -2432,7 +2730,9 @@ fn legacy_fact_from_key(key: &str) -> Option<StreamingIFDSFactV0> {
     })
 }
 
-fn streaming_ifds_transfer_kind(edge_kind: UnifiedHypergraphEdgeKindV0) -> &'static str {
+fn demand_sliced_monotone_fact_propagation_transfer_kind(
+    edge_kind: UnifiedHypergraphEdgeKindV0,
+) -> &'static str {
     match edge_kind {
         UnifiedHypergraphEdgeKindV0::ComposesLocal
         | UnifiedHypergraphEdgeKindV0::ComposesGlobal
@@ -2450,8 +2750,8 @@ fn streaming_ifds_transfer_kind(edge_kind: UnifiedHypergraphEdgeKindV0) -> &'sta
     }
 }
 
-fn apply_streaming_ifds_transfer(
-    transfer: &StreamingIFDSTransferFunctionV0,
+fn apply_demand_sliced_monotone_fact_propagation_transfer(
+    transfer: &DemandSlicedMonotoneFactPropagationTransferFunctionV0,
     value: &AbstractClassValueV0,
 ) -> AbstractClassValueV0 {
     match transfer.edge_kind {
@@ -2504,17 +2804,17 @@ fn class_token_from_node_id(node_id: &str) -> String {
         .to_string()
 }
 
-fn streaming_ifds_fact_v0(
+fn demand_sliced_monotone_fact_propagation_fact_v0(
     node_id: String,
     value: AbstractClassValueV0,
     provenance: Vec<String>,
-) -> StreamingIFDSFactV0 {
+) -> DemandSlicedMonotoneFactPropagationFactV0 {
     let key = fact_key(&node_id, &value);
-    StreamingIFDSFactV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationFactV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.fact",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         fact_id: format!("fact:{:016x}", stable_hash(std::slice::from_ref(&key))),
         node_id,
         value,
@@ -2522,7 +2822,7 @@ fn streaming_ifds_fact_v0(
     }
 }
 
-fn fact_keys(facts: &[StreamingIFDSFactV0]) -> Vec<String> {
+fn fact_keys(facts: &[DemandSlicedMonotoneFactPropagationFactV0]) -> Vec<String> {
     facts
         .iter()
         .map(|fact| fact_key(&fact.node_id, &fact.value))
@@ -2587,7 +2887,26 @@ fn abstract_class_value_key(value: &AbstractClassValueV0) -> String {
                 .map(|value| value.to_string())
                 .unwrap_or_else(|| "-".to_string())
         ),
-        AbstractClassValueV0::Top { .. } => "top".to_string(),
+        AbstractClassValueV0::Top { provenance } => {
+            automaton_preconstruction_cutoff_provenance_key(*provenance).map_or_else(
+                || "top".to_string(),
+                |provenance| format!("top:{provenance}"),
+            )
+        }
+    }
+}
+
+fn automaton_preconstruction_cutoff_provenance_key(
+    provenance: Option<omena_abstract_value::AbstractClassValueProvenanceV0>,
+) -> Option<&'static str> {
+    use omena_abstract_value::AbstractClassValueProvenanceV0 as Provenance;
+
+    match provenance {
+        Some(Provenance::AutomatonLanguageCardinalityLimit) => {
+            Some("automatonLanguageCardinalityLimit")
+        }
+        Some(Provenance::AutomatonMaterializedByteLimit) => Some("automatonMaterializedByteLimit"),
+        _ => None,
     }
 }
 
@@ -2609,7 +2928,7 @@ fn polylog_query_bound(node_count: usize) -> usize {
     log2_ceil.saturating_mul(log2_ceil).max(1)
 }
 
-fn streaming_ifds_node_ids_for_path(
+fn demand_sliced_monotone_fact_propagation_node_ids_for_path(
     target_style_path: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> Vec<String> {
@@ -2620,20 +2939,22 @@ fn streaming_ifds_node_ids_for_path(
                 .iter()
                 .chain(std::iter::once(&edge.head_node_id))
         })
-        .filter(|node_id| streaming_ifds_node_path(node_id) == Some(target_style_path))
+        .filter(|node_id| {
+            demand_sliced_monotone_fact_propagation_node_path(node_id) == Some(target_style_path)
+        })
         .cloned()
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
 }
 
-fn streaming_ifds_node_path(node_id: &str) -> Option<&str> {
+fn demand_sliced_monotone_fact_propagation_node_path(node_id: &str) -> Option<&str> {
     let mut parts = node_id.splitn(3, '|');
     let _kind = parts.next()?;
     parts.next()
 }
 
-fn streaming_ifds_node_adjacency(
+fn demand_sliced_monotone_fact_propagation_node_adjacency(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> BTreeMap<String, BTreeSet<String>> {
     let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
@@ -2649,7 +2970,7 @@ fn streaming_ifds_node_adjacency(
     adjacency
 }
 
-fn streaming_ifds_reverse_adjacency(
+fn demand_sliced_monotone_fact_propagation_reverse_adjacency(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> BTreeMap<String, BTreeSet<String>> {
     let mut reverse = BTreeMap::<String, BTreeSet<String>>::new();
@@ -2697,7 +3018,7 @@ fn reachable_node_ids_with_work(
     start_node_id: &str,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
 ) -> (Vec<String>, usize) {
-    let adjacency = streaming_ifds_node_adjacency(hyperedges);
+    let adjacency = demand_sliced_monotone_fact_propagation_node_adjacency(hyperedges);
     let mut seen = BTreeSet::new();
     let mut pending = VecDeque::from([start_node_id.to_string()]);
     let mut node_visit_count = 0usize;
@@ -2718,11 +3039,14 @@ fn exact_reachable_node_ids(
 ) -> Vec<String> {
     // Build this crate's OWN adjacency (its node space), but share the single reachability BFS
     // loop owned by omena-cross-file-summary (SLICE-1.5; the duplicate loop is removed here).
-    collect_reachable_node_ids(start_node_id, &streaming_ifds_node_adjacency(hyperedges))
+    collect_reachable_node_ids(
+        start_node_id,
+        &demand_sliced_monotone_fact_propagation_node_adjacency(hyperedges),
+    )
 }
 
 fn previous_reachable_node_ids_for_start(
-    previous_cache: Option<&[StreamingIFDSSummaryCacheEntryV0]>,
+    previous_cache: Option<&[DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0]>,
     start_node_id: &str,
 ) -> BTreeSet<String> {
     previous_cache
@@ -2733,15 +3057,59 @@ fn previous_reachable_node_ids_for_start(
         .collect()
 }
 
+pub fn demand_sliced_monotone_fact_propagation_reachability_delta_v0(
+    start_node_id: impl Into<String>,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+    previous_reachable: impl IntoIterator<Item = String>,
+) -> ReachabilityDeltaComputationV0 {
+    incremental_reachable_node_ids_with_wire_v0(
+        start_node_id,
+        hyperedges,
+        events,
+        previous_reachable,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
+    )
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_reachability_delta_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
 pub fn incremental_reachable_node_ids_zset(
     start_node_id: impl Into<String>,
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
     events: &[StreamingIfdsEventInputV0],
     previous_reachable: impl IntoIterator<Item = String>,
 ) -> ReachabilityDeltaComputationV0 {
+    let canonical_events = events
+        .iter()
+        .cloned()
+        .map(event_into_canonical_v0)
+        .collect::<Vec<_>>();
+    incremental_reachable_node_ids_with_wire_v0(
+        start_node_id,
+        hyperedges,
+        canonical_events.as_slice(),
+        previous_reachable,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
+    )
+}
+
+fn incremental_reachable_node_ids_with_wire_v0(
+    start_node_id: impl Into<String>,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+    previous_reachable: impl IntoIterator<Item = String>,
+    layer_marker: &'static str,
+    feature_gate: &'static str,
+) -> ReachabilityDeltaComputationV0 {
     let start_node_id = start_node_id.into();
-    let adjacency = streaming_ifds_node_adjacency(hyperedges);
-    let reverse = streaming_ifds_reverse_adjacency(hyperedges);
+    let adjacency = demand_sliced_monotone_fact_propagation_node_adjacency(hyperedges);
+    let reverse = demand_sliced_monotone_fact_propagation_reverse_adjacency(hyperedges);
     let mut reachable = previous_reachable.into_iter().collect::<BTreeSet<_>>();
     let mut dirty_nodes = BTreeSet::<String>::new();
     let mut node_visit_count = 0usize;
@@ -2749,7 +3117,7 @@ pub fn incremental_reachable_node_ids_zset(
     for event in events {
         dirty_nodes.insert(event.node_id.clone());
         match &event.event_kind {
-            StreamingIFDSEventKindV0::EdgeInsert { from, to, .. } => {
+            DemandSlicedMonotoneFactPropagationEventKindV0::EdgeInsert { from, to, .. } => {
                 dirty_nodes.insert(from.clone());
                 dirty_nodes.insert(to.clone());
                 if from == &start_node_id || reachable.contains(from) {
@@ -2762,7 +3130,7 @@ pub fn incremental_reachable_node_ids_zset(
                     );
                 }
             }
-            StreamingIFDSEventKindV0::EdgeDelete { from, to, .. } => {
+            DemandSlicedMonotoneFactPropagationEventKindV0::EdgeDelete { from, to, .. } => {
                 dirty_nodes.insert(from.clone());
                 dirty_nodes.insert(to.clone());
                 if from == &start_node_id || reachable.contains(from) {
@@ -2777,7 +3145,7 @@ pub fn incremental_reachable_node_ids_zset(
                     );
                 }
             }
-            StreamingIFDSEventKindV0::NodeDelete { id } => {
+            DemandSlicedMonotoneFactPropagationEventKindV0::NodeDelete { id } => {
                 dirty_nodes.insert(id.clone());
                 remove_unreachable_closure(
                     id,
@@ -2789,20 +3157,20 @@ pub fn incremental_reachable_node_ids_zset(
                     &mut node_visit_count,
                 );
             }
-            StreamingIFDSEventKindV0::NodeInsert { id }
-            | StreamingIFDSEventKindV0::DigestChange { id } => {
+            DemandSlicedMonotoneFactPropagationEventKindV0::NodeInsert { id }
+            | DemandSlicedMonotoneFactPropagationEventKindV0::DigestChange { id } => {
                 dirty_nodes.insert(id.clone());
             }
-            StreamingIFDSEventKindV0::BatchSynthesised { .. }
-            | StreamingIFDSEventKindV0::RefinementContextChange { .. } => {}
+            DemandSlicedMonotoneFactPropagationEventKindV0::BatchSynthesised { .. }
+            | DemandSlicedMonotoneFactPropagationEventKindV0::RefinementContextChange { .. } => {}
         }
     }
 
     ReachabilityDeltaComputationV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "omena-streaming-ifds.reachability-delta",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker,
+        feature_gate,
         start_node_id,
         reachable_node_ids: reachable.into_iter().collect(),
         dirty_node_ids: dirty_nodes.into_iter().collect(),
@@ -2868,9 +3236,1880 @@ fn has_current_reachable_predecessor(
         .any(|predecessor| predecessor == start_node_id || reachable.contains(predecessor))
 }
 
+macro_rules! build_shallow_compatibility_wire_v0 {
+    ($legacy:ident, $value:ident { $($field:ident),+ $(,)? }) => {
+        $legacy {
+            schema_version: $value.schema_version,
+            product: $value.product,
+            layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+            feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
+            $($field: $value.$field),+
+        }
+    };
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn update_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationUpdateV0,
+) -> StreamingIFDSUpdateV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIFDSUpdateV0,
+        value {
+            update_id,
+            revision,
+            previous_revision,
+            changed_node_ids,
+            refinement_context_digest,
+            refinement_context_changed,
+            delta,
+            epsilon
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn witness_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationExactBfsConnectivityWitnessV0,
+) -> PolylogConnectivityWitnessV0 {
+    build_shallow_compatibility_wire_v0!(
+        PolylogConnectivityWitnessV0,
+        value {
+            start_node_id,
+            reachable_node_ids,
+            polylog_query_bound,
+            connectivity_algorithm,
+            polylog_bound_scope,
+            exact_default,
+            wire_compatible_with_batch_oracle
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn fact_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationFactV0,
+) -> StreamingIFDSFactV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIFDSFactV0,
+        value {
+            fact_id,
+            node_id,
+            value,
+            provenance
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn transfer_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationTransferFunctionV0,
+) -> StreamingIFDSTransferFunctionV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIFDSTransferFunctionV0,
+        value {
+            hyperedge_id,
+            edge_kind,
+            tail_node_ids,
+            head_node_id,
+            transfer_kind
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn demand_report_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationDemandReportV0,
+) -> StreamingIFDSDemandReportV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIFDSDemandReportV0,
+        value {
+            start_node_ids,
+            target_node_ids,
+            projection_node_ids,
+            fact_keys,
+            transfer_visit_count,
+            slice_scc_count,
+            strict_subset_of_forward_reachable_nodes
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn route_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationRouteDecisionV0,
+) -> StreamingIFDSRouteDecisionV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIFDSRouteDecisionV0,
+        value {
+            request_scope,
+            fact_key_engine,
+            relocation_gate_green
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn demand_eager_report_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationDemandEagerEquivalenceReportV0,
+) -> StreamingIFDSDemandEagerEquivalenceReportV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIFDSDemandEagerEquivalenceReportV0,
+        value {
+            comparison_kind,
+            demand_fact_key_count,
+            eager_fact_key_count,
+            demand_fact_key_sha256,
+            eager_fact_key_sha256,
+            equivalent
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn settle_equal_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationSettleEqualReportV0,
+) -> StreamingIFDSSettleEqualReportV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIFDSSettleEqualReportV0,
+        value {
+            requested_settle_count,
+            equal_settle_count,
+            divergence_count,
+            all_settles_equal
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn settle_revision_report_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationSettleSoakRevisionReportV0,
+) -> StreamingIFDSSettleSoakRevisionReportV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIFDSSettleSoakRevisionReportV0,
+        value {
+            revision_id,
+            content_digest,
+            demand_fact_count,
+            projected_batch_fact_count,
+            equal,
+            has_in_scc_edge_removal
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn cross_file_report_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0,
+) -> StreamingIFDSCrossFileReachabilityReportV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIFDSCrossFileReachabilityReportV0,
+        value {
+            target_style_path,
+            start_node_count,
+            reachable_foreign_path_count,
+            reachable_foreign_paths,
+            analysis_report_count,
+            exact_reachability_selected,
+            exact_default
+        }
+    )
+}
+
+#[cfg(feature = "with-frame-rule")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn frame_policy_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationFrameRuleBridgePolicyV0,
+) -> StreamingIfdsFrameRuleBridgePolicyV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIfdsFrameRuleBridgePolicyV0,
+        value {
+            coarse_policy,
+            fine_policy,
+            activation
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn solver_policy_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationSolverHygienePolicyV0,
+) -> StreamingIfdsSolverHygienePolicyV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIfdsSolverHygienePolicyV0,
+        value {
+            summary_cache_feedback_policy,
+            non_product_cache_feedback_scope,
+            cache_feedback_activation,
+            reference_edge_value_policy,
+            concrete_value_owner,
+            deferred_value_flow_candidates
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn latency_budget_into_compatibility_wire_v0(
+    value: DemandSlicedMonotoneFactPropagationLatencyBudgetV0,
+) -> StreamingIfdsLatencyBudgetV0 {
+    build_shallow_compatibility_wire_v0!(
+        StreamingIfdsLatencyBudgetV0,
+        value {
+            baseline_p95_ms,
+            optimizing_p95_ms,
+            batch_p95_ms
+        }
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn event_kind_into_legacy_v0(
+    event_kind: DemandSlicedMonotoneFactPropagationEventKindV0,
+) -> StreamingIFDSEventKindV0 {
+    match event_kind {
+        DemandSlicedMonotoneFactPropagationEventKindV0::EdgeInsert {
+            from,
+            to,
+            edge_kind,
+        } => StreamingIFDSEventKindV0::EdgeInsert {
+            from,
+            to,
+            edge_kind,
+        },
+        DemandSlicedMonotoneFactPropagationEventKindV0::EdgeDelete {
+            from,
+            to,
+            edge_kind,
+        } => StreamingIFDSEventKindV0::EdgeDelete {
+            from,
+            to,
+            edge_kind,
+        },
+        DemandSlicedMonotoneFactPropagationEventKindV0::NodeInsert { id } => {
+            StreamingIFDSEventKindV0::NodeInsert { id }
+        }
+        DemandSlicedMonotoneFactPropagationEventKindV0::NodeDelete { id } => {
+            StreamingIFDSEventKindV0::NodeDelete { id }
+        }
+        DemandSlicedMonotoneFactPropagationEventKindV0::DigestChange { id } => {
+            StreamingIFDSEventKindV0::DigestChange { id }
+        }
+        DemandSlicedMonotoneFactPropagationEventKindV0::BatchSynthesised {
+            event_count,
+            original_event_kinds,
+        } => StreamingIFDSEventKindV0::BatchSynthesised {
+            event_count,
+            original_event_kinds,
+        },
+        DemandSlicedMonotoneFactPropagationEventKindV0::RefinementContextChange {
+            context_digest_before,
+            context_digest_after,
+            invalidated_supergraph_node_ids,
+        } => StreamingIFDSEventKindV0::RefinementContextChange {
+            context_digest_before,
+            context_digest_after,
+            invalidated_supergraph_node_ids,
+        },
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn event_kind_into_canonical_v0(
+    event_kind: StreamingIFDSEventKindV0,
+) -> DemandSlicedMonotoneFactPropagationEventKindV0 {
+    match event_kind {
+        StreamingIFDSEventKindV0::EdgeInsert {
+            from,
+            to,
+            edge_kind,
+        } => DemandSlicedMonotoneFactPropagationEventKindV0::EdgeInsert {
+            from,
+            to,
+            edge_kind,
+        },
+        StreamingIFDSEventKindV0::EdgeDelete {
+            from,
+            to,
+            edge_kind,
+        } => DemandSlicedMonotoneFactPropagationEventKindV0::EdgeDelete {
+            from,
+            to,
+            edge_kind,
+        },
+        StreamingIFDSEventKindV0::NodeInsert { id } => {
+            DemandSlicedMonotoneFactPropagationEventKindV0::NodeInsert { id }
+        }
+        StreamingIFDSEventKindV0::NodeDelete { id } => {
+            DemandSlicedMonotoneFactPropagationEventKindV0::NodeDelete { id }
+        }
+        StreamingIFDSEventKindV0::DigestChange { id } => {
+            DemandSlicedMonotoneFactPropagationEventKindV0::DigestChange { id }
+        }
+        StreamingIFDSEventKindV0::BatchSynthesised {
+            event_count,
+            original_event_kinds,
+        } => DemandSlicedMonotoneFactPropagationEventKindV0::BatchSynthesised {
+            event_count,
+            original_event_kinds,
+        },
+        StreamingIFDSEventKindV0::RefinementContextChange {
+            context_digest_before,
+            context_digest_after,
+            invalidated_supergraph_node_ids,
+        } => DemandSlicedMonotoneFactPropagationEventKindV0::RefinementContextChange {
+            context_digest_before,
+            context_digest_after,
+            invalidated_supergraph_node_ids,
+        },
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn event_into_compatibility_wire_v0(
+    event: DemandSlicedMonotoneFactPropagationEventInputV0,
+) -> StreamingIfdsEventInputV0 {
+    StreamingIfdsEventInputV0 {
+        schema_version: event.schema_version,
+        product: event.product,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
+        event_id: event.event_id,
+        revision: event.revision,
+        event_kind: event_kind_into_legacy_v0(event.event_kind),
+        node_id: event.node_id,
+        value: event.value,
+        refinement_context_digest: event.refinement_context_digest,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn event_into_canonical_v0(
+    event: StreamingIfdsEventInputV0,
+) -> DemandSlicedMonotoneFactPropagationEventInputV0 {
+    DemandSlicedMonotoneFactPropagationEventInputV0 {
+        schema_version: event.schema_version,
+        product: event.product,
+        layer_marker: event.layer_marker,
+        feature_gate: event.feature_gate,
+        event_id: event.event_id,
+        revision: event.revision,
+        event_kind: event_kind_into_canonical_v0(event.event_kind),
+        node_id: event.node_id,
+        value: event.value,
+        refinement_context_digest: event.refinement_context_digest,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn fact_into_canonical_v0(fact: StreamingIFDSFactV0) -> DemandSlicedMonotoneFactPropagationFactV0 {
+    DemandSlicedMonotoneFactPropagationFactV0 {
+        schema_version: fact.schema_version,
+        product: fact.product,
+        layer_marker: fact.layer_marker,
+        feature_gate: fact.feature_gate,
+        fact_id: fact.fact_id,
+        node_id: fact.node_id,
+        value: fact.value,
+        provenance: fact.provenance,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn summary_cache_into_compatibility_wire_v0(
+    entry: DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0,
+) -> StreamingIFDSSummaryCacheEntryV0 {
+    StreamingIFDSSummaryCacheEntryV0 {
+        schema_version: entry.schema_version,
+        product: entry.product,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
+        start_node_id: entry.start_node_id,
+        reachable_node_ids: entry.reachable_node_ids,
+        fact_keys: entry.fact_keys,
+        facts: entry
+            .facts
+            .into_iter()
+            .map(fact_into_compatibility_wire_v0)
+            .collect(),
+        summary_hash: entry.summary_hash,
+        reused_from_previous: entry.reused_from_previous,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn summary_cache_into_canonical_v0(
+    entry: StreamingIFDSSummaryCacheEntryV0,
+) -> DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0 {
+    DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0 {
+        schema_version: entry.schema_version,
+        product: entry.product,
+        layer_marker: entry.layer_marker,
+        feature_gate: entry.feature_gate,
+        start_node_id: entry.start_node_id,
+        reachable_node_ids: entry.reachable_node_ids,
+        fact_keys: entry.fact_keys,
+        facts: entry
+            .facts
+            .into_iter()
+            .map(fact_into_canonical_v0)
+            .collect(),
+        summary_hash: entry.summary_hash,
+        reused_from_previous: entry.reused_from_previous,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn analysis_report_into_compatibility_wire_v0(
+    report: DemandSlicedMonotoneFactPropagationAnalysisReportV0,
+) -> StreamingIFDSAnalysisReportV0 {
+    StreamingIFDSAnalysisReportV0 {
+        schema_version: report.schema_version,
+        product: report.product,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
+        update: update_into_compatibility_wire_v0(report.update),
+        witness: witness_into_compatibility_wire_v0(report.witness),
+        event_count: report.event_count,
+        input_fact_count: report.input_fact_count,
+        output_fact_count: report.output_fact_count,
+        dirty_fact_count: report.dirty_fact_count,
+        reused_fact_count: report.reused_fact_count,
+        transfer_function_count: report.transfer_function_count,
+        fallback_causes: report
+            .fallback_causes
+            .into_iter()
+            .map(|cause| match cause {
+                DemandSlicedMonotoneFactPropagationFallbackCauseV0::ReachabilityMismatch => {
+                    StreamingIFDSFallbackCauseV0::ReachabilityMismatch
+                }
+                DemandSlicedMonotoneFactPropagationFallbackCauseV0::FactMismatch => {
+                    StreamingIFDSFallbackCauseV0::FactMismatch
+                }
+            })
+            .collect(),
+        incremental_precision_parity_with_batch: report.incremental_precision_parity_with_batch,
+        reachability_parity_with_batch: report.reachability_parity_with_batch,
+        reachability_delta_used: report.reachability_delta_used,
+        reachability_dirty_node_count: report.reachability_dirty_node_count,
+        reachability_work_node_visits: report.reachability_work_node_visits,
+        batch_reachability_work_node_visits: report.batch_reachability_work_node_visits,
+        output_facts: report
+            .output_facts
+            .into_iter()
+            .map(fact_into_compatibility_wire_v0)
+            .collect(),
+        incremental_facts_for_diagnosis: report
+            .incremental_facts_for_diagnosis
+            .into_iter()
+            .map(fact_into_compatibility_wire_v0)
+            .collect(),
+        summary_cache: report
+            .summary_cache
+            .into_iter()
+            .map(summary_cache_into_compatibility_wire_v0)
+            .collect(),
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn settle_revision_into_compatibility_wire_v0(
+    revision: DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0,
+) -> StreamingIFDSSettleSoakRevisionInputV0 {
+    StreamingIFDSSettleSoakRevisionInputV0 {
+        revision_id: revision.revision_id,
+        start_node_ids: revision.start_node_ids,
+        target_node_ids: revision.target_node_ids,
+        hyperedges: revision.hyperedges,
+        events: revision
+            .events
+            .into_iter()
+            .map(event_into_compatibility_wire_v0)
+            .collect(),
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn settle_revision_into_canonical_v0(
+    revision: StreamingIFDSSettleSoakRevisionInputV0,
+) -> DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0 {
+    DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0 {
+        revision_id: revision.revision_id,
+        start_node_ids: revision.start_node_ids,
+        target_node_ids: revision.target_node_ids,
+        hyperedges: revision.hyperedges,
+        events: revision
+            .events
+            .into_iter()
+            .map(event_into_canonical_v0)
+            .collect(),
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn settle_report_into_compatibility_wire_v0(
+    report: DemandSlicedMonotoneFactPropagationSettleSoakReportV0,
+) -> StreamingIFDSSettleSoakReportV0 {
+    StreamingIFDSSettleSoakReportV0 {
+        schema_version: report.schema_version,
+        product: report.product,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
+        requested_revision_count: report.requested_revision_count,
+        min_revision_count: report.min_revision_count,
+        distinct_revision_count: report.distinct_revision_count,
+        consecutive_equal_count: report.consecutive_equal_count,
+        divergence_count: report.divergence_count,
+        all_revisions_equal: report.all_revisions_equal,
+        has_in_scc_edge_removal: report.has_in_scc_edge_removal,
+        revisions: report
+            .revisions
+            .into_iter()
+            .map(settle_revision_report_into_compatibility_wire_v0)
+            .collect(),
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn settle_report_into_canonical_v0(
+    report: StreamingIFDSSettleSoakReportV0,
+) -> DemandSlicedMonotoneFactPropagationSettleSoakReportV0 {
+    DemandSlicedMonotoneFactPropagationSettleSoakReportV0 {
+        schema_version: report.schema_version,
+        product: report.product,
+        layer_marker: report.layer_marker,
+        feature_gate: report.feature_gate,
+        requested_revision_count: report.requested_revision_count,
+        min_revision_count: report.min_revision_count,
+        distinct_revision_count: report.distinct_revision_count,
+        consecutive_equal_count: report.consecutive_equal_count,
+        divergence_count: report.divergence_count,
+        all_revisions_equal: report.all_revisions_equal,
+        has_in_scc_edge_removal: report.has_in_scc_edge_removal,
+        revisions: report
+            .revisions
+            .into_iter()
+            .map(
+                |revision| DemandSlicedMonotoneFactPropagationSettleSoakRevisionReportV0 {
+                    schema_version: revision.schema_version,
+                    product: revision.product,
+                    layer_marker: revision.layer_marker,
+                    feature_gate: revision.feature_gate,
+                    revision_id: revision.revision_id,
+                    content_digest: revision.content_digest,
+                    demand_fact_count: revision.demand_fact_count,
+                    projected_batch_fact_count: revision.projected_batch_fact_count,
+                    equal: revision.equal,
+                    has_in_scc_edge_removal: revision.has_in_scc_edge_removal,
+                },
+            )
+            .collect(),
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn verdict_into_canonical_v0(
+    verdict: StreamingIFDSGateArtifactVerdictV0,
+) -> DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0 {
+    DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0 {
+        green: verdict.green,
+        source_product: verdict.source_product,
+        artifact_sha256: verdict.artifact_sha256,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn readiness_report_into_compatibility_wire_v0(
+    report: DemandSlicedMonotoneFactPropagationDemandReadinessReportV0,
+) -> StreamingIFDSDemandReadinessReportV0 {
+    let conjunct = |value: DemandSlicedMonotoneFactPropagationGateArtifactConjunctV0| {
+        StreamingIFDSGateArtifactConjunctV0 {
+            green: value.green,
+            source_product: value.source_product,
+            artifact_sha256: value.artifact_sha256,
+            refusal: value.refusal,
+        }
+    };
+    StreamingIFDSDemandReadinessReportV0 {
+        schema_version: report.schema_version,
+        product: report.product,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_COMPATIBILITY_FEATURE_GATE_V0,
+        fact_key_gate_green: report.fact_key_gate_green,
+        deletion_corpus_green: report.deletion_corpus_green,
+        complexity_slope_green: report.complexity_slope_green,
+        relocation_approval_green: report.relocation_approval_green,
+        fact_key_gate: conjunct(report.fact_key_gate),
+        deletion_corpus: conjunct(report.deletion_corpus),
+        complexity_slope: conjunct(report.complexity_slope),
+        relocation_approval: conjunct(report.relocation_approval),
+        settle_all_equal: report.settle_all_equal,
+        precondition_count: report.precondition_count,
+        green_precondition_count: report.green_precondition_count,
+        demand_primary_ready: report.demand_primary_ready,
+    }
+}
+
+/// Pre-1.0 nominal compatibility surface.
+/// Owner: `omena-streaming-ifds` maintainers. Every item below may be removed
+/// only after 1.0, downstream migration, and an audited zero non-compat-use census.
+#[deprecated(
+    since = "0.4.0",
+    note = "use DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const STREAMING_IFDS_SCHEMA_VERSION_V0: &str = "0";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0: &str = "omena-diff-test.boundary";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_ARTIFACT_PRODUCT_V0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0: &str =
+    "omena-benchmarks.z5-perf-complexity-slope";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_PRODUCT_V0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0: &str =
+    "omena-streaming-ifds.relocation-gate";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_MIN_SETTLE_SOAK_REVISION_COUNT_V0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0: usize = 4;
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationUpdateV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSUpdateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub update_id: String,
+    pub revision: u64,
+    pub previous_revision: Option<u64>,
+    pub changed_node_ids: Vec<String>,
+    pub refinement_context_digest: Option<u64>,
+    pub refinement_context_changed: bool,
+    pub delta: u8,
+    pub epsilon: u8,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationEventInputV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIfdsEventInputV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub event_id: String,
+    pub revision: u64,
+    pub event_kind: StreamingIFDSEventKindV0,
+    pub node_id: String,
+    pub value: AbstractClassValueV0,
+    pub refinement_context_digest: Option<u64>,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationEventKindV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum StreamingIFDSEventKindV0 {
+    EdgeInsert {
+        from: String,
+        to: String,
+        edge_kind: &'static str,
+    },
+    EdgeDelete {
+        from: String,
+        to: String,
+        edge_kind: &'static str,
+    },
+    NodeInsert {
+        id: String,
+    },
+    NodeDelete {
+        id: String,
+    },
+    DigestChange {
+        id: String,
+    },
+    BatchSynthesised {
+        event_count: usize,
+        original_event_kinds: Vec<&'static str>,
+    },
+    RefinementContextChange {
+        context_digest_before: u64,
+        context_digest_after: u64,
+        invalidated_supergraph_node_ids: Vec<String>,
+    },
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationFactV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSFactV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub fact_id: String,
+    pub node_id: String,
+    pub value: AbstractClassValueV0,
+    pub provenance: Vec<String>,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationTransferFunctionV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSTransferFunctionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub hyperedge_id: String,
+    pub edge_kind: UnifiedHypergraphEdgeKindV0,
+    pub tail_node_ids: Vec<String>,
+    pub head_node_id: String,
+    pub transfer_kind: &'static str,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSSummaryCacheEntryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub start_node_id: String,
+    pub reachable_node_ids: Vec<String>,
+    pub fact_keys: Vec<String>,
+    pub facts: Vec<StreamingIFDSFactV0>,
+    pub summary_hash: String,
+    pub reused_from_previous: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationFallbackCauseV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StreamingIFDSFallbackCauseV0 {
+    ReachabilityMismatch,
+    FactMismatch,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationAnalysisReportV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSAnalysisReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub update: StreamingIFDSUpdateV0,
+    pub witness: PolylogConnectivityWitnessV0,
+    pub event_count: usize,
+    pub input_fact_count: usize,
+    pub output_fact_count: usize,
+    pub dirty_fact_count: usize,
+    pub reused_fact_count: usize,
+    pub transfer_function_count: usize,
+    pub fallback_causes: Vec<StreamingIFDSFallbackCauseV0>,
+    pub incremental_precision_parity_with_batch: bool,
+    pub reachability_parity_with_batch: bool,
+    pub reachability_delta_used: bool,
+    pub reachability_dirty_node_count: usize,
+    pub reachability_work_node_visits: usize,
+    pub batch_reachability_work_node_visits: usize,
+    pub output_facts: Vec<StreamingIFDSFactV0>,
+    pub incremental_facts_for_diagnosis: Vec<StreamingIFDSFactV0>,
+    pub summary_cache: Vec<StreamingIFDSSummaryCacheEntryV0>,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility alias owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+type CompatibilityAnalysisReportV0 = StreamingIFDSAnalysisReportV0;
+
+#[allow(deprecated)]
+impl CompatibilityAnalysisReportV0 {
+    #[deprecated(
+        since = "0.4.0",
+        note = "use DemandSlicedMonotoneFactPropagationAnalysisReportV0::fallback_applied_for; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
+    pub fn fallback_applied_for(&self, cause: StreamingIFDSFallbackCauseV0) -> bool {
+        self.fallback_causes.contains(&cause)
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationDemandReportV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSDemandReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub start_node_ids: Vec<String>,
+    pub target_node_ids: Vec<String>,
+    pub projection_node_ids: Vec<String>,
+    pub fact_keys: Vec<String>,
+    pub transfer_visit_count: usize,
+    pub slice_scc_count: usize,
+    pub strict_subset_of_forward_reachable_nodes: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationRouteDecisionV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSRouteDecisionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub request_scope: &'static str,
+    pub fact_key_engine: &'static str,
+    pub relocation_gate_green: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationDemandEagerEquivalenceReportV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSDemandEagerEquivalenceReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub comparison_kind: &'static str,
+    pub demand_fact_key_count: usize,
+    pub eager_fact_key_count: usize,
+    pub demand_fact_key_sha256: String,
+    pub eager_fact_key_sha256: String,
+    pub equivalent: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationSettleEqualReportV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSSettleEqualReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub requested_settle_count: usize,
+    pub equal_settle_count: usize,
+    pub divergence_count: usize,
+    pub all_settles_equal: bool,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationSettleSoakRevisionInputV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamingIFDSSettleSoakRevisionInputV0 {
+    pub revision_id: String,
+    pub start_node_ids: Vec<String>,
+    pub target_node_ids: Vec<String>,
+    pub hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
+    pub events: Vec<StreamingIfdsEventInputV0>,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationSettleSoakRevisionReportV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSSettleSoakRevisionReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub revision_id: String,
+    pub content_digest: String,
+    pub demand_fact_count: usize,
+    pub projected_batch_fact_count: usize,
+    pub equal: bool,
+    pub has_in_scc_edge_removal: bool,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationSettleSoakReportV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSSettleSoakReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub requested_revision_count: usize,
+    pub min_revision_count: usize,
+    pub distinct_revision_count: usize,
+    pub consecutive_equal_count: usize,
+    pub divergence_count: usize,
+    pub all_revisions_equal: bool,
+    pub has_in_scc_edge_removal: bool,
+    pub revisions: Vec<StreamingIFDSSettleSoakRevisionReportV0>,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSGateArtifactVerdictV0 {
+    pub green: bool,
+    pub source_product: String,
+    pub artifact_sha256: String,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationGateArtifactConjunctV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSGateArtifactConjunctV0 {
+    pub green: bool,
+    pub source_product: String,
+    pub artifact_sha256: String,
+    pub refusal: Option<&'static str>,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationDemandReadinessInputV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamingIFDSDemandReadinessInputV0 {
+    pub fact_key_gate_verdict: StreamingIFDSGateArtifactVerdictV0,
+    pub deletion_corpus_verdict: StreamingIFDSGateArtifactVerdictV0,
+    pub complexity_slope_verdict: StreamingIFDSGateArtifactVerdictV0,
+    pub relocation_approval_verdict: StreamingIFDSGateArtifactVerdictV0,
+    pub settle_report: StreamingIFDSSettleSoakReportV0,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationDemandReadinessReportV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSDemandReadinessReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub fact_key_gate_green: bool,
+    pub deletion_corpus_green: bool,
+    pub complexity_slope_green: bool,
+    pub relocation_approval_green: bool,
+    pub fact_key_gate: StreamingIFDSGateArtifactConjunctV0,
+    pub deletion_corpus: StreamingIFDSGateArtifactConjunctV0,
+    pub complexity_slope: StreamingIFDSGateArtifactConjunctV0,
+    pub relocation_approval: StreamingIFDSGateArtifactConjunctV0,
+    pub settle_all_equal: bool,
+    pub precondition_count: usize,
+    pub green_precondition_count: usize,
+    pub demand_primary_ready: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIFDSCrossFileReachabilityReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub target_style_path: String,
+    pub start_node_count: usize,
+    pub reachable_foreign_path_count: usize,
+    pub reachable_foreign_paths: Vec<String>,
+    pub analysis_report_count: usize,
+    pub exact_reachability_selected: bool,
+    pub exact_default: bool,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationFrameRuleBridgePolicyV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIfdsFrameRuleBridgePolicyV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub coarse_policy: &'static str,
+    pub fine_policy: &'static str,
+    pub activation: &'static str,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationSolverHygienePolicyV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIfdsSolverHygienePolicyV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub summary_cache_feedback_policy: &'static str,
+    pub non_product_cache_feedback_scope: &'static str,
+    pub cache_feedback_activation: &'static str,
+    pub reference_edge_value_policy: &'static str,
+    pub concrete_value_owner: &'static str,
+    pub deferred_value_flow_candidates: Vec<&'static str>,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationLatencyBudgetV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingIfdsLatencyBudgetV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub baseline_p95_ms: u64,
+    pub optimizing_p95_ms: u64,
+    pub batch_p95_ms: u64,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationReachabilityCondensationV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone)]
+pub struct StreamingIfdsReachabilityCondensationV0 {
+    inner: DemandSlicedMonotoneFactPropagationReachabilityCondensationV0,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use DemandSlicedMonotoneFactPropagationDemandIndexV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[derive(Debug, Clone)]
+pub struct StreamingIFDSDemandIndexV0 {
+    inner: DemandSlicedMonotoneFactPropagationDemandIndexV0,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_update_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_update_v0(
+    update_id: impl Into<String>,
+    changed_node_ids: Vec<String>,
+    refinement_context_digest: Option<u64>,
+) -> StreamingIFDSUpdateV0 {
+    update_into_compatibility_wire_v0(demand_sliced_monotone_fact_propagation_update_v0(
+        update_id,
+        changed_node_ids,
+        refinement_context_digest,
+    ))
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_event_input_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_event_input_v0(
+    event_id: impl Into<String>,
+    revision: u64,
+    node_id: impl Into<String>,
+    value: AbstractClassValueV0,
+    refinement_context_digest: Option<u64>,
+) -> StreamingIfdsEventInputV0 {
+    event_into_compatibility_wire_v0(demand_sliced_monotone_fact_propagation_event_input_v0(
+        event_id,
+        revision,
+        node_id,
+        value,
+        refinement_context_digest,
+    ))
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_refinement_revision_bump_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_refinement_revision_bump_v0(
+    update_id: impl Into<String>,
+    previous_revision: u64,
+    revision: u64,
+    refinement_context_digest: u64,
+) -> StreamingIFDSUpdateV0 {
+    update_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_refinement_revision_bump_v0(
+            update_id,
+            previous_revision,
+            revision,
+            refinement_context_digest,
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_structural_projection_node_ids_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> Vec<String> {
+    demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
+        start_node_ids,
+        target_node_ids,
+        hyperedges,
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_reachability_condensation_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_reachability_condensation_v0(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> StreamingIfdsReachabilityCondensationV0 {
+    StreamingIfdsReachabilityCondensationV0 {
+        inner: demand_sliced_monotone_fact_propagation_reachability_condensation_v0(hyperedges),
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_demand_index_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_demand_index_v0(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> StreamingIFDSDemandIndexV0 {
+    StreamingIFDSDemandIndexV0 {
+        inner: demand_sliced_monotone_fact_propagation_demand_index_v0(hyperedges),
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_fact_key_route_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_fact_key_route_v0(
+    target_node_ids: &[String],
+) -> StreamingIFDSRouteDecisionV0 {
+    route_into_compatibility_wire_v0(demand_sliced_monotone_fact_propagation_fact_key_route_v0(
+        target_node_ids,
+    ))
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_fact_key_route_with_gate_v0(
+    target_node_ids: &[String],
+    relocation_gate_green: bool,
+) -> StreamingIFDSRouteDecisionV0 {
+    route_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_impl_v0(
+            target_node_ids,
+            relocation_gate_green,
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_demand_eager_equivalence_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_demand_eager_equivalence_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+) -> StreamingIFDSDemandEagerEquivalenceReportV0 {
+    let canonical_events = events
+        .iter()
+        .cloned()
+        .map(event_into_canonical_v0)
+        .collect::<Vec<_>>();
+    demand_eager_report_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_demand_eager_equivalence_v0(
+            start_node_ids,
+            target_node_ids,
+            hyperedges,
+            canonical_events.as_slice(),
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use run_demand_sliced_monotone_fact_propagation_settle_equal_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn run_streaming_ifds_settle_equal_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+    requested_settle_count: usize,
+) -> StreamingIFDSSettleEqualReportV0 {
+    let canonical_events = events
+        .iter()
+        .cloned()
+        .map(event_into_canonical_v0)
+        .collect::<Vec<_>>();
+    settle_equal_into_compatibility_wire_v0(
+        run_demand_sliced_monotone_fact_propagation_settle_equal_v0(
+            start_node_ids,
+            target_node_ids,
+            hyperedges,
+            canonical_events.as_slice(),
+            requested_settle_count,
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_settle_soak_revision_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_settle_soak_revision_v0(
+    revision_id: impl Into<String>,
+    start_node_ids: Vec<String>,
+    target_node_ids: Vec<String>,
+    hyperedges: Vec<UnifiedHypergraphHyperedgeV0>,
+    events: Vec<StreamingIfdsEventInputV0>,
+) -> StreamingIFDSSettleSoakRevisionInputV0 {
+    settle_revision_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_settle_soak_revision_v0(
+            revision_id,
+            start_node_ids,
+            target_node_ids,
+            hyperedges,
+            events.into_iter().map(event_into_canonical_v0).collect(),
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_default_settle_soak_revisions_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_default_settle_soak_revisions_v0()
+-> Vec<StreamingIFDSSettleSoakRevisionInputV0> {
+    demand_sliced_monotone_fact_propagation_default_settle_soak_revisions_v0()
+        .into_iter()
+        .map(settle_revision_into_compatibility_wire_v0)
+        .collect()
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use run_demand_sliced_monotone_fact_propagation_settle_soak_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn run_streaming_ifds_settle_soak_v0(
+    revisions: &[StreamingIFDSSettleSoakRevisionInputV0],
+) -> StreamingIFDSSettleSoakReportV0 {
+    let canonical_revisions = revisions
+        .iter()
+        .cloned()
+        .map(settle_revision_into_canonical_v0)
+        .collect::<Vec<_>>();
+    settle_report_into_compatibility_wire_v0(
+        run_demand_sliced_monotone_fact_propagation_settle_soak_v0(canonical_revisions.as_slice()),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_demand_readiness_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_demand_readiness_v0(
+    input: StreamingIFDSDemandReadinessInputV0,
+) -> StreamingIFDSDemandReadinessReportV0 {
+    readiness_report_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_demand_readiness_v0(
+            DemandSlicedMonotoneFactPropagationDemandReadinessInputV0 {
+                fact_key_gate_verdict: verdict_into_canonical_v0(input.fact_key_gate_verdict),
+                deletion_corpus_verdict: verdict_into_canonical_v0(input.deletion_corpus_verdict),
+                complexity_slope_verdict: verdict_into_canonical_v0(input.complexity_slope_verdict),
+                relocation_approval_verdict: verdict_into_canonical_v0(
+                    input.relocation_approval_verdict,
+                ),
+                settle_report: settle_report_into_canonical_v0(input.settle_report),
+            },
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use run_demand_sliced_monotone_fact_propagation_demand_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn run_streaming_ifds_demand_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+) -> StreamingIFDSDemandReportV0 {
+    let canonical_events = events
+        .iter()
+        .cloned()
+        .map(event_into_canonical_v0)
+        .collect::<Vec<_>>();
+    demand_report_into_compatibility_wire_v0(run_demand_sliced_monotone_fact_propagation_demand_v0(
+        start_node_ids,
+        target_node_ids,
+        hyperedges,
+        canonical_events.as_slice(),
+    ))
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use run_demand_sliced_monotone_fact_propagation_demand_with_index_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn run_streaming_ifds_demand_with_index_v0(
+    start_node_ids: &[String],
+    target_node_ids: &[String],
+    index: &StreamingIFDSDemandIndexV0,
+    events: &[StreamingIfdsEventInputV0],
+) -> StreamingIFDSDemandReportV0 {
+    let canonical_events = events
+        .iter()
+        .cloned()
+        .map(event_into_canonical_v0)
+        .collect::<Vec<_>>();
+    demand_report_into_compatibility_wire_v0(
+        run_demand_sliced_monotone_fact_propagation_demand_with_index_v0(
+            start_node_ids,
+            target_node_ids,
+            &index.inner,
+            canonical_events.as_slice(),
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use run_demand_sliced_monotone_fact_propagation_exact_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn run_streaming_ifds_exact_v0<O>(
+    update_id: impl Into<String>,
+    start_node_id: impl Into<String>,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+    oracle: &O,
+    previous_cache: Option<&[StreamingIFDSSummaryCacheEntryV0]>,
+) -> StreamingIFDSAnalysisReportV0
+where
+    O: OmenaUnifiedHypergraphConnectivityOracle,
+{
+    let canonical_events = events
+        .iter()
+        .cloned()
+        .map(event_into_canonical_v0)
+        .collect::<Vec<_>>();
+    let canonical_cache = previous_cache.map(|entries| {
+        entries
+            .iter()
+            .cloned()
+            .map(summary_cache_into_canonical_v0)
+            .collect::<Vec<_>>()
+    });
+    analysis_report_into_compatibility_wire_v0(
+        run_demand_sliced_monotone_fact_propagation_exact_v0(
+            update_id,
+            start_node_id,
+            hyperedges,
+            canonical_events.as_slice(),
+            oracle,
+            canonical_cache.as_deref(),
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn summarize_streaming_ifds_cross_file_reachability_v0(
+    target_style_path: &str,
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> StreamingIFDSCrossFileReachabilityReportV0 {
+    cross_file_report_into_compatibility_wire_v0(
+        summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0(
+            target_style_path,
+            hyperedges,
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_with_condensation_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
+    target_style_path: &str,
+    condensation: &StreamingIfdsReachabilityCondensationV0,
+) -> StreamingIFDSCrossFileReachabilityReportV0 {
+    cross_file_report_into_compatibility_wire_v0(
+        summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_with_condensation_v0(
+        target_style_path,
+        &condensation.inner,
+        ),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_transfer_functions_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_transfer_functions_v0(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+) -> Vec<StreamingIFDSTransferFunctionV0> {
+    demand_sliced_monotone_fact_propagation_transfer_functions_v0(hyperedges)
+        .into_iter()
+        .map(transfer_into_compatibility_wire_v0)
+        .collect()
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_summary_cache_entry_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_summary_cache_entry_v0(
+    start_node_id: impl Into<String>,
+    reachable_node_ids: Vec<String>,
+    fact_keys: Vec<String>,
+    reused_from_previous: bool,
+) -> StreamingIFDSSummaryCacheEntryV0 {
+    summary_cache_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_summary_cache_entry_v0(
+            start_node_id,
+            reachable_node_ids,
+            fact_keys,
+            reused_from_previous,
+        ),
+    )
+}
+
+#[cfg(feature = "with-frame-rule")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_frame_rule_bridge_policy_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_frame_rule_bridge_policy_v0() -> StreamingIfdsFrameRuleBridgePolicyV0 {
+    frame_policy_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_frame_rule_bridge_policy_v0(),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_solver_hygiene_policy_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_solver_hygiene_policy_v0() -> StreamingIfdsSolverHygienePolicyV0 {
+    solver_policy_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_solver_hygiene_policy_v0(),
+    )
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use demand_sliced_monotone_fact_propagation_latency_budget_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn streaming_ifds_latency_budget_v0() -> StreamingIfdsLatencyBudgetV0 {
+    latency_budget_into_compatibility_wire_v0(
+        demand_sliced_monotone_fact_propagation_latency_budget_v0(),
+    )
+}
+
+/// Deprecated wire marker retained only for callers pinned to the pre-deflation schema.
+/// Owner: `omena-streaming-ifds` maintainers. Removal condition: not before 1.0,
+/// after downstream migration and zero audited non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+pub const STREAMING_IFDS_LAYER_MARKER_V0: &str = LEGACY_PROPAGATION_LAYER_BYTES_V0;
+
+/// Deprecated wire marker retained only for callers pinned to the pre-deflation schema.
+/// Owner: `omena-streaming-ifds` maintainers. Removal condition: not before 1.0,
+/// after downstream migration and zero audited non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+pub const STREAMING_IFDS_FEATURE_GATE_V0: &str = LEGACY_PROPAGATION_FEATURE_BYTES_V0;
+
+#[cfg(test)]
+fn propagation_wire_fixture_v0() -> (
+    Vec<UnifiedHypergraphHyperedgeV0>,
+    DemandSlicedMonotoneFactPropagationEventInputV0,
+) {
+    (
+        vec![demand_sliced_monotone_fact_propagation_soak_hyperedge(
+            "edge-a-b", "a", "b",
+        )],
+        demand_sliced_monotone_fact_propagation_event_input_v0(
+            "event-a",
+            1,
+            "a",
+            top_class_value(),
+            None,
+        ),
+    )
+}
+
+#[cfg(test)]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy deep report wire fixture adapter owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_propagation_deep_report_serialized_v0()
+-> Result<(bool, bool, String), serde_json::Error> {
+    let (hyperedges, event) = propagation_wire_fixture_v0();
+    let event = event_into_compatibility_wire_v0(event);
+    let report = run_streaming_ifds_exact_v0(
+        "fixture-update",
+        "a",
+        &hyperedges,
+        std::slice::from_ref(&event),
+        &ExactStreamingConnectivityOracleV0::default(),
+        None,
+    );
+    Ok((
+        STREAMING_IFDS_LAYER_MARKER_V0 == "streaming-ifds",
+        STREAMING_IFDS_FEATURE_GATE_V0 == "streaming-ifds",
+        serde_json::to_string(&report)?,
+    ))
+}
+
+#[cfg(test)]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy neutral connectivity wire fixture adapter owned by omena-streaming-ifds maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_connectivity_surfaces_serialized_v0() -> Result<String, serde_json::Error> {
+    let (hyperedges, event) = propagation_wire_fixture_v0();
+    let event = event_into_compatibility_wire_v0(event);
+    let oracle = ExactStreamingConnectivityOracleV0::default();
+    let backend = PolylogDynamicConnectivityBackendV0::default();
+    let witness = polylog_connectivity_witness_v0("a", &hyperedges);
+    let profile = summarize_reachability_dirty_set_profile_v0("a", &[], &hyperedges, &oracle);
+    let delta = incremental_reachable_node_ids_zset(
+        "a",
+        &hyperedges,
+        std::slice::from_ref(&event),
+        ["b".to_string()],
+    );
+    serde_json::to_string(&serde_json::json!({
+        "oracle": oracle,
+        "backend": backend,
+        "witness": witness,
+        "profile": profile,
+        "delta": delta,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        let mut digest = String::with_capacity(64);
+        for byte in Sha256::digest(bytes) {
+            let _ = write!(&mut digest, "{byte:02x}");
+        }
+        digest
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn compatibility_and_canonical_deep_reports_keep_distinct_exact_wire_bytes()
+    -> Result<(), serde_json::Error> {
+        let (compatibility_layer_matches, compatibility_feature_matches, compatibility_json) =
+            compatibility_propagation_deep_report_serialized_v0()?;
+        assert!(compatibility_layer_matches);
+        assert!(compatibility_feature_matches);
+        assert_eq!(
+            sha256_hex(compatibility_json.as_bytes()),
+            "75df7d18b954fd506bbc66ebcc1e5bbc32619de52f98f0118935e8ef0225d5d7"
+        );
+
+        assert_eq!(
+            DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+            "demand-sliced-monotone-fact-propagation"
+        );
+        assert_eq!(
+            DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
+            "demand-sliced-monotone-fact-propagation"
+        );
+        let (hyperedges, event) = propagation_wire_fixture_v0();
+        let report = run_demand_sliced_monotone_fact_propagation_exact_v0(
+            "fixture-update",
+            "a",
+            &hyperedges,
+            std::slice::from_ref(&event),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
+            None,
+        );
+        let canonical_json = serde_json::to_string(&report)?;
+        assert_eq!(
+            sha256_hex(canonical_json.as_bytes()),
+            "a102d68899bc44f06632b6eda1987f030714311498b6bf278d2fc4351c78d275"
+        );
+        assert_ne!(canonical_json, compatibility_json);
+        Ok(())
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn compatibility_and_canonical_connectivity_surfaces_keep_distinct_exact_wire_bytes()
+    -> Result<(), serde_json::Error> {
+        let compatibility_json = compatibility_connectivity_surfaces_serialized_v0()?;
+        assert_eq!(
+            sha256_hex(compatibility_json.as_bytes()),
+            "dd5bce22ddbf49715360a0dc926d0dadf5f92e7bf7ccdb49af1e4aa6e0658625"
+        );
+
+        let (hyperedges, event) = propagation_wire_fixture_v0();
+        let oracle = DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default();
+        let backend = DemandSlicedMonotoneFactPropagationExactBfsConnectivityBackendV0::default();
+        let witness = demand_sliced_monotone_fact_propagation_exact_bfs_connectivity_witness_v0(
+            "a",
+            &hyperedges,
+        );
+        let profile =
+            summarize_demand_sliced_monotone_fact_propagation_reachability_dirty_set_profile_v0(
+                "a",
+                &[],
+                &hyperedges,
+                &oracle,
+            );
+        let delta = demand_sliced_monotone_fact_propagation_reachability_delta_v0(
+            "a",
+            &hyperedges,
+            std::slice::from_ref(&event),
+            ["b".to_string()],
+        );
+        let canonical_json = serde_json::to_string(&serde_json::json!({
+            "oracle": oracle,
+            "backend": backend,
+            "witness": witness,
+            "profile": profile,
+            "delta": delta,
+        }))?;
+        assert_eq!(
+            sha256_hex(canonical_json.as_bytes()),
+            "0b53a1de6516430ab2dd71bc3db02558aa59311a25e031158720912b806fd866"
+        );
+        assert_ne!(canonical_json, compatibility_json);
+        Ok(())
+    }
 
     fn abstract_class_value_variant_names_from_source() -> Vec<String> {
         let source = include_str!("../../omena-abstract-value/src/types.rs");
@@ -2965,7 +5204,11 @@ mod tests {
 
     #[test]
     fn update_records_exact_default_and_refinement_digest() {
-        let update = streaming_ifds_update_v0("u1", vec!["a".to_string()], Some(42));
+        let update = demand_sliced_monotone_fact_propagation_update_v0(
+            "u1",
+            vec!["a".to_string()],
+            Some(42),
+        );
         assert_eq!(update.schema_version, "0");
         assert_eq!(update.revision, 0);
         assert_eq!(update.delta, 0);
@@ -2976,7 +5219,7 @@ mod tests {
     #[test]
     fn shared_scc_primitive_reproduces_the_deleted_tarjan_duplicate() {
         // SLICE-A guard-equivalence: the shared `collect_directed_graph_sccs` owner reproduces the
-        // exact output the now-deleted streaming-ifds Tarjan duplicate produced — each component
+        // exact output the now-deleted demand-sliced-monotone-fact-propagation Tarjan duplicate produced — each component
         // sorted, the `a <-> b` 2-cycle collapsed, the `c` sink kept as a singleton, components in
         // Tarjan reverse-topological discovery order (sink first).
         let adjacency: BTreeMap<String, BTreeSet<String>> = BTreeMap::from([
@@ -3073,7 +5316,8 @@ mod tests {
 
     #[test]
     fn refinement_context_change_invalidates_by_salsa_revision_bump() {
-        let update = streaming_ifds_refinement_revision_bump_v0("u2", 7, 8, 4242);
+        let update =
+            demand_sliced_monotone_fact_propagation_refinement_revision_bump_v0("u2", 7, 8, 4242);
         assert_eq!(update.previous_revision, Some(7));
         assert_eq!(update.revision, 8);
         assert_eq!(update.refinement_context_digest, Some(4242));
@@ -3083,12 +5327,12 @@ mod tests {
     }
 
     #[test]
-    fn streaming_ifds_propagates_facts_and_matches_batch_precision() {
+    fn demand_sliced_monotone_fact_propagation_propagates_facts_and_matches_batch_precision() {
         let hyperedges = vec![
             hyperedge("edge-a-b", "a", "b"),
             hyperedge("edge-b-c", "b", "c"),
         ];
-        let events = vec![streaming_ifds_event_input_v0(
+        let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             7,
             "a",
@@ -3098,12 +5342,12 @@ mod tests {
             None,
         )];
 
-        let report = run_streaming_ifds_exact_v0(
+        let report = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-1",
             "a",
             &hyperedges,
             &events,
-            &PolylogDynamicConnectivityBackendV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactBfsConnectivityBackendV0::default(),
             None,
         );
 
@@ -3149,7 +5393,7 @@ mod tests {
             ]
         );
         assert!(
-            streaming_ifds_transfer_functions_v0(&hyperedges)
+            demand_sliced_monotone_fact_propagation_transfer_functions_v0(&hyperedges)
                 .iter()
                 .all(|transfer| transfer.transfer_kind == "composeClassSet")
         );
@@ -3163,8 +5407,8 @@ mod tests {
             hyperedge_with_kind("edge-a-d", "a", "d", UnifiedHypergraphEdgeKindV0::Value),
             hyperedge_with_kind("edge-d-e", "d", "e", UnifiedHypergraphEdgeKindV0::Value),
         ];
-        let transfer_table = streaming_ifds_transfer_table_v0(&hyperedges);
-        let events = vec![streaming_ifds_event_input_v0(
+        let transfer_table = demand_sliced_monotone_fact_propagation_transfer_table_v0(&hyperedges);
+        let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             7,
             "a",
@@ -3175,9 +5419,9 @@ mod tests {
         )];
 
         let (interned_facts, interned_stats) =
-            propagate_ifds_facts_with_table_and_stats(&transfer_table, &events);
+            propagate_monotone_facts_with_table_and_stats(&transfer_table, &events);
         let (string_facts, string_stats) =
-            propagate_ifds_facts_with_table_string_dedup_for_test(&transfer_table, &events);
+            propagate_monotone_facts_with_table_string_dedup_for_test(&transfer_table, &events);
 
         assert_eq!(interned_facts, string_facts);
         assert_eq!(interned_stats, string_stats);
@@ -3195,14 +5439,18 @@ mod tests {
             "d".to_string(),
             "e".to_string(),
         ];
-        let interned_entry = streaming_ifds_summary_cache_entry_v0(
+        let interned_entry = demand_sliced_monotone_fact_propagation_summary_cache_entry_v0(
             "a",
             reachable.clone(),
             fact_keys(&interned_facts),
             false,
         );
-        let string_entry =
-            streaming_ifds_summary_cache_entry_v0("a", reachable, fact_keys(&string_facts), false);
+        let string_entry = demand_sliced_monotone_fact_propagation_summary_cache_entry_v0(
+            "a",
+            reachable,
+            fact_keys(&string_facts),
+            false,
+        );
         assert_eq!(interned_entry, string_entry);
         assert_eq!(
             json_string(&interned_entry),
@@ -3214,8 +5462,8 @@ mod tests {
     #[test]
     fn run_local_fact_interning_restarts_for_each_propagation() {
         let hyperedges = vec![hyperedge("edge-a-b", "a", "b")];
-        let transfer_table = streaming_ifds_transfer_table_v0(&hyperedges);
-        let events = vec![streaming_ifds_event_input_v0(
+        let transfer_table = demand_sliced_monotone_fact_propagation_transfer_table_v0(&hyperedges);
+        let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             1,
             "a",
@@ -3225,14 +5473,20 @@ mod tests {
             None,
         )];
 
-        let mut left_table = StreamingIFDSRunInternTableV0::from_inputs(&transfer_table, &events);
+        let mut left_table = DemandSlicedMonotoneFactPropagationRunInternTableV0::from_inputs(
+            &transfer_table,
+            &events,
+        );
         let left_key = left_table.intern_fact_key(
             "a",
             &AbstractClassValueV0::Exact {
                 value: "button".to_string(),
             },
         );
-        let mut second_table = StreamingIFDSRunInternTableV0::from_inputs(&transfer_table, &events);
+        let mut second_table = DemandSlicedMonotoneFactPropagationRunInternTableV0::from_inputs(
+            &transfer_table,
+            &events,
+        );
         let second_key = second_table.intern_fact_key(
             "a",
             &AbstractClassValueV0::Exact {
@@ -3241,7 +5495,7 @@ mod tests {
         );
 
         assert_eq!(left_key, second_key);
-        let interned = StreamingIFDSInternedFactV0 {
+        let interned = DemandSlicedMonotoneFactPropagationInternedFactV0 {
             key: left_key,
             provenance: vec!["event:event-a".to_string()],
         };
@@ -3256,7 +5510,7 @@ mod tests {
 
     #[test]
     fn summary_cache_entry_keeps_string_fact_key_surface() {
-        let entry = streaming_ifds_summary_cache_entry_v0(
+        let entry = demand_sliced_monotone_fact_propagation_summary_cache_entry_v0(
             "a",
             vec!["a".to_string(), "b".to_string()],
             vec![
@@ -3315,18 +5569,18 @@ mod tests {
         let variant_names = abstract_class_value_variant_names_from_source();
         let facts = variant_names
             .iter()
-            .map(|variant_name| StreamingIFDSFactV0 {
-                schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            .map(|variant_name| DemandSlicedMonotoneFactPropagationFactV0 {
+                schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
                 product: "omena-streaming-ifds.fact",
-                layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-                feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+                layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+                feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
                 fact_id: format!("fact-{variant_name}"),
                 node_id: format!("node-{variant_name}"),
                 value: representative_class_value(variant_name),
                 provenance: vec![format!("fixture:{variant_name}")],
             })
             .collect::<Vec<_>>();
-        let entry = streaming_ifds_summary_cache_entry_with_facts_v0(
+        let entry = demand_sliced_monotone_fact_propagation_summary_cache_entry_with_facts_v0(
             "entry",
             Vec::new(),
             facts.clone(),
@@ -3347,13 +5601,72 @@ mod tests {
     }
 
     #[test]
+    fn summary_cache_preserves_preconstruction_cutoff_provenances_distinctly() {
+        use omena_abstract_value::AbstractClassValueProvenanceV0 as Provenance;
+
+        let facts = vec![
+            demand_sliced_monotone_fact_propagation_fact_v0(
+                "same-cutoff-node".to_string(),
+                AbstractClassValueV0::Top {
+                    provenance: Some(Provenance::AutomatonLanguageCardinalityLimit),
+                },
+                vec!["fixture:cardinality-cutoff".to_string()],
+            ),
+            demand_sliced_monotone_fact_propagation_fact_v0(
+                "same-cutoff-node".to_string(),
+                AbstractClassValueV0::Top {
+                    provenance: Some(Provenance::AutomatonMaterializedByteLimit),
+                },
+                vec!["fixture:materialized-byte-cutoff".to_string()],
+            ),
+        ];
+        let entry = demand_sliced_monotone_fact_propagation_summary_cache_entry_with_facts_v0(
+            "entry",
+            Vec::new(),
+            facts.clone(),
+            false,
+        );
+        let recovered = previous_facts_by_key(Some(std::slice::from_ref(&entry)));
+
+        assert_ne!(
+            fact_key(&facts[0].node_id, &facts[0].value),
+            fact_key(&facts[1].node_id, &facts[1].value)
+        );
+        assert_eq!(recovered.len(), 2);
+
+        for fact in &facts {
+            assert_eq!(
+                recovered.get(&fact_key(&fact.node_id, &fact.value)),
+                Some(fact),
+                "typed cache must preserve the cutoff provenance for {}",
+                fact.node_id
+            );
+        }
+
+        let serialized = json_value(&entry);
+        let serialized_provenances = serialized["facts"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|fact| fact["value"]["provenance"].as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            serialized_provenances,
+            BTreeSet::from([
+                "automatonLanguageCardinalityLimit",
+                "automatonMaterializedByteLimit",
+            ])
+        );
+    }
+
+    #[test]
     fn demand_report_matches_projected_batch_fact_keys() {
         let hyperedges = vec![
             hyperedge("edge-a-b", "a", "b"),
             hyperedge("edge-b-c", "b", "c"),
             hyperedge("edge-c-d", "c", "d"),
         ];
-        let events = vec![streaming_ifds_event_input_v0(
+        let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             7,
             "a",
@@ -3365,20 +5678,30 @@ mod tests {
         let starts = vec!["a".to_string()];
         let targets = vec!["c".to_string()];
 
-        let demand = run_streaming_ifds_demand_v0(&starts, &targets, &hyperedges, &events);
+        let demand = run_demand_sliced_monotone_fact_propagation_demand_v0(
+            &starts,
+            &targets,
+            &hyperedges,
+            &events,
+        );
         let structural_projection =
-            streaming_ifds_structural_projection_node_ids_v0(&starts, &targets, &hyperedges);
+            demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
+                &starts,
+                &targets,
+                &hyperedges,
+            );
         let projected_nodes = structural_projection
             .iter()
             .map(String::as_str)
             .collect::<BTreeSet<_>>();
-        let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(&hyperedges, &events)
-            .into_iter()
-            .filter(|key| {
-                key.rsplit_once('|')
-                    .is_some_and(|(node, _)| projected_nodes.contains(node))
-            })
-            .collect::<Vec<_>>();
+        let batch_fact_keys =
+            demand_sliced_monotone_fact_propagation_batch_fact_keys_v0(&hyperedges, &events)
+                .into_iter()
+                .filter(|key| {
+                    key.rsplit_once('|')
+                        .is_some_and(|(node, _)| projected_nodes.contains(node))
+                })
+                .collect::<Vec<_>>();
 
         assert!(demand.strict_subset_of_forward_reachable_nodes);
         assert_eq!(demand.projection_node_ids, vec!["a", "b", "c"]);
@@ -3402,7 +5725,7 @@ mod tests {
             hyperedge("edge-noise-target", "noise", "target"),
         ];
 
-        let projection = streaming_ifds_structural_projection_node_ids_v0(
+        let projection = demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
             &["root".to_string()],
             &["target".to_string()],
             &hyperedges,
@@ -3421,7 +5744,7 @@ mod tests {
             hyperedge("edge-join-target", "join", "target"),
             hyperedge("edge-noise-target", "noise", "target"),
         ];
-        let events = vec![streaming_ifds_event_input_v0(
+        let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-root",
             1,
             "root",
@@ -3433,9 +5756,17 @@ mod tests {
         let starts = vec!["root".to_string()];
         let targets = vec!["target".to_string()];
 
-        let demand = run_streaming_ifds_demand_v0(&starts, &targets, &hyperedges, &events);
-        let structural =
-            streaming_ifds_structural_projection_node_ids_v0(&starts, &targets, &hyperedges);
+        let demand = run_demand_sliced_monotone_fact_propagation_demand_v0(
+            &starts,
+            &targets,
+            &hyperedges,
+            &events,
+        );
+        let structural = demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
+            &starts,
+            &targets,
+            &hyperedges,
+        );
 
         assert_eq!(structural, vec!["join", "left", "right", "root", "target"]);
         assert_eq!(demand.projection_node_ids, structural);
@@ -3450,9 +5781,13 @@ mod tests {
 
     #[test]
     fn fact_key_route_keeps_batch_until_relocation_gate_is_green() {
-        let query = streaming_ifds_fact_key_route_v0(&["target".to_string()]);
-        let enabled = streaming_ifds_fact_key_route_with_gate_v0(&["target".to_string()], true);
-        let workspace = streaming_ifds_fact_key_route_v0(&[]);
+        let query =
+            demand_sliced_monotone_fact_propagation_fact_key_route_v0(&["target".to_string()]);
+        let enabled = demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_v0(
+            &["target".to_string()],
+            true,
+        );
+        let workspace = demand_sliced_monotone_fact_propagation_fact_key_route_v0(&[]);
 
         assert_eq!(query.request_scope, "queryShaped");
         assert_eq!(query.fact_key_engine, "batch");
@@ -3470,7 +5805,7 @@ mod tests {
             hyperedge("edge-a-b", "a", "b"),
             hyperedge("edge-b-c", "b", "c"),
         ];
-        let events = vec![streaming_ifds_event_input_v0(
+        let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             1,
             "a",
@@ -3480,7 +5815,7 @@ mod tests {
             None,
         )];
 
-        let report = streaming_ifds_demand_eager_equivalence_v0(
+        let report = demand_sliced_monotone_fact_propagation_demand_eager_equivalence_v0(
             &["a".to_string()],
             &["b".to_string()],
             &hyperedges,
@@ -3495,7 +5830,7 @@ mod tests {
 
     #[test]
     fn demand_eager_equivalence_rejects_an_injected_divergence() {
-        let report = streaming_ifds_demand_eager_equivalence_report_v0(
+        let report = demand_sliced_monotone_fact_propagation_demand_eager_equivalence_report_v0(
             vec!["a|exact:button".to_string(), "b|exact:button".to_string()],
             vec!["a|exact:button".to_string()],
         );
@@ -3511,7 +5846,7 @@ mod tests {
             hyperedge("edge-a-b", "a", "b"),
             hyperedge("edge-b-c", "b", "c"),
         ];
-        let events = vec![streaming_ifds_event_input_v0(
+        let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             7,
             "a",
@@ -3523,7 +5858,13 @@ mod tests {
         let starts = vec!["a".to_string()];
         let targets = vec!["c".to_string()];
 
-        let report = run_streaming_ifds_settle_equal_v0(&starts, &targets, &hyperedges, &events, 3);
+        let report = run_demand_sliced_monotone_fact_propagation_settle_equal_v0(
+            &starts,
+            &targets,
+            &hyperedges,
+            &events,
+            3,
+        );
 
         assert_eq!(report.requested_settle_count, 3);
         assert_eq!(report.equal_settle_count, 3);
@@ -3533,8 +5874,8 @@ mod tests {
 
     #[test]
     fn settle_soak_report_requires_distinct_revisions() {
-        let revisions = streaming_ifds_default_settle_soak_revisions_v0();
-        let report = run_streaming_ifds_settle_soak_v0(&revisions);
+        let revisions = demand_sliced_monotone_fact_propagation_default_settle_soak_revisions_v0();
+        let report = run_demand_sliced_monotone_fact_propagation_settle_soak_v0(&revisions);
 
         assert_eq!(report.product, "omena-streaming-ifds.settle-soak-report");
         assert_eq!(report.requested_revision_count, 4);
@@ -3585,7 +5926,8 @@ mod tests {
 
     #[test]
     fn settle_soak_report_rejects_repeated_input() {
-        let mut revisions = streaming_ifds_default_settle_soak_revisions_v0();
+        let mut revisions =
+            demand_sliced_monotone_fact_propagation_default_settle_soak_revisions_v0();
         let repeated = revisions[0].clone();
         revisions = vec![
             repeated.clone(),
@@ -3594,7 +5936,7 @@ mod tests {
             repeated,
         ];
 
-        let report = run_streaming_ifds_settle_soak_v0(&revisions);
+        let report = run_demand_sliced_monotone_fact_propagation_settle_soak_v0(&revisions);
 
         assert_eq!(report.requested_revision_count, 4);
         assert_eq!(report.distinct_revision_count, 1);
@@ -3605,22 +5947,23 @@ mod tests {
     #[test]
     fn demand_readiness_requires_every_precondition() {
         let settle_report = green_settle_soak_report();
-        let ready_input = StreamingIFDSDemandReadinessInputV0 {
+        let ready_input = DemandSlicedMonotoneFactPropagationDemandReadinessInputV0 {
             fact_key_gate_verdict: green_gate_artifact_verdict(
-                STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
             ),
             deletion_corpus_verdict: green_gate_artifact_verdict(
-                STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
             ),
             complexity_slope_verdict: green_gate_artifact_verdict(
-                STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0,
+                DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_ARTIFACT_PRODUCT_V0,
             ),
             relocation_approval_verdict: green_gate_artifact_verdict(
-                STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0,
+                DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_PRODUCT_V0,
             ),
             settle_report: settle_report.clone(),
         };
-        let ready = streaming_ifds_demand_readiness_v0(ready_input.clone());
+        let ready =
+            demand_sliced_monotone_fact_propagation_demand_readiness_v0(ready_input.clone());
 
         assert_eq!(
             ready.product,
@@ -3631,19 +5974,23 @@ mod tests {
         assert!(ready.demand_primary_ready);
 
         let mut missing_fact_key = ready_input.clone();
-        missing_fact_key.fact_key_gate_verdict =
-            red_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0);
+        missing_fact_key.fact_key_gate_verdict = red_gate_artifact_verdict(
+            DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
+        );
         let mut missing_deletion = ready_input.clone();
-        missing_deletion.deletion_corpus_verdict =
-            red_gate_artifact_verdict(STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0);
+        missing_deletion.deletion_corpus_verdict = red_gate_artifact_verdict(
+            DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
+        );
         let mut missing_slope = ready_input.clone();
-        missing_slope.complexity_slope_verdict =
-            red_gate_artifact_verdict(STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0);
+        missing_slope.complexity_slope_verdict = red_gate_artifact_verdict(
+            DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_ARTIFACT_PRODUCT_V0,
+        );
         let mut missing_approval = ready_input.clone();
-        missing_approval.relocation_approval_verdict =
-            red_gate_artifact_verdict(STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0);
+        missing_approval.relocation_approval_verdict = red_gate_artifact_verdict(
+            DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_PRODUCT_V0,
+        );
         let mut missing_settle = ready_input;
-        missing_settle.settle_report = StreamingIFDSSettleSoakReportV0 {
+        missing_settle.settle_report = DemandSlicedMonotoneFactPropagationSettleSoakReportV0 {
             consecutive_equal_count: 3,
             divergence_count: 1,
             all_revisions_equal: false,
@@ -3657,7 +6004,7 @@ mod tests {
             missing_approval,
             missing_settle,
         ] {
-            let report = streaming_ifds_demand_readiness_v0(input);
+            let report = demand_sliced_monotone_fact_propagation_demand_readiness_v0(input);
             assert!(!report.demand_primary_ready);
             assert_eq!(report.green_precondition_count, 4);
         }
@@ -3667,87 +6014,96 @@ mod tests {
     fn demand_readiness_refuses_unbound_gate_artifacts() {
         let settle_report = green_settle_soak_report();
 
-        let wrong_product =
-            streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
-                fact_key_gate_verdict: StreamingIFDSGateArtifactVerdictV0 {
+        let wrong_product = demand_sliced_monotone_fact_propagation_demand_readiness_v0(
+            DemandSlicedMonotoneFactPropagationDemandReadinessInputV0 {
+                fact_key_gate_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0 {
                     green: true,
                     source_product: "fabricated.boundary".to_string(),
                     artifact_sha256: "0".repeat(64),
                 },
                 deletion_corpus_verdict: green_gate_artifact_verdict(
-                    STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
                 ),
                 complexity_slope_verdict: green_gate_artifact_verdict(
-                    STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0,
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_ARTIFACT_PRODUCT_V0,
                 ),
                 relocation_approval_verdict: green_gate_artifact_verdict(
-                    STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0,
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_PRODUCT_V0,
                 ),
                 settle_report: settle_report.clone(),
-            });
+            },
+        );
         assert!(!wrong_product.demand_primary_ready);
         assert_eq!(
             wrong_product.fact_key_gate.refusal,
             Some("unexpected source product")
         );
 
-        let malformed_digest =
-            streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+        let malformed_digest = demand_sliced_monotone_fact_propagation_demand_readiness_v0(
+            DemandSlicedMonotoneFactPropagationDemandReadinessInputV0 {
                 fact_key_gate_verdict: green_gate_artifact_verdict(
-                    STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
                 ),
-                deletion_corpus_verdict: StreamingIFDSGateArtifactVerdictV0 {
+                deletion_corpus_verdict: DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0 {
                     green: true,
-                    source_product: STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0.to_string(),
+                    source_product:
+                        DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0
+                            .to_string(),
                     artifact_sha256: "not-a-sha256".to_string(),
                 },
                 complexity_slope_verdict: green_gate_artifact_verdict(
-                    STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0,
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_ARTIFACT_PRODUCT_V0,
                 ),
                 relocation_approval_verdict: green_gate_artifact_verdict(
-                    STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0,
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_PRODUCT_V0,
                 ),
                 settle_report: settle_report.clone(),
-            });
+            },
+        );
         assert!(!malformed_digest.demand_primary_ready);
         assert_eq!(
             malformed_digest.deletion_corpus.refusal,
             Some("malformed artifact sha256")
         );
 
-        let absent = streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
-            fact_key_gate_verdict: green_gate_artifact_verdict(
-                STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
-            ),
-            deletion_corpus_verdict: green_gate_artifact_verdict(
-                STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
-            ),
-            complexity_slope_verdict: StreamingIFDSGateArtifactVerdictV0::default(),
-            relocation_approval_verdict: green_gate_artifact_verdict(
-                STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0,
-            ),
-            settle_report,
-        });
+        let absent = demand_sliced_monotone_fact_propagation_demand_readiness_v0(
+            DemandSlicedMonotoneFactPropagationDemandReadinessInputV0 {
+                fact_key_gate_verdict: green_gate_artifact_verdict(
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                ),
+                deletion_corpus_verdict: green_gate_artifact_verdict(
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                ),
+                complexity_slope_verdict:
+                    DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0::default(),
+                relocation_approval_verdict: green_gate_artifact_verdict(
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_PRODUCT_V0,
+                ),
+                settle_report,
+            },
+        );
         assert!(!absent.demand_primary_ready);
         assert_eq!(
             absent.complexity_slope.refusal,
             Some("absent artifact verdict")
         );
 
-        let absent_approval =
-            streaming_ifds_demand_readiness_v0(StreamingIFDSDemandReadinessInputV0 {
+        let absent_approval = demand_sliced_monotone_fact_propagation_demand_readiness_v0(
+            DemandSlicedMonotoneFactPropagationDemandReadinessInputV0 {
                 fact_key_gate_verdict: green_gate_artifact_verdict(
-                    STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
                 ),
                 deletion_corpus_verdict: green_gate_artifact_verdict(
-                    STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0,
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_BOUNDARY_ARTIFACT_PRODUCT_V0,
                 ),
                 complexity_slope_verdict: green_gate_artifact_verdict(
-                    STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0,
+                    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SLOPE_ARTIFACT_PRODUCT_V0,
                 ),
-                relocation_approval_verdict: StreamingIFDSGateArtifactVerdictV0::default(),
+                relocation_approval_verdict:
+                    DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0::default(),
                 settle_report: green_settle_soak_report(),
-            });
+            },
+        );
         assert!(!absent_approval.demand_primary_ready);
         assert_eq!(
             absent_approval.relocation_approval.refusal,
@@ -3756,9 +6112,9 @@ mod tests {
     }
 
     #[test]
-    fn streaming_ifds_summary_cache_records_reused_facts() {
+    fn demand_sliced_monotone_fact_propagation_summary_cache_records_reused_facts() {
         let hyperedges = vec![hyperedge("edge-a-b", "a", "b")];
-        let events = vec![streaming_ifds_event_input_v0(
+        let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             11,
             "a",
@@ -3768,20 +6124,20 @@ mod tests {
             Some(99),
         )];
 
-        let first = run_streaming_ifds_exact_v0(
+        let first = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-1",
             "a",
             &hyperedges,
             &events,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             None,
         );
-        let second = run_streaming_ifds_exact_v0(
+        let second = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-2",
             "a",
             &hyperedges,
             &events,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             Some(&first.summary_cache),
         );
 
@@ -3800,8 +6156,14 @@ mod tests {
         let prefix = representative_class_value("Prefix");
         let automaton = representative_class_value("Automaton");
         let first_events = vec![
-            streaming_ifds_event_input_v0("event-prefix", 1, "a", prefix.clone(), None),
-            streaming_ifds_event_input_v0(
+            demand_sliced_monotone_fact_propagation_event_input_v0(
+                "event-prefix",
+                1,
+                "a",
+                prefix.clone(),
+                None,
+            ),
+            demand_sliced_monotone_fact_propagation_event_input_v0(
                 "event-automaton",
                 1,
                 "detached",
@@ -3809,12 +6171,12 @@ mod tests {
                 None,
             ),
         ];
-        let first = run_streaming_ifds_exact_v0(
+        let first = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-1",
             "a",
             &hyperedges,
             &first_events,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             None,
         );
         let first_by_key = first
@@ -3822,19 +6184,19 @@ mod tests {
             .iter()
             .map(|fact| (fact_key(&fact.node_id, &fact.value), fact.clone()))
             .collect::<BTreeMap<_, _>>();
-        let second_events = vec![streaming_ifds_event_input_v0(
+        let second_events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-prefix-next",
             2,
             "b",
             prefix,
             None,
         )];
-        let second = run_streaming_ifds_exact_v0(
+        let second = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-2",
             "a",
             &hyperedges,
             &second_events,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             Some(&first.summary_cache),
         );
 
@@ -3876,34 +6238,34 @@ mod tests {
         let value = AbstractClassValueV0::Exact {
             value: "button".to_string(),
         };
-        let seed = vec![streaming_ifds_event_input_v0(
+        let seed = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             1,
             "a",
             value.clone(),
             None,
         )];
-        let first = run_streaming_ifds_exact_v0(
+        let first = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-1",
             "a",
             &old_graph,
             &seed,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             None,
         );
 
         // New revision: same graph, re-seed a. The prior cache is consistent with
         // the current graph, so the incremental reuse of the {c} fact agrees with
         // the batch recompute and parity holds.
-        let next = vec![streaming_ifds_event_input_v0(
+        let next = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a2", 2, "a", value, None,
         )];
-        let report = run_streaming_ifds_exact_v0(
+        let report = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-2",
             "a",
             &old_graph,
             &next,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             Some(&first.summary_cache),
         );
 
@@ -3944,12 +6306,13 @@ mod tests {
             )])
             .collect::<Vec<_>>();
 
-        let profile = summarize_reachability_dirty_set_profile_v0(
-            "styleModule|/workspace/App.module.scss|root",
-            &previous,
-            &current,
-            &ExactStreamingConnectivityOracleV0::default(),
-        );
+        let profile =
+            summarize_demand_sliced_monotone_fact_propagation_reachability_dirty_set_profile_v0(
+                "styleModule|/workspace/App.module.scss|root",
+                &previous,
+                &current,
+                &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
+            );
 
         assert_eq!(profile.full_node_count, 4);
         assert_eq!(
@@ -3968,12 +6331,13 @@ mod tests {
     fn reachability_dirty_profile_flags_full_frontier_edits() {
         let previous = clique_reachability_hyperedges("previous", 4);
         let current = clique_reachability_hyperedges("current", 4);
-        let profile = summarize_reachability_dirty_set_profile_v0(
-            "styleModule|/workspace/clique-0.module.scss|root",
-            &previous,
-            &current,
-            &ExactStreamingConnectivityOracleV0::default(),
-        );
+        let profile =
+            summarize_demand_sliced_monotone_fact_propagation_reachability_dirty_set_profile_v0(
+                "styleModule|/workspace/clique-0.module.scss|root",
+                &previous,
+                &current,
+                &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
+            );
 
         assert_eq!(profile.full_node_count, 4);
         assert_eq!(profile.dirty_node_count, profile.full_node_count);
@@ -3986,13 +6350,14 @@ mod tests {
         let current = vec![hyperedge("edge-a-b", "a", "b")];
         let events = vec![edge_delete_event("event-b-c-delete", 2, "b", "c")];
 
-        let delta = incremental_reachable_node_ids_zset(
+        let delta = demand_sliced_monotone_fact_propagation_reachability_delta_v0(
             "a",
             &current,
             &events,
             ["b".to_string(), "c".to_string()],
         );
-        let batch = ExactStreamingConnectivityOracleV0::default().reachable_node_ids("a", &current);
+        let batch = DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default()
+            .reachable_node_ids("a", &current);
 
         assert_eq!(delta.reachable_node_ids, vec!["b".to_string()]);
         assert_eq!(delta.reachable_node_ids, batch);
@@ -4008,8 +6373,14 @@ mod tests {
         ];
         let events = vec![edge_insert_event("event-b-c-insert", 2, "b", "c")];
 
-        let delta = incremental_reachable_node_ids_zset("a", &current, &events, ["b".to_string()]);
-        let batch = ExactStreamingConnectivityOracleV0::default().reachable_node_ids("a", &current);
+        let delta = demand_sliced_monotone_fact_propagation_reachability_delta_v0(
+            "a",
+            &current,
+            &events,
+            ["b".to_string()],
+        );
+        let batch = DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default()
+            .reachable_node_ids("a", &current);
 
         assert_eq!(
             delta.reachable_node_ids,
@@ -4028,19 +6399,19 @@ mod tests {
         let value = AbstractClassValueV0::Exact {
             value: "button".to_string(),
         };
-        let seed = vec![streaming_ifds_event_input_v0(
+        let seed = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             1,
             "a",
             value.clone(),
             None,
         )];
-        let first = run_streaming_ifds_exact_v0(
+        let first = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-1",
             "a",
             &old_graph,
             &seed,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             None,
         );
         assert!(first.incremental_precision_parity_with_batch);
@@ -4052,23 +6423,27 @@ mod tests {
         // so the incremental set is {a, b, c}. The two distinct computations
         // disagree and parity is false.
         let new_graph = vec![hyperedge("edge-a-b", "a", "b")];
-        let next = vec![streaming_ifds_event_input_v0(
+        let next = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a2", 2, "a", value, None,
         )];
-        let report = run_streaming_ifds_exact_v0(
+        let report = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-2",
             "a",
             &new_graph,
             &next,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             Some(&first.summary_cache),
         );
 
         assert!(!report.incremental_precision_parity_with_batch);
         assert!(!report.reachability_parity_with_batch);
         assert!(!report.reachability_delta_used);
-        assert!(report.fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch));
-        assert!(report.fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch));
+        assert!(report.fallback_applied_for(
+            DemandSlicedMonotoneFactPropagationFallbackCauseV0::ReachabilityMismatch
+        ));
+        assert!(report.fallback_applied_for(
+            DemandSlicedMonotoneFactPropagationFallbackCauseV0::FactMismatch
+        ));
         assert_eq!(report.witness.reachable_node_ids, vec!["b".to_string()]);
         assert_eq!(
             report.summary_cache[0].reachable_node_ids,
@@ -4078,7 +6453,7 @@ mod tests {
         // fact remains available only in the explicitly diagnostic candidate.
         assert_eq!(report_node_ids(&report), vec!["a", "b"]);
         assert_eq!(
-            fact_keys(&propagate_ifds_facts(&new_graph, &next)),
+            fact_keys(&propagate_monotone_facts(&new_graph, &next)),
             vec![
                 "a|exact:button".to_string(),
                 "b|finiteSet:b,button".to_string()
@@ -4098,7 +6473,7 @@ mod tests {
             hyperedge("edge-a-b", "a", "b"),
             hyperedge("edge-b-c", "b", "c"),
         ];
-        let seed = vec![streaming_ifds_event_input_v0(
+        let seed = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
             "event-a",
             1,
             "a",
@@ -4107,30 +6482,34 @@ mod tests {
             },
             None,
         )];
-        let first = run_streaming_ifds_exact_v0(
+        let first = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-1",
             "a",
             &old_graph,
             &seed,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             None,
         );
         let current_graph = vec![hyperedge("edge-a-b", "a", "b")];
         let events = vec![edge_delete_event("event-b-c-delete", 2, "b", "c")];
 
-        let report = run_streaming_ifds_exact_v0(
+        let report = run_demand_sliced_monotone_fact_propagation_exact_v0(
             "update-2",
             "a",
             &current_graph,
             &events,
-            &ExactStreamingConnectivityOracleV0::default(),
+            &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
             Some(&first.summary_cache),
         );
 
         assert!(report.reachability_parity_with_batch);
         assert!(report.reachability_delta_used);
-        assert!(!report.fallback_applied_for(StreamingIFDSFallbackCauseV0::ReachabilityMismatch));
-        assert!(report.fallback_applied_for(StreamingIFDSFallbackCauseV0::FactMismatch));
+        assert!(!report.fallback_applied_for(
+            DemandSlicedMonotoneFactPropagationFallbackCauseV0::ReachabilityMismatch
+        ));
+        assert!(report.fallback_applied_for(
+            DemandSlicedMonotoneFactPropagationFallbackCauseV0::FactMismatch
+        ));
         assert_eq!(report_node_ids(&report), vec!["b"]);
         assert!(!report.incremental_facts_for_diagnosis.is_empty());
         assert_eq!(report.witness.reachable_node_ids, vec!["b".to_string()]);
@@ -4148,7 +6527,7 @@ mod tests {
             "styleModule|/workspace/Button.module.scss|root",
             "styleSymbol|/workspace/base.module.scss|base",
         )];
-        let report = summarize_streaming_ifds_cross_file_reachability_v0(
+        let report = summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0(
             "/workspace/Button.module.scss",
             &hyperedges,
         );
@@ -4174,7 +6553,7 @@ mod tests {
             "styleModule|/workspace/Button.module.scss|root",
             "styleSymbol|/workspace/Button.module.scss|base",
         )];
-        let report = summarize_streaming_ifds_cross_file_reachability_v0(
+        let report = summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0(
             "/workspace/Button.module.scss",
             &hyperedges,
         );
@@ -4186,7 +6565,8 @@ mod tests {
     }
 
     #[test]
-    fn cross_file_reachability_fast_path_matches_ifds_oracle_for_mixed_edges() {
+    fn cross_file_reachability_fast_path_matches_monotone_fact_propagation_oracle_for_mixed_edges()
+    {
         let target_style_path = "/workspace/Button.module.scss";
         let hyperedges = vec![
             hyperedge_with_kind(
@@ -4215,12 +6595,15 @@ mod tests {
             ),
         ];
 
-        let fast =
-            summarize_streaming_ifds_cross_file_reachability_v0(target_style_path, &hyperedges);
-        let oracle = summarize_streaming_ifds_cross_file_reachability_oracle_v0(
+        let fast = summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0(
             target_style_path,
             &hyperedges,
         );
+        let oracle =
+            summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_oracle_v0(
+                target_style_path,
+                &hyperedges,
+            );
 
         assert_eq!(fast.reachable_foreign_paths, oracle.reachable_foreign_paths);
         assert_eq!(
@@ -4240,7 +6623,7 @@ mod tests {
             .into_iter()
             .map(|layer_count| {
                 let hyperedges = layered_reachability_hyperedges(layer_count);
-                let summary = summarize_streaming_ifds_cross_file_reachability_fast_v0(
+                let summary = summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_fast_v0(
                     "/workspace/Entry.module.scss",
                     &hyperedges,
                 );
@@ -4259,13 +6642,13 @@ mod tests {
     }
 
     #[test]
-    fn streaming_ifds_solver_transfer_index_growth_stays_near_linear() {
+    fn demand_sliced_monotone_fact_propagation_solver_transfer_index_growth_stays_near_linear() {
         let samples = [8usize, 16, 32]
             .into_iter()
             .map(|layer_count| {
-                let hyperedges = layered_identity_ifds_hyperedges(layer_count);
-                let transfer_table = streaming_ifds_transfer_table_v0(&hyperedges);
-                let events = vec![streaming_ifds_event_input_v0(
+                let hyperedges = layered_identity_monotone_fact_propagation_hyperedges(layer_count);
+                let transfer_table = demand_sliced_monotone_fact_propagation_transfer_table_v0(&hyperedges);
+                let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
                     "event-entry",
                     1,
                     "entry",
@@ -4275,10 +6658,10 @@ mod tests {
                     None,
                 )];
                 let (facts, stats) =
-                    propagate_ifds_facts_with_table_and_stats(&transfer_table, &events);
+                    propagate_monotone_facts_with_table_and_stats(&transfer_table, &events);
                 assert!(
                     facts.len() >= layer_count.saturating_mul(2),
-                    "fixture must keep IFDS propagation live: layer_count={layer_count}, facts={facts:?}"
+                    "fixture must keep monotone fact propagation propagation live: layer_count={layer_count}, facts={facts:?}"
                 );
                 assert_eq!(
                     stats.transfer_visit_count,
@@ -4296,7 +6679,7 @@ mod tests {
         let exponent = fit_growth_exponent(samples.as_slice());
         assert!(
             exponent <= 1.2,
-            "IFDS solver dispatch should scale near-linearly; exponent={exponent:.3}, samples={samples:?}"
+            "monotone fact propagation solver dispatch should scale near-linearly; exponent={exponent:.3}, samples={samples:?}"
         );
     }
 
@@ -4305,8 +6688,8 @@ mod tests {
         let samples = [8usize, 16, 32]
             .into_iter()
             .map(|layer_count| {
-                let hyperedges = layered_identity_ifds_hyperedges(layer_count);
-                let events = vec![streaming_ifds_event_input_v0(
+                let hyperedges = layered_identity_monotone_fact_propagation_hyperedges(layer_count);
+                let events = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
                     "event-entry",
                     1,
                     "entry",
@@ -4316,11 +6699,20 @@ mod tests {
                     None,
                 )];
                 let starts = vec!["entry".to_string()];
-                let fixed_targets = vec![identity_ifds_node(1, "a")];
+                let fixed_targets = vec![identity_monotone_fact_propagation_node(1, "a")];
 
-                let fixed =
-                    run_streaming_ifds_demand_v0(&starts, &fixed_targets, &hyperedges, &events);
-                let workspace = run_streaming_ifds_demand_v0(&starts, &[], &hyperedges, &events);
+                let fixed = run_demand_sliced_monotone_fact_propagation_demand_v0(
+                    &starts,
+                    &fixed_targets,
+                    &hyperedges,
+                    &events,
+                );
+                let workspace = run_demand_sliced_monotone_fact_propagation_demand_v0(
+                    &starts,
+                    &[],
+                    &hyperedges,
+                    &events,
+                );
 
                 assert!(fixed.strict_subset_of_forward_reachable_nodes);
                 assert!(
@@ -4356,8 +6748,9 @@ mod tests {
     }
 
     #[test]
-    fn streaming_ifds_solver_hygiene_policy_keeps_cache_feedback_and_reference_values_explicit() {
-        let policy = streaming_ifds_solver_hygiene_policy_v0();
+    fn demand_sliced_monotone_fact_propagation_solver_hygiene_policy_keeps_cache_feedback_and_reference_values_explicit()
+     {
+        let policy = demand_sliced_monotone_fact_propagation_solver_hygiene_policy_v0();
         assert_eq!(
             policy.summary_cache_feedback_policy,
             "emitEvidenceCacheButDoNotFeedProductPaths"
@@ -4379,12 +6772,12 @@ mod tests {
             "omena-sif.variable-export.value-repr"
         );
         assert_eq!(
-            apply_streaming_ifds_transfer(
-                &StreamingIFDSTransferFunctionV0 {
-                    schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            apply_demand_sliced_monotone_fact_propagation_transfer(
+                &DemandSlicedMonotoneFactPropagationTransferFunctionV0 {
+                    schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
                     product: "test.transfer",
-                    layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-                    feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+                    layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+                    feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
                     hyperedge_id: "edge-sass-forward".to_string(),
                     edge_kind: UnifiedHypergraphEdgeKindV0::SassForward,
                     tail_node_ids: vec!["a".to_string()],
@@ -4400,20 +6793,24 @@ mod tests {
             }
         );
         assert_eq!(
-            streaming_ifds_transfer_kind(UnifiedHypergraphEdgeKindV0::LessImport),
+            demand_sliced_monotone_fact_propagation_transfer_kind(
+                UnifiedHypergraphEdgeKindV0::LessImport
+            ),
             "semanticReferencePreserving"
         );
         assert_eq!(
-            streaming_ifds_transfer_kind(UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure),
+            demand_sliced_monotone_fact_propagation_transfer_kind(
+                UnifiedHypergraphEdgeKindV0::LessModuleGraphClosure
+            ),
             "semanticReferencePreserving"
         );
         assert_eq!(
-            apply_streaming_ifds_transfer(
-                &StreamingIFDSTransferFunctionV0 {
-                    schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            apply_demand_sliced_monotone_fact_propagation_transfer(
+                &DemandSlicedMonotoneFactPropagationTransferFunctionV0 {
+                    schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
                     product: "test.transfer",
-                    layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-                    feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+                    layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+                    feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
                     hyperedge_id: "edge-less-import".to_string(),
                     edge_kind: UnifiedHypergraphEdgeKindV0::LessImport,
                     tail_node_ids: vec!["a".to_string()],
@@ -4433,13 +6830,13 @@ mod tests {
     #[cfg(feature = "with-frame-rule")]
     #[test]
     fn frame_rule_bridge_policy_is_feature_gated() {
-        let policy = streaming_ifds_frame_rule_bridge_policy_v0();
+        let policy = demand_sliced_monotone_fact_propagation_frame_rule_bridge_policy_v0();
         assert_eq!(policy.schema_version, "0");
         assert_eq!(policy.feature_gate, "with-frame-rule");
         assert_eq!(policy.coarse_policy, "frameFootprintReachability");
     }
 
-    fn report_node_ids(report: &StreamingIFDSAnalysisReportV0) -> Vec<&str> {
+    fn report_node_ids(report: &DemandSlicedMonotoneFactPropagationAnalysisReportV0) -> Vec<&str> {
         report
             .output_facts
             .iter()
@@ -4457,10 +6854,15 @@ mod tests {
             hyperedge("e3", "sel|c.scss|z", "sel|b.scss|y"),
             hyperedge("e4", "sel|d.scss|w", "sel|d.scss|w2"),
         ];
-        let condensation = streaming_ifds_reachability_condensation_v0(&hyperedges);
+        let condensation =
+            demand_sliced_monotone_fact_propagation_reachability_condensation_v0(&hyperedges);
         for target in ["a.scss", "b.scss", "c.scss", "d.scss", "unknown.scss"] {
-            let batch = summarize_streaming_ifds_cross_file_reachability_v0(target, &hyperedges);
-            let shared = summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
+            let batch =
+                summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0(
+                    target,
+                    &hyperedges,
+                );
+            let shared = summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_with_condensation_v0(
                 target,
                 &condensation,
             );
@@ -4468,17 +6870,20 @@ mod tests {
         }
     }
 
-    fn propagate_ifds_facts_with_table_string_dedup_for_test(
-        transfer_table: &StreamingIFDSTransferTableV0,
-        events: &[StreamingIfdsEventInputV0],
-    ) -> (Vec<StreamingIFDSFactV0>, StreamingIFDSPropagationStatsV0) {
+    fn propagate_monotone_facts_with_table_string_dedup_for_test(
+        transfer_table: &DemandSlicedMonotoneFactPropagationTransferTableV0,
+        events: &[DemandSlicedMonotoneFactPropagationEventInputV0],
+    ) -> (
+        Vec<DemandSlicedMonotoneFactPropagationFactV0>,
+        DemandSlicedMonotoneFactPropagationPropagationStatsV0,
+    ) {
         let mut seen = BTreeSet::<String>::new();
-        let mut pending = VecDeque::<StreamingIFDSFactV0>::new();
-        let mut output = Vec::<StreamingIFDSFactV0>::new();
-        let mut stats = StreamingIFDSPropagationStatsV0::default();
+        let mut pending = VecDeque::<DemandSlicedMonotoneFactPropagationFactV0>::new();
+        let mut output = Vec::<DemandSlicedMonotoneFactPropagationFactV0>::new();
+        let mut stats = DemandSlicedMonotoneFactPropagationPropagationStatsV0::default();
 
         for event in events {
-            let fact = streaming_ifds_fact_v0(
+            let fact = demand_sliced_monotone_fact_propagation_fact_v0(
                 event.node_id.clone(),
                 event.value.clone(),
                 vec![format!("event:{}", event.event_id)],
@@ -4500,9 +6905,13 @@ mod tests {
                 stats.transfer_visit_count = stats.transfer_visit_count.saturating_add(1);
                 let mut provenance = fact.provenance.clone();
                 provenance.push(format!("transfer:{}", transfer.hyperedge_id));
-                let next_value = apply_streaming_ifds_transfer(transfer, &fact.value);
-                let next_fact =
-                    streaming_ifds_fact_v0(transfer.head_node_id.clone(), next_value, provenance);
+                let next_value =
+                    apply_demand_sliced_monotone_fact_propagation_transfer(transfer, &fact.value);
+                let next_fact = demand_sliced_monotone_fact_propagation_fact_v0(
+                    transfer.head_node_id.clone(),
+                    next_value,
+                    provenance,
+                );
                 if seen.insert(fact_key(&next_fact.node_id, &next_fact.value)) {
                     pending.push_back(next_fact.clone());
                     output.push(next_fact);
@@ -4544,24 +6953,30 @@ mod tests {
         }
     }
 
-    fn green_gate_artifact_verdict(product: &str) -> StreamingIFDSGateArtifactVerdictV0 {
-        StreamingIFDSGateArtifactVerdictV0 {
+    fn green_gate_artifact_verdict(
+        product: &str,
+    ) -> DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0 {
+        DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0 {
             green: true,
             source_product: product.to_string(),
             artifact_sha256: "a".repeat(64),
         }
     }
 
-    fn red_gate_artifact_verdict(product: &str) -> StreamingIFDSGateArtifactVerdictV0 {
-        StreamingIFDSGateArtifactVerdictV0 {
+    fn red_gate_artifact_verdict(
+        product: &str,
+    ) -> DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0 {
+        DemandSlicedMonotoneFactPropagationGateArtifactVerdictV0 {
             green: false,
             source_product: product.to_string(),
             artifact_sha256: "b".repeat(64),
         }
     }
 
-    fn green_settle_soak_report() -> StreamingIFDSSettleSoakReportV0 {
-        run_streaming_ifds_settle_soak_v0(&streaming_ifds_default_settle_soak_revisions_v0())
+    fn green_settle_soak_report() -> DemandSlicedMonotoneFactPropagationSettleSoakReportV0 {
+        run_demand_sliced_monotone_fact_propagation_settle_soak_v0(
+            &demand_sliced_monotone_fact_propagation_default_settle_soak_revisions_v0(),
+        )
     }
 
     fn hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {
@@ -4578,8 +6993,8 @@ mod tests {
         UnifiedHypergraphHyperedgeV0 {
             schema_version: "0",
             product: "test.hyperedge",
-            layer_marker: "hypergraph-ifds",
-            feature_gate: "hypergraph-ifds",
+            layer_marker: "hypergraph-monotone-fact-propagation",
+            feature_gate: "hypergraph-monotone-fact-propagation",
             hyperedge_id: id.to_string(),
             edge_kind,
             source_summary_edge_id: id.to_string(),
@@ -4596,13 +7011,13 @@ mod tests {
         revision: u64,
         from: &str,
         to: &str,
-    ) -> StreamingIfdsEventInputV0 {
+    ) -> DemandSlicedMonotoneFactPropagationEventInputV0 {
         edge_change_event(
             id,
             revision,
             from,
             to,
-            StreamingIFDSEventKindV0::EdgeInsert {
+            DemandSlicedMonotoneFactPropagationEventKindV0::EdgeInsert {
                 from: from.to_string(),
                 to: to.to_string(),
                 edge_kind: "composesLocal",
@@ -4615,13 +7030,13 @@ mod tests {
         revision: u64,
         from: &str,
         to: &str,
-    ) -> StreamingIfdsEventInputV0 {
+    ) -> DemandSlicedMonotoneFactPropagationEventInputV0 {
         edge_change_event(
             id,
             revision,
             from,
             to,
-            StreamingIFDSEventKindV0::EdgeDelete {
+            DemandSlicedMonotoneFactPropagationEventKindV0::EdgeDelete {
                 from: from.to_string(),
                 to: to.to_string(),
                 edge_kind: "composesLocal",
@@ -4634,13 +7049,13 @@ mod tests {
         revision: u64,
         from: &str,
         to: &str,
-        event_kind: StreamingIFDSEventKindV0,
-    ) -> StreamingIfdsEventInputV0 {
-        StreamingIfdsEventInputV0 {
-            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        event_kind: DemandSlicedMonotoneFactPropagationEventKindV0,
+    ) -> DemandSlicedMonotoneFactPropagationEventInputV0 {
+        DemandSlicedMonotoneFactPropagationEventInputV0 {
+            schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
             product: "test.event-input",
-            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+            layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+            feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
             event_id: id.to_string(),
             revision,
             event_kind,
@@ -4707,13 +7122,15 @@ mod tests {
         format!("styleSymbol|/workspace/layer-{layer}-{branch}.module.scss|token")
     }
 
-    fn layered_identity_ifds_hyperedges(layer_count: usize) -> Vec<UnifiedHypergraphHyperedgeV0> {
+    fn layered_identity_monotone_fact_propagation_hyperedges(
+        layer_count: usize,
+    ) -> Vec<UnifiedHypergraphHyperedgeV0> {
         let mut hyperedges = Vec::new();
         for branch in ["a", "b"] {
             hyperedges.push(hyperedge_with_kind(
                 &format!("edge-entry-{branch}"),
                 "entry",
-                identity_ifds_node(0, branch).as_str(),
+                identity_monotone_fact_propagation_node(0, branch).as_str(),
                 UnifiedHypergraphEdgeKindV0::SassUse,
             ));
         }
@@ -4722,8 +7139,8 @@ mod tests {
             for branch in ["a", "b"] {
                 hyperedges.push(hyperedge_with_kind(
                     &format!("edge-{layer}-{branch}"),
-                    identity_ifds_node(layer, branch).as_str(),
-                    identity_ifds_node(next_layer, branch).as_str(),
+                    identity_monotone_fact_propagation_node(layer, branch).as_str(),
+                    identity_monotone_fact_propagation_node(next_layer, branch).as_str(),
                     UnifiedHypergraphEdgeKindV0::SassForward,
                 ));
             }
@@ -4731,7 +7148,7 @@ mod tests {
         hyperedges
     }
 
-    fn identity_ifds_node(layer: usize, branch: &str) -> String {
+    fn identity_monotone_fact_propagation_node(layer: usize, branch: &str) -> String {
         format!("identity:{layer}:{branch}")
     }
 

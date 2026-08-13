@@ -434,6 +434,24 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("runs contract parity v2 golden after the Linux NAPI build", () => {
+    expect(resolveGateTarget(manifest, "contract/parity-v2-golden")).toMatchObject({
+      origin: "package+declared",
+      ciTier: "verify",
+      ciGroup: "verify",
+    });
+
+    const workflow = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
+    const napiBuildIndex = workflow.indexOf("pnpm omena-check run core/build/omena-napi");
+    const parityGoldenIndex = workflow.indexOf(
+      "pnpm omena-check run contract/parity-v2-golden",
+      napiBuildIndex,
+    );
+
+    expect(napiBuildIndex).toBeGreaterThan(-1);
+    expect(parityGoldenIndex).toBeGreaterThan(napiBuildIndex);
+  });
+
   it("surfaces declared replacements as preserved compatibility scripts", () => {
     const compatibilityScripts = [
       ["release/release/verify", "release:verify"],

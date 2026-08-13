@@ -1,0 +1,1256 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-domain-claims.rename-map",
+  "renameFamilies": [
+    {
+      "familyId": "f01",
+      "oldForms": ["finite-height", "finite height"],
+      "implementationAccurateNames": [
+        "bounded construction cost",
+        "separate flow fixed-point convergence controls"
+      ],
+      "rationale": "Termination comes from the construction wall and the separately measured flow convergence controls; the implementation does not establish finite lattice height."
+    },
+    {
+      "familyId": "f02",
+      "oldForms": ["BeliefPropagation", "belief-propagation", "belief propagation"],
+      "implementationAccurateNames": [
+        "ReducedProductConstraintMessageV0",
+        "ReducedProductConstraintPropagationV0",
+        "ReducedProductConstraintGraphV0",
+        "ReducedProductConstraintVariableV0",
+        "ReducedProductConstraintFactorV0",
+        "summarize_reduced_product_constraint_propagation_v0",
+        "summarize_reduced_product_constraint_graph_v0",
+        "DesignerIntentEvidencePropagationTraceV0",
+        "DesignerIntentEvidenceMessageV0",
+        "designer_intent_evidence_propagation_trace_v0"
+      ],
+      "rationale": "The code iterates reduced-product constraints and designer-intent evidence messages; it does not implement a general probabilistic belief-propagation algorithm."
+    },
+    {
+      "familyId": "f03",
+      "oldForms": ["IFDS", "ifds", "streaming-ifds"],
+      "implementationAccurateNames": [
+        "Demand-Sliced Monotone Fact Propagation",
+        "demand-sliced-monotone-fact-propagation"
+      ],
+      "rationale": "The implementation performs demand-sliced monotone reachability and fact propagation without the distributive environment machinery claimed by the old family."
+    },
+    {
+      "familyId": "f04",
+      "oldForms": ["Lawvere", "lawvere"],
+      "implementationAccurateNames": ["transform-catalog scaffold", "transform catalog metadata"],
+      "rationale": "The published surface carries transform-catalog metadata and experiment scaffolding, not the objects, morphisms, identities, and composition required by the former theory name."
+    },
+    {
+      "familyId": "f05",
+      "oldForms": [
+        "sheaf",
+        "cosheaf",
+        "presheaf",
+        "cascade site",
+        "site_id",
+        "site axiom",
+        "site theorem",
+        "site module",
+        "verify-site-stability",
+        "categorical.site-stability"
+      ],
+      "implementationAccurateNames": [
+        "cascade-section aggregation scaffold",
+        "cascade-section plan scaffold"
+      ],
+      "rationale": "The implementation stores, plans, and aggregates cascade sections without a categorical site, covering families, or gluing laws."
+    },
+    {
+      "familyId": "f06",
+      "oldForms": ["RG flow", "rg-flow", "renormalization-group"],
+      "implementationAccurateNames": ["multiscale complexity heuristic scaffold"],
+      "rationale": "The implementation exposes a bounded multiscale heuristic and does not establish a renormalization-group construction."
+    }
+  ],
+  "expectedClaims": [],
+  "compatibilityDeclarations": [
+    {
+      "familyId": "f01",
+      "sourcePath": "rust/crates/omena-abstract-value/src/reduced_product.rs",
+      "declarations": [
+        "LEGACY_CONSTRAINT_EQUATION_SYSTEM_V0",
+        "LEGACY_CONSTRAINT_WIRE_PRODUCT_BYTES_V0"
+      ],
+      "owner": "omena-abstract-value maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f02",
+      "sourcePath": "rust/crates/omena-abstract-value/src/lib.rs",
+      "declarations": [
+        "summarize_belief_propagation_iteration_v0",
+        "summarize_reduced_product_belief_propagation_domain_graph_v0"
+      ],
+      "owner": "omena-abstract-value maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f02",
+      "sourcePath": "rust/crates/omena-abstract-value/src/reduced_product.rs",
+      "declarations": [
+        "LEGACY_CONSTRAINT_GRAPH_PRODUCT_V0",
+        "legacy_constraint_graph_wire_compatibility_v0",
+        "LEGACY_CONSTRAINT_PROPAGATION_PRODUCT_V0",
+        "legacy_constraint_propagation_wire_compatibility_v0",
+        "LEGACY_CONSTRAINT_WIRE_PRODUCT_BYTES_V0",
+        "summarize_belief_propagation_iteration_v0",
+        "summarize_reduced_product_belief_propagation_domain_graph_v0"
+      ],
+      "owner": "omena-abstract-value maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f02",
+      "sourcePath": "rust/crates/omena-abstract-value/src/types.rs",
+      "declarations": [
+        "BeliefPropagationDomainFactorV0",
+        "BeliefPropagationDomainGraphV0",
+        "BeliefPropagationDomainVariableV0",
+        "BeliefPropagationIterationV0",
+        "BeliefPropagationMessageV0"
+      ],
+      "owner": "omena-abstract-value maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f02",
+      "sourcePath": "rust/crates/omena-cli/src/bin/trace.rs",
+      "declarations": [
+        "LEGACY_VARIATIONAL_TRACE_SURFACE_V0",
+        "LEGACY_VARIATIONAL_TRACE_WIRE_BYTES_V0"
+      ],
+      "owner": "omena-cli maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f02",
+      "sourcePath": "rust/crates/omena-variational/src/lib.rs",
+      "declarations": [
+        "designer_intent_belief_propagation_trace_v0",
+        "DESIGNER_INTENT_LEGACY_PRODUCT_BYTES_V0",
+        "DESIGNER_INTENT_LEGACY_TRACE_PRODUCT_V0",
+        "designer_intent_legacy_wire_compatibility_trace_v0",
+        "DesignerIntentBeliefPropagationMessageV0",
+        "DesignerIntentBeliefPropagationTraceV0"
+      ],
+      "owner": "omena-variational maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f02",
+      "sourcePath": "rust/omena-response-surface-split-census.json",
+      "declarations": [
+        "BeliefPropagationDomainFactorV0",
+        "BeliefPropagationDomainGraphV0",
+        "BeliefPropagationDomainVariableV0",
+        "BeliefPropagationIterationV0",
+        "BeliefPropagationMessageV0"
+      ],
+      "owner": "response surface census maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f02",
+      "sourcePath": "rust/omena-rust-semver-intent.json",
+      "declarations": [
+        "BeliefPropagationDomainFactorV0",
+        "BeliefPropagationDomainGraphV0",
+        "BeliefPropagationDomainVariableV0",
+        "BeliefPropagationIterationV0",
+        "BeliefPropagationMessageV0",
+        "designer_intent_belief_propagation_trace_v0",
+        "DesignerIntentBeliefPropagationMessageV0",
+        "DesignerIntentBeliefPropagationTraceV0",
+        "summarize_belief_propagation_iteration_v0",
+        "summarize_reduced_product_belief_propagation_domain_graph_v0"
+      ],
+      "owner": "rust semver intent maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f02",
+      "sourcePath": "scripts/check-rust-omena-cli-trace.ts",
+      "declarations": [
+        "LEGACY_VARIATIONAL_TRACE_PRODUCT_V0",
+        "LEGACY_VARIATIONAL_TRACE_SURFACE_V0"
+      ],
+      "owner": "omena-cli maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/crates/engine-shadow-runner/src/main.rs",
+      "declarations": [
+        "LEGACY_PROPAGATION_EVALUATIONS_COMMAND_V0",
+        "LEGACY_PROPAGATION_EVALUATIONS_PRODUCT_V0",
+        "LEGACY_PROPAGATION_SETTLE_SOAK_COMMAND_V0"
+      ],
+      "owner": "engine-shadow-runner maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/crates/omena-checker/src/lib.rs",
+      "declarations": [
+        "canonical_rule_code_into_compatibility_v0",
+        "compatibility_propagation_evaluation_serialized_v0",
+        "compatibility_propagation_rule_code_v0",
+        "compatibility_rule_code_family_v0",
+        "compatibility_rule_code_wire_name_v0",
+        "evaluate_omena_checker_streaming_ifds_rules",
+        "into_streaming_ifds_evaluation_v0",
+        "into_streaming_ifds_input_v0",
+        "LEGACY_PROPAGATION_EVALUATION_EXPECTED_WIRE_V0",
+        "LEGACY_PROPAGATION_RULE_DESCRIPTION_V0",
+        "OmenaCheckerStreamingIfdsEvaluationV0",
+        "OmenaCheckerStreamingIfdsInputV0",
+        "OmenaCheckerStreamingIfdsReportInputV0",
+        "StreamingIfdsPrecisionParity"
+      ],
+      "owner": "omena-checker maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/crates/omena-cross-file-summary/src/lib.rs",
+      "declarations": [
+        "hypergraph_into_compatibility_wire_v0",
+        "hypergraph_summary_edge_into_canonical_v0",
+        "hypergraph_summary_edge_into_compatibility_wire_v0",
+        "HypergraphIFDSSummaryEdgeV0",
+        "summary_edges",
+        "tabulate_hypergraph_ifds_summary_edges"
+      ],
+      "owner": "omena-cross-file-summary maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/crates/omena-query/Cargo.toml",
+      "declarations": ["hypergraph-ifds"],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/crates/omena-query/src/lib.rs",
+      "declarations": ["HypergraphIFDSSummaryEdgeV0", "tabulate_hypergraph_ifds_summary_edges"],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/crates/omena-query/src/tests/cross_file_summary.rs",
+      "declarations": ["compatibility_hypergraph_summary_edge_bytes_v0"],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/crates/omena-query/tests/snapshots/public-api.txt",
+      "declarations": ["HypergraphIFDSSummaryEdgeV0", "tabulate_hypergraph_ifds_summary_edges"],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/crates/omena-streaming-ifds/Cargo.toml",
+      "declarations": ["streaming-ifds"],
+      "owner": "omena-streaming-ifds maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/crates/omena-streaming-ifds/src/lib.rs",
+      "declarations": [
+        "analysis_report_into_compatibility_wire_v0",
+        "compatibility_propagation_deep_report_serialized_v0",
+        "CompatibilityAnalysisReportV0",
+        "cross_file_report_into_compatibility_wire_v0",
+        "demand_eager_report_into_compatibility_wire_v0",
+        "demand_report_into_compatibility_wire_v0",
+        "event_into_canonical_v0",
+        "event_into_compatibility_wire_v0",
+        "event_kind_into_canonical_v0",
+        "event_kind_into_legacy_v0",
+        "fact_into_canonical_v0",
+        "fact_into_compatibility_wire_v0",
+        "fallback_applied_for",
+        "frame_policy_into_compatibility_wire_v0",
+        "incremental_reachable_node_ids_zset",
+        "latency_budget_into_compatibility_wire_v0",
+        "LEGACY_PROPAGATION_FEATURE_BYTES_V0",
+        "LEGACY_PROPAGATION_LAYER_BYTES_V0",
+        "omena_streaming_ifds_batch_fact_keys_v0",
+        "readiness_report_into_compatibility_wire_v0",
+        "route_into_compatibility_wire_v0",
+        "run_streaming_ifds_demand_v0",
+        "run_streaming_ifds_demand_with_index_v0",
+        "run_streaming_ifds_exact_v0",
+        "run_streaming_ifds_settle_equal_v0",
+        "run_streaming_ifds_settle_soak_v0",
+        "settle_equal_into_compatibility_wire_v0",
+        "settle_report_into_canonical_v0",
+        "settle_report_into_compatibility_wire_v0",
+        "settle_revision_into_canonical_v0",
+        "settle_revision_into_compatibility_wire_v0",
+        "settle_revision_report_into_compatibility_wire_v0",
+        "solver_policy_into_compatibility_wire_v0",
+        "STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0",
+        "streaming_ifds_default_settle_soak_revisions_v0",
+        "streaming_ifds_demand_eager_equivalence_v0",
+        "streaming_ifds_demand_index_v0",
+        "streaming_ifds_demand_readiness_v0",
+        "streaming_ifds_event_input_v0",
+        "streaming_ifds_fact_key_route_v0",
+        "streaming_ifds_fact_key_route_with_gate_v0",
+        "STREAMING_IFDS_FEATURE_GATE_V0",
+        "streaming_ifds_frame_rule_bridge_policy_v0",
+        "streaming_ifds_latency_budget_v0",
+        "STREAMING_IFDS_LAYER_MARKER_V0",
+        "STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0",
+        "streaming_ifds_reachability_condensation_v0",
+        "streaming_ifds_refinement_revision_bump_v0",
+        "STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0",
+        "STREAMING_IFDS_SCHEMA_VERSION_V0",
+        "streaming_ifds_settle_soak_revision_v0",
+        "STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0",
+        "streaming_ifds_solver_hygiene_policy_v0",
+        "streaming_ifds_structural_projection_node_ids_v0",
+        "streaming_ifds_summary_cache_entry_v0",
+        "streaming_ifds_transfer_functions_v0",
+        "streaming_ifds_update_v0",
+        "StreamingIFDSAnalysisReportV0",
+        "StreamingIFDSCrossFileReachabilityReportV0",
+        "StreamingIFDSDemandEagerEquivalenceReportV0",
+        "StreamingIFDSDemandIndexV0",
+        "StreamingIFDSDemandReadinessInputV0",
+        "StreamingIFDSDemandReadinessReportV0",
+        "StreamingIFDSDemandReportV0",
+        "StreamingIfdsEventInputV0",
+        "StreamingIFDSEventKindV0",
+        "StreamingIFDSFactV0",
+        "StreamingIFDSFallbackCauseV0",
+        "StreamingIfdsFrameRuleBridgePolicyV0",
+        "StreamingIFDSGateArtifactConjunctV0",
+        "StreamingIFDSGateArtifactVerdictV0",
+        "StreamingIfdsLatencyBudgetV0",
+        "StreamingIfdsReachabilityCondensationV0",
+        "StreamingIFDSRouteDecisionV0",
+        "StreamingIFDSSettleEqualReportV0",
+        "StreamingIFDSSettleSoakReportV0",
+        "StreamingIFDSSettleSoakRevisionInputV0",
+        "StreamingIFDSSettleSoakRevisionReportV0",
+        "StreamingIfdsSolverHygienePolicyV0",
+        "StreamingIFDSSummaryCacheEntryV0",
+        "StreamingIFDSTransferFunctionV0",
+        "StreamingIFDSUpdateV0",
+        "summarize_streaming_ifds_cross_file_reachability_v0",
+        "summarize_streaming_ifds_cross_file_reachability_with_condensation_v0",
+        "summary_cache_into_canonical_v0",
+        "summary_cache_into_compatibility_wire_v0",
+        "transfer_into_compatibility_wire_v0",
+        "update_into_compatibility_wire_v0",
+        "verdict_into_canonical_v0"
+      ],
+      "owner": "omena-streaming-ifds maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/omena-response-surface-split-census.json",
+      "declarations": [
+        "HypergraphIFDSSummaryEdgeV0",
+        "OmenaCheckerStreamingIfdsEvaluationV0",
+        "OmenaCheckerStreamingIfdsInputV0",
+        "OmenaCheckerStreamingIfdsReportInputV0"
+      ],
+      "owner": "response surface census maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "rust/omena-rust-semver-intent.json",
+      "declarations": [
+        "evaluate_omena_checker_streaming_ifds_rules",
+        "HypergraphIFDSSummaryEdgeV0",
+        "omena_streaming_ifds_batch_fact_keys_v0",
+        "OmenaCheckerStreamingIfdsEvaluationV0",
+        "OmenaCheckerStreamingIfdsInputV0",
+        "OmenaCheckerStreamingIfdsReportInputV0",
+        "run_streaming_ifds_demand_v0",
+        "run_streaming_ifds_demand_with_index_v0",
+        "run_streaming_ifds_exact_v0",
+        "run_streaming_ifds_settle_equal_v0",
+        "run_streaming_ifds_settle_soak_v0",
+        "STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0",
+        "streaming_ifds_default_settle_soak_revisions_v0",
+        "streaming_ifds_demand_eager_equivalence_v0",
+        "streaming_ifds_demand_index_v0",
+        "streaming_ifds_demand_readiness_v0",
+        "streaming_ifds_event_input_v0",
+        "streaming_ifds_fact_key_route_v0",
+        "streaming_ifds_fact_key_route_with_gate_v0",
+        "STREAMING_IFDS_FEATURE_GATE_V0",
+        "streaming_ifds_frame_rule_bridge_policy_v0",
+        "streaming_ifds_latency_budget_v0",
+        "STREAMING_IFDS_LAYER_MARKER_V0",
+        "STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0",
+        "streaming_ifds_reachability_condensation_v0",
+        "streaming_ifds_refinement_revision_bump_v0",
+        "STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0",
+        "STREAMING_IFDS_SCHEMA_VERSION_V0",
+        "streaming_ifds_settle_soak_revision_v0",
+        "STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0",
+        "streaming_ifds_solver_hygiene_policy_v0",
+        "streaming_ifds_structural_projection_node_ids_v0",
+        "streaming_ifds_summary_cache_entry_v0",
+        "streaming_ifds_transfer_functions_v0",
+        "streaming_ifds_update_v0",
+        "StreamingIFDSAnalysisReportV0",
+        "StreamingIFDSCrossFileReachabilityReportV0",
+        "StreamingIFDSDemandEagerEquivalenceReportV0",
+        "StreamingIFDSDemandIndexV0",
+        "StreamingIFDSDemandReadinessInputV0",
+        "StreamingIFDSDemandReadinessReportV0",
+        "StreamingIFDSDemandReportV0",
+        "StreamingIfdsEventInputV0",
+        "StreamingIFDSEventKindV0",
+        "StreamingIFDSFactV0",
+        "StreamingIFDSFallbackCauseV0",
+        "StreamingIfdsFrameRuleBridgePolicyV0",
+        "StreamingIFDSGateArtifactConjunctV0",
+        "StreamingIFDSGateArtifactVerdictV0",
+        "StreamingIfdsLatencyBudgetV0",
+        "StreamingIfdsPrecisionParity",
+        "StreamingIfdsReachabilityCondensationV0",
+        "StreamingIFDSRouteDecisionV0",
+        "StreamingIFDSSettleEqualReportV0",
+        "StreamingIFDSSettleSoakReportV0",
+        "StreamingIFDSSettleSoakRevisionInputV0",
+        "StreamingIFDSSettleSoakRevisionReportV0",
+        "StreamingIfdsSolverHygienePolicyV0",
+        "StreamingIFDSSummaryCacheEntryV0",
+        "StreamingIFDSTransferFunctionV0",
+        "StreamingIFDSUpdateV0",
+        "summarize_streaming_ifds_cross_file_reachability_v0",
+        "summarize_streaming_ifds_cross_file_reachability_with_condensation_v0",
+        "tabulate_hypergraph_ifds_summary_edges"
+      ],
+      "owner": "rust semver intent maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "scripts/check-rust-omena-checker-rule-coverage.ts",
+      "declarations": ["LEGACY_DEMAND_PROPAGATION_RULE_CODE_V0"],
+      "owner": "omena-checker maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f03",
+      "sourcePath": "scripts/check-rust-omena-checker-runner-boundary.ts",
+      "declarations": [
+        "COMPATIBILITY_PROPAGATION_EVALUATIONS_COMMAND_V0",
+        "COMPATIBILITY_PROPAGATION_EVALUATIONS_PRODUCT_V0"
+      ],
+      "owner": "omena-checker maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-categorical/src/lib.rs",
+      "declarations": [
+        "build_cascade_evidence_foundation_with_legacy_field_v0",
+        "lawvere_dependency_direction",
+        "summarize_categorical_foundation_v0",
+        "transform_catalog_dependency_direction_from_legacy_field_v0"
+      ],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-cli/src/bin/trace.rs",
+      "declarations": [
+        "legacy_omena_cli_transform_catalog_model_trace_v0",
+        "legacy_omena_cli_transform_catalog_wire_summary_v0",
+        "LEGACY_TRANSFORM_CATALOG_MODEL_KEY_V0",
+        "LEGACY_TRANSFORM_CATALOG_MODEL_SURFACE_V0",
+        "LEGACY_TRANSFORM_CATALOG_PARALLEL_PLAN_KEY_V0",
+        "LEGACY_TRANSFORM_CATALOG_PARALLEL_PLAN_SURFACE_V0",
+        "LEGACY_TRANSFORM_CATALOG_WIRE_PRODUCT_BYTES_V0",
+        "serialize_omena_cli_trace_legacy_wire_v0"
+      ],
+      "owner": "omena-cli maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-lawvere/Cargo.toml",
+      "declarations": ["lawvere-saturation"],
+      "owner": "omena-lawvere maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-lawvere/src/lib.rs",
+      "declarations": [
+        "build_transform_catalog_metadata_summary_v0",
+        "COMPATIBILITY_TRANSFORM_CATALOG_METADATA_EXPECTED_WIRE_V0",
+        "compatibility_transform_catalog_metadata_serialized_projection_v0",
+        "from_lawvere_case_v0",
+        "from_lawvere_witness_v0",
+        "into_lawvere_case_v0",
+        "into_lawvere_catalog_role_v0",
+        "into_lawvere_differential_tier_v0",
+        "into_lawvere_equation_cluster_v0",
+        "into_lawvere_generator_metadata_v0",
+        "into_lawvere_model_trace_v0",
+        "into_lawvere_saturation_execution_v0",
+        "into_lawvere_theory_summary_v0",
+        "into_lawvere_witness_v0",
+        "into_transform_pass_parallel_plan_v0",
+        "lawvere_catalog_role_v0",
+        "lawvere_differential_commutativity_witness_v0",
+        "lawvere_differential_corpus_tiers_v0",
+        "lawvere_equation_clusters_v0",
+        "lawvere_execution_rank_hint",
+        "lawvere_generator_count",
+        "lawvere_generator_metadata_catalog_v0",
+        "lawvere_generator_metadata_v0",
+        "LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0",
+        "LAWVERE_MECHANISM_SCOPE_V0",
+        "LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0",
+        "lawvere_saturation_feature_enabled_by_default",
+        "LAWVERE_THEORY_VERSION_V0",
+        "LawvereCatalogRoleV0",
+        "LawvereDifferentialCommutativityCaseV0",
+        "LawvereDifferentialCommutativityWitnessV0",
+        "LawvereDifferentialCorpusTierV0",
+        "LawvereEquationClusterV0",
+        "LawvereGeneratorMetadataV0",
+        "LawvereModelTraceV0",
+        "LawvereSaturationExecutionV0",
+        "LawvereTheorySummaryV0",
+        "LEGACY_TRANSFORM_CATALOG_ANALYSIS_SLOT_V0",
+        "LEGACY_TRANSFORM_CATALOG_FEATURE_GATE_V0",
+        "LEGACY_TRANSFORM_CATALOG_SCHEMA_VERSION_V0",
+        "reorderability_certificate_from_differential_v0",
+        "summarize_lawvere_saturation_execution_v0",
+        "summarize_lawvere_theory_v0",
+        "trace_lawvere_model_v0",
+        "transform_catalog_generator_count_from_legacy_field_v0",
+        "transform_catalog_saturation_default_from_legacy_field_v0",
+        "TransformPassParallelPlanV0"
+      ],
+      "owner": "omena-lawvere maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-query-transform-runner/Cargo.toml",
+      "declarations": ["lawvere-trace"],
+      "owner": "omena-query-transform-runner maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-query-transform-runner/src/lib.rs",
+      "declarations": [
+        "COMPATIBILITY_TRANSFORM_RUNNER_BOUNDARY_JSON_V0",
+        "evaluate_lawvere_reorderability_with_differential_corpus",
+        "execute_transform_passes_on_source_with_lawvere_trace_and_dialect",
+        "LawvereDifferentialCommutativityWitnessV0",
+        "LawvereModelTraceV0",
+        "plan_transform_passes_parallel_lawvere_layers",
+        "summarize_omena_query_transform_runner_boundary_v0"
+      ],
+      "owner": "omena-query-transform-runner maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-query/Cargo.toml",
+      "declarations": ["lawvere-trace"],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-query/src/lib.rs",
+      "declarations": [
+        "execute_omena_query_transform_passes_from_source_with_lawvere_trace",
+        "LawvereDifferentialCommutativityWitnessV0",
+        "LawvereModelTraceV0",
+        "OmenaQueryLawvereDifferentialCommutativityWitnessV0",
+        "OmenaQueryLawvereModelTraceV0",
+        "OmenaQueryLawvereReorderabilityCertificateV0",
+        "OmenaQueryLawvereTransformExecuteSummaryV0",
+        "OmenaQueryLawvereTransformPassParallelPlanV0"
+      ],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+      "declarations": [
+        "build_transform_catalog_execute_summary_with_legacy_field_v0",
+        "execute_omena_query_transform_passes_from_source_with_lawvere_trace"
+      ],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-query/src/tests.rs",
+      "declarations": [
+        "COMPATIBILITY_TRANSFORM_EXECUTION_EXPECTED_WIRE_V0",
+        "compatibility_transform_execution_serialized_projection_v0"
+      ],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-query/src/types.rs",
+      "declarations": [
+        "lawvere_trace",
+        "OmenaQueryLawvereTransformExecuteSummaryV0",
+        "transform_catalog_trace_from_legacy_field_v0"
+      ],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-transform-egg/Cargo.toml",
+      "declarations": ["lawvere-saturation"],
+      "owner": "omena-transform-egg maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-transform-egg/src/transform_catalog_analysis.rs",
+      "declarations": [
+        "analysis_witness_into_compatibility_wire_v0",
+        "compatibility_analysis_serialized_v0",
+        "execute_egg_rewrite_with_lawvere_analysis",
+        "LawvereAnalysis",
+        "LawvereAnalysisCarrierWitnessV0",
+        "LawvereAnalysisDataV0",
+        "LawvereComputedValueCarrierV0",
+        "LawvereProvenanceCarrierV0",
+        "LawvereSaturationExecutionV0",
+        "LawvereSpecificityCarrierV0",
+        "LawvereVarStateCarrierV0",
+        "saturation_into_compatibility_wire_v0",
+        "summarize_lawvere_analysis_carrier_witness_v0"
+      ],
+      "owner": "omena-transform-egg maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-transform-passes/Cargo.toml",
+      "declarations": ["lawvere-trace"],
+      "owner": "omena-transform-passes maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-transform-passes/src/lib.rs",
+      "declarations": [
+        "evaluate_lawvere_reorderability_with_differential_corpus",
+        "execute_transform_passes_on_source_with_lawvere_trace",
+        "execute_transform_passes_on_source_with_lawvere_trace_and_dialect",
+        "LawvereDifferentialCommutativityWitnessV0",
+        "LawvereModelTraceV0",
+        "plan_transform_passes_parallel_lawvere_layers"
+      ],
+      "owner": "omena-transform-passes maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+      "declarations": [
+        "evaluate_lawvere_reorderability_with_differential_corpus",
+        "execute_transform_passes_on_source_with_lawvere_trace",
+        "execute_transform_passes_on_source_with_lawvere_trace_and_dialect"
+      ],
+      "owner": "omena-transform-passes maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/crates/omena-transform-passes/src/runtime/planner.rs",
+      "declarations": ["plan_transform_passes_parallel_lawvere_layers"],
+      "owner": "omena-transform-passes maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/omena-response-surface-split-census.json",
+      "declarations": [
+        "LawvereAnalysis",
+        "LawvereAnalysisCarrierWitnessV0",
+        "LawvereAnalysisDataV0",
+        "LawvereCatalogRoleV0",
+        "LawvereComputedValueCarrierV0",
+        "LawvereDifferentialCommutativityCaseV0",
+        "LawvereDifferentialCommutativityWitnessV0",
+        "LawvereDifferentialCorpusTierV0",
+        "LawvereEquationClusterV0",
+        "LawvereGeneratorMetadataV0",
+        "LawvereModelTraceV0",
+        "LawvereProvenanceCarrierV0",
+        "LawvereSaturationExecutionV0",
+        "LawvereSpecificityCarrierV0",
+        "LawvereTheorySummaryV0",
+        "LawvereVarStateCarrierV0",
+        "OmenaQueryLawvereTransformExecuteSummaryV0"
+      ],
+      "owner": "response surface census maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "rust/omena-rust-semver-intent.json",
+      "declarations": [
+        "evaluate_lawvere_reorderability_with_differential_corpus",
+        "execute_egg_rewrite_with_lawvere_analysis",
+        "execute_omena_query_transform_passes_from_source_with_lawvere_trace",
+        "execute_transform_passes_on_source_with_lawvere_trace",
+        "execute_transform_passes_on_source_with_lawvere_trace_and_dialect",
+        "lawvere_catalog_role_v0",
+        "lawvere_dependency_direction",
+        "lawvere_differential_commutativity_witness_v0",
+        "lawvere_differential_corpus_tiers_v0",
+        "lawvere_equation_clusters_v0",
+        "lawvere_execution_rank_hint",
+        "lawvere_generator_metadata_catalog_v0",
+        "lawvere_generator_metadata_v0",
+        "LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0",
+        "LAWVERE_MECHANISM_SCOPE_V0",
+        "LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0",
+        "LAWVERE_THEORY_VERSION_V0",
+        "LawvereAnalysis",
+        "LawvereAnalysisCarrierWitnessV0",
+        "LawvereAnalysisDataV0",
+        "LawvereCatalogRoleV0",
+        "LawvereComputedValueCarrierV0",
+        "LawvereDifferentialCommutativityCaseV0",
+        "LawvereDifferentialCommutativityWitnessV0",
+        "LawvereDifferentialCorpusTierV0",
+        "LawvereEquationClusterV0",
+        "LawvereGeneratorMetadataV0",
+        "LawvereModelTraceV0",
+        "LawvereProvenanceCarrierV0",
+        "LawvereSaturationExecutionV0",
+        "LawvereSpecificityCarrierV0",
+        "LawvereTheorySummaryV0",
+        "LawvereVarStateCarrierV0",
+        "OmenaQueryLawvereTransformExecuteSummaryV0",
+        "plan_transform_passes_parallel_lawvere_layers",
+        "summarize_lawvere_analysis_carrier_witness_v0",
+        "summarize_lawvere_saturation_execution_v0",
+        "summarize_lawvere_theory_v0",
+        "trace_lawvere_model_v0"
+      ],
+      "owner": "rust semver intent maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f04",
+      "sourcePath": "scripts/check-rust-omena-cli-trace.ts",
+      "declarations": [
+        "LEGACY_TRANSFORM_CATALOG_MODEL_KEY_V0",
+        "LEGACY_TRANSFORM_CATALOG_MODEL_SURFACE_V0",
+        "LEGACY_TRANSFORM_CATALOG_PARALLEL_PLAN_KEY_V0",
+        "LEGACY_TRANSFORM_CATALOG_PARALLEL_PLAN_SURFACE_V0",
+        "LEGACY_TRANSFORM_CATALOG_WIRE_PRODUCT_BYTES_V0"
+      ],
+      "owner": "omena-cli maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-abstract-value/src/cascade_family.rs",
+      "declarations": [
+        "cascade_context_refinement_morphism_v0",
+        "derive_cascade_restriction_maps_v0",
+        "summarize_cascade_value_family_v0"
+      ],
+      "owner": "omena-abstract-value maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-categorical/src/cascade_declaration_sections.rs",
+      "declarations": ["cascade_declaration_section_map_id_from_legacy_field_v0", "sheaf_id"],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-categorical/src/cascade_section_aggregation.rs",
+      "declarations": [
+        "build_cascade_section_aggregation_witness_with_legacy_field_v0",
+        "cascade_section_aggregation_id_from_legacy_field_v0",
+        "cascade_section_aggregation_witness_id_from_legacy_field_v0",
+        "cosheaf_id"
+      ],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-categorical/src/cascade_section_plan.rs",
+      "declarations": [
+        "build_cascade_section_aggregation_check_with_legacy_field_v0",
+        "build_cascade_section_aggregation_plan_with_legacy_field_v0",
+        "cascade_section_aggregation_check_id_from_legacy_field_v0",
+        "cascade_section_aggregation_plan_id_from_legacy_field_v0",
+        "site_id"
+      ],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-categorical/src/cosheaf.rs",
+      "declarations": [
+        "CascadeCosheafV0",
+        "compatibility_witness_from_canonical_v0",
+        "CosheafColimitWitnessV0",
+        "CosheafSectionV0",
+        "witness_cosheaf_colimit_v0"
+      ],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-categorical/src/lib.rs",
+      "declarations": [
+        "cascade_primitive_roles_v0",
+        "categorical_evidence_endpoints_v0",
+        "categorical_fixture_evidence_for_endpoint_v0",
+        "compatibility_cascade_endpoint_bundle_serialized_v0",
+        "compatibility_nominal_wire_pairs_v0",
+        "cosheaf",
+        "LEGACY_PLAN_ENDPOINT_ID_V0",
+        "sheaf",
+        "site",
+        "site::",
+        "summarize_categorical_foundation_v0"
+      ],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-categorical/src/sheaf.rs",
+      "declarations": ["CascadeDeclarationSheafV0"],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-categorical/src/site.rs",
+      "declarations": [
+        "canonical_axis_from_compatibility_v0",
+        "canonical_plan_from_compatibility_v0",
+        "cascade_site_v0",
+        "CascadeSiteV0",
+        "check_cascade_site_axioms_v0",
+        "compatibility_axis_from_canonical_v0",
+        "compatibility_check_from_canonical_v0",
+        "compatibility_plan_from_canonical_v0",
+        "site_axis_object_id_v0",
+        "SiteAxiomCheckV0",
+        "SiteAxisV0",
+        "SiteTruthValueV0"
+      ],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-ensemble/src/overlap.rs",
+      "declarations": ["CascadeSiteKeyV0", "LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0", "site"],
+      "owner": "omena-ensemble maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-ensemble/src/tests.rs",
+      "declarations": [
+        "assert_compatibility_key_conversion_v0",
+        "CascadeSiteKeyV0",
+        "LEGACY_CASCADE_SECTION_KEY_EXPECTED_WIRE_V0"
+      ],
+      "owner": "omena-ensemble maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-ensemble/src/types.rs",
+      "declarations": [
+        "cascade_section_key_from_site_key_v0",
+        "CascadeSiteKeyV0",
+        "compatibility_key_from_cascade_section_key_v0",
+        "site"
+      ],
+      "owner": "omena-ensemble maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-product-hints/src/lib.rs",
+      "declarations": [
+        "assert_compatibility_key_conversion_v0",
+        "cascade_primitive_roles_v0",
+        "cascade_section_key_from_site_key_v0",
+        "CascadeSiteKeyV0",
+        "categorical_evidence_endpoints_v0",
+        "compatibility_key_from_cascade_section_key_v0",
+        "LEGACY_CASCADE_SECTION_KEY_EXPECTED_WIRE_V0",
+        "LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0",
+        "site"
+      ],
+      "owner": "omena-product-hints maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-query/src/lib.rs",
+      "declarations": [
+        "OMENA_QUERY_CASCADE_SECTION_AGGREGATION_COMPATIBILITY_MESSAGE_V0",
+        "OmenaQueryCascadeSiteOutcomeV0",
+        "summarize_omena_query_cascade_site_outcomes_from_source"
+      ],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-query/src/style.rs",
+      "declarations": [
+        "compatibility_outcomes_serialized_v0",
+        "OmenaQueryCascadeSiteOutcomeV0",
+        "summarize_omena_query_cascade_site_outcomes_from_source"
+      ],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-query/src/tests/cascade_queries.rs",
+      "declarations": ["compatibility_categorical_endpoint_id_v0"],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/crates/omena-query/tests/snapshots/public-api.txt",
+      "declarations": [
+        "OmenaQueryCascadeSiteOutcomeV0",
+        "summarize_omena_query_cascade_site_outcomes_from_source"
+      ],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/omena-response-surface-split-census.json",
+      "declarations": ["CascadeSiteKeyV0", "OmenaQueryCascadeSiteOutcomeV0"],
+      "owner": "response surface census maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "rust/omena-rust-semver-intent.json",
+      "declarations": [
+        "cascade_site_v0",
+        "CascadeCosheafV0",
+        "CascadeDeclarationSheafV0",
+        "CascadeSiteKeyV0",
+        "CascadeSiteV0",
+        "check_cascade_site_axioms_v0",
+        "cosheaf",
+        "CosheafColimitWitnessV0",
+        "CosheafSectionV0",
+        "OmenaQueryCascadeSiteOutcomeV0",
+        "site",
+        "site_axis_object_id_v0",
+        "SiteAxiomCheckV0",
+        "SiteAxisV0",
+        "SiteTruthValueV0",
+        "summarize_omena_query_cascade_site_outcomes_from_source",
+        "witness_cosheaf_colimit_v0"
+      ],
+      "owner": "rust semver intent maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "scripts/check-rust-m4-closure-audit.ts",
+      "declarations": ["LEGACY_CONTEXT_GLUE_OR_MODAL_THEOREM_KEY_V0"],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "scripts/check-rust-m4-gamma-categorical-endpoint.ts",
+      "declarations": [
+        "LEGACY_AGGREGATION_ENDPOINT_V0",
+        "LEGACY_AGGREGATION_FIXTURE_ID_V0",
+        "LEGACY_PLAN_ENDPOINT_V0",
+        "LEGACY_PLAN_FIXTURE_ID_V0"
+      ],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "scripts/check-rust-m4-gamma-readiness.ts",
+      "declarations": ["LEGACY_CATEGORICAL_ENDPOINT_AND_FIXTURE_MARKERS_V0"],
+      "owner": "omena-categorical maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f05",
+      "sourcePath": "scripts/check-rust-omena-checker-runner-boundary.ts",
+      "declarations": ["LEGACY_AGGREGATION_ROLE_V0"],
+      "owner": "omena-checker maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "rust/crates/engine-shadow-runner/src/main.rs",
+      "declarations": [
+        "evaluate_omena_checker_rg_flow_rules",
+        "LEGACY_MULTISCALE_EVALUATIONS_COMMAND_V0",
+        "LEGACY_MULTISCALE_EVALUATIONS_PRODUCT_V0",
+        "OmenaCheckerCompatibilityCouplingEvaluationRunnerOutputV0",
+        "OmenaCheckerRgFlowCouplingInputV0",
+        "OmenaCheckerRgFlowCouplingSpaceInputV0",
+        "OmenaCheckerRgFlowEvaluationV0",
+        "OmenaCheckerRgFlowInputV0",
+        "summarize_compatibility_checker_coupling_evaluations_v0"
+      ],
+      "owner": "engine-shadow-runner maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "rust/crates/omena-checker/src/lib.rs",
+      "declarations": [
+        "canonical_rule_code_into_compatibility_v0",
+        "compatibility_multiscale_evaluation_serialized_v0",
+        "compatibility_multiscale_rule_code_v0",
+        "compatibility_rule_code_family_v0",
+        "compatibility_rule_code_wire_name_v0",
+        "evaluate_omena_checker_rg_flow_rules",
+        "into_multiscale_complexity_heuristic_input_v0",
+        "into_rg_flow_evaluation_v0",
+        "LEGACY_MULTISCALE_EVALUATION_EXPECTED_WIRE_V0",
+        "LEGACY_MULTISCALE_RULE_DESCRIPTION_V0",
+        "OmenaCheckerRgFlowCouplingInputV0",
+        "OmenaCheckerRgFlowCouplingSpaceInputV0",
+        "OmenaCheckerRgFlowEvaluationV0",
+        "OmenaCheckerRgFlowInputV0",
+        "RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0",
+        "RG_FLOW_MECHANISM_SCOPE_V0",
+        "RG_FLOW_PRODUCT_SURFACE_V0",
+        "RgFlowRelevantOperator"
+      ],
+      "owner": "omena-checker maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "rust/crates/omena-product-hints/src/lib.rs",
+      "declarations": [
+        "LEGACY_COUPLING_AND_SPECTRUM_EXPECTED_WIRE_V0",
+        "LEGACY_MULTISCALE_COMPLEXITY_FEATURE_BYTES_V0",
+        "LEGACY_MULTISCALE_COMPLEXITY_LAYER_BYTES_V0",
+        "RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0",
+        "RG_FLOW_FEATURE_GATE_V0",
+        "RG_FLOW_LAYER_MARKER_V0",
+        "RG_FLOW_MECHANISM_SCOPE_V0",
+        "RG_FLOW_PRODUCT_SURFACE_V0",
+        "RG_FLOW_SCHEMA_VERSION_V0"
+      ],
+      "owner": "omena-product-hints maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "rust/crates/omena-query-checker-orchestrator/src/lib.rs",
+      "declarations": [
+        "compatibility_multiscale_gate_serialized_projection_v0",
+        "LEGACY_MULTISCALE_GATE_EXPECTED_WIRE_V0",
+        "MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0",
+        "OmenaCheckerRgFlowCouplingInputV0",
+        "OmenaCheckerRgFlowCouplingSpaceInputV0",
+        "OmenaCheckerRgFlowEvaluationV0",
+        "OmenaCheckerRgFlowInputV0",
+        "OmenaQueryCheckerRgFlowGateV0",
+        "RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0",
+        "RG_FLOW_MECHANISM_SCOPE_V0",
+        "RG_FLOW_PRODUCT_SURFACE_V0",
+        "run_omena_query_checker_multiscale_complexity_heuristic_compatibility_gate_v0",
+        "run_omena_query_checker_rg_flow_gate_v0"
+      ],
+      "owner": "omena-query-checker-orchestrator maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "rust/crates/omena-query/src/lib.rs",
+      "declarations": [
+        "OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_MESSAGE_V0",
+        "OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0"
+      ],
+      "owner": "omena-query maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "rust/crates/omena-rg-flow/src/lib.rs",
+      "declarations": [
+        "compatibility_multiscale_metric_serialized_projection_v0",
+        "into_rg_flow_metric_v0",
+        "into_rg_flow_migration_gate_summary_v0",
+        "into_rg_flow_migration_gate_v0",
+        "LEGACY_FEATURE_GATE_FIELD_FRAGMENT_V0",
+        "LEGACY_LAYER_MARKER_FIELD_FRAGMENT_V0",
+        "LEGACY_MULTISCALE_COMPLEXITY_FEATURE_BYTES_V0",
+        "LEGACY_MULTISCALE_COMPLEXITY_LAYER_BYTES_V0",
+        "LEGACY_NEUTRAL_BETA_EXPECTED_WIRE_V0",
+        "LEGACY_RG_METRIC_EXPECTED_WIRE_V0",
+        "RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0",
+        "RG_FLOW_FEATURE_GATE_V0",
+        "RG_FLOW_LAYER_MARKER_V0",
+        "RG_FLOW_MECHANISM_SCOPE_V0",
+        "rg_flow_migration_gate_summary",
+        "RG_FLOW_PRODUCT_SURFACE_V0",
+        "RG_FLOW_SCHEMA_VERSION_V0",
+        "RGFlowMetricV0",
+        "RGFlowMigrationGateSummaryV0",
+        "RGFlowMigrationGateV0",
+        "summarize_rg_flow_metric"
+      ],
+      "owner": "omena-rg-flow maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "rust/omena-response-surface-split-census.json",
+      "declarations": [
+        "OmenaCheckerRgFlowCouplingInputV0",
+        "OmenaCheckerRgFlowCouplingSpaceInputV0",
+        "OmenaCheckerRgFlowEvaluationV0",
+        "OmenaCheckerRgFlowInputV0",
+        "OmenaQueryCheckerRgFlowGateV0"
+      ],
+      "owner": "response surface census maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "rust/omena-rust-semver-intent.json",
+      "declarations": [
+        "evaluate_omena_checker_rg_flow_rules",
+        "OmenaCheckerRgFlowCouplingInputV0",
+        "OmenaCheckerRgFlowCouplingSpaceInputV0",
+        "OmenaCheckerRgFlowEvaluationV0",
+        "OmenaCheckerRgFlowInputV0",
+        "OmenaQueryCheckerRgFlowGateV0",
+        "RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0",
+        "RG_FLOW_FEATURE_GATE_V0",
+        "RG_FLOW_LAYER_MARKER_V0",
+        "RG_FLOW_MECHANISM_SCOPE_V0",
+        "rg_flow_migration_gate_summary",
+        "RG_FLOW_PRODUCT_SURFACE_V0",
+        "RG_FLOW_SCHEMA_VERSION_V0",
+        "RGFlowMetricV0",
+        "RGFlowMigrationGateSummaryV0",
+        "RGFlowMigrationGateV0",
+        "RgFlowRelevantOperator",
+        "run_omena_query_checker_rg_flow_gate_v0",
+        "summarize_rg_flow_metric"
+      ],
+      "owner": "rust semver intent maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "scripts/check-rust-omena-checker-rule-coverage.ts",
+      "declarations": ["LEGACY_MULTISCALE_HEURISTIC_RULE_CODE_V0"],
+      "owner": "omena-checker maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    },
+    {
+      "familyId": "f06",
+      "sourcePath": "scripts/check-rust-omena-checker-runner-boundary.ts",
+      "declarations": [
+        "COMPATIBILITY_MULTISCALE_EVALUATIONS_COMMAND_V0",
+        "COMPATIBILITY_MULTISCALE_EVALUATIONS_PRODUCT_V0",
+        "LEGACY_MULTISCALE_COMMAND_STATUS_V0",
+        "LEGACY_MULTISCALE_RULE_CODE_V0"
+      ],
+      "owner": "omena-checker maintainers",
+      "removalCondition": "Not before 1.0; remove only after downstream migration is complete and an audited census reports zero in-repo non-compat uses."
+    }
+  ],
+  "publishedCrateEscalations": [
+    {
+      "crate": "omena-categorical",
+      "owner": "user",
+      "reentryCondition": "A user-approved topology migration that inventories downstream package references, chooses a major-version transition, and supplies a deprecation or redirect plan."
+    },
+    {
+      "crate": "omena-lawvere",
+      "owner": "user",
+      "reentryCondition": "A user-approved topology migration that inventories downstream package references, chooses a major-version transition, and supplies a deprecation or redirect plan."
+    },
+    {
+      "crate": "omena-rg-flow",
+      "owner": "user",
+      "reentryCondition": "A user-approved topology migration that inventories downstream package references, chooses a major-version transition, and supplies a deprecation or redirect plan."
+    },
+    {
+      "crate": "omena-streaming-ifds",
+      "owner": "user",
+      "reentryCondition": "A user-approved topology migration that inventories downstream package references, chooses a major-version transition, and supplies a deprecation or redirect plan."
+    },
+    {
+      "crate": "omena-variational",
+      "owner": "user",
+      "reentryCondition": "A user-approved topology migration that inventories downstream package references, chooses a major-version transition, and supplies a deprecation or redirect plan."
+    }
+  ],
+  "governanceRules": [
+    {
+      "id": "authored-rename-map",
+      "pathExact": "rust/omena-domain-claim-rename-map.json",
+      "familyIds": ["f01", "f02", "f03", "f04", "f05", "f06"],
+      "owner": "domain claim census maintainers",
+      "justification": "The authored governance map must spell the superseded forms so reviewers can audit each mapping, compatibility declaration, and topology escalation.",
+      "reviewCondition": "Remove a form only when the independent lexical seed and every mapped compatibility or escalation obligation are removed in the same reviewed change."
+    }
+  ]
+}

@@ -27,7 +27,7 @@ const REQUIRED_WATCHED_CRATES = [
     name: "omena-streaming-ifds",
     pillar: "theoretical-rigor",
     reason:
-      "Keep streaming IFDS facade-dependency regressions visible after retiring its omena-query exception.",
+      "Keep demand-sliced monotone fact propagation facade-dependency regressions visible after retiring its omena-query exception.",
   },
 ] as const;
 

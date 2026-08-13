@@ -1,78 +1,167 @@
 use crate::LspShellState;
+use crate::cache_limits::{
+    DEFAULT_PERSISTENT_CACHE_LIMITS, PersistentCacheLimitsV0, ensure_cache_root_attribution,
+    read_cache_shard_with_limits, write_cache_shard_atomically_with_limits,
+};
 use crate::protocol::file_uri_to_path;
 use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
 use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
 use serde_json::{Value, json};
-use std::{fs, path::PathBuf};
+use std::path::{Path, PathBuf};
 
 const SOURCE_TYPE_FACT_SIDECAR_PRODUCT: &str = "omena-lsp-server.source-type-fact-sidecar";
 const SOURCE_TYPE_FACT_SIDECAR_DIR: &str = "source-type-fact-cache-v1";
+const SOURCE_TYPE_FACT_SIDECAR_LIMITS: PersistentCacheLimitsV0 = DEFAULT_PERSISTENT_CACHE_LIMITS;
 
-pub(crate) fn load_source_type_fact_sidecar(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SourceTypeFactSidecarFreshnessV0 {
+    pub(crate) environment_fingerprint: String,
+    pub(crate) tsgo_binary_fingerprint: String,
+    pub(crate) collection_provenance: Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SourceTypeFactSidecarRefusalReasonV0 {
+    Environment,
+    Binary,
+    Digest,
+    Schema,
+}
+
+impl SourceTypeFactSidecarRefusalReasonV0 {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Environment => "environment",
+            Self::Binary => "binary",
+            Self::Digest => "digest",
+            Self::Schema => "schema",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SourceTypeFactSidecarLoadV0 {
+    Miss,
+    Refused(SourceTypeFactSidecarRefusalReasonV0),
+    Hit(Vec<TsgoTypeFactResultEntryV0>),
+}
+
+pub(crate) fn load_source_type_fact_sidecar_with_freshness(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     key: &str,
-) -> Option<Vec<TsgoTypeFactResultEntryV0>> {
-    let path = source_type_fact_sidecar_path(state, workspace_folder_uri, document_uri)?;
-    let bytes = fs::read(path).ok()?;
-    let shard: Value = serde_json::from_slice(bytes.as_slice()).ok()?;
-    if shard.pointer("/schemaVersion").and_then(Value::as_str) != Some("0")
+    freshness: &SourceTypeFactSidecarFreshnessV0,
+) -> SourceTypeFactSidecarLoadV0 {
+    let Some(path) = source_type_fact_sidecar_path(state, workspace_folder_uri, document_uri)
+    else {
+        return SourceTypeFactSidecarLoadV0::Miss;
+    };
+    let Some(bytes) = read_source_type_fact_shard(path.as_path(), &SOURCE_TYPE_FACT_SIDECAR_LIMITS)
+    else {
+        return SourceTypeFactSidecarLoadV0::Miss;
+    };
+    let Ok(shard) = serde_json::from_slice::<Value>(bytes.as_slice()) else {
+        return SourceTypeFactSidecarLoadV0::Refused(SourceTypeFactSidecarRefusalReasonV0::Schema);
+    };
+    if shard.pointer("/schemaVersion").and_then(Value::as_str) != Some("1")
         || shard.pointer("/product").and_then(Value::as_str)
             != Some(SOURCE_TYPE_FACT_SIDECAR_PRODUCT)
-        || shard.pointer("/key").and_then(Value::as_str) != Some(key)
         || shard.pointer("/workspaceFolderUri").and_then(Value::as_str) != workspace_folder_uri
     {
-        return None;
+        return SourceTypeFactSidecarLoadV0::Refused(SourceTypeFactSidecarRefusalReasonV0::Schema);
     }
-    let payload = shard.pointer("/payload")?;
-    let payload_digest = source_type_fact_sidecar_digest(payload)?;
+    if shard
+        .pointer("/environmentFingerprint")
+        .and_then(Value::as_str)
+        != Some(freshness.environment_fingerprint.as_str())
+    {
+        return SourceTypeFactSidecarLoadV0::Refused(
+            SourceTypeFactSidecarRefusalReasonV0::Environment,
+        );
+    }
+    if shard
+        .pointer("/tsgoBinaryFingerprint")
+        .and_then(Value::as_str)
+        != Some(freshness.tsgo_binary_fingerprint.as_str())
+    {
+        return SourceTypeFactSidecarLoadV0::Refused(SourceTypeFactSidecarRefusalReasonV0::Binary);
+    }
+    if shard.pointer("/key").and_then(Value::as_str) != Some(key) {
+        return SourceTypeFactSidecarLoadV0::Refused(SourceTypeFactSidecarRefusalReasonV0::Digest);
+    }
+    let Some(payload) = shard.pointer("/payload") else {
+        return SourceTypeFactSidecarLoadV0::Refused(SourceTypeFactSidecarRefusalReasonV0::Schema);
+    };
+    let Some(payload_digest) = source_type_fact_sidecar_digest(payload) else {
+        return SourceTypeFactSidecarLoadV0::Refused(SourceTypeFactSidecarRefusalReasonV0::Digest);
+    };
     if shard.pointer("/payloadDigest").and_then(Value::as_str) != Some(payload_digest.as_str()) {
-        return None;
+        return SourceTypeFactSidecarLoadV0::Refused(SourceTypeFactSidecarRefusalReasonV0::Digest);
     }
-    source_type_fact_entries_from_payload(payload)
+    let Some(entries) = source_type_fact_entries_from_payload(payload) else {
+        return SourceTypeFactSidecarLoadV0::Refused(SourceTypeFactSidecarRefusalReasonV0::Schema);
+    };
+    SourceTypeFactSidecarLoadV0::Hit(entries)
 }
 
-pub(crate) fn store_source_type_fact_sidecar(
+pub(crate) fn store_source_type_fact_sidecar_with_freshness(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     key: &str,
     entries: &[TsgoTypeFactResultEntryV0],
-) {
+    freshness: &SourceTypeFactSidecarFreshnessV0,
+) -> bool {
     let Some(path) = source_type_fact_sidecar_path(state, workspace_folder_uri, document_uri)
     else {
-        return;
+        return false;
     };
-    let Some(dir) = path.parent() else {
-        return;
-    };
-    if fs::create_dir_all(dir).is_err() {
-        return;
-    }
-    crate::disk_cache::ensure_omena_cache_root_markers(dir);
     let payload = json!({
         "entries": entries,
         "entryCount": entries.len(),
     });
     let Some(payload_digest) = source_type_fact_sidecar_digest(&payload) else {
-        return;
+        return false;
     };
     let shard = json!({
-        "schemaVersion": "0",
+        "schemaVersion": "1",
         "product": SOURCE_TYPE_FACT_SIDECAR_PRODUCT,
         "key": key,
         "workspaceFolderUri": workspace_folder_uri,
+        "environmentFingerprint": freshness.environment_fingerprint,
+        "tsgoBinaryFingerprint": freshness.tsgo_binary_fingerprint,
+        "collectionProvenance": freshness.collection_provenance,
         "payloadDigest": payload_digest,
         "payload": payload,
     });
     let Ok(bytes) = write_omena_canonical_json_bytes_v1(&shard) else {
-        return;
+        return false;
     };
-    let temporary_path = path.with_extension(format!("tmp-{}", std::process::id()));
-    if fs::write(temporary_path.as_path(), bytes).is_ok() {
-        let _ = fs::rename(temporary_path, path);
+    if write_source_type_fact_shard(
+        path.as_path(),
+        bytes.as_slice(),
+        &SOURCE_TYPE_FACT_SIDECAR_LIMITS,
+    ) {
+        if let Some(dir) = path.parent() {
+            crate::disk_cache::ensure_omena_cache_root_markers(dir);
+            ensure_cache_root_attribution(dir, workspace_folder_uri.unwrap_or(document_uri));
+        }
+        return true;
     }
+    false
+}
+
+fn read_source_type_fact_shard(path: &Path, limits: &PersistentCacheLimitsV0) -> Option<Vec<u8>> {
+    read_cache_shard_with_limits(path, limits)
+}
+
+fn write_source_type_fact_shard(
+    path: &Path,
+    bytes: &[u8],
+    limits: &PersistentCacheLimitsV0,
+) -> bool {
+    write_cache_shard_atomically_with_limits(path, bytes, limits)
 }
 
 fn source_type_fact_sidecar_path(
@@ -100,12 +189,13 @@ fn source_type_fact_sidecar_path(
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }
-    Some(
-        root.join(".cache")
-            .join("omena")
-            .join(SOURCE_TYPE_FACT_SIDECAR_DIR)
-            .join(format!("{hex}.json")),
+    crate::cache_root::resolved_workspace_cache_dir(
+        &state.resolution.cache_storage,
+        workspace_folder_uri,
+        root.as_path(),
+        SOURCE_TYPE_FACT_SIDECAR_DIR,
     )
+    .map(|dir| dir.join(format!("{hex}.json")))
 }
 
 fn source_type_fact_sidecar_digest(value: &Value) -> Option<String> {
@@ -163,4 +253,100 @@ pub(crate) fn source_type_fact_sidecar_file_path_for_test(
     document_uri: &str,
 ) -> Option<PathBuf> {
     source_type_fact_sidecar_path(state, workspace_folder_uri, document_uri)
+}
+
+#[cfg(test)]
+mod cache_limit_tests {
+    use super::*;
+    use crate::protocol::path_to_file_uri;
+
+    #[test]
+    fn source_type_fact_store_enforces_reachable_count_byte_and_shard_limits() {
+        let root = std::env::temp_dir().join(format!(
+            "omena-source-type-fact-store-limits-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(root.as_path());
+        assert!(std::fs::create_dir_all(root.join("src")).is_ok());
+        let workspace_uri = path_to_file_uri(root.as_path());
+        let mut state = LspShellState::default();
+        let editor_workspace_storage = root.join("editor-storage").join("workspace");
+        state.resolution.cache_storage = crate::cache_root::LspCacheStorageConfigV0 {
+            initialization_global_storage: Some(root.join("editor-storage").join("global")),
+            initialization_workspace_storage: Some(editor_workspace_storage.clone()),
+            location: crate::cache_root::CacheLocationV0::Editor,
+            ..crate::cache_root::LspCacheStorageConfigV0::default()
+        };
+        state
+            .workspace_runtime_registry
+            .insert(workspace_uri.clone(), workspace_uri.clone());
+        let freshness = SourceTypeFactSidecarFreshnessV0 {
+            environment_fingerprint: "environment:fixture".to_string(),
+            tsgo_binary_fingerprint: "binary:fixture".to_string(),
+            collection_provenance: json!({"fixture": true}),
+        };
+        let default_document_uri = path_to_file_uri(root.join("src/default-limit.tsx").as_path());
+        let default_path = source_type_fact_sidecar_path(
+            &state,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+        );
+        assert!(default_path.is_some(), "source-type-fact default path");
+        let Some(default_path) = default_path else {
+            return;
+        };
+        assert!(
+            default_path.starts_with(editor_workspace_storage.as_path()),
+            "source-type-fact production cap exercise must use the resolved editor root"
+        );
+        if let Some(parent) = default_path.parent() {
+            assert!(std::fs::create_dir_all(parent).is_ok());
+        }
+        let oversized_key = "x".repeat(
+            usize::try_from(SOURCE_TYPE_FACT_SIDECAR_LIMITS.max_shard_bytes)
+                .unwrap_or(8 * 1024 * 1024)
+                + 1,
+        );
+        assert!(
+            !store_source_type_fact_sidecar_with_freshness(
+                &state,
+                Some(workspace_uri.as_str()),
+                default_document_uri.as_str(),
+                oversized_key.as_str(),
+                &[],
+                &freshness,
+            ),
+            "source-type-fact default max-shard constant must refuse the real store"
+        );
+        assert!(!default_path.exists());
+        let cache_dir = default_path.parent();
+        assert!(cache_dir.is_some(), "source-type-fact default cache dir");
+        if let Some(cache_dir) = cache_dir {
+            crate::cache_limits::assert_production_store_enforces_default_count_and_total(
+                "source-type-fact-sidecar",
+                cache_dir,
+                default_path.as_path(),
+                || {
+                    let _ = store_source_type_fact_sidecar_with_freshness(
+                        &state,
+                        Some(workspace_uri.as_str()),
+                        default_document_uri.as_str(),
+                        "blake3:default-cap-fixture",
+                        &[],
+                        &freshness,
+                    );
+                },
+            );
+        }
+
+        crate::cache_limits::assert_real_cache_store_enforces_reachable_limits(
+            "source-type-fact-sidecar",
+            write_source_type_fact_shard,
+            read_source_type_fact_shard,
+        );
+        eprintln!(
+            "storeEntryCaps cache=source-type-fact-sidecar resolvedEditorRoot=true defaultCount=true defaultTotalBytes=true defaultMaxShardRefused=true lowLevelCount=true lowLevelTotalBytes=true lowLevelShardBytes=true"
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
 }

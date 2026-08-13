@@ -8,27 +8,39 @@
     "target": "host",
     "rationale": "Host resolution is the safe upper bound: wasm32 (omena-wasm) can only DISABLE native features, never add them; z3 (smt-z3) is opt-in and confirmed NOT pulled on host for any root, so it does not perturb resolution."
   },
-  "theoryRigorFeatures": ["hypergraph-ifds", "lawvere-trace", "smt-z3"],
+  "theoryRigorFeatures": [
+    "hypergraph-monotone-fact-propagation",
+    "transform-catalog-trace",
+    "smt-z3"
+  ],
   "roots": [
     {
       "root": "omena-lsp-server",
-      "declaredReachable": ["hypergraph-ifds"],
-      "declaredDormant": ["lawvere-trace", "smt-z3"]
+      "declaredReachable": ["hypergraph-monotone-fact-propagation"],
+      "declaredDormant": ["transform-catalog-trace", "smt-z3"]
     },
     {
       "root": "omena-cli",
-      "declaredReachable": ["hypergraph-ifds", "lawvere-trace"],
+      "declaredReachable": ["hypergraph-monotone-fact-propagation", "transform-catalog-trace"],
       "declaredDormant": ["smt-z3"]
     },
     {
       "root": "omena-napi",
       "declaredReachable": [],
-      "declaredDormant": ["hypergraph-ifds", "lawvere-trace", "smt-z3"]
+      "declaredDormant": [
+        "hypergraph-monotone-fact-propagation",
+        "transform-catalog-trace",
+        "smt-z3"
+      ]
     },
     {
       "root": "omena-wasm",
       "declaredReachable": [],
-      "declaredDormant": ["hypergraph-ifds", "lawvere-trace", "smt-z3"]
+      "declaredDormant": [
+        "hypergraph-monotone-fact-propagation",
+        "transform-catalog-trace",
+        "smt-z3"
+      ]
     }
   ]
 }

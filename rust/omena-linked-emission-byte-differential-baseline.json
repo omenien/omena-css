@@ -5,6 +5,6 @@
   "fullCorpusCoverage": false,
   "minimumFixtureCount": 20,
   "minimumInDomainFixtureCount": 9,
-  "expectedDivergenceCount": 18,
+  "expectedDivergenceCount": 7,
   "maximumUnexpectedDivergenceCount": 1
 }

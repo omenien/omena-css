@@ -8,10 +8,19 @@ use std::collections::BTreeSet;
 
 use omena_abstract_value::FactPrecision;
 use omena_cascade::StaticSupportsAssumptionV0;
-use omena_cascade_proof::DischargeLedgerLookupStatusV0;
+use omena_cascade_proof::{
+    CanonicalRewriteAssumptionsV0, DischargeLedgerLookupStatusV0,
+    REWRITE_CERTIFICATE_SCHEMA_VERSION_V0, REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0,
+    RewriteCertificateEnvelopeV0, RewriteCertificateV0, RewriteOperatorV0, RewritePatternV0,
+    RewriteRuleCatalogV0, RewriteRuleV0, RewriteSideConditionKindV0, RewriteSubstitutionEntryV0,
+    RewriteTermV0, SideConditionCertV0, TokenOwnershipCertEntryV0,
+    TokenOwnershipSeparabilityCertV0, check_rewrite_certificate_v0,
+};
 use omena_evidence_graph::GuaranteeFamilyV0;
 use omena_parser::{
-    ClosedWorldBundleV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, StyleDialect,
+    ClosedWorldBundleV0, ClosedWorldComposesScanStateV0, ClosedWorldInterfaceHashAvailabilityV0,
+    ClosedWorldModuleReachabilityEvidenceV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0,
+    StyleDialect,
 };
 use omena_transform_cst::{
     IrNodeKindV0, StableTransformIrNodeV0, TransformIrV0, TransformPassClassV0, TransformPassKind,
@@ -44,9 +53,10 @@ use crate::helpers::ir_transaction::{
     take_structural_ir_transaction_mutation_span_batches,
 };
 use crate::model::{
-    RollbackReceiptV0, RollbackScopeV0, TransformBlockedReasonV0,
-    TransformCascadeProofObligationV0, TransformCssModuleComposesResolutionV0, TransformDecision,
-    TransformDesignTokenRouteV0, TransformDischargeEvidenceV0, TransformDischargeLedgerTelemetryV0,
+    CssModuleTokenOwnershipCensusV0, RollbackReceiptV0, RollbackScopeV0, TransformBlockedReasonV0,
+    TransformCascadeProofObligationV0, TransformClosedWorldAdmissionSummaryV0,
+    TransformCssModuleComposesResolutionV0, TransformDecision, TransformDesignTokenRouteV0,
+    TransformDischargeEvidenceV0, TransformDischargeLedgerTelemetryV0,
     TransformEvaluationProfileV0, TransformExecutionContextV0, TransformExecutionPolicyV0,
     TransformExecutionSummaryV0, TransformImportInlineV0, TransformModuleEvaluationNativeEditV0,
     TransformModuleEvaluationV0, TransformModuleQualifiedExecutionErrorV0,
@@ -55,9 +65,10 @@ use crate::model::{
     TransformPreconditionV0, TransformProvenanceMutationSpanV0, TransformRejectionReasonV0,
     TransformSemanticGuaranteeTierV0, TransformSemanticPreservationTelemetryV0,
     TransformSemanticRemovalV0, TransformStrictPolicyReasonV0, TransformStrictPolicySummaryV0,
-    TransformStructuralDecisionPolicyV0, TransformVendorPrefixPolicyV0,
-    TransformWinnerEqualityAxisV0, TransformWinnerEqualityObligationV0,
-    TransformWinnerEqualityObservationV0, transform_structural_decision_policy,
+    TransformStructuralDecisionClassV0, TransformStructuralDecisionPolicyV0,
+    TransformVendorPrefixPolicyV0, TransformWinnerEqualityAxisV0,
+    TransformWinnerEqualityObligationV0, TransformWinnerEqualityObservationV0,
+    transform_structural_decision_policy,
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
@@ -166,6 +177,8 @@ struct TransformExecutionRuntimePolicyV0<'a> {
     semantic_trust_recording: TransformSemanticTrustRecordingV0,
     module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
     retained_class_names: &'a [String],
+    token_ownership_census: Option<&'a CssModuleTokenOwnershipCensusV0>,
+    token_ownership_module_instance: Option<&'a ModuleInstanceKeyV0>,
 }
 
 impl TransformDecisionDraftV0 {
@@ -1042,7 +1055,88 @@ pub fn execute_transform_passes_on_source_with_dialect(
     )
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+pub fn execute_transform_passes_on_source_with_transform_catalog_trace(
+    source: &str,
+    requested: &[TransformPassKind],
+) -> (
+    TransformExecutionSummaryV0,
+    omena_lawvere::TransformCatalogModelTraceV0,
+) {
+    execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect(
+        source,
+        StyleDialect::Css,
+        requested,
+    )
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+pub fn execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+) -> (
+    TransformExecutionSummaryV0,
+    omena_lawvere::TransformCatalogModelTraceV0,
+) {
+    let summary = execute_transform_passes_on_source_with_dialect(source, dialect, requested);
+    let trace = omena_lawvere::trace_transform_catalog_model_v0(
+        requested,
+        summary.ordered_pass_ids.clone(),
+    );
+    (summary, trace)
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+pub fn evaluate_transform_catalog_reorderability_with_differential_corpus(
+    left: TransformPassKind,
+    right: TransformPassKind,
+    fixtures: &[&str],
+) -> (
+    omena_lawvere::ReorderabilityCertificateV0,
+    omena_lawvere::TransformCatalogDifferentialCommutativityWitnessV0,
+) {
+    let cases = fixtures
+        .iter()
+        .enumerate()
+        .map(|(index, source)| {
+            let left_first = execute_transform_passes_on_source(source, &[left]);
+            let left_then_right =
+                execute_transform_passes_on_source(&left_first.output_css, &[right]);
+            let right_first = execute_transform_passes_on_source(source, &[right]);
+            let right_then_left =
+                execute_transform_passes_on_source(&right_first.output_css, &[left]);
+            let left_then_right_mutation_count =
+                left_first.mutation_count + left_then_right.mutation_count;
+            let right_then_left_mutation_count =
+                right_first.mutation_count + right_then_left.mutation_count;
+
+            omena_lawvere::TransformCatalogDifferentialCommutativityCaseV0 {
+                label: format!("fixture-{index}"),
+                input_css: (*source).to_string(),
+                left_then_right_css: left_then_right.output_css.clone(),
+                right_then_left_css: right_then_left.output_css.clone(),
+                left_then_right_mutation_count,
+                right_then_left_mutation_count,
+                equal_output: left_then_right.output_css == right_then_left.output_css,
+            }
+        })
+        .collect::<Vec<_>>();
+    let witness =
+        omena_lawvere::transform_catalog_differential_commutativity_witness_v0(left, right, cases);
+    let certificate =
+        omena_lawvere::transform_catalog_reorderability_certificate_from_differential_v0(
+            left, right, &witness,
+        );
+    (certificate, witness)
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use execute_transform_passes_on_source_with_transform_catalog_trace; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn execute_transform_passes_on_source_with_lawvere_trace(
     source: &str,
     requested: &[TransformPassKind],
@@ -1057,7 +1151,12 @@ pub fn execute_transform_passes_on_source_with_lawvere_trace(
     )
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
     source: &str,
     dialect: StyleDialect,
@@ -1071,7 +1170,12 @@ pub fn execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
     (summary, trace)
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use evaluate_transform_catalog_reorderability_with_differential_corpus; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn evaluate_lawvere_reorderability_with_differential_corpus(
     left: TransformPassKind,
     right: TransformPassKind,
@@ -1147,6 +1251,8 @@ pub fn execute_transform_passes_on_source_with_dialect_context_and_policy(
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: None,
                 retained_class_names: &[],
+                token_ownership_census: None,
+                token_ownership_module_instance: None,
             },
         )
     })
@@ -1210,6 +1316,8 @@ pub fn execute_transform_passes_on_source_with_dialect_context_closed_world_bund
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: None,
                 retained_class_names: &[],
+                token_ownership_census: None,
+                token_ownership_module_instance: None,
             },
         )
     })
@@ -1273,6 +1381,99 @@ pub fn execute_transform_passes_on_module_with_dialect_context_policy_and_closed
     execution_policy: &TransformExecutionPolicyV0,
     retained_class_names: &[String],
 ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+    execute_transform_passes_on_module_with_optional_token_ownership_census(
+        source,
+        dialect,
+        requested,
+        context,
+        closed_world_bundle,
+        module_instance,
+        reachability_precision,
+        execution_policy,
+        retained_class_names,
+        None,
+        None,
+    )
+}
+
+impl CssModuleTokenOwnershipCensusV0 {
+    /// Executes one module while using this product census as ownership admission authority.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_module_transform_passes_with_ownership_admission(
+        &self,
+        source: &str,
+        dialect: StyleDialect,
+        requested: &[TransformPassKind],
+        context: &TransformExecutionContextV0,
+        closed_world_bundle: &ClosedWorldBundleV0,
+        module_instance: &ModuleInstanceKeyV0,
+        reachability_precision: FactPrecision,
+        execution_policy: &TransformExecutionPolicyV0,
+        retained_class_names: &[String],
+    ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+        self.execute_module_transform_passes_with_ownership_admission_for_identity(
+            source,
+            dialect,
+            requested,
+            context,
+            closed_world_bundle,
+            module_instance,
+            module_instance,
+            reachability_precision,
+            execution_policy,
+            retained_class_names,
+        )
+    }
+
+    /// Executes one module while comparing ownership evidence in its census identity space.
+    ///
+    /// `module_instance` remains the sealed-bundle lookup and diagnostic identity. The separate
+    /// `ownership_module_instance` is the identity used by the census producer, which can be
+    /// workspace-root relative even when bundle keys are absolute.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_module_transform_passes_with_ownership_admission_for_identity(
+        &self,
+        source: &str,
+        dialect: StyleDialect,
+        requested: &[TransformPassKind],
+        context: &TransformExecutionContextV0,
+        closed_world_bundle: &ClosedWorldBundleV0,
+        module_instance: &ModuleInstanceKeyV0,
+        ownership_module_instance: &ModuleInstanceKeyV0,
+        reachability_precision: FactPrecision,
+        execution_policy: &TransformExecutionPolicyV0,
+        retained_class_names: &[String],
+    ) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
+        execute_transform_passes_on_module_with_optional_token_ownership_census(
+            source,
+            dialect,
+            requested,
+            context,
+            closed_world_bundle,
+            module_instance,
+            reachability_precision,
+            execution_policy,
+            retained_class_names,
+            Some(self),
+            Some(ownership_module_instance),
+        )
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_transform_passes_on_module_with_optional_token_ownership_census(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    closed_world_bundle: &ClosedWorldBundleV0,
+    module_instance: &ModuleInstanceKeyV0,
+    reachability_precision: FactPrecision,
+    execution_policy: &TransformExecutionPolicyV0,
+    retained_class_names: &[String],
+    token_ownership_census: Option<&CssModuleTokenOwnershipCensusV0>,
+    token_ownership_module_instance: Option<&ModuleInstanceKeyV0>,
+) -> Result<TransformExecutionSummaryV0, TransformModuleQualifiedExecutionErrorV0> {
     let Some(module_qualified_symbols) = closed_world_bundle
         .reachability()
         .symbols_for_module(module_instance)
@@ -1297,6 +1498,8 @@ pub fn execute_transform_passes_on_module_with_dialect_context_policy_and_closed
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
                 module_qualified_symbols: Some(module_qualified_symbols),
                 retained_class_names,
+                token_ownership_census,
+                token_ownership_module_instance,
             },
         )
     }))
@@ -1321,6 +1524,8 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_lex_c
             semantic_trust_recording: TransformSemanticTrustRecordingV0::Record,
             module_qualified_symbols: None,
             retained_class_names: &[],
+            token_ownership_census: None,
+            token_ownership_module_instance: None,
         },
     )
 }
@@ -1345,6 +1550,8 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context_without_seman
                 semantic_trust_recording: TransformSemanticTrustRecordingV0::OmitForMeasurement,
                 module_qualified_symbols: None,
                 retained_class_names: &[],
+                token_ownership_census: None,
+                token_ownership_module_instance: None,
             },
         )
     })
@@ -2323,6 +2530,7 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         .map_or_else(TransformStrictPolicySummaryV0::default, |policy| {
             TransformStrictPolicySummaryV0::for_profile(policy.profile_id)
         });
+    let mut closed_world_admission_summary = TransformClosedWorldAdmissionSummaryV0::default();
 
     for (pass_index, pass_id) in ordered_pass_ids.iter().enumerate() {
         let should_maintain_document_lex_cache =
@@ -2404,6 +2612,42 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
             .filter(|pass| strict_pass_ids.contains(pass.id()))
             .map(|pass| strict_plan_refusal_reasons(pass, context))
             .unwrap_or_default();
+        let fact_consuming_pass = pass.is_some_and(|pass| {
+            matches!(
+                transform_structural_decision_policy(pass).map(|policy| policy.class),
+                Some(TransformStructuralDecisionClassV0::FactConsuming { .. })
+            )
+        });
+        let closed_world_admission_reasons = pass
+            .filter(|_| fact_consuming_pass)
+            .and_then(|pass_kind| {
+                closed_world_bundle.map(|bundle| {
+                    let o3 = closed_world_admission_o3_reasons(bundle, module_qualified_symbols);
+                    let mut reasons = closed_world_admission_o1_reasons(
+                        runtime_policy.token_ownership_census,
+                        runtime_policy
+                            .token_ownership_module_instance
+                            .or(o3.module_instance),
+                        pass_kind,
+                    );
+                    reasons.extend(o3.reasons);
+                    reasons.extend(closed_world_admission_o2_reasons(
+                        bundle,
+                        module_qualified_symbols,
+                        module_reachable_class_names.as_deref(),
+                        pass_kind,
+                    ));
+                    reasons
+                })
+            })
+            .unwrap_or_default();
+        if fact_consuming_pass
+            && closed_world_bundle.is_some_and(|bundle| {
+                bundle.composes_scan_state() == ClosedWorldComposesScanStateV0::SourceSetOpen
+            })
+        {
+            closed_world_admission_summary.evidence_scope = Some("sourceSetOpen");
+        }
         let strict_refused_before_dispatch = !strict_refusal_reasons.is_empty();
         let mut dispatch_result = if !strict_refusal_reasons.is_empty() {
             strict_policy_summary.record_refusal(*pass_id, strict_refusal_reasons.clone());
@@ -2414,6 +2658,25 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
                     reasons: strict_refusal_reasons,
                 },
                 "strict verification evidence was unavailable before dispatch",
+            )
+        } else if !closed_world_admission_reasons.is_empty() {
+            let module_instance = closed_world_admission_module_instance(
+                closed_world_bundle,
+                module_qualified_symbols,
+            )
+            .cloned();
+            closed_world_admission_summary.record_refusal(
+                *pass_id,
+                module_instance,
+                closed_world_admission_reasons.clone(),
+            );
+            TransformPassDispatchResultV0::blocked(
+                pass_id,
+                input_byte_len,
+                TransformBlockedReasonV0::ClosedWorldAdmission {
+                    reasons: closed_world_admission_reasons,
+                },
+                "closed-world admission evidence was incomplete before destructive dispatch",
             )
         } else if let Some(reason) = flatten_precondition_failure {
             TransformPassDispatchResultV0::blocked(
@@ -2479,7 +2742,16 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
 
         let semantic_mutation_spans = dispatch_result.semantic_mutation_spans();
         let mut winner_equality_tier = None;
+        let blocked_before_semantic_observation = matches!(
+            dispatch_result.decision,
+            TransformDecisionDraftV0::Blocked { .. }
+        );
         if !strict_refused_before_dispatch
+            && blocked_before_semantic_observation
+            && pass.is_some_and(semantic_preservation_applies)
+        {
+            semantic_preservation_telemetry.record_blocked_before_observation();
+        } else if !strict_refused_before_dispatch
             && let (Some(pass_kind), Some(input_ir)) =
                 (pass, semantic_preservation_input_ir.as_ref())
         {
@@ -2688,10 +2960,357 @@ fn execute_transform_passes_on_source_with_active_lex_cache(
         semantic_preservation_telemetry,
         discharge_ledger_telemetry,
         strict_policy: strict_policy_summary,
+        closed_world_admission: closed_world_admission_summary,
         decisions,
         outcomes,
         pass_plan,
     }
+}
+
+fn closed_world_admission_module_instance<'a>(
+    closed_world_bundle: Option<&'a ClosedWorldBundleV0>,
+    module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+) -> Option<&'a ModuleInstanceKeyV0> {
+    module_qualified_symbols
+        .map(ModuleQualifiedSymbolSetV0::module_instance)
+        .or_else(|| {
+            closed_world_bundle.and_then(|bundle| match bundle.linked_modules() {
+                [module_instance] => Some(module_instance),
+                _ => None,
+            })
+        })
+}
+
+fn closed_world_admission_o1_reasons(
+    census: Option<&CssModuleTokenOwnershipCensusV0>,
+    module_instance: Option<&ModuleInstanceKeyV0>,
+    pass_kind: TransformPassKind,
+) -> Vec<TransformStrictPolicyReasonV0> {
+    if pass_kind != TransformPassKind::TreeShakeClass {
+        return Vec::new();
+    }
+    let Some(census) = census else {
+        // The compatibility executor does not claim an emitted-token closure. Product bundle
+        // emission supplies an explicit census (including an unavailable census on analysis
+        // failure), so absence here is not silently converted into a complete empty observation.
+        return Vec::new();
+    };
+
+    let collision_reasons = census
+        .module_token_collisions
+        .iter()
+        .filter(|collision| {
+            module_instance
+                .is_none_or(|module_instance| collision.module_instances.contains(module_instance))
+        })
+        .map(
+            |collision| TransformStrictPolicyReasonV0::OwnershipNotSeparable {
+                token: collision.emitted_token.clone(),
+                module_paths: collision.module_paths.clone(),
+            },
+        );
+    let unattributed_reasons = census.unattributed_emitted_tokens.iter().map(|token| {
+        TransformStrictPolicyReasonV0::OwnershipNotSeparable {
+            token: token.clone(),
+            module_paths: Vec::new(),
+        }
+    });
+    let interface_mismatch_reasons = census
+        .interface_mismatches
+        .iter()
+        .filter(|mismatch| {
+            module_instance
+                .is_none_or(|module_instance| &mismatch.module_instance == module_instance)
+        })
+        .map(
+            |mismatch| TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete {
+                missing: vec![format!(
+                    "cssModuleInterfaceToken:{}",
+                    mismatch.promised_token
+                )],
+            },
+        );
+    let mut reasons = collision_reasons
+        .chain(unattributed_reasons)
+        .chain(interface_mismatch_reasons)
+        .collect::<Vec<_>>();
+    if !census.complete && reasons.is_empty() {
+        reasons.push(
+            TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete {
+                missing: if census.unavailable_reasons.is_empty() {
+                    vec!["cssModuleTokenOwnershipCensus".to_string()]
+                } else {
+                    census.unavailable_reasons.clone()
+                },
+            },
+        );
+    }
+    if reasons.is_empty()
+        && checked_token_ownership_admission_v0(census, module_instance, pass_kind).is_none()
+    {
+        reasons.push(
+            TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete {
+                missing: vec![format!("proofKernelToken:{}", pass_kind.id())],
+            },
+        );
+    }
+    reasons
+}
+
+fn checked_token_ownership_admission_v0(
+    census: &CssModuleTokenOwnershipCensusV0,
+    module_instance: Option<&ModuleInstanceKeyV0>,
+    pass_kind: TransformPassKind,
+) -> Option<omena_cascade_proof::RewriteIssuanceTokenV0> {
+    let module_label = module_instance.map_or_else(
+        || "workspace".to_owned(),
+        |module_instance| {
+            format!(
+                "{}#{}",
+                module_instance.module().as_str(),
+                module_instance.configuration().as_str()
+            )
+        },
+    );
+    let before = RewriteTermV0::apply(
+        "closedWorldAdmissionRequested",
+        vec![
+            RewriteTermV0::atom(pass_kind.id()),
+            RewriteTermV0::atom(module_label.clone()),
+        ],
+    );
+    let after = RewriteTermV0::apply(
+        "closedWorldAdmissionGranted",
+        vec![
+            RewriteTermV0::atom(pass_kind.id()),
+            RewriteTermV0::atom(module_label.clone()),
+        ],
+    );
+    let catalog = RewriteRuleCatalogV0 {
+        schema_version: REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0.to_owned(),
+        operators: vec![
+            RewriteOperatorV0 {
+                operator: "closedWorldAdmissionRequested".to_owned(),
+                arity: 2,
+            },
+            RewriteOperatorV0 {
+                operator: "closedWorldAdmissionGranted".to_owned(),
+                arity: 2,
+            },
+        ],
+        rules: vec![RewriteRuleV0 {
+            rule_id: "closed-world-token-ownership-admission-v0".to_owned(),
+            before_pattern: RewritePatternV0::apply(
+                "closedWorldAdmissionRequested",
+                vec![
+                    RewritePatternV0::variable("pass"),
+                    RewritePatternV0::variable("module"),
+                ],
+            ),
+            after_pattern: RewritePatternV0::apply(
+                "closedWorldAdmissionGranted",
+                vec![
+                    RewritePatternV0::variable("pass"),
+                    RewritePatternV0::variable("module"),
+                ],
+            ),
+            side_condition_kind: RewriteSideConditionKindV0::TokenOwnershipSeparability,
+        }],
+    };
+    let mut modeled_preimage_count = 0;
+    let ownerships = census
+        .token_ownerships
+        .iter()
+        .filter_map(|ownership| {
+            let module_paths = if let Some(module_instance) = module_instance {
+                ownership
+                    .module_instances
+                    .iter()
+                    .zip(&ownership.module_paths)
+                    .filter_map(|(candidate, path)| {
+                        (candidate == module_instance).then_some(path.clone())
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                ownership.module_paths.clone()
+            };
+            if module_instance.is_some() && module_paths.is_empty() {
+                return None;
+            }
+            modeled_preimage_count += ownership.original_names.len();
+            Some(TokenOwnershipCertEntryV0 {
+                emitted_token: ownership.emitted_token.clone(),
+                module_paths,
+            })
+        })
+        .collect::<Vec<_>>();
+    let certificate = RewriteCertificateEnvelopeV0 {
+        schema_version: REWRITE_CERTIFICATE_SCHEMA_VERSION_V0.to_owned(),
+        max_depth: 1,
+        max_nodes: 1,
+        certificate: RewriteCertificateV0::Rewrite {
+            rule_id: "closed-world-token-ownership-admission-v0".to_owned(),
+            substitution: vec![
+                RewriteSubstitutionEntryV0 {
+                    variable: "module".to_owned(),
+                    term: RewriteTermV0::atom(module_label),
+                },
+                RewriteSubstitutionEntryV0 {
+                    variable: "pass".to_owned(),
+                    term: RewriteTermV0::atom(pass_kind.id()),
+                },
+            ],
+            side_condition: SideConditionCertV0::TokenOwnershipSeparability {
+                certificate: TokenOwnershipSeparabilityCertV0 {
+                    complete: census.complete && census.unavailable_reasons.is_empty(),
+                    modeled_preimage_count,
+                    emitted_token_count: ownerships.len()
+                        + census.unattributed_emitted_tokens.len(),
+                    ownerships,
+                    unattributed_emitted_token_count: census.unattributed_emitted_tokens.len(),
+                    interface_mismatch_count: census
+                        .interface_mismatches
+                        .iter()
+                        .filter(|mismatch| {
+                            module_instance.is_none_or(|module_instance| {
+                                &mismatch.module_instance == module_instance
+                            })
+                        })
+                        .count(),
+                },
+            },
+        },
+    };
+    check_rewrite_certificate_v0(
+        &before,
+        &after,
+        &catalog,
+        &certificate,
+        &CanonicalRewriteAssumptionsV0::default(),
+    )
+    .ok()
+    .filter(|token| token.matches_endpoints_v0(&before, &after))
+}
+
+struct ClosedWorldAdmissionO3V0<'a> {
+    reasons: Vec<TransformStrictPolicyReasonV0>,
+    module_instance: Option<&'a ModuleInstanceKeyV0>,
+}
+
+fn closed_world_admission_o3_reasons<'a>(
+    bundle: &'a ClosedWorldBundleV0,
+    module_qualified_symbols: Option<&'a ModuleQualifiedSymbolSetV0>,
+) -> ClosedWorldAdmissionO3V0<'a> {
+    // Structural entailment: planning and admission borrow the same immutable sealed bundle, so
+    // recomputing its ownership digest here cannot detect drift. The transform execution planner
+    // owns re-entry if planning and execution ever receive independently materialized evidence.
+    // The digest accessor remains available for that boundary, but calling it twice inside this
+    // function would still compare two projections of one object. There is no plan token,
+    // snapshot, mutation epoch, or independently owned bundle between the two reads. Keeping such
+    // a limb would therefore advertise temporal protection without observing a divergence. A
+    // future split planner must cross that temporal boundary explicitly and carry the captured
+    // value alongside the independently materialized bundle before admission can compare the two
+    // witnesses.
+    let module_instance =
+        closed_world_admission_module_instance(Some(bundle), module_qualified_symbols);
+    if module_instance.is_some_and(|module_instance| {
+        !bundle
+            .linked_modules()
+            .iter()
+            .any(|linked| linked == module_instance)
+    }) {
+        return ClosedWorldAdmissionO3V0 {
+            reasons: Vec::new(),
+            module_instance,
+        };
+    }
+    let mut missing = Vec::new();
+    let checked_modules = module_instance.map_or_else(
+        || bundle.linked_modules(),
+        |module_instance| std::slice::from_ref(module_instance),
+    );
+    if checked_modules.is_empty() {
+        missing.push("moduleInstance".to_string());
+    }
+    if checked_modules.iter().any(|module_instance| {
+        !bundle.interface_hashes().entries().iter().any(|entry| {
+            &entry.module_instance == module_instance
+                && matches!(
+                    entry.availability,
+                    ClosedWorldInterfaceHashAvailabilityV0::Known { .. }
+                )
+        })
+    }) {
+        missing.push("interfaceHash".to_string());
+    }
+    if checked_modules.iter().any(|module_instance| {
+        bundle.module_reachability_evidence(module_instance)
+            == ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent
+    }) {
+        missing.push("moduleReachabilityInputAbsent".to_string());
+    }
+    if bundle
+        .source_precision()
+        .is_none_or(|precision| precision.unknown_source_count > 0)
+    {
+        missing.push("sourcePrecision".to_string());
+    }
+    let reasons = if missing.is_empty() {
+        Vec::new()
+    } else {
+        vec![TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { missing }]
+    };
+    ClosedWorldAdmissionO3V0 {
+        reasons,
+        module_instance,
+    }
+}
+
+fn closed_world_admission_o2_reasons(
+    bundle: &ClosedWorldBundleV0,
+    module_qualified_symbols: Option<&ModuleQualifiedSymbolSetV0>,
+    module_reachable_class_names: Option<&[String]>,
+    pass_kind: TransformPassKind,
+) -> Vec<TransformStrictPolicyReasonV0> {
+    if pass_kind != TransformPassKind::TreeShakeClass {
+        return Vec::new();
+    }
+    let module_instance =
+        closed_world_admission_module_instance(Some(bundle), module_qualified_symbols);
+    let target_modules = module_instance.map_or_else(
+        || bundle.linked_modules(),
+        |module_instance| std::slice::from_ref(module_instance),
+    );
+    let checked = module_reachable_class_names
+        .unwrap_or_else(|| bundle.reachability().class_names())
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let inbound = bundle
+        .composes_edges()
+        .iter()
+        .filter(|edge| target_modules.contains(&edge.to_module))
+        .collect::<Vec<_>>();
+    if inbound.iter().any(|edge| {
+        bundle
+            .composes_origin_symbol_is_reachable(&edge.from_module, edge.from_symbol.as_str())
+            .is_none()
+    }) {
+        return vec![TransformStrictPolicyReasonV0::EvidenceUnavailable];
+    }
+    inbound
+        .into_iter()
+        .filter(|edge| {
+            bundle.composes_origin_symbol_is_reachable(&edge.from_module, edge.from_symbol.as_str())
+                == Some(true)
+        })
+        .filter(|edge| !checked.contains(edge.to_symbol.as_str()))
+        .map(|edge| TransformStrictPolicyReasonV0::LivenessNotClosed {
+            symbol: edge.to_symbol.clone(),
+            from_module: edge.from_module.clone(),
+            via_edge: "composes",
+        })
+        .collect()
 }
 
 fn summarize_discharge_ledger_telemetry(
@@ -4076,6 +4695,23 @@ mod dispatch_table_tests {
                 .structural_ir_transaction_telemetry
                 .transaction_commit_count,
             2
+        );
+        let ir_telemetry = execution.structural_ir_transaction_telemetry;
+        assert_eq!(ir_telemetry.ir_transaction_commit_count, 2);
+        assert_eq!(ir_telemetry.ir_materialization_count, 2);
+        assert_eq!(ir_telemetry.ir_metadata_refresh_count, 4);
+        assert_eq!(ir_telemetry.ir_mutation_count, 2);
+        assert_eq!(
+            ir_telemetry.ir_metadata_refresh_count,
+            ir_telemetry.ir_transaction_commit_count + ir_telemetry.ir_materialization_count,
+            "each metadata refresh must be attributed to one successful commit or materialization"
+        );
+        assert_eq!(
+            ir_telemetry.ir_transaction_commit_count,
+            execution
+                .structural_ir_transaction_telemetry
+                .transaction_commit_count,
+            "this helper-only fixture pins the corollary without conflating the two commit domains"
         );
         assert_eq!(execution.mutation_count, 2);
         assert_eq!(mutation_spans.len(), 2);

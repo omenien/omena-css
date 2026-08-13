@@ -1,4 +1,4 @@
-//! Categorical cascade evidence contracts for Omena CSS.
+//! Cascade evidence schema scaffold for Omena CSS.
 //!
 //! This crate is additive: it reads cascade public summaries and emits
 //! V0 categorical evidence without changing cascade winner selection.
@@ -7,30 +7,52 @@
 //! or proof system.
 
 pub mod beck_chevalley;
+pub mod cascade_declaration_sections;
+pub mod cascade_section_aggregation;
+pub mod cascade_section_plan;
 pub mod colimit;
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_aggregation; compatibility owner: omena-categorical maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub mod cosheaf;
 pub mod design_system_theory;
 pub mod functor;
 pub mod kripke;
 pub mod modal;
 pub mod omega;
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_declaration_sections; compatibility owner: omena-categorical maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub mod sheaf;
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_plan; compatibility owner: omena-categorical maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub mod site;
 
 pub use beck_chevalley::*;
+pub use cascade_declaration_sections::*;
+pub use cascade_section_aggregation::*;
+pub use cascade_section_plan::*;
 pub use colimit::*;
-pub use cosheaf::*;
 pub use design_system_theory::*;
 pub use functor::*;
 pub use kripke::*;
 pub use modal::*;
 pub use omega::*;
+
+#[allow(deprecated)]
+pub use cosheaf::*;
+#[allow(deprecated)]
 pub use sheaf::*;
+#[allow(deprecated)]
 pub use site::*;
 
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue,
-    LayerFlattenInputV0, LayerOrdinal, ModuleRank, Specificity, cascade_property,
+    LayerFlattenInputV0, LayerOrdinal, OpenWorldTieEvidence, Specificity, cascade_property,
     normalized_layer_rank, prove_layer_flatten_candidate,
 };
 use serde::Serialize;
@@ -50,8 +72,32 @@ pub struct CategoricalFoundationSummaryV0 {
     pub top_level_contract_count: usize,
     pub support_contract_count: usize,
     pub cascade_primitive_roles: Vec<CascadePrimitiveRoleV0>,
+    /// Pre-1.0 serialized-field compatibility. Owner: `omena-categorical`
+    /// maintainers; remove after downstream migration and zero audited uses.
+    #[deprecated(
+        since = "0.4.0",
+        note = "use transform_catalog_dependency_direction(); removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
     pub lawvere_dependency_direction: &'static str,
     pub default_feature_enabled: bool,
+}
+
+impl CategoricalFoundationSummaryV0 {
+    #[allow(deprecated)]
+    pub fn transform_catalog_dependency_direction(&self) -> &'static str {
+        transform_catalog_dependency_direction_from_legacy_field_v0(self)
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility field adapter owned by omena-categorical maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+fn transform_catalog_dependency_direction_from_legacy_field_v0(
+    summary: &CategoricalFoundationSummaryV0,
+) -> &'static str {
+    summary.lawvere_dependency_direction
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -126,13 +172,57 @@ pub struct CategoricalCascadeEvidenceV0 {
     pub default_feature_enabled: bool,
 }
 
-pub fn summarize_categorical_foundation_v0() -> CategoricalFoundationSummaryV0 {
+#[allow(deprecated)]
+pub fn summarize_cascade_evidence_foundation_v0() -> CategoricalFoundationSummaryV0 {
+    build_cascade_evidence_foundation_with_legacy_field_v0(
+        vec![
+            "cascade_section_plan",
+            "cascade_declaration_sections",
+            "cascade_section_aggregation",
+            "colimit",
+            "beck_chevalley",
+            "omega",
+            "modal",
+            "kripke",
+            "design_system_theory",
+        ],
+        cascade_implementation_roles_v0(),
+        "no-default-product-transform-catalog-edge",
+    )
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "constructs a retained serialized field; owned by omena-categorical maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+fn build_cascade_evidence_foundation_with_legacy_field_v0(
+    module_names: Vec<&'static str>,
+    cascade_primitive_roles: Vec<CascadePrimitiveRoleV0>,
+    transform_catalog_dependency_direction: &'static str,
+) -> CategoricalFoundationSummaryV0 {
     CategoricalFoundationSummaryV0 {
         schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
         product: "omena-categorical.foundation-summary",
         layer_marker: CATEGORICAL_LAYER_MARKER_V0,
         feature_gate: CATEGORICAL_FEATURE_GATE_V0,
-        module_names: vec![
+        module_names,
+        top_level_contract_count: 26,
+        support_contract_count: 16,
+        cascade_primitive_roles,
+        lawvere_dependency_direction: transform_catalog_dependency_direction,
+        default_feature_enabled: false,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use summarize_cascade_evidence_foundation_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn summarize_categorical_foundation_v0() -> CategoricalFoundationSummaryV0 {
+    build_cascade_evidence_foundation_with_legacy_field_v0(
+        vec![
             "site",
             "sheaf",
             "cosheaf",
@@ -143,25 +233,22 @@ pub fn summarize_categorical_foundation_v0() -> CategoricalFoundationSummaryV0 {
             "kripke",
             "design_system_theory",
         ],
-        top_level_contract_count: 26,
-        support_contract_count: 16,
-        cascade_primitive_roles: cascade_primitive_roles_v0(),
-        lawvere_dependency_direction: "no-default-product-lawvere-edge",
-        default_feature_enabled: false,
-    }
+        cascade_primitive_roles_v0(),
+        "no-default-product-lawvere-edge",
+    )
 }
 
-pub fn categorical_evidence_endpoints_v0() -> Vec<CategoricalEvidenceEndpointV0> {
+pub fn cascade_section_evidence_endpoints_v0() -> Vec<CategoricalEvidenceEndpointV0> {
     [
         (
-            "rust/omena-categorical/verify-site-stability",
-            "omena-categorical.cascade-site",
-            "site axioms",
+            "rust/omena-categorical/verify-cascade-section-aggregation-plan-stability",
+            "omena-categorical.cascade-section-aggregation-plan",
+            "cascade section aggregation plan stability",
         ),
         (
-            "rust/omena-categorical/verify-cosheaf-covariance",
-            "omena-categorical.cascade-cosheaf",
-            "cosheaf covariance",
+            "rust/omena-categorical/verify-cascade-section-aggregation-covariance",
+            "omena-categorical.cascade-section-aggregation",
+            "cascade section aggregation covariance",
         ),
         (
             "rust/omena-categorical/verify-beck-chevalley",
@@ -219,6 +306,56 @@ pub fn categorical_evidence_endpoints_v0() -> Vec<CategoricalEvidenceEndpointV0>
     .collect()
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_evidence_endpoints_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn categorical_evidence_endpoints_v0() -> Vec<CategoricalEvidenceEndpointV0> {
+    let mut endpoints = cascade_section_evidence_endpoints_v0();
+    if let Some(endpoint) = endpoints.get_mut(0) {
+        endpoint.endpoint_id = "rust/omena-categorical/verify-site-stability";
+        endpoint.evidence_product = "omena-categorical.cascade-site";
+        endpoint.fixture_focus = "site axioms";
+    }
+    if let Some(endpoint) = endpoints.get_mut(1) {
+        endpoint.endpoint_id = "rust/omena-categorical/verify-cosheaf-covariance";
+        endpoint.evidence_product = "omena-categorical.cascade-cosheaf";
+        endpoint.fixture_focus = "cosheaf covariance";
+    }
+    endpoints
+}
+
+pub fn cascade_section_evidence_v0(source_product: &'static str) -> CategoricalCascadeEvidenceV0 {
+    let endpoints = cascade_section_evidence_endpoints_v0();
+    let cascade_primitive_roles = cascade_implementation_roles_v0();
+    let fixture_evidence = endpoints
+        .iter()
+        .filter_map(|endpoint| {
+            cascade_section_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id)
+        })
+        .collect();
+    CategoricalCascadeEvidenceV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.cascade-evidence",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        source_product,
+        endpoint_count: endpoints.len(),
+        endpoints,
+        fixture_evidence,
+        functor_applications: vec![apply_cascade_primitive_role_functor_v0(
+            &cascade_primitive_roles,
+        )],
+        cascade_primitive_roles,
+        default_feature_enabled: false,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_evidence_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn categorical_cascade_evidence_v0(
     source_product: &'static str,
 ) -> CategoricalCascadeEvidenceV0 {
@@ -249,12 +386,55 @@ pub fn categorical_cascade_evidence_v0(
 /// verdict over the cascade primitives a concrete stylesheet exercises, supplied
 /// as `(primitive_name, categorical_role)` pairs.
 ///
-/// Unlike [`categorical_cascade_evidence_v0`], which always runs the functor over
+/// Unlike [`cascade_section_evidence_v0`], which always runs the functor over
 /// the full static catalog (and is therefore always accepted), this constructor
 /// runs `apply_cascade_role_mapping_functor_v0` over the projected subset, so the
 /// resulting `functor_applications[0].accepted` verdict changes with the source:
 /// a degenerate cascade (fewer than three distinct exercised primitives) cannot
 /// witness composition and is rejected, a richer cascade is accepted.
+pub fn cascade_section_evidence_for_exercised_primitives_v0(
+    source_product: &'static str,
+    exercised_primitive_role_pairs: &[(String, String)],
+) -> CategoricalCascadeEvidenceV0 {
+    let endpoints = cascade_section_evidence_endpoints_v0();
+    let cascade_primitive_roles = cascade_implementation_roles_v0()
+        .into_iter()
+        .filter(|role| {
+            exercised_primitive_role_pairs
+                .iter()
+                .any(|(primitive_name, _)| primitive_name == role.primitive_name)
+        })
+        .collect::<Vec<_>>();
+    let fixture_evidence = endpoints
+        .iter()
+        .filter_map(|endpoint| {
+            cascade_section_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id)
+        })
+        .collect();
+    CategoricalCascadeEvidenceV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.cascade-evidence",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        source_product,
+        endpoint_count: endpoints.len(),
+        endpoints,
+        fixture_evidence,
+        functor_applications: vec![apply_cascade_role_mapping_functor_v0(
+            "cascade-exercised-primitive-role-functor",
+            "omena-categorical.cascade-primitive-role-functor",
+            exercised_primitive_role_pairs,
+        )],
+        cascade_primitive_roles,
+        default_feature_enabled: false,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_evidence_for_exercised_primitives_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub fn categorical_cascade_evidence_for_exercised_primitives_v0(
     source_product: &'static str,
     exercised_primitive_role_pairs: &[(String, String)],
@@ -291,15 +471,15 @@ pub fn categorical_cascade_evidence_for_exercised_primitives_v0(
     }
 }
 
-pub fn categorical_fixture_evidence_for_endpoint_v0(
+pub fn cascade_section_fixture_evidence_for_endpoint_v0(
     endpoint_id: &'static str,
 ) -> Option<CategoricalEndpointFixtureEvidenceV0> {
     match endpoint_id {
-        "rust/omena-categorical/verify-site-stability" => {
-            Some(site_stability_fixture_v0(endpoint_id))
-        }
-        "rust/omena-categorical/verify-cosheaf-covariance" => {
-            Some(cosheaf_covariance_fixture_v0(endpoint_id))
+        "rust/omena-categorical/verify-cascade-section-aggregation-plan-stability" => Some(
+            cascade_section_aggregation_plan_stability_fixture_v0(endpoint_id),
+        ),
+        "rust/omena-categorical/verify-cascade-section-aggregation-covariance" => {
+            Some(cascade_section_aggregation_fixture_v0(endpoint_id))
         }
         "rust/omena-categorical/verify-beck-chevalley" => {
             Some(beck_chevalley_fixture_v0(endpoint_id))
@@ -335,44 +515,96 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
     }
 }
 
-fn site_stability_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFixtureEvidenceV0 {
-    let site = cascade_site_v0("fixture.categorical.cascade-site");
-    let axiom_check = check_cascade_site_axioms_v0(&site);
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_fixture_evidence_for_endpoint_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn categorical_fixture_evidence_for_endpoint_v0(
+    endpoint_id: &'static str,
+) -> Option<CategoricalEndpointFixtureEvidenceV0> {
+    match endpoint_id {
+        "rust/omena-categorical/verify-site-stability" => {
+            let mut fixture = cascade_section_aggregation_plan_stability_fixture_v0(endpoint_id);
+            fixture.fixture_id = "fixture.categorical.site-stability.v0";
+            fixture.fixture_focus = "site axioms";
+            fixture.evidence_product = "omena-categorical.cascade-site";
+            fixture.exercised_contract_products = vec![
+                "omena-categorical.cascade-site",
+                "omena-categorical.cover-family",
+                "omena-categorical.site-axiom-check",
+            ];
+            for assertion in &mut fixture.assertions {
+                if assertion.contract_product
+                    == "omena-categorical.cascade-section-aggregation-plan"
+                {
+                    assertion.contract_product = "omena-categorical.cascade-site";
+                } else if assertion.contract_product
+                    == "omena-categorical.cascade-section-aggregation-check"
+                {
+                    assertion.contract_product = "omena-categorical.site-axiom-check";
+                }
+            }
+            Some(fixture)
+        }
+        "rust/omena-categorical/verify-cosheaf-covariance" => {
+            let mut fixture = cascade_section_aggregation_fixture_v0(endpoint_id);
+            fixture.fixture_id = "fixture.categorical.cosheaf-covariance.v0";
+            fixture.fixture_focus = "cosheaf covariance";
+            fixture.evidence_product = "omena-categorical.cascade-cosheaf";
+            fixture.exercised_contract_products = vec![
+                "omena-categorical.cascade-cosheaf",
+                "omena-categorical.cosheaf-colimit-witness",
+            ];
+            for assertion in &mut fixture.assertions {
+                assertion.contract_product = "omena-categorical.cosheaf-colimit-witness";
+            }
+            Some(fixture)
+        }
+        _ => cascade_section_fixture_evidence_for_endpoint_v0(endpoint_id),
+    }
+}
+
+fn cascade_section_aggregation_plan_stability_fixture_v0(
+    endpoint_id: &'static str,
+) -> CategoricalEndpointFixtureEvidenceV0 {
+    let site =
+        cascade_section_aggregation_plan_v0("fixture.categorical.cascade-section-aggregation-plan");
+    let axiom_check = check_cascade_section_aggregation_v0(&site);
     let assertions = vec![
         fixture_assertion_v0(
             "cover-family-derived",
-            "omena-categorical.cascade-site",
+            "omena-categorical.cascade-section-aggregation-plan",
             format!("coverFamilyCount={}", site.cover_families.len()),
             "coverFamilyCount=10",
         ),
         fixture_assertion_v0(
             "identity-cover",
-            "omena-categorical.site-axiom-check",
+            "omena-categorical.cascade-section-aggregation-check",
             format!("identityCover={}", axiom_check.identity_cover),
             "identityCover=true",
         ),
         fixture_assertion_v0(
             "pullback-stability",
-            "omena-categorical.site-axiom-check",
+            "omena-categorical.cascade-section-aggregation-check",
             format!("pullbackStable={}", axiom_check.pullback_stable),
             "pullbackStable=true",
         ),
         fixture_assertion_v0(
             "cover-transitivity",
-            "omena-categorical.site-axiom-check",
+            "omena-categorical.cascade-section-aggregation-check",
             format!("transitive={}", axiom_check.transitive),
             "transitive=true",
         ),
     ];
     endpoint_fixture_from_assertions_v0(
         endpoint_id,
-        "fixture.categorical.site-stability.v0",
-        "site axioms",
-        "omena-categorical.cascade-site",
+        "fixture.categorical.cascade-section-aggregation-plan-stability.v0",
+        "cascade section aggregation plan stability",
+        "omena-categorical.cascade-section-aggregation-plan",
         &[
-            "omena-categorical.cascade-site",
+            "omena-categorical.cascade-section-aggregation-plan",
             "omena-categorical.cover-family",
-            "omena-categorical.site-axiom-check",
+            "omena-categorical.cascade-section-aggregation-check",
         ],
         assertions,
     )
@@ -496,7 +728,7 @@ fn modal_imperative_equivalence_fixture_v0(
 fn invariant_functoriality_fixture_v0(
     endpoint_id: &'static str,
 ) -> CategoricalEndpointFixtureEvidenceV0 {
-    let functor = apply_cascade_primitive_role_functor_v0(&cascade_primitive_roles_v0());
+    let functor = apply_cascade_primitive_role_functor_v0(&cascade_implementation_roles_v0());
     let assertions = vec![
         fixture_assertion_v0(
             "primitive-role-identity-preservation",
@@ -728,9 +960,9 @@ fn omega_color_declaration(id: &str, value: &str, source_order: u32) -> CascadeD
             normalized_layer_rank(false, LayerOrdinal::new(0)),
             0,
             Specificity::ZERO,
-            ModuleRank::ZERO,
             source_order,
         ),
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
     }
 }
@@ -812,17 +1044,17 @@ fn beck_chevalley_fixture_v0(endpoint_id: &'static str) -> CategoricalEndpointFi
     )
 }
 
-fn cosheaf_covariance_fixture_v0(
+fn cascade_section_aggregation_fixture_v0(
     endpoint_id: &'static str,
 ) -> CategoricalEndpointFixtureEvidenceV0 {
     // The compatible-section count and colimit acceptance are computed by the real
-    // `witness_cosheaf_colimit_v0` algorithm from two compatible sections, not from
+    // `summarize_cascade_section_aggregation_v0` algorithm from two compatible sections, not from
     // a literal: `accepted` is `compatible_section_count > 0`.
-    let witness = witness_cosheaf_colimit_v0("cascade-cosheaf", 2);
+    let witness = summarize_cascade_section_aggregation_v0("cascade-section-aggregation", 2);
     let assertions = vec![
         fixture_assertion_v0(
             "compatible-section-count",
-            "omena-categorical.cosheaf-colimit-witness",
+            "omena-categorical.cascade-section-aggregation-witness",
             format!(
                 "compatibleSectionCount={}",
                 witness.compatible_section_count
@@ -831,19 +1063,19 @@ fn cosheaf_covariance_fixture_v0(
         ),
         fixture_assertion_v0(
             "colimit-accepted",
-            "omena-categorical.cosheaf-colimit-witness",
+            "omena-categorical.cascade-section-aggregation-witness",
             format!("accepted={}", witness.accepted),
             "accepted=true",
         ),
     ];
     endpoint_fixture_from_assertions_v0(
         endpoint_id,
-        "fixture.categorical.cosheaf-covariance.v0",
-        "cosheaf covariance",
-        "omena-categorical.cascade-cosheaf",
+        "fixture.categorical.cascade-section-aggregation-covariance.v0",
+        "cascade section aggregation covariance",
+        "omena-categorical.cascade-section-aggregation",
         &[
-            "omena-categorical.cascade-cosheaf",
-            "omena-categorical.cosheaf-colimit-witness",
+            "omena-categorical.cascade-section-aggregation",
+            "omena-categorical.cascade-section-aggregation-witness",
         ],
         assertions,
     )
@@ -1091,9 +1323,13 @@ fn endpoint_fixture_from_assertions_v0(
     }
 }
 
-pub fn cascade_primitive_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
+pub fn cascade_implementation_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
     [
-        ("ranking", "cascade_property", "cosheaf colimit witness"),
+        (
+            "ranking",
+            "cascade_property",
+            "cascade section aggregation witness",
+        ),
         (
             "proof",
             "prove_layer_flatten_candidate",
@@ -1112,7 +1348,7 @@ pub fn cascade_primitive_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
         (
             "evaluation",
             "evaluate_static_supports_condition",
-            "site-axis decidability witness",
+            "cascade-section-axis decidability witness",
         ),
     ]
     .into_iter()
@@ -1130,27 +1366,213 @@ pub fn cascade_primitive_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
     .collect()
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_implementation_roles_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn cascade_primitive_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
+    let mut roles = cascade_implementation_roles_v0();
+    if let Some(role) = roles
+        .iter_mut()
+        .find(|role| role.primitive_name == "cascade_property")
+    {
+        role.categorical_role = "cosheaf colimit witness";
+    }
+    if let Some(role) = roles
+        .iter_mut()
+        .find(|role| role.primitive_name == "evaluate_static_supports_condition")
+    {
+        role.categorical_role = "site-axis decidability witness";
+    }
+    roles
+}
+
 #[cfg(test)]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy endpoint and fixture wire adapter owned by omena-categorical maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_cascade_endpoint_bundle_serialized_v0() -> Result<String, serde_json::Error> {
+    let endpoints = categorical_evidence_endpoints_v0();
+    let plan_fixture = categorical_fixture_evidence_for_endpoint_v0(
+        "rust/omena-categorical/verify-site-stability",
+    );
+    let aggregation_fixture = categorical_fixture_evidence_for_endpoint_v0(
+        "rust/omena-categorical/verify-cosheaf-covariance",
+    );
+    serde_json::to_string(&serde_json::json!({
+        "endpoints": endpoints,
+        "planFixture": plan_fixture,
+        "aggregationFixture": aggregation_fixture,
+    }))
+}
+
+#[cfg(test)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy endpoint fixture owned by omena-categorical maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_PLAN_ENDPOINT_ID_V0: &str = "rust/omena-categorical/verify-site-stability";
+
+#[cfg(test)]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy nominal wire adapter owned by omena-categorical maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_nominal_wire_pairs_v0() -> Result<Vec<(String, String)>, serde_json::Error> {
+    let canonical_plan = cascade_section_aggregation_plan_v0("fixture-plan");
+    let compatibility_plan = cascade_site_v0("fixture-plan");
+    let canonical_plan_bytes = serde_json::to_string(&canonical_plan)?;
+    let expected_compatibility_plan_bytes =
+        canonical_plan_bytes.replace(canonical_plan.product, compatibility_plan.product);
+
+    let canonical_check = check_cascade_section_aggregation_v0(&canonical_plan);
+    let compatibility_check = check_cascade_site_axioms_v0(&compatibility_plan);
+    let canonical_check_bytes = serde_json::to_string(&canonical_check)?;
+    let expected_compatibility_check_bytes =
+        canonical_check_bytes.replace(canonical_check.product, compatibility_check.product);
+
+    let canonical_witness = summarize_cascade_section_aggregation_v0("fixture-aggregation", 2);
+    let compatibility_witness = witness_cosheaf_colimit_v0("fixture-aggregation", 2);
+    let canonical_witness_bytes = serde_json::to_string(&canonical_witness)?;
+    let expected_compatibility_witness_bytes =
+        canonical_witness_bytes.replace(canonical_witness.product, compatibility_witness.product);
+
+    let canonical_declaration_map = CascadeDeclarationSectionMapV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "fixture.declaration-map",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        sheaf_id: "fixture-declarations".to_string(),
+        declaration_count: 3,
+        restriction_count: 2,
+    };
+    let compatibility_declaration_map = CascadeDeclarationSheafV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "fixture.declaration-map",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        sheaf_id: "fixture-declarations".to_string(),
+        declaration_count: 3,
+        restriction_count: 2,
+    };
+
+    let canonical_restriction = CascadeRestrictionRecordV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "fixture.restriction",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        from_object_id: "parent".to_string(),
+        to_object_id: "child".to_string(),
+        preserves_cascade_key_order: true,
+    };
+    let compatibility_restriction = RestrictionMorphismV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "fixture.restriction",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        from_object_id: "parent".to_string(),
+        to_object_id: "child".to_string(),
+        preserves_cascade_key_order: true,
+    };
+
+    let canonical_section = CascadeSectionV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "fixture.section",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        object_id: "axis:layer".to_string(),
+        declaration_ids: vec!["decl:1".to_string()],
+    };
+    let compatibility_section = CosheafSectionV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "fixture.section",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        object_id: "axis:layer".to_string(),
+        declaration_ids: vec!["decl:1".to_string()],
+    };
+    let canonical_aggregation = CascadeSectionAggregationV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "fixture.aggregation",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        cosheaf_id: "fixture-aggregation".to_string(),
+        sections: vec![canonical_section],
+    };
+    let compatibility_aggregation = CascadeCosheafV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "fixture.aggregation",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        cosheaf_id: "fixture-aggregation".to_string(),
+        sections: vec![compatibility_section],
+    };
+
+    Ok(vec![
+        (
+            serde_json::to_string(&compatibility_plan)?,
+            expected_compatibility_plan_bytes,
+        ),
+        (
+            serde_json::to_string(&compatibility_check)?,
+            expected_compatibility_check_bytes,
+        ),
+        (
+            serde_json::to_string(&compatibility_witness)?,
+            expected_compatibility_witness_bytes,
+        ),
+        (
+            serde_json::to_string(&compatibility_declaration_map)?,
+            serde_json::to_string(&canonical_declaration_map)?,
+        ),
+        (
+            serde_json::to_string(&compatibility_restriction)?,
+            serde_json::to_string(&canonical_restriction)?,
+        ),
+        (
+            serde_json::to_string(&compatibility_aggregation)?,
+            serde_json::to_string(&canonical_aggregation)?,
+        ),
+    ])
+}
+
+#[cfg(test)]
+#[allow(deprecated)]
 mod tests {
+    use std::fmt::Write;
+
+    use sha2::{Digest, Sha256};
+
     use super::*;
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        let mut digest = String::with_capacity(64);
+        for byte in Sha256::digest(bytes) {
+            let _ = write!(&mut digest, "{byte:02x}");
+        }
+        digest
+    }
 
     #[test]
     fn summarizes_gamma_categorical_surface_without_default_feature() {
-        let summary = summarize_categorical_foundation_v0();
+        let summary = summarize_cascade_evidence_foundation_v0();
         assert_eq!(summary.schema_version, "0");
         assert_eq!(summary.layer_marker, "categorical-semantic");
         assert_eq!(summary.module_names.len(), 9);
         assert_eq!(summary.top_level_contract_count, 26);
         assert!(!summary.default_feature_enabled);
         assert_eq!(
-            summary.lawvere_dependency_direction,
-            "no-default-product-lawvere-edge"
+            summary.transform_catalog_dependency_direction(),
+            "no-default-product-transform-catalog-edge"
         );
     }
 
     #[test]
     fn maps_actual_cascade_primitives_to_categorical_roles() {
-        let roles = cascade_primitive_roles_v0();
+        let roles = cascade_implementation_roles_v0();
         let primitive_names = roles
             .iter()
             .map(|role| role.primitive_name)
@@ -1164,11 +1586,12 @@ mod tests {
                 .iter()
                 .any(|role| role.primitive_name == "cascade_property"
                     && role.primitive_kind == "ranking"
-                    && role.categorical_role == "cosheaf colimit witness")
+                    && role.categorical_role == "cascade section aggregation witness")
         );
     }
 
     #[test]
+    #[allow(deprecated)]
     fn categorical_endpoint_catalog_contains_required_m4_gamma_endpoints() {
         let evidence = categorical_cascade_evidence_v0("omena-query.read-cascade-at-position");
         let endpoint_ids = evidence
@@ -1193,7 +1616,7 @@ mod tests {
                 && !fixture.accepted
         }));
         assert!(!evidence.default_feature_enabled);
-        assert!(endpoint_ids.contains(&"rust/omena-categorical/verify-site-stability"));
+        assert!(endpoint_ids.contains(&LEGACY_PLAN_ENDPOINT_ID_V0));
         assert!(endpoint_ids.contains(&"rust/omena-categorical/verify-beck-chevalley"));
         assert!(endpoint_ids.contains(&"rust/omena-categorical/classify-omega-truth"));
         assert!(endpoint_ids.contains(&"rust/omena-categorical/verify-s4-axioms"));
@@ -1204,9 +1627,48 @@ mod tests {
     }
 
     #[test]
-    fn categorical_endpoint_fixture_evidence_is_not_catalog_only() {
-        for endpoint in categorical_evidence_endpoints_v0() {
-            let fixture = categorical_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id);
+    fn compatibility_and_canonical_endpoint_bundles_have_exact_distinct_bytes()
+    -> Result<(), serde_json::Error> {
+        let compatibility = compatibility_cascade_endpoint_bundle_serialized_v0()?;
+        assert_eq!(
+            sha256_hex(compatibility.as_bytes()),
+            "e25e8b986a2edf332ccc10d25c37798456842b894f7b1584ef1bfc6b376c0bd4"
+        );
+
+        let endpoints = cascade_section_evidence_endpoints_v0();
+        let plan_fixture = cascade_section_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-cascade-section-aggregation-plan-stability",
+        );
+        let aggregation_fixture = cascade_section_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-cascade-section-aggregation-covariance",
+        );
+        let canonical = serde_json::to_string(&serde_json::json!({
+            "endpoints": endpoints,
+            "planFixture": plan_fixture,
+            "aggregationFixture": aggregation_fixture,
+        }))?;
+        assert_eq!(
+            sha256_hex(canonical.as_bytes()),
+            "b8e450c04f71b5ef9b95ba0ccdecac5fcc7cf33a2b0bd8763fc254179c6d3e65"
+        );
+        assert_ne!(canonical, compatibility);
+        Ok(())
+    }
+
+    #[test]
+    fn nominal_compatibility_adapters_preserve_exact_wire_bytes() -> Result<(), serde_json::Error> {
+        let pairs = compatibility_nominal_wire_pairs_v0()?;
+        assert_eq!(pairs.len(), 6);
+        for (actual, expected) in pairs {
+            assert_eq!(actual, expected);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn cascade_section_endpoint_fixture_evidence_is_not_catalog_only() {
+        for endpoint in cascade_section_evidence_endpoints_v0() {
+            let fixture = cascade_section_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id);
             assert!(fixture.is_some());
             if let Some(fixture) = fixture {
                 assert_eq!(fixture.schema_version, "0");
@@ -1238,18 +1700,18 @@ mod tests {
             }
         }
 
-        let site = categorical_fixture_evidence_for_endpoint_v0(
-            "rust/omena-categorical/verify-site-stability",
+        let plan = cascade_section_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-cascade-section-aggregation-plan-stability",
         );
-        assert!(site.is_some());
-        if let Some(site) = site {
+        assert!(plan.is_some());
+        if let Some(plan) = plan {
             assert!(
-                site.exercised_contract_products
-                    .contains(&"omena-categorical.site-axiom-check")
+                plan.exercised_contract_products
+                    .contains(&"omena-categorical.cascade-section-aggregation-check")
             );
         }
 
-        let cross_project = categorical_fixture_evidence_for_endpoint_v0(
+        let cross_project = cascade_section_fixture_evidence_for_endpoint_v0(
             "rust/omena-categorical/compare-design-system-theory",
         );
         assert!(cross_project.is_some());
@@ -1344,9 +1806,9 @@ mod tests {
     }
 
     #[test]
-    fn site_axiom_fixture_is_computed_from_cover_family() {
-        let fixture = categorical_fixture_evidence_for_endpoint_v0(
-            "rust/omena-categorical/verify-site-stability",
+    fn cascade_section_aggregation_plan_fixture_is_computed_from_cover_family() {
+        let fixture = cascade_section_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-cascade-section-aggregation-plan-stability",
         );
         assert!(fixture.is_some());
         let Some(fixture) = fixture else {
@@ -1363,27 +1825,29 @@ mod tests {
                 && assertion.observed == "coverFamilyCount=10"
         }));
 
-        let site = cascade_site_v0("control.categorical.cascade-site");
-        let stable = check_cascade_site_axioms_v0(&site);
+        let plan = cascade_section_aggregation_plan_v0(
+            "control.categorical.cascade-section-aggregation-plan",
+        );
+        let stable = check_cascade_section_aggregation_v0(&plan);
         assert!(stable.identity_cover);
         assert!(stable.pullback_stable);
         assert!(stable.transitive);
 
-        let mut missing_identity = site.clone();
-        let layer_identity = site_axis_object_id_v0(SiteAxisV0::Layer).to_string();
+        let mut missing_identity = plan.clone();
+        let layer_identity = cascade_section_axis_id_v0(CascadeSectionAxisV0::Layer).to_string();
         missing_identity.cover_families.retain(|cover| {
             !(cover.object_ids.len() == 1 && cover.object_ids[0] == layer_identity)
         });
-        let missing_identity_check = check_cascade_site_axioms_v0(&missing_identity);
+        let missing_identity_check = check_cascade_section_aggregation_v0(&missing_identity);
         assert!(!missing_identity_check.identity_cover);
         assert!(!missing_identity_check.pullback_stable);
         assert!(!missing_identity_check.transitive);
 
-        let mut unknown_object = site;
+        let mut unknown_object = plan;
         unknown_object
             .cover_families
             .push(cover_family_v0("unknown-axis-cover", ["axis:unknown"]));
-        let unknown_object_check = check_cascade_site_axioms_v0(&unknown_object);
+        let unknown_object_check = check_cascade_section_aggregation_v0(&unknown_object);
         assert!(unknown_object_check.identity_cover);
         assert!(!unknown_object_check.pullback_stable);
         assert!(!unknown_object_check.transitive);
@@ -1391,7 +1855,7 @@ mod tests {
 
     #[test]
     fn cascade_primitive_role_functor_checks_identity_and_composition() {
-        let roles = cascade_primitive_roles_v0();
+        let roles = cascade_implementation_roles_v0();
         let functor = apply_cascade_primitive_role_functor_v0(&roles);
         assert_eq!(functor.object_mapping_count, roles.len());
         assert_eq!(functor.morphism_mapping_count, roles.len() - 1);
@@ -1443,9 +1907,9 @@ mod tests {
     }
 
     #[test]
-    fn cosheaf_fixture_acceptance_is_computed_by_colimit_witness() {
-        let fixture = categorical_fixture_evidence_for_endpoint_v0(
-            "rust/omena-categorical/verify-cosheaf-covariance",
+    fn cascade_section_aggregation_fixture_acceptance_is_computed_by_witness() {
+        let fixture = cascade_section_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-cascade-section-aggregation-covariance",
         );
         assert!(fixture.is_some());
         let Some(fixture) = fixture else {
@@ -1463,8 +1927,12 @@ mod tests {
         assert_eq!(accepted_assertion.observed, "accepted=true");
         // The witness rejects an empty section family, so acceptance is a real
         // computed verdict, not a literal echo.
-        assert!(!witness_cosheaf_colimit_v0("cascade-cosheaf", 0).accepted);
-        assert!(witness_cosheaf_colimit_v0("cascade-cosheaf", 2).accepted);
+        assert!(
+            !summarize_cascade_section_aggregation_v0("cascade-section-aggregation", 0).accepted
+        );
+        assert!(
+            summarize_cascade_section_aggregation_v0("cascade-section-aggregation", 2).accepted
+        );
     }
 
     #[test]

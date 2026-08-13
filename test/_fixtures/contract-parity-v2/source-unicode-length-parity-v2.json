@@ -1,0 +1,479 @@
+{
+  "input": {
+    "sources": [
+      {
+        "bindingGraph": {
+          "declarations": [
+            {
+              "id": "rust-decl:import:classNames:7:17:classnames/bind",
+              "kind": "import",
+              "name": "classNames"
+            },
+            {
+              "id": "rust-decl:import:styles:49:55:./SourceUnicodeLengthParity.module.scss",
+              "kind": "import",
+              "name": "styles"
+            },
+            {
+              "id": "rust-decl:localVar:className:630:639:",
+              "kind": "localVar",
+              "name": "className"
+            },
+            {
+              "id": "rust-decl:localVar:cx:111:113:",
+              "kind": "localVar",
+              "name": "cx"
+            },
+            {
+              "id": "rust-decl:localVar:resolveClassName:151:167:",
+              "kind": "localVar",
+              "name": "resolveClassName"
+            },
+            {
+              "id": "rust-decl:localVar:SourceUnicodeLengthParity:579:604:",
+              "kind": "localVar",
+              "name": "SourceUnicodeLengthParity"
+            },
+            {
+              "id": "rust-decl:parameter:value:168:173:",
+              "kind": "parameter",
+              "name": "value"
+            },
+            {
+              "id": "rust-decl:parameter:value:605:610:",
+              "kind": "parameter",
+              "name": "value"
+            }
+          ],
+          "resolutions": [
+            {
+              "declarationId": "rust-decl:localVar:className:630:639:",
+              "expressionId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss"
+            }
+          ]
+        },
+        "document": {
+          "classExpressions": [
+            {
+              "id": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+              "kind": "symbolRef",
+              "origin": "cxCall",
+              "pathSegments": [],
+              "range": {
+                "end": {
+                  "character": 37,
+                  "line": 30
+                },
+                "start": {
+                  "character": 28,
+                  "line": 30
+                }
+              },
+              "rawReference": "className",
+              "rootBindingDeclId": "rust-decl:localVar:className:630:639:",
+              "rootName": "className",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss"
+            }
+          ],
+          "domainClassReferences": [],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx",
+          "kind": "source",
+          "language": "typescriptreact",
+          "styleImports": [
+            {
+              "bindingDeclId": "rust-decl:import:styles:49:55:./SourceUnicodeLengthParity.module.scss",
+              "id": "styleImport:rust-style-import:styles:<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+              "kind": "styleImport",
+              "localName": "styles",
+              "resolved": {
+                "absolutePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+                "kind": "resolved"
+              }
+            }
+          ],
+          "utilityBindings": [
+            {
+              "bindingDeclId": "rust-decl:localVar:cx:111:113:",
+              "classNamesImportName": "classNames",
+              "id": "utilityBinding:rust-utility:classnamesBind:cx:styles:<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+              "kind": "classnamesBind",
+              "localName": "cx",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+              "stylesLocalName": "styles"
+            }
+          ]
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx"
+      }
+    ],
+    "styles": [
+      {
+        "document": {
+          "animationNameRefs": [],
+          "customPropertyDecls": [],
+          "customPropertyRefs": [],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+          "keyframes": [],
+          "kind": "style",
+          "sassModuleForwards": [],
+          "sassModuleMemberRefs": [],
+          "sassModuleUses": [],
+          "sassSymbolDecls": [],
+          "sassSymbols": [],
+          "selectors": [
+            {
+              "canonicalName": "카드-활성",
+              "composes": [],
+              "declarations": "color: teal",
+              "fullSelector": ".카드-활성",
+              "id": "selector:카드-활성:0:1",
+              "kind": "selector",
+              "name": "카드-활성",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 6,
+                  "line": 0
+                },
+                "start": {
+                  "character": 1,
+                  "line": 0
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 2
+                },
+                "start": {
+                  "character": 0,
+                  "line": 0
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "카드-x-활성",
+              "composes": [],
+              "declarations": "color: orange",
+              "fullSelector": ".카드-x-활성",
+              "id": "selector:카드-x-활성:4:1",
+              "kind": "selector",
+              "name": "카드-x-활성",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 8,
+                  "line": 4
+                },
+                "start": {
+                  "character": 1,
+                  "line": 4
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 4
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "카드-long-활성",
+              "composes": [],
+              "declarations": "color: crimson",
+              "fullSelector": ".카드-long-활성",
+              "id": "selector:카드-long-활성:8:1",
+              "kind": "selector",
+              "name": "카드-long-활성",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 11,
+                  "line": 8
+                },
+                "start": {
+                  "character": 1,
+                  "line": 8
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 10
+                },
+                "start": {
+                  "character": 0,
+                  "line": 8
+                }
+              },
+              "viewKind": "canonical"
+            }
+          ],
+          "valueDecls": [],
+          "valueImports": [],
+          "valueRefs": []
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss"
+      }
+    ],
+    "typeFacts": [
+      {
+        "controlFlowGraph": {
+          "blocks": [
+            {
+              "id": "entry",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "entry",
+              "successorBlockIds": ["assignment:0"],
+              "transferKind": "entry"
+            },
+            {
+              "facts": {
+                "kind": "finiteSet",
+                "values": [
+                  "카드-card-활성",
+                  "카드-long-활성",
+                  "카드-mild-활성",
+                  "카드-ping-활성",
+                  "카드-ruby-활성",
+                  "카드-tone-활성",
+                  "카드-wide-활성",
+                  "카드-xxxx-활성",
+                  "카드-zone-활성"
+                ]
+              },
+              "id": "assignment:0",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "assignment",
+              "successorBlockIds": ["exit"],
+              "symbolOrdinal": 7,
+              "transferKind": "assignFacts",
+              "variableName": "className"
+            },
+            {
+              "id": "exit",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "exit",
+              "successorBlockIds": [],
+              "transferKind": "exit"
+            }
+          ],
+          "entryBlockId": "entry"
+        },
+        "expressionId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "facts": {
+          "kind": "unknown"
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx"
+      }
+    ],
+    "version": "2",
+    "workspace": {
+      "classnameTransform": "asIs",
+      "root": "<workspace>",
+      "settingsKey": "transform:asIs;alias:"
+    }
+  },
+  "output": {
+    "checkerReport": {
+      "findings": [],
+      "summary": {
+        "hints": 0,
+        "total": 0,
+        "warnings": 0
+      },
+      "version": "1"
+    },
+    "queryResults": [
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "카드-long-활성",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "카드-long-활성"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "카드-x-활성",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "카드-x-활성"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "카드-활성",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "카드-활성"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx",
+        "kind": "expression-semantics",
+        "payload": {
+          "candidateNames": ["카드-long-활성"],
+          "expressionId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+          "expressionKind": "symbolRef",
+          "finiteValues": null,
+          "reason": "flowBranch",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained composite selector set (1)",
+          "selectorConstraintKind": "composite",
+          "selectorNames": ["카드-long-활성"],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyConstraintKind": "composite",
+          "valueCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "valueCertaintyShapeKind": "constrained",
+          "valueCertaintyShapeLabel": "constrained composite",
+          "valueCharMay": "-abcdegilmnoprtuwxyz드성카활",
+          "valueCharMust": "-드성카활",
+          "valueConstraintKind": "composite",
+          "valueDomainDerivation": {
+            "inputConstraintKind": "composite",
+            "inputFactKind": "constrained",
+            "inputValueCount": 0,
+            "product": "omena-abstract-value.reduced-class-value-derivation",
+            "reducedKind": "constrained",
+            "schemaVersion": "0",
+            "steps": [
+              {
+                "operation": "baseFromFacts",
+                "reason": "preserved reduced string constraint facts",
+                "resultKind": "composite",
+                "resultProvenance": "finiteSetWideningComposite"
+              }
+            ]
+          },
+          "valueDomainKind": "constrained",
+          "valueDomainProvenanceTree": {
+            "product": "omena-abstract-value.provenance-tree",
+            "root": {
+              "children": [
+                {
+                  "children": [],
+                  "detail": "prefix=카드-",
+                  "operation": "prefixConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "suffix=-활성",
+                  "operation": "suffixConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "minLength=10",
+                  "operation": "lengthConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "mustChars=-드성카활",
+                  "operation": "characterMustConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "mayChars=-abcdegilmnoprtuwxyz드성카활",
+                  "operation": "characterMayConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                }
+              ],
+              "operation": "finiteSetWidening",
+              "reason": "large finite set widened to preserved edge and character constraints",
+              "resultKind": "composite",
+              "resultProvenance": "finiteSetWideningComposite"
+            },
+            "schemaVersion": "0",
+            "value": {
+              "kind": "composite",
+              "mayChars": "-abcdegilmnoprtuwxyz드성카활",
+              "minLength": 10,
+              "mustChars": "-드성카활",
+              "prefix": "카드-",
+              "provenance": "finiteSetWideningComposite",
+              "suffix": "-활성"
+            },
+            "valueKind": "composite",
+            "valueProvenance": "finiteSetWideningComposite"
+          },
+          "valueDomainReason": "finite candidates widened to shared edge and character constraints",
+          "valueMinLen": 10,
+          "valuePrefix": "카드-",
+          "valueSuffix": "-활성"
+        },
+        "queryId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.tsx",
+        "kind": "source-expression-resolution",
+        "payload": {
+          "expressionId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+          "finiteValues": null,
+          "reason": "flowBranch",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained composite selector set (1)",
+          "selectorConstraintKind": "composite",
+          "selectorNames": ["카드-long-활성"],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyConstraintKind": "composite",
+          "valueCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "valueCertaintyShapeKind": "constrained",
+          "valueCertaintyShapeLabel": "constrained composite",
+          "valueCharMay": "-abcdegilmnoprtuwxyz드성카활",
+          "valueCharMust": "-드성카활",
+          "valueMinLen": 10,
+          "valuePrefix": "카드-",
+          "valueSuffix": "-활성"
+        },
+        "queryId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourceUnicodeLengthParity.module.scss"
+      }
+    ],
+    "rewritePlans": [],
+    "version": "2"
+  }
+}

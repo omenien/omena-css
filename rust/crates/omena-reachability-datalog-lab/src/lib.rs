@@ -257,8 +257,8 @@ mod tests {
         UnifiedHypergraphHyperedgeV0 {
             schema_version: "0",
             product: "test.hyperedge",
-            layer_marker: "hypergraph-ifds",
-            feature_gate: "hypergraph-ifds",
+            layer_marker: "hypergraph-monotone-fact-propagation",
+            feature_gate: "hypergraph-monotone-fact-propagation",
             hyperedge_id: id.to_string(),
             edge_kind: UnifiedHypergraphEdgeKindV0::ComposesExternal,
             source_summary_edge_id: id.to_string(),

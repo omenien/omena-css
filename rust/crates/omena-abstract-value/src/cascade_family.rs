@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 /// Research-staged cascade-family substrate for M6 positioning.
 ///
 /// This is intentionally framing-neutral: it records context-indexed value
-/// families and restriction morphisms without claiming a sheaf/cosheaf theorem
-/// or committing paper-stage terminology.
+/// families and restriction morphisms without claiming a categorical gluing
+/// theorem or committing paper-stage terminology.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeValueFamilyV0 {
@@ -103,7 +103,7 @@ pub struct CascadeRestrictionCycleV0 {
     pub path: Vec<String>,
 }
 
-pub fn summarize_cascade_value_family_v0(
+pub fn summarize_context_indexed_cascade_value_family_v0(
     property_name: impl Into<String>,
     members: Vec<CascadeValueFamilyMemberV0>,
     restriction_maps: Vec<CascadeRestrictionMapV0>,
@@ -139,7 +139,7 @@ pub fn summarize_cascade_value_family_v0(
         framing: "framingNeutralCascadeFamily",
         claim_level: ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0,
         property_name,
-        supported_readings: vec!["presheafCompatible", "cosheafCompatible"],
+        supported_readings: vec!["restrictionMapCompatible", "aggregationCompatible"],
         context_value_count: members.len(),
         restriction_map_count,
         property_consistent,
@@ -150,7 +150,22 @@ pub fn summarize_cascade_value_family_v0(
     }
 }
 
-pub fn derive_cascade_restriction_maps_v0(
+#[deprecated(
+    since = "0.4.0",
+    note = "use summarize_context_indexed_cascade_value_family_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn summarize_cascade_value_family_v0(
+    property_name: impl Into<String>,
+    members: Vec<CascadeValueFamilyMemberV0>,
+    restriction_maps: Vec<CascadeRestrictionMapV0>,
+) -> CascadeValueFamilyV0 {
+    let mut family =
+        summarize_context_indexed_cascade_value_family_v0(property_name, members, restriction_maps);
+    family.supported_readings = vec!["presheafCompatible", "cosheafCompatible"];
+    family
+}
+
+pub fn derive_context_indexed_cascade_restriction_maps_v0(
     members: &[CascadeValueFamilyMemberV0],
 ) -> Vec<CascadeRestrictionMapV0> {
     let context_ids = members
@@ -166,7 +181,7 @@ pub fn derive_cascade_restriction_maps_v0(
                 .then(|| CascadeRestrictionMapV0 {
                     parent_context_id: parent_id.to_string(),
                     child_context_id: member.context.id.clone(),
-                    morphism: cascade_context_refinement_morphism_v0(),
+                    morphism: context_indexed_cascade_refinement_morphism_v0(),
                 })
         })
         .collect::<Vec<_>>();
@@ -175,7 +190,27 @@ pub fn derive_cascade_restriction_maps_v0(
     maps
 }
 
-pub fn cascade_context_refinement_morphism_v0() -> CascadeMorphismV0 {
+#[deprecated(
+    since = "0.4.0",
+    note = "use derive_context_indexed_cascade_restriction_maps_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn derive_cascade_restriction_maps_v0(
+    members: &[CascadeValueFamilyMemberV0],
+) -> Vec<CascadeRestrictionMapV0> {
+    derive_context_indexed_cascade_restriction_maps_v0(members)
+        .into_iter()
+        .map(|mut restriction| {
+            restriction.morphism.evidence = vec![
+                "contextIndexedValueFamily",
+                "parentChildCascadeContext",
+                "noSheafTheoremClaim",
+            ];
+            restriction
+        })
+        .collect()
+}
+
+pub fn context_indexed_cascade_refinement_morphism_v0() -> CascadeMorphismV0 {
     CascadeMorphismV0 {
         kind: "contextRefinement",
         direction: "parentToChildRestriction",
@@ -183,9 +218,23 @@ pub fn cascade_context_refinement_morphism_v0() -> CascadeMorphismV0 {
         evidence: vec![
             "contextIndexedValueFamily",
             "parentChildCascadeContext",
-            "noSheafTheoremClaim",
+            "noCategoricalGluingTheoremClaim",
         ],
     }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use context_indexed_cascade_refinement_morphism_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn cascade_context_refinement_morphism_v0() -> CascadeMorphismV0 {
+    let mut morphism = context_indexed_cascade_refinement_morphism_v0();
+    morphism.evidence = vec![
+        "contextIndexedValueFamily",
+        "parentChildCascadeContext",
+        "noSheafTheoremClaim",
+    ];
+    morphism
 }
 
 pub fn cascade_value_for_context<'a>(

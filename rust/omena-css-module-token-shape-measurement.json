@@ -1,0 +1,260 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-css-module-token-shape-measurement",
+  "method": {
+    "corpus": "facebook/docusaurus",
+    "corpusRepository": "https://github.com/facebook/docusaurus",
+    "corpusPin": "16f537309e357226dafd3b0137cdd711b68bece8",
+    "moduleFileCount": 151,
+    "emitter": "rust/target/debug/omena bundle, one tracked module per invocation",
+    "emitterSourceRevision": "caa16095286027498499a42bc123b3cd04bb2fca",
+    "emitterSourceDirtyPathCount": 0,
+    "gzipLevel": 9,
+    "hash": "sha256-base64url-prefix",
+    "hashWidth": 6,
+    "identityCorpora": [
+      {
+        "label": "react-ts-css",
+        "repository": "https://github.com/Viijay-Kr/react-ts-css",
+        "pin": "8bf4e2091a6ca1fe28e8517d1c059691337ece74",
+        "moduleCount": 29,
+        "definitionCount": 119,
+        "manifestGeneration": {
+          "cwd": "repository-root",
+          "command": "rust/target/debug/omena modules emit --interface-file /tmp/omena-token-corpus.B9dCxi/out/react.json /private/tmp/omena-token-corpus.B9dCxi/react-ts-css"
+        }
+      },
+      {
+        "label": "mkn",
+        "repository": "https://github.com/SolidZORO/mkn",
+        "pin": "b51ee2faa4e9b23862ebd532759f8ef860b9fb15",
+        "moduleCount": 19,
+        "definitionCount": 62,
+        "manifestGeneration": {
+          "cwd": "repository-root",
+          "command": "rust/target/debug/omena modules emit --interface-file /tmp/omena-token-corpus.B9dCxi/out/mkn.json /private/tmp/omena-token-corpus.B9dCxi/mkn"
+        }
+      },
+      {
+        "label": "docusaurus",
+        "repository": "https://github.com/facebook/docusaurus",
+        "pin": "16f537309e357226dafd3b0137cdd711b68bece8",
+        "moduleCount": 151,
+        "definitionCount": 369,
+        "manifestGeneration": {
+          "cwd": "repository-root",
+          "command": "rust/target/debug/omena modules emit --interface-file /tmp/omena-token-corpus.B9dCxi/out/docusaurus.json /private/tmp/omena-token-corpus.B9dCxi/docusaurus"
+        }
+      }
+    ],
+    "reproduction": {
+      "cwd": "repository-root",
+      "command": "node --import tsx scripts/measure-css-module-token-shapes.ts --corpus-root /tmp/omena-token-corpus.B9dCxi/docusaurus --identity-manifest react-ts-css=/tmp/omena-token-corpus.B9dCxi/out/react.json --identity-manifest mkn=/tmp/omena-token-corpus.B9dCxi/out/mkn.json --identity-manifest docusaurus=/tmp/omena-token-corpus.B9dCxi/out/docusaurus.json --write"
+    }
+  },
+  "baseline": {
+    "rawBytes": 84540,
+    "gzipBytes": 12131
+  },
+  "size": {
+    "preStatedExpectation": "Per-definition hashes are expected to cost more gzip bytes than per-module hashes and both measured reference shapes because they remove within-module prefix sharing.",
+    "expectationHeld": true,
+    "shapes": {
+      "moduleAndClassHash": {
+        "rawBytes": 87403,
+        "gzipBytes": 14445,
+        "rawPercent": 3.39,
+        "gzipPercent": 19.08
+      },
+      "modulePathHash": {
+        "rawBytes": 87403,
+        "gzipBytes": 13271,
+        "rawPercent": 3.39,
+        "gzipPercent": 9.4
+      },
+      "modulePathHashWithOrdinal": {
+        "rawBytes": 88600,
+        "gzipBytes": 13616,
+        "rawPercent": 4.8,
+        "gzipPercent": 12.24
+      },
+      "escapeFaithfulModuleHash": {
+        "rawBytes": 87403,
+        "gzipBytes": 13271,
+        "rawPercent": 3.39,
+        "gzipPercent": 9.4
+      }
+    },
+    "hashLengthCurve": [
+      {
+        "width": 4,
+        "moduleAndClassHash": {
+          "rawBytes": 86243,
+          "gzipBytes": 13775,
+          "rawPercent": 2.01,
+          "gzipPercent": 13.55
+        },
+        "modulePathHash": {
+          "rawBytes": 86243,
+          "gzipBytes": 12955,
+          "rawPercent": 2.01,
+          "gzipPercent": 6.79
+        }
+      },
+      {
+        "width": 6,
+        "moduleAndClassHash": {
+          "rawBytes": 87403,
+          "gzipBytes": 14445,
+          "rawPercent": 3.39,
+          "gzipPercent": 19.08
+        },
+        "modulePathHash": {
+          "rawBytes": 87403,
+          "gzipBytes": 13271,
+          "rawPercent": 3.39,
+          "gzipPercent": 9.4
+        }
+      },
+      {
+        "width": 8,
+        "moduleAndClassHash": {
+          "rawBytes": 88563,
+          "gzipBytes": 15110,
+          "rawPercent": 4.76,
+          "gzipPercent": 24.56
+        },
+        "modulePathHash": {
+          "rawBytes": 88563,
+          "gzipBytes": 13570,
+          "rawPercent": 4.76,
+          "gzipPercent": 11.86
+        }
+      }
+    ]
+  },
+  "stability": {
+    "preStatedExpectation": "Both ordinal-free shapes are expected to preserve existing tokens after front insertion and sibling-module addition, while file rename and a changed workspace-root boundary rotate path-derived identities.",
+    "shapes": {
+      "moduleAndClassHash": {
+        "measuredModule": "examples/classic-typescript/src/components/HomepageFeatures/styles.module.css",
+        "measuredDefinitionCount": 2,
+        "inFileFrontInsertionChangedExistingTokenCount": 0,
+        "siblingModuleAdditionChangedExistingTokenCount": 0,
+        "fileMoveRenameChangedTokenCount": 2,
+        "workspaceRootBoundaryChangeChangedTokenCount": 2,
+        "repeatedRunChangedTokenCount": 0
+      },
+      "modulePathHash": {
+        "measuredModule": "examples/classic-typescript/src/components/HomepageFeatures/styles.module.css",
+        "measuredDefinitionCount": 2,
+        "inFileFrontInsertionChangedExistingTokenCount": 0,
+        "siblingModuleAdditionChangedExistingTokenCount": 0,
+        "fileMoveRenameChangedTokenCount": 2,
+        "workspaceRootBoundaryChangeChangedTokenCount": 2,
+        "repeatedRunChangedTokenCount": 0
+      }
+    }
+  },
+  "identityInputs": {
+    "rootInputs": [
+      {
+        "surface": "cliModules",
+        "status": "available",
+        "evidence": {
+          "source": "rust/crates/omena-cli/src/modules.rs",
+          "needle": "workspace_root"
+        }
+      },
+      {
+        "surface": "lspWorkspaceWorkflow",
+        "status": "available",
+        "evidence": {
+          "source": "rust/crates/omena-lsp-server/src",
+          "needle": "workspace_root"
+        }
+      },
+      {
+        "surface": "napiWorkspaceWorkflow",
+        "status": "available",
+        "evidence": {
+          "source": "rust/crates/omena-napi/src/sdk_workspace.rs",
+          "needle": "pub fn new(workspace_root: String"
+        }
+      },
+      {
+        "surface": "wasmWorkspaceWorkflow",
+        "status": "available",
+        "evidence": {
+          "source": "rust/crates/omena-wasm/src/sdk_workspace.rs",
+          "needle": "pub fn new(workspace_root: String"
+        }
+      },
+      {
+        "surface": "napiDirectBundleApi",
+        "status": "missing-required-root",
+        "evidence": {
+          "source": "rust/crates/omena-napi/src/lib.rs",
+          "needle": "pub fn bundle_style_sources_with_context_json("
+        }
+      },
+      {
+        "surface": "wasmDirectBundleApi",
+        "status": "missing-required-root",
+        "evidence": {
+          "source": "rust/crates/omena-wasm/src/lib.rs",
+          "needle": "pub fn bundle_style_sources_with_context("
+        }
+      },
+      {
+        "surface": "rawBundleApi",
+        "status": "missing-required-root",
+        "evidence": {
+          "source": "rust/crates/omena-query/src/style/transform.rs",
+          "needle": "pub struct OmenaQueryBundlePlanInputV0"
+        }
+      },
+      {
+        "surface": "syntheticHarness",
+        "status": "missing-required-root",
+        "evidence": {
+          "source": "rust/crates/omena-query/src/tests/transform_facade.rs",
+          "needle": "OmenaQueryBundlePlanInputV0 {"
+        }
+      }
+    ],
+    "normalizer": {
+      "source": "normalize_omena_query_style_path",
+      "visibility": "pub(crate)",
+      "separatorAndComponentNormalization": true,
+      "callerRootRelativization": false
+    },
+    "configurationHashExcluded": true,
+    "filesystemDiscoveryAllowed": false,
+    "outsideRootDisposition": "error"
+  },
+  "collisionDetection": {
+    "collisionWidth": 2,
+    "engineeredPairs": {
+      "moduleAndClassHash": ["engineered/module-10.module.css", "engineered/module-94.module.css"],
+      "modulePathHash": ["engineered/module-17.module.css", "engineered/module-82.module.css"]
+    },
+    "engineeredFailures": {
+      "moduleAndClassHash": "moduleAndClassHash collision at width 2: {\"modulePath\":\"engineered/module-10.module.css\",\"rawName\":\"shared\"} and {\"modulePath\":\"engineered/module-94.module.css\",\"rawName\":\"shared\"} map to \"_Ve_shared\"",
+      "modulePathHash": "modulePathHash collision at width 2: {\"modulePath\":\"engineered/module-17.module.css\",\"rawName\":\"shared\"} and {\"modulePath\":\"engineered/module-82.module.css\",\"rawName\":\"shared\"} map to \"_Zh_shared\""
+    },
+    "selectedWidth": 6,
+    "selectedWidthPopulation": {
+      "moduleCount": 371,
+      "definitionCount": 885,
+      "moduleAndClassHashCollisionCount": 0,
+      "modulePathHashCollisionCount": 0,
+      "modulePathHashPrefixCollisionCount": 0
+    }
+  },
+  "prerequisites": {
+    "trailingHexEscape": "Moot for both measured shapes because their sanitized local segment cannot contain a backslash; it reactivates for an escape-faithful local segment.",
+    "encoderDecoder": "No encoder or decoder plane is introduced by either measured shape.",
+    "fourSymbolGeneralization": "The selected identity must not structurally preclude later keyframe, value, or custom-property use; none is implemented by this measurement."
+  }
+}

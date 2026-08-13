@@ -1,7 +1,7 @@
 use omena_evidence_graph::{EvidenceNodeKeyV0, GuaranteeKindV0};
 use omena_parser::{
-    ClosedWorldBundleV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, ParserPositionV0,
-    ParserRangeV0,
+    ClosedWorldBundleV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0, ParserByteSpanV0,
+    ParserPositionV0, ParserRangeV0,
 };
 use omena_query_core::{FactPrecision, fact_precision_from_analysis_precision};
 use omena_query_transform_runner::{
@@ -11,8 +11,8 @@ use omena_query_transform_runner::{
 use serde::Serialize;
 
 use crate::{
-    OmenaQueryCascadeAtPositionV0, OmenaQuerySourcePrecisionReferenceV0,
-    OmenaQueryStyleDiagnosticV0,
+    OmenaQueryCascadeAtPositionV0, OmenaQueryClassSiteValueV0,
+    OmenaQuerySourcePrecisionReferenceV0, OmenaQueryStyleDiagnosticV0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -33,6 +33,7 @@ pub enum OmenaQueryExplainCapabilityV0 {
     Cascade,
     Bundle,
     HoverTrace,
+    ClassSite,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -80,6 +81,10 @@ pub enum OmenaQueryExplainTargetV0 {
         document_uri: String,
         position: Option<ParserPositionV0>,
     },
+    ClassSite {
+        source_path: String,
+        site_byte_span: ParserByteSpanV0,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -123,6 +128,10 @@ pub enum OmenaQueryExplainFactReferenceV0 {
         document_uri: String,
         position: Option<ParserPositionV0>,
         reason_code: String,
+    },
+    ClassSiteFact {
+        source_path: String,
+        site_byte_span: ParserByteSpanV0,
     },
 }
 
@@ -170,6 +179,9 @@ pub enum OmenaQueryExplainFactValueV0 {
         matched: bool,
         candidate_count: usize,
         definition_count: usize,
+    },
+    ClassSiteValue {
+        value: Box<OmenaQueryClassSiteValueV0>,
     },
 }
 
@@ -329,8 +341,10 @@ impl OmenaQueryModuleTreeShakeExplanationV0 {
         self.flat_reachable
     }
 
-    /// Reports whether conservative emitted-token handling retained bytes even
-    /// though module-qualified liveness is false.
+    /// Reports whether supplied emitted-token evidence proves that conservative
+    /// collision handling retained bytes despite module-qualified deadness.
+    /// The module-only explain input cannot establish that fact and reports
+    /// `false`.
     pub const fn emission_guard_retained(&self) -> bool {
         self.emission_guard_retained
     }
@@ -388,6 +402,9 @@ pub enum OmenaQueryExplainInputV0<'a> {
         candidate_count: usize,
         definition_count: usize,
     },
+    ClassSite {
+        value: &'a OmenaQueryClassSiteValueV0,
+    },
 }
 
 pub fn explain_omena_query(input: OmenaQueryExplainInputV0<'_>) -> OmenaQueryExplainResponseV0 {
@@ -415,6 +432,7 @@ pub fn explain_omena_query(input: OmenaQueryExplainInputV0<'_>) -> OmenaQueryExp
             symbol_name,
         } => explain_tree_shake(bundle, symbol_kind, symbol_name),
         OmenaQueryExplainInputV0::Precision { reference } => explain_precision(reference),
+        OmenaQueryExplainInputV0::ClassSite { value } => explain_class_site(value),
         OmenaQueryExplainInputV0::Cascade { result } => explain_cascade(result),
         OmenaQueryExplainInputV0::BundleUnavailable { chunk_reference } => {
             explain_bundle_unavailable(chunk_reference)
@@ -474,9 +492,7 @@ pub fn explain_omena_query_tree_shake_for_module(
         symbols.is_reachable() && module_symbol_is_reachable(symbols, symbol_kind, symbol_name)
     });
     let flat_reachable = flat_symbol_is_reachable(bundle, symbol_kind, symbol_name);
-    let emission_guard_retained = symbol_kind == OmenaQueryExplainSymbolKindV0::Class
-        && reachable == Some(false)
-        && flat_reachable;
+    let emission_guard_retained = false;
     let mut provenance_labels = vec!["moduleQualifiedOwnershipObserved"];
     if emission_guard_retained {
         provenance_labels.push("emissionTokenCollisionGuardApplied");
@@ -698,6 +714,28 @@ fn explain_precision(
             OmenaQueryExplainFactValueV0::PrecisionClassification {
                 precision: fact_precision_from_analysis_precision(&precision_reference.precision),
                 resolved_tier: precision_reference.resolved_tier.to_string(),
+            },
+        ),
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
+fn explain_class_site(value: &OmenaQueryClassSiteValueV0) -> OmenaQueryExplainResponseV0 {
+    let reference = OmenaQueryExplainFactReferenceV0::ClassSiteFact {
+        source_path: value.source_path.clone(),
+        site_byte_span: value.site_byte_span,
+    };
+    OmenaQueryExplainResponseV0::new(
+        OmenaQueryExplainTargetV0::ClassSite {
+            source_path: value.source_path.clone(),
+            site_byte_span: value.site_byte_span,
+        },
+        OmenaQueryExplainAvailabilityV0::Available,
+        OmenaQueryExplainFactV0::new(
+            reference,
+            OmenaQueryExplainFactValueV0::ClassSiteValue {
+                value: Box::new(value.clone()),
             },
         ),
         Vec::new(),

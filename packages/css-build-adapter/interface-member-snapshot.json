@@ -5,6 +5,7 @@
   "changeClasses": ["additive-optional", "additive-required", "removal", "narrowing"],
   "executionSummaryWireResidual": [
     "cascadeProofObligations",
+    "closedWorldAdmission",
     "cssImportInlines",
     "cssModuleComposesExports",
     "cssModuleEvaluation",
@@ -356,6 +357,30 @@
       "typeExpression": "number"
     },
     {
+      "interfaceName": "OmenaBundleEmissionExecutionV0",
+      "member": "emittedModuleCount",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleEmissionExecutionV0",
+      "member": "globalOrderEntryCount",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleEmissionExecutionV0",
+      "member": "moduleRegions",
+      "optional": false,
+      "typeExpression": "readonly OmenaLinkedEmissionModuleRegionV0[]"
+    },
+    {
+      "interfaceName": "OmenaBundleEmissionExecutionV0",
+      "member": "orderEntryRegions",
+      "optional": false,
+      "typeExpression": "readonly OmenaLinkedEmissionOrderEntryRegionV0[]"
+    },
+    {
       "interfaceName": "OmenaBundleExecutionFieldScopeV0",
       "member": "derivation",
       "optional": false,
@@ -378,6 +403,12 @@
       "member": "bundleComposite",
       "optional": false,
       "typeExpression": "OmenaBundleCompositeExecutionByteFactsV0"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionScopeEvidenceV0",
+      "member": "bundleExecution",
+      "optional": false,
+      "typeExpression": "OmenaBundleExecutionSummaryV0"
     },
     {
       "interfaceName": "OmenaBundleExecutionScopeEvidenceV0",
@@ -416,6 +447,60 @@
       "typeExpression": "readonly OmenaLinkedSourceMapDispositionV0[]"
     },
     {
+      "interfaceName": "OmenaBundleExecutionSummaryV0",
+      "member": "aggregateClosedWorldRefusalCount",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionSummaryV0",
+      "member": "aggregateExecutedPassIds",
+      "optional": false,
+      "typeExpression": "readonly string[]"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionSummaryV0",
+      "member": "aggregateMutationCount",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionSummaryV0",
+      "member": "aggregateSemanticRemovalCount",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionSummaryV0",
+      "member": "emissionExecution",
+      "optional": false,
+      "typeExpression": "OmenaBundleEmissionExecutionV0"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionSummaryV0",
+      "member": "entryModuleInstance",
+      "optional": false,
+      "typeExpression": "OmenaModuleInstanceKeyV0"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionSummaryV0",
+      "member": "moduleExecutions",
+      "optional": false,
+      "typeExpression": "readonly OmenaBundleModuleExecutionV0[]"
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionSummaryV0",
+      "member": "product",
+      "optional": false,
+      "typeExpression": "\"omena-query.bundle-execution\""
+    },
+    {
+      "interfaceName": "OmenaBundleExecutionSummaryV0",
+      "member": "schemaVersion",
+      "optional": false,
+      "typeExpression": "\"0\""
+    },
+    {
       "interfaceName": "OmenaBundleModuleExecutionByteFactsV0",
       "member": "generatedEnd",
       "optional": false,
@@ -444,6 +529,18 @@
       "member": "outputByteLen",
       "optional": false,
       "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaBundleModuleExecutionV0",
+      "member": "execution",
+      "optional": false,
+      "typeExpression": "OmenaTransformExecutionSummaryV0"
+    },
+    {
+      "interfaceName": "OmenaBundleModuleExecutionV0",
+      "member": "moduleInstance",
+      "optional": false,
+      "typeExpression": "OmenaModuleInstanceKeyV0"
     },
     {
       "interfaceName": "OmenaBundleWithEvidenceV0",
@@ -498,6 +595,54 @@
       "member": "sourceMapV3",
       "optional": true,
       "typeExpression": "OmenaSourceMapV3V0"
+    },
+    {
+      "interfaceName": "OmenaLinkedEmissionModuleRegionV0",
+      "member": "firstGlobalOrderIndex",
+      "optional": false,
+      "typeExpression": "number|null"
+    },
+    {
+      "interfaceName": "OmenaLinkedEmissionModuleRegionV0",
+      "member": "generatedEnd",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaLinkedEmissionModuleRegionV0",
+      "member": "generatedStart",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaLinkedEmissionModuleRegionV0",
+      "member": "moduleInstance",
+      "optional": false,
+      "typeExpression": "OmenaModuleInstanceKeyV0"
+    },
+    {
+      "interfaceName": "OmenaLinkedEmissionOrderEntryRegionV0",
+      "member": "generatedEnd",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaLinkedEmissionOrderEntryRegionV0",
+      "member": "generatedStart",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaLinkedEmissionOrderEntryRegionV0",
+      "member": "globalOrderIndex",
+      "optional": false,
+      "typeExpression": "number"
+    },
+    {
+      "interfaceName": "OmenaLinkedEmissionOrderEntryRegionV0",
+      "member": "moduleInstance",
+      "optional": false,
+      "typeExpression": "OmenaModuleInstanceKeyV0"
     },
     {
       "interfaceName": "OmenaLinkedSourceMapDispositionV0",

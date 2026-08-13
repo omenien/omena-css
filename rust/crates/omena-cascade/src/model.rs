@@ -111,7 +111,7 @@ pub enum SpecificityExactnessV0 {
 
 impl Ord for Specificity {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.ids, self.classes, self.elements).cmp(&(other.ids, other.classes, other.elements))
+        crate::axis_order::compare_specificity_axes_v0(self, other)
     }
 }
 
@@ -170,6 +170,32 @@ impl PartialOrd for ModuleRank {
     }
 }
 
+/// Provenance evidence used only to make open-world ties deterministic.
+///
+/// This evidence is deliberately separate from [`CascadeKey`]: it is not a
+/// spec-defined cascade axis and cannot make an otherwise ambiguous cascade
+/// outcome definite.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenWorldTieEvidence {
+    pub module_rank: ModuleRank,
+}
+
+impl OpenWorldTieEvidence {
+    /// No provenance preference is available.
+    pub const NONE: Self = Self {
+        module_rank: ModuleRank::ZERO,
+    };
+
+    /// Numeric zero form retained for callers that model evidence as a rank.
+    pub const ZERO: Self = Self::NONE;
+
+    pub const fn new(module_rank: ModuleRank) -> Self {
+        Self { module_rank }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeKey {
@@ -177,7 +203,6 @@ pub struct CascadeKey {
     pub layer_rank: LayerRank,
     pub scope_proximity: u32,
     pub specificity: Specificity,
-    pub module_rank: ModuleRank,
     pub source_order: u32,
 }
 
@@ -187,7 +212,6 @@ impl CascadeKey {
         layer_rank: LayerRank,
         scope_proximity: u32,
         specificity: Specificity,
-        module_rank: ModuleRank,
         source_order: u32,
     ) -> Self {
         Self {
@@ -195,20 +219,18 @@ impl CascadeKey {
             layer_rank,
             scope_proximity,
             specificity,
-            module_rank,
             source_order,
         }
     }
 }
 
+pub(crate) fn compare_cascade_axis_prefix(left: &CascadeKey, right: &CascadeKey) -> Ordering {
+    crate::axis_order::compare_cascade_axis_prefix_v0(left, right)
+}
+
 impl Ord for CascadeKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.level
-            .cmp(&other.level)
-            .then_with(|| self.layer_rank.cmp(&other.layer_rank))
-            .then_with(|| other.scope_proximity.cmp(&self.scope_proximity))
-            .then_with(|| self.specificity.cmp(&other.specificity))
-            .then_with(|| self.source_order.cmp(&other.source_order))
+        crate::axis_order::compare_cascade_key_axes_v0(self, other)
     }
 }
 
@@ -225,6 +247,8 @@ pub struct CascadeDeclaration {
     pub property: String,
     pub value: CascadeValue,
     pub key: CascadeKey,
+    /// Non-spec evidence for deterministic ordering of open-world ties.
+    pub open_world_tie_evidence: OpenWorldTieEvidence,
     /// Trust boundary for using `key.specificity` to mint an exact winner.
     pub specificity_exactness: SpecificityExactnessV0,
 }
@@ -256,7 +280,7 @@ impl CascadeProof {
             layer_rank: declaration.key.layer_rank,
             scope_proximity: declaration.key.scope_proximity,
             specificity: declaration.key.specificity,
-            module_rank: declaration.key.module_rank,
+            module_rank: declaration.open_world_tie_evidence.module_rank,
             source_order: declaration.key.source_order,
         }
     }

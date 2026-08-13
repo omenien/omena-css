@@ -10,6 +10,22 @@ fn declaration(id: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {
     declaration_with_specificity_exactness(id, value, key, SpecificityExactnessV0::Exact)
 }
 
+fn declaration_with_tie_evidence(
+    id: &str,
+    value: &str,
+    key: CascadeKey,
+    open_world_tie_evidence: OpenWorldTieEvidence,
+) -> CascadeDeclaration {
+    CascadeDeclaration {
+        id: id.to_string(),
+        property: "color".to_string(),
+        value: CascadeValue::Literal(value.to_string()),
+        key,
+        open_world_tie_evidence,
+        specificity_exactness: SpecificityExactnessV0::Exact,
+    }
+}
+
 fn declaration_with_specificity_exactness(
     id: &str,
     value: &str,
@@ -21,6 +37,7 @@ fn declaration_with_specificity_exactness(
         property: "color".to_string(),
         value: CascadeValue::Literal(value.to_string()),
         key,
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness,
     }
 }
@@ -42,6 +59,7 @@ fn property_declaration(
             Specificity::new(0, 1, 0),
             source_order,
         ),
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: SpecificityExactnessV0::Exact,
     }
 }
@@ -61,9 +79,111 @@ fn key(
         normalized_layer_rank(false, Some(layer_ordinal)),
         scope_proximity,
         specificity,
-        ModuleRank::ZERO,
         source_order,
     )
+}
+
+fn generated_cascade_keys() -> Vec<CascadeKey> {
+    let mut keys = Vec::new();
+    for level in [CascadeLevel::AuthorNormal, CascadeLevel::AuthorImportant] {
+        for layer_ordinal in [0, 1] {
+            for scope_proximity in [1, 3] {
+                for specificity in [Specificity::ZERO, Specificity::new(0, 1, 0)] {
+                    for source_order in [1, 2] {
+                        keys.push(CascadeKey::new(
+                            level,
+                            normalized_layer_rank(false, LayerOrdinal::new(layer_ordinal)),
+                            scope_proximity,
+                            specificity,
+                            source_order,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    keys
+}
+
+fn token_texts(word: &OrderedTokenWordV0) -> Vec<&str> {
+    word.tokens()
+        .iter()
+        .map(omena_syntax::ident::CanonicalClassKeyV0::as_str)
+        .collect()
+}
+
+fn known_dom_word(value: &str) -> OrderedTokenWordV0 {
+    let DomClassTokenizationV0::Known { word, .. } = tokenize_dom_class_attribute_v0(Some(value))
+    else {
+        unreachable!("a supplied class attribute is a known tokenizer input");
+    };
+    word
+}
+
+#[test]
+fn dom_class_tokenizer_preserves_first_order_and_uses_only_ascii_whitespace() {
+    assert_eq!(token_texts(&known_dom_word("b a b")), vec!["b", "a"]);
+    assert_eq!(
+        token_texts(&known_dom_word("a\u{00a0}b")),
+        vec!["a\u{00a0}b"]
+    );
+    assert_eq!(
+        token_texts(&known_dom_word("a\u{000b}b")),
+        vec!["a\u{000b}b"],
+        "vertical tab is ASCII but not DOM class whitespace"
+    );
+    assert!(matches!(
+        tokenize_dom_class_attribute_v0(None),
+        DomClassTokenizationV0::Unknown {
+            cause: DomClassTokenizationUnknownCauseV0::InputUnavailable
+        }
+    ));
+}
+
+#[test]
+fn token_support_enforces_subset_and_matches_ordered_support() {
+    let left = known_dom_word("button primary");
+    let right = known_dom_word("primary large");
+    let combined = left.combine_first_occurrence(&right);
+    assert_eq!(token_texts(&combined), vec!["button", "primary", "large"]);
+    let support = token_support_v0(&combined);
+    let left_support = token_support_v0(&left);
+    let right_support = token_support_v0(&right);
+    let expected_union = left_support
+        .may()
+        .union(right_support.may())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        support
+            .must()
+            .iter()
+            .map(omena_syntax::ident::CanonicalClassKeyV0::as_str)
+            .collect::<Vec<_>>(),
+        vec!["button", "large", "primary"]
+    );
+    assert_eq!(support.must(), support.may());
+    assert_eq!(support.may(), &expected_union);
+
+    let button = omena_syntax::ident::ClassNameV0::new("button").canonical_key();
+    let primary = omena_syntax::ident::ClassNameV0::new("primary").canonical_key();
+    assert!(TokenSupportV0::new([button.clone()], [button.clone(), primary.clone()]).is_some());
+    assert!(TokenSupportV0::new([button, primary.clone()], [primary]).is_none());
+}
+
+#[test]
+fn attribute_and_selector_escape_planes_share_keys_without_escape_aware_tokenization() {
+    let attribute = known_dom_word(r"a\2d b");
+    assert_eq!(token_texts(&attribute), vec!["a-", "b"]);
+
+    let escaped_selector = omena_syntax::ident::class_selector_names(r".a\2d b");
+    let plain_selector = omena_syntax::ident::class_selector_names(".a-b");
+    assert_eq!(escaped_selector.len(), 1);
+    assert_eq!(plain_selector.len(), 1);
+    assert_eq!(
+        escaped_selector[0].name.clone().canonical_key(),
+        plain_selector[0].name.clone().canonical_key()
+    );
 }
 
 #[test]
@@ -97,6 +217,63 @@ fn origin_inputs_drive_every_non_temporal_cascade_level() {
         cascade_level_for_origin(CascadeOriginV0::Inline, true),
         CascadeLevel::InlineImportant
     );
+}
+
+#[test]
+fn element_attached_style_outranks_author_rules_across_adverse_layers() {
+    let strongest_specificity = Specificity::new(u32::MAX, u32::MAX, u32::MAX);
+    let normal_inline = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Inline, false),
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        u32::MAX,
+        Specificity::ZERO,
+        0,
+    );
+    let normal_author = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Author, false),
+        normalized_layer_rank(false, None),
+        0,
+        strongest_specificity,
+        u32::MAX,
+    );
+    let important_inline = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Inline, true),
+        normalized_layer_rank(true, None),
+        u32::MAX,
+        Specificity::ZERO,
+        0,
+    );
+    let important_author = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Author, true),
+        normalized_layer_rank(true, LayerOrdinal::new(0)),
+        0,
+        strongest_specificity,
+        u32::MAX,
+    );
+
+    assert!(normal_inline > normal_author);
+    assert!(important_inline > important_author);
+    for (inline_key, author_key, expected_id) in [
+        (normal_inline, normal_author, "inline-normal"),
+        (important_inline, important_author, "inline-important"),
+    ] {
+        let outcome = cascade_property(
+            [
+                declaration(expected_id, "inline", inline_key),
+                declaration("author-rule", "author", author_key),
+            ],
+            "color",
+        );
+        let winner_id = match outcome {
+            CascadeOutcome::Definite { winner, .. } => Some(winner.id),
+            _ => None,
+        };
+        assert_eq!(
+            winner_id.as_deref(),
+            Some(expected_id),
+            "cross-level style-attribute comparison must be definite"
+        );
+    }
 }
 
 #[test]
@@ -232,7 +409,7 @@ fn keeps_scope_proximity_unknown_for_inexact_dynamic_classes() {
 }
 
 #[test]
-fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
+fn orders_cascade_keys_by_level_layer_specificity_scope_and_source() {
     let base = key(
         CascadeLevel::AuthorNormal,
         0,
@@ -288,96 +465,241 @@ fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
 }
 
 #[test]
-fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
+fn library_axis_order_prefers_specificity_before_scope_proximity() {
+    let outer = declaration(
+        "outer-high-specificity",
+        "OUTER",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            2,
+            Specificity::new(1, 0, 1),
+            0,
+        ),
+    );
+    let inner = declaration(
+        "inner-low-specificity",
+        "INNER",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::new(0, 1, 0),
+            1,
+        ),
+    );
+
+    let observed = [
+        [outer.clone(), inner.clone()],
+        [inner.clone(), outer.clone()],
+    ]
+    .into_iter()
+    .map(
+        |declarations| match cascade_property(declarations, "color") {
+            CascadeOutcome::Definite { winner, .. } => {
+                ("Definite", Some(winner.id), Some(winner.value))
+            }
+            CascadeOutcome::RankedSet(_) => ("RankedSet", None, None),
+            CascadeOutcome::Inherit => ("Inherit", None, None),
+            CascadeOutcome::Top => ("Top", None, None),
+        },
+    )
+    .collect::<Vec<_>>();
+    let expected = vec![
+        (
+            "Definite",
+            Some("outer-high-specificity".to_string()),
+            Some(CascadeValue::Literal("OUTER".to_string())),
+        ),
+        (
+            "Definite",
+            Some("outer-high-specificity".to_string()),
+            Some(CascadeValue::Literal("OUTER".to_string())),
+        ),
+    ];
+
+    assert_eq!(
+        observed, expected,
+        "the published cascade order requires specificity to precede scoping proximity"
+    );
+}
+
+#[test]
+fn equal_scope_proximity_prefers_high_specificity_definite_winner() -> Result<(), String> {
+    let low = declaration(
+        "low-specificity",
+        "LOW",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            1,
+            Specificity::new(0, 1, 0),
+            2,
+        ),
+    );
+    let high = declaration(
+        "high-specificity",
+        "HIGH",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            1,
+            Specificity::new(1, 0, 0),
+            1,
+        ),
+    );
+
+    for declarations in [[low.clone(), high.clone()], [high.clone(), low.clone()]] {
+        let CascadeOutcome::Definite { winner, .. } = cascade_property(declarations, "color")
+        else {
+            return Err("equal-proximity exact declarations must produce a definite winner".into());
+        };
+        assert_eq!(winner.id, "high-specificity");
+        assert_eq!(winner.value, CascadeValue::Literal("HIGH".to_string()));
+    }
+    Ok(())
+}
+
+#[test]
+fn open_world_tie_evidence_is_not_a_cascade_key_axis() {
     let css_specificity_winner = CascadeKey::new(
         CascadeLevel::AuthorNormal,
         normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::new(0, 2, 0),
-        ModuleRank::ZERO,
         1,
     );
-    let module_rank_winner = CascadeKey::new(
+    let weaker_specificity = CascadeKey::new(
         CascadeLevel::AuthorNormal,
         normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::new(0, 1, 0),
-        ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
         2,
     );
     assert!(
-        css_specificity_winner > module_rank_winner,
+        css_specificity_winner > weaker_specificity,
         "real CSS specificity must outrank import-graph provenance evidence"
     );
 
-    let earlier_module = CascadeKey::new(
+    let earlier_source = CascadeKey::new(
         CascadeLevel::AuthorNormal,
         normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::ZERO,
-        ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
         1,
     );
-    let later_module = CascadeKey::new(
+    let later_source = CascadeKey::new(
         CascadeLevel::AuthorNormal,
         normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::ZERO,
-        ModuleRank::ZERO,
         2,
     );
     assert!(
-        later_module > earlier_module,
+        later_source > earlier_source,
         "exact cascade ordering uses source order, not module provenance rank"
     );
 
-    let first = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        normalized_layer_rank(false, LayerOrdinal::new(0)),
-        1,
-        Specificity::ZERO,
-        ModuleRank::ZERO,
-        1,
-    );
-    let same_exact_key_different_module_rank = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        normalized_layer_rank(false, LayerOrdinal::new(0)),
-        1,
-        Specificity::ZERO,
-        ModuleRank::new(1, 2, 3),
-        1,
-    );
-    assert_eq!(
-        first.cmp(&same_exact_key_different_module_rank),
-        std::cmp::Ordering::Equal
-    );
+    let evidence = OpenWorldTieEvidence::new(ModuleRank::new(1, 2, 3));
+    assert_eq!(evidence.module_rank, ModuleRank::new(1, 2, 3));
+    assert_eq!(OpenWorldTieEvidence::NONE, OpenWorldTieEvidence::ZERO);
+}
+
+#[test]
+fn generated_cascade_key_equality_matches_total_order_equality() {
+    let mut keys = generated_cascade_keys();
+    keys.extend(keys.iter().copied().take(2).collect::<Vec<_>>());
+
+    for (left_index, left) in keys.iter().enumerate() {
+        for (right_index, right) in keys.iter().enumerate() {
+            assert_eq!(
+                left == right,
+                left.cmp(right) == std::cmp::Ordering::Equal,
+                "Eq and Ord diverged for generated pair ({left_index}, {right_index})"
+            );
+        }
+    }
+}
+
+#[test]
+fn generated_btree_set_lookup_returns_only_stored_equal_keys() {
+    let stored = generated_cascade_keys()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let mut probes = generated_cascade_keys();
+    probes.push(CascadeKey::new(
+        CascadeLevel::Transition,
+        normalized_layer_rank(false, LayerOrdinal::new(7)),
+        9,
+        Specificity::new(3, 4, 5),
+        99,
+    ));
+
+    for (probe_index, probe) in probes.into_iter().enumerate() {
+        let equal_key_is_stored = stored.iter().any(|stored_key| *stored_key == probe);
+        assert_eq!(
+            stored.contains(&probe),
+            equal_key_is_stored,
+            "BTreeSet::contains disagreed with Eq for probe {probe_index}"
+        );
+        assert_eq!(
+            stored
+                .get(&probe)
+                .is_some_and(|stored_key| *stored_key == probe),
+            equal_key_is_stored,
+            "BTreeSet::get returned a non-equal key for probe {probe_index}"
+        );
+    }
+}
+
+#[test]
+fn generated_binary_search_hits_if_and_only_if_a_key_is_equal() {
+    let mut sorted = generated_cascade_keys();
+    sorted.sort();
+    sorted.dedup();
+    let mut probes = generated_cascade_keys();
+    probes.push(CascadeKey::new(
+        CascadeLevel::UserAgentNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(7)),
+        9,
+        Specificity::new(3, 4, 5),
+        99,
+    ));
+
+    for (probe_index, probe) in probes.into_iter().enumerate() {
+        let equal_key_is_stored = sorted.contains(&probe);
+        let search = sorted.binary_search(&probe);
+        assert_eq!(
+            search.is_ok(),
+            equal_key_is_stored,
+            "binary_search disagreed with Eq for probe {probe_index}"
+        );
+        if let Ok(found_index) = search {
+            assert_eq!(sorted[found_index], probe);
+        }
+    }
 }
 
 #[test]
 fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
-    let weaker_module_hint = declaration(
+    let tied_key = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        1,
+    );
+    let weaker_module_hint = declaration_with_tie_evidence(
         "weaker-module-hint",
         "red",
-        CascadeKey::new(
-            CascadeLevel::AuthorNormal,
-            normalized_layer_rank(false, LayerOrdinal::new(0)),
-            1,
-            Specificity::ZERO,
-            ModuleRank::ZERO,
-            1,
-        ),
+        tied_key,
+        OpenWorldTieEvidence::NONE,
     );
-    let stronger_module_hint = declaration(
+    let stronger_module_hint = declaration_with_tie_evidence(
         "stronger-module-hint",
         "blue",
-        CascadeKey::new(
-            CascadeLevel::AuthorNormal,
-            normalized_layer_rank(false, LayerOrdinal::new(0)),
-            1,
-            Specificity::ZERO,
-            ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
-            1,
-        ),
+        tied_key,
+        OpenWorldTieEvidence::new(ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)),
     );
 
     let outcome = cascade_property_open_world([weaker_module_hint, stronger_module_hint], "color");
@@ -395,35 +717,74 @@ fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
 }
 
 #[test]
-fn open_world_winner_is_independent_of_input_order_when_only_module_rank_differs()
--> Result<(), String> {
-    let weaker_key = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        normalized_layer_rank(false, LayerOrdinal::new(0)),
-        1,
-        Specificity::ZERO,
-        ModuleRank::ZERO,
-        1,
-    );
-    let stronger_key = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        normalized_layer_rank(false, LayerOrdinal::new(0)),
-        1,
-        Specificity::ZERO,
-        ModuleRank::new(1, 0, 0),
-        1,
-    );
+fn generated_open_world_tie_evidence_is_independent_of_input_order() -> Result<(), String> {
+    for (key_index, tied_key) in generated_cascade_keys().into_iter().enumerate() {
+        for stronger_rank in [ModuleRank::new(1, 0, 0), ModuleRank::new(2, 3, 5)] {
+            let weaker = (tied_key, OpenWorldTieEvidence::NONE);
+            let stronger = (tied_key, OpenWorldTieEvidence::new(stronger_rank));
 
-    for items in [
-        [("weaker", weaker_key), ("stronger", stronger_key)],
-        [("stronger", stronger_key), ("weaker", weaker_key)],
-    ] {
-        let (winner, _) = select_open_world_cascade_winner(items, |(_, key)| *key)
-            .ok_or_else(|| "the fixture always contains two candidates".to_string())?;
-        assert_eq!(
-            winner.0, "stronger",
-            "reversion: replacing the open-world selector with select_cascade_winner makes the first-listed candidate win"
-        );
+            assert_eq!(
+                weaker.0.cmp(&stronger.0),
+                std::cmp::Ordering::Equal,
+                "open-world module provenance must stay outside the specification-key order for generated key {key_index}"
+            );
+            assert_ne!(
+                weaker.1.module_rank, stronger.1.module_rank,
+                "the independence arm requires distinct open-world evidence for generated key {key_index}"
+            );
+
+            for items in [
+                [("weaker", weaker), ("stronger", stronger)],
+                [("stronger", stronger), ("weaker", weaker)],
+            ] {
+                let (winner, _) = select_open_world_cascade_winner(items, |(_, ranked)| *ranked)
+                    .ok_or_else(|| "the fixture always contains two candidates".to_string())?;
+                assert_eq!(
+                    winner.0, "stronger",
+                    "tie evidence depended on input order for generated key {key_index}"
+                );
+            }
+
+            for declarations in [
+                [
+                    declaration_with_tie_evidence(
+                        "weaker",
+                        "red",
+                        tied_key,
+                        OpenWorldTieEvidence::NONE,
+                    ),
+                    declaration_with_tie_evidence(
+                        "stronger",
+                        "blue",
+                        tied_key,
+                        OpenWorldTieEvidence::new(stronger_rank),
+                    ),
+                ],
+                [
+                    declaration_with_tie_evidence(
+                        "stronger",
+                        "blue",
+                        tied_key,
+                        OpenWorldTieEvidence::new(stronger_rank),
+                    ),
+                    declaration_with_tie_evidence(
+                        "weaker",
+                        "red",
+                        tied_key,
+                        OpenWorldTieEvidence::NONE,
+                    ),
+                ],
+            ] {
+                let CascadeOutcome::RankedSet(ranked) =
+                    cascade_property_open_world(declarations, "color")
+                else {
+                    return Err(format!(
+                        "tie evidence fabricated a definite winner for generated key {key_index}"
+                    ));
+                };
+                assert_eq!(ranked[0].id, "stronger");
+            }
+        }
     }
     Ok(())
 }
@@ -435,7 +796,6 @@ fn open_world_module_provenance_remains_below_source_order() -> Result<(), Strin
         normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::ZERO,
-        ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
         1,
     );
     let later_with_weaker_provenance = CascadeKey::new(
@@ -443,16 +803,24 @@ fn open_world_module_provenance_remains_below_source_order() -> Result<(), Strin
         normalized_layer_rank(false, LayerOrdinal::new(0)),
         1,
         Specificity::ZERO,
-        ModuleRank::ZERO,
         2,
     );
 
     let (winner, _) = select_open_world_cascade_winner(
         [
-            ("earlier", earlier_with_stronger_provenance),
-            ("later", later_with_weaker_provenance),
+            (
+                "earlier",
+                (
+                    earlier_with_stronger_provenance,
+                    OpenWorldTieEvidence::new(ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)),
+                ),
+            ),
+            (
+                "later",
+                (later_with_weaker_provenance, OpenWorldTieEvidence::NONE),
+            ),
         ],
-        |(_, key)| *key,
+        |(_, ranked)| *ranked,
     )
     .ok_or_else(|| "the fixture always contains two candidates".to_string())?;
     assert_eq!(
@@ -464,20 +832,22 @@ fn open_world_module_provenance_remains_below_source_order() -> Result<(), Strin
 
 #[test]
 fn open_world_selector_matches_the_hand_written_axis_order() -> Result<(), String> {
-    let mut keys = Vec::new();
+    let mut candidates = Vec::new();
     for level in [CascadeLevel::AuthorNormal, CascadeLevel::AuthorImportant] {
         for layer_ordinal in [0, 1] {
             for scope_proximity in [1, 3] {
                 for specificity in [Specificity::ZERO, Specificity::new(0, 1, 0)] {
                     for source_order in [1, 2] {
                         for module_rank in [ModuleRank::ZERO, ModuleRank::new(1, 0, 0)] {
-                            keys.push(CascadeKey::new(
-                                level,
-                                normalized_layer_rank(false, LayerOrdinal::new(layer_ordinal)),
-                                scope_proximity,
-                                specificity,
-                                module_rank,
-                                source_order,
+                            candidates.push((
+                                CascadeKey::new(
+                                    level,
+                                    normalized_layer_rank(false, LayerOrdinal::new(layer_ordinal)),
+                                    scope_proximity,
+                                    specificity,
+                                    source_order,
+                                ),
+                                OpenWorldTieEvidence::new(module_rank),
                             ));
                         }
                     }
@@ -486,26 +856,28 @@ fn open_world_selector_matches_the_hand_written_axis_order() -> Result<(), Strin
         }
     }
 
-    for (left_index, left) in keys.iter().copied().enumerate() {
-        for (right_index, right) in keys.iter().copied().enumerate() {
+    for (left_index, left) in candidates.iter().copied().enumerate() {
+        for (right_index, right) in candidates.iter().copied().enumerate() {
             if left_index == right_index {
                 continue;
             }
 
-            // This independent tuple is intentionally test-only: it makes the
-            // production comparator's module-rank limb falsifiable.
-            let oracle_key = |key: CascadeKey| {
+            // This test-only tuple is projected from CSS Cascading and Inheritance
+            // Level 6 section 2.1, Cascade Sorting Order (W3C Working Draft,
+            // 6 September 2024): specificity precedes scoping proximity. Module
+            // provenance is Omena's post-key tie-break, not a specification axis.
+            let oracle_key = |(key, evidence): (CascadeKey, OpenWorldTieEvidence)| {
                 (
                     key.level,
                     key.layer_rank.get(),
-                    Reverse(key.scope_proximity),
                     key.specificity.ids,
                     key.specificity.classes,
                     key.specificity.elements,
+                    Reverse(key.scope_proximity),
                     key.source_order,
-                    key.module_rank.distance_priority,
-                    key.module_rank.import_order_priority,
-                    key.module_rank.file_order_priority,
+                    evidence.module_rank.distance_priority,
+                    evidence.module_rank.import_order_priority,
+                    evidence.module_rank.file_order_priority,
                 )
             };
             let expected = if oracle_key(left) > oracle_key(right) {
@@ -513,18 +885,16 @@ fn open_world_selector_matches_the_hand_written_axis_order() -> Result<(), Strin
             } else {
                 "right"
             };
-            let (selected, _) =
-                select_open_world_cascade_winner([("left", left), ("right", right)], |(_, key)| {
-                    *key
-                })
-                .ok_or_else(|| {
-                    "the enumerated fixture always contains two candidates".to_string()
-                })?;
+            let (selected, _) = select_open_world_cascade_winner(
+                [("left", left), ("right", right)],
+                |(_, ranked)| *ranked,
+            )
+            .ok_or_else(|| "the enumerated fixture always contains two candidates".to_string())?;
 
             let outcome = cascade_property_open_world(
                 [
-                    declaration("left", "red", left),
-                    declaration("right", "blue", right),
+                    declaration_with_tie_evidence("left", "red", left.0, left.1),
+                    declaration_with_tie_evidence("right", "blue", right.0, right.1),
                 ],
                 "color",
             );
@@ -709,10 +1079,10 @@ fn cascade_margin_schema_is_substrate_only_until_calibrated() {
         vec![
             "level",
             "layerRank",
-            "scopeProximity",
             "specificityIds",
             "specificityClasses",
             "specificityElements",
+            "scopeProximity",
             "sourceOrder",
         ]
     );
@@ -3038,7 +3408,7 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
     let report = run_cascade_conformance_seed_corpus();
 
     assert_eq!(report.product, "omena-cascade.conformance-seed-corpus");
-    assert_eq!(report.case_count, 21);
+    assert_eq!(report.case_count, 39);
     let important_origin_pin = report
         .results
         .iter()
@@ -3059,6 +3429,59 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
         .find(|result| result.name == "complex-functional-specificity-beats-source-order")
         .map(|result| (result.actual_outcome, result.actual_winner_id.as_deref()));
     assert_eq!(inversion_pin, Some(("definite", Some("complex"))));
+}
+
+#[test]
+fn conformance_corpus_counts_direction_conflicts() {
+    let conformance_report = run_cascade_conformance_seed_corpus();
+    let direction_conflicts = conformance_report
+        .results
+        .iter()
+        .filter(|result| {
+            result
+                .name
+                .starts_with("specificity-precedes-opposed-scope-")
+        })
+        .collect::<Vec<_>>();
+    let failures = direction_conflicts
+        .iter()
+        .filter(|result| !result.passed)
+        .collect::<Vec<_>>();
+
+    for result in &failures {
+        eprintln!(
+            "direction_conflict_failure case={} expected_deciding_axis=specificity expected_winner={:?} actual_winner={:?}",
+            result.name, result.expected_winner_id, result.actual_winner_id
+        );
+    }
+    eprintln!(
+        "direction_conflict_count={} direction_conflict_failure_count={}",
+        direction_conflicts.len(),
+        failures.len()
+    );
+    assert_eq!(direction_conflicts.len(), 18);
+    assert_eq!(failures.len(), 0);
+}
+
+#[test]
+fn equal_specificity_proximity_sweep_remains_complement() {
+    let self_check_report = run_cascade_ordering_axis_self_check_corpus();
+    let equal_specificity_proximity_complement = self_check_report
+        .results
+        .iter()
+        .filter(|result| result.name.starts_with("self-check-scope-proximity-"))
+        .collect::<Vec<_>>();
+    let failure_count = equal_specificity_proximity_complement
+        .iter()
+        .filter(|result| !result.passed)
+        .count();
+
+    eprintln!(
+        "equal_specificity_proximity_complement_count={} equal_specificity_proximity_failure_count={failure_count}",
+        equal_specificity_proximity_complement.len(),
+    );
+    assert_eq!(equal_specificity_proximity_complement.len(), 56);
+    assert_eq!(failure_count, 0);
 }
 
 fn hand_written_cascade_winner(case_name: &str) -> Option<String> {

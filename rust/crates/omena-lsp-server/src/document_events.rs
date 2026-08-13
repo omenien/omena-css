@@ -268,6 +268,7 @@ fn remove_unowned_indexed_documents_for_removed_workspaces(
 }
 
 pub(crate) fn did_change_watched_files(state: &mut LspShellState, params: Option<&Value>) {
+    state.source_type_fact_watched_files_observed = true;
     let Some(changes) = params
         .and_then(|value| value.get("changes"))
         .and_then(Value::as_array)

@@ -1,9 +1,12 @@
 use std::collections::BTreeSet;
 
 use crate::{
+    CssModuleTokenCollisionPathScopeV0, CssModuleTokenCollisionV0,
+    CssModuleTokenInterfaceMismatchV0, CssModuleTokenOwnershipCensusV0, CssModuleTokenOwnershipV0,
     TransformExecutionContextV0, TransformExecutionPolicyV0,
     TransformModuleQualifiedExecutionErrorV0, TransformPassDispatchKindV0,
-    default_transform_pass_registry, execute_transform_passes_incremental_with_database,
+    TransformStrictPolicyReasonV0, default_transform_pass_registry,
+    execute_transform_passes_incremental_with_database,
     execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle,
     execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle,
     execute_transform_passes_on_source,
@@ -21,14 +24,641 @@ use crate::{
 use omena_abstract_value::FactPrecision;
 use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
 use omena_parser::{
-    ClosedWorldBundleV0, ClosedWorldLinkedModuleV0, ConfigurationHashV0, ModuleIdV0,
-    ModuleInstanceKeyV0, StyleDialect,
+    ClosedWorldBundleV0, ClosedWorldComposesEdgeV0, ClosedWorldComposesScanStateV0,
+    ClosedWorldLinkedModuleV0, ClosedWorldModuleMetadataV0,
+    ClosedWorldModuleReachabilityEvidenceV0, ClosedWorldSourcePrecisionSummaryV0,
+    ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, StyleDialect,
 };
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformPassClassV0, TransformPassKind,
     default_transform_pass_contracts, default_transform_pass_descriptors,
     lower_transform_ir_from_source, print_transform_ir_css,
 };
+
+use super::test_closed_world_bundle;
+
+#[test]
+fn ownership_census_controls_module_qualified_destructive_admission() -> Result<(), String> {
+    let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/first.module.css"));
+    let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/second.module.css"));
+    let bundle = test_closed_world_bundle(
+        vec![first.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(first.clone()),
+            ClosedWorldLinkedModuleV0::new(second.clone()),
+        ],
+    );
+    let source = ".shared-token { color: red; } .dead { color: gray; }";
+    let collision_ownership = CssModuleTokenOwnershipV0::new(
+        "shared-token",
+        vec![first.clone(), second.clone()],
+        vec![
+            "src/first.module.css".to_string(),
+            "src/second.module.css".to_string(),
+        ],
+        vec!["shared".to_string()],
+    );
+    let collision_census = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        2,
+        vec![collision_ownership.clone()],
+        vec![CssModuleTokenCollisionV0::new(
+            collision_ownership,
+            vec!["importInlineLegacy", "linkedOrder"],
+            CssModuleTokenCollisionPathScopeV0::BothPaths,
+        )],
+        Vec::new(),
+        Vec::new(),
+    );
+    let execute = |census: &CssModuleTokenOwnershipCensusV0| {
+        census
+            .execute_module_transform_passes_with_ownership_admission(
+                source,
+                StyleDialect::Css,
+                &[TransformPassKind::TreeShakeClass],
+                &TransformExecutionContextV0::default(),
+                &bundle,
+                &first,
+                FactPrecision::Exact,
+                &TransformExecutionPolicyV0::default(),
+                &[],
+            )
+            .map_err(|error| format!("ownership-census module should be known: {error:?}"))
+    };
+
+    let blocked = execute(&collision_census)?;
+    assert_eq!(blocked.output_css, source);
+    assert_eq!(blocked.closed_world_admission.refused_count, 1);
+    assert!(matches!(
+        blocked.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::OwnershipNotSeparable {
+            token,
+            module_paths,
+        }] if token == "shared-token" && module_paths == &[
+            "src/first.module.css".to_string(),
+            "src/second.module.css".to_string(),
+        ]
+    ));
+    assert_eq!(
+        blocked.semantic_preservation_telemetry.observed_pass_count,
+        1
+    );
+    assert_eq!(
+        blocked.semantic_preservation_telemetry.preserved_pass_count,
+        0
+    );
+    assert_eq!(
+        blocked.semantic_preservation_telemetry.blocked_pass_count,
+        1
+    );
+
+    // FALSIFIER: replacing the collision producer with a complete empty census must admit the
+    // destructive pass. A refusal derived from a count or from the checked reachability set would
+    // keep this control blocked and make the producer-dependence arm fail.
+    let complete_empty = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        0,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let admitted = execute(&complete_empty)?;
+    assert_eq!(admitted.closed_world_admission.refused_count, 0);
+    assert!(!admitted.output_css.contains("shared-token"));
+    assert!(!admitted.output_css.contains("dead"));
+    Ok(())
+}
+
+#[test]
+fn proof_kernel_token_closes_favourable_ownership_count_bypass() -> Result<(), String> {
+    let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/first.module.css"));
+    let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/second.module.css"));
+    let bundle = test_closed_world_bundle(
+        vec![first.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(first.clone()),
+            ClosedWorldLinkedModuleV0::new(second.clone()),
+        ],
+    );
+    let execute = |census: &CssModuleTokenOwnershipCensusV0| {
+        census
+            .execute_module_transform_passes_with_ownership_admission(
+                ".dead { color: gray; }",
+                StyleDialect::Css,
+                &[TransformPassKind::TreeShakeClass],
+                &TransformExecutionContextV0::default(),
+                &bundle,
+                &first,
+                FactPrecision::Exact,
+                &TransformExecutionPolicyV0::default(),
+                &[],
+            )
+            .map_err(|error| format!("ownership-census module should be known: {error:?}"))
+    };
+
+    let unique = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        1,
+        vec![CssModuleTokenOwnershipV0::new(
+            "_firstx_0",
+            vec![first.clone()],
+            vec!["src/first.module.css".to_string()],
+            vec!["dead".to_string()],
+        )],
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let admitted = execute(&unique)?;
+    assert_eq!(admitted.closed_world_admission.refused_count, 0);
+
+    // FALSIFIER: the legacy producer-owned summaries are deliberately made favourable by
+    // omitting the collision row. Only the independently checked one-owner certificate can see
+    // that two modeled preimages were collapsed into one emitted token.
+    let favourable_but_ambiguous = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        2,
+        vec![CssModuleTokenOwnershipV0::new(
+            "_shared_0",
+            vec![first.clone(), second],
+            vec![
+                "src/first.module.css".to_string(),
+                "src/second.module.css".to_string(),
+            ],
+            vec!["dead".to_string(), "other".to_string()],
+        )],
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let blocked = execute(&favourable_but_ambiguous)?;
+    assert_eq!(blocked.closed_world_admission.refused_count, 1);
+    assert!(matches!(
+        blocked.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { missing }]
+            if missing == &["proofKernelToken:tree-shake-class".to_string()]
+    ));
+    Ok(())
+}
+
+#[test]
+fn ownership_census_admission_matrix_distinguishes_incomplete_and_empty_states()
+-> Result<(), String> {
+    #[derive(Clone, Copy)]
+    enum ExpectedReason {
+        Admit,
+        Ownership,
+        Evidence,
+    }
+
+    let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/first.module.css"));
+    let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/second.module.css"));
+    let bundle = test_closed_world_bundle(
+        vec![first.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(first.clone()),
+            ClosedWorldLinkedModuleV0::new(second.clone()),
+        ],
+    );
+    let ownership = CssModuleTokenOwnershipV0::new(
+        "shared-token",
+        vec![first.clone(), second],
+        vec![
+            "src/first.module.css".to_string(),
+            "src/second.module.css".to_string(),
+        ],
+        vec!["shared".to_string()],
+    );
+    let cases = vec![
+        (
+            "complete-empty",
+            CssModuleTokenOwnershipCensusV0::new(
+                "linkedOrder",
+                0,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            ),
+            ExpectedReason::Admit,
+        ),
+        (
+            "plural-owner",
+            CssModuleTokenOwnershipCensusV0::new(
+                "linkedOrder",
+                2,
+                vec![ownership.clone()],
+                vec![CssModuleTokenCollisionV0::new(
+                    ownership,
+                    vec!["linkedOrder"],
+                    CssModuleTokenCollisionPathScopeV0::LinkedOrderOnly,
+                )],
+                Vec::new(),
+                Vec::new(),
+            ),
+            ExpectedReason::Ownership,
+        ),
+        (
+            "zero-owner",
+            CssModuleTokenOwnershipCensusV0::new(
+                "linkedOrder",
+                0,
+                Vec::new(),
+                Vec::new(),
+                vec!["_unowned".to_string()],
+                Vec::new(),
+            ),
+            ExpectedReason::Ownership,
+        ),
+        (
+            "analysis-unavailable",
+            CssModuleTokenOwnershipCensusV0::unavailable(
+                "linkedOrder",
+                "analysis unavailable control",
+            ),
+            ExpectedReason::Evidence,
+        ),
+        (
+            "interface-mismatch",
+            CssModuleTokenOwnershipCensusV0::new(
+                "linkedOrder",
+                1,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                vec![CssModuleTokenInterfaceMismatchV0::new(
+                    first.clone(),
+                    "src/first.module.css",
+                    "shared",
+                    "_promised",
+                    "_emitted",
+                )],
+            ),
+            ExpectedReason::Evidence,
+        ),
+    ];
+
+    for (shape, census, expected) in cases {
+        let execution = census
+            .execute_module_transform_passes_with_ownership_admission(
+                ".dead { color: gray; }",
+                StyleDialect::Css,
+                &[TransformPassKind::TreeShakeClass],
+                &TransformExecutionContextV0::default(),
+                &bundle,
+                &first,
+                FactPrecision::Exact,
+                &TransformExecutionPolicyV0::default(),
+                &[],
+            )
+            .map_err(|error| format!("{shape} module should be known: {error:?}"))?;
+        let reasons = execution
+            .closed_world_admission
+            .refusal_reasons
+            .first()
+            .map(|event| event.reasons.as_slice())
+            .unwrap_or_default();
+        match expected {
+            ExpectedReason::Admit => {
+                assert!(reasons.is_empty(), "{shape}: {reasons:?}");
+                assert!(!execution.output_css.contains("dead"), "{shape}");
+            }
+            ExpectedReason::Ownership => {
+                assert!(
+                    matches!(
+                        reasons,
+                        [TransformStrictPolicyReasonV0::OwnershipNotSeparable { .. }]
+                    ),
+                    "{shape}: {reasons:?}"
+                );
+                assert!(execution.output_css.contains("dead"), "{shape}");
+            }
+            ExpectedReason::Evidence => {
+                assert!(
+                    matches!(
+                        reasons,
+                        [TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { .. }]
+                    ),
+                    "{shape}: {reasons:?}"
+                );
+                assert!(execution.output_css.contains("dead"), "{shape}");
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping_bytes()
+-> Result<(), String> {
+    let source = ".used { color: red; } .dead { color: blue; }";
+    let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("admission.module.css"));
+    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+        vec![instance.clone()],
+        vec![ClosedWorldLinkedModuleV0::new(instance).with_class_name("used")],
+    )
+    .map_err(|error| format!("incomplete bundle should still be constructible: {error:?}"))?;
+
+    let execution = execute_transform_passes_on_source_with_dialect_context_and_closed_world_bundle(
+        source,
+        StyleDialect::Css,
+        &[TransformPassKind::TreeShakeClass],
+        &TransformExecutionContextV0::default(),
+        &bundle,
+    );
+
+    assert_eq!(execution.output_css, source);
+    assert_eq!(execution.planned_only_pass_ids, ["tree-shake-class"]);
+    assert_eq!(execution.closed_world_admission.refused_count, 1);
+    assert_eq!(execution.strict_policy.refused_count, 0);
+    assert!(matches!(
+        execution.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { missing }]
+            if missing == &[
+                "interfaceHash".to_string(),
+                "moduleReachabilityInputAbsent".to_string(),
+                "sourcePrecision".to_string(),
+            ]
+    ));
+    Ok(())
+}
+
+#[test]
+fn closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix()
+-> Result<(), String> {
+    // This register-bound legacy name covers the executor measurement. Producer independence is
+    // exercised by the gate's detached-worktree linker-hop probe.
+    fn emit_cell(
+        state: &str,
+        fixture: &str,
+        bundle: &ClosedWorldBundleV0,
+        execution: &crate::TransformExecutionSummaryV0,
+    ) {
+        let reason_kind = execution
+            .closed_world_admission
+            .refusal_reasons
+            .first()
+            .and_then(|entry| entry.reasons.first())
+            .map(|reason| match reason {
+                TransformStrictPolicyReasonV0::LivenessNotClosed { .. } => "livenessNotClosed",
+                TransformStrictPolicyReasonV0::EvidenceUnavailable => "evidenceUnavailable",
+                _ => "other",
+            });
+        eprintln!(
+            "CLOSED_WORLD_COMPOSES_ADMISSION_CELL={}",
+            serde_json::json!({
+                "state": state,
+                "fixture": fixture,
+                "refusedCount": execution.closed_world_admission.refused_count,
+                "reasonKind": reason_kind,
+                "evidenceScope": execution.closed_world_admission.evidence_scope,
+                "outputCss": execution.output_css.as_str(),
+                "observedBundleEdgeCount": bundle.composes_edge_observation_count(),
+                "semanticObservedPassCount": execution.semantic_preservation_telemetry.observed_pass_count,
+                "semanticPreservedPassCount": execution.semantic_preservation_telemetry.preserved_pass_count,
+                "semanticBlockedPassCount": execution.semantic_preservation_telemetry.blocked_pass_count,
+            })
+        );
+    }
+
+    fn bundle(
+        target_retained: bool,
+        edge_observed: bool,
+        scan_state: ClosedWorldComposesScanStateV0,
+    ) -> Result<(ClosedWorldBundleV0, ModuleInstanceKeyV0), String> {
+        let entry = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.module.css"));
+        let base = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("base.module.css"));
+        let mut entry_module = ClosedWorldLinkedModuleV0::new(entry.clone())
+            .with_dependency(base.clone())
+            .with_class_name("card");
+        if edge_observed {
+            entry_module = entry_module.with_composes_edge(ClosedWorldComposesEdgeV0 {
+                from_module: entry.clone(),
+                from_symbol: "card".to_string(),
+                to_module: base.clone(),
+                to_symbol: "base".to_string(),
+            });
+        }
+        let mut base_module = ClosedWorldLinkedModuleV0::new(base.clone());
+        if target_retained {
+            base_module = base_module.with_class_name("base");
+        }
+        let metadata = [&entry, &base]
+            .into_iter()
+            .map(|instance| {
+                ClosedWorldModuleMetadataV0::new(instance.clone())
+                    .with_interface_hash("test-interface")
+                    .with_source_precision(ClosedWorldSourcePrecisionSummaryV0 {
+                        conservative_source_count: 1,
+                        ..ClosedWorldSourcePrecisionSummaryV0::default()
+                    })
+                    .with_reachability_evidence(ClosedWorldModuleReachabilityEvidenceV0::Supplied)
+                    .with_composes_scan_state(scan_state)
+            })
+            .collect();
+        let bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
+            vec![entry],
+            vec![entry_module, base_module],
+            metadata,
+        )
+        .map_err(|error| format!("admission matrix bundle should construct: {error:?}"))?;
+        Ok((bundle, base))
+    }
+
+    fn execute(
+        bundle: &ClosedWorldBundleV0,
+        base: &ModuleInstanceKeyV0,
+    ) -> Result<crate::TransformExecutionSummaryV0, String> {
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            "body { display: block; } .base { padding: 8px; } .dead { color: gray; }",
+            StyleDialect::Css,
+            &[TransformPassKind::TreeShakeClass],
+            &TransformExecutionContextV0::default(),
+            bundle,
+            base,
+        )
+        .map_err(|error| format!("matrix module should be known: {error:?}"))
+    }
+
+    let (shape, base) = bundle(false, true, ClosedWorldComposesScanStateV0::ScannedClosed)?;
+    let shape_execution = execute(&shape, &base)?;
+    assert!(matches!(
+        shape_execution.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::LivenessNotClosed {
+            symbol,
+            via_edge: "composes",
+            ..
+        }] if symbol == "base"
+    ));
+    assert!(shape_execution.output_css.contains(".base"));
+    emit_cell("inboundNonempty", "shape", &shape, &shape_execution);
+
+    let (shape, base) = bundle(false, true, ClosedWorldComposesScanStateV0::ScannedClosed)?;
+    let keyframes =
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            "@keyframes spin { from { opacity: 0; } }",
+            StyleDialect::Css,
+            &[TransformPassKind::TreeShakeKeyframes],
+            &TransformExecutionContextV0::default(),
+            &shape,
+            &base,
+        )
+        .map_err(|error| format!("matrix keyframes module should be known: {error:?}"))?;
+    assert_eq!(
+        keyframes.closed_world_admission.refused_count, 0,
+        "a class-only composes gap must not block another FactConsuming domain"
+    );
+
+    let (clean, base) = bundle(true, true, ClosedWorldComposesScanStateV0::ScannedClosed)?;
+    let clean_execution = execute(&clean, &base)?;
+    assert_eq!(clean_execution.closed_world_admission.refused_count, 0);
+    assert!(clean_execution.output_css.contains(".base"));
+    assert!(!clean_execution.output_css.contains(".dead"));
+    emit_cell("inboundNonempty", "clean", &clean, &clean_execution);
+
+    let (scanned_empty, base) =
+        bundle(false, false, ClosedWorldComposesScanStateV0::ScannedClosed)?;
+    let scanned_empty_execution = execute(&scanned_empty, &base)?;
+    assert_eq!(
+        scanned_empty_execution.closed_world_admission.refused_count,
+        0
+    );
+    assert_eq!(
+        scanned_empty_execution
+            .closed_world_admission
+            .evidence_scope,
+        None
+    );
+    emit_cell(
+        "scannedEmpty",
+        "empty",
+        &scanned_empty,
+        &scanned_empty_execution,
+    );
+
+    let (source_open, base) = bundle(false, false, ClosedWorldComposesScanStateV0::SourceSetOpen)?;
+    let source_open_execution = execute(&source_open, &base)?;
+    assert_eq!(
+        source_open_execution.closed_world_admission.refused_count,
+        0
+    );
+    assert_eq!(
+        source_open_execution.closed_world_admission.evidence_scope,
+        Some("sourceSetOpen")
+    );
+    emit_cell(
+        "sourceSetOpen",
+        "shape",
+        &source_open,
+        &source_open_execution,
+    );
+
+    let (source_open_inbound, base) =
+        bundle(false, true, ClosedWorldComposesScanStateV0::SourceSetOpen)?;
+    let source_open_inbound_execution = execute(&source_open_inbound, &base)?;
+    assert!(matches!(
+        source_open_inbound_execution
+            .closed_world_admission
+            .refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::LivenessNotClosed {
+            symbol,
+            via_edge: "composes",
+            ..
+        }] if symbol == "base"
+    ));
+    assert_eq!(
+        source_open_inbound_execution
+            .closed_world_admission
+            .evidence_scope,
+        Some("sourceSetOpen")
+    );
+    emit_cell(
+        "inboundNonempty",
+        "source-open-shape",
+        &source_open_inbound,
+        &source_open_inbound_execution,
+    );
+    Ok(())
+}
+
+#[test]
+fn closed_world_composes_admission_checks_depth_two_target() -> Result<(), String> {
+    let entry = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("a.module.css"));
+    let middle = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("b.module.css"));
+    let target = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("c.module.css"));
+    let entry_module = ClosedWorldLinkedModuleV0::new(entry.clone())
+        .with_dependency(middle.clone())
+        .with_class_name("a")
+        .with_composes_edge(ClosedWorldComposesEdgeV0 {
+            from_module: entry.clone(),
+            from_symbol: "a".to_string(),
+            to_module: middle.clone(),
+            to_symbol: "b".to_string(),
+        });
+    let middle_module = ClosedWorldLinkedModuleV0::new(middle.clone())
+        .with_dependency(target.clone())
+        .with_class_name("b")
+        .with_composes_edge(ClosedWorldComposesEdgeV0 {
+            from_module: middle.clone(),
+            from_symbol: "b".to_string(),
+            to_module: target.clone(),
+            to_symbol: "c".to_string(),
+        });
+    let target_module = ClosedWorldLinkedModuleV0::new(target.clone());
+    let metadata = [&entry, &middle, &target]
+        .into_iter()
+        .map(|instance| {
+            ClosedWorldModuleMetadataV0::new(instance.clone())
+                .with_interface_hash("test-interface")
+                .with_source_precision(ClosedWorldSourcePrecisionSummaryV0 {
+                    conservative_source_count: 1,
+                    ..ClosedWorldSourcePrecisionSummaryV0::default()
+                })
+                .with_reachability_evidence(ClosedWorldModuleReachabilityEvidenceV0::Supplied)
+                .with_composes_scan_state(ClosedWorldComposesScanStateV0::ScannedClosed)
+        })
+        .collect();
+    let bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
+        vec![entry],
+        vec![entry_module, middle_module, target_module],
+        metadata,
+    )
+    .map_err(|error| format!("depth-two bundle should construct: {error:?}"))?;
+    let execution =
+        execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
+            ".c { color: red; }",
+            StyleDialect::Css,
+            &[TransformPassKind::TreeShakeClass],
+            &TransformExecutionContextV0::default(),
+            &bundle,
+            &target,
+        )
+        .map_err(|error| format!("depth-two target should be known: {error:?}"))?;
+
+    assert!(matches!(
+        execution.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::LivenessNotClosed {
+            symbol,
+            from_module,
+            via_edge: "composes",
+        }] if symbol == "c" && from_module == &middle
+    ));
+    assert_eq!(execution.output_css, ".c { color: red; }");
+    Ok(())
+}
 
 fn execution_summary_wire_key_sample(
     sample_name: &str,
@@ -355,6 +985,45 @@ fn nested_color_lowering_conflict_has_swapped_order_output_divergence() {
         ".card { color: color-mix(in srgb, rgb(255 0 0), blue); }"
     );
     assert_eq!(function_then_mix, ".card { color: rgb(128 0 128); }");
+    println!(
+        "R19 pair=color-mix-lowering/color-function-lowering leftThenRight={mix_then_function:?} rightThenLeft={function_then_mix:?} equal=false"
+    );
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[test]
+fn committed_independence_rows_match_product_transform_outputs() -> Result<(), String> {
+    fn execute_pair(source: &str, left: TransformPassKind, right: TransformPassKind) -> String {
+        let left_first = execute_transform_passes_on_source(source, &[left]);
+        execute_transform_passes_on_source(&left_first.output_css, &[right]).output_css
+    }
+
+    let data = omena_lawvere::default_transform_catalog_independence_data_v0()
+        .map_err(|error| format!("committed independence data should validate: {error}"))?;
+    let entry = data
+        .entries
+        .iter()
+        .find(|entry| {
+            entry.left_pass_id == TransformPassKind::NumberCompression.id()
+                && entry.right_pass_id == TransformPassKind::ColorCompression.id()
+        })
+        .ok_or_else(|| "number/color independence entry is absent".to_owned())?;
+    for row in &entry.justification.observation_rows {
+        let left_then_right = execute_pair(
+            row.input_css.as_str(),
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
+        );
+        let right_then_left = execute_pair(
+            row.input_css.as_str(),
+            TransformPassKind::ColorCompression,
+            TransformPassKind::NumberCompression,
+        );
+        assert_eq!(left_then_right, row.left_then_right, "{}", row.fixture_id);
+        assert_eq!(right_then_left, row.right_then_left, "{}", row.fixture_id);
+        assert_eq!(left_then_right, right_then_left, "{}", row.fixture_id);
+    }
+    Ok(())
 }
 
 #[test]
@@ -526,15 +1195,14 @@ fn structural_cascade_proof_obligations_match_source_and_ir_collectors() -> Resu
         ModuleIdV0::new("runtime-boundary.css"),
         ConfigurationHashV0::none(),
     );
-    let closed_world_bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let closed_world_bundle = test_closed_world_bundle(
         vec![instance.clone()],
         vec![
             ClosedWorldLinkedModuleV0::new(instance)
                 .with_class_name("item")
                 .with_class_name("grid"),
         ],
-    )
-    .map_err(|err| format!("closed-world test bundle should be constructible: {err:?}"))?;
+    );
     let ir = lower_transform_ir_from_source(
         source,
         StyleDialect::Css,
@@ -680,7 +1348,7 @@ fn closed_world_bundle_authority_drives_reachability_transform_families() -> Res
         ModuleIdV0::new("bundle-authority.module.css"),
         ConfigurationHashV0::none(),
     );
-    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let bundle = test_closed_world_bundle(
         vec![instance.clone()],
         vec![
             ClosedWorldLinkedModuleV0::new(instance)
@@ -689,8 +1357,7 @@ fn closed_world_bundle_authority_drives_reachability_transform_families() -> Res
                 .with_value_name("usedValue")
                 .with_custom_property_name("--explicit"),
         ],
-    )
-    .map_err(|err| format!("closed-world bundle should be constructible: {err:?}"))?;
+    );
     let misleading_context = TransformExecutionContextV0 {
         reachable_class_names: vec!["dead".to_string()],
         reachable_keyframe_names: vec!["ghost".to_string()],
@@ -777,7 +1444,7 @@ fn tree_shake_bundle_driven_matches_reachability_projection_byte_identical() -> 
         ModuleIdV0::new("reachability-projection.module.css"),
         ConfigurationHashV0::none(),
     );
-    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let bundle = test_closed_world_bundle(
         vec![instance.clone()],
         vec![
             ClosedWorldLinkedModuleV0::new(instance)
@@ -786,8 +1453,7 @@ fn tree_shake_bundle_driven_matches_reachability_projection_byte_identical() -> 
                 .with_value_name("usedValue")
                 .with_custom_property_name("--explicit"),
         ],
-    )
-    .map_err(|err| format!("closed-world bundle should be constructible: {err:?}"))?;
+    );
     let cases = [
         (
             TransformPassKind::TreeShakeClass,
@@ -859,11 +1525,10 @@ fn module_qualified_tree_shake_distinguishes_same_name_owners() -> Result<(), St
     let detached_module = ClosedWorldLinkedModuleV0::new(detached.clone())
         .with_class_name(shared_names[0])
         .with_class_name(shared_names[1]);
-    let bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let bundle = test_closed_world_bundle(
         vec![app.clone()],
         vec![app_module.clone(), detached_module.clone()],
-    )
-    .map_err(|error| format!("closed-world bundle should be constructible: {error:?}"))?;
+    );
     let source = ".shared { color: red; } .shared-secondary { color: blue; }";
     let requested = [
         TransformPassKind::TreeShakeClass,
@@ -965,14 +1630,13 @@ fn module_qualified_tree_shake_distinguishes_same_name_owners() -> Result<(), St
         )
     );
 
-    let both_reachable_bundle = ClosedWorldBundleV0::try_from_linked_modules(
+    let both_reachable_bundle = test_closed_world_bundle(
         vec![app.clone()],
         vec![
             app_module.with_dependency(detached.clone()),
             detached_module,
         ],
-    )
-    .map_err(|error| format!("connected bundle should be constructible: {error:?}"))?;
+    );
     let both_reachable_execution =
         execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle(
             source,

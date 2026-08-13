@@ -426,6 +426,13 @@ pub enum StringConstraintKindV2Json {
     Composite,
 }
 
+/// A JavaScript-compatible string length measured in UTF-16 code units.
+pub type Utf16CodeUnitLengthV2Json = usize;
+
+/// The historical signed carrier used by generated engine-output payloads,
+/// still measured in UTF-16 code units.
+pub type Utf16CodeUnitLengthOutputV2Json = i32;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StringTypeFactsV2Json {
@@ -439,9 +446,9 @@ pub struct StringTypeFactsV2Json {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub min_len: Option<usize>,
+    pub min_len: Option<Utf16CodeUnitLengthV2Json>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_len: Option<usize>,
+    pub max_len: Option<Utf16CodeUnitLengthV2Json>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -465,6 +472,7 @@ pub struct TypeFactControlFlowBlockV2Json {
     pub variable_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression_kind: Option<String>,
+    pub boundary_effect: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facts: Option<StringTypeFactsV2Json>,
 }
@@ -591,9 +599,9 @@ pub struct ExpressionSemanticsPayloadV2Json {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<i32>,
+    pub value_min_len: Option<Utf16CodeUnitLengthOutputV2Json>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<i32>,
+    pub value_max_len: Option<Utf16CodeUnitLengthOutputV2Json>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -656,9 +664,9 @@ pub struct SourceExpressionResolutionPayloadV2Json {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<i32>,
+    pub value_min_len: Option<Utf16CodeUnitLengthOutputV2Json>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<i32>,
+    pub value_max_len: Option<Utf16CodeUnitLengthOutputV2Json>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1749,6 +1757,7 @@ pub struct OmenaBundlerHostCapabilitiesV0 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaBundlerHostResolveModuleRequestV0 {
     pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
+    pub workspace_root: String,
     pub style_path: String,
     pub style_sources: Vec<crate::OmenaQueryStyleSourceInputV0>,
     pub package_manifests: Vec<crate::OmenaQueryStylePackageManifestV0>,

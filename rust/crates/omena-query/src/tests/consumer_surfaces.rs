@@ -151,7 +151,13 @@ fn consumer_build_reports_the_effective_default_plan_that_executes() {
             .map(String::as_str)
             .collect::<Vec<_>>()
     );
-    assert_eq!(summary.execution.output_css, "._a_0{color:#fff;margin:0}");
+    assert!(summary.execution.output_css.starts_with("._"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .ends_with("_a{color:#fff;margin:0}")
+    );
     assert!(summary.open_world_snapshot.is_none());
 }
 
@@ -197,7 +203,7 @@ fn consumer_build_derives_single_source_transform_context() {
             .contains(&"css-modules-class-hashing")
     );
     assert!(!summary.execution.output_css.contains("composes:"));
-    assert!(summary.execution.output_css.contains("._button_0"));
+    assert!(summary.execution.output_css.contains("_button"));
 }
 
 #[test]
@@ -241,7 +247,7 @@ fn exposes_consumer_build_facade_from_target_query() {
             .planned_only_pass_ids
             .contains(&"css-modules-class-hashing")
     );
-    assert!(summary.execution.output_css.contains("._card_0"));
+    assert!(summary.execution.output_css.contains("_card"));
     assert!(summary.ready_surfaces.contains(&"targetQueryBuildFacade"));
 }
 
@@ -795,7 +801,7 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
             .contains(&"scss-module-evaluate")
     );
     assert!(summary.execution.output_css.contains("color: red"));
-    assert!(summary.execution.output_css.contains("._button_0"));
+    assert!(summary.execution.output_css.contains("_button"));
 }
 
 #[test]

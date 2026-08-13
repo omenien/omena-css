@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeOriginV0, CascadeOutcome, CascadeValue, LayerOrdinal,
-    ModuleRank, SelectorMatchVerdict, Specificity, SpecificityExactnessV0,
+    OpenWorldTieEvidence, SelectorMatchVerdict, Specificity, SpecificityExactnessV0,
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, cascade_level_for_origin,
     cascade_property, evaluate_static_supports_condition, normalized_layer_rank,
     parse_simple_selector_signature, selector_co_match_verdict,
@@ -591,9 +591,9 @@ fn query_runtime_inline_style_cascade_declaration(
             normalized_layer_rank(false, None),
             0,
             Specificity::ZERO,
-            ModuleRank::ZERO,
             u32::MAX,
         ),
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: SpecificityExactnessV0::Exact,
     }
 }
@@ -648,14 +648,8 @@ pub(in crate::style) fn query_runtime_cascade_declaration_from_input(
         id: input.declaration_id.clone(),
         property: input.property.clone(),
         value: CascadeValue::Literal(value),
-        key: CascadeKey::new(
-            level,
-            layer_rank,
-            0,
-            specificity,
-            ModuleRank::ZERO,
-            input.source_order,
-        ),
+        key: CascadeKey::new(level, layer_rank, 0, specificity, input.source_order),
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness,
     }
 }
