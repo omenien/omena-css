@@ -748,7 +748,7 @@
       },
       {
         "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
-        "line": 2008,
+        "line": 2015,
         "function": "run_hash_css_module_class_names_structural",
         "operation": "str-eq",
         "evidence": "if mutation_count == 0 && class_name_rewrites.is_empty() {",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:18fd5f4642420fbfc6c0b5359414fb37bbcec26283336367b158512208446346"
+    "siteDigest": "sha256:ae63d053992721d73a3fe9fb78a0b8b274443f2e6a566a7060f445635dd71ad0"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
