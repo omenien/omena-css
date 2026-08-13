@@ -22,8 +22,18 @@ use omena_parser::{
 use serde::{Serialize, ser::SerializeStruct};
 use std::{borrow::Cow, collections::BTreeMap, sync::OnceLock};
 
+mod observation_equivalence;
 mod pass_descriptor;
 mod transform_ir;
+pub use observation_equivalence::{
+    OBSERVATION_KIND_COUNT_V0, ObservationProjectionValueV0, TransformObservationEquivalenceV0,
+    TransformObservationMatrixV0, TransformObservationOutputErrorV0, TransformObservationOutputV0,
+    TransformObservationProfileErrorV0, TransformObservationProfileV0,
+    TransformObservationProjectionV0, TransformObserverClassV0, TransformObserverV0,
+    all_observation_kinds_v0, compare_transform_observation_outputs_v0,
+    default_transform_observation_matrix_v0, observation_indexed_equivalent_v0,
+    observation_kind_observer_class_v0, project_transform_observation_v0,
+};
 pub use pass_descriptor::{
     MinifyPassClassificationDerivationV0, MinifyPassClassificationV0, MinifyPassProfileClassV0,
     ObservationKindV0, PassAssumptionKindV0, PassObservationSurfaceV0, PassSemanticContractV0,

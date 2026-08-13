@@ -1,0 +1,18 @@
+[
+  { "caseId": "selector-matching", "passId": "whitespace-strip", "observationKind": "selectorMatching", "leftProjection": "selector:.a", "rightProjection": "selector:.b", "expectedEquivalent": false },
+  { "caseId": "cascade-winner", "passId": "whitespace-strip", "observationKind": "cascadeWinner", "leftProjection": "winner:red", "rightProjection": "winner:blue", "expectedEquivalent": false },
+  { "caseId": "cascade-winner-equality", "passId": "rule-deduplication", "observationKind": "cascadeWinnerEquality", "leftProjection": "equal", "rightProjection": "different", "expectedEquivalent": false },
+  { "caseId": "exported-class-names", "passId": "selector-merging", "observationKind": "exportedClassNames", "leftProjection": "a,b", "rightProjection": "a,c", "expectedEquivalent": false },
+  { "caseId": "custom-property-computed-value", "passId": "number-compression", "observationKind": "customPropertyComputedValue", "leftProjection": "--x=1", "rightProjection": "--x=2", "expectedEquivalent": false },
+  { "caseId": "keyframes-reachability", "passId": "selector-is-where-compression", "observationKind": "keyframesReachability", "leftProjection": "spin", "rightProjection": "pulse", "expectedEquivalent": false },
+  { "caseId": "source-map-trace", "passId": "whitespace-strip", "observationKind": "sourceMapTrace", "leftProjection": "0:4", "rightProjection": "0:5", "expectedEquivalent": false },
+  { "caseId": "layer-rank", "passId": "rule-deduplication", "observationKind": "layerRank", "leftProjection": "base=0", "rightProjection": "base=1", "expectedEquivalent": false },
+  { "caseId": "specificity", "passId": "selector-is-where-compression", "observationKind": "specificity", "leftProjection": "0,1,0", "rightProjection": "0,2,0", "expectedEquivalent": false },
+  { "caseId": "inheritance", "passId": "shorthand-combining", "observationKind": "inheritance", "leftProjection": "color=inherited", "rightProjection": "color=initial", "expectedEquivalent": false },
+  { "caseId": "declaration-order", "passId": "whitespace-strip", "observationKind": "declarationOrder", "leftProjection": "a,b", "rightProjection": "b,a", "expectedEquivalent": false },
+  { "caseId": "target-predicate", "passId": "vendor-prefixing", "observationKind": "targetPredicate", "leftProjection": "webkit=false", "rightProjection": "webkit=true", "expectedEquivalent": false },
+  { "caseId": "module-resolution", "passId": "scss-module-evaluate", "observationKind": "moduleResolution", "leftProjection": "module:a", "rightProjection": "module:b", "expectedEquivalent": false },
+  { "caseId": "import-context", "passId": "import-inline", "observationKind": "importContext", "leftProjection": "screen", "rightProjection": "print", "expectedEquivalent": false },
+  { "caseId": "value-graph-reachability", "passId": "value-resolution", "observationKind": "valueGraphReachability", "leftProjection": "token:a", "rightProjection": "token:b", "expectedEquivalent": false },
+  { "caseId": "semantic-marker", "passId": "empty-rule-removal", "observationKind": "semanticMarker", "leftProjection": "keep", "rightProjection": "drop", "expectedEquivalent": false }
+]
