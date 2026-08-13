@@ -163,7 +163,7 @@ fn proof_kernel_token_closes_favourable_ownership_count_bypass() -> Result<(), S
         "linkedOrder",
         1,
         vec![CssModuleTokenOwnershipV0::new(
-            "_first_0",
+            "_firstx_0",
             vec![first.clone()],
             vec!["src/first.module.css".to_string()],
             vec!["dead".to_string()],
