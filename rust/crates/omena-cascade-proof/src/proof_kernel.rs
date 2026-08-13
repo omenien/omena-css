@@ -14,6 +14,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use omena_cascade::{
+    CascadeKey, CascadeLevel, CascadeValue, DomClassTokenizationV0, LayerOrdinal, Specificity,
+    normalized_layer_rank, resolve_custom_property_env_least_fixed_point, token_support_v0,
+    tokenize_dom_class_attribute_v0,
+};
 use serde::{Deserialize, Serialize};
 
 pub const REWRITE_CERTIFICATE_SCHEMA_VERSION_V0: &str = "0";
@@ -100,8 +105,152 @@ impl RewritePatternV0 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[non_exhaustive]
 #[serde(rename_all = "camelCase")]
+pub enum CascadeLevelCertV0 {
+    UserAgentNormal,
+    UserNormal,
+    AuthorNormal,
+    InlineNormal,
+    Animation,
+    AuthorImportant,
+    InlineImportant,
+    UserImportant,
+    UserAgentImportant,
+    Transition,
+}
+
+impl CascadeLevelCertV0 {
+    fn to_cascade_level(self) -> CascadeLevel {
+        match self {
+            Self::UserAgentNormal => CascadeLevel::UserAgentNormal,
+            Self::UserNormal => CascadeLevel::UserNormal,
+            Self::AuthorNormal => CascadeLevel::AuthorNormal,
+            Self::InlineNormal => CascadeLevel::InlineNormal,
+            Self::Animation => CascadeLevel::Animation,
+            Self::AuthorImportant => CascadeLevel::AuthorImportant,
+            Self::InlineImportant => CascadeLevel::InlineImportant,
+            Self::UserImportant => CascadeLevel::UserImportant,
+            Self::UserAgentImportant => CascadeLevel::UserAgentImportant,
+            Self::Transition => CascadeLevel::Transition,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeWinnerKeyCertV0 {
+    pub level: CascadeLevelCertV0,
+    pub layer_important: bool,
+    pub layer_ordinal: Option<i32>,
+    pub scope_proximity: u32,
+    pub specificity_ids: u32,
+    pub specificity_classes: u32,
+    pub specificity_elements: u32,
+    pub source_order: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeWinnerEqualityCertV0 {
+    pub before_winner_id: String,
+    pub after_winner_id: String,
+    pub before_key: CascadeWinnerKeyCertV0,
+    pub after_key: CascadeWinnerKeyCertV0,
+    pub before_class_attribute: String,
+    pub after_class_attribute: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[non_exhaustive]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ComputedValueTermV0 {
+    Literal {
+        value: String,
+    },
+    Composite {
+        values: Vec<ComputedValueTermV0>,
+    },
+    Variable {
+        name: String,
+        fallback: Option<Box<ComputedValueTermV0>>,
+    },
+    Initial,
+    Inherit,
+    Indeterminate,
+    GuaranteedInvalid,
+    Unset,
+}
+
+impl ComputedValueTermV0 {
+    fn to_cascade_value(&self) -> CascadeValue {
+        match self {
+            Self::Literal { value } => CascadeValue::Literal(value.clone()),
+            Self::Composite { values } => CascadeValue::Composite(
+                values
+                    .iter()
+                    .map(ComputedValueTermV0::to_cascade_value)
+                    .collect(),
+            ),
+            Self::Variable { name, fallback } => CascadeValue::Var {
+                name: name.clone(),
+                fallback: fallback
+                    .as_ref()
+                    .map(|value| Box::new(value.to_cascade_value())),
+            },
+            Self::Initial => CascadeValue::Initial,
+            Self::Inherit => CascadeValue::Inherit,
+            Self::Indeterminate => CascadeValue::Indeterminate,
+            Self::GuaranteedInvalid => CascadeValue::GuaranteedInvalid,
+            Self::Unset => CascadeValue::Unset,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComputedValueEnvironmentEntryV0 {
+    pub name: String,
+    pub value: ComputedValueTermV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComputedValueEqualityCertV0 {
+    pub property: String,
+    pub before_environment: Vec<ComputedValueEnvironmentEntryV0>,
+    pub after_environment: Vec<ComputedValueEnvironmentEntryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceMapTraceSegmentV0 {
+    pub source_path: String,
+    pub source_digest: String,
+    pub original_start: usize,
+    pub original_end: usize,
+    pub generated_start: usize,
+    pub generated_end: usize,
+    pub pass_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceMapTraceCertV0 {
+    pub before_segments: Vec<SourceMapTraceSegmentV0>,
+    pub after_segments: Vec<SourceMapTraceSegmentV0>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[non_exhaustive]
+#[serde(rename_all = "camelCase")]
 pub enum RewriteSideConditionKindV0 {
     NoSideCondition,
+    CascadeWinnerEquality,
+    ComputedValueEquality,
+    SourceMapTrace,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -109,12 +258,24 @@ pub enum RewriteSideConditionKindV0 {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SideConditionCertV0 {
     NoSideCondition,
+    CascadeWinnerEquality {
+        certificate: CascadeWinnerEqualityCertV0,
+    },
+    ComputedValueEquality {
+        certificate: ComputedValueEqualityCertV0,
+    },
+    SourceMapTrace {
+        certificate: SourceMapTraceCertV0,
+    },
 }
 
 impl SideConditionCertV0 {
     fn kind(&self) -> RewriteSideConditionKindV0 {
         match self {
             Self::NoSideCondition => RewriteSideConditionKindV0::NoSideCondition,
+            Self::CascadeWinnerEquality { .. } => RewriteSideConditionKindV0::CascadeWinnerEquality,
+            Self::ComputedValueEquality { .. } => RewriteSideConditionKindV0::ComputedValueEquality,
+            Self::SourceMapTrace { .. } => RewriteSideConditionKindV0::SourceMapTrace,
         }
     }
 }
@@ -321,6 +482,28 @@ pub enum CertificateRejectionKindV0 {
     SideConditionKindMismatch {
         expected: RewriteSideConditionKindV0,
         observed: RewriteSideConditionKindV0,
+    },
+    InvalidLayerOrdinal {
+        observed: i32,
+    },
+    CascadeWinnerEqualityRejected {
+        winner_ids_equal: bool,
+        cascade_keys_equal: bool,
+        token_support_equal: bool,
+    },
+    CascadeTokenizationUnavailable,
+    DuplicateComputedValueEnvironmentEntry {
+        name: String,
+    },
+    ComputedValueEqualityRejected {
+        property: String,
+        before_present: bool,
+        after_present: bool,
+    },
+    EmptySourceMapTrace,
+    SourceMapTraceRejected {
+        segment_index: usize,
+        reason: String,
     },
     TransitiveMiddleMismatch,
     EndpointMismatch {
@@ -550,6 +733,14 @@ pub fn selector_rewrite_rule_catalog_v0() -> RewriteRuleCatalogV0 {
             },
         ],
     }
+}
+
+pub fn selector_rewrite_rule_catalog_with_cascade_winner_equality_v0() -> RewriteRuleCatalogV0 {
+    let mut catalog = selector_rewrite_rule_catalog_v0();
+    for rule in &mut catalog.rules {
+        rule.side_condition_kind = RewriteSideConditionKindV0::CascadeWinnerEquality;
+    }
+    catalog
 }
 
 fn validate_schema(
@@ -999,6 +1190,7 @@ fn derive_rule_application(
             },
         ));
     }
+    check_side_condition_v0(side_condition, path, rule_id)?;
 
     let mut substitutions = BTreeMap::new();
     for entry in substitution {
@@ -1093,6 +1285,208 @@ fn derive_rule_application(
         after,
         checked_rule_ids: vec![rule_id.to_owned()],
     })
+}
+
+fn check_side_condition_v0(
+    side_condition: &SideConditionCertV0,
+    path: &[usize],
+    rule_id: &str,
+) -> Result<(), CertificateRejectionV0> {
+    match side_condition {
+        SideConditionCertV0::NoSideCondition => Ok(()),
+        SideConditionCertV0::CascadeWinnerEquality { certificate } => {
+            check_cascade_winner_equality_v0(certificate, path, rule_id)
+        }
+        SideConditionCertV0::ComputedValueEquality { certificate } => {
+            check_computed_value_equality_v0(certificate, path, rule_id)
+        }
+        SideConditionCertV0::SourceMapTrace { certificate } => {
+            check_source_map_trace_v0(certificate, path, rule_id)
+        }
+    }
+}
+
+fn side_condition_site_v0(path: &[usize], rule_id: &str) -> RewriteFailureSiteV0 {
+    RewriteFailureSiteV0 {
+        input: RewriteCheckInputV0::Certificate,
+        certificate_path: path.to_vec(),
+        term_path: Vec::new(),
+        rule_id: Some(rule_id.to_owned()),
+    }
+}
+
+fn cascade_key_from_certificate_v0(
+    key: &CascadeWinnerKeyCertV0,
+    path: &[usize],
+    rule_id: &str,
+) -> Result<CascadeKey, CertificateRejectionV0> {
+    let layer_ordinal = match key.layer_ordinal {
+        Some(ordinal) => Some(LayerOrdinal::new(ordinal).ok_or_else(|| {
+            CertificateRejectionV0::new(
+                side_condition_site_v0(path, rule_id),
+                CertificateRejectionKindV0::InvalidLayerOrdinal { observed: ordinal },
+            )
+        })?),
+        None => None,
+    };
+    Ok(CascadeKey::new(
+        key.level.to_cascade_level(),
+        normalized_layer_rank(key.layer_important, layer_ordinal),
+        key.scope_proximity,
+        Specificity::new(
+            key.specificity_ids,
+            key.specificity_classes,
+            key.specificity_elements,
+        ),
+        key.source_order,
+    ))
+}
+
+fn check_cascade_winner_equality_v0(
+    certificate: &CascadeWinnerEqualityCertV0,
+    path: &[usize],
+    rule_id: &str,
+) -> Result<(), CertificateRejectionV0> {
+    // The key ordering and token support are recomputed by omena-cascade,
+    // outside the transform pass that benefits from this certificate.
+    let before_key = cascade_key_from_certificate_v0(&certificate.before_key, path, rule_id)?;
+    let after_key = cascade_key_from_certificate_v0(&certificate.after_key, path, rule_id)?;
+    let before_tokenization =
+        tokenize_dom_class_attribute_v0(Some(&certificate.before_class_attribute));
+    let after_tokenization =
+        tokenize_dom_class_attribute_v0(Some(&certificate.after_class_attribute));
+    let (
+        DomClassTokenizationV0::Known {
+            word: before_word, ..
+        },
+        DomClassTokenizationV0::Known {
+            word: after_word, ..
+        },
+    ) = (before_tokenization, after_tokenization)
+    else {
+        return Err(CertificateRejectionV0::new(
+            side_condition_site_v0(path, rule_id),
+            CertificateRejectionKindV0::CascadeTokenizationUnavailable,
+        ));
+    };
+    let winner_ids_equal = certificate.before_winner_id == certificate.after_winner_id;
+    let cascade_keys_equal = before_key == after_key;
+    let token_support_equal = token_support_v0(&before_word) == token_support_v0(&after_word);
+    if winner_ids_equal && cascade_keys_equal && token_support_equal {
+        return Ok(());
+    }
+    Err(CertificateRejectionV0::new(
+        side_condition_site_v0(path, rule_id),
+        CertificateRejectionKindV0::CascadeWinnerEqualityRejected {
+            winner_ids_equal,
+            cascade_keys_equal,
+            token_support_equal,
+        },
+    ))
+}
+
+fn computed_value_environment_v0(
+    entries: &[ComputedValueEnvironmentEntryV0],
+    path: &[usize],
+    rule_id: &str,
+) -> Result<BTreeMap<String, CascadeValue>, CertificateRejectionV0> {
+    let mut environment = BTreeMap::new();
+    for entry in entries {
+        if environment
+            .insert(entry.name.clone(), entry.value.to_cascade_value())
+            .is_some()
+        {
+            return Err(CertificateRejectionV0::new(
+                side_condition_site_v0(path, rule_id),
+                CertificateRejectionKindV0::DuplicateComputedValueEnvironmentEntry {
+                    name: entry.name.clone(),
+                },
+            ));
+        }
+    }
+    Ok(environment)
+}
+
+fn check_computed_value_equality_v0(
+    certificate: &ComputedValueEqualityCertV0,
+    path: &[usize],
+    rule_id: &str,
+) -> Result<(), CertificateRejectionV0> {
+    // Fixed-point resolution is recomputed by omena-cascade's value plane,
+    // outside the transform pass and outside the obligation-family tag.
+    let before_environment =
+        computed_value_environment_v0(&certificate.before_environment, path, rule_id)?;
+    let after_environment =
+        computed_value_environment_v0(&certificate.after_environment, path, rule_id)?;
+    let before_resolved = resolve_custom_property_env_least_fixed_point(&before_environment);
+    let after_resolved = resolve_custom_property_env_least_fixed_point(&after_environment);
+    let before_value = before_resolved.get(&certificate.property);
+    let after_value = after_resolved.get(&certificate.property);
+    if before_value.is_some() && before_value == after_value {
+        return Ok(());
+    }
+    Err(CertificateRejectionV0::new(
+        side_condition_site_v0(path, rule_id),
+        CertificateRejectionKindV0::ComputedValueEqualityRejected {
+            property: certificate.property.clone(),
+            before_present: before_value.is_some(),
+            after_present: after_value.is_some(),
+        },
+    ))
+}
+
+fn check_source_map_trace_v0(
+    certificate: &SourceMapTraceCertV0,
+    path: &[usize],
+    rule_id: &str,
+) -> Result<(), CertificateRejectionV0> {
+    // These are emitted segment-table records, not a transform-owned
+    // provenance boolean. The checker compares their source projections.
+    if certificate.before_segments.is_empty() || certificate.after_segments.is_empty() {
+        return Err(CertificateRejectionV0::new(
+            side_condition_site_v0(path, rule_id),
+            CertificateRejectionKindV0::EmptySourceMapTrace,
+        ));
+    }
+    if certificate.before_segments.len() != certificate.after_segments.len() {
+        return Err(CertificateRejectionV0::new(
+            side_condition_site_v0(path, rule_id),
+            CertificateRejectionKindV0::SourceMapTraceRejected {
+                segment_index: 0,
+                reason: "segment count differs".to_owned(),
+            },
+        ));
+    }
+    for (index, (before, after)) in certificate
+        .before_segments
+        .iter()
+        .zip(&certificate.after_segments)
+        .enumerate()
+    {
+        let ranges_valid = before.original_start <= before.original_end
+            && before.generated_start <= before.generated_end
+            && after.original_start <= after.original_end
+            && after.generated_start <= after.generated_end;
+        let source_projection_equal = before.source_path == after.source_path
+            && before.source_digest == after.source_digest
+            && before.original_start == after.original_start
+            && before.original_end == after.original_end
+            && before.pass_id == after.pass_id;
+        if !ranges_valid || !source_projection_equal {
+            return Err(CertificateRejectionV0::new(
+                side_condition_site_v0(path, rule_id),
+                CertificateRejectionKindV0::SourceMapTraceRejected {
+                    segment_index: index,
+                    reason: if ranges_valid {
+                        "source projection differs".to_owned()
+                    } else {
+                        "segment range is inverted".to_owned()
+                    },
+                },
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn collect_pattern_variables(pattern: &RewritePatternV0, variables: &mut BTreeSet<String>) {
@@ -1276,6 +1670,184 @@ mod tests {
         }
     }
 
+    fn cascade_winner_key() -> CascadeWinnerKeyCertV0 {
+        CascadeWinnerKeyCertV0 {
+            level: CascadeLevelCertV0::AuthorNormal,
+            layer_important: false,
+            layer_ordinal: Some(0),
+            scope_proximity: 0,
+            specificity_ids: 0,
+            specificity_classes: 2,
+            specificity_elements: 0,
+            source_order: 3,
+        }
+    }
+
+    fn cascade_winner_certificate() -> CascadeWinnerEqualityCertV0 {
+        CascadeWinnerEqualityCertV0 {
+            before_winner_id: "declaration-color".to_owned(),
+            after_winner_id: "declaration-color".to_owned(),
+            before_key: cascade_winner_key(),
+            after_key: cascade_winner_key(),
+            before_class_attribute: "root a".to_owned(),
+            after_class_attribute: "root a".to_owned(),
+        }
+    }
+
+    fn selector_certificate_with_cascade_side_condition() -> RewriteCertificateEnvelopeV0 {
+        let mut envelope = selector_certificate();
+        replace_side_condition(
+            &mut envelope.certificate,
+            &SideConditionCertV0::CascadeWinnerEquality {
+                certificate: cascade_winner_certificate(),
+            },
+        );
+        envelope
+    }
+
+    fn replace_side_condition(
+        certificate: &mut RewriteCertificateV0,
+        side_condition: &SideConditionCertV0,
+    ) {
+        match certificate {
+            RewriteCertificateV0::Refl { .. } => {}
+            RewriteCertificateV0::Sym { certificate } => {
+                replace_side_condition(certificate, side_condition);
+            }
+            RewriteCertificateV0::Trans { left, right } => {
+                replace_side_condition(left, side_condition);
+                replace_side_condition(right, side_condition);
+            }
+            RewriteCertificateV0::Cong { certificates, .. } => {
+                for child in certificates {
+                    replace_side_condition(child, side_condition);
+                }
+            }
+            RewriteCertificateV0::Rewrite {
+                side_condition: observed,
+                ..
+            } => *observed = side_condition.clone(),
+        }
+    }
+
+    fn mutate_cascade_specificity(certificate: &mut RewriteCertificateV0) {
+        match certificate {
+            RewriteCertificateV0::Refl { .. } => {}
+            RewriteCertificateV0::Sym { certificate } => {
+                mutate_cascade_specificity(certificate);
+            }
+            RewriteCertificateV0::Trans { left, right } => {
+                mutate_cascade_specificity(left);
+                mutate_cascade_specificity(right);
+            }
+            RewriteCertificateV0::Cong { certificates, .. } => {
+                for child in certificates {
+                    mutate_cascade_specificity(child);
+                }
+            }
+            RewriteCertificateV0::Rewrite {
+                side_condition: SideConditionCertV0::CascadeWinnerEquality { certificate },
+                ..
+            } => {
+                certificate.after_key.specificity_classes =
+                    certificate.after_key.specificity_classes.saturating_add(1);
+            }
+            RewriteCertificateV0::Rewrite { .. } => {}
+        }
+    }
+
+    fn single_rule_catalog(
+        rule_id: &str,
+        before: &str,
+        after: &str,
+        side_condition_kind: RewriteSideConditionKindV0,
+    ) -> RewriteRuleCatalogV0 {
+        RewriteRuleCatalogV0 {
+            schema_version: REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0.to_owned(),
+            operators: Vec::new(),
+            rules: vec![RewriteRuleV0 {
+                rule_id: rule_id.to_owned(),
+                before_pattern: RewritePatternV0::atom(before),
+                after_pattern: RewritePatternV0::atom(after),
+                side_condition_kind,
+            }],
+        }
+    }
+
+    fn single_rule_certificate(
+        rule_id: &str,
+        side_condition: SideConditionCertV0,
+    ) -> RewriteCertificateEnvelopeV0 {
+        RewriteCertificateEnvelopeV0 {
+            schema_version: REWRITE_CERTIFICATE_SCHEMA_VERSION_V0.to_owned(),
+            max_depth: 1,
+            max_nodes: 1,
+            certificate: RewriteCertificateV0::Rewrite {
+                rule_id: rule_id.to_owned(),
+                substitution: Vec::new(),
+                side_condition,
+            },
+        }
+    }
+
+    fn literal(value: &str) -> ComputedValueTermV0 {
+        ComputedValueTermV0::Literal {
+            value: value.to_owned(),
+        }
+    }
+
+    fn computed_value_certificate(after_value: &str) -> ComputedValueEqualityCertV0 {
+        ComputedValueEqualityCertV0 {
+            property: "--space".to_owned(),
+            before_environment: vec![
+                ComputedValueEnvironmentEntryV0 {
+                    name: "--base".to_owned(),
+                    value: literal("8px"),
+                },
+                ComputedValueEnvironmentEntryV0 {
+                    name: "--space".to_owned(),
+                    value: ComputedValueTermV0::Variable {
+                        name: "--base".to_owned(),
+                        fallback: None,
+                    },
+                },
+            ],
+            after_environment: vec![
+                ComputedValueEnvironmentEntryV0 {
+                    name: "--base".to_owned(),
+                    value: literal("8px"),
+                },
+                ComputedValueEnvironmentEntryV0 {
+                    name: "--space".to_owned(),
+                    value: literal(after_value),
+                },
+            ],
+        }
+    }
+
+    fn source_map_certificate() -> SourceMapTraceCertV0 {
+        SourceMapTraceCertV0 {
+            before_segments: vec![SourceMapTraceSegmentV0 {
+                source_path: "fixture/selector.module.css".to_owned(),
+                source_digest: "c6f1172b".to_owned(),
+                original_start: 0,
+                original_end: 15,
+                generated_start: 0,
+                generated_end: 15,
+                pass_id: "selector-is-where-compression".to_owned(),
+            }],
+            after_segments: vec![SourceMapTraceSegmentV0 {
+                source_path: "fixture/selector.module.css".to_owned(),
+                source_digest: "c6f1172b".to_owned(),
+                original_start: 0,
+                original_end: 15,
+                generated_start: 0,
+                generated_end: 10,
+                pass_id: "selector-is-where-compression".to_owned(),
+            }],
+        }
+    }
+
     fn check_selector(
         catalog: &RewriteRuleCatalogV0,
         certificate: &RewriteCertificateEnvelopeV0,
@@ -1288,6 +1860,195 @@ mod tests {
             certificate,
             &CanonicalRewriteAssumptionsV0::default(),
         )
+    }
+
+    #[test]
+    fn real_selector_rewrite_accepts_cascade_winner_equality_certificate() {
+        let result = check_selector(
+            &selector_rewrite_rule_catalog_with_cascade_winner_equality_v0(),
+            &selector_certificate_with_cascade_side_condition(),
+        );
+        assert!(result.is_ok(), "cascade cert rejected: {result:?}");
+        let Ok(token) = result else {
+            return;
+        };
+        println!(
+            "cascadeWinnerEquality=accepted checkedRules={:?}",
+            token.checked_rule_ids_v0()
+        );
+    }
+
+    #[test]
+    fn specificity_perturbation_rejects_cascade_cert_without_producer_boolean_input() {
+        let catalog = selector_rewrite_rule_catalog_with_cascade_winner_equality_v0();
+        let mut certificate = selector_certificate_with_cascade_side_condition();
+        mutate_cascade_specificity(&mut certificate.certificate);
+        let producer_specificity_preserved_values = [true, false];
+        let mut rejections = Vec::new();
+        for producer_specificity_preserved in producer_specificity_preserved_values {
+            let result = check_selector(&catalog, &certificate);
+            assert!(
+                result.is_err(),
+                "specificity perturbation accepted with producer={producer_specificity_preserved}"
+            );
+            let Err(rejection) = result else {
+                continue;
+            };
+            rejections.push((*rejection.rejection).clone());
+        }
+        assert_eq!(rejections.len(), 2);
+        assert_eq!(rejections[0], rejections[1]);
+        assert!(matches!(
+            rejections[0],
+            CertificateRejectionKindV0::CascadeWinnerEqualityRejected {
+                cascade_keys_equal: false,
+                ..
+            }
+        ));
+        println!(
+            "specificityPerturbation={:?} producerFieldTrueFalseSame={}",
+            rejections[0],
+            rejections[0] == rejections[1]
+        );
+    }
+
+    #[test]
+    fn custom_property_rewrite_accepts_and_rejects_from_fixed_point_values() {
+        let catalog = single_rule_catalog(
+            "custom-property-inline-v0",
+            "var(--base)",
+            "8px",
+            RewriteSideConditionKindV0::ComputedValueEquality,
+        );
+        let before = RewriteTermV0::atom("var(--base)");
+        let after = RewriteTermV0::atom("8px");
+        let accepted = single_rule_certificate(
+            "custom-property-inline-v0",
+            SideConditionCertV0::ComputedValueEquality {
+                certificate: computed_value_certificate("8px"),
+            },
+        );
+        let accepted_result = check_rewrite_certificate_v0(
+            &before,
+            &after,
+            &catalog,
+            &accepted,
+            &CanonicalRewriteAssumptionsV0::default(),
+        );
+        assert!(
+            accepted_result.is_ok(),
+            "computed-value cert rejected: {accepted_result:?}"
+        );
+
+        let rejected = single_rule_certificate(
+            "custom-property-inline-v0",
+            SideConditionCertV0::ComputedValueEquality {
+                certificate: computed_value_certificate("9px"),
+            },
+        );
+        let rejected_result = check_rewrite_certificate_v0(
+            &before,
+            &after,
+            &catalog,
+            &rejected,
+            &CanonicalRewriteAssumptionsV0::default(),
+        );
+        assert!(
+            rejected_result.is_err(),
+            "computed-value perturbation accepted"
+        );
+        let Err(rejection) = rejected_result else {
+            return;
+        };
+        assert!(matches!(
+            *rejection.rejection,
+            CertificateRejectionKindV0::ComputedValueEqualityRejected { .. }
+        ));
+        println!(
+            "computedValue accepted=true perturbedRejection={:?}",
+            rejection.rejection
+        );
+    }
+
+    #[test]
+    fn selector_rewrite_accepts_and_rejects_from_emitted_source_map_segments() {
+        let catalog = single_rule_catalog(
+            "selector-trace-v0",
+            ".root:is(.a)",
+            ".root.a",
+            RewriteSideConditionKindV0::SourceMapTrace,
+        );
+        let before = RewriteTermV0::atom(".root:is(.a)");
+        let after = RewriteTermV0::atom(".root.a");
+        let accepted = single_rule_certificate(
+            "selector-trace-v0",
+            SideConditionCertV0::SourceMapTrace {
+                certificate: source_map_certificate(),
+            },
+        );
+        let accepted_result = check_rewrite_certificate_v0(
+            &before,
+            &after,
+            &catalog,
+            &accepted,
+            &CanonicalRewriteAssumptionsV0::default(),
+        );
+        assert!(
+            accepted_result.is_ok(),
+            "source-map cert rejected: {accepted_result:?}"
+        );
+
+        let mut perturbed_trace = source_map_certificate();
+        perturbed_trace.after_segments[0].original_start = 1;
+        let rejected = single_rule_certificate(
+            "selector-trace-v0",
+            SideConditionCertV0::SourceMapTrace {
+                certificate: perturbed_trace,
+            },
+        );
+        let rejected_result = check_rewrite_certificate_v0(
+            &before,
+            &after,
+            &catalog,
+            &rejected,
+            &CanonicalRewriteAssumptionsV0::default(),
+        );
+        assert!(rejected_result.is_err(), "source-map perturbation accepted");
+        let Err(rejection) = rejected_result else {
+            return;
+        };
+        assert!(matches!(
+            *rejection.rejection,
+            CertificateRejectionKindV0::SourceMapTraceRejected {
+                segment_index: 0,
+                ..
+            }
+        ));
+        println!(
+            "sourceMapTrace accepted=true perturbedRejection={:?}",
+            rejection.rejection
+        );
+    }
+
+    #[test]
+    fn side_condition_certificates_round_trip_through_serde() -> Result<(), serde_json::Error> {
+        let certificates = [
+            SideConditionCertV0::CascadeWinnerEquality {
+                certificate: cascade_winner_certificate(),
+            },
+            SideConditionCertV0::ComputedValueEquality {
+                certificate: computed_value_certificate("8px"),
+            },
+            SideConditionCertV0::SourceMapTrace {
+                certificate: source_map_certificate(),
+            },
+        ];
+        for certificate in certificates {
+            let encoded = serde_json::to_string(&certificate)?;
+            let decoded = serde_json::from_str::<SideConditionCertV0>(&encoded)?;
+            assert_eq!(decoded, certificate);
+        }
+        Ok(())
     }
 
     #[test]
