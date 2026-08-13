@@ -316,10 +316,16 @@ function renderHostQueryMirror(): string {
 
 function formatTypescript(source: string): string {
   formatCounter += 1;
-  const tempFile = path.join(workDir, `generated-${formatCounter}.ts`);
-  fs.writeFileSync(tempFile, source, "utf8");
-  run("pnpm", ["exec", "oxfmt", tempFile]);
-  return fs.readFileSync(tempFile, "utf8");
+  return execFileSync(
+    "pnpm",
+    ["exec", "oxfmt", "--stdin-filepath", `generated-${formatCounter}.ts`],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      input: source,
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  );
 }
 
 function formatRust(source: string): string {

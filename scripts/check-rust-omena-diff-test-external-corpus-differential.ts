@@ -178,9 +178,9 @@ assert.ok(staticManifest.fixtures.length > 0, "external differential corpus must
 assert.equal(staticManifest.compilers.dartSassPackage, "sass");
 assert.equal(staticManifest.compilers.dartSassVersion, "1.102.0");
 assert.equal(staticManifest.compilers.lesscPackage, "less");
-assert.equal(staticManifest.compilers.lesscVersion, "4.8.0");
+assert.equal(staticManifest.compilers.lesscVersion, "4.8.1");
 assert.equal(packageJson.devDependencies?.sass, "1.102.0");
-assert.equal(packageJson.devDependencies?.less, "4.8.0");
+assert.equal(packageJson.devDependencies?.less, "4.8.1");
 assert.equal(packageJson.devDependencies?.lightningcss, "1.33.0");
 
 const dartSassVersion = run("pnpm", ["exec", "sass", "--version"]).stdout.trim();
@@ -192,8 +192,8 @@ assert.match(
 );
 assert.match(
   lesscVersion,
-  /^lessc 4\.8\.0\b/u,
-  `lessc oracle must resolve to 4.8.0, got ${lesscVersion}`,
+  /^lessc 4\.8\.1\b/u,
+  `lessc oracle must resolve to 4.8.1, got ${lesscVersion}`,
 );
 
 const sassRecords = sassManifest.fixtures.map(evaluateSassCompilabilityFixture);
