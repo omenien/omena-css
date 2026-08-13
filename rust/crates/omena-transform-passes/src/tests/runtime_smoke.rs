@@ -224,7 +224,7 @@ fn transform_catalog_trace_path_preserves_existing_executor_signature_and_marks_
     );
     assert_eq!(trace.terminal_pass_ids, vec!["print-css"]);
     assert!(!parallel_plan.executor_consumes_plan);
-    assert_eq!(parallel_plan.scheduler_status, "scaffoldOnly");
+    assert_eq!(parallel_plan.scheduler_status, "independenceDataReady");
     assert_eq!(
         parallel_plan.mechanism_scope,
         TRANSFORM_CATALOG_MECHANISM_SCOPE_V0
@@ -241,19 +241,19 @@ fn transform_catalog_trace_path_preserves_existing_executor_signature_and_marks_
 
 #[cfg(feature = "transform-catalog-trace")]
 #[test]
-fn transform_catalog_reorderability_uses_differential_commutativity_corpus() {
+fn transform_catalog_reorderability_combines_checked_token_with_differential_search() {
     let (certificate, witness) = evaluate_transform_catalog_reorderability_with_differential_corpus(
-        TransformPassKind::CommentStrip,
-        TransformPassKind::WhitespaceStrip,
+        TransformPassKind::NumberCompression,
+        TransformPassKind::ColorCompression,
         &[
-            r#".a { color : red ; /* remove */ content : "x y" ; }"#,
-            r#".b , .c { margin : 0px ; /* remove */ padding : 1px ; }"#,
+            ".a { color: rgb(255, 0, 0); margin: 0.50px; }",
+            ".b { color: #ff0000; opacity: 0.500; }",
         ],
     );
 
     assert_eq!(
         certificate.commute_witness,
-        "differentialCommutativityCorpus"
+        "checkedRewriteCertificateWithDifferentialSearch"
     );
     assert_eq!(witness.fixture_count, 2);
     assert_eq!(witness.mismatch_count, 0);
@@ -275,12 +275,25 @@ fn transform_catalog_reorderability_uses_differential_commutativity_corpus() {
         TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
     );
     assert!(certificate.accepted);
+    assert!(certificate.has_checked_issuance_token_v0());
     assert!(witness.cases.iter().all(|case| case.equal_output));
-    assert!(
-        witness
-            .cases
-            .iter()
-            .all(|case| !case.left_then_right_css.contains("/*"))
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[test]
+fn equal_differential_corpus_cannot_promote_an_uncommitted_pair() {
+    let (certificate, witness) = evaluate_transform_catalog_reorderability_with_differential_corpus(
+        TransformPassKind::CommentStrip,
+        TransformPassKind::WhitespaceStrip,
+        &[r#".a { color : red ; /* remove */ content : "x y" ; }"#],
+    );
+
+    assert!(witness.accepted);
+    assert!(!certificate.accepted);
+    assert!(!certificate.has_checked_issuance_token_v0());
+    assert_eq!(
+        certificate.commute_witness,
+        "requiresCheckedIndependenceCertificate"
     );
 }
 

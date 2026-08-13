@@ -133,6 +133,80 @@ fn ownership_census_controls_module_qualified_destructive_admission() -> Result<
 }
 
 #[test]
+fn proof_kernel_token_closes_favourable_ownership_count_bypass() -> Result<(), String> {
+    let first = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/first.module.css"));
+    let second = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("src/second.module.css"));
+    let bundle = test_closed_world_bundle(
+        vec![first.clone()],
+        vec![
+            ClosedWorldLinkedModuleV0::new(first.clone()),
+            ClosedWorldLinkedModuleV0::new(second.clone()),
+        ],
+    );
+    let execute = |census: &CssModuleTokenOwnershipCensusV0| {
+        census
+            .execute_module_transform_passes_with_ownership_admission(
+                ".dead { color: gray; }",
+                StyleDialect::Css,
+                &[TransformPassKind::TreeShakeClass],
+                &TransformExecutionContextV0::default(),
+                &bundle,
+                &first,
+                FactPrecision::Exact,
+                &TransformExecutionPolicyV0::default(),
+                &[],
+            )
+            .map_err(|error| format!("ownership-census module should be known: {error:?}"))
+    };
+
+    let unique = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        1,
+        vec![CssModuleTokenOwnershipV0::new(
+            "_first_0",
+            vec![first.clone()],
+            vec!["src/first.module.css".to_string()],
+            vec!["dead".to_string()],
+        )],
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let admitted = execute(&unique)?;
+    assert_eq!(admitted.closed_world_admission.refused_count, 0);
+
+    // FALSIFIER: the legacy producer-owned summaries are deliberately made favourable by
+    // omitting the collision row. Only the independently checked one-owner certificate can see
+    // that two modeled preimages were collapsed into one emitted token.
+    let favourable_but_ambiguous = CssModuleTokenOwnershipCensusV0::new(
+        "linkedOrder",
+        2,
+        vec![CssModuleTokenOwnershipV0::new(
+            "_shared_0",
+            vec![first.clone(), second],
+            vec![
+                "src/first.module.css".to_string(),
+                "src/second.module.css".to_string(),
+            ],
+            vec!["dead".to_string(), "other".to_string()],
+        )],
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let blocked = execute(&favourable_but_ambiguous)?;
+    assert_eq!(blocked.closed_world_admission.refused_count, 1);
+    assert!(matches!(
+        blocked.closed_world_admission.refusal_reasons[0]
+            .reasons
+            .as_slice(),
+        [TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { missing }]
+            if missing == &["proofKernelToken:tree-shake-class".to_string()]
+    ));
+    Ok(())
+}
+
+#[test]
 fn ownership_census_admission_matrix_distinguishes_incomplete_and_empty_states()
 -> Result<(), String> {
     #[derive(Clone, Copy)]
@@ -911,6 +985,45 @@ fn nested_color_lowering_conflict_has_swapped_order_output_divergence() {
         ".card { color: color-mix(in srgb, rgb(255 0 0), blue); }"
     );
     assert_eq!(function_then_mix, ".card { color: rgb(128 0 128); }");
+    println!(
+        "R19 pair=color-mix-lowering/color-function-lowering leftThenRight={mix_then_function:?} rightThenLeft={function_then_mix:?} equal=false"
+    );
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[test]
+fn committed_independence_rows_match_product_transform_outputs() -> Result<(), String> {
+    fn execute_pair(source: &str, left: TransformPassKind, right: TransformPassKind) -> String {
+        let left_first = execute_transform_passes_on_source(source, &[left]);
+        execute_transform_passes_on_source(&left_first.output_css, &[right]).output_css
+    }
+
+    let data = omena_lawvere::default_transform_catalog_independence_data_v0()
+        .map_err(|error| format!("committed independence data should validate: {error}"))?;
+    let entry = data
+        .entries
+        .iter()
+        .find(|entry| {
+            entry.left_pass_id == TransformPassKind::NumberCompression.id()
+                && entry.right_pass_id == TransformPassKind::ColorCompression.id()
+        })
+        .ok_or_else(|| "number/color independence entry is absent".to_owned())?;
+    for row in &entry.justification.observation_rows {
+        let left_then_right = execute_pair(
+            row.input_css.as_str(),
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
+        );
+        let right_then_left = execute_pair(
+            row.input_css.as_str(),
+            TransformPassKind::ColorCompression,
+            TransformPassKind::NumberCompression,
+        );
+        assert_eq!(left_then_right, row.left_then_right, "{}", row.fixture_id);
+        assert_eq!(right_then_left, row.right_then_left, "{}", row.fixture_id);
+        assert_eq!(left_then_right, right_then_left, "{}", row.fixture_id);
+    }
+    Ok(())
 }
 
 #[test]

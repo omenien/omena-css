@@ -2695,6 +2695,7 @@ dependencies = [
 name = "omena-lawvere"
 version = "0.3.0"
 dependencies = [
+ "omena-cascade-proof",
  "omena-evidence-graph",
  "omena-transform-cst",
  "serde",

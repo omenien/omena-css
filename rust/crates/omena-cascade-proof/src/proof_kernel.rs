@@ -243,6 +243,48 @@ pub struct SourceMapTraceCertV0 {
     pub after_segments: Vec<SourceMapTraceSegmentV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenOwnershipCertEntryV0 {
+    pub emitted_token: String,
+    pub module_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenOwnershipSeparabilityCertV0 {
+    pub complete: bool,
+    pub modeled_preimage_count: usize,
+    pub emitted_token_count: usize,
+    pub ownerships: Vec<TokenOwnershipCertEntryV0>,
+    pub unattributed_emitted_token_count: usize,
+    pub interface_mismatch_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformIndependenceObservationCertRowV0 {
+    pub fixture_id: String,
+    pub observer: String,
+    pub left_then_right: String,
+    pub right_then_left: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformIndependenceCertV0 {
+    pub left_pass_id: String,
+    pub right_pass_id: String,
+    pub observation_profile_id: String,
+    pub profile_observers: Vec<String>,
+    pub observation_rows: Vec<TransformIndependenceObservationCertRowV0>,
+    pub left_preconditions: Vec<String>,
+    pub right_preconditions: Vec<String>,
+    pub left_preserves_right_preconditions: Vec<String>,
+    pub right_preserves_left_preconditions: Vec<String>,
+    pub disqualifying_descriptor_edges: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[non_exhaustive]
 #[serde(rename_all = "camelCase")]
@@ -251,6 +293,8 @@ pub enum RewriteSideConditionKindV0 {
     CascadeWinnerEquality,
     ComputedValueEquality,
     SourceMapTrace,
+    TokenOwnershipSeparability,
+    TransformIndependence,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -267,6 +311,12 @@ pub enum SideConditionCertV0 {
     SourceMapTrace {
         certificate: SourceMapTraceCertV0,
     },
+    TokenOwnershipSeparability {
+        certificate: TokenOwnershipSeparabilityCertV0,
+    },
+    TransformIndependence {
+        certificate: Box<TransformIndependenceCertV0>,
+    },
 }
 
 impl SideConditionCertV0 {
@@ -276,6 +326,10 @@ impl SideConditionCertV0 {
             Self::CascadeWinnerEquality { .. } => RewriteSideConditionKindV0::CascadeWinnerEquality,
             Self::ComputedValueEquality { .. } => RewriteSideConditionKindV0::ComputedValueEquality,
             Self::SourceMapTrace { .. } => RewriteSideConditionKindV0::SourceMapTrace,
+            Self::TokenOwnershipSeparability { .. } => {
+                RewriteSideConditionKindV0::TokenOwnershipSeparability
+            }
+            Self::TransformIndependence { .. } => RewriteSideConditionKindV0::TransformIndependence,
         }
     }
 }
@@ -504,6 +558,15 @@ pub enum CertificateRejectionKindV0 {
     SourceMapTraceRejected {
         segment_index: usize,
         reason: String,
+    },
+    TokenOwnershipSeparabilityRejected {
+        reason: String,
+        token: Option<String>,
+    },
+    TransformIndependenceRejected {
+        reason: String,
+        left_pass_id: String,
+        right_pass_id: String,
     },
     TransitiveMiddleMismatch,
     EndpointMismatch {
@@ -1313,7 +1376,169 @@ fn check_side_condition_v0(
         SideConditionCertV0::SourceMapTrace { certificate } => {
             check_source_map_trace_v0(certificate, path, rule_id)
         }
+        SideConditionCertV0::TokenOwnershipSeparability { certificate } => {
+            check_token_ownership_separability_v0(certificate, path, rule_id)
+        }
+        SideConditionCertV0::TransformIndependence { certificate } => {
+            check_transform_independence_v0(certificate, path, rule_id)
+        }
     }
+}
+
+fn check_transform_independence_v0(
+    certificate: &TransformIndependenceCertV0,
+    path: &[usize],
+    rule_id: &str,
+) -> Result<(), CertificateRejectionV0> {
+    let reject = |reason: &str| {
+        CertificateRejectionV0::new(
+            side_condition_site_v0(path, rule_id),
+            CertificateRejectionKindV0::TransformIndependenceRejected {
+                reason: reason.to_owned(),
+                left_pass_id: certificate.left_pass_id.clone(),
+                right_pass_id: certificate.right_pass_id.clone(),
+            },
+        )
+    };
+    if certificate.left_pass_id.is_empty()
+        || certificate.right_pass_id.is_empty()
+        || certificate.left_pass_id == certificate.right_pass_id
+    {
+        return Err(reject("independence pair is empty or reflexive"));
+    }
+    if certificate.observation_profile_id.is_empty() || certificate.profile_observers.is_empty() {
+        return Err(reject("observation profile is empty"));
+    }
+    if !certificate.disqualifying_descriptor_edges.is_empty() {
+        return Err(reject(
+            "descriptor dependency or conflict disqualifies the pair",
+        ));
+    }
+
+    let profile_observers = certificate
+        .profile_observers
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if profile_observers.len() != certificate.profile_observers.len()
+        || profile_observers.contains("")
+    {
+        return Err(reject(
+            "observation profile contains an empty or duplicate observer",
+        ));
+    }
+    if certificate.observation_rows.is_empty() {
+        return Err(reject("observational commutation has no checked rows"));
+    }
+    let mut observed_profile_members = BTreeSet::new();
+    let mut row_keys = BTreeSet::new();
+    for row in &certificate.observation_rows {
+        if row.fixture_id.is_empty() || !profile_observers.contains(row.observer.as_str()) {
+            return Err(reject(
+                "observation row does not resolve to the named profile",
+            ));
+        }
+        if !row_keys.insert((row.fixture_id.as_str(), row.observer.as_str())) {
+            return Err(reject("observation row is duplicated"));
+        }
+        if row.left_then_right != row.right_then_left {
+            return Err(reject(
+                "adjacent transform orders have different observations",
+            ));
+        }
+        observed_profile_members.insert(row.observer.as_str());
+    }
+    if observed_profile_members != profile_observers {
+        return Err(reject("observation rows do not cover the named profile"));
+    }
+
+    let left_preconditions = certificate
+        .left_preconditions
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let right_preconditions = certificate
+        .right_preconditions
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let left_preserves_right = certificate
+        .left_preserves_right_preconditions
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let right_preserves_left = certificate
+        .right_preserves_left_preconditions
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if left_preconditions.len() != certificate.left_preconditions.len()
+        || right_preconditions.len() != certificate.right_preconditions.len()
+        || left_preserves_right.len() != certificate.left_preserves_right_preconditions.len()
+        || right_preserves_left.len() != certificate.right_preserves_left_preconditions.len()
+    {
+        return Err(reject("precondition evidence contains duplicate entries"));
+    }
+    if left_preserves_right != right_preconditions || right_preserves_left != left_preconditions {
+        return Err(reject("mutual precondition preservation is incomplete"));
+    }
+    Ok(())
+}
+
+fn check_token_ownership_separability_v0(
+    certificate: &TokenOwnershipSeparabilityCertV0,
+    path: &[usize],
+    rule_id: &str,
+) -> Result<(), CertificateRejectionV0> {
+    let reject = |reason: &str, token: Option<String>| {
+        CertificateRejectionV0::new(
+            side_condition_site_v0(path, rule_id),
+            CertificateRejectionKindV0::TokenOwnershipSeparabilityRejected {
+                reason: reason.to_owned(),
+                token,
+            },
+        )
+    };
+    if !certificate.complete {
+        return Err(reject("ownership census is incomplete", None));
+    }
+    if certificate.unattributed_emitted_token_count != 0 {
+        return Err(reject("emitted token has no attributed owner", None));
+    }
+    if certificate.interface_mismatch_count != 0 {
+        return Err(reject("emitted token disagrees with its interface", None));
+    }
+    if certificate.emitted_token_count != certificate.ownerships.len() {
+        return Err(reject(
+            "emitted token count does not match ownership rows",
+            None,
+        ));
+    }
+    let mut tokens = BTreeSet::new();
+    for ownership in &certificate.ownerships {
+        if ownership.emitted_token.is_empty() {
+            return Err(reject("ownership row has an empty emitted token", None));
+        }
+        if !tokens.insert(ownership.emitted_token.as_str()) {
+            return Err(reject(
+                "ownership census repeats an emitted token",
+                Some(ownership.emitted_token.clone()),
+            ));
+        }
+        if ownership.module_paths.len() != 1 || ownership.module_paths[0].is_empty() {
+            return Err(reject(
+                "emitted token does not resolve to exactly one module path",
+                Some(ownership.emitted_token.clone()),
+            ));
+        }
+    }
+    if certificate.modeled_preimage_count != certificate.ownerships.len() {
+        return Err(reject(
+            "modeled preimages do not form a one-to-one ownership relation",
+            None,
+        ));
+    }
+    Ok(())
 }
 
 fn side_condition_site_v0(path: &[usize], rule_id: &str) -> RewriteFailureSiteV0 {
@@ -2052,6 +2277,38 @@ mod tests {
             SideConditionCertV0::SourceMapTrace {
                 certificate: source_map_certificate(),
             },
+            SideConditionCertV0::TokenOwnershipSeparability {
+                certificate: TokenOwnershipSeparabilityCertV0 {
+                    complete: true,
+                    modeled_preimage_count: 1,
+                    emitted_token_count: 1,
+                    ownerships: vec![TokenOwnershipCertEntryV0 {
+                        emitted_token: "_shared_0".to_owned(),
+                        module_paths: vec!["src/one.module.css".to_owned()],
+                    }],
+                    unattributed_emitted_token_count: 0,
+                    interface_mismatch_count: 0,
+                },
+            },
+            SideConditionCertV0::TransformIndependence {
+                certificate: Box::new(TransformIndependenceCertV0 {
+                    left_pass_id: "number-compression".to_owned(),
+                    right_pass_id: "color-compression".to_owned(),
+                    observation_profile_id: "exact-emission-bytes-v0".to_owned(),
+                    profile_observers: vec!["rawBytes".to_owned()],
+                    observation_rows: vec![TransformIndependenceObservationCertRowV0 {
+                        fixture_id: "disjoint-values".to_owned(),
+                        observer: "rawBytes".to_owned(),
+                        left_then_right: ".a{color:red;margin:.5px}".to_owned(),
+                        right_then_left: ".a{color:red;margin:.5px}".to_owned(),
+                    }],
+                    left_preconditions: vec!["equivalentLiteralValue".to_owned()],
+                    right_preconditions: vec!["equivalentLiteralValue".to_owned()],
+                    left_preserves_right_preconditions: vec!["equivalentLiteralValue".to_owned()],
+                    right_preserves_left_preconditions: vec!["equivalentLiteralValue".to_owned()],
+                    disqualifying_descriptor_edges: Vec::new(),
+                }),
+            },
         ];
         for certificate in certificates {
             let encoded = serde_json::to_string(&certificate)?;
@@ -2059,6 +2316,136 @@ mod tests {
             assert_eq!(decoded, certificate);
         }
         Ok(())
+    }
+
+    #[test]
+    fn token_ownership_side_condition_requires_one_owner_per_emitted_token() {
+        let catalog = single_rule_catalog(
+            "closed-world-ownership-admission-v0",
+            "admissionRequested",
+            "admissionGranted",
+            RewriteSideConditionKindV0::TokenOwnershipSeparability,
+        );
+        let before = RewriteTermV0::atom("admissionRequested");
+        let after = RewriteTermV0::atom("admissionGranted");
+        let certificate = |module_paths: Vec<String>, modeled_preimage_count| {
+            single_rule_certificate(
+                "closed-world-ownership-admission-v0",
+                SideConditionCertV0::TokenOwnershipSeparability {
+                    certificate: TokenOwnershipSeparabilityCertV0 {
+                        complete: true,
+                        modeled_preimage_count,
+                        emitted_token_count: 1,
+                        ownerships: vec![TokenOwnershipCertEntryV0 {
+                            emitted_token: "_shared_0".to_owned(),
+                            module_paths,
+                        }],
+                        unattributed_emitted_token_count: 0,
+                        interface_mismatch_count: 0,
+                    },
+                },
+            )
+        };
+        let accepted = check_rewrite_certificate_v0(
+            &before,
+            &after,
+            &catalog,
+            &certificate(vec!["src/one.module.css".to_owned()], 1),
+            &CanonicalRewriteAssumptionsV0::default(),
+        );
+        assert!(accepted.is_ok(), "unique ownership rejected: {accepted:?}");
+
+        let rejected = check_rewrite_certificate_v0(
+            &before,
+            &after,
+            &catalog,
+            &certificate(
+                vec![
+                    "src/one.module.css".to_owned(),
+                    "src/two.module.css".to_owned(),
+                ],
+                2,
+            ),
+            &CanonicalRewriteAssumptionsV0::default(),
+        );
+        assert!(rejected.is_err(), "ambiguous ownership accepted");
+        let Err(rejection) = rejected else {
+            return;
+        };
+        assert!(matches!(
+            *rejection.rejection,
+            CertificateRejectionKindV0::TokenOwnershipSeparabilityRejected {
+                token: Some(ref token),
+                ..
+            } if token == "_shared_0"
+        ));
+    }
+
+    #[test]
+    fn transform_independence_requires_observation_and_precondition_halves() {
+        let catalog = single_rule_catalog(
+            "adjacent-schedule-swap-v0",
+            "numberThenColor",
+            "colorThenNumber",
+            RewriteSideConditionKindV0::TransformIndependence,
+        );
+        let before = RewriteTermV0::atom("numberThenColor");
+        let after = RewriteTermV0::atom("colorThenNumber");
+        let independence = TransformIndependenceCertV0 {
+            left_pass_id: "number-compression".to_owned(),
+            right_pass_id: "color-compression".to_owned(),
+            observation_profile_id: "exact-emission-bytes-v0".to_owned(),
+            profile_observers: vec!["rawBytes".to_owned()],
+            observation_rows: vec![TransformIndependenceObservationCertRowV0 {
+                fixture_id: "disjoint-values".to_owned(),
+                observer: "rawBytes".to_owned(),
+                left_then_right: ".a{color:red;margin:.5px}".to_owned(),
+                right_then_left: ".a{color:red;margin:.5px}".to_owned(),
+            }],
+            left_preconditions: vec!["equivalentLiteralValue".to_owned()],
+            right_preconditions: vec!["equivalentLiteralValue".to_owned()],
+            left_preserves_right_preconditions: vec!["equivalentLiteralValue".to_owned()],
+            right_preserves_left_preconditions: vec!["equivalentLiteralValue".to_owned()],
+            disqualifying_descriptor_edges: Vec::new(),
+        };
+        let envelope = |certificate| {
+            single_rule_certificate(
+                "adjacent-schedule-swap-v0",
+                SideConditionCertV0::TransformIndependence {
+                    certificate: Box::new(certificate),
+                },
+            )
+        };
+        let accepted = check_rewrite_certificate_v0(
+            &before,
+            &after,
+            &catalog,
+            &envelope(independence.clone()),
+            &CanonicalRewriteAssumptionsV0::default(),
+        );
+        assert!(accepted.is_ok(), "independence cert rejected: {accepted:?}");
+
+        let mut dependent = independence;
+        dependent
+            .disqualifying_descriptor_edges
+            .push("conflictsWith:color-mix-lowering:color-function-lowering".to_owned());
+        let rejected = check_rewrite_certificate_v0(
+            &before,
+            &after,
+            &catalog,
+            &envelope(dependent),
+            &CanonicalRewriteAssumptionsV0::default(),
+        );
+        assert!(matches!(
+            rejected,
+            Err(CertificateRejectionV0 {
+                rejection,
+                ..
+            }) if matches!(
+                *rejection,
+                CertificateRejectionKindV0::TransformIndependenceRejected { .. }
+            )
+        ));
     }
 
     #[test]
