@@ -1,16 +1,44 @@
 use crate::automaton::{concatenate_automaton_class_values, join_automaton_class_values};
 use crate::domain::{abstract_class_value_kind, composite_min_length_for_constraints};
 use crate::{
-    AbstractClassValueProvenanceV0, AbstractClassValueV0, BeliefPropagationDomainFactorV0,
-    BeliefPropagationDomainGraphV0, BeliefPropagationDomainVariableV0,
-    BeliefPropagationIterationV0, BeliefPropagationMessageV0, CompositeClassValueInputV0,
+    AbstractClassValueProvenanceV0, AbstractClassValueV0, CompositeClassValueInputV0,
     ReducedClassValueCharInclusionAxisV0, ReducedClassValuePrefixAxisV0,
     ReducedClassValueProductDomainV0, ReducedClassValueProductIterationStepV0,
     ReducedClassValueProductIterationV0, ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0,
-    bottom_class_value, char_set_for_string, char_set_is_subset, composite_class_value,
-    intersect_char_sets, meaningful_longest_common_prefix, meaningful_longest_common_suffix,
-    prefix_suffix_class_value, top_class_value_with_provenance, union_char_sets,
+    ReducedProductConstraintFactorV0, ReducedProductConstraintGraphV0,
+    ReducedProductConstraintMessageV0, ReducedProductConstraintPropagationV0,
+    ReducedProductConstraintVariableV0, bottom_class_value, char_set_for_string,
+    char_set_is_subset, composite_class_value, intersect_char_sets,
+    meaningful_longest_common_prefix, meaningful_longest_common_suffix, prefix_suffix_class_value,
+    top_class_value_with_provenance, union_char_sets,
 };
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+const LEGACY_CONSTRAINT_PROPAGATION_PRODUCT_V0: &str =
+    "omena-abstract-value.belief-propagation-iteration";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+const LEGACY_CONSTRAINT_GRAPH_PRODUCT_V0: &str =
+    "omena-abstract-value.belief-propagation-domain-graph";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+const LEGACY_CONSTRAINT_EQUATION_SYSTEM_V0: &str = "Pr x Su x CI finite-height meet constraints";
+
+#[cfg(test)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+const LEGACY_CONSTRAINT_WIRE_PRODUCT_BYTES_V0: &[u8] = br#"["omena-abstract-value.belief-propagation-iteration","Pr x Su x CI finite-height meet constraints","omena-abstract-value.belief-propagation-domain-graph"]"#;
 
 pub fn summarize_reduced_class_value_product(
     value: &AbstractClassValueV0,
@@ -225,14 +253,14 @@ pub fn iterate_reduced_class_value_product_constraints(
     }
 }
 
-pub fn summarize_belief_propagation_iteration_v0(
+pub fn summarize_reduced_product_constraint_propagation_v0(
     values: &[AbstractClassValueV0],
-) -> BeliefPropagationIterationV0 {
+) -> ReducedProductConstraintPropagationV0 {
     let source_iteration = iterate_reduced_class_value_product_constraints(values);
     let messages = source_iteration
         .steps
         .iter()
-        .map(|step| BeliefPropagationMessageV0 {
+        .map(|step| ReducedProductConstraintMessageV0 {
             iteration: step.iteration,
             from_factor: step.input_value_kind,
             to_variable: step.result_kind,
@@ -242,12 +270,12 @@ pub fn summarize_belief_propagation_iteration_v0(
         })
         .collect::<Vec<_>>();
 
-    BeliefPropagationIterationV0 {
+    ReducedProductConstraintPropagationV0 {
         schema_version: "0",
-        product: "omena-abstract-value.belief-propagation-iteration",
+        product: "omena-abstract-value.reduced-product-constraint-propagation",
         algorithm_view: "reducedProductConstraintMessagePassing",
         substrate: "omena-abstract-value.reduced-product-iteration",
-        equation_system: "Pr x Su x CI finite-height meet constraints",
+        equation_system: "Pr x Su x CI; cardinality/byte bounds before automaton construction; reverse-postorder flow plus loop-header widening",
         input_count: source_iteration.input_count,
         message_count: messages.len(),
         iteration_count: source_iteration.iteration_count,
@@ -259,15 +287,15 @@ pub fn summarize_belief_propagation_iteration_v0(
     }
 }
 
-pub fn summarize_reduced_product_belief_propagation_domain_graph_v0(
+pub fn summarize_reduced_product_constraint_graph_v0(
     values: &[AbstractClassValueV0],
-) -> BeliefPropagationDomainGraphV0 {
-    let iteration = summarize_belief_propagation_iteration_v0(values);
-    let variables = reduced_product_bp_domain_variables_v0();
+) -> ReducedProductConstraintGraphV0 {
+    let iteration = summarize_reduced_product_constraint_propagation_v0(values);
+    let variables = reduced_product_constraint_variables_v0();
     let factors = iteration
         .messages
         .iter()
-        .map(|message| BeliefPropagationDomainFactorV0 {
+        .map(|message| ReducedProductConstraintFactorV0 {
             factor_id: format!("constraint:{}:{}", message.iteration, message.from_factor),
             input_value_kind: message.from_factor,
             operation: message.operation,
@@ -276,9 +304,9 @@ pub fn summarize_reduced_product_belief_propagation_domain_graph_v0(
         .collect::<Vec<_>>();
     let edge_count = factors.len().saturating_mul(2);
 
-    BeliefPropagationDomainGraphV0 {
+    ReducedProductConstraintGraphV0 {
         schema_version: "0",
-        product: "omena-abstract-value.belief-propagation-domain-graph",
+        product: "omena-abstract-value.reduced-product-constraint-graph",
         claim_level: "fixtureWitnessReducedProductDomainGraph",
         theorem_claimed: false,
         algorithm_view: "reducedProductDomainGraphMessagePassing",
@@ -295,25 +323,210 @@ pub fn summarize_reduced_product_belief_propagation_domain_graph_v0(
     }
 }
 
-fn reduced_product_bp_domain_variables_v0() -> Vec<BeliefPropagationDomainVariableV0> {
+fn reduced_product_constraint_variables_v0() -> Vec<ReducedProductConstraintVariableV0> {
     vec![
-        BeliefPropagationDomainVariableV0 {
+        ReducedProductConstraintVariableV0 {
             variable_id: "Pr",
             axis: "prefix",
         },
-        BeliefPropagationDomainVariableV0 {
+        ReducedProductConstraintVariableV0 {
             variable_id: "Su",
             axis: "suffix",
         },
-        BeliefPropagationDomainVariableV0 {
+        ReducedProductConstraintVariableV0 {
             variable_id: "CI",
             axis: "charInclusion",
         },
-        BeliefPropagationDomainVariableV0 {
+        ReducedProductConstraintVariableV0 {
             variable_id: "Len",
             axis: "minLength",
         },
     ]
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
+pub fn summarize_belief_propagation_iteration_v0(
+    values: &[AbstractClassValueV0],
+) -> crate::BeliefPropagationIterationV0 {
+    #[allow(deprecated)]
+    legacy_constraint_propagation_wire_compatibility_v0(values)
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
+fn legacy_constraint_propagation_wire_compatibility_v0(
+    values: &[AbstractClassValueV0],
+) -> crate::BeliefPropagationIterationV0 {
+    let summary = summarize_reduced_product_constraint_propagation_v0(values);
+    #[allow(deprecated)]
+    let messages = summary
+        .messages
+        .into_iter()
+        .map(|message| crate::BeliefPropagationMessageV0 {
+            iteration: message.iteration,
+            from_factor: message.from_factor,
+            to_variable: message.to_variable,
+            operation: message.operation,
+            result_kind: message.result_kind,
+            monotone_with_previous: message.monotone_with_previous,
+        })
+        .collect();
+
+    #[allow(deprecated)]
+    crate::BeliefPropagationIterationV0 {
+        schema_version: summary.schema_version,
+        product: LEGACY_CONSTRAINT_PROPAGATION_PRODUCT_V0,
+        algorithm_view: summary.algorithm_view,
+        substrate: summary.substrate,
+        equation_system: LEGACY_CONSTRAINT_EQUATION_SYSTEM_V0,
+        input_count: summary.input_count,
+        message_count: summary.message_count,
+        iteration_count: summary.iteration_count,
+        converged: summary.converged,
+        monotone_witness_valid: summary.monotone_witness_valid,
+        fixed_point_reached: summary.fixed_point_reached,
+        messages,
+        source_iteration: summary.source_iteration,
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
+pub fn summarize_reduced_product_belief_propagation_domain_graph_v0(
+    values: &[AbstractClassValueV0],
+) -> crate::BeliefPropagationDomainGraphV0 {
+    #[allow(deprecated)]
+    legacy_constraint_graph_wire_compatibility_v0(values)
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-abstract-value maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
+fn legacy_constraint_graph_wire_compatibility_v0(
+    values: &[AbstractClassValueV0],
+) -> crate::BeliefPropagationDomainGraphV0 {
+    let summary = summarize_reduced_product_constraint_graph_v0(values);
+    #[allow(deprecated)]
+    let variables = summary
+        .variables
+        .into_iter()
+        .map(|variable| crate::BeliefPropagationDomainVariableV0 {
+            variable_id: variable.variable_id,
+            axis: variable.axis,
+        })
+        .collect();
+    #[allow(deprecated)]
+    let factors = summary
+        .factors
+        .into_iter()
+        .map(|factor| crate::BeliefPropagationDomainFactorV0 {
+            factor_id: factor.factor_id,
+            input_value_kind: factor.input_value_kind,
+            operation: factor.operation,
+            result_kind: factor.result_kind,
+        })
+        .collect();
+    #[allow(deprecated)]
+    let messages = summary
+        .messages
+        .into_iter()
+        .map(|message| crate::BeliefPropagationMessageV0 {
+            iteration: message.iteration,
+            from_factor: message.from_factor,
+            to_variable: message.to_variable,
+            operation: message.operation,
+            result_kind: message.result_kind,
+            monotone_with_previous: message.monotone_with_previous,
+        })
+        .collect();
+
+    #[allow(deprecated)]
+    crate::BeliefPropagationDomainGraphV0 {
+        schema_version: summary.schema_version,
+        product: LEGACY_CONSTRAINT_GRAPH_PRODUCT_V0,
+        claim_level: summary.claim_level,
+        theorem_claimed: summary.theorem_claimed,
+        algorithm_view: summary.algorithm_view,
+        substrate: LEGACY_CONSTRAINT_PROPAGATION_PRODUCT_V0,
+        variable_count: summary.variable_count,
+        factor_count: summary.factor_count,
+        edge_count: summary.edge_count,
+        converged: summary.converged,
+        monotone_witness_valid: summary.monotone_witness_valid,
+        variables,
+        factors,
+        messages,
+        source_iteration: summary.source_iteration,
+    }
+}
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::*;
+    use crate::{char_inclusion_class_value, prefix_class_value, suffix_class_value};
+
+    #[test]
+    #[allow(deprecated)]
+    fn legacy_constraint_adapters_preserve_exact_pre_rename_wire_bytes() {
+        let values = [
+            prefix_class_value("btn-", None),
+            suffix_class_value("-active", None),
+            char_inclusion_class_value("a", "abcde-5intv", None, false),
+        ];
+
+        let canonical_propagation = summarize_reduced_product_constraint_propagation_v0(&values);
+        let legacy_propagation = legacy_constraint_propagation_wire_compatibility_v0(&values);
+        let canonical_propagation_bytes = serde_json::to_string(&canonical_propagation);
+        assert!(canonical_propagation_bytes.is_ok());
+        let canonical_propagation_bytes = canonical_propagation_bytes.unwrap_or_default();
+        let expected_legacy_propagation_bytes = canonical_propagation_bytes
+            .replace(
+                canonical_propagation.product,
+                LEGACY_CONSTRAINT_PROPAGATION_PRODUCT_V0,
+            )
+            .replace(
+                canonical_propagation.equation_system,
+                LEGACY_CONSTRAINT_EQUATION_SYSTEM_V0,
+            )
+            .into_bytes();
+        let actual_legacy_propagation_bytes = serde_json::to_vec(&legacy_propagation);
+        assert!(actual_legacy_propagation_bytes.is_ok());
+        assert_eq!(
+            actual_legacy_propagation_bytes.unwrap_or_default(),
+            expected_legacy_propagation_bytes
+        );
+
+        let canonical_graph = summarize_reduced_product_constraint_graph_v0(&values);
+        let legacy_graph = legacy_constraint_graph_wire_compatibility_v0(&values);
+        let canonical_graph_bytes = serde_json::to_string(&canonical_graph);
+        assert!(canonical_graph_bytes.is_ok());
+        let canonical_graph_bytes = canonical_graph_bytes.unwrap_or_default();
+        let expected_legacy_graph_bytes = canonical_graph_bytes
+            .replace(canonical_graph.product, LEGACY_CONSTRAINT_GRAPH_PRODUCT_V0)
+            .replace(
+                canonical_graph.substrate,
+                LEGACY_CONSTRAINT_PROPAGATION_PRODUCT_V0,
+            )
+            .into_bytes();
+        let actual_legacy_graph_bytes = serde_json::to_vec(&legacy_graph);
+        assert!(actual_legacy_graph_bytes.is_ok());
+        assert_eq!(
+            actual_legacy_graph_bytes.unwrap_or_default(),
+            expected_legacy_graph_bytes
+        );
+    }
 }
 
 pub(crate) fn intersect_reduced_product_class_values(
@@ -688,5 +901,31 @@ fn join_allowed_char_sets(left: Option<&str>, right: Option<&str>) -> Option<Str
     match (left, right) {
         (Some(left), Some(right)) => Some(union_char_sets(left, right)),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod legacy_wire_tests {
+    use super::*;
+
+    #[test]
+    #[allow(deprecated)]
+    fn compatibility_adapters_preserve_legacy_product_bytes() {
+        let propagation = legacy_constraint_propagation_wire_compatibility_v0(&[]);
+        let graph = legacy_constraint_graph_wire_compatibility_v0(&[]);
+        let actual = serde_json::to_vec(&(
+            propagation.product,
+            propagation.equation_system,
+            graph.product,
+        ));
+
+        assert!(
+            actual.is_ok(),
+            "legacy compatibility products should serialize"
+        );
+        assert_eq!(
+            actual.unwrap_or_default(),
+            LEGACY_CONSTRAINT_WIRE_PRODUCT_BYTES_V0
+        );
     }
 }

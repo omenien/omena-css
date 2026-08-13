@@ -8,9 +8,9 @@
 use crate::{
     CascadeDeclaration, CascadeEvaluationFuzzCaseV0, CascadeEvaluationFuzzResultV0,
     CascadeFuzzSeedReportV0, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue,
-    CustomPropertyEnv, LayerOrdinal, ModuleRank, Specificity, VarSubstitutionFuzzCaseV0,
-    VarSubstitutionFuzzResultV0, cascade_property, normalized_layer_rank, rank_cascade_items,
-    substitute_custom_properties,
+    CustomPropertyEnv, LayerOrdinal, ModuleRank, OpenWorldTieEvidence, Specificity,
+    VarSubstitutionFuzzCaseV0, VarSubstitutionFuzzResultV0, cascade_property,
+    normalized_layer_rank, rank_cascade_items, substitute_custom_properties,
 };
 
 pub fn run_cascade_evaluation_fuzz_case(
@@ -163,13 +163,13 @@ fn generated_cascade_fuzz_declarations(
                         (fuzz_next(&mut state) % 8) as u32,
                         (fuzz_next(&mut state) % 12) as u32,
                     ),
-                    ModuleRank::new(
-                        (fuzz_next(&mut state) % 5) as u32,
-                        (fuzz_next(&mut state) % 7) as u32,
-                        (fuzz_next(&mut state) % 11) as u32,
-                    ),
                     index as u32,
                 ),
+                open_world_tie_evidence: OpenWorldTieEvidence::new(ModuleRank::new(
+                    (fuzz_next(&mut state) % 5) as u32,
+                    (fuzz_next(&mut state) % 7) as u32,
+                    (fuzz_next(&mut state) % 11) as u32,
+                )),
                 specificity_exactness: crate::SpecificityExactnessV0::Exact,
             }
         })

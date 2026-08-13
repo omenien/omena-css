@@ -318,6 +318,7 @@ pub struct OmenaBundlerHostCapabilitiesV0 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaBundlerHostResolveModuleRequestV0 {
     pub snapshot_id: crate::OmenaWorkspaceSnapshotIdV0,
+    pub workspace_root: String,
     pub style_path: String,
     pub style_sources: Vec<crate::OmenaQueryStyleSourceInputV0>,
     pub package_manifests: Vec<crate::OmenaQueryStylePackageManifestV0>,

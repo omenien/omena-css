@@ -3,20 +3,20 @@ use super::{
     execute_transform_passes_on_source_with_dialect,
     execute_transform_passes_on_source_with_dialect_and_context,
 };
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 use super::{
-    evaluate_lawvere_reorderability_with_differential_corpus,
-    execute_transform_passes_on_source_with_lawvere_trace,
-    plan_transform_passes_parallel_lawvere_layers,
+    evaluate_transform_catalog_reorderability_with_differential_corpus,
+    execute_transform_passes_on_source_with_transform_catalog_trace,
+    plan_transform_passes_parallel_transform_catalog_layers,
 };
 use crate::{
     TransformBlockedReasonV0, TransformDecision, TransformEvaluationProfileV0,
     TransformNoChangeReasonV0, TransformPreconditionV0,
 };
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 use omena_lawvere::{
-    LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0, LAWVERE_MECHANISM_SCOPE_V0,
-    LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0,
+    TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0, TRANSFORM_CATALOG_MECHANISM_SCOPE_V0,
+    TRANSFORM_CATALOG_PRODUCT_PATH_EVIDENCE_READY_V0,
 };
 use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
@@ -194,9 +194,9 @@ fn execution_runtime_applies_conservative_whitespace_normalization() {
     );
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 #[test]
-fn lawvere_trace_path_preserves_existing_executor_signature_and_marks_terminal_pass() {
+fn transform_catalog_trace_path_preserves_existing_executor_signature_and_marks_terminal_pass() {
     let requested = [
         TransformPassKind::ColorCompression,
         TransformPassKind::NumberCompression,
@@ -204,81 +204,103 @@ fn lawvere_trace_path_preserves_existing_executor_signature_and_marks_terminal_p
     ];
     let plain =
         execute_transform_passes_on_source(".a { color: #ffffff; width: 1.0px; }", &requested);
-    let (traced, trace) = execute_transform_passes_on_source_with_lawvere_trace(
+    let (traced, trace) = execute_transform_passes_on_source_with_transform_catalog_trace(
         ".a { color: #ffffff; width: 1.0px; }",
         &requested,
     );
-    let parallel_plan = plan_transform_passes_parallel_lawvere_layers(&requested);
+    let parallel_plan = plan_transform_passes_parallel_transform_catalog_layers(&requested);
 
     assert_eq!(traced.output_css, plain.output_css);
     assert_eq!(traced.ordered_pass_ids, plain.ordered_pass_ids);
     assert!(trace.preserves_existing_executor_signature);
-    assert_eq!(trace.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+    assert_eq!(trace.mechanism_scope, TRANSFORM_CATALOG_MECHANISM_SCOPE_V0);
     assert_eq!(
         trace.product_path_evidence_ready,
-        LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+        TRANSFORM_CATALOG_PRODUCT_PATH_EVIDENCE_READY_V0
     );
     assert_eq!(
         trace.global_transform_theorem_claimed,
-        LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+        TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
     );
     assert_eq!(trace.terminal_pass_ids, vec!["print-css"]);
     assert!(!parallel_plan.executor_consumes_plan);
-    assert_eq!(parallel_plan.scheduler_status, "scaffoldOnly");
-    assert_eq!(parallel_plan.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+    assert_eq!(parallel_plan.scheduler_status, "independenceDataReady");
+    assert_eq!(
+        parallel_plan.mechanism_scope,
+        TRANSFORM_CATALOG_MECHANISM_SCOPE_V0
+    );
     assert_eq!(
         parallel_plan.product_path_evidence_ready,
-        LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+        TRANSFORM_CATALOG_PRODUCT_PATH_EVIDENCE_READY_V0
     );
     assert_eq!(
         parallel_plan.global_transform_theorem_claimed,
-        LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+        TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
     );
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 #[test]
-fn lawvere_reorderability_uses_differential_commutativity_corpus() {
-    let (certificate, witness) = evaluate_lawvere_reorderability_with_differential_corpus(
-        TransformPassKind::CommentStrip,
-        TransformPassKind::WhitespaceStrip,
+fn transform_catalog_reorderability_combines_checked_token_with_differential_search() {
+    let (certificate, witness) = evaluate_transform_catalog_reorderability_with_differential_corpus(
+        TransformPassKind::NumberCompression,
+        TransformPassKind::ColorCompression,
         &[
-            r#".a { color : red ; /* remove */ content : "x y" ; }"#,
-            r#".b , .c { margin : 0px ; /* remove */ padding : 1px ; }"#,
+            ".a { color: rgb(255, 0, 0); margin: 0.50px; }",
+            ".b { color: #ff0000; opacity: 0.500; }",
         ],
     );
 
     assert_eq!(
         certificate.commute_witness,
-        "differentialCommutativityCorpus"
+        "checkedRewriteCertificateWithDifferentialSearch"
     );
     assert_eq!(witness.fixture_count, 2);
     assert_eq!(witness.mismatch_count, 0);
     assert_eq!(certificate.differential_equal_fixture_count, 2);
-    assert_eq!(witness.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
-    assert_eq!(certificate.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+    assert_eq!(
+        witness.mechanism_scope,
+        TRANSFORM_CATALOG_MECHANISM_SCOPE_V0
+    );
+    assert_eq!(
+        certificate.mechanism_scope,
+        TRANSFORM_CATALOG_MECHANISM_SCOPE_V0
+    );
     assert_eq!(
         certificate.product_path_evidence_ready,
-        LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0
+        TRANSFORM_CATALOG_PRODUCT_PATH_EVIDENCE_READY_V0
     );
     assert_eq!(
         certificate.global_transform_theorem_claimed,
-        LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+        TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
     );
     assert!(certificate.accepted);
+    assert!(certificate.has_checked_issuance_token_v0());
     assert!(witness.cases.iter().all(|case| case.equal_output));
-    assert!(
-        witness
-            .cases
-            .iter()
-            .all(|case| !case.left_then_right_css.contains("/*"))
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[test]
+fn equal_differential_corpus_cannot_promote_an_uncommitted_pair() {
+    let (certificate, witness) = evaluate_transform_catalog_reorderability_with_differential_corpus(
+        TransformPassKind::CommentStrip,
+        TransformPassKind::WhitespaceStrip,
+        &[r#".a { color : red ; /* remove */ content : "x y" ; }"#],
+    );
+
+    assert!(witness.accepted);
+    assert!(!certificate.accepted);
+    assert!(!certificate.has_checked_issuance_token_v0());
+    assert_eq!(
+        certificate.commute_witness,
+        "requiresCheckedIndependenceCertificate"
     );
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 #[test]
-fn lawvere_reorderability_rejects_executor_observed_mismatches() {
-    let (certificate, witness) = evaluate_lawvere_reorderability_with_differential_corpus(
+fn transform_catalog_reorderability_rejects_executor_observed_mismatches() {
+    let (certificate, witness) = evaluate_transform_catalog_reorderability_with_differential_corpus(
         TransformPassKind::RuleDeduplication,
         TransformPassKind::NestingUnwrap,
         &[r#".a { & .b { color: red; } } .a .b { color: red; }"#],
@@ -288,10 +310,13 @@ fn lawvere_reorderability_rejects_executor_observed_mismatches() {
     assert_eq!(witness.equal_fixture_count, 0);
     assert_eq!(witness.mismatch_count, 1);
     assert_eq!(certificate.differential_mismatch_count, 1);
-    assert_eq!(certificate.mechanism_scope, LAWVERE_MECHANISM_SCOPE_V0);
+    assert_eq!(
+        certificate.mechanism_scope,
+        TRANSFORM_CATALOG_MECHANISM_SCOPE_V0
+    );
     assert_eq!(
         certificate.global_transform_theorem_claimed,
-        LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
+        TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
     );
     assert!(!witness.accepted);
     assert!(!certificate.accepted);

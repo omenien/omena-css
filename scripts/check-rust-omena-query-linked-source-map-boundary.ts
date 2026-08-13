@@ -23,6 +23,14 @@ const attributedScopeBody = extractFunctionBody(
   source,
   "run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options",
 );
+const tokenOwnershipBody = extractFunctionBody(
+  source,
+  "run_omena_query_bundle_with_token_ownership_census_and_options",
+);
+const moduleCssContextBody = extractFunctionBody(
+  source,
+  "run_omena_query_bundle_with_module_css_module_contexts_and_options",
+);
 const bundleBody = extractFunctionBody(
   source,
   "run_omena_query_bundle_with_optional_module_reachability",
@@ -46,7 +54,13 @@ const sharedBundleEntrypointCount =
   ) -
   1 +
   (injectSharedEntrypoint ? 1 : 0);
-const expectedSharedEntrypointCount = [semanticScopeBody, attributedScopeBody].filter(
+const sharedEntrypointBodies = [
+  tokenOwnershipBody,
+  semanticScopeBody,
+  moduleCssContextBody,
+  attributedScopeBody,
+];
+const expectedSharedEntrypointCount = sharedEntrypointBodies.filter(
   (body) => countCalls(body, "run_omena_query_bundle_with_optional_module_reachability") === 1,
 ).length;
 // A new caller of the shared bundle implementation changes the source-wide
@@ -69,7 +83,9 @@ assert.equal(
 for (const entrypointBody of [
   semanticBundleBody,
   attributedBundleBody,
+  tokenOwnershipBody,
   semanticScopeBody,
+  moduleCssContextBody,
   attributedScopeBody,
 ]) {
   assert.doesNotMatch(entrypointBody, /summarize_omena_query_linked_bundle_source_map_v3\s*\(/u);
@@ -78,7 +94,7 @@ for (const entrypointBody of [
     /summarize_omena_query_consumer_build_source_map_v3_with_resolution_inputs\s*\(/u,
   );
 }
-for (const entrypointBody of [semanticScopeBody, attributedScopeBody]) {
+for (const entrypointBody of sharedEntrypointBodies) {
   assert.equal(
     countCalls(entrypointBody, "run_omena_query_bundle_with_optional_module_reachability"),
     1,

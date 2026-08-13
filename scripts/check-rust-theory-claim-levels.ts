@@ -55,7 +55,7 @@ const TARGETS = [
       "claim_level:",
       "opt-in deep-analysis Jacobian-spectrum approximation",
       "not a default product decision mechanism",
-      "not a full",
+      "not a mathematical scale-transformation theorem",
     ],
   },
   {

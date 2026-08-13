@@ -948,6 +948,31 @@ fn exposes_scss_control_flow_oracle_corpus_through_query_boundary() {
     );
     assert_eq!(summary.merged_cross_file_graph_count, 0);
     assert!(summary.all_supported_fixtures_converged);
+    assert!(summary.propagation_depth_witness_converged);
+    assert_eq!(summary.propagation_depth_witness_widened_to_top_count, 0);
+    assert_eq!(summary.propagation_depth_witness.output_top_count, 0);
+    assert!(summary.ascending_chain_witness_converged);
+    assert_eq!(summary.ascending_chain_witness_result_kind, "prefix");
+    let ascending_chain_result =
+        serde_json::to_value(&summary.ascending_chain_witness.result_value)
+            .unwrap_or_else(|error| serde_json::Value::String(error.to_string()));
+    assert_eq!(
+        ascending_chain_result,
+        serde_json::json!({ "kind": "prefix", "prefix": "item-" })
+    );
+    assert_eq!(summary.ascending_chain_witness.output_top_count, 0);
+    #[allow(deprecated)]
+    {
+        assert_eq!(summary.widening_witness, summary.propagation_depth_witness);
+        assert_eq!(
+            summary.widening_witness_converged,
+            summary.propagation_depth_witness_converged
+        );
+        assert_eq!(
+            summary.widening_witness_widened_to_top_count,
+            summary.propagation_depth_witness_widened_to_top_count
+        );
+    }
     assert!(!summary.no_flat_css_cfg_built);
     assert!(summary.no_merged_cross_file_graph);
     assert_eq!(

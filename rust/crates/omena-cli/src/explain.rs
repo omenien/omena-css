@@ -1,8 +1,9 @@
 use omena_query::{
     OmenaQueryEngineInputV2, OmenaQueryExplainInputV0, OmenaQueryExplainResponseV0,
-    OmenaQueryExplainSymbolKindV0, ParserPositionV0,
+    OmenaQueryExplainSymbolKindV0, ParserByteSpanV0, ParserPositionV0,
     execute_omena_query_transform_passes_from_source, explain_omena_query,
     explain_omena_query_tree_shake_for_style_source, read_omena_query_cascade_at_position,
+    resolve_omena_query_class_site_value_for_source,
     resolve_omena_query_source_precision_for_source,
     summarize_omena_query_style_diagnostics_for_file,
 };
@@ -124,6 +125,32 @@ pub(crate) fn resolve_explain_command(
                 json,
             ))
         }
+        ExplainCommand::ClassSite {
+            path,
+            site_start,
+            site_end,
+            source_language,
+            json,
+        } => {
+            let source = read_source(&path)?;
+            let source_path = path_string(&path);
+            let value = resolve_omena_query_class_site_value_for_source(
+                &source_path,
+                &source,
+                source_language.as_deref(),
+                ParserByteSpanV0 {
+                    start: site_start,
+                    end: site_end,
+                },
+            )
+            .ok_or_else(|| {
+                format!("class site was not enumerated for {source_path}:{site_start}..{site_end}")
+            })?;
+            Ok((
+                explain_omena_query(OmenaQueryExplainInputV0::ClassSite { value: &value }),
+                json,
+            ))
+        }
         ExplainCommand::Cascade {
             path,
             line,
@@ -182,12 +209,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn six_explain_targets_route_through_the_shared_egress() -> Result<(), String> {
-        let root = temp_dir("six-targets");
+    fn seven_explain_targets_route_through_the_shared_egress() -> Result<(), String> {
+        let root = temp_dir("seven-targets");
         fs::create_dir_all(&root).map_err(|error| error.to_string())?;
         let diagnostic_path = root.join("diagnostic.scss");
         let style_path = root.join("fixture.css");
-        let source_path = root.join("fixture.ts");
+        let source_path = root.join("fixture.tsx");
         let context_path = root.join("context.json");
         fs::write(&diagnostic_path, "@import 'legacy';\n").map_err(|error| error.to_string())?;
         fs::write(
@@ -195,7 +222,12 @@ mod tests {
             ":root { --tone: red; }\n.button { color: var(--tone); }\n",
         )
         .map_err(|error| error.to_string())?;
-        let source = "const className = 'button';\nclassName;";
+        let source =
+            "const className = 'button';\nconst view = <div className={className} />;\nclassName;";
+        let class_site_text = "className={className}";
+        let class_site_start = source
+            .find(class_site_text)
+            .ok_or_else(|| "fixture class site is missing".to_string())?;
         fs::write(&source_path, source).map_err(|error| error.to_string())?;
         fs::write(&context_path, r#"{"reachableClassNames":["button"]}"#)
             .map_err(|error| error.to_string())?;
@@ -219,12 +251,19 @@ mod tests {
                 json: true,
             },
             ExplainCommand::Precision {
-                path: source_path,
+                path: source_path.clone(),
                 variable: "className".to_string(),
                 byte_offset: source
                     .rfind("className")
                     .ok_or_else(|| "fixture source reference is missing".to_string())?,
                 source_language: Some("typescript".to_string()),
+                json: true,
+            },
+            ExplainCommand::ClassSite {
+                path: source_path,
+                site_start: class_site_start,
+                site_end: class_site_start + class_site_text.len(),
+                source_language: Some("typescriptreact".to_string()),
                 json: true,
             },
             ExplainCommand::Cascade {
@@ -248,6 +287,7 @@ mod tests {
         assert_eq!(
             availabilities,
             vec![
+                OmenaQueryExplainAvailabilityV0::Available,
                 OmenaQueryExplainAvailabilityV0::Available,
                 OmenaQueryExplainAvailabilityV0::Available,
                 OmenaQueryExplainAvailabilityV0::Available,

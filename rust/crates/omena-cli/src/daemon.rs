@@ -222,6 +222,12 @@ enum OmenadCliExplainRequestV0 {
         byte_offset: usize,
         source_language: Option<String>,
     },
+    ClassSite {
+        path: PathBuf,
+        site_start: usize,
+        site_end: usize,
+        source_language: Option<String>,
+    },
     Cascade {
         path: PathBuf,
         line: usize,
@@ -878,6 +884,21 @@ impl OmenadCliExplainRequestV0 {
                 },
                 json,
             ),
+            ExplainCommand::ClassSite {
+                path,
+                site_start,
+                site_end,
+                source_language,
+                json,
+            } => (
+                Self::ClassSite {
+                    path,
+                    site_start,
+                    site_end,
+                    source_language,
+                },
+                json,
+            ),
             ExplainCommand::Cascade {
                 path,
                 line,
@@ -901,6 +922,7 @@ impl OmenadCliExplainRequestV0 {
             | Self::Transform { path, .. }
             | Self::WhyNotTreeShaken { path, .. }
             | Self::Precision { path, .. }
+            | Self::ClassSite { path, .. }
             | Self::Cascade { path, .. } => Some(path),
             Self::Bundle { .. } => None,
         }
@@ -939,6 +961,18 @@ impl OmenadCliExplainRequestV0 {
                 path,
                 variable,
                 byte_offset,
+                source_language,
+                json: true,
+            },
+            Self::ClassSite {
+                path,
+                site_start,
+                site_end,
+                source_language,
+            } => ExplainCommand::ClassSite {
+                path,
+                site_start,
+                site_end,
                 source_language,
                 json: true,
             },

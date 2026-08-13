@@ -1,0 +1,479 @@
+{
+  "input": {
+    "sources": [
+      {
+        "bindingGraph": {
+          "declarations": [
+            {
+              "id": "rust-decl:import:classNames:7:17:classnames/bind",
+              "kind": "import",
+              "name": "classNames"
+            },
+            {
+              "id": "rust-decl:import:styles:49:55:./SourcePrefixSuffixOverlapParity.module.scss",
+              "kind": "import",
+              "name": "styles"
+            },
+            {
+              "id": "rust-decl:localVar:className:634:643:",
+              "kind": "localVar",
+              "name": "className"
+            },
+            {
+              "id": "rust-decl:localVar:cx:117:119:",
+              "kind": "localVar",
+              "name": "cx"
+            },
+            {
+              "id": "rust-decl:localVar:resolveClassName:157:173:",
+              "kind": "localVar",
+              "name": "resolveClassName"
+            },
+            {
+              "id": "rust-decl:localVar:SourcePrefixSuffixOverlapParity:577:608:",
+              "kind": "localVar",
+              "name": "SourcePrefixSuffixOverlapParity"
+            },
+            {
+              "id": "rust-decl:parameter:value:174:179:",
+              "kind": "parameter",
+              "name": "value"
+            },
+            {
+              "id": "rust-decl:parameter:value:609:614:",
+              "kind": "parameter",
+              "name": "value"
+            }
+          ],
+          "resolutions": [
+            {
+              "declarationId": "rust-decl:localVar:className:634:643:",
+              "expressionId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss"
+            }
+          ]
+        },
+        "document": {
+          "classExpressions": [
+            {
+              "id": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+              "kind": "symbolRef",
+              "origin": "cxCall",
+              "pathSegments": [],
+              "range": {
+                "end": {
+                  "character": 37,
+                  "line": 30
+                },
+                "start": {
+                  "character": 28,
+                  "line": 30
+                }
+              },
+              "rawReference": "className",
+              "rootBindingDeclId": "rust-decl:localVar:className:634:643:",
+              "rootName": "className",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss"
+            }
+          ],
+          "domainClassReferences": [],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx",
+          "kind": "source",
+          "language": "typescriptreact",
+          "styleImports": [
+            {
+              "bindingDeclId": "rust-decl:import:styles:49:55:./SourcePrefixSuffixOverlapParity.module.scss",
+              "id": "styleImport:rust-style-import:styles:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+              "kind": "styleImport",
+              "localName": "styles",
+              "resolved": {
+                "absolutePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+                "kind": "resolved"
+              }
+            }
+          ],
+          "utilityBindings": [
+            {
+              "bindingDeclId": "rust-decl:localVar:cx:117:119:",
+              "classNamesImportName": "classNames",
+              "id": "utilityBinding:rust-utility:classnamesBind:cx:styles:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+              "kind": "classnamesBind",
+              "localName": "cx",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+              "stylesLocalName": "styles"
+            }
+          ]
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx"
+      }
+    ],
+    "styles": [
+      {
+        "document": {
+          "animationNameRefs": [],
+          "customPropertyDecls": [],
+          "customPropertyRefs": [],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+          "keyframes": [],
+          "kind": "style",
+          "sassModuleForwards": [],
+          "sassModuleMemberRefs": [],
+          "sassModuleUses": [],
+          "sassSymbolDecls": [],
+          "sassSymbols": [],
+          "selectors": [
+            {
+              "canonicalName": "ab-cd",
+              "composes": [],
+              "declarations": "color: teal",
+              "fullSelector": ".ab-cd",
+              "id": "selector:ab-cd:0:1",
+              "kind": "selector",
+              "name": "ab-cd",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 6,
+                  "line": 0
+                },
+                "start": {
+                  "character": 1,
+                  "line": 0
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 2
+                },
+                "start": {
+                  "character": 0,
+                  "line": 0
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "ab-x-cd",
+              "composes": [],
+              "declarations": "color: orange",
+              "fullSelector": ".ab-x-cd",
+              "id": "selector:ab-x-cd:4:1",
+              "kind": "selector",
+              "name": "ab-x-cd",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 8,
+                  "line": 4
+                },
+                "start": {
+                  "character": 1,
+                  "line": 4
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 4
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "ab-long-cd",
+              "composes": [],
+              "declarations": "color: crimson",
+              "fullSelector": ".ab-long-cd",
+              "id": "selector:ab-long-cd:8:1",
+              "kind": "selector",
+              "name": "ab-long-cd",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 11,
+                  "line": 8
+                },
+                "start": {
+                  "character": 1,
+                  "line": 8
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 10
+                },
+                "start": {
+                  "character": 0,
+                  "line": 8
+                }
+              },
+              "viewKind": "canonical"
+            }
+          ],
+          "valueDecls": [],
+          "valueImports": [],
+          "valueRefs": []
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss"
+      }
+    ],
+    "typeFacts": [
+      {
+        "controlFlowGraph": {
+          "blocks": [
+            {
+              "id": "entry",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "entry",
+              "successorBlockIds": ["assignment:0"],
+              "transferKind": "entry"
+            },
+            {
+              "facts": {
+                "kind": "finiteSet",
+                "values": [
+                  "ab-card-cd",
+                  "ab-cd",
+                  "ab-long-cd",
+                  "ab-ping-cd",
+                  "ab-ruby-cd",
+                  "ab-tone-cd",
+                  "ab-wide-cd",
+                  "ab-x-cd",
+                  "ab-zone-cd"
+                ]
+              },
+              "id": "assignment:0",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "assignment",
+              "successorBlockIds": ["exit"],
+              "symbolOrdinal": 7,
+              "transferKind": "assignFacts",
+              "variableName": "className"
+            },
+            {
+              "id": "exit",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "exit",
+              "successorBlockIds": [],
+              "transferKind": "exit"
+            }
+          ],
+          "entryBlockId": "entry"
+        },
+        "expressionId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "facts": {
+          "kind": "unknown"
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx"
+      }
+    ],
+    "version": "2",
+    "workspace": {
+      "classnameTransform": "asIs",
+      "root": "<workspace>",
+      "settingsKey": "transform:asIs;alias:"
+    }
+  },
+  "output": {
+    "checkerReport": {
+      "findings": [],
+      "summary": {
+        "hints": 0,
+        "total": 0,
+        "warnings": 0
+      },
+      "version": "1"
+    },
+    "queryResults": [
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "ab-cd",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "ab-cd"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "ab-long-cd",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "ab-long-cd"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "ab-x-cd",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "ab-x-cd"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx",
+        "kind": "expression-semantics",
+        "payload": {
+          "candidateNames": ["ab-cd", "ab-x-cd", "ab-long-cd"],
+          "expressionId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+          "expressionKind": "symbolRef",
+          "finiteValues": null,
+          "reason": "flowBranch",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained composite selector set (3)",
+          "selectorConstraintKind": "composite",
+          "selectorNames": ["ab-cd", "ab-x-cd", "ab-long-cd"],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyConstraintKind": "composite",
+          "valueCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "valueCertaintyShapeKind": "constrained",
+          "valueCertaintyShapeLabel": "constrained composite",
+          "valueCharMay": "-abcdegilnoprtuwxyz",
+          "valueCharMust": "-abcd",
+          "valueConstraintKind": "composite",
+          "valueDomainDerivation": {
+            "inputConstraintKind": "composite",
+            "inputFactKind": "constrained",
+            "inputValueCount": 0,
+            "product": "omena-abstract-value.reduced-class-value-derivation",
+            "reducedKind": "constrained",
+            "schemaVersion": "0",
+            "steps": [
+              {
+                "operation": "baseFromFacts",
+                "reason": "preserved reduced string constraint facts",
+                "resultKind": "composite",
+                "resultProvenance": "finiteSetWideningComposite"
+              }
+            ]
+          },
+          "valueDomainKind": "constrained",
+          "valueDomainProvenanceTree": {
+            "product": "omena-abstract-value.provenance-tree",
+            "root": {
+              "children": [
+                {
+                  "children": [],
+                  "detail": "prefix=ab-",
+                  "operation": "prefixConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "suffix=-cd",
+                  "operation": "suffixConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "minLength=5",
+                  "operation": "lengthConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "mustChars=-abcd",
+                  "operation": "characterMustConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "mayChars=-abcdegilnoprtuwxyz",
+                  "operation": "characterMayConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                }
+              ],
+              "operation": "finiteSetWidening",
+              "reason": "large finite set widened to preserved edge and character constraints",
+              "resultKind": "composite",
+              "resultProvenance": "finiteSetWideningComposite"
+            },
+            "schemaVersion": "0",
+            "value": {
+              "kind": "composite",
+              "mayChars": "-abcdegilnoprtuwxyz",
+              "minLength": 5,
+              "mustChars": "-abcd",
+              "prefix": "ab-",
+              "provenance": "finiteSetWideningComposite",
+              "suffix": "-cd"
+            },
+            "valueKind": "composite",
+            "valueProvenance": "finiteSetWideningComposite"
+          },
+          "valueDomainReason": "finite candidates widened to shared edge and character constraints",
+          "valueMinLen": 5,
+          "valuePrefix": "ab-",
+          "valueSuffix": "-cd"
+        },
+        "queryId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.tsx",
+        "kind": "source-expression-resolution",
+        "payload": {
+          "expressionId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+          "finiteValues": null,
+          "reason": "flowBranch",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained composite selector set (3)",
+          "selectorConstraintKind": "composite",
+          "selectorNames": ["ab-cd", "ab-x-cd", "ab-long-cd"],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyConstraintKind": "composite",
+          "valueCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "valueCertaintyShapeKind": "constrained",
+          "valueCertaintyShapeLabel": "constrained composite",
+          "valueCharMay": "-abcdegilnoprtuwxyz",
+          "valueCharMust": "-abcd",
+          "valueMinLen": 5,
+          "valuePrefix": "ab-",
+          "valueSuffix": "-cd"
+        },
+        "queryId": "expression:rust-expression:symbolRef:30:28:30:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixOverlapParity.module.scss"
+      }
+    ],
+    "rewritePlans": [],
+    "version": "2"
+  }
+}

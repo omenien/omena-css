@@ -13,38 +13,13 @@
   "unknownStructuralSelectorCount": 0,
   "unknownAtRuleCount": 0,
   "moduleTokenCollisionScope": "boundedFixtureRegressionTripwire",
-  "moduleTokenCollisionCount": 2,
-  "moduleTokenCollisions": [
-    {
-      "fixtureId": "entry-ordinal-skew",
-      "emittedToken": "_shared_2",
-      "modulePaths": [
-        "linked-byte/entry-ordinal-skew/app.module.css",
-        "linked-byte/entry-ordinal-skew/dependency.module.css"
-      ],
-      "originalNames": ["shared"],
-      "observedEmissionPaths": ["importInlineLegacy"],
-      "pathScope": "importInlineLegacyOnly",
-      "reason": "the entry rewrite table aliases declarations whose module-local rewrites remain distinct"
-    },
-    {
-      "fixtureId": "module-qualified-reachability",
-      "emittedToken": "_shared_0",
-      "modulePaths": [
-        "linked-byte/module-qualified-reachability/app.module.css",
-        "linked-byte/module-qualified-reachability/dependency.module.css"
-      ],
-      "originalNames": ["shared"],
-      "observedEmissionPaths": ["importInlineLegacy", "linkedOrder"],
-      "pathScope": "bothPaths",
-      "reason": "entry and module-local rewrite tables produce the same cross-module token"
-    }
-  ],
+  "moduleTokenCollisionCount": 0,
+  "moduleTokenCollisions": [],
   "ordinalSkewSharedModelCollisionCount": 0,
-  "ordinalSkewPathSplitCollisionCount": 1,
+  "ordinalSkewPathSplitCollisionCount": 0,
   "tokenModelByEmissionPath": {
-    "importInlineLegacy": "entryRewriteTable",
-    "linkedOrder": "moduleLocalRewriteTable"
+    "importInlineLegacy": "moduleQualifiedRewriteTable",
+    "linkedOrder": "moduleQualifiedRewriteTable"
   },
   "unmodeledDeclarations": [],
   "reachabilityInputFixtureIds": [

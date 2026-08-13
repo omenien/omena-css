@@ -22,8 +22,19 @@ fn product_fact_projection_matches_the_previous_corpus_output() {
     assert_eq!(
         actual.as_bytes(),
         include_bytes!("product_facts_legacy_corpus.snap"),
-        "product fact projection changed the checked-in corpus output"
+        "product fact projection changed the checked-in corpus output; review the delta, then run \
+         `cargo test --manifest-path rust/Cargo.toml -p omena-parser --lib \
+         facts::product_facts_authority_tests::update_product_fact_legacy_corpus_snapshot -- \
+         --ignored --exact`"
     );
+}
+
+#[test]
+#[ignore = "run explicitly to refresh the checked-in product-fact corpus snapshot"]
+fn update_product_fact_legacy_corpus_snapshot() -> std::io::Result<()> {
+    let snapshot_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/facts/product_facts_legacy_corpus.snap");
+    fs::write(snapshot_path, product_fact_corpus_snapshot())
 }
 
 #[test]

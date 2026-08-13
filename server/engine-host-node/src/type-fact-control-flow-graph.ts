@@ -22,6 +22,7 @@ import {
 } from "../../engine-core-ts/src/core/abstract-value/class-value-domain";
 import { toFlowResolution, type FlowResolution } from "../../engine-core-ts/src/core/flow/lattice";
 import type { SymbolRefClassExpressionHIR } from "../../engine-core-ts/src/core/hir/source-types";
+import { utf8ByteOffsetAtUtf16Offset } from "../../engine-core-ts/src/core/source-frontend/source-text-offsets";
 import {
   loadDefaultOmenaNapiSourceFrontendBinding,
   type OmenaNapiSourceFrontendBinding,
@@ -77,7 +78,7 @@ export function rustTypeFactControlFlowGraphProvider(
         source,
         sourceLanguage,
         variableName: expression.rootName,
-        referenceByteOffset: utf8ByteOffsetAtPosition(source, referencePosition),
+        referenceByteOffset: utf8ByteOffsetAtUtf16Offset(source, referencePosition),
       });
       if (!raw) return null;
 
@@ -331,10 +332,6 @@ function utf16OffsetAtPosition(
     }
   }
   return Math.min(lineStart + position.character, source.length);
-}
-
-function utf8ByteOffsetAtPosition(text: string, position: number): number {
-  return Buffer.byteLength(text.slice(0, position), "utf8");
 }
 
 function isTypeFactControlFlowGraphV2(value: unknown): value is TypeFactControlFlowGraphV2 {

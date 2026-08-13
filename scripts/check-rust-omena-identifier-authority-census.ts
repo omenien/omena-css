@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
 
 type Disposition = "sanctioned" | "named-exempt" | "unclassified";
 type PrimitiveId = "str-eq" | "contains" | "insert" | "map-get" | "cmp";
@@ -102,6 +103,7 @@ interface IdentifierAuthorityCensus {
   };
   readonly predicateCopies: {
     readonly derivation: "direct-character-predicate-body";
+    readonly blindSpots: readonly string[];
     readonly currentSiteCount: number;
     readonly sites: readonly CensusSite[];
     readonly siteDigest: string;
@@ -114,6 +116,7 @@ interface ExemptionRule {
   readonly operation: string;
   readonly evidence: string;
   readonly reason: string;
+  readonly disposition?: Exclude<Disposition, "unclassified">;
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -128,6 +131,10 @@ const injectUnlabelledComparison =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_UNLABELLED_COMPARISON === "1";
 const injectPredicateCopy =
   process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PREDICATE_COPY === "1";
+const injectPredicateCopyExplicit =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PREDICATE_COPY_EXPLICIT === "1";
+const injectPredicateCopyReversed =
+  process.env.OMENA_IDENTIFIER_AUTHORITY_TEST_INJECT_PREDICATE_COPY_REVERSED === "1";
 
 const sourceRoots = ["rust/crates"] as const;
 const lexemeGlobs = [
@@ -179,6 +186,13 @@ const egressExemptions: readonly ExemptionRule[] = [
 ] as const;
 
 const idiomExemptions: readonly ExemptionRule[] = [
+  {
+    path: "rust/crates/omena-bundler/src/lib.rs",
+    function: "instance_reachability_inputs_closed_over_composes",
+    operation: "str-eq",
+    evidence: "changed |= target.class_names.len() != before;",
+    reason: "This compares set cardinalities to detect fixed-point convergence, not identifiers.",
+  },
   {
     path: "rust/crates/omena-parser/src/facts/selectors.rs",
     function: "resolve_selector_group",
@@ -241,6 +255,170 @@ const idiomExemptions: readonly ExemptionRule[] = [
     operation: "str-eq",
     evidence: "|| reference.selector_name.as_deref() != Some(prefix)",
     reason: "This retires an exact template prefix rather than joining complete class names.",
+  },
+  {
+    path: "rust/crates/omena-diff-test/src/linked_emission.rs",
+    function: "validate_authored_liveness_expectations_v0",
+    operation: "contains",
+    evidence: ".contains(expectation.class_name);",
+    reason: "The differential harness compares authored expectation data with measured output.",
+  },
+  {
+    path: "rust/crates/omena-diff-test/src/linked_emission.rs",
+    function: "validate_authored_liveness_expectations_v0",
+    operation: "contains",
+    evidence: ".is_some_and(|names| names.contains(expectation.class_name));",
+    reason: "The differential harness compares authored expectation data with measured output.",
+  },
+  {
+    path: "rust/crates/omena-diff-test/src/linked_emission.rs",
+    function: "rule_declaration_counts_for_class_v0",
+    operation: "str-eq",
+    evidence: "&& selector.name == class_name",
+    reason: "The differential harness compares two already-emitted selector spellings.",
+  },
+  {
+    path: "rust/crates/omena-lsp-server/src/source_document_cache.rs",
+    function: "class_value_universes_from_value",
+    operation: "map-get",
+    evidence: 'class_names: strings_from_value(universe.get("classNames")?)?,',
+    reason: "This reads a serialized field name rather than a class-name map key.",
+  },
+  {
+    path: "rust/crates/omena-lsp-server/src/source_document_cache.rs",
+    function: "source_elements_from_value",
+    operation: "map-get",
+    evidence: 'static_class_names: match fact.get("staticClassNames") {',
+    reason: "This reads a serialized field name rather than a class-name map key.",
+  },
+  {
+    path: "rust/crates/omena-lsp-server/src/source_type_facts.rs",
+    function: "take_type_fact_prefix_references",
+    operation: "str-eq",
+    evidence: "&& reference.selector_name.as_deref() == Some(prefix)",
+    reason: "This consumes an exact prefix reference rather than joining complete class names.",
+  },
+  {
+    path: "rust/crates/omena-parser/src/closed_world/contract.rs",
+    function: "composes_origin_symbol_is_reachable",
+    operation: "str-eq",
+    evidence: ".is_some_and(|class_names| class_names.iter().any(|name| name == symbol)),",
+    reason: "Both operands come from the shared parser class-name extraction.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-parser/src/public_product.rs",
+    function: "summarize_parser_evaluator_candidates",
+    operation: "contains",
+    evidence: "has_local_composes: local_selector_names.contains(selector),",
+    reason: "Both operands come from the shared parser class-name extraction.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-parser/src/public_product.rs",
+    function: "summarize_parser_evaluator_candidates",
+    operation: "contains",
+    evidence: "has_imported_composes: imported_selector_names.contains(selector),",
+    reason: "Both operands come from the shared parser class-name extraction.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-parser/src/public_product.rs",
+    function: "summarize_parser_evaluator_candidates",
+    operation: "contains",
+    evidence: "has_global_composes: global_selector_names.contains(selector),",
+    reason: "Both operands come from the shared parser class-name extraction.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
+    function: "summarize_omena_query_css_modules_interface_bundle_inner",
+    operation: "insert",
+    evidence: "emitted_class_names.insert(",
+    reason:
+      "The interface bundle indexes each emitted token by module path and exact authored spelling because distinct raw spellings have distinct module-scoped token preimages.",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
+    function: "collect_css_modules_composes_adjacency_with_path_mappings",
+    operation: "str-eq",
+    evidence: "let target_class_names = if target_style_path == *style_path {",
+    reason: "This compares normalized style paths before selecting a class-name set.",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
+    function: "collect_css_modules_composes_adjacency_with_path_mappings",
+    operation: "contains",
+    evidence: "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
+    reason: "Both operands are normalized through the shared canonical class-name key.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
+    function: "collect_css_modules_composes_adjacency_with_path_mappings",
+    operation: "contains",
+    evidence: "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
+    reason: "Both operands are normalized through the shared canonical class-name key.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-query/src/style.rs",
+    function: "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
+    operation: "insert",
+    evidence: "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
+    reason: "This tuple insertion deduplicates parser facts by span and authored spelling.",
+  },
+  {
+    path: "rust/crates/omena-query/src/style/transform.rs",
+    function: "closed_world_bound_reachability_precision",
+    operation: "contains",
+    evidence: ".any(|name| !closed_world_class_names.contains(name.as_str()))",
+    reason: "The closed-world carrier and query projection share the canonical class-name domain.",
+    disposition: "sanctioned",
+  },
+  {
+    path: "rust/crates/omena-query/src/style/transform/css_modules.rs",
+    function: "derive_class_name_rewrites_for_module_instance",
+    operation: "contains",
+    evidence: "if !unique_class_names.contains(name) {",
+    reason:
+      "Token preimages preserve exact authored spelling so two spellings that decode alike can still receive distinct module-scoped rewrites.",
+  },
+  {
+    path: "rust/crates/omena-query/src/types.rs",
+    function: "flat_class_names_for_style_paths",
+    operation: "contains",
+    evidence: ".filter(|(_, names)| names.contains(class_name))",
+    reason: "This partitions already-emitted tokens and does not compare source identifiers.",
+  },
+  {
+    path: "rust/crates/omena-query/src/types.rs",
+    function: "from_style_paths",
+    operation: "contains",
+    evidence: "if directly_attributed_class_names.contains(class_name) {",
+    reason: "This partitions already-emitted tokens and does not compare source identifiers.",
+  },
+  {
+    path: "rust/crates/omena-query/src/types.rs",
+    function: "from_style_paths",
+    operation: "contains",
+    evidence: ".filter(|(_, names)| names.contains(class_name))",
+    reason: "This partitions already-emitted tokens and does not compare source identifiers.",
+  },
+  {
+    path: "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+    function: "run_hash_css_module_class_names_structural",
+    operation: "str-eq",
+    evidence: "if mutation_count == 0 && class_name_rewrites.is_empty() {",
+    reason: "This checks whether transform outputs are empty rather than comparing identifiers.",
+  },
+  {
+    path: "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs",
+    function: "rewritten_class_name_for",
+    operation: "str-eq",
+    evidence: "(original_name == class_name).then_some(rewritten_name)",
+    reason:
+      "Exact authored spelling selects its distinct module-scoped rewrite before the canonical CSS identifier fallback is consulted.",
   },
 ] as const;
 
@@ -363,6 +541,10 @@ const census: IdentifierAuthorityCensus = {
   },
   predicateCopies: {
     derivation: "direct-character-predicate-body",
+    blindSpots: [
+      "Methods and functions whose character input is not the sole typed parameter are outside this syntactic arm.",
+      "Character membership hidden behind a constant, helper call, or other indirection is outside this syntactic arm.",
+    ],
     currentSiteCount: classifiedPredicateSites.length,
     sites: classifiedPredicateSites,
     siteDigest: digest(classifiedPredicateSites),
@@ -376,7 +558,9 @@ if (writeMode) {
       !injectEgress &&
       !injectLabelledComparison &&
       !injectUnlabelledComparison &&
-      !injectPredicateCopy,
+      !injectPredicateCopy &&
+      !injectPredicateCopyExplicit &&
+      !injectPredicateCopyReversed,
     "test injection cannot be combined with --write",
   );
   writeFileSync(censusPath, expected);
@@ -453,12 +637,19 @@ function inspectTypeSeal(): IdentifierAuthorityCensus["typeSeal"] {
   );
   assert.match(
     source,
-    /pub fn canonical_key\s*\(&self\)\s*->\s*CanonicalClassKeyV0/u,
+    /pub fn canonical_key\s*\(self\)\s*->\s*CanonicalClassKeyV0/u,
     "ClassNameV0 key construction must remain behind canonical_key",
   );
-  const constructorMatches = [
-    ...source.matchAll(/CanonicalClassKeyV0\s*\(\s*self\.decoded\.clone\(\)/gu),
-  ];
+  const canonicalKeyBody = source.match(
+    /pub fn canonical_key\s*\(self\)\s*->\s*CanonicalClassKeyV0\s*\{(?<body>[\s\S]*?)\n\s{4}\}/u,
+  )?.groups?.body;
+  assert.ok(canonicalKeyBody, "canonical_key body must remain inspectable");
+  assert.match(
+    canonicalKeyBody,
+    /self\.decoded\.unwrap_or\(self\.raw\)/u,
+    "canonical class key must consume the decoded spelling or unchanged raw spelling",
+  );
+  const constructorMatches = [...canonicalKeyBody.matchAll(/CanonicalClassKeyV0\s*\(/gu)];
   assert.equal(
     constructorMatches.length,
     1,
@@ -513,7 +704,7 @@ function discoverEgressSites(): DiscoveredSite[] {
     });
   }
   for (const { relativePath, source } of sources) {
-    const scannable = maskCommentsStringsAndTestTail(source, false, false);
+    const scannable = maskCommentsStringsAndTestItems(source, false);
     const candidatePatterns: readonly (readonly [string, RegExp])[] = [
       ["ClassNameV0::into_raw", /\b[A-Za-z_][A-Za-z0-9_]*\.name\.into_raw\s*\(\s*\)/gu],
       [
@@ -577,7 +768,7 @@ function discoverIdiomSites(): DiscoveredSite[] {
   }
   const discovered: DiscoveredSite[] = [];
   for (const { relativePath, source } of sources) {
-    const scannable = maskCommentsStringsAndTestTail(source, true, true);
+    const scannable = maskCommentsStringsAndTestItems(source, true);
     const sourceLines = source.split(/\r?\n/u);
     for (const [index, line] of scannable.split(/\r?\n/u).entries()) {
       if (!classBindingLexeme.test(line)) continue;
@@ -605,7 +796,21 @@ function discoverPredicateCopies(): DiscoveredSite[] {
     sources.push({
       relativePath: "rust/crates/omena-query/src/injected_identifier_predicate.rs",
       source:
-        "fn unrelated_name(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }\n",
+        "fn unrelated_name(ch: char) -> bool { matches!(ch, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_') }\n",
+    });
+  }
+  if (injectPredicateCopyExplicit) {
+    sources.push({
+      relativePath: "rust/crates/omena-query/src/injected_identifier_predicate_explicit.rs",
+      source:
+        "fn arbitrary_spelling(codepoint: char) -> bool { codepoint.is_alphanumeric() || codepoint == '-' || codepoint == '_' }\n",
+    });
+  }
+  if (injectPredicateCopyReversed) {
+    sources.push({
+      relativePath: "rust/crates/omena-query/src/injected_identifier_predicate_reversed.rs",
+      source:
+        "fn another_spelling(byte: u8) -> bool { matches!(byte, b'-' | b'_') || byte.is_ascii_alphanumeric() }\n",
     });
   }
   const discovered: DiscoveredSite[] = [];
@@ -626,7 +831,7 @@ function discoverPredicateCopies(): DiscoveredSite[] {
 function directCharacterPredicateBodies(
   source: string,
 ): readonly { name: string; line: number; evidence: string }[] {
-  const scannable = maskCommentsStringsAndTestTail(source, false, false);
+  const scannable = maskCommentsStringsAndTestItems(source, false);
   const found: { name: string; line: number; evidence: string }[] = [];
   const declaration =
     /\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*:\s*(?:char|u8)\s*\)\s*->\s*bool\s*\{/gu;
@@ -634,25 +839,16 @@ function directCharacterPredicateBodies(
     const openBrace = match.index + match[0].lastIndexOf("{");
     const closeBrace = matchingBrace(scannable, openBrace);
     if (closeBrace === undefined) continue;
-    const body = scannable
-      .slice(openBrace + 1, closeBrace)
+    const body = maskCommentsStringsAndTestItems(
+      source.slice(openBrace + 1, closeBrace),
+      false,
+      true,
+    )
       .replace(/\s+/gu, "")
       .replace(/^return/u, "")
       .replace(/;$/u, "");
-    const directSharedContinue =
-      /^is_css_name_start\([A-Za-z_][A-Za-z0-9_]*\)\|\|[A-Za-z_][A-Za-z0-9_]*\.is_ascii_digit\(\)$/u.test(
-        body,
-      );
-    const asciiWordShape =
-      /^[A-Za-z_][A-Za-z0-9_]*\.is_ascii_alphanumeric\(\)\|\|matches!\([A-Za-z_][A-Za-z0-9_]*,(?:'_'\|'-'|'-'\|'_')\)(?:\|\|![A-Za-z_][A-Za-z0-9_]*\.is_ascii\(\))?$/u.test(
-        body,
-      );
-    const explicitCssShape =
-      body.includes(".is_ascii_alphanumeric()") &&
-      body.includes("!ch.is_ascii()") &&
-      body.includes("ch=='-'") &&
-      body.includes("ch=='_'");
-    if (!directSharedContinue && !asciiWordShape && !explicitCssShape) continue;
+    const parameter = match[0].match(/\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:char|u8)\s*\)/u)?.[1];
+    if (!parameter || !isIdentifierContinuationPredicate(body, parameter)) continue;
     found.push({
       name: match[1],
       line: lineNumberAt(source, match.index),
@@ -665,6 +861,39 @@ function directCharacterPredicateBodies(
   return found;
 }
 
+function isIdentifierContinuationPredicate(body: string, parameter: string): boolean {
+  const escapedParameter = escapeRegExp(parameter);
+  const acceptsHyphen = new RegExp(
+    `(?:${escapedParameter}==b?'-'|b?'-'==${escapedParameter}|matches!\\(${escapedParameter},[^)]*b?'-')`,
+    "u",
+  ).test(body);
+  const acceptsUnderscore = new RegExp(
+    `(?:${escapedParameter}==b?'_'|b?'_'==${escapedParameter}|matches!\\(${escapedParameter},[^)]*b?'_')`,
+    "u",
+  ).test(body);
+  const usesAlphanumericPredicate = new RegExp(
+    `${escapedParameter}\\.is_(?:ascii_)?alphanumeric\\(\\)`,
+    "u",
+  ).test(body);
+  const usesSharedCssPredicate = new RegExp(
+    `is_css_name_start\\(${escapedParameter}\\).*${escapedParameter}\\.is_ascii_digit\\(\\)`,
+    "u",
+  ).test(body);
+  const rangeBody = body.match(new RegExp(`matches!\\(${escapedParameter},([^)]*)\\)`, "u"))?.[1];
+  const usesAlphaNumericRanges =
+    rangeBody !== undefined &&
+    /b?'[a-zA-Z0-9]'\.\.=b?'[a-zA-Z0-9]'/u.test(rangeBody) &&
+    (rangeBody.match(/b?'[a-zA-Z0-9]'\.\.=b?'[a-zA-Z0-9]'/gu)?.length ?? 0) >= 3;
+  return (
+    (usesSharedCssPredicate || usesAlphanumericPredicate || usesAlphaNumericRanges) &&
+    (usesSharedCssPredicate || (acceptsHyphen && acceptsUnderscore))
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
 function classifySites(
   discovered: readonly DiscoveredSite[],
   previous: readonly CensusSite[] | undefined,
@@ -675,7 +904,11 @@ function classifySites(
   return discovered.map((site) => {
     const exemption = exemptions.find((rule) => stableSiteKey(rule) === stableSiteKey(site));
     if (exemption) {
-      return { ...site, disposition: "named-exempt", reason: exemption.reason } as const;
+      return {
+        ...site,
+        disposition: exemption.disposition ?? "named-exempt",
+        reason: exemption.reason,
+      } as const;
     }
     const prior = previousByKey.get(stableSiteKey(site));
     if (prior)
@@ -788,10 +1021,10 @@ function trackedProductionSources(): string[] {
     .toSorted();
 }
 
-function maskCommentsStringsAndTestTail(
+function maskCommentsStringsAndTestItems(
   source: string,
   preserveStringContents: boolean,
-  truncateAtFirstTestAttribute: boolean,
+  preserveCharacterContents = false,
 ): string {
   const chars = [...source];
   let blockDepth = 0;
@@ -842,18 +1075,42 @@ function maskCommentsStringsAndTestTail(
     if (current === '"') {
       stringQuote = current;
       if (!preserveStringContents) chars[index] = " ";
+      continue;
+    }
+    if (current === "'") {
+      const characterEnd = rustCharacterLiteralEnd(chars, index);
+      if (characterEnd !== undefined) {
+        if (!preserveCharacterContents) {
+          for (let cursor = index; cursor <= characterEnd; cursor += 1) {
+            if (chars[cursor] !== "\n") chars[cursor] = " ";
+          }
+        }
+        index = characterEnd;
+      }
     }
   }
-  let masked = chars.join("");
-  const testTail = truncateAtFirstTestAttribute
-    ? masked.match(/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]/u)
-    : masked.match(/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*mod\s+[A-Za-z0-9_]+\s*\{/u);
-  if (testTail?.index !== undefined) {
-    masked = `${masked.slice(0, testTail.index)}${masked
-      .slice(testTail.index)
-      .replace(/[^\n]/gu, " ")}`;
+  return maskRustCfgTestItems(chars.join(""));
+}
+
+function rustCharacterLiteralEnd(chars: readonly string[], quoteIndex: number): number | undefined {
+  let index = quoteIndex + 1;
+  if (index >= chars.length || chars[index] === "\n") return undefined;
+  if (chars[index] === "\\") {
+    index += 1;
+    if (chars[index] === "x") {
+      index += 3;
+    } else if (chars[index] === "u" && chars[index + 1] === "{") {
+      index += 2;
+      while (index < chars.length && chars[index] !== "}" && chars[index] !== "\n") index += 1;
+      if (chars[index] !== "}") return undefined;
+      index += 1;
+    } else {
+      index += 1;
+    }
+  } else {
+    index += 1;
   }
-  return masked;
+  return chars[index] === "'" ? index : undefined;
 }
 
 function enclosingFunctionName(source: string, offset: number): string {

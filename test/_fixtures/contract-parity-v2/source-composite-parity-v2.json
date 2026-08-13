@@ -5,57 +5,57 @@
         "bindingGraph": {
           "declarations": [
             {
-              "id": "decl:0",
+              "id": "rust-decl:import:classNames:7:17:classnames/bind",
               "kind": "import",
               "name": "classNames"
             },
             {
-              "id": "decl:1",
+              "id": "rust-decl:import:styles:49:55:./SourceCompositeParity.module.scss",
               "kind": "import",
               "name": "styles"
             },
             {
-              "id": "decl:2",
+              "id": "rust-decl:localVar:cx:107:109:",
               "kind": "localVar",
               "name": "cx"
             },
             {
-              "id": "decl:3",
+              "id": "rust-decl:localVar:resolveVariant:147:161:",
               "kind": "localVar",
               "name": "resolveVariant"
             },
             {
-              "id": "decl:4",
-              "kind": "parameter",
-              "name": "value"
-            },
-            {
-              "id": "decl:5",
+              "id": "rust-decl:localVar:SourceCompositeParity:576:597:",
               "kind": "localVar",
               "name": "SourceCompositeParity"
             },
             {
-              "id": "decl:6",
+              "id": "rust-decl:localVar:variant:623:630:",
+              "kind": "localVar",
+              "name": "variant"
+            },
+            {
+              "id": "rust-decl:parameter:value:162:167:",
               "kind": "parameter",
               "name": "value"
             },
             {
-              "id": "decl:7",
-              "kind": "localVar",
-              "name": "variant"
+              "id": "rust-decl:parameter:value:598:603:",
+              "kind": "parameter",
+              "name": "value"
             }
           ],
           "resolutions": [
             {
-              "declarationId": "decl:7",
-              "expressionId": "class-expr:0"
+              "declarationId": "rust-decl:localVar:variant:623:630:",
+              "expressionId": "expression:rust-expression:symbolRef:30:28:30:35:<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss"
             }
           ]
         },
         "document": {
           "classExpressions": [
             {
-              "id": "class-expr:0",
+              "id": "expression:rust-expression:symbolRef:30:28:30:35:<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
               "kind": "symbolRef",
               "origin": "cxCall",
               "pathSegments": [],
@@ -70,18 +70,19 @@
                 }
               },
               "rawReference": "variant",
-              "rootBindingDeclId": "decl:7",
+              "rootBindingDeclId": "rust-decl:localVar:variant:623:630:",
               "rootName": "variant",
               "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss"
             }
           ],
+          "domainClassReferences": [],
           "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.tsx",
           "kind": "source",
           "language": "typescriptreact",
           "styleImports": [
             {
-              "bindingDeclId": "decl:1",
-              "id": "style-import:0",
+              "bindingDeclId": "rust-decl:import:styles:49:55:./SourceCompositeParity.module.scss",
+              "id": "styleImport:rust-style-import:styles:<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
               "kind": "styleImport",
               "localName": "styles",
               "resolved": {
@@ -92,9 +93,9 @@
           ],
           "utilityBindings": [
             {
-              "bindingDeclId": "decl:2",
+              "bindingDeclId": "rust-decl:localVar:cx:107:109:",
               "classNamesImportName": "classNames",
-              "id": "utility-binding:cx:0",
+              "id": "utilityBinding:rust-utility:classnamesBind:cx:styles:<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
               "kind": "classnamesBind",
               "localName": "cx",
               "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
@@ -109,9 +110,14 @@
       {
         "document": {
           "animationNameRefs": [],
+          "customPropertyDecls": [],
+          "customPropertyRefs": [],
           "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
           "keyframes": [],
           "kind": "style",
+          "sassModuleForwards": [],
+          "sassModuleMemberRefs": [],
+          "sassModuleUses": [],
           "sassSymbolDecls": [],
           "sassSymbols": [],
           "selectors": [
@@ -404,7 +410,49 @@
     ],
     "typeFacts": [
       {
-        "expressionId": "class-expr:0",
+        "controlFlowGraph": {
+          "blocks": [
+            {
+              "id": "entry",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "entry",
+              "successorBlockIds": ["assignment:0"],
+              "transferKind": "entry"
+            },
+            {
+              "facts": {
+                "kind": "finiteSet",
+                "values": [
+                  "btn-danger",
+                  "btn-ghost",
+                  "btn-info",
+                  "btn-muted",
+                  "btn-outline",
+                  "btn-primary",
+                  "btn-secondary",
+                  "btn-success",
+                  "btn-warning"
+                ]
+              },
+              "id": "assignment:0",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "assignment",
+              "successorBlockIds": ["exit"],
+              "symbolOrdinal": 7,
+              "transferKind": "assignFacts",
+              "variableName": "variant"
+            },
+            {
+              "id": "exit",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "exit",
+              "successorBlockIds": [],
+              "transferKind": "exit"
+            }
+          ],
+          "entryBlockId": "entry"
+        },
+        "expressionId": "expression:rust-expression:symbolRef:30:28:30:35:<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
         "facts": {
           "kind": "unknown"
         },
@@ -436,7 +484,7 @@
           "canonicalName": "btn-danger",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -452,7 +500,7 @@
           "canonicalName": "btn-ghost",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -468,7 +516,7 @@
           "canonicalName": "btn-info",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -484,7 +532,7 @@
           "canonicalName": "btn-muted",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -500,7 +548,7 @@
           "canonicalName": "btn-outline",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -516,7 +564,7 @@
           "canonicalName": "btn-primary",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -532,7 +580,7 @@
           "canonicalName": "btn-secondary",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -548,7 +596,7 @@
           "canonicalName": "btn-success",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -564,7 +612,7 @@
           "canonicalName": "btn-warning",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -588,13 +636,15 @@
             "btn-ghost",
             "btn-outline"
           ],
-          "expressionId": "class-expr:0",
+          "expressionId": "expression:rust-expression:symbolRef:30:28:30:35:<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
           "expressionKind": "symbolRef",
           "finiteValues": null,
           "reason": "flowBranch",
-          "selectorCertainty": "exact",
-          "selectorCertaintyShapeKind": "exact",
-          "selectorCertaintyShapeLabel": "exact",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained composite selector set (9)",
+          "selectorConstraintKind": "composite",
           "selectorNames": [
             "btn-primary",
             "btn-secondary",
@@ -615,23 +665,91 @@
           "valueCharMay": "-abcdefghilmnoprstuwy",
           "valueCharMust": "-bnt",
           "valueConstraintKind": "composite",
+          "valueDomainDerivation": {
+            "inputConstraintKind": "composite",
+            "inputFactKind": "constrained",
+            "inputValueCount": 0,
+            "product": "omena-abstract-value.reduced-class-value-derivation",
+            "reducedKind": "constrained",
+            "schemaVersion": "0",
+            "steps": [
+              {
+                "operation": "baseFromFacts",
+                "reason": "preserved reduced string constraint facts",
+                "resultKind": "composite",
+                "resultProvenance": "finiteSetWideningComposite"
+              }
+            ]
+          },
           "valueDomainKind": "constrained",
+          "valueDomainProvenanceTree": {
+            "product": "omena-abstract-value.provenance-tree",
+            "root": {
+              "children": [
+                {
+                  "children": [],
+                  "detail": "prefix=btn-",
+                  "operation": "prefixConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "minLength=8",
+                  "operation": "lengthConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "mustChars=-bnt",
+                  "operation": "characterMustConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "mayChars=-abcdefghilmnoprstuwy",
+                  "operation": "characterMayConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                }
+              ],
+              "operation": "finiteSetWidening",
+              "reason": "large finite set widened to preserved edge and character constraints",
+              "resultKind": "composite",
+              "resultProvenance": "finiteSetWideningComposite"
+            },
+            "schemaVersion": "0",
+            "value": {
+              "kind": "composite",
+              "mayChars": "-abcdefghilmnoprstuwy",
+              "minLength": 8,
+              "mustChars": "-bnt",
+              "prefix": "btn-",
+              "provenance": "finiteSetWideningComposite"
+            },
+            "valueKind": "composite",
+            "valueProvenance": "finiteSetWideningComposite"
+          },
           "valueDomainReason": "finite candidates widened to shared edge and character constraints",
           "valueMinLen": 8,
           "valuePrefix": "btn-"
         },
-        "queryId": "class-expr:0"
+        "queryId": "expression:rust-expression:symbolRef:30:28:30:35:<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss"
       },
       {
         "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.tsx",
         "kind": "source-expression-resolution",
         "payload": {
-          "expressionId": "class-expr:0",
+          "expressionId": "expression:rust-expression:symbolRef:30:28:30:35:<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
           "finiteValues": null,
           "reason": "flowBranch",
-          "selectorCertainty": "exact",
-          "selectorCertaintyShapeKind": "exact",
-          "selectorCertaintyShapeLabel": "exact",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained composite selector set (9)",
+          "selectorConstraintKind": "composite",
           "selectorNames": [
             "btn-primary",
             "btn-secondary",
@@ -654,7 +772,7 @@
           "valueMinLen": 8,
           "valuePrefix": "btn-"
         },
-        "queryId": "class-expr:0"
+        "queryId": "expression:rust-expression:symbolRef:30:28:30:35:<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss"
       }
     ],
     "rewritePlans": [],

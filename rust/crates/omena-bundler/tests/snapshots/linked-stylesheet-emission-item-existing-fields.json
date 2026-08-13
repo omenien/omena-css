@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-bundler.linked-stylesheet.emission-item-existing-fields",
+  "linkedStylesheet": {
+    "entrypointCount": 1,
+    "moduleInstanceCount": 3,
+    "globalRuleCount": 5
+  },
+  "emissionItemPlan": {
+    "policy": "importOrderPreserving",
+    "entryCount": 10
+  },
+  "emissionItemOrder": {
+    "itemCount": 10
+  },
+  "projectionDisclosures": {
+    "itemCount": 18
+  }
+}

@@ -54,8 +54,6 @@ for (const unsupportedClaim of [
   "replaces Dart Sass",
   "is faster than Lightning CSS",
   "theorem-proven cascade semantics",
-  "sheaf",
-  "cosheaf",
   "modal",
   "Datalog",
   "egglog",

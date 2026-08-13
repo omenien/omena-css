@@ -40,9 +40,8 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
-        UnusedSelector,
+        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -70,10 +69,10 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         DesignerIntentInconsistency => 22,
         CascadeSMTViolation => 23,
         DesignSystemMdlBudget => 24,
-        StreamingIfdsPrecisionParity => 25,
+        OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity => 25,
         CascadeDeepConflict => 26,
         CascadeUnreachableRule => 27,
-        RgFlowRelevantOperator => 28,
+        OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator => 28,
         ReplicaEnsembleInconsistency => 29,
         CategoricalCascadeEvidenceInconsistency => 30,
         RegisteredPropertyTypeMismatch => 31,
@@ -90,9 +89,8 @@ pub(crate) fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRu
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, RgFlowRelevantOperator,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
-        UnusedSelector,
+        RegisteredPropertyTypeMismatch, ReplicaEnsembleInconsistency, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -124,8 +122,8 @@ pub(crate) fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRu
         DesignSystemMdlBudget
         | CascadeUnreachableRule
         | DesignerIntentInconsistency
-        | StreamingIfdsPrecisionParity
-        | RgFlowRelevantOperator
+        | OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity
+        | OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator
         | ReplicaEnsembleInconsistency
         | CategoricalCascadeEvidenceInconsistency => OmenaCheckerRuleTierV0::I,
     }

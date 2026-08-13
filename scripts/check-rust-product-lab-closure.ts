@@ -98,7 +98,7 @@ const datalogLabLibPath = path.join(
   "rust/crates/omena-reachability-datalog-lab/src/lib.rs",
 );
 const datalogLabLib = readFileSync(datalogLabLibPath, "utf8");
-const streamingIfdsLib = readFileSync(
+const demandSlicedMonotoneFactPropagationLib = readFileSync(
   path.join(repoRoot, "rust/crates/omena-streaming-ifds/src/lib.rs"),
   "utf8",
 );
@@ -163,15 +163,27 @@ const datalogFactKeyForbiddenRefs = [
   "collect_reachable_node_ids",
 ].filter((needle) => datalogFactKeySpan.includes(needle));
 const demandFactKeySpan = [
-  functionSpan(streamingIfdsLib, "run_streaming_ifds_demand_v0"),
-  functionSpan(streamingIfdsLib, "run_streaming_ifds_demand_with_index_v0"),
-  implSpan(streamingIfdsLib, "StreamingIFDSDemandIndexV0"),
-  implSpan(streamingIfdsLib, "StreamingIFDSDemandSliceV0"),
+  functionSpan(
+    demandSlicedMonotoneFactPropagationLib,
+    "run_demand_sliced_monotone_fact_propagation_demand_v0",
+  ),
+  functionSpan(
+    demandSlicedMonotoneFactPropagationLib,
+    "run_demand_sliced_monotone_fact_propagation_demand_with_index_v0",
+  ),
+  implSpan(
+    demandSlicedMonotoneFactPropagationLib,
+    "DemandSlicedMonotoneFactPropagationDemandIndexV0",
+  ),
+  implSpan(
+    demandSlicedMonotoneFactPropagationLib,
+    "DemandSlicedMonotoneFactPropagationDemandSliceV0",
+  ),
 ].join("\n");
 const demandFactKeyForbiddenRefs = [
-  "propagate_ifds_facts_with_table",
-  "run_streaming_ifds_exact_v0",
-  "omena_streaming_ifds_batch_fact_keys_v0",
+  "propagate_monotone_facts_with_table",
+  "run_demand_sliced_monotone_fact_propagation_exact_v0",
+  "demand_sliced_monotone_fact_propagation_batch_fact_keys_v0",
 ].filter((needle) => demandFactKeySpan.includes(needle));
 
 assert.equal(
@@ -187,7 +199,7 @@ assert.deepEqual(
 assert.deepEqual(
   demandFactKeyForbiddenRefs,
   [],
-  "run_streaming_ifds_demand_v0 must not call the batch fact-key paths",
+  "run_demand_sliced_monotone_fact_propagation_demand_v0 must not call the batch fact-key paths",
 );
 
 function hasNormalDep(dep: CargoNodeDep): boolean {
@@ -291,13 +303,13 @@ process.stdout.write(
         forbiddenReferences: ["BatchHypergraphConnectivityOracle", "collect_reachable_node_ids"],
         forbiddenReferenceCount: datalogFactKeyForbiddenRefs.length,
       },
-      streamingIfdsDemandFactKeyIndependence: {
+      demandSlicedMonotoneFactPropagationDemandFactKeyIndependence: {
         crate: "omena-streaming-ifds",
-        function: "run_streaming_ifds_demand_v0",
+        function: "run_demand_sliced_monotone_fact_propagation_demand_v0",
         forbiddenReferences: [
-          "propagate_ifds_facts_with_table",
-          "run_streaming_ifds_exact_v0",
-          "omena_streaming_ifds_batch_fact_keys_v0",
+          "propagate_monotone_facts_with_table",
+          "run_demand_sliced_monotone_fact_propagation_exact_v0",
+          "demand_sliced_monotone_fact_propagation_batch_fact_keys_v0",
         ],
         forbiddenReferenceCount: demandFactKeyForbiddenRefs.length,
       },

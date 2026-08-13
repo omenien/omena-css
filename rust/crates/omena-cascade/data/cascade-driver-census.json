@@ -58,8 +58,141 @@
   "winnerAxes": [
     { "axis": "cascadeLevel", "status": "driven" },
     { "axis": "layerRank", "status": "driven" },
-    { "axis": "scopeProximity", "status": "driven" },
     { "axis": "specificity", "status": "driven" },
+    {
+      "axis": "scopeProximity",
+      "status": "automaticProductDriver",
+      "namedDriver": "legacySelectorContextFallback"
+    },
     { "axis": "sourceOrder", "status": "driven" }
-  ]
+  ],
+  "cascadeKeyProducers": [
+    {
+      "path": "rust/crates/engine-shadow-runner/src/main.rs",
+      "symbol": "replica_ensemble_definite_outcome",
+      "occurrence": 1,
+      "disposition": "fixture",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-bundler/src/lib.rs",
+      "symbol": "LinkedStylesheetRuleV0::cascade_key_with_global_source_order",
+      "occurrence": 1,
+      "disposition": "callerSuppliedBoundary",
+      "scopeProximitySource": "callerSupplied"
+    },
+    {
+      "path": "rust/crates/omena-cascade/src/conformance.rs",
+      "symbol": "conformance_key",
+      "occurrence": 1,
+      "disposition": "conformance",
+      "scopeProximitySource": "callerSupplied"
+    },
+    {
+      "path": "rust/crates/omena-cascade/src/conformance.rs",
+      "symbol": "conformance_layer_key",
+      "occurrence": 1,
+      "disposition": "conformance",
+      "scopeProximitySource": "callerSupplied"
+    },
+    {
+      "path": "rust/crates/omena-cascade/src/fuzz.rs",
+      "symbol": "generated_cascade_fuzz_declarations",
+      "occurrence": 1,
+      "disposition": "generated",
+      "scopeProximitySource": "generatedValue"
+    },
+    {
+      "path": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
+      "symbol": "cascade_key_from_certificate_v0",
+      "occurrence": 1,
+      "disposition": "callerSuppliedBoundary",
+      "scopeProximitySource": "callerSupplied"
+    },
+    {
+      "path": "rust/crates/omena-categorical/src/lib.rs",
+      "symbol": "omega_color_declaration",
+      "occurrence": 1,
+      "disposition": "fixture",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
+      "symbol": "query_cascade_declaration_from_input",
+      "occurrence": 1,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+      "symbol": "query_runtime_cascade_declaration_from_input",
+      "occurrence": 1,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+      "symbol": "query_runtime_inline_style_cascade_declaration",
+      "occurrence": 1,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_position.rs",
+      "symbol": "compute_referenced_declaration_cascade_value_seed",
+      "occurrence": 1,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "symbol": "memo_source_element_static_declarations",
+      "occurrence": 1,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/design_tokens.rs",
+      "symbol": "DesignTokenCandidateDeclaration<'_>::cascade_key",
+      "occurrence": 1,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "legacySelectorContextFallback"
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/design_tokens.rs",
+      "symbol": "DesignTokenCandidateDeclaration<'_>::cascade_key",
+      "occurrence": 2,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "legacySelectorContextFallback"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+      "symbol": "winner_for_pair",
+      "occurrence": 1,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+      "symbol": "winner_for_pair",
+      "occurrence": 2,
+      "disposition": "callerSuppliedBoundary",
+      "scopeProximitySource": "callerSupplied"
+    }
+  ],
+  "specAxisReach": {
+    "originAndImportance": { "status": "modeled" },
+    "encapsulationContext": {
+      "status": "outOfFragment",
+      "reason": "shadowTreeEncapsulationContextUnmodeled"
+    },
+    "styleAttribute": { "status": "modeled" },
+    "layers": { "status": "modeled" },
+    "specificity": { "status": "modeled" },
+    "scopeProximity": {
+      "status": "notReachedByProduct",
+      "namedDriver": "legacySelectorContextFallback"
+    },
+    "orderOfAppearance": { "status": "modeled" }
+  }
 }

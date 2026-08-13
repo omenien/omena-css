@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// Values carried by the static graph.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum ReactiveValueV0 {
     Unit,
     Bool(bool),
@@ -16,6 +17,7 @@ pub enum ReactiveValueV0 {
 /// A node-local failure. Unavailability propagates as data and never poisons
 /// unrelated nodes or the graph itself.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub struct ReactiveUnavailableV0 {
     pub code: String,
     pub detail: String,
@@ -39,6 +41,7 @@ impl ReactiveUnavailableV0 {
 
 /// The complete state of one node.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum ReactiveStateV0 {
     Available(ReactiveValueV0),
     Unavailable(ReactiveUnavailableV0),

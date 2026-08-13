@@ -350,6 +350,37 @@ fn execution_runtime_hashes_escaped_css_module_class_selectors() {
 }
 
 #[test]
+fn execution_runtime_preserves_distinct_raw_spellings_with_equal_decoded_names() {
+    let source = r#".a\62 c { color: red; } .abc { color: blue; }"#;
+    let context = TransformExecutionContextV0 {
+        class_name_rewrites: vec![
+            TransformClassNameRewriteV0 {
+                original_name: r"a\62 c".to_string(),
+                rewritten_name: "_escaped_abc".to_string(),
+            },
+            TransformClassNameRewriteV0 {
+                original_name: "abc".to_string(),
+                rewritten_name: "_literal_abc".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::HashCssModuleClassNames,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert!(execution.output_css.contains("._escaped_abc"));
+    assert!(execution.output_css.contains("._literal_abc"));
+    assert!(!execution.output_css.contains(r".a\62 c"));
+}
+
+#[test]
 fn execution_runtime_hashes_nested_css_module_selectors_after_unwrap() {
     let source = r#".item { color: red; &--primary { color: blue; } & .body { color: green; } }"#;
     let context = TransformExecutionContextV0 {

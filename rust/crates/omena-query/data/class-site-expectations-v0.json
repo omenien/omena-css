@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "0",
+  "fixture": "test/_fixtures/guarded-token-map/ClassSitePlane.tsx",
+  "rows": [
+    {
+      "siteText": "className=\"root root\"",
+      "must": ["root"],
+      "may": ["root"],
+      "typeFactValues": ["root root"],
+      "mustWithTypeFact": ["root"],
+      "mayWithTypeFact": ["root"]
+    },
+    {
+      "siteText": "class=\"legacy legacy\"",
+      "must": ["legacy"],
+      "may": ["legacy"],
+      "typeFactValues": ["legacy legacy"],
+      "mustWithTypeFact": ["legacy"],
+      "mayWithTypeFact": ["legacy"]
+    },
+    {
+      "siteText": "className={flag ? \"active\" : \"idle\"}",
+      "must": [],
+      "may": ["active", "idle"],
+      "typeFactValues": ["active", "idle"],
+      "mustWithTypeFact": [],
+      "mayWithTypeFact": ["active", "idle"]
+    },
+    {
+      "siteText": "className={`btn-${size}`}",
+      "must": [],
+      "may": ["btn-large", "btn-small"],
+      "typeFactValues": ["btn-large", "btn-small"],
+      "mustWithTypeFact": [],
+      "mayWithTypeFact": ["btn-large", "btn-small"]
+    },
+    {
+      "siteText": "className={clsx(\"card\", \"raised\")}",
+      "must": ["card", "raised"],
+      "may": ["card", "raised"],
+      "typeFactValues": ["card raised"],
+      "mustWithTypeFact": ["card", "raised"],
+      "mayWithTypeFact": ["card", "raised"]
+    },
+    {
+      "siteText": "className={clsx(\"a\", flag && \"b\")}",
+      "must": ["a"],
+      "may": ["a", "b"],
+      "typeFactRefusalCause": "fixtureTypeFactRefused",
+      "mustWithTypeFact": ["a"],
+      "mayWithTypeFact": ["a", "b"]
+    },
+    {
+      "siteText": "className={flag && \"x\"}",
+      "must": [],
+      "may": ["x"],
+      "typeFactRefusalCause": "fixtureTypeFactRefused",
+      "mustWithTypeFact": [],
+      "mayWithTypeFact": ["x"]
+    },
+    {
+      "siteText": "className={clsx(\"d\", flag ? \"e\" : undefined)}",
+      "must": ["d"],
+      "may": ["d", "e"],
+      "typeFactRefusalCause": "fixtureTypeFactRefused",
+      "mustWithTypeFact": ["d"],
+      "mayWithTypeFact": ["d", "e"]
+    },
+    {
+      "siteText": "className={clsx({ active: flag })}",
+      "must": [],
+      "may": ["active"],
+      "typeFactRefusalCause": "fixtureTypeFactRefused",
+      "mustWithTypeFact": [],
+      "mayWithTypeFact": ["active"]
+    },
+    {
+      "siteText": "className={computeClassName()}",
+      "must": [],
+      "may": [],
+      "unknownCause": "sourceValueUnavailable",
+      "typeFactRefusalCause": "fixtureTypeFactRefused",
+      "mustWithTypeFact": [],
+      "mayWithTypeFact": []
+    },
+    {
+      "siteText": "className={styles.root}",
+      "must": [],
+      "may": [],
+      "unknownCause": "sourceValueUnavailable",
+      "typeFactValues": ["root"],
+      "mustWithTypeFact": ["root"],
+      "mayWithTypeFact": ["root"]
+    },
+    {
+      "siteText": "className={`tone-${computeClassName()}`}",
+      "must": [],
+      "may": [],
+      "unknownCause": "nonFiniteRawLanguage",
+      "typeFactRefusalCause": "fixtureTypeFactRefused",
+      "mustWithTypeFact": [],
+      "mayWithTypeFact": []
+    }
+  ]
+}

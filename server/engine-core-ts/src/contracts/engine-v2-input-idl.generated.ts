@@ -15,6 +15,7 @@ export type StringConstraintKindV2Json =
   | "prefixSuffix"
   | "charInclusion"
   | "composite";
+export type Utf16CodeUnitLengthV2Json = number;
 export type TypeFactControlFlowBlockKindV2Json =
   | "entry"
   | "assignment"
@@ -43,6 +44,10 @@ export type TypeFactControlFlowExpressionKindV2Json =
   | "logicalAnd"
   | "logicalOr"
   | "nullishCoalesce";
+export type ClassBoundaryEffectV2Json =
+  | "concatInsideToken"
+  | "concatAtTokenBoundary"
+  | "unknownBoundary";
 
 export interface EngineInputV2Json {
   readonly version: "2";
@@ -78,8 +83,8 @@ export interface StringTypeFactsV2Json {
   readonly constraintKind?: StringConstraintKindV2Json;
   readonly prefix?: string;
   readonly suffix?: string;
-  readonly minLen?: number;
-  readonly maxLen?: number;
+  readonly minLen?: Utf16CodeUnitLengthV2Json;
+  readonly maxLen?: Utf16CodeUnitLengthV2Json;
   readonly charMust?: string;
   readonly charMay?: string;
   readonly mayIncludeOtherChars?: boolean;
@@ -97,5 +102,6 @@ export interface TypeFactControlFlowBlockV2Json {
   readonly symbolOrdinal?: number;
   readonly variableName?: string;
   readonly expressionKind?: TypeFactControlFlowExpressionKindV2Json;
+  readonly boundaryEffect: ClassBoundaryEffectV2Json;
   readonly facts?: StringTypeFactsV2Json;
 }

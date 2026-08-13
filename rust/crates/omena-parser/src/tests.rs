@@ -5244,6 +5244,96 @@ fn syntax_and_hir_ids_stay_stable_for_unchanged_region_and_change_for_edit() {
     );
 }
 
+#[test]
+fn documentation_pin_syntax_ids_are_positional_by_design_when_a_sibling_is_prepended() {
+    assert_parser_identity_is_positional_by_design(
+        ".alpha { color: red; } .beta { color: blue; }",
+        ".new { color: black; } .alpha { color: red; } .beta { color: blue; }",
+        ".beta",
+    );
+}
+
+#[test]
+fn documentation_pin_syntax_ids_are_positional_by_design_when_a_sibling_is_deleted() {
+    assert_parser_identity_is_positional_by_design(
+        ".alpha { color: red; } .beta { color: blue; } .gamma { color: green; }",
+        ".alpha { color: red; } .gamma { color: green; }",
+        ".gamma",
+    );
+}
+
+#[test]
+fn documentation_pin_syntax_ids_are_positional_by_design_when_siblings_are_reordered() {
+    assert_parser_identity_is_positional_by_design(
+        ".alpha { color: red; } .beta { color: blue; }",
+        ".beta { color: blue; } .alpha { color: red; }",
+        ".beta",
+    );
+}
+
+fn assert_parser_identity_is_positional_by_design(
+    before_source: &str,
+    after_source: &str,
+    unchanged_rule: &str,
+) {
+    let before = parse(before_source, StyleDialect::Css);
+    let after = parse(after_source, StyleDialect::Css);
+    let before_syntax = before.syntax();
+    let after_syntax = after.syntax();
+    let before_rule = rule_node_containing_for_test(&before_syntax, unchanged_rule);
+    let after_rule = rule_node_containing_for_test(&after_syntax, unchanged_rule);
+    assert!(
+        before_rule.is_some(),
+        "missing {unchanged_rule} before positional shift",
+    );
+    assert!(
+        after_rule.is_some(),
+        "missing {unchanged_rule} after positional shift",
+    );
+    let before_rule = before_rule.unwrap_or(&before_syntax);
+    let after_rule = after_rule.unwrap_or(&after_syntax);
+    let before_id = syntax_node_id(before_rule);
+    let after_id = syntax_node_id(after_rule);
+
+    assert_ne!(
+        before_id, after_id,
+        "documentation pin: syntax identity is positional by design for sibling shifts",
+    );
+    assert_ne!(
+        hir_id_for_syntax_node(before_rule),
+        hir_id_for_syntax_node(after_rule),
+        "documentation pin: HIR identity inherits the positional syntax path",
+    );
+    for component in ["kind", "len", "text"] {
+        let before_component = parser_identity_component(before_id.as_str(), component);
+        let after_component = parser_identity_component(after_id.as_str(), component);
+        assert!(
+            before_component.is_some() && after_component.is_some(),
+            "documentation pin: missing {component} in parser identity",
+        );
+        assert_eq!(
+            before_component, after_component,
+            "documentation pin: {component} must stay equal to isolate the positional path",
+        );
+    }
+    let before_path = parser_identity_component(before_id.as_str(), "path");
+    let after_path = parser_identity_component(after_id.as_str(), "path");
+    assert!(
+        before_path.is_some() && after_path.is_some(),
+        "documentation pin: missing path in parser identity",
+    );
+    assert_ne!(
+        before_path, after_path,
+        "documentation pin: only the positional child path must move",
+    );
+}
+
+fn parser_identity_component<'a>(identity: &'a str, component: &str) -> Option<&'a str> {
+    identity
+        .split(':')
+        .find_map(|part| part.strip_prefix(&format!("{component}=")))
+}
+
 fn assert_lex_ranges_are_char_boundaries(source: &str, tokens: &[LexedToken]) {
     for token in tokens {
         let start = u32::from(token.range.start()) as usize;

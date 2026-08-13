@@ -185,6 +185,52 @@ fn bundle_command_emits_css_and_deterministic_evidence() -> Result<(), String> {
 }
 
 #[test]
+fn bundle_command_rewrites_non_ascii_module_classes() -> Result<(), String> {
+    let root = temp_dir("bundle-command-non-ascii-module-class");
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    let entry = root.join("BracketAccess.module.scss");
+    let css_out = root.join("bundle.css");
+    fs::write(
+        &entry,
+        include_str!(
+            "../../../../examples/src/scenarios/17-bracket-access/BracketAccess.module.scss"
+        ),
+    )
+    .map_err(|error| error.to_string())?;
+
+    run(Cli {
+        command: Command::Bundle {
+            entry: Some(entry),
+            css_out: Some(css_out.clone()),
+            evidence: None,
+            source_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            sif_paths: Vec::new(),
+            lockfile: None,
+        },
+    })?;
+
+    let css = fs::read_to_string(css_out).map_err(|error| error.to_string())?;
+    assert!(
+        !css.contains(".한글-라벨"),
+        "the bundle product path must rewrite non-ASCII module class names"
+    );
+    let declaration_offset = css
+        .find("font-weight: 600")
+        .ok_or_else(|| format!("the non-ASCII class declaration was dropped: {css}"))?;
+    let rule_start = css[..declaration_offset]
+        .rfind('{')
+        .ok_or_else(|| format!("the non-ASCII declaration has no containing rule: {css}"))?;
+    let selector_start = css[..rule_start].rfind('}').map_or(0, |offset| offset + 1);
+    let rewritten_selector = css[selector_start..rule_start].trim();
+    assert!(
+        rewritten_selector.starts_with("._") && !rewritten_selector.contains("한글-라벨"),
+        "the retained declaration must belong to a scoped selector: {css}"
+    );
+    Ok(())
+}
+
+#[test]
 fn bundle_command_loads_configured_workspace_sources_without_flags() -> Result<(), String> {
     let root = temp_dir("bundle-command-config-sources");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
@@ -5625,7 +5671,7 @@ fn cross_file_streaming_reachability_fires_on_use_chain_not_self_contained() {
     };
     let sources = vec![tokens.clone(), importer.clone()];
 
-    // The importer reaches a foreign module over the resolved `@use` edge: the streaming-IFDS
+    // The importer reaches a foreign module over the resolved `@use` edge: the demand-sliced-monotone-fact-propagation
     // oracle propagates a seeded fact from a Button node to a `_tokens.scss` node, so the
     // computed foreign-reachable set is non-empty.
     let importer_diagnostics = summarize_cross_file_streaming_reachability_diagnostics(

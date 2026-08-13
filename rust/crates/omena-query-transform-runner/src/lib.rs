@@ -13,28 +13,34 @@ mod plugins;
 pub use plugin_api::*;
 pub use plugins::{built_in_omena_plugins, execute_built_in_omena_plugin};
 
+#[allow(deprecated)]
 pub use omena_bundler::{
-    EmissionOrderingPolicyV0, LinkedEmissionArtifactV0, LinkedEmissionItemMaterializationErrorV0,
-    LinkedEmissionMaterializationErrorV0, LinkedStylesheetV0, LinkedStylesheetWithEmissionItemsV0,
-    TransformBundleAssetUrlRewriteSummaryV0, TransformBundleDependencyResolutionV0,
-    TransformBundleEdgeKind, TransformBundleEmissionAdmissionV0,
-    TransformBundleEmissionItemProjectionV0, TransformBundleLinkErrorV0,
+    BundleDependencyResolutionDisclosureV0, BundleResolutionAuthorityV0, EmissionOrderingPolicyV0,
+    InstanceReachabilityDerivationV0, LinkedEmissionArtifactV0,
+    LinkedEmissionItemMaterializationErrorV0, LinkedEmissionMaterializationErrorV0,
+    LinkedEmissionModuleRegionV0, LinkedEmissionOrderEntryRegionV0, LinkedStylesheetV0,
+    LinkedStylesheetWithEmissionItemsV0, TransformBundleAssetUrlRewriteSummaryV0,
+    TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
+    TransformBundleEmissionAdmissionV0, TransformBundleEmissionItemProjectionV0,
+    TransformBundleInstanceReachabilityInputV0, TransformBundleLinkErrorV0,
     TransformBundleLinkOptionsV0, TransformBundleLinkProjectionSetV0,
     TransformBundleLinkerProjectionV0, TransformBundleModuleInputV0,
     TransformBundleParsedModuleInputV0, TransformBundleResolvedDependencyV0,
     TransformBundleSemanticReachabilityInputV0, TransformBundleSourceSummaryV0,
     TransformBundleTransformedModuleV0, bundle_edge_is_module_dependency,
     evaluate_omena_transform_bundle_projection_emission_admission_with_resolved_dependencies_and_options,
-    link_omena_transform_bundle_modules, link_omena_transform_bundle_modules_with_options,
+    link_legacy_path_inferred_bundle, link_omena_transform_bundle_modules,
+    link_omena_transform_bundle_modules_with_options,
     link_omena_transform_bundle_modules_with_semantic_reachability,
     link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata,
     link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options,
     link_omena_transform_bundle_projection_with_resolved_dependencies_and_options,
-    materialize_omena_transform_bundle_linked_stylesheet,
+    link_resolved_bundle, materialize_omena_transform_bundle_linked_stylesheet,
     materialize_omena_transform_bundle_linked_stylesheet_with_emission_items,
     normalize_omena_transform_bundle_path,
     project_omena_transform_bundle_linker_and_emission_items,
     project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules,
+    project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability,
     project_omena_transform_bundle_linker_inputs,
     project_omena_transform_bundle_linker_inputs_from_parsed_modules,
     rewrite_omena_transform_bundle_asset_urls_in_source,
@@ -56,6 +62,8 @@ pub use omena_transform_egg::{
     plan_egg_rewrite_passes_for_source,
 };
 pub use omena_transform_passes::{
+    CssModuleTokenCollisionPathScopeV0, CssModuleTokenCollisionV0,
+    CssModuleTokenInterfaceMismatchV0, CssModuleTokenOwnershipCensusV0, CssModuleTokenOwnershipV0,
     CustomPropertyLeastFixedPointSummaryV0, ExternalCssSemanticChangeClassificationV0,
     ExternalCssSemanticChangeKindV0, ExternalCssSemanticChangeV0, ExternalCssSemanticDiffV0,
     ExternalCssSemanticEntryV0, RollbackReceiptV0, RollbackScopeV0,
@@ -64,15 +72,16 @@ pub use omena_transform_passes::{
     TransformCssModuleValueResolutionV0, TransformDecision, TransformDesignTokenRouteV0,
     TransformExecutionContextV0, TransformExecutionPolicyV0, TransformExecutionSummaryV0,
     TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0,
-    TransformModuleEvaluationNativeEditV0, TransformModuleEvaluationNativeReplacementV0,
-    TransformModuleEvaluationOracleV0, TransformModuleEvaluationV0,
-    TransformModuleQualifiedExecutionErrorV0, TransformModuleQualifiedShakeSummaryV0,
-    TransformPassExecutionOutcomeV0, TransformPassPlanV0, TransformSemanticGuaranteeTierV0,
-    TransformSemanticPreservationDecisionV0, TransformStrictPolicyEventV0,
-    TransformStrictPolicyReasonV0, TransformStrictPolicySummaryV0, TransformVendorPrefixPolicyV0,
-    TransformWinnerEqualityAbsenceReasonV0, TransformWinnerEqualityAbsenceV0,
-    TransformWinnerEqualityAxisV0, classify_transform_reachability_precision,
-    compare_external_css_semantic_changes_v0, compare_transform_css_semantics_v0,
+    TransformModuleCssModuleContextV0, TransformModuleEvaluationNativeEditV0,
+    TransformModuleEvaluationNativeReplacementV0, TransformModuleEvaluationOracleV0,
+    TransformModuleEvaluationV0, TransformModuleQualifiedExecutionErrorV0,
+    TransformModuleQualifiedShakeSummaryV0, TransformPassExecutionOutcomeV0, TransformPassPlanV0,
+    TransformSemanticGuaranteeTierV0, TransformSemanticPreservationDecisionV0,
+    TransformStrictPolicyEventV0, TransformStrictPolicyReasonV0, TransformStrictPolicySummaryV0,
+    TransformVendorPrefixPolicyV0, TransformWinnerEqualityAbsenceReasonV0,
+    TransformWinnerEqualityAbsenceV0, TransformWinnerEqualityAxisV0,
+    classify_transform_reachability_precision, compare_external_css_semantic_changes_v0,
+    compare_transform_css_semantics_v0,
     execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle,
     execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle,
     execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle_and_retained_class_names,
@@ -88,12 +97,28 @@ pub use omena_transform_passes::{
     restore_less_inline_literal_placeholders,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
-#[cfg(feature = "lawvere-trace")]
+/// Compatibility aliases for the superseded trace name.
+/// Owner: `omena-query-transform-runner` maintainers. Removal condition: not
+/// before 1.0, after downstream migration and zero audited non-compat uses.
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the TransformCatalog trace surface; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub use omena_transform_passes::{
-    LawvereDifferentialCommutativityWitnessV0, LawvereModelTraceV0, ReorderabilityCertificateV0,
-    TransformPassParallelPlanV0, evaluate_lawvere_reorderability_with_differential_corpus,
+    LawvereDifferentialCommutativityWitnessV0, LawvereModelTraceV0, TransformPassParallelPlanV0,
+    evaluate_lawvere_reorderability_with_differential_corpus,
     execute_transform_passes_on_source_with_lawvere_trace_and_dialect,
     plan_transform_passes_parallel_lawvere_layers,
+};
+#[cfg(feature = "transform-catalog-trace")]
+pub use omena_transform_passes::{
+    ReorderabilityCertificateV0, TransformCatalogDifferentialCommutativityWitnessV0,
+    TransformCatalogModelTraceV0, TransformCatalogTransformPassParallelPlanV0,
+    evaluate_transform_catalog_reorderability_with_differential_corpus,
+    execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect,
+    plan_transform_passes_parallel_transform_catalog_layers,
 };
 pub use omena_transform_print::{
     PrettyFormatOptionsV0, StyleDialect, TransformPrintArtifactV0, TransformPrintMode,
@@ -162,7 +187,8 @@ pub struct OmenaQueryTransformRunnerBoundaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
-pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransformRunnerBoundaryV0 {
+pub fn summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0()
+-> OmenaQueryTransformRunnerBoundaryV0 {
     let ready_surfaces = vec![
         "transformPlannerBoundary",
         "transformExecutorBoundary",
@@ -171,10 +197,10 @@ pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransfo
         "transformTargetPlannerBoundary",
         "transformEggWitnessBoundary",
     ];
-    #[cfg(feature = "lawvere-trace")]
+    #[cfg(feature = "transform-catalog-trace")]
     let mut ready_surfaces = ready_surfaces;
-    #[cfg(feature = "lawvere-trace")]
-    ready_surfaces.push("transformLawvereTraceBoundary");
+    #[cfg(feature = "transform-catalog-trace")]
+    ready_surfaces.push("transformCatalogTraceBoundary");
 
     OmenaQueryTransformRunnerBoundaryV0 {
         schema_version: "0",
@@ -187,13 +213,44 @@ pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransfo
     }
 }
 
+#[deprecated(
+    since = "0.4.0",
+    note = "use summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn summarize_omena_query_transform_runner_boundary_v0() -> OmenaQueryTransformRunnerBoundaryV0 {
+    #[cfg(feature = "transform-catalog-trace")]
+    let mut summary = summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0();
+    #[cfg(not(feature = "transform-catalog-trace"))]
+    let summary = summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0();
+    #[cfg(feature = "transform-catalog-trace")]
+    if let Some(surface) = summary
+        .ready_surfaces
+        .iter_mut()
+        .find(|surface| **surface == "transformCatalogTraceBoundary")
+    {
+        *surface = "transformLawvereTraceBoundary";
+    }
+    summary
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Exact pre-1.0 transform-runner boundary projection retained for wire
+    /// compatibility. Owner: `omena-query-transform-runner` maintainers.
+    /// Removal is not before 1.0 and requires downstream migration plus zero
+    /// audited non-compatibility uses.
+    #[cfg(feature = "transform-catalog-trace")]
+    #[deprecated(
+        since = "0.4.0",
+        note = "compatibility projection; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
+    const COMPATIBILITY_TRANSFORM_RUNNER_BOUNDARY_JSON_V0: &str = r#"{"schemaVersion":"0","product":"omena-query-transform-runner.boundary","boundaryKind":"query-transform-runner-split","collapsedTransformCrateCount":6,"collapsedTransformCrates":["omena-bundler","omena-transform-cst","omena-transform-egg","omena-transform-passes","omena-transform-print","omena-transform-target"],"directQueryDependencyReplacement":"omena-query-transform-runner","readySurfaces":["transformPlannerBoundary","transformExecutorBoundary","transformPrinterBoundary","transformSourceMapV3SerializerBoundary","transformTargetPlannerBoundary","transformEggWitnessBoundary","transformLawvereTraceBoundary"]}"#;
+
     #[test]
     fn transform_runner_boundary_collapses_transform_family_for_query() {
-        let summary = summarize_omena_query_transform_runner_boundary_v0();
+        let summary = summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0();
 
         assert_eq!(summary.collapsed_transform_crate_count, 6);
         assert_eq!(
@@ -210,6 +267,25 @@ mod tests {
                 .ready_surfaces
                 .contains(&"transformTargetPlannerBoundary")
         );
+    }
+
+    #[cfg(feature = "transform-catalog-trace")]
+    #[test]
+    #[allow(deprecated)]
+    fn transform_runner_boundary_preserves_legacy_and_canonical_serialized_projections()
+    -> Result<(), serde_json::Error> {
+        let legacy = serde_json::to_string(&summarize_omena_query_transform_runner_boundary_v0())?;
+        let canonical = serde_json::to_string(
+            &summarize_omena_query_transform_runner_boundary_with_transform_catalog_v0(),
+        )?;
+
+        assert_eq!(legacy, COMPATIBILITY_TRANSFORM_RUNNER_BOUNDARY_JSON_V0);
+        assert_eq!(
+            canonical,
+            r#"{"schemaVersion":"0","product":"omena-query-transform-runner.boundary","boundaryKind":"query-transform-runner-split","collapsedTransformCrateCount":6,"collapsedTransformCrates":["omena-bundler","omena-transform-cst","omena-transform-egg","omena-transform-passes","omena-transform-print","omena-transform-target"],"directQueryDependencyReplacement":"omena-query-transform-runner","readySurfaces":["transformPlannerBoundary","transformExecutorBoundary","transformPrinterBoundary","transformSourceMapV3SerializerBoundary","transformTargetPlannerBoundary","transformEggWitnessBoundary","transformCatalogTraceBoundary"]}"#
+        );
+
+        Ok(())
     }
 
     #[test]

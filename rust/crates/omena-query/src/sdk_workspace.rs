@@ -267,6 +267,7 @@ impl OmenaSdkWorkspaceV0 {
         Ok(resolve_omena_bundler_host_module_v0(
             OmenaBundlerHostResolveModuleRequestV0 {
                 snapshot_id: self.snapshot_id(),
+                workspace_root: self.workspace_root.clone(),
                 style_path,
                 style_sources: self.style_source_inputs(),
                 package_manifests,
@@ -469,6 +470,14 @@ fn sdk_build_verification_reason(
         }
         OmenaQueryTransformStrictPolicyReasonV0::DecisionCoverageIncomplete => {
             OmenaSdkBuildVerificationReasonV0::DecisionCoverageIncomplete
+        }
+        OmenaQueryTransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete { .. }
+        | OmenaQueryTransformStrictPolicyReasonV0::LivenessNotClosed { .. }
+        | OmenaQueryTransformStrictPolicyReasonV0::EvidenceUnavailable
+        | OmenaQueryTransformStrictPolicyReasonV0::OwnershipNotSeparable { .. } => {
+            // Admission-tier events are serialized through closedWorldAdmission,
+            // never through the strict-policy SDK summary.
+            OmenaSdkBuildVerificationReasonV0::ClosedWorldEvidenceUnavailable
         }
     }
 }

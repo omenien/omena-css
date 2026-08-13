@@ -4,9 +4,14 @@ use iai_callgrind::{library_benchmark, library_benchmark_group, main};
 use omena_abstract_value::top_class_value;
 use omena_cross_file_summary::{UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0};
 use omena_streaming_ifds::{
-    ExactStreamingConnectivityOracleV0, STREAMING_IFDS_FEATURE_GATE_V0,
-    STREAMING_IFDS_LAYER_MARKER_V0, STREAMING_IFDS_SCHEMA_VERSION_V0, StreamingIFDSEventKindV0,
-    StreamingIfdsEventInputV0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
+    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
+    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+    DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
+    DemandSlicedMonotoneFactPropagationEventInputV0,
+    DemandSlicedMonotoneFactPropagationEventKindV0,
+    DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0,
+    demand_sliced_monotone_fact_propagation_event_input_v0,
+    run_demand_sliced_monotone_fact_propagation_exact_v0,
 };
 
 #[library_benchmark]
@@ -17,19 +22,19 @@ fn reachability_delta_visits_less_work_than_batch() -> usize {
         hyperedge("edge-token-button", "token", "button"),
         hyperedge("edge-button-icon", "button", "icon"),
     ];
-    let seed = vec![streaming_ifds_event_input_v0(
+    let seed = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
         "event-entry",
         1,
         "entry",
         top_class_value(),
         None,
     )];
-    let first = run_streaming_ifds_exact_v0(
+    let first = run_demand_sliced_monotone_fact_propagation_exact_v0(
         "initial-analysis",
         "entry",
         &old_graph,
         &seed,
-        &ExactStreamingConnectivityOracleV0::default(),
+        &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
         None,
     );
     let current_graph = vec![
@@ -42,12 +47,12 @@ fn reachability_delta_visits_less_work_than_batch() -> usize {
         "token",
         "button",
     )];
-    let report = run_streaming_ifds_exact_v0(
+    let report = run_demand_sliced_monotone_fact_propagation_exact_v0(
         "incremental-analysis",
         "entry",
         &current_graph,
         &events,
-        &ExactStreamingConnectivityOracleV0::default(),
+        &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
         Some(&first.summary_cache),
     );
 
@@ -64,8 +69,8 @@ fn hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {
     UnifiedHypergraphHyperedgeV0 {
         schema_version: "0",
         product: "test.hyperedge",
-        layer_marker: "hypergraph-ifds",
-        feature_gate: "hypergraph-ifds",
+        layer_marker: "hypergraph-monotone-fact-propagation",
+        feature_gate: "hypergraph-monotone-fact-propagation",
         hyperedge_id: id.to_string(),
         edge_kind: UnifiedHypergraphEdgeKindV0::SassForward,
         source_summary_edge_id: id.to_string(),
@@ -77,15 +82,20 @@ fn hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {
     }
 }
 
-fn edge_delete_event(id: &str, revision: u64, from: &str, to: &str) -> StreamingIfdsEventInputV0 {
-    StreamingIfdsEventInputV0 {
-        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+fn edge_delete_event(
+    id: &str,
+    revision: u64,
+    from: &str,
+    to: &str,
+) -> DemandSlicedMonotoneFactPropagationEventInputV0 {
+    DemandSlicedMonotoneFactPropagationEventInputV0 {
+        schema_version: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_SCHEMA_VERSION_V0,
         product: "test.event-input",
-        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
-        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        layer_marker: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_LAYER_MARKER_V0,
+        feature_gate: DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_FEATURE_GATE_V0,
         event_id: id.to_string(),
         revision,
-        event_kind: StreamingIFDSEventKindV0::EdgeDelete {
+        event_kind: DemandSlicedMonotoneFactPropagationEventKindV0::EdgeDelete {
             from: from.to_string(),
             to: to.to_string(),
             edge_kind: "sassForward",

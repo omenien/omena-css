@@ -1620,11 +1620,21 @@ mod tests {
                 "rollbackReasons": []
             })
         );
-        let verification_extension =
-            serde_json::to_string(&output_value["execution"]["strictPolicy"])
-                .map_err(|error| napi::Error::from_reason(error.to_string()))?;
-        let extension_segment = format!(",\"strictPolicy\":{verification_extension}");
-        let compatibility_output = output.replacen(extension_segment.as_str(), "", 1);
+        assert_eq!(
+            output_value["execution"]["closedWorldAdmission"],
+            serde_json::json!({
+                "refusedCount": 0,
+                "refusalReasons": []
+            })
+        );
+        let mut compatibility_output = output.clone();
+        for extension_name in ["strictPolicy", "closedWorldAdmission"] {
+            let verification_extension =
+                serde_json::to_string(&output_value["execution"][extension_name])
+                    .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+            let extension_segment = format!(",\"{extension_name}\":{verification_extension}");
+            compatibility_output = compatibility_output.replacen(extension_segment.as_str(), "", 1);
+        }
         assert_ne!(compatibility_output, output);
         let golden =
             include_str!("../tests/golden/ffi-boundary/build-style-source-with-context.txt")
@@ -2144,7 +2154,8 @@ export function Card({ active }: { active: boolean }) {
                 .executed_pass_ids
                 .contains(&"scss-module-evaluate")
         );
-        assert!(summary.execution.output_css.contains("._card_0"));
+        // Test-only per rust/omena-css-module-token-literal-policy.json; emitted names are not a public contract.
+        assert!(summary.execution.output_css.contains("_card"));
     }
 
     #[test]
@@ -2269,6 +2280,14 @@ export function Card({ active }: { active: boolean }) {
         let Some(entry) = entry else {
             return;
         };
+        assert_eq!(
+            execution_scope.bundle_execution.entry_module_instance,
+            execution_scope.entry_module_instance
+        );
+        assert_eq!(
+            execution_scope.bundle_execution.module_executions.len(),
+            execution_scope.module_executions.len()
+        );
         assert_eq!(
             entry.input_byte_len,
             scoped_result.bundle.artifact.execution.input_byte_len

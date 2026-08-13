@@ -1,4 +1,6 @@
+use clap::Parser;
 use std::io::{self, BufRead, Write};
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -10,14 +12,18 @@ use std::{collections::BTreeMap, sync::MutexGuard};
 #[cfg(not(feature = "parallel-style-diagnostics"))]
 use omena_lsp_server::tide_workspace_republish_flush_effects;
 use omena_lsp_server::{
-    DiagnosticsPublishReceiptV0, LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
-    LspLoopTurnV0, LspQueryDispatchV0, LspShellState, LspWorkspaceIndexJobV0,
-    LspWorkspaceIndexResultV0, REACTIVE_SHADOW_ENV, ScheduledLspOutput,
-    apply_background_workspace_index_result, apply_deferred_external_sif_refresh_result,
-    collect_background_workspace_index, collect_deferred_external_sif_refresh,
-    complete_dispatched_query_response, dispatched_query_internal_error_response,
-    enable_deferred_external_sif_refresh, handle_lsp_message_scheduled_outputs_or_dispatch,
-    prepare_background_workspace_index_continuation_job, prepare_deferred_external_sif_refresh_job,
+    DiagnosticsPublishReceiptV0, LspExternalSifRefreshCacheStorageV0, LspExternalSifRefreshJobV0,
+    LspExternalSifRefreshResultV0, LspLoopTurnV0, LspQueryDispatchV0, LspShellState,
+    LspWorkspaceIndexCacheStorageV0, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0,
+    REACTIVE_SHADOW_ENV, ScheduledLspOutput, apply_background_workspace_index_result,
+    apply_deferred_external_sif_refresh_result,
+    collect_background_workspace_index_with_cache_storage,
+    collect_deferred_external_sif_refresh_with_cache_storage, complete_dispatched_query_response,
+    dispatched_query_internal_error_response, enable_deferred_external_sif_refresh,
+    handle_lsp_message_scheduled_outputs_or_dispatch,
+    prepare_background_workspace_index_cache_storage,
+    prepare_background_workspace_index_continuation_job,
+    prepare_deferred_external_sif_refresh_cache_storage, prepare_deferred_external_sif_refresh_job,
     resolve_dispatched_query_response, workspace_index_progress_end_output,
 };
 #[cfg(feature = "salsa-style-diagnostics")]
@@ -29,8 +35,21 @@ use omena_lsp_server::{
     complete_tide_workspace_republish, prepare_tide_workspace_republish_job,
 };
 
+#[derive(Debug, Parser)]
+#[command(name = "omena-lsp-server")]
+struct OmenaLspServerArgs {
+    /// Store persistent cache shards below this directory.
+    #[arg(long, value_name = "PATH")]
+    cache_dir: Option<PathBuf>,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    run_stdio_server(io::BufReader::new(io::stdin()), io::stdout())?;
+    let args = OmenaLspServerArgs::parse();
+    run_stdio_server_with_cache_dir(
+        io::BufReader::new(io::stdin()),
+        io::stdout(),
+        args.cache_dir,
+    )?;
     Ok(())
 }
 
@@ -63,11 +82,30 @@ fn spawn_query_worker<W: Write + Send + 'static>(
     })
 }
 
+#[cfg(test)]
 fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
-    mut reader: R,
+    reader: R,
     writer: W,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let state = LspShellState::default();
+    run_stdio_server_with_state(reader, writer, state)
+}
+
+fn run_stdio_server_with_cache_dir<R: BufRead + Send + 'static, W: Write + Send + 'static>(
+    reader: R,
+    writer: W,
+    cache_dir: Option<PathBuf>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
+    state.configure_standalone_cache_storage(cache_dir);
+    run_stdio_server_with_state(reader, writer, state)
+}
+
+fn run_stdio_server_with_state<R: BufRead + Send + 'static, W: Write + Send + 'static>(
+    mut reader: R,
+    writer: W,
+    mut state: LspShellState,
+) -> Result<(), Box<dyn std::error::Error>> {
     enable_deferred_external_sif_refresh(&mut state);
     if std::env::var(REACTIVE_SHADOW_ENV).as_deref() == Ok("1") {
         state.enable_reactive_shadow_observer()?;
@@ -104,16 +142,18 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
     let (heavy_query_sender, heavy_query_receiver) =
         mpsc::sync_channel::<Box<LspQueryDispatchV0>>(256);
     let (workspace_index_sender, workspace_index_receiver) =
-        mpsc::channel::<LspWorkspaceIndexJobV0>();
+        mpsc::channel::<(LspWorkspaceIndexJobV0, LspWorkspaceIndexCacheStorageV0)>();
     let (workspace_index_result_sender, workspace_index_result_receiver) =
         mpsc::channel::<LspWorkspaceIndexResultV0>();
-    let (external_sif_refresh_sender, external_sif_refresh_receiver) =
-        mpsc::channel::<LspExternalSifRefreshJobV0>();
+    let (external_sif_refresh_sender, external_sif_refresh_receiver) = mpsc::channel::<(
+        LspExternalSifRefreshJobV0,
+        LspExternalSifRefreshCacheStorageV0,
+    )>();
     let (external_sif_refresh_result_sender, external_sif_refresh_result_receiver) =
         mpsc::channel::<LspExternalSifRefreshResultV0>();
     let workspace_index_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
-        while let Ok(job) = workspace_index_receiver.recv() {
-            let result = collect_background_workspace_index(job);
+        while let Ok((job, cache_storage)) = workspace_index_receiver.recv() {
+            let result = collect_background_workspace_index_with_cache_storage(job, cache_storage);
             workspace_index_result_sender
                 .send(result)
                 .map_err(|_| "workspace index result receiver dropped".to_string())?;
@@ -121,8 +161,9 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
         Ok(())
     });
     let external_sif_refresh_worker: JoinHandle<Result<(), String>> = thread::spawn(move || {
-        while let Ok(job) = external_sif_refresh_receiver.recv() {
-            let result = collect_deferred_external_sif_refresh(job);
+        while let Ok((job, cache_storage)) = external_sif_refresh_receiver.recv() {
+            let result =
+                collect_deferred_external_sif_refresh_with_cache_storage(job, cache_storage);
             external_sif_refresh_result_sender
                 .send(result)
                 .map_err(|_| "external SIF refresh result receiver dropped".to_string())?;
@@ -419,7 +460,10 @@ fn run_stdio_server<R: BufRead + Send + 'static, W: Write + Send + 'static>(
                 }
                 for job in workspace_index_jobs {
                     workspace_index_sender
-                        .send(job)
+                        .send((
+                            job,
+                            prepare_background_workspace_index_cache_storage(&state),
+                        ))
                         .map_err(|_| "workspace index worker exited before shutdown")?;
                     workspace_index_in_flight = workspace_index_in_flight.saturating_add(1);
                 }
@@ -647,7 +691,7 @@ fn drain_and_pump_tide_republish<W: Write + Send + 'static>(
 fn drain_workspace_index_results<W: Write + Send + 'static>(
     state: &mut LspShellState,
     receiver: &mpsc::Receiver<LspWorkspaceIndexResultV0>,
-    sender: &mpsc::Sender<LspWorkspaceIndexJobV0>,
+    sender: &mpsc::Sender<(LspWorkspaceIndexJobV0, LspWorkspaceIndexCacheStorageV0)>,
     in_flight: &mut usize,
     writer: &Arc<Mutex<W>>,
     coalescer: &Arc<Mutex<ScheduledOutputCoalescer>>,
@@ -666,7 +710,7 @@ fn drain_workspace_index_results<W: Write + Send + 'static>(
             let job =
                 prepare_background_workspace_index_continuation_job(state, continuation_file_uris);
             sender
-                .send(job)
+                .send((job, prepare_background_workspace_index_cache_storage(state)))
                 .map_err(|_| "workspace index worker exited before continuation")?;
             *in_flight = in_flight.saturating_add(1);
         }
@@ -718,7 +762,10 @@ fn drain_external_sif_refresh_results<W: Write + Send + 'static>(
 
 fn dispatch_external_sif_refresh_if_needed(
     state: &mut LspShellState,
-    sender: &mpsc::Sender<LspExternalSifRefreshJobV0>,
+    sender: &mpsc::Sender<(
+        LspExternalSifRefreshJobV0,
+        LspExternalSifRefreshCacheStorageV0,
+    )>,
     in_flight: &mut usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if *in_flight > 0 {
@@ -728,7 +775,10 @@ fn dispatch_external_sif_refresh_if_needed(
         return Ok(());
     };
     sender
-        .send(job)
+        .send((
+            job,
+            prepare_deferred_external_sif_refresh_cache_storage(state),
+        ))
         .map_err(|_| "external SIF refresh worker exited before shutdown")?;
     *in_flight = in_flight.saturating_add(1);
     Ok(())
@@ -945,6 +995,17 @@ fn lock_coalescer(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cache_dir_cli_flag_is_additive_and_typed() -> Result<(), Box<dyn std::error::Error>> {
+        let args = OmenaLspServerArgs::try_parse_from([
+            "omena-lsp-server",
+            "--cache-dir",
+            "/tmp/omena-cache",
+        ])?;
+        assert_eq!(args.cache_dir, Some(PathBuf::from("/tmp/omena-cache")));
+        Ok(())
+    }
 
     /// Regression pin for the pump completion gate: a streaming wave
     /// trickles items across loop turns, so a momentarily-empty apply queue
@@ -1638,6 +1699,166 @@ mod tests {
             .map_err(|_| "shared writer poisoned".to_string())?
             .clone();
         parse_lsp_frames(output.as_slice())
+    }
+
+    fn lsp_position_for_byte_offset(source: &str, offset: usize) -> Result<Value, String> {
+        let prefix = source
+            .get(..offset)
+            .ok_or_else(|| format!("byte offset {offset} is outside the source"))?;
+        let line = prefix.bytes().filter(|byte| *byte == b'\n').count();
+        let character = prefix
+            .rsplit_once('\n')
+            .map_or(prefix, |(_, tail)| tail)
+            .encode_utf16()
+            .count();
+        Ok(json!({ "line": line, "character": character }))
+    }
+
+    fn response_for_id(messages: &[Value], id: u64) -> Option<&Value> {
+        messages
+            .iter()
+            .find(|message| message.get("id") == Some(&json!(id)))
+    }
+
+    #[test]
+    fn stdio_escaped_css_module_member_supports_product_navigation() -> Result<(), String> {
+        let style_uri = "file:///workspace-a/src/App.module.css";
+        let source_uri = "file:///workspace-a/src/App.tsx";
+        let style_text = r#".\6d d\:flex { display: flex; }
+.plain { display: block; }
+"#;
+        let source_text = r#"import styles from "./App.module.css";
+export const escapedClass = styles["md\\:flex"];
+export const plainClass = styles.plain;
+"#;
+        let escaped_access_offset = source_text
+            .find(r#"md\\:flex"#)
+            .ok_or_else(|| "escaped computed member is missing".to_string())?
+            + 2;
+        let plain_access_offset = source_text
+            .find("styles.plain")
+            .ok_or_else(|| "plain member is missing".to_string())?
+            + "styles.".len()
+            + 2;
+        let escaped_style_offset = style_text
+            .find(r#"\6d d\:flex"#)
+            .ok_or_else(|| "escaped style class is missing".to_string())?
+            + 2;
+
+        let messages = run_script(&[
+            initialize_workspace_a_message(),
+            text_document_open_message(source_uri, "typescriptreact", 1, source_text),
+            text_document_open_message(style_uri, "css", 1, style_text),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": { "uri": source_uri },
+                    "position": lsp_position_for_byte_offset(
+                        source_text,
+                        escaped_access_offset,
+                    )?,
+                },
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": { "uri": source_uri },
+                    "position": lsp_position_for_byte_offset(source_text, plain_access_offset)?,
+                },
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/references",
+                "params": {
+                    "textDocument": { "uri": style_uri },
+                    "position": lsp_position_for_byte_offset(
+                        style_text,
+                        escaped_style_offset,
+                    )?,
+                    "context": { "includeDeclaration": true },
+                },
+            }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": { "uri": source_uri },
+                    "position": lsp_position_for_byte_offset(
+                        source_text,
+                        escaped_access_offset,
+                    )?,
+                },
+            }),
+        ])?;
+
+        for id in [2, 3] {
+            let definition = response_for_id(messages.as_slice(), id)
+                .ok_or_else(|| format!("definition response {id} is missing"))?;
+            assert!(
+                definition
+                    .pointer("/result")
+                    .and_then(Value::as_array)
+                    .is_some_and(|locations| locations.iter().any(|location| {
+                        location.get("uri").and_then(Value::as_str) == Some(style_uri)
+                    })),
+                "definition {id} should resolve to the style document: {definition}"
+            );
+        }
+
+        let references = response_for_id(messages.as_slice(), 4)
+            .ok_or_else(|| "references response is missing".to_string())?;
+        assert!(
+            references
+                .pointer("/result")
+                .and_then(Value::as_array)
+                .is_some_and(|locations| locations.iter().any(|location| {
+                    location.get("uri").and_then(Value::as_str) == Some(source_uri)
+                })),
+            "escaped class references should include the TSX access: {references}"
+        );
+
+        let diagnostics = publish_diagnostics_for_uri(messages.as_slice(), style_uri);
+        let final_diagnostics = diagnostics
+            .last()
+            .ok_or_else(|| "style diagnostics notification is missing".to_string())?;
+        let unused_messages = final_diagnostics
+            .pointer("/params/diagnostics")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|diagnostic| diagnostic.get("code") == Some(&json!("unusedSelector")))
+            .filter_map(|diagnostic| diagnostic.get("message").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert!(
+            !unused_messages
+                .iter()
+                .any(|message| message.contains("md") || message.contains("plain")),
+            "escaped and plain references must suppress unusedSelector: {unused_messages:?}"
+        );
+
+        let completion = response_for_id(messages.as_slice(), 5)
+            .ok_or_else(|| "completion response is missing".to_string())?;
+        let escaped_item = completion
+            .pointer("/result/items")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|item| item.get("label") == Some(&json!(r#"\6d d\:flex"#)))
+            })
+            .ok_or_else(|| "escaped class completion is missing".to_string())?;
+        assert_eq!(
+            escaped_item.get("insertText"),
+            Some(&json!(r#"\\6d d\\:flex"#)),
+            "computed-member completion must escape the CSS spelling for TypeScript"
+        );
+        Ok(())
     }
 
     #[test]

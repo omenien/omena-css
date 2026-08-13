@@ -19,10 +19,11 @@ use crate::{
     summarize_omena_query_workspace_cross_file_summary,
     summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
 };
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 use crate::{
     OmenaQueryCrossFileSummaryV0, UnifiedHypergraphEdgeKindV0,
     summarize_omena_query_unified_cross_file_hypergraph,
+    summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph,
     summarize_omena_query_unified_cross_file_scc_report,
 };
 #[cfg(feature = "salsa-memo")]
@@ -33,14 +34,18 @@ use crate::{
 
 use super::support::sample_input;
 
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 #[test]
 fn cross_file_hypergraph_projects_summary_edges_byte_equal_by_id() {
     let summary = hypergraph_summary_fixture();
-    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+    let hypergraph =
+        summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph(&summary);
 
     assert_eq!(hypergraph.schema_version, "0");
-    assert_eq!(hypergraph.layer_marker, "hypergraph-ifds");
+    assert_eq!(
+        hypergraph.layer_marker,
+        "hypergraph-monotone-fact-propagation"
+    );
     assert_eq!(hypergraph.summary_edge_count, summary.summary_edge_count);
     assert!(
         hypergraph
@@ -61,7 +66,57 @@ fn cross_file_hypergraph_projects_summary_edges_byte_equal_by_id() {
     );
 }
 
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy hypergraph summary-edge projection owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_hypergraph_summary_edge_bytes_v0(
+    hyperedges: &[crate::UnifiedHypergraphHyperedgeV0],
+    projected_edges: Vec<crate::HypergraphIFDSSummaryEdgeV0>,
+) -> Result<String, serde_json::Error> {
+    serde_json::to_string(&crate::tabulate_hypergraph_ifds_summary_edges(
+        hyperedges,
+        projected_edges,
+    ))
+}
+
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
+#[test]
+#[allow(deprecated)]
+fn cross_file_hypergraph_compatibility_and_canonical_exports_keep_distinct_wire_bytes()
+-> Result<(), serde_json::Error> {
+    let summary = hypergraph_summary_fixture();
+    let compatibility_hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+    let canonical_hypergraph =
+        summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph(&summary);
+    let mut compatibility_edges = compatibility_hypergraph.summary_edges.clone();
+    compatibility_edges.reverse();
+    let mut canonical_edges = canonical_hypergraph.summary_edges.clone();
+    canonical_edges.reverse();
+
+    let canonical = serde_json::to_string(
+        &crate::tabulate_hypergraph_monotone_fact_propagation_summary_edges(
+            &canonical_hypergraph.hyperedges,
+            canonical_edges,
+        ),
+    )?;
+    let compatibility = compatibility_hypergraph_summary_edge_bytes_v0(
+        &compatibility_hypergraph.hyperedges,
+        compatibility_edges,
+    )?;
+
+    assert_ne!(compatibility, canonical);
+    assert_eq!(
+        compatibility_hypergraph.projection_edge_ids,
+        canonical_hypergraph.projection_edge_ids
+    );
+    assert_ne!(canonical, "[]");
+    Ok(())
+}
+
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 #[test]
 fn cross_file_hypergraph_composes_tail_preserves_target_name_order() {
     let mut summary = hypergraph_summary_fixture();
@@ -73,7 +128,8 @@ fn cross_file_hypergraph_composes_tail_preserves_target_name_order() {
     edge.target_names = ["a", "b", "c"].into_iter().map(str::to_string).collect();
     let edge_id = edge.edge_id.clone();
 
-    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+    let hypergraph =
+        summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph(&summary);
     let tail = &hypergraph
         .hyperedges
         .iter()
@@ -90,7 +146,7 @@ fn cross_file_hypergraph_composes_tail_preserves_target_name_order() {
     assert!(tail[2].ends_with("|c"));
 }
 
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 #[test]
 fn cross_file_hypergraph_reports_exact_tarjan_scc_for_composes_cycle() -> Result<(), &'static str> {
     let summary = summarize_omena_query_workspace_cross_file_summary(
@@ -134,7 +190,7 @@ fn cross_file_hypergraph_reports_exact_tarjan_scc_for_composes_cycle() -> Result
     Ok(())
 }
 
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 fn hypergraph_summary_fixture() -> OmenaQueryCrossFileSummaryV0 {
     summarize_omena_query_workspace_cross_file_summary(
         &[
@@ -1133,7 +1189,7 @@ fn workspace_cross_file_summary_reports_less_module_edges_with_less_vocabulary()
     }));
 }
 
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 #[test]
 fn cross_file_hypergraph_projects_less_module_edges_to_less_edge_kinds() {
     let summary = summarize_omena_query_workspace_cross_file_summary(
@@ -1150,7 +1206,8 @@ fn cross_file_hypergraph_projects_less_module_edges_to_less_edge_kinds() {
         &[],
         &[],
     );
-    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+    let hypergraph =
+        summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph(&summary);
 
     assert!(hypergraph.hyperedges.iter().any(|edge| {
         edge.edge_kind == UnifiedHypergraphEdgeKindV0::LessImport

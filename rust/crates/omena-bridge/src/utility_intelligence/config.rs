@@ -201,7 +201,11 @@ fn collect_safelist(
             continue;
         };
         if let Some(value) = static_string(expression) {
-            enumerated.extend(value.split_whitespace().map(str::to_string));
+            if let omena_abstract_value::DomClassTokenizationV0::Known { word, .. } =
+                omena_abstract_value::tokenize_dom_class_attribute_v0(Some(&value))
+            {
+                enumerated.extend(word.tokens().iter().map(|token| token.as_str().to_string()));
+            }
         } else if matches!(
             transparent_expression(expression),
             Expression::RegExpLiteral(_)

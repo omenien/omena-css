@@ -54,8 +54,33 @@ type CascadeRankedSetLossClassV0 =
   | "noStrictAxisDominance"
   | "singleInexactCandidate"
   | {
-      readonly recoverableAxisDominant: { readonly axis: "level" | "layerRank" | "scopeProximity" };
+      readonly recoverableAxisDominant: { readonly axis: string };
     };
+
+interface CascadeKeyAxisOrderArtifactV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-cascade.key-axis-order";
+  readonly axisOrder: readonly string[];
+  readonly rankedSetPrefixAxisVocabulary: readonly string[];
+}
+
+interface CascadeRankedSetLossCandidateV0 {
+  readonly declarationId: string;
+  readonly level:
+    | "userAgentNormal"
+    | "userNormal"
+    | "authorNormal"
+    | "inlineNormal"
+    | "animation"
+    | "authorImportant"
+    | "inlineImportant"
+    | "userImportant"
+    | "userAgentImportant"
+    | "transition";
+  readonly layerRank: number;
+  readonly scopeProximity: number;
+  readonly specificityExactness: "exact" | "inexact";
+}
 
 interface CascadeRankedSetLossCaptureRowV0 {
   readonly function: "cascadeProperty" | "cascadePropertyOpenWorld";
@@ -64,12 +89,17 @@ interface CascadeRankedSetLossCaptureRowV0 {
   readonly property: string;
   readonly declarationIds: readonly string[];
   readonly candidateCount: number;
+  readonly candidates: readonly CascadeRankedSetLossCandidateV0[];
   readonly classification: CascadeRankedSetLossClassV0;
 }
 
 interface CascadeRankedSetLossCaptureV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-cascade.ranked-set-loss-capture";
+  readonly captureStateRecoveryCount: number;
+  readonly measurementInvocationCount: number;
+  readonly rankedSetOutcomeCount: number;
+  readonly multiCandidateInexactRankedSetCount: number;
   readonly rows: readonly CascadeRankedSetLossCaptureRowV0[];
 }
 
@@ -80,6 +110,11 @@ interface RankedSetLossCensusArtifactV0 {
   readonly corpusManifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json";
   readonly limitations: readonly string[];
   readonly entryCount: number;
+  readonly captureStateRecoveryCount: number;
+  readonly measurementInvocationCount: number;
+  readonly rankedSetOutcomeCount: number;
+  readonly multiCandidateInexactRankedSetCount: number;
+  readonly layerSyntaxFileCount: number;
   readonly rowCount: number;
   readonly recoverableCount: number;
   readonly undecidableCount: number;
@@ -90,6 +125,10 @@ interface RankedSetLossCensusArtifactV0 {
   readonly unclassifiedInvocationCount: number;
   readonly entries: readonly {
     readonly id: string;
+    readonly captureStateRecoveryCount: number;
+    readonly measurementInvocationCount: number;
+    readonly rankedSetOutcomeCount: number;
+    readonly multiCandidateInexactRankedSetCount: number;
     readonly rowCount: number;
     readonly rows: readonly CascadeRankedSetLossCaptureRowV0[];
   }[];
@@ -342,6 +381,10 @@ const manifestPath = path.join(farmRoot, "manifest.json");
 const baselinePath = path.join(farmRoot, "baselines.json");
 const reportPath = path.join(farmRoot, "report.json");
 const rankedSetLossCensusPath = path.join(farmRoot, "ranked-set-loss-census.json");
+const cascadeKeyAxisOrderPath = path.join(
+  repoRoot,
+  "rust/crates/omena-cascade/data/cascade-key-axis-order.json",
+);
 const regressionRoot = path.join(repoRoot, "rust/crates/omena-diff-test/regressions");
 const regressionManifestPath = path.join(regressionRoot, "manifest.json");
 const rawCaptureRoot = process.env.OMENA_OSS_CORPUS_CAPTURE_DIR
@@ -603,11 +646,28 @@ function buildRankedSetLossCensus(
     assert.equal(capture.product, "omena-cascade.ranked-set-loss-capture");
     return {
       id,
+      captureStateRecoveryCount: capture.captureStateRecoveryCount,
+      measurementInvocationCount: capture.measurementInvocationCount,
+      rankedSetOutcomeCount: capture.rankedSetOutcomeCount,
+      multiCandidateInexactRankedSetCount: capture.multiCandidateInexactRankedSetCount,
       rowCount: capture.rows.length,
       rows: capture.rows,
     };
   });
   const rows = entries.flatMap((entry) => entry.rows);
+  const measurementInvocationCount = sum(entries.map((entry) => entry.measurementInvocationCount));
+  const captureStateRecoveryCount = sum(entries.map((entry) => entry.captureStateRecoveryCount));
+  const rankedSetOutcomeCount = sum(entries.map((entry) => entry.rankedSetOutcomeCount));
+  const multiCandidateInexactRankedSetCount = sum(
+    entries.map((entry) => entry.multiCandidateInexactRankedSetCount),
+  );
+  const layerSyntaxFileCount = manifest.fixtures
+    .filter(isLocalLintCensusEntry)
+    .flatMap((entry) =>
+      listWorkspaceCorpusFiles(path.resolve(repoRoot, entry.source.workspacePath)),
+    )
+    .filter((filePath) => /\.(?:css|scss|sass|less)$/u.test(filePath))
+    .filter((filePath) => /@layer\b/u.test(readFileSync(filePath, "utf8"))).length;
   const classCounts = initializedCounts([
     "recoverableAxisDominant",
     "axisWinnerInexact",
@@ -623,14 +683,22 @@ function buildRankedSetLossCensus(
     "transformWinnerEqualityFromCascadeOutcome",
     "unclassified",
   ]);
-  const decidingAxisCounts = initializedCounts(["level", "layerRank", "scopeProximity"]);
+  const cascadeKeyAxisOrder = readJson<CascadeKeyAxisOrderArtifactV0>(cascadeKeyAxisOrderPath);
+  assert.equal(cascadeKeyAxisOrder.schemaVersion, "0");
+  assert.equal(cascadeKeyAxisOrder.product, "omena-cascade.key-axis-order");
+  const decidingAxisCounts = initializedCounts(cascadeKeyAxisOrder.rankedSetPrefixAxisVocabulary);
   for (const row of rows) {
     classCounts[classificationName(row.classification)] += 1;
     functionPopulations[row.function] = (functionPopulations[row.function] ?? 0) + 1;
     invocationSitePopulations[row.invocationSite] =
       (invocationSitePopulations[row.invocationSite] ?? 0) + 1;
     if (typeof row.classification === "object") {
-      decidingAxisCounts[row.classification.recoverableAxisDominant.axis] += 1;
+      const decidingAxis = row.classification.recoverableAxisDominant.axis;
+      assert.ok(
+        Object.hasOwn(decidingAxisCounts, decidingAxis),
+        `ranked-set loss row uses an axis outside the emitted prefix vocabulary: ${decidingAxis}`,
+      );
+      decidingAxisCounts[decidingAxis] += 1;
     }
   }
   const recoverableCount = classCounts.recoverableAxisDominant;
@@ -645,22 +713,44 @@ function buildRankedSetLossCensus(
   );
   const unclassifiedInvocationCount = invocationSitePopulations.unclassified;
   assert.equal(
+    captureStateRecoveryCount,
+    0,
+    "ranked-set capture storage recovery invalidates the bounded census",
+  );
+  assert.equal(
     unclassifiedInvocationCount,
     0,
     "the bounded corpus reached an unclassified cascade invocation site",
   );
+
+  const limitations = [
+    "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
+    "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
+    "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction.",
+    "CascadeAxisPrefixV0::ScopeProximity is retained for 0.x compatibility but is unreachable from the pre-specificity classifier because specificity precedes scope proximity.",
+  ];
+  if (multiCandidateInexactRankedSetCount === 0) {
+    limitations.push(
+      "No multi-candidate inexact RankedSet outcome was observed in the bounded corpus.",
+      "The strict axis-prefix classifier had zero eligible product executions in the bounded corpus.",
+    );
+  }
+  if (layerSyntaxFileCount === 0) {
+    limitations.push("The bounded style corpus contains no @layer declaration or statement.");
+  }
 
   return {
     schemaVersion: "0",
     product: "omena-diff-test.ranked-set-loss-census",
     generatedBy: "scripts/oss-corpus-farm.ts",
     corpusManifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
-    limitations: [
-      "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
-      "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
-      "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction.",
-    ],
+    limitations,
     entryCount: entries.length,
+    captureStateRecoveryCount,
+    measurementInvocationCount,
+    rankedSetOutcomeCount,
+    multiCandidateInexactRankedSetCount,
+    layerSyntaxFileCount,
     rowCount: rows.length,
     recoverableCount,
     undecidableCount,
@@ -675,6 +765,10 @@ function buildRankedSetLossCensus(
 
 function initializedCounts(keys: readonly string[]): Record<string, number> {
   return Object.fromEntries(keys.map((key) => [key, 0]));
+}
+
+function sum(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0);
 }
 
 function classificationName(classification: CascadeRankedSetLossClassV0): string {

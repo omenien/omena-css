@@ -57,10 +57,10 @@
   },
   "current": {
     "qualifiedExecutor": {
-      "totalOccurrences": 20,
+      "totalOccurrences": 23,
       "definitionOccurrences": 3,
       "reexportOccurrences": 6,
-      "testOccurrences": 7,
+      "testOccurrences": 10,
       "otherProductionOccurrences": 2,
       "productOccurrencesByCrate": {
         "omena-query": 2,
@@ -83,11 +83,11 @@
       ]
     },
     "moduleQualifiedSymbols": {
-      "totalOccurrences": 50,
+      "totalOccurrences": 59,
       "definitionOccurrences": 1,
       "reexportOccurrences": 0,
       "testOccurrences": 7,
-      "otherProductionOccurrences": 42,
+      "otherProductionOccurrences": 51,
       "productOccurrencesByCrate": {
         "omena-query": 0,
         "omena-cli": 0,

@@ -88,7 +88,7 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics(
 /// Cascade-aware diagnostics with an explicit opt-in deep-analysis switch. With
 /// `deep_analysis == false` (the default surface) only the product cascade gate
 /// diagnostics are emitted; `deep_analysis == true` additionally surfaces the
-/// rg-flow / categorical theory hints, deduplicated against `circularVar`.
+/// multiscale-complexity-heuristic / categorical theory hints, deduplicated against `circularVar`.
 pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
     style_uri: &str,
     source: &str,

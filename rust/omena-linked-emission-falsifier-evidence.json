@@ -4,9 +4,14 @@
   "limitations": [
     "These records are regenerated from the first repository assertion frame observed while executing each direct perturbation; semantic defect classification remains authored.",
     "Non-executable semantic perturbation names are disclosures only and are not represented as observed firing records.",
-    "Among the 86 executable-but-unobserved sites, source-location inference places 47 after the first-failure line in the same file, 16 before it in the same file, and 23 in a different file. This is not execution tracing: same-file sites are inferred from source-line order, different-file sites are inferred from a file mismatch, and neither inference proves execution order or reachability. linked-emission-gate-017 is guarded by --require-import-graph-winners, which the generated perturbation command does not pass. The following 6 earlier-line committed-artifact sites come from an authored list rather than an execution observation; no site in these three inferred buckets is claimed to have fired."
+    "Among the 89 executable-but-unobserved sites, source-location inference places 26 after the first-failure line in the same file, 16 before it in the same file, and 47 in a different file. This is not execution tracing: same-file sites are inferred from source-line order, different-file sites are inferred from a file mismatch, and neither inference proves execution order or reachability. linked-emission-gate-017 is guarded by --require-import-graph-winners, which the generated perturbation command does not pass. The following 6 earlier-line committed-artifact sites come from an authored list rather than an execution observation; no site in these three inferred buckets is claimed to have fired."
   ],
   "firedSitesByPerturbation": [
+    {
+      "perturbation": "--inject-admission-reference-callgraph-indirection",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-admission-reference-callgraph-indirection",
+      "firedSiteIds": ["closed-world-admission-reference-callgraph"]
+    },
     {
       "perturbation": "--inject-ambiguous-match-count",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-fallback.ts --inject-ambiguous-match-count",
@@ -16,6 +21,51 @@
       "perturbation": "--inject-authored-liveness-flip",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-authored-liveness-flip",
       "firedSiteIds": ["linked-emission-product-run-status"]
+    },
+    {
+      "perturbation": "--inject-bundle-aggregate-field-add",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-aggregate-field-add",
+      "firedSiteIds": ["bundle-execution-aggregate-without-row"]
+    },
+    {
+      "perturbation": "--inject-bundle-carrier-accounting-drop",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-carrier-accounting-drop",
+      "firedSiteIds": ["bundle-execution-carrier-totality"]
+    },
+    {
+      "perturbation": "--inject-bundle-carrier-partition-overlap",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-carrier-partition-overlap",
+      "firedSiteIds": ["bundle-execution-carrier-partition"]
+    },
+    {
+      "perturbation": "--inject-bundle-compat-byte-change",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-compat-byte-change",
+      "firedSiteIds": ["bundle-execution-additive-wire-values"]
+    },
+    {
+      "perturbation": "--inject-bundle-duplicate-byte-authority",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-duplicate-byte-authority",
+      "firedSiteIds": ["bundle-execution-single-byte-authority"]
+    },
+    {
+      "perturbation": "--inject-bundle-fold-row-drop",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-fold-row-drop",
+      "firedSiteIds": ["bundle-execution-aggregate-without-row"]
+    },
+    {
+      "perturbation": "--inject-bundle-legacy-empty",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-legacy-empty",
+      "firedSiteIds": ["bundle-execution-legacy-absence"]
+    },
+    {
+      "perturbation": "--inject-bundle-wire-sample-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-wire-sample-loss",
+      "firedSiteIds": ["bundle-execution-reachable-sample-closure"]
+    },
+    {
+      "perturbation": "--inject-bundle-witness-missing",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-bundle-execution-scope.ts --inject-bundle-witness-missing",
+      "firedSiteIds": ["bundle-execution-fold-witness-resolution"]
     },
     {
       "perturbation": "--inject-collision-expectation-flip",
@@ -28,14 +78,29 @@
       "firedSiteIds": ["linked-emission-product-run-status"]
     },
     {
+      "perturbation": "--inject-composes-admission-matrix-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-composes-admission-matrix-loss",
+      "firedSiteIds": ["closed-world-admission-composes-matrix"]
+    },
+    {
+      "perturbation": "--inject-composes-depth-two-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-composes-depth-two-loss",
+      "firedSiteIds": ["closed-world-admission-composes-depth-two"]
+    },
+    {
       "perturbation": "--inject-composes-liveness-loss",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-composes-liveness-loss",
       "firedSiteIds": ["linked-emission-product-run-status"]
     },
     {
+      "perturbation": "--inject-composes-product-path-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-composes-product-path-loss",
+      "firedSiteIds": ["closed-world-admission-composes-product-path"]
+    },
+    {
       "perturbation": "--inject-cross-module-declaration-loss",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-cross-module-declaration-loss",
-      "firedSiteIds": ["linked-emission-semantic-mismatch-count"]
+      "firedSiteIds": ["linked-emission-product-run-status"]
     },
     {
       "perturbation": "--inject-fallback-reason-drift",
@@ -68,6 +133,16 @@
       "firedSiteIds": ["linked-emission-product-run-status"]
     },
     {
+      "perturbation": "--inject-recorded-module-reachability-absence-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-recorded-module-reachability-absence-loss",
+      "firedSiteIds": ["closed-world-admission-reachability-absence"]
+    },
+    {
+      "perturbation": "--inject-resolution-closure-claim",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-resolution-authority-honesty.ts --inject-resolution-closure-claim",
+      "firedSiteIds": ["resolution-authority-legacy-api-honesty"]
+    },
+    {
       "perturbation": "--inject-unattributed-reference",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-byte-differential.ts --inject-unattributed-reference",
       "firedSiteIds": ["linked-emission-census-baseline-equality"]
@@ -98,6 +173,81 @@
       "siteId": "linked-emission-rust-007",
       "owner": "linked-emission-collision-accounting",
       "reentry": "path-scope-stored-independently"
+    },
+    {
+      "siteId": "resolution-authority-product-fallback-structural",
+      "owner": "resolution-authority-honesty",
+      "reentry": "first-product-producer-under-supplies-a-resolved-edge"
+    },
+    {
+      "siteId": "bundle-execution-fold-row-shape",
+      "owner": "bundle-execution-contract",
+      "reentry": "fold-contract-schema-change"
+    },
+    {
+      "siteId": "bundle-execution-fold-doc-token",
+      "owner": "bundle-execution-contract",
+      "reentry": "aggregate-field-doc-changes"
+    },
+    {
+      "siteId": "bundle-execution-absent-reason-vocabulary",
+      "owner": "bundle-execution-contract",
+      "reentry": "absent-reason-schema-change"
+    },
+    {
+      "siteId": "bundle-execution-no-meaning-fields",
+      "owner": "bundle-execution-contract",
+      "reentry": "producer-gains-bundle-level-meaning"
+    },
+    {
+      "siteId": "bundle-execution-measured-absence-policy",
+      "owner": "bundle-execution-contract",
+      "reentry": "product-divergence-corpus-change"
+    },
+    {
+      "siteId": "bundle-execution-additive-wire-key",
+      "owner": "bundle-execution-contract",
+      "reentry": "scope-evidence-wire-expands"
+    },
+    {
+      "siteId": "bundle-execution-wire-sample-nonempty",
+      "owner": "bundle-execution-contract",
+      "reentry": "sample-registration-representation-changes"
+    },
+    {
+      "siteId": "bundle-execution-wire-sample-product",
+      "owner": "bundle-execution-contract",
+      "reentry": "wire-key-sample-product-expands"
+    },
+    {
+      "siteId": "bundle-execution-client-reachability",
+      "owner": "bundle-execution-contract",
+      "reentry": "public-client-test-shape-changes"
+    },
+    {
+      "siteId": "bundle-execution-nullable-number-wire-shape",
+      "owner": "bundle-execution-contract",
+      "reentry": "nullable-number-wire-representation-changes"
+    },
+    {
+      "siteId": "adapter-batch-accepted-member-count",
+      "owner": "contract-shape-census",
+      "reentry": "adapter-acceptance-protocol-change"
+    },
+    {
+      "siteId": "adapter-batch-accepted-class-count",
+      "owner": "contract-shape-census",
+      "reentry": "adapter-acceptance-protocol-change"
+    },
+    {
+      "siteId": "adapter-batch-member-order",
+      "owner": "contract-shape-census",
+      "reentry": "adapter-acceptance-ordering-change"
+    },
+    {
+      "siteId": "adapter-batch-class-order",
+      "owner": "contract-shape-census",
+      "reentry": "adapter-acceptance-ordering-change"
     }
   ],
   "deadTestAudit": [

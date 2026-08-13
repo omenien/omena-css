@@ -121,6 +121,7 @@ interface RustFlowBlockSnapshotV0 {
     | "terminate"
     | "exit";
   readonly successorBlockIds: readonly string[];
+  readonly boundaryEffect: "concatInsideToken" | "concatAtTokenBoundary" | "unknownBoundary";
   readonly binding?: {
     readonly symbolOrdinal: number;
     readonly name: string;
@@ -368,6 +369,29 @@ const fixtures: readonly FrontendFixtureV0[] = [
       "",
     ].join("\n"),
   },
+  {
+    id: "css-modules-boundary-effects",
+    sourcePath: "/fake/ws/src/BoundaryEffects.tsx",
+    stylePath: "/fake/ws/src/BoundaryEffects.module.scss",
+    selectorNames: ["root", "a", "b"],
+    cfgReferenceToken: "listedBoundary",
+    cfgVariableName: "listedBoundary",
+    source: [
+      'import clsx from "clsx";',
+      'import bind from "classnames/bind";',
+      'import styles from "./BoundaryEffects.module.scss";',
+      "const cx = bind.bind(styles);",
+      "export function BoundaryEffects() {",
+      '  const local = "a";',
+      '  const joinedDefault = ["a", "b"].join();',
+      '  const joinedInside = ["a", "b"].join("");',
+      '  const joinedBoundary = ["a", "b"].join(" ");',
+      '  const listedBoundary = clsx("a", "b");',
+      '  return <div className={clsx(cx("a", local), joinedDefault, joinedInside, joinedBoundary, listedBoundary, styles.root)} />;',
+      "}",
+      "",
+    ].join("\n"),
+  },
 ];
 
 const captures = fixtures.map(captureFixture);
@@ -382,6 +406,31 @@ for (const capture of captures) {
 
 const rustResponse = captureRustSyntax(captures);
 const reports = captures.map((capture) => compareFixture(capture, rustResponse));
+
+const boundaryTs = captures.find((capture) => capture.fixtureId === "css-modules-boundary-effects");
+const boundaryRust = rustResponse.fixtures.find(
+  (capture) => capture.id === "css-modules-boundary-effects",
+);
+assert.ok(boundaryTs?.cfgSnapshot && boundaryRust?.cfgSnapshot, "boundary fixture needs both CFGs");
+for (const [variableName, expected] of [
+  ["joinedDefault", "unknownBoundary"],
+  ["joinedInside", "concatInsideToken"],
+  ["joinedBoundary", "concatAtTokenBoundary"],
+  ["listedBoundary", "concatAtTokenBoundary"],
+] as const) {
+  assert.equal(
+    boundaryTs.cfgSnapshot.snapshot.blocks.find((block) => block.variableName === variableName)
+      ?.boundaryEffect,
+    expected,
+    `TS ${variableName} boundary effect`,
+  );
+  assert.equal(
+    boundaryRust.cfgSnapshot.snapshot.blocks.find((block) => block.variableName === variableName)
+      ?.boundaryEffect,
+    expected,
+    `Rust ${variableName} boundary effect`,
+  );
+}
 
 assert.ok(
   reports.length >= minimumCrossLanguageFixtureCount,
@@ -1113,6 +1162,7 @@ function canonicalCfgBlock(
     id: block.id,
     kind: block.kind,
     transferKind: block.transferKind,
+    boundaryEffect: block.boundaryEffect,
     successorBlockIds: [...block.successorBlockIds],
     ...(block.variableName ? { variableName: block.variableName } : {}),
     ...(block.expressionKind ? { expressionKind: block.expressionKind } : {}),

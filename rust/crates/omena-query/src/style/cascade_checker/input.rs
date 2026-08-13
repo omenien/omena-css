@@ -461,7 +461,7 @@ mod layer_binding_tests {
     use omena_cascade::{
         CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel,
         CascadeStandardValueVerdictV0, CascadeValue, ComputedCascadeValueStatusV0,
-        CustomPropertyEnv, ModuleRank, Specificity, SpecificityExactnessV0,
+        CustomPropertyEnv, OpenWorldTieEvidence, Specificity, SpecificityExactnessV0,
         compute_cascade_computed_value, normalized_layer_rank,
     };
     use omena_query_checker_orchestrator::{
@@ -515,9 +515,9 @@ mod layer_binding_tests {
                     normalized_layer_rank(false, None),
                     0,
                     Specificity::ZERO,
-                    ModuleRank::ZERO,
                     0,
                 ),
+                open_world_tie_evidence: OpenWorldTieEvidence::NONE,
                 specificity_exactness: SpecificityExactnessV0::Exact,
             }],
             custom_property_env: CustomPropertyEnv::new(),

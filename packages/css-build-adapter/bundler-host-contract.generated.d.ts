@@ -69,6 +69,7 @@ export interface OmenaClosedWorldBundleV0 {
   readonly closureHash: string;
   readonly interfaceHashes?: OmenaClosedWorldInterfaceHashSetV0;
   readonly sourcePrecision?: OmenaClosedWorldSourcePrecisionSummaryV0;
+  readonly composesEdges?: readonly OmenaClosedWorldComposesEdgeV0[];
 }
 export interface OmenaModuleInstanceKeyV0 {
   readonly module: string;
@@ -109,6 +110,12 @@ export interface OmenaClosedWorldSourcePrecisionSummaryV0 {
   readonly conservativeSourceCount: number;
   readonly heuristicSourceCount: number;
   readonly unknownSourceCount: number;
+}
+export interface OmenaClosedWorldComposesEdgeV0 {
+  readonly fromModule: OmenaModuleInstanceKeyV0;
+  readonly fromSymbol: string;
+  readonly toModule: OmenaModuleInstanceKeyV0;
+  readonly toSymbol: string;
 }
 export interface OmenaClosedWorldOpenOutcomeV0 {
   readonly status: "open";

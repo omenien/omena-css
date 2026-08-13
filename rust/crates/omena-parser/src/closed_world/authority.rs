@@ -3,9 +3,11 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use super::contract::{
-    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
-    ClosedWorldInterfaceHashEntryV0, ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0,
-    ClosedWorldModuleMetadataV0, ClosedWorldReachabilityBitsetParityReportV0,
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleEvidenceV0, ClosedWorldBundleV0,
+    ClosedWorldComposesEdgeV0, ClosedWorldComposesScanStateV0,
+    ClosedWorldInterfaceHashAvailabilityV0, ClosedWorldInterfaceHashEntryV0,
+    ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0, ClosedWorldModuleMetadataV0,
+    ClosedWorldModuleReachabilityEvidenceV0, ClosedWorldReachabilityBitsetParityReportV0,
     ClosedWorldSourcePrecisionSummaryV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0,
     ReachabilityIndexV0,
 };
@@ -42,6 +44,24 @@ impl ClosedWorldBundleV0 {
             interface_hashes_for_reachable_modules(&linked_modules, &metadata_by_instance);
         let source_precision =
             source_precision_for_reachable_modules(&linked_modules, &metadata_by_instance);
+        let module_reachability_evidence =
+            module_reachability_evidence_for_modules(&by_instance, &metadata_by_instance);
+        let composes_edges = composes_edges_for_workspace_modules(&by_instance);
+        let composes_scan_state =
+            composes_scan_state_for_workspace_modules(&by_instance, &metadata_by_instance);
+        let composes_edge_observation_count = by_instance
+            .values()
+            .map(|module| module.composes_edge_observation_count)
+            .sum();
+        let composes_origin_class_names = by_instance
+            .iter()
+            .map(|(instance, module)| {
+                (
+                    instance.clone(),
+                    dedupe_symbol_names(module.class_names.as_slice()),
+                )
+            })
+            .collect();
         let closure_hash = stable_closure_hash(entrypoints.as_slice(), &by_instance, &reachability);
         #[cfg(feature = "test-support")]
         crate::record_closed_world_bundle_construction_for_test();
@@ -51,10 +71,74 @@ impl ClosedWorldBundleV0 {
             linked_modules,
             reachability,
             closure_hash,
-            interface_hashes,
-            source_precision,
+            ClosedWorldBundleEvidenceV0 {
+                interface_hashes,
+                source_precision,
+                composes_edges,
+                composes_scan_state,
+                composes_edge_observation_count,
+                composes_origin_class_names,
+                module_reachability_evidence,
+            },
         ))
     }
+}
+
+fn composes_scan_state_for_workspace_modules(
+    by_instance: &BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>,
+    metadata_by_instance: &BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleMetadataV0>,
+) -> ClosedWorldComposesScanStateV0 {
+    if by_instance.keys().all(|instance| {
+        metadata_by_instance.get(instance).is_some_and(|metadata| {
+            metadata.composes_scan_state() == ClosedWorldComposesScanStateV0::ScannedClosed
+        })
+    }) {
+        ClosedWorldComposesScanStateV0::ScannedClosed
+    } else {
+        ClosedWorldComposesScanStateV0::SourceSetOpen
+    }
+}
+
+fn composes_edges_for_workspace_modules(
+    by_instance: &BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>,
+) -> Vec<ClosedWorldComposesEdgeV0> {
+    let mut edges = by_instance
+        .values()
+        .flat_map(|module| module.composes_edges.iter().cloned())
+        .collect::<Vec<_>>();
+    edges.sort_by(|left, right| {
+        (
+            &left.from_module,
+            &left.from_symbol,
+            &left.to_module,
+            &left.to_symbol,
+        )
+            .cmp(&(
+                &right.from_module,
+                &right.from_symbol,
+                &right.to_module,
+                &right.to_symbol,
+            ))
+    });
+    edges.dedup();
+    edges
+}
+
+fn module_reachability_evidence_for_modules(
+    by_instance: &BTreeMap<ModuleInstanceKeyV0, ClosedWorldLinkedModuleV0>,
+    metadata_by_instance: &BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleMetadataV0>,
+) -> BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0> {
+    by_instance
+        .keys()
+        .cloned()
+        .map(|instance| {
+            let evidence = metadata_by_instance
+                .get(&instance)
+                .map(ClosedWorldModuleMetadataV0::reachability_evidence)
+                .unwrap_or_default();
+            (instance, evidence)
+        })
+        .collect()
 }
 
 fn interface_hashes_for_reachable_modules(
@@ -384,6 +468,13 @@ fn stable_closure_hash(
                 hash.instance(dependency);
             }
         }
+    }
+    for edge in composes_edges_for_workspace_modules(by_instance) {
+        hash.piece("composes");
+        hash.instance(&edge.from_module);
+        hash.piece(&edge.from_symbol);
+        hash.instance(&edge.to_module);
+        hash.piece(&edge.to_symbol);
     }
     for name in reachability.class_names() {
         hash.piece("class");

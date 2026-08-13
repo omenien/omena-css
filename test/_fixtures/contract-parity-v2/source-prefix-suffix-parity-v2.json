@@ -5,47 +5,47 @@
         "bindingGraph": {
           "declarations": [
             {
-              "id": "decl:0",
+              "id": "rust-decl:import:classNames:7:17:classnames/bind",
               "kind": "import",
               "name": "classNames"
             },
             {
-              "id": "decl:1",
+              "id": "rust-decl:import:styles:49:55:./SourcePrefixSuffixParity.module.scss",
               "kind": "import",
               "name": "styles"
             },
             {
-              "id": "decl:2",
+              "id": "rust-decl:localVar:className:209:218:",
+              "kind": "localVar",
+              "name": "className"
+            },
+            {
+              "id": "rust-decl:localVar:cx:110:112:",
               "kind": "localVar",
               "name": "cx"
             },
             {
-              "id": "decl:3",
+              "id": "rust-decl:localVar:SourcePrefixSuffixParity:157:181:",
               "kind": "localVar",
               "name": "SourcePrefixSuffixParity"
             },
             {
-              "id": "decl:4",
+              "id": "rust-decl:parameter:variant:182:189:",
               "kind": "parameter",
               "name": "variant"
-            },
-            {
-              "id": "decl:5",
-              "kind": "localVar",
-              "name": "className"
             }
           ],
           "resolutions": [
             {
-              "declarationId": "decl:5",
-              "expressionId": "class-expr:0"
+              "declarationId": "rust-decl:localVar:className:209:218:",
+              "expressionId": "expression:rust-expression:symbolRef:7:28:7:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss"
             }
           ]
         },
         "document": {
           "classExpressions": [
             {
-              "id": "class-expr:0",
+              "id": "expression:rust-expression:symbolRef:7:28:7:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
               "kind": "symbolRef",
               "origin": "cxCall",
               "pathSegments": [],
@@ -60,18 +60,19 @@
                 }
               },
               "rawReference": "className",
-              "rootBindingDeclId": "decl:5",
+              "rootBindingDeclId": "rust-decl:localVar:className:209:218:",
               "rootName": "className",
               "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss"
             }
           ],
+          "domainClassReferences": [],
           "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
           "kind": "source",
           "language": "typescriptreact",
           "styleImports": [
             {
-              "bindingDeclId": "decl:1",
-              "id": "style-import:0",
+              "bindingDeclId": "rust-decl:import:styles:49:55:./SourcePrefixSuffixParity.module.scss",
+              "id": "styleImport:rust-style-import:styles:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
               "kind": "styleImport",
               "localName": "styles",
               "resolved": {
@@ -82,9 +83,9 @@
           ],
           "utilityBindings": [
             {
-              "bindingDeclId": "decl:2",
+              "bindingDeclId": "rust-decl:localVar:cx:110:112:",
               "classNamesImportName": "classNames",
-              "id": "utility-binding:cx:0",
+              "id": "utilityBinding:rust-utility:classnamesBind:cx:styles:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
               "kind": "classnamesBind",
               "localName": "cx",
               "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
@@ -99,9 +100,14 @@
       {
         "document": {
           "animationNameRefs": [],
+          "customPropertyDecls": [],
+          "customPropertyRefs": [],
           "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
           "keyframes": [],
           "kind": "style",
+          "sassModuleForwards": [],
+          "sassModuleMemberRefs": [],
+          "sassModuleUses": [],
           "sassSymbolDecls": [],
           "sassSymbols": [],
           "selectors": [
@@ -208,7 +214,43 @@
     ],
     "typeFacts": [
       {
-        "expressionId": "class-expr:0",
+        "controlFlowGraph": {
+          "blocks": [
+            {
+              "id": "entry",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "entry",
+              "successorBlockIds": ["assignment:0"],
+              "transferKind": "entry"
+            },
+            {
+              "facts": {
+                "constraintKind": "prefixSuffix",
+                "kind": "constrained",
+                "minLen": 9,
+                "prefix": "btn-",
+                "provenance": "concatKnownEdges",
+                "suffix": "-chip"
+              },
+              "id": "assignment:0",
+              "boundaryEffect": "concatInsideToken",
+              "kind": "assignment",
+              "successorBlockIds": ["exit"],
+              "symbolOrdinal": 5,
+              "transferKind": "concatFacts",
+              "variableName": "className"
+            },
+            {
+              "id": "exit",
+              "boundaryEffect": "unknownBoundary",
+              "kind": "exit",
+              "successorBlockIds": [],
+              "transferKind": "exit"
+            }
+          ],
+          "entryBlockId": "entry"
+        },
+        "expressionId": "expression:rust-expression:symbolRef:7:28:7:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
         "facts": {
           "kind": "unknown"
         },
@@ -240,7 +282,7 @@
           "canonicalName": "btn-busy-chip",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -256,7 +298,7 @@
           "canonicalName": "btn-error-chip",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -272,7 +314,7 @@
           "canonicalName": "btn-idle-chip",
           "directReferenceCount": 0,
           "editableDirectReferenceCount": 0,
-          "exactReferenceCount": 1,
+          "exactReferenceCount": 0,
           "hasAnyReferences": true,
           "hasExpandedReferences": true,
           "hasStyleDependencyReferences": false,
@@ -286,13 +328,15 @@
         "kind": "expression-semantics",
         "payload": {
           "candidateNames": ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
-          "expressionId": "class-expr:0",
+          "expressionId": "expression:rust-expression:symbolRef:7:28:7:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
           "expressionKind": "symbolRef",
           "finiteValues": null,
-          "reason": "flowLiteral",
-          "selectorCertainty": "exact",
-          "selectorCertaintyShapeKind": "exact",
-          "selectorCertaintyShapeLabel": "exact",
+          "reason": "flowBranch",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "known prefix and suffix were preserved across concatenation",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained edge selector set (3)",
+          "selectorConstraintKind": "prefixSuffix",
           "selectorNames": ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
           "valueCertainty": "inferred",
@@ -301,24 +345,84 @@
           "valueCertaintyShapeKind": "constrained",
           "valueCertaintyShapeLabel": "constrained prefix `btn-` + suffix `-chip`",
           "valueConstraintKind": "prefixSuffix",
+          "valueDomainDerivation": {
+            "inputConstraintKind": "prefixSuffix",
+            "inputFactKind": "constrained",
+            "inputValueCount": 0,
+            "product": "omena-abstract-value.reduced-class-value-derivation",
+            "reducedKind": "constrained",
+            "schemaVersion": "0",
+            "steps": [
+              {
+                "operation": "baseFromFacts",
+                "reason": "preserved reduced string constraint facts",
+                "resultKind": "prefixSuffix",
+                "resultProvenance": "concatKnownEdges"
+              }
+            ]
+          },
           "valueDomainKind": "constrained",
+          "valueDomainProvenanceTree": {
+            "product": "omena-abstract-value.provenance-tree",
+            "root": {
+              "children": [
+                {
+                  "children": [],
+                  "detail": "prefix=btn-",
+                  "operation": "prefixConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "suffix=-chip",
+                  "operation": "suffixConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                },
+                {
+                  "children": [],
+                  "detail": "minLength=9",
+                  "operation": "lengthConstraint",
+                  "reason": "constraint retained by the abstract value domain",
+                  "resultKind": "constraint"
+                }
+              ],
+              "operation": "reducedProductConcat",
+              "reason": "reduced product concatenated compatible constraints without widening to top",
+              "resultKind": "prefixSuffix",
+              "resultProvenance": "concatKnownEdges"
+            },
+            "schemaVersion": "0",
+            "value": {
+              "kind": "prefixSuffix",
+              "minLength": 9,
+              "prefix": "btn-",
+              "provenance": "concatKnownEdges",
+              "suffix": "-chip"
+            },
+            "valueKind": "prefixSuffix",
+            "valueProvenance": "concatKnownEdges"
+          },
           "valueDomainReason": "known prefix and suffix were preserved across concatenation",
           "valueMinLen": 9,
           "valuePrefix": "btn-",
           "valueSuffix": "-chip"
         },
-        "queryId": "class-expr:0"
+        "queryId": "expression:rust-expression:symbolRef:7:28:7:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss"
       },
       {
         "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
         "kind": "source-expression-resolution",
         "payload": {
-          "expressionId": "class-expr:0",
+          "expressionId": "expression:rust-expression:symbolRef:7:28:7:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
           "finiteValues": null,
-          "reason": "flowLiteral",
-          "selectorCertainty": "exact",
-          "selectorCertaintyShapeKind": "exact",
-          "selectorCertaintyShapeLabel": "exact",
+          "reason": "flowBranch",
+          "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "known prefix and suffix were preserved across concatenation",
+          "selectorCertaintyShapeKind": "constrained",
+          "selectorCertaintyShapeLabel": "constrained edge selector set (3)",
+          "selectorConstraintKind": "prefixSuffix",
           "selectorNames": ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
           "valueCertainty": "inferred",
@@ -330,7 +434,7 @@
           "valuePrefix": "btn-",
           "valueSuffix": "-chip"
         },
-        "queryId": "class-expr:0"
+        "queryId": "expression:rust-expression:symbolRef:7:28:7:37:<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss"
       }
     ],
     "rewritePlans": [],

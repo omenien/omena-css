@@ -1331,7 +1331,7 @@ fn starts_with_css_function_name(text: &str, index: usize, name: &str) -> bool {
 }
 
 fn css_function_name_codepoint(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+    omena_syntax::ident::is_ascii_word_continue(ch)
 }
 
 fn rewrite_local_composes_value(
@@ -1516,9 +1516,18 @@ fn rewritten_class_name_for<'a>(
     class_name: &str,
     rewrites: &'a [TransformClassNameRewriteV0],
 ) -> Option<&'a str> {
-    rewrites.iter().find_map(|rewrite| {
-        let original_name = normalize_reachable_class_name(&rewrite.original_name)?;
-        let rewritten_name = normalize_reachable_class_name(&rewrite.rewritten_name)?;
-        css_identifier_names_match(original_name, class_name).then_some(rewritten_name)
-    })
+    rewrites
+        .iter()
+        .find_map(|rewrite| {
+            let original_name = normalize_reachable_class_name(&rewrite.original_name)?;
+            let rewritten_name = normalize_reachable_class_name(&rewrite.rewritten_name)?;
+            (original_name == class_name).then_some(rewritten_name)
+        })
+        .or_else(|| {
+            rewrites.iter().find_map(|rewrite| {
+                let original_name = normalize_reachable_class_name(&rewrite.original_name)?;
+                let rewritten_name = normalize_reachable_class_name(&rewrite.rewritten_name)?;
+                css_identifier_names_match(original_name, class_name).then_some(rewritten_name)
+            })
+        })
 }
