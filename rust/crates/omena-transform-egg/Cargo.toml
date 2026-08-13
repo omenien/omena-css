@@ -25,6 +25,7 @@ mdl = []
 
 [dependencies]
 egg.workspace = true
+omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.3.0" }
 omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.3.0" }
 omena-lawvere = { path = "../omena-lawvere", version = "=0.3.0", optional = true }
 omena-parser = { path = "../omena-parser", version = "=0.3.0" }

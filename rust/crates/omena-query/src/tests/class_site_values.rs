@@ -99,6 +99,49 @@ fn class_site_plane_matches_authored_sites_with_and_without_type_facts()
     assert!(guarded_map.is_may(&active));
     assert!(!guarded_map.is_must(&active));
 
+    for (site_text, unconditional, conditional, guard) in [
+        (
+            "className={clsx(\"a\", flag && \"b\")}",
+            Some("a"),
+            "b",
+            "flag",
+        ),
+        ("className={flag && \"x\"}", None, "x", "flag"),
+        (
+            "className={clsx(\"d\", flag ? \"e\" : undefined)}",
+            Some("d"),
+            "e",
+            "flag",
+        ),
+    ] {
+        let site = actual_by_site[site_text];
+        let provenance = site
+            .token_provenance
+            .iter()
+            .find(|provenance| provenance.token.as_str() == conditional)
+            .ok_or_else(|| std::io::Error::other("conditional token provenance"))?;
+        assert_eq!(
+            provenance.guard_conditions,
+            [guard],
+            "S4 guard atom for {site_text}"
+        );
+        let map = build_omena_query_guarded_token_map_for_site(site)?;
+        let conditional = super::super::GuardedTokenLanguageV0::concrete(conditional);
+        assert!(
+            map.is_may(&conditional),
+            "conditional token for {site_text}"
+        );
+        assert!(!map.is_must(&conditional), "guarded token for {site_text}");
+        if let Some(unconditional) = unconditional {
+            assert!(
+                map.is_must(&super::super::GuardedTokenLanguageV0::concrete(
+                    unconditional
+                )),
+                "unconditional sibling for {site_text}"
+            );
+        }
+    }
+
     let static_site = actual_by_site[&"className=\"root root\""];
     let static_map = build_omena_query_guarded_token_map_for_site(static_site)?;
     let root = super::super::GuardedTokenLanguageV0::concrete("root");
@@ -171,6 +214,43 @@ fn class_site_plane_matches_authored_sites_with_and_without_type_facts()
     Ok(())
 }
 
+#[test]
+fn conditional_class_contributions_are_may_only_and_keep_unconditional_siblings()
+-> Result<(), Box<dyn std::error::Error>> {
+    let sites = resolve_omena_query_class_site_values_for_source(
+        "test/_fixtures/guarded-token-map/ClassSitePlane.tsx",
+        FIXTURE_SOURCE,
+        Some("typescriptreact"),
+    );
+    let sites = sites_by_source_text(FIXTURE_SOURCE, &sites)?;
+    let actual = [
+        "className={clsx(\"a\", flag && \"b\")}",
+        "className={flag && \"x\"}",
+        "className={clsx(\"d\", flag ? \"e\" : undefined)}",
+    ]
+    .map(|site_text| {
+        let (must, may) = support_labels(sites[site_text]);
+        (site_text, must, may)
+    });
+    assert_eq!(
+        actual,
+        [
+            (
+                "className={clsx(\"a\", flag && \"b\")}",
+                vec!["a"],
+                vec!["a", "b"],
+            ),
+            ("className={flag && \"x\"}", vec![], vec!["x"]),
+            (
+                "className={clsx(\"d\", flag ? \"e\" : undefined)}",
+                vec!["d"],
+                vec!["d", "e"],
+            ),
+        ]
+    );
+    Ok(())
+}
+
 fn sites_by_source_text<'a>(
     source: &'a str,
     sites: &'a [OmenaQueryClassSiteValueV0],
@@ -192,8 +272,13 @@ fn assert_support(
     expected_may: &[String],
     label: &str,
 ) {
-    let (actual_must, actual_may) = site
-        .support
+    let (actual_must, actual_may) = support_labels(site);
+    assert_eq!(actual_must, expected_must, "must support for {label}");
+    assert_eq!(actual_may, expected_may, "may support for {label}");
+}
+
+fn support_labels(site: &OmenaQueryClassSiteValueV0) -> (Vec<&str>, Vec<&str>) {
+    site.support
         .as_ref()
         .map(|support| {
             (
@@ -209,7 +294,5 @@ fn assert_support(
                     .collect::<Vec<_>>(),
             )
         })
-        .unwrap_or_default();
-    assert_eq!(actual_must, expected_must, "must support for {label}");
-    assert_eq!(actual_may, expected_may, "may support for {label}");
+        .unwrap_or_default()
 }

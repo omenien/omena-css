@@ -103,6 +103,13 @@
       "scopeProximitySource": "generatedValue"
     },
     {
+      "path": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
+      "symbol": "cascade_key_from_certificate_v0",
+      "occurrence": 1,
+      "disposition": "callerSuppliedBoundary",
+      "scopeProximitySource": "callerSupplied"
+    },
+    {
       "path": "rust/crates/omena-categorical/src/lib.rs",
       "symbol": "omega_color_declaration",
       "occurrence": 1,

@@ -16,10 +16,29 @@ use omena_transform_cst::{
 };
 use serde::Serialize;
 
+mod independence;
+
+pub use independence::{
+    TransformCatalogDescriptorEdgeJustificationV0, TransformCatalogIndependenceDataV0,
+    TransformCatalogIndependenceDispositionV0, TransformCatalogIndependenceEntryV0,
+    TransformCatalogIndependenceErrorV0, TransformCatalogIndependenceJustificationV0,
+    TransformCatalogIndependenceObservationRowV0, TransformCatalogObservationProfileDataV0,
+    TransformCatalogScheduleEquivalenceV0, canonicalize_transform_catalog_schedule_v0,
+    default_transform_catalog_independence_data_v0, transform_catalog_independence_layers_v0,
+    transform_catalog_passes_are_independent_v0, transform_catalog_schedules_equivalent_v0,
+    validate_transform_catalog_independence_data_v0,
+};
+use independence::{
+    adjacent_schedule_pair_term_v0, checked_adjacent_swap_token_v0,
+    transform_catalog_independence_layers_from_data_v0,
+};
+
 pub const TRANSFORM_CATALOG_SCHEMA_VERSION_V0: &str = "css-transform-catalog-v0";
 pub const TRANSFORM_CATALOG_MECHANISM_SCOPE_V0: &str = "featureGatedDifferentialWitnessSubstrate";
 pub const TRANSFORM_CATALOG_PRODUCT_PATH_EVIDENCE_READY_V0: bool = false;
 pub const TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0: bool = false;
+pub const TRANSFORM_CATALOG_PLAN_NON_CONSUMPTION_REASON_V0: &str =
+    "executorKeepsValidatedSerialDagUntilParallelApplicationSemanticsLand";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,10 +151,30 @@ pub struct ReorderabilityCertificateV0 {
     pub specificity_preserved: bool,
     #[serde(skip_serializing)]
     obligation_family: ObligationFamilyIdV0,
+    #[serde(skip_serializing)]
+    issuance_token: Option<omena_cascade_proof::RewriteIssuanceTokenV0>,
     pub computed_value_preserved: bool,
     pub provenance_preserved: bool,
     pub cascade_safe_witness: String,
     pub accepted: bool,
+}
+
+impl ReorderabilityCertificateV0 {
+    pub fn has_checked_issuance_token_v0(&self) -> bool {
+        self.issuance_token.is_some()
+    }
+
+    pub fn issuance_token_matches_pair_v0(
+        &self,
+        left: TransformPassKind,
+        right: TransformPassKind,
+    ) -> bool {
+        let before = adjacent_schedule_pair_term_v0(left, right);
+        let after = adjacent_schedule_pair_term_v0(right, left);
+        self.issuance_token
+            .as_ref()
+            .is_some_and(|token| token.matches_endpoints_v0(&before, &after))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -430,7 +469,56 @@ pub fn transform_catalog_equation_clusters_v0(
         .collect()
 }
 
-pub fn plan_transform_catalog_parallel_layers_v0(
+fn transform_catalog_independence_clusters_v0(
+    requested: &[TransformPassKind],
+) -> Vec<TransformCatalogEquationClusterV0> {
+    let generators = requested
+        .iter()
+        .copied()
+        .filter(|kind| {
+            transform_catalog_catalog_role_v0(*kind) == TransformCatalogRoleV0::Generator
+        })
+        .collect::<Vec<_>>();
+    let layers = default_transform_catalog_independence_data_v0().map_or_else(
+        |_| generators.iter().copied().map(|kind| vec![kind]).collect(),
+        |data| transform_catalog_independence_layers_from_data_v0(&generators, &data),
+    );
+    layers
+        .into_iter()
+        .enumerate()
+        .map(|(layer_index, layer)| {
+            let pass_ids = layer.iter().map(|kind| kind.id()).collect::<Vec<_>>();
+            let generator_count = pass_ids.len();
+            TransformCatalogEquationClusterV0 {
+                schema_version: "0",
+                product: "omena-lawvere.independence-layer",
+                layer_marker: "enriched-algebraic",
+                feature_gate: "transform-catalog-saturation",
+                execution_rank_hint: u32::try_from(layer_index).unwrap_or(u32::MAX),
+                pass_ids,
+                generator_count,
+                saturation_budget_tier: budget_tier_for_cluster_size(generator_count),
+                theory_version: TRANSFORM_CATALOG_SCHEMA_VERSION_V0,
+            }
+        })
+        .collect()
+}
+
+fn transform_catalog_independence_clusters_from_pass_ids_v0(
+    pass_ids: &[&'static str],
+) -> Vec<TransformCatalogEquationClusterV0> {
+    let requested = pass_ids
+        .iter()
+        .filter_map(|pass_id| {
+            all_transform_pass_kinds()
+                .into_iter()
+                .find(|kind| kind.id() == *pass_id)
+        })
+        .collect::<Vec<_>>();
+    transform_catalog_independence_clusters_v0(&requested)
+}
+
+fn legacy_plan_transform_catalog_parallel_layers_v0(
     requested: &[TransformPassKind],
 ) -> TransformCatalogTransformPassParallelPlanV0 {
     let requested_pass_ids = requested.iter().map(|kind| kind.id()).collect::<Vec<_>>();
@@ -450,7 +538,7 @@ pub fn plan_transform_catalog_parallel_layers_v0(
     }
 }
 
-pub fn trace_transform_catalog_model_v0(
+fn legacy_trace_transform_catalog_model_v0(
     requested: &[TransformPassKind],
     ordered_pass_ids: Vec<&'static str>,
 ) -> TransformCatalogModelTraceV0 {
@@ -472,10 +560,58 @@ pub fn trace_transform_catalog_model_v0(
     }
 }
 
+pub fn plan_transform_catalog_parallel_layers_v0(
+    requested: &[TransformPassKind],
+) -> TransformCatalogTransformPassParallelPlanV0 {
+    let requested_pass_ids = requested.iter().map(|kind| kind.id()).collect::<Vec<_>>();
+    TransformCatalogTransformPassParallelPlanV0 {
+        schema_version: "0",
+        product: "omena-lawvere.transform-pass-parallel-plan",
+        layer_marker: "enriched-algebraic",
+        feature_gate: "transform-catalog-saturation",
+        mechanism_scope: TRANSFORM_CATALOG_MECHANISM_SCOPE_V0,
+        product_path_evidence_ready: TRANSFORM_CATALOG_PRODUCT_PATH_EVIDENCE_READY_V0,
+        global_transform_theorem_claimed: TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0,
+        scheduler_status: "independenceDataReady",
+        requested_pass_ids: requested_pass_ids.clone(),
+        terminal_pass_ids: terminal_pass_ids_from_pass_kinds(requested),
+        rank_clusters: transform_catalog_independence_clusters_v0(requested),
+        executor_consumes_plan: false,
+    }
+}
+
+pub fn trace_transform_catalog_model_v0(
+    requested: &[TransformPassKind],
+    ordered_pass_ids: Vec<&'static str>,
+) -> TransformCatalogModelTraceV0 {
+    let input_pass_ids = requested.iter().map(|kind| kind.id()).collect::<Vec<_>>();
+    TransformCatalogModelTraceV0 {
+        schema_version: "0",
+        product: "omena-lawvere.model-trace",
+        layer_marker: "enriched-algebraic",
+        feature_gate: "transform-catalog-saturation",
+        mechanism_scope: TRANSFORM_CATALOG_MECHANISM_SCOPE_V0,
+        product_path_evidence_ready: TRANSFORM_CATALOG_PRODUCT_PATH_EVIDENCE_READY_V0,
+        global_transform_theorem_claimed: TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0,
+        theory_version: TRANSFORM_CATALOG_SCHEMA_VERSION_V0,
+        rank_clusters: transform_catalog_independence_clusters_from_pass_ids_v0(
+            ordered_pass_ids.as_slice(),
+        ),
+        input_pass_ids,
+        terminal_pass_ids: terminal_pass_ids_from_pass_ids(ordered_pass_ids.as_slice()),
+        ordered_pass_ids,
+        preserves_existing_executor_signature: true,
+    }
+}
+
 pub fn transform_catalog_reorderability_certificate_v0(
     left: TransformPassKind,
     right: TransformPassKind,
 ) -> ReorderabilityCertificateV0 {
+    let issuance_token = default_transform_catalog_independence_data_v0()
+        .ok()
+        .and_then(|data| checked_adjacent_swap_token_v0(left, right, &data).ok());
+    let accepted = issuance_token.is_some();
     ReorderabilityCertificateV0 {
         schema_version: "0",
         product: "omena-lawvere.reorderability-certificate",
@@ -488,21 +624,25 @@ pub fn transform_catalog_reorderability_certificate_v0(
         right_pass_id: right.id(),
         theory_version: TRANSFORM_CATALOG_SCHEMA_VERSION_V0,
         differential_tier: budget_tier_for_cluster_size(2),
-        commute_witness: "requiresDifferentialCommutativityWitness",
+        commute_witness: if accepted {
+            "checkedRewriteCertificate"
+        } else {
+            "requiresCheckedIndependenceCertificate"
+        },
         differential_fixture_count: 0,
         differential_equal_fixture_count: 0,
         differential_mismatch_count: 0,
-        specificity_preserved: false,
-        obligation_family: ObligationFamilyIdV0::CascadeSafetyFloor,
-        computed_value_preserved: ObligationFamilyIdV0::CascadeSafetyFloor
-            .preserves_computed_value(),
-        provenance_preserved: false,
+        specificity_preserved: accepted,
+        obligation_family: ObligationFamilyIdV0::from_computed_value_preservation(accepted),
+        issuance_token,
+        computed_value_preserved: accepted,
+        provenance_preserved: accepted,
         cascade_safe_witness: format!(
             "{}:{}",
             cascade_safe_obligation(left),
             cascade_safe_obligation(right)
         ),
-        accepted: false,
+        accepted,
     }
 }
 
@@ -540,6 +680,64 @@ pub fn transform_catalog_reorderability_certificate_from_differential_v0(
     witness: &TransformCatalogDifferentialCommutativityWitnessV0,
 ) -> ReorderabilityCertificateV0 {
     let mut certificate = transform_catalog_reorderability_certificate_v0(left, right);
+    certificate.commute_witness = if certificate.accepted {
+        "checkedRewriteCertificateWithDifferentialSearch"
+    } else {
+        "requiresCheckedIndependenceCertificate"
+    };
+    certificate.differential_fixture_count = witness.fixture_count;
+    certificate.differential_equal_fixture_count = witness.equal_fixture_count;
+    certificate.differential_mismatch_count = witness.mismatch_count;
+    certificate.accepted &= witness.accepted;
+    certificate.specificity_preserved = certificate.accepted;
+    certificate.obligation_family =
+        ObligationFamilyIdV0::from_computed_value_preservation(certificate.accepted);
+    certificate.computed_value_preserved = certificate.obligation_family.preserves_computed_value();
+    certificate.provenance_preserved = certificate.accepted;
+    certificate
+}
+
+fn legacy_transform_catalog_reorderability_certificate_v0(
+    left: TransformPassKind,
+    right: TransformPassKind,
+) -> ReorderabilityCertificateV0 {
+    ReorderabilityCertificateV0 {
+        schema_version: "0",
+        product: "omena-lawvere.reorderability-certificate",
+        layer_marker: "enriched-algebraic",
+        feature_gate: "transform-catalog-saturation",
+        mechanism_scope: TRANSFORM_CATALOG_MECHANISM_SCOPE_V0,
+        product_path_evidence_ready: TRANSFORM_CATALOG_PRODUCT_PATH_EVIDENCE_READY_V0,
+        global_transform_theorem_claimed: TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0,
+        left_pass_id: left.id(),
+        right_pass_id: right.id(),
+        theory_version: TRANSFORM_CATALOG_SCHEMA_VERSION_V0,
+        differential_tier: budget_tier_for_cluster_size(2),
+        commute_witness: "requiresDifferentialCommutativityWitness",
+        differential_fixture_count: 0,
+        differential_equal_fixture_count: 0,
+        differential_mismatch_count: 0,
+        specificity_preserved: false,
+        obligation_family: ObligationFamilyIdV0::CascadeSafetyFloor,
+        issuance_token: None,
+        computed_value_preserved: ObligationFamilyIdV0::CascadeSafetyFloor
+            .preserves_computed_value(),
+        provenance_preserved: false,
+        cascade_safe_witness: format!(
+            "{}:{}",
+            cascade_safe_obligation(left),
+            cascade_safe_obligation(right)
+        ),
+        accepted: false,
+    }
+}
+
+fn legacy_transform_catalog_reorderability_certificate_from_differential_v0(
+    left: TransformPassKind,
+    right: TransformPassKind,
+    witness: &TransformCatalogDifferentialCommutativityWitnessV0,
+) -> ReorderabilityCertificateV0 {
+    let mut certificate = legacy_transform_catalog_reorderability_certificate_v0(left, right);
     certificate.commute_witness = "differentialCommutativityCorpus";
     certificate.differential_fixture_count = witness.fixture_count;
     certificate.differential_equal_fixture_count = witness.equal_fixture_count;
@@ -1416,7 +1614,7 @@ pub fn plan_transform_pass_parallel_layers_v0(
     requested: &[TransformPassKind],
 ) -> TransformPassParallelPlanV0 {
     into_transform_pass_parallel_plan_v0(restore_legacy_parallel_plan_v0(
-        plan_transform_catalog_parallel_layers_v0(requested),
+        legacy_plan_transform_catalog_parallel_layers_v0(requested),
     ))
 }
 
@@ -1430,7 +1628,7 @@ pub fn trace_lawvere_model_v0(
     ordered_pass_ids: Vec<&'static str>,
 ) -> LawvereModelTraceV0 {
     into_lawvere_model_trace_v0(restore_legacy_model_trace_v0(
-        trace_transform_catalog_model_v0(requested, ordered_pass_ids),
+        legacy_trace_transform_catalog_model_v0(requested, ordered_pass_ids),
     ))
 }
 
@@ -1443,9 +1641,9 @@ pub fn reorderability_certificate_v0(
     left: TransformPassKind,
     right: TransformPassKind,
 ) -> ReorderabilityCertificateV0 {
-    restore_legacy_reorderability_certificate_v0(transform_catalog_reorderability_certificate_v0(
-        left, right,
-    ))
+    restore_legacy_reorderability_certificate_v0(
+        legacy_transform_catalog_reorderability_certificate_v0(left, right),
+    )
 }
 
 #[allow(deprecated)]
@@ -1479,7 +1677,7 @@ pub fn reorderability_certificate_from_differential_v0(
 ) -> ReorderabilityCertificateV0 {
     let canonical_witness = from_lawvere_witness_v0(witness.clone());
     restore_legacy_reorderability_certificate_v0(
-        transform_catalog_reorderability_certificate_from_differential_v0(
+        legacy_transform_catalog_reorderability_certificate_from_differential_v0(
             left,
             right,
             &canonical_witness,
@@ -1651,7 +1849,7 @@ mod tests {
     }
 
     #[test]
-    fn parallel_plan_is_scaffold_only_and_does_not_consume_executor() {
+    fn parallel_plan_uses_independence_data_and_declares_non_consumption() {
         let plan = plan_transform_catalog_parallel_layers_v0(&[
             TransformPassKind::ColorCompression,
             TransformPassKind::NumberCompression,
@@ -1659,8 +1857,12 @@ mod tests {
         ]);
 
         assert_eq!(plan.schema_version, "0");
-        assert_eq!(plan.scheduler_status, "scaffoldOnly");
+        assert_eq!(plan.scheduler_status, "independenceDataReady");
         assert!(!plan.executor_consumes_plan);
+        assert_eq!(
+            TRANSFORM_CATALOG_PLAN_NON_CONSUMPTION_REASON_V0,
+            "executorKeepsValidatedSerialDagUntilParallelApplicationSemanticsLand"
+        );
         assert_eq!(plan.mechanism_scope, TRANSFORM_CATALOG_MECHANISM_SCOPE_V0);
         assert_eq!(
             plan.product_path_evidence_ready,
@@ -1672,6 +1874,30 @@ mod tests {
         );
         assert_eq!(plan.terminal_pass_ids, vec!["print-css"]);
         assert_eq!(plan.rank_clusters.len(), 1);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn legacy_plan_and_reorderability_keep_pre_04_runtime_contract() {
+        let legacy_plan = plan_transform_pass_parallel_layers_v0(&[
+            TransformPassKind::ColorCompression,
+            TransformPassKind::NumberCompression,
+            TransformPassKind::PrintCss,
+        ]);
+        assert_eq!(legacy_plan.scheduler_status, "scaffoldOnly");
+        assert!(!legacy_plan.executor_consumes_plan);
+        assert_eq!(legacy_plan.rank_clusters.len(), 1);
+
+        let legacy_certificate = reorderability_certificate_v0(
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
+        );
+        assert_eq!(
+            legacy_certificate.commute_witness,
+            "requiresDifferentialCommutativityWitness"
+        );
+        assert!(!legacy_certificate.accepted);
+        assert!(!legacy_certificate.has_checked_issuance_token_v0());
     }
 
     #[test]
@@ -1707,16 +1933,13 @@ mod tests {
     }
 
     #[test]
-    fn rank_only_reorderability_certificate_requires_differential_witness() {
+    fn committed_independent_pair_receives_checked_reorder_token() {
         let certificate = transform_catalog_reorderability_certificate_v0(
-            TransformPassKind::CommentStrip,
-            TransformPassKind::WhitespaceStrip,
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
         );
 
-        assert_eq!(
-            certificate.commute_witness,
-            "requiresDifferentialCommutativityWitness"
-        );
+        assert_eq!(certificate.commute_witness, "checkedRewriteCertificate");
         assert_eq!(
             certificate.mechanism_scope,
             TRANSFORM_CATALOG_MECHANISM_SCOPE_V0
@@ -1730,23 +1953,29 @@ mod tests {
             TRANSFORM_CATALOG_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0
         );
         assert_eq!(certificate.differential_fixture_count, 0);
-        assert!(!certificate.accepted);
+        assert!(certificate.accepted);
+        assert!(certificate.has_checked_issuance_token_v0());
+        assert!(certificate.issuance_token_matches_pair_v0(
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
+        ));
     }
 
     #[test]
     fn reorderability_certificate_family_derivation_preserves_legacy_json_contract()
     -> Result<(), serde_json::Error> {
         let rank_only = transform_catalog_reorderability_certificate_v0(
-            TransformPassKind::CommentStrip,
-            TransformPassKind::WhitespaceStrip,
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
         );
         let rank_only_json = serde_json::to_value(&rank_only)?;
-        assert_eq!(rank_only_json["computedValuePreserved"], false);
+        assert_eq!(rank_only_json["computedValuePreserved"], true);
         assert!(rank_only_json.get("obligationFamily").is_none());
+        assert!(rank_only_json.get("issuanceToken").is_none());
 
         let witness = transform_catalog_differential_commutativity_witness_v0(
-            TransformPassKind::CommentStrip,
-            TransformPassKind::WhitespaceStrip,
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
             vec![TransformCatalogDifferentialCommutativityCaseV0 {
                 label: "comment-whitespace".to_string(),
                 input_css: ".a { color : red ; /* x */ }".to_string(),
@@ -1758,8 +1987,8 @@ mod tests {
             }],
         );
         let accepted = transform_catalog_reorderability_certificate_from_differential_v0(
-            TransformPassKind::CommentStrip,
-            TransformPassKind::WhitespaceStrip,
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
             &witness,
         );
         let accepted_json = serde_json::to_value(&accepted)?;
@@ -1768,7 +1997,7 @@ mod tests {
         assert!(accepted_json.get("obligationFamily").is_none());
         assert_eq!(
             accepted_json["commuteWitness"],
-            "differentialCommutativityCorpus"
+            "checkedRewriteCertificateWithDifferentialSearch"
         );
 
         Ok(())
@@ -1777,8 +2006,8 @@ mod tests {
     #[test]
     fn differential_reorderability_certificate_accepts_only_equal_output_corpus() {
         let witness = transform_catalog_differential_commutativity_witness_v0(
-            TransformPassKind::CommentStrip,
-            TransformPassKind::WhitespaceStrip,
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
             vec![TransformCatalogDifferentialCommutativityCaseV0 {
                 label: "comment-whitespace".to_string(),
                 input_css: ".a { color : red ; /* x */ }".to_string(),
@@ -1790,15 +2019,15 @@ mod tests {
             }],
         );
         let certificate = transform_catalog_reorderability_certificate_from_differential_v0(
-            TransformPassKind::CommentStrip,
-            TransformPassKind::WhitespaceStrip,
+            TransformPassKind::NumberCompression,
+            TransformPassKind::ColorCompression,
             &witness,
         );
 
         assert!(witness.accepted);
         assert_eq!(
             certificate.commute_witness,
-            "differentialCommutativityCorpus"
+            "checkedRewriteCertificateWithDifferentialSearch"
         );
         assert_eq!(
             witness.mechanism_scope,

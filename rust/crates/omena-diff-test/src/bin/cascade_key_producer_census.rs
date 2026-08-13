@@ -484,7 +484,24 @@ impl<'a> ProducerVisitor<'a> {
                             .contains("cascade_environment")
                 })
                 && rendered.replace(' ', "") == "declaration.scope_proximity.unwrap_or(0)";
-            if is_transform_boundary {
+            let is_proof_kernel_certificate_boundary = self.path
+                == "rust/crates/omena-cascade-proof/src/proof_kernel.rs"
+                && self
+                    .function_stack
+                    .last()
+                    .is_some_and(|context| context.name == "cascade_key_from_certificate_v0")
+                && self.function_stack.last().is_some_and(|context| {
+                    context.parameter_names.contains("key")
+                        && context
+                            .local_binding_counts
+                            .get("key")
+                            .copied()
+                            .unwrap_or(0)
+                            == 0
+                        && !context.ambiguous_local_names.contains("key")
+                })
+                && rendered.replace(' ', "") == "key.scope_proximity";
+            if is_transform_boundary || is_proof_kernel_certificate_boundary {
                 return Ok(ScopeProximitySource::CallerSupplied);
             }
             return Err("member-derived scope proximity requires an explicit caller-boundary rule");

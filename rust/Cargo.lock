@@ -2696,6 +2696,7 @@ dependencies = [
 name = "omena-lawvere"
 version = "0.3.0"
 dependencies = [
+ "omena-cascade-proof",
  "omena-evidence-graph",
  "omena-transform-cst",
  "serde",
@@ -2995,6 +2996,7 @@ name = "omena-transform-egg"
 version = "0.3.0"
 dependencies = [
  "egg",
+ "omena-cascade-proof",
  "omena-evidence-graph",
  "omena-lawvere",
  "omena-parser",

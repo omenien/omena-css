@@ -8,7 +8,14 @@ use std::collections::BTreeSet;
 
 use omena_abstract_value::FactPrecision;
 use omena_cascade::StaticSupportsAssumptionV0;
-use omena_cascade_proof::DischargeLedgerLookupStatusV0;
+use omena_cascade_proof::{
+    CanonicalRewriteAssumptionsV0, DischargeLedgerLookupStatusV0,
+    REWRITE_CERTIFICATE_SCHEMA_VERSION_V0, REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0,
+    RewriteCertificateEnvelopeV0, RewriteCertificateV0, RewriteOperatorV0, RewritePatternV0,
+    RewriteRuleCatalogV0, RewriteRuleV0, RewriteSideConditionKindV0, RewriteSubstitutionEntryV0,
+    RewriteTermV0, SideConditionCertV0, TokenOwnershipCertEntryV0,
+    TokenOwnershipSeparabilityCertV0, check_rewrite_certificate_v0,
+};
 use omena_evidence_graph::GuaranteeFamilyV0;
 use omena_parser::{
     ClosedWorldBundleV0, ClosedWorldComposesScanStateV0, ClosedWorldInterfaceHashAvailabilityV0,
@@ -3038,7 +3045,151 @@ fn closed_world_admission_o1_reasons(
             },
         );
     }
+    if reasons.is_empty()
+        && checked_token_ownership_admission_v0(census, module_instance, pass_kind).is_none()
+    {
+        reasons.push(
+            TransformStrictPolicyReasonV0::ClosedWorldEvidenceIncomplete {
+                missing: vec![format!("proofKernelToken:{}", pass_kind.id())],
+            },
+        );
+    }
     reasons
+}
+
+fn checked_token_ownership_admission_v0(
+    census: &CssModuleTokenOwnershipCensusV0,
+    module_instance: Option<&ModuleInstanceKeyV0>,
+    pass_kind: TransformPassKind,
+) -> Option<omena_cascade_proof::RewriteIssuanceTokenV0> {
+    let module_label = module_instance.map_or_else(
+        || "workspace".to_owned(),
+        |module_instance| {
+            format!(
+                "{}#{}",
+                module_instance.module().as_str(),
+                module_instance.configuration().as_str()
+            )
+        },
+    );
+    let before = RewriteTermV0::apply(
+        "closedWorldAdmissionRequested",
+        vec![
+            RewriteTermV0::atom(pass_kind.id()),
+            RewriteTermV0::atom(module_label.clone()),
+        ],
+    );
+    let after = RewriteTermV0::apply(
+        "closedWorldAdmissionGranted",
+        vec![
+            RewriteTermV0::atom(pass_kind.id()),
+            RewriteTermV0::atom(module_label.clone()),
+        ],
+    );
+    let catalog = RewriteRuleCatalogV0 {
+        schema_version: REWRITE_RULE_CATALOG_SCHEMA_VERSION_V0.to_owned(),
+        operators: vec![
+            RewriteOperatorV0 {
+                operator: "closedWorldAdmissionRequested".to_owned(),
+                arity: 2,
+            },
+            RewriteOperatorV0 {
+                operator: "closedWorldAdmissionGranted".to_owned(),
+                arity: 2,
+            },
+        ],
+        rules: vec![RewriteRuleV0 {
+            rule_id: "closed-world-token-ownership-admission-v0".to_owned(),
+            before_pattern: RewritePatternV0::apply(
+                "closedWorldAdmissionRequested",
+                vec![
+                    RewritePatternV0::variable("pass"),
+                    RewritePatternV0::variable("module"),
+                ],
+            ),
+            after_pattern: RewritePatternV0::apply(
+                "closedWorldAdmissionGranted",
+                vec![
+                    RewritePatternV0::variable("pass"),
+                    RewritePatternV0::variable("module"),
+                ],
+            ),
+            side_condition_kind: RewriteSideConditionKindV0::TokenOwnershipSeparability,
+        }],
+    };
+    let mut modeled_preimage_count = 0;
+    let ownerships = census
+        .token_ownerships
+        .iter()
+        .filter_map(|ownership| {
+            let module_paths = if let Some(module_instance) = module_instance {
+                ownership
+                    .module_instances
+                    .iter()
+                    .zip(&ownership.module_paths)
+                    .filter_map(|(candidate, path)| {
+                        (candidate == module_instance).then_some(path.clone())
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                ownership.module_paths.clone()
+            };
+            if module_instance.is_some() && module_paths.is_empty() {
+                return None;
+            }
+            modeled_preimage_count += ownership.original_names.len();
+            Some(TokenOwnershipCertEntryV0 {
+                emitted_token: ownership.emitted_token.clone(),
+                module_paths,
+            })
+        })
+        .collect::<Vec<_>>();
+    let certificate = RewriteCertificateEnvelopeV0 {
+        schema_version: REWRITE_CERTIFICATE_SCHEMA_VERSION_V0.to_owned(),
+        max_depth: 1,
+        max_nodes: 1,
+        certificate: RewriteCertificateV0::Rewrite {
+            rule_id: "closed-world-token-ownership-admission-v0".to_owned(),
+            substitution: vec![
+                RewriteSubstitutionEntryV0 {
+                    variable: "module".to_owned(),
+                    term: RewriteTermV0::atom(module_label),
+                },
+                RewriteSubstitutionEntryV0 {
+                    variable: "pass".to_owned(),
+                    term: RewriteTermV0::atom(pass_kind.id()),
+                },
+            ],
+            side_condition: SideConditionCertV0::TokenOwnershipSeparability {
+                certificate: TokenOwnershipSeparabilityCertV0 {
+                    complete: census.complete && census.unavailable_reasons.is_empty(),
+                    modeled_preimage_count,
+                    emitted_token_count: ownerships.len()
+                        + census.unattributed_emitted_tokens.len(),
+                    ownerships,
+                    unattributed_emitted_token_count: census.unattributed_emitted_tokens.len(),
+                    interface_mismatch_count: census
+                        .interface_mismatches
+                        .iter()
+                        .filter(|mismatch| {
+                            module_instance.is_none_or(|module_instance| {
+                                &mismatch.module_instance == module_instance
+                            })
+                        })
+                        .count(),
+                },
+            },
+        },
+    };
+    check_rewrite_certificate_v0(
+        &before,
+        &after,
+        &catalog,
+        &certificate,
+        &CanonicalRewriteAssumptionsV0::default(),
+    )
+    .ok()
+    .filter(|token| token.matches_endpoints_v0(&before, &after))
 }
 
 struct ClosedWorldAdmissionO3V0<'a> {

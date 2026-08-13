@@ -588,6 +588,8 @@ export const DECLARED_CHECK_GATES = [
       "rust/evidence-graph-single-authority",
       "rust/obligation-family-closure",
       "rust/precision-floor",
+      "rust/proof-kernel",
+      "rust/proof-kernel-self-produced-census",
       "rust/omena-plugin-consumption-law",
       "rust/omena-plugin-abi-stability",
       "rust/omena-tsgo-type-flags-abi",
@@ -906,6 +908,8 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-css/spec-boundary", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-value-grammar-evidence", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-value-grammar-differential", "gate", "rust"),
+  declaredClosurePackageGate("rust/proof-kernel", "gate", "rust"),
+  declaredClosurePackageGate("rust/proof-kernel-self-produced-census", "gate", "rust"),
   {
     id: "rust/omena-value-grammar-corpus:update",
     kind: "command",

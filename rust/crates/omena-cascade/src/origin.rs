@@ -517,13 +517,17 @@ mod tests {
                 producer.disposition == CascadeKeyProducerDispositionV0::CallerSuppliedBoundary
             })
             .collect::<Vec<_>>();
-        assert_eq!(caller_supplied.len(), 2);
+        assert_eq!(caller_supplied.len(), 3);
         assert!(caller_supplied.iter().all(|producer| {
             producer.scope_proximity_source == CascadeScopeProximitySourceV0::CallerSupplied
         }));
         assert!(caller_supplied.iter().any(|producer| {
             producer.path == "rust/crates/omena-bundler/src/lib.rs"
                 && producer.symbol == "LinkedStylesheetRuleV0::cascade_key_with_global_source_order"
+        }));
+        assert!(caller_supplied.iter().any(|producer| {
+            producer.path == "rust/crates/omena-cascade-proof/src/proof_kernel.rs"
+                && producer.symbol == "cascade_key_from_certificate_v0"
         }));
         assert!(caller_supplied.iter().any(|producer| {
             producer.path == "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs"
