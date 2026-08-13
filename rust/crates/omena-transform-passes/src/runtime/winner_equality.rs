@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::{
     CascadeDeclaration, CascadeLevel, CascadeValue, CascadeWinnerAxisV0, ElementSignature,
-    LayerOrdinal, LayerRank, ModuleRank, SelectorMatchVerdict, SpecificityExactnessV0,
+    LayerOrdinal, LayerRank, OpenWorldTieEvidence, SelectorMatchVerdict, SpecificityExactnessV0,
     cascade_driven_levels_v0, cascade_driven_winner_axes_v0, cascade_level_for_origin,
     cascade_property, normalized_layer_rank, parse_simple_selector_signature,
     selector_match_witness,
@@ -336,14 +336,8 @@ fn winner_for_pair(
             ),
             property: candidate.property.clone(),
             value: CascadeValue::Literal(candidate.value.clone()),
-            key: omena_cascade::CascadeKey::new(
-                level,
-                layer_rank,
-                0,
-                specificity,
-                ModuleRank::ZERO,
-                source_order,
-            ),
+            key: omena_cascade::CascadeKey::new(level, layer_rank, 0, specificity, source_order),
+            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
             specificity_exactness: signature.specificity_exactness,
         });
     }
@@ -419,9 +413,9 @@ fn winner_for_pair(
                     layer_rank,
                     declaration.scope_proximity.unwrap_or(0),
                     signature.specificity,
-                    ModuleRank::ZERO,
                     declaration.source_order,
                 ),
+                open_world_tie_evidence: OpenWorldTieEvidence::NONE,
                 specificity_exactness: signature.specificity_exactness,
             });
         }

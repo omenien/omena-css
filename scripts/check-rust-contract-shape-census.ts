@@ -85,8 +85,8 @@ const adapterSnapshotPath = path.join(
 const writeSerde = process.argv.includes("--write-serde");
 const writeAdapter = process.argv.includes("--write-adapter");
 const initializeAdapter = process.argv.includes("--initialize-adapter");
-const acceptedMember = readArg("--accept-member");
-const acceptedClass = readArg("--accept-class") as AdapterChangeClass | undefined;
+const acceptedMembers = readArgs("--accept-member");
+const acceptedClasses = readArgs("--accept-class") as AdapterChangeClass[];
 const adapterChangeClasses: readonly AdapterChangeClass[] = [
   "additive-optional",
   "additive-required",
@@ -186,17 +186,32 @@ if (initializeAdapter) {
   // optional member is backward-compatible without an explicit acceptance.
   const blocking = changes.filter((change) => change.class !== "additive-optional");
   if (writeAdapter) {
+    // FALSIFIER: id=adapter-batch-accepted-member-count class=structuralEntailment via=STRUCTURAL producer=entailed owner=contract-shape-census entry=explicit-batch-cardinality reentry=adapter-acceptance-protocol-change
     assert.equal(
       changes.length,
-      1,
-      "adapter snapshot update must classify exactly one member change",
+      acceptedMembers.length,
+      "adapter snapshot update must explicitly accept every member change",
     );
+    // FALSIFIER: id=adapter-batch-accepted-class-count class=structuralEntailment via=STRUCTURAL producer=entailed owner=contract-shape-census entry=paired-batch-cardinality reentry=adapter-acceptance-protocol-change
     assert.equal(
-      changes[0]?.key,
-      acceptedMember,
-      "accepted adapter member does not match the diff",
+      acceptedClasses.length,
+      acceptedMembers.length,
+      "every accepted adapter member must carry a change class",
     );
-    assert.equal(changes[0]?.class, acceptedClass, "accepted adapter change class is incorrect");
+    for (const [index, change] of changes.entries()) {
+      // FALSIFIER: id=adapter-batch-member-order class=structuralEntailment via=STRUCTURAL producer=entailed owner=contract-shape-census entry=diff-order-pairing reentry=adapter-acceptance-ordering-change
+      assert.equal(
+        change.key,
+        acceptedMembers[index],
+        "accepted adapter member does not match the diff",
+      );
+      // FALSIFIER: id=adapter-batch-class-order class=structuralEntailment via=STRUCTURAL producer=entailed owner=contract-shape-census entry=class-order-pairing reentry=adapter-acceptance-ordering-change
+      assert.equal(
+        change.class,
+        acceptedClasses[index],
+        "accepted adapter change class is incorrect",
+      );
+    }
     writeFileSync(adapterSnapshotPath, `${JSON.stringify(currentAdapter, null, 2)}\n`);
   } else if (blocking.length > 0) {
     throw new Error(
@@ -666,7 +681,7 @@ function scanAdapterMembers(): AdapterMember[] {
       });
     }
   }
-  assert.equal(new Set(rows.map((row) => row.interfaceName)).size, 22);
+  assert.equal(new Set(rows.map((row) => row.interfaceName)).size, 27);
   return rows.toSorted((left, right) =>
     `${left.interfaceName}.${left.member}`.localeCompare(`${right.interfaceName}.${right.member}`),
   );
@@ -846,7 +861,8 @@ function readCargoPackages(): readonly CargoPackage[] {
   return metadata.packages;
 }
 
-function readArg(name: string): string | undefined {
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
+function readArgs(name: string): string[] {
+  return process.argv.flatMap((argument, index) =>
+    argument === name && process.argv[index + 1] ? [process.argv[index + 1]] : [],
+  );
 }

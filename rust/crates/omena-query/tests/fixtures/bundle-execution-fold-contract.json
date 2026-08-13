@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-query.bundle-execution-fold-contract",
+  "wideningProcedure": "A new aggregate field requires one authored fold row and a committed product-run divergence witness.",
+  "summaryOwnedFields": ["schemaVersion", "product"],
+  "foldRows": [
+    {
+      "field": "aggregateMutationCount",
+      "sourceField": "mutationCount",
+      "fold": "sum",
+      "meaning": "mutations performed across all linked module executions",
+      "divergenceWitnessFixture": "linked_bundle_retains_each_module_execution_before_bundle_projection"
+    },
+    {
+      "field": "aggregateExecutedPassIds",
+      "sourceField": "executedPassIds",
+      "fold": "orderedUnion",
+      "meaning": "passes executed on at least one linked module in first module occurrence order",
+      "divergenceWitnessFixture": "linked_bundle_retains_each_module_execution_before_bundle_projection"
+    },
+    {
+      "field": "aggregateSemanticRemovalCount",
+      "sourceField": "semanticRemovals.length",
+      "fold": "sum",
+      "meaning": "semantic removals performed across all linked module executions",
+      "divergenceWitnessFixture": "linked_bundle_retains_each_module_execution_before_bundle_projection"
+    },
+    {
+      "field": "aggregateClosedWorldRefusalCount",
+      "sourceField": "closedWorldAdmission.refusedCount",
+      "fold": "sum",
+      "meaning": "destructive pass refusals across all linked module executions",
+      "divergenceWitnessFixture": "linked_bundle_retains_module_admission_refusals_before_bundle_projection"
+    }
+  ],
+  "absentFields": [
+    { "field": "inputByteLen", "reason": "ownedByByteAuthority" },
+    { "field": "outputByteLen", "reason": "ownedByByteAuthority" },
+    { "field": "requestedPassIds", "reason": "producerEntailedConstant" },
+    { "field": "orderedPassIds", "reason": "producerEntailedConstant" },
+    { "field": "plannedOnlyPassIds", "reason": "noBundleMeaning" },
+    { "field": "provenancePreserved", "reason": "noDivergenceWitness" },
+    { "field": "outputCss", "reason": "ownedByByteAuthority" },
+    { "field": "cssModuleEvaluation", "reason": "noDivergenceWitness" },
+    { "field": "cssImportInlines", "reason": "reListingNotFold" },
+    { "field": "cssModuleComposesExports", "reason": "reListingNotFold" },
+    { "field": "designTokenRoutes", "reason": "reListingNotFold" },
+    { "field": "semanticRemovals", "reason": "reListingNotFold" },
+    { "field": "moduleQualifiedShake", "reason": "reListingNotFold" },
+    { "field": "cascadeProofObligations", "reason": "reListingNotFold" },
+    { "field": "winnerEqualityObligations", "reason": "reListingNotFold" },
+    { "field": "provenanceDerivationForest", "reason": "noBundleMeaning" },
+    { "field": "structuralIrTransactionTelemetry", "reason": "reListingNotFold" },
+    { "field": "semanticPreservationTelemetry", "reason": "reListingNotFold" },
+    { "field": "dischargeLedgerTelemetry", "reason": "reListingNotFold" },
+    { "field": "strictPolicy", "reason": "noBundleMeaning" },
+    { "field": "closedWorldAdmission", "reason": "reListingNotFold" },
+    { "field": "decisions", "reason": "reListingNotFold" },
+    { "field": "outcomes", "reason": "reListingNotFold" },
+    { "field": "passPlan", "reason": "noBundleMeaning" }
+  ]
+}

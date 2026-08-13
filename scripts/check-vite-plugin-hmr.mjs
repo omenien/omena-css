@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 const examplesRequire = createRequire(path.join(process.cwd(), "examples/package.json"));
 const { createServer } = await import(examplesRequire.resolve("vite"));
 const { omenaCss } = require("../packages/vite-plugin/index.cjs");
+const ROOT_TOKEN_SHAPE = /^_[A-Za-z0-9_-]{6}_root$/u;
 
 async function main() {
   await runHookConvergenceGate();
@@ -184,9 +185,9 @@ async function runBrowserDevHmrGate() {
       );
     }
     if (
-      initial.className !== "_root_0" ||
-      initial.dataClassName !== "_root_0" ||
-      initial.namedClassName !== "_root_0"
+      !ROOT_TOKEN_SHAPE.test(initial.className) ||
+      initial.className !== initial.dataClassName ||
+      initial.className !== initial.namedClassName
     ) {
       throw new Error(
         `Vite dev runtime did not expose the semantic default and named class exports: ${JSON.stringify(initial)}`,
@@ -219,7 +220,7 @@ async function runBrowserDevHmrGate() {
       );
     }
     if (
-      finalState.className !== "_root_0" ||
+      !ROOT_TOKEN_SHAPE.test(finalState.className) ||
       finalState.className !== finalState.dataClassName ||
       finalState.className !== finalState.namedClassName
     ) {

@@ -389,7 +389,7 @@ function runSettleSoakArtifact(): { readonly bytes: string; readonly source: str
       "engine-shadow-runner",
       "--quiet",
       "--",
-      "omena-checker-streaming-ifds-settle-soak",
+      "omena-checker-demand-sliced-monotone-fact-propagation-settle-soak",
     ],
     {
       cwd: process.cwd(),
@@ -481,7 +481,7 @@ function runRunner(inputVerdicts: {
   readonly relocationApprovalVerdict?: GateArtifactVerdict;
 }): RunnerSummary {
   const input = {
-    updateId: "streaming-ifds-relocation-gate",
+    updateId: "demand-sliced-monotone-fact-propagation-relocation-gate",
     startNodeId: "a",
     demandTargetNodeIds: ["b"],
     ...inputVerdicts,
@@ -514,7 +514,7 @@ function runRunner(inputVerdicts: {
       "engine-shadow-runner",
       "--quiet",
       "--",
-      "omena-checker-streaming-ifds-evaluations",
+      "omena-checker-demand-sliced-monotone-fact-propagation-evaluations",
     ],
     {
       cwd: process.cwd(),
@@ -526,7 +526,7 @@ function runRunner(inputVerdicts: {
   assert.equal(
     result.status,
     0,
-    `engine-shadow-runner streaming IFDS command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+    `engine-shadow-runner demand-sliced monotone fact propagation command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return parseJson<RunnerSummary>(result.stdout, "runner summary");
 }
@@ -639,7 +639,7 @@ function productionRustSource(text: string): string {
 
 function routeCallsInSource(file: string, text: string): RouteCall[] {
   const calls: RouteCall[] = [];
-  const needle = "streaming_ifds_fact_key_route_with_gate_v0(";
+  const needle = "demand_sliced_monotone_fact_propagation_fact_key_route_with_gate_v0(";
   let index = text.indexOf(needle);
   while (index !== -1) {
     const before = text.slice(Math.max(0, index - 16), index);

@@ -69,8 +69,8 @@ version-policy details.
   public plugin ABI.
 - **V0 theory contract substrate** - incremental, cascade, and abstract-value
   crates now expose strict-superset V0 contract summaries for the rule-evaluator,
-  modal-witness, belief-propagation, and cascade-margin substrate surfaces while
-  keeping Datalog host, modal theorem, belief-propagation paper, and safety-margin
+  modal-witness, reduced-product constraint-propagation, and cascade-margin substrate surfaces while
+  keeping Datalog host, modal theorem, probabilistic factor-graph paper, and safety-margin
   claims out of public release wording.
 - **Release wording discipline** - public release framing now separates shipped
   editor/runtime behavior from internal V0 substrate evidence and avoids treating
@@ -103,8 +103,8 @@ version-policy details.
   public plugin ABI.
 - **V0 theory contract substrate** - incremental, cascade, and abstract-value
   crates now expose strict-superset V0 contract summaries for the rule-evaluator,
-  modal-witness, belief-propagation, and cascade-margin substrate surfaces while
-  keeping Datalog host, modal theorem, belief-propagation paper, and safety-margin
+  modal-witness, reduced-product constraint-propagation, and cascade-margin substrate surfaces while
+  keeping Datalog host, modal theorem, probabilistic factor-graph paper, and safety-margin
   claims out of public release wording.
 - **Release wording discipline** - public release framing now separates shipped
   editor/runtime behavior from internal V0 substrate evidence and avoids treating
@@ -128,8 +128,8 @@ version-policy details.
   public plugin ABI.
 - **V0 theory contract substrate** - incremental, cascade, and abstract-value
   crates now expose strict-superset V0 contract summaries for the rule-evaluator,
-  modal-witness, belief-propagation, and cascade-margin substrate surfaces while
-  keeping Datalog host, modal theorem, belief-propagation paper, and safety-margin
+  modal-witness, reduced-product constraint-propagation, and cascade-margin substrate surfaces while
+  keeping Datalog host, modal theorem, probabilistic factor-graph paper, and safety-margin
   claims out of public release wording.
 - **Release wording discipline** - public release framing now separates shipped
   editor/runtime behavior from internal V0 substrate evidence and avoids treating

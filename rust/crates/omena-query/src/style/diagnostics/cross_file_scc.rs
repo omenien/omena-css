@@ -1,10 +1,10 @@
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 use std::collections::BTreeSet;
 
 use super::shared::*;
 use super::substrate::OmenaQueryWorkspaceDiagnosticsSubstrateV0;
 
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
     target_style_path: &str,
     target_style_source: &str,
@@ -31,7 +31,7 @@ pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_works
 /// Target-INDEPENDENT core of the cross-file SCC pass (rfcs#111 C1 slice 2):
 /// the workspace cross-file summary, the unified hypergraph, and the SCC
 /// report — identical for every target of a wave.
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 pub(in crate::style) fn collect_omena_query_unified_cross_file_scc_report_shared(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
@@ -55,7 +55,7 @@ pub(in crate::style) fn collect_omena_query_unified_cross_file_scc_report_shared
 /// The per-target remainder: filter the shared report for target-crossing
 /// composes cycles. Byte-identical to the inline arm (same construction,
 /// clone instead of move).
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 pub(in crate::style) fn summarize_omena_query_unified_cross_file_scc_diagnostics_from_report(
     target_style_path: &str,
     target_style_source: &str,
@@ -114,7 +114,7 @@ pub(in crate::style) fn summarize_omena_query_unified_cross_file_scc_diagnostics
         .collect()
 }
 
-#[cfg(not(feature = "hypergraph-ifds"))]
+#[cfg(not(feature = "hypergraph-monotone-fact-propagation"))]
 pub(super) fn summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
     _target_style_path: &str,
     _target_style_source: &str,

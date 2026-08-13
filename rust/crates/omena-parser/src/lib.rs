@@ -27,12 +27,13 @@ mod summaries;
 mod syntax_helpers;
 mod value_names;
 pub use closed_world::{
-    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldInterfaceHashAvailabilityV0,
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldComposesEdgeV0,
+    ClosedWorldComposesScanStateV0, ClosedWorldInterfaceHashAvailabilityV0,
     ClosedWorldInterfaceHashEntryV0, ClosedWorldInterfaceHashSetV0, ClosedWorldLinkedModuleV0,
-    ClosedWorldModuleMetadataV0, ClosedWorldReachabilityBitsetParityReportV0,
-    ClosedWorldSourcePrecisionSummaryV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
-    ModuleQualifiedSymbolSetV0, OpenWorldSnapshotV0, ReachabilityIndexV0,
-    summarize_closed_world_reachability_bitset_parity_v0,
+    ClosedWorldModuleMetadataV0, ClosedWorldModuleReachabilityEvidenceV0,
+    ClosedWorldReachabilityBitsetParityReportV0, ClosedWorldSourcePrecisionSummaryV0,
+    ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ModuleQualifiedSymbolSetV0,
+    OpenWorldSnapshotV0, ReachabilityIndexV0, summarize_closed_world_reachability_bitset_parity_v0,
 };
 pub use cst::{
     AtRuleCstNode, BogusCstNode, CommaSeparatedComponentValueListCstNode, ComponentValueCstNode,

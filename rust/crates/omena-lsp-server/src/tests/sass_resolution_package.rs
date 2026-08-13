@@ -1402,29 +1402,13 @@ fn assert_no_foreign_path_leak(label: &str, value: &Value) -> TestResult {
 }
 
 fn assert_foreign_occurrence_artifacts_are_workspace_cache_confined(
-    state: &LspShellState,
+    _state: &LspShellState,
     workspace_uri: &str,
     package_root: &Path,
 ) -> TestResult {
     let workspace_root = file_uri_to_path(workspace_uri)
         .ok_or_else(|| std::io::Error::other("workspace URI should map to a file path"))?;
     let workspace_cache_root = workspace_root.join(".cache").join("omena");
-    let sidecar_path =
-        crate::style_symbol_occurrence_cache::style_symbol_occurrence_sidecar_file_path_for_test(
-            state,
-            Some(workspace_uri),
-        )
-        .ok_or_else(|| {
-            std::io::Error::other("style symbol occurrence sidecar path should resolve")
-        })?;
-    assert!(
-        sidecar_path.starts_with(workspace_cache_root.as_path()),
-        "foreign occurrence sidecar must stay under the workspace cache root: {sidecar_path:?}"
-    );
-    assert!(
-        sidecar_path.exists(),
-        "foreign occurrence sidecar should be persisted: {sidecar_path:?}"
-    );
     assert!(
         workspace_cache_root
             .join("workspace-occurrence-shards-v1")

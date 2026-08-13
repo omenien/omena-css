@@ -1,10 +1,14 @@
 //! Rust language-server runtime and editor protocol boundary for Omena CSS Modules.
 
 mod boundary;
+mod cache_limits;
+mod cache_maintenance;
+mod cache_root;
 mod code_actions;
 mod color_provider;
 #[cfg(feature = "salsa-style-diagnostics")]
 mod deferred_notification;
+mod demand_sliced_monotone_fact_propagation_diagnostics;
 mod diagnostics_follow_up;
 mod diagnostics_scheduler;
 mod disk_cache;
@@ -39,18 +43,15 @@ mod source_completion;
 mod source_diagnostics;
 mod source_document_cache;
 mod source_domain_hover;
-mod source_occurrence_cache;
 mod source_selector_provider;
 mod source_syntax_index;
 mod source_type_fact_cache;
 mod source_type_facts;
 mod state;
-mod streaming_ifds_diagnostics;
 mod style_diagnostics;
 mod style_diagnostics_snapshot;
 mod style_hover_markdown;
 mod style_symbol_monikers;
-mod style_symbol_occurrence_cache;
 mod style_symbol_provider;
 pub mod tide;
 #[cfg(feature = "parallel-style-diagnostics")]
@@ -68,6 +69,7 @@ pub use deferred_notification::{
     resolve_deferred_diagnostics_notification,
     resolve_deferred_diagnostics_notification_with_reverse_refresh,
 };
+use demand_sliced_monotone_fact_propagation_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 pub use diagnostics_follow_up::*;
 pub(crate) use document_events::{
     did_change_text_document, did_change_watched_files, did_change_workspace_folders,
@@ -93,9 +95,10 @@ pub(crate) use explain::{
     EXPLAIN_REQUEST, project_hover_trace_through_explain_egress, resolve_lsp_explain,
 };
 pub use external_sif_loader::{
-    LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
+    LspExternalSifRefreshCacheStorageV0, LspExternalSifRefreshJobV0, LspExternalSifRefreshResultV0,
     apply_deferred_external_sif_refresh_result, collect_deferred_external_sif_refresh,
-    enable_deferred_external_sif_refresh, prepare_deferred_external_sif_refresh_job,
+    collect_deferred_external_sif_refresh_with_cache_storage, enable_deferred_external_sif_refresh,
+    prepare_deferred_external_sif_refresh_cache_storage, prepare_deferred_external_sif_refresh_job,
 };
 pub(crate) use external_sif_loader::{
     bridge_sources_for_style_uris, refresh_external_sifs_for_bridge_source_delta,
@@ -193,7 +196,6 @@ pub(crate) use source_diagnostics::{
 use source_domain_hover::{
     source_domain_reference_hover_at_position, source_domain_reference_trace_at_position,
 };
-use source_occurrence_cache::store_source_selector_occurrence_sidecar;
 pub(crate) use source_selector_provider::{
     collect_source_selector_reference_candidates, document_has_style_index,
     first_style_document_for_workspace, resolve_source_provider_candidates,
@@ -210,7 +212,6 @@ pub(crate) use source_type_facts::apply_source_type_fact_results_to_document;
 pub(crate) use source_type_facts::refresh_source_type_fact_candidates_for_document;
 pub use state::*;
 use std::{collections::BTreeSet, fs, sync::Arc};
-use streaming_ifds_diagnostics::summarize_cross_file_streaming_reachability_diagnostics_for_lsp;
 #[cfg(feature = "salsa-style-diagnostics")]
 pub(crate) use style_diagnostics_snapshot::LspStyleDiagnosticsRenderInputsV0;
 
@@ -241,7 +242,6 @@ pub(crate) use style_diagnostics::{
     resolve_document_diagnostics_for_uri, resolve_style_diagnostics,
 };
 use style_symbol_monikers::render_external_sif_sass_symbol_hover_markdown;
-pub(crate) use style_symbol_occurrence_cache::store_style_symbol_occurrence_sidecar;
 pub(crate) use style_symbol_provider::{
     external_document_uri_for_query_uri, reference_lens_title,
     render_style_hover_candidate_markdown_for_workspace, resolve_selector_rename,
@@ -262,9 +262,11 @@ pub use tide_republish::{
 pub(crate) use workspace_index::index_workspace_style_files;
 pub(crate) use workspace_index::workspace_index_language_id_for_uri;
 pub use workspace_index::{
-    LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0, apply_background_workspace_index_result,
-    collect_background_workspace_index, prepare_background_workspace_index_continuation_job,
-    prepare_background_workspace_index_job,
+    LspWorkspaceIndexCacheStorageV0, LspWorkspaceIndexJobV0, LspWorkspaceIndexResultV0,
+    apply_background_workspace_index_result, collect_background_workspace_index,
+    collect_background_workspace_index_with_cache_storage,
+    prepare_background_workspace_index_cache_storage,
+    prepare_background_workspace_index_continuation_job, prepare_background_workspace_index_job,
 };
 #[cfg(test)]
 pub(crate) use workspace_index::{
@@ -305,6 +307,7 @@ pub const CASCADE_AT_POSITION_REQUEST: &str = "omena/rustCascadeAtPosition";
 pub const STYLE_CONTEXT_INDEX_REQUEST: &str = "omena/rustStyleContextIndex";
 pub const EXPLAIN_HOVER_TRACE_REQUEST: &str = "omena/explainHoverTrace";
 pub const SDK_WORKFLOW_REQUEST: &str = "omena/sdkWorkflow";
+pub const CLEAR_CACHES_REQUEST: &str = "omena/clearCaches";
 const CANCEL_REQUEST_METHOD: &str = "$/cancelRequest";
 const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
 // Cascade docs cost a whole-corpus narrowing analysis per completion item; only the

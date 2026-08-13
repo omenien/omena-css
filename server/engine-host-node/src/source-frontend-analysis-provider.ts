@@ -15,6 +15,7 @@ import {
   type RustSourceBindingIndexV0,
   type RustSourceSyntaxIndexV0,
 } from "../../engine-core-ts/src/core/source-frontend/rust-binding-index-projection";
+import { utf8ByteOffsetAtUtf16Offset } from "../../engine-core-ts/src/core/source-frontend/source-text-offsets";
 import {
   loadDefaultOmenaNapiSourceFrontendBinding,
   type OmenaNapiSourceFrontendBinding,
@@ -273,7 +274,7 @@ function bindingIndexWithImportFallbacks(
 ): RustSourceBindingIndexV0 {
   const sourceFileScope = {
     kind: "sourceFile" as const,
-    byteSpan: { start: 0, end: Buffer.byteLength(source, "utf8") },
+    byteSpan: { start: 0, end: utf8ByteOffsetAtUtf16Offset(source, source.length) },
   };
   const bindingScopes = index.bindingScopes.length > 0 ? index.bindingScopes : [sourceFileScope];
   const bindingDecls = [
@@ -500,8 +501,8 @@ function localNameByteSpan(
   const start = matchStart + Math.max(localStartInMatch, 0);
   const end = start + localName.length;
   return {
-    start: Buffer.byteLength(source.slice(0, start), "utf8"),
-    end: Buffer.byteLength(source.slice(0, end), "utf8"),
+    start: utf8ByteOffsetAtUtf16Offset(source, start),
+    end: utf8ByteOffsetAtUtf16Offset(source, end),
   };
 }
 

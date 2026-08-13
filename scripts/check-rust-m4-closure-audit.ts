@@ -35,6 +35,12 @@ type TheoryClaimEntry = {
   readonly nextAction?: string;
 };
 
+/**
+ * @deprecated Compatibility owner: M4 closure-audit maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const LEGACY_CONTEXT_GLUE_OR_MODAL_THEOREM_KEY_V0 = "sheafOrModalTheorem";
+
 const requiredReadinessTargets = [
   "rust/m4-axis-a-readiness",
   "rust/m4-axis-b-readiness",
@@ -180,7 +186,7 @@ function buildTheoryClaimGuard(): {
         "impl ProvenanceSemiringV0 for Lin01ProvenanceSemiringV0",
       ],
       nextAction:
-        "keep partial-property wording until polynomial provenance and sheaf-valued lift land",
+        "keep partial-property wording until polynomial provenance and a context-indexed section lift land",
     },
     {
       id: "m4-alpha.grn-state-transition",
@@ -240,60 +246,67 @@ function buildTheoryClaimGuard(): {
       ],
     },
     {
-      id: "m4-beta.lawvere-equation-cluster",
+      id: "m4-beta.transform_catalog-equation-cluster",
       stage: "m4-beta",
       status: "descriptorOnly",
       framing: "stagedScaffold",
-      surface: "Lawvere equation cluster catalog",
+      surface: "TransformCatalog equation cluster catalog",
       evidencePath: "rust/crates/omena-lawvere/src/lib.rs",
-      evidenceMarkers: ["LawvereEquationClusterV0", "lawvere_equation_clusters_v0"],
+      evidenceMarkers: [
+        "TransformCatalogEquationClusterV0",
+        "transform_catalog_equation_clusters_v0",
+      ],
       nextAction:
         "keep staged-scaffold wording until a fixture corpus or semantic law checker lands",
     },
     {
-      id: "m4-beta.lawvere-reorderability-certificate",
+      id: "m4-beta.transform_catalog-reorderability-certificate",
       stage: "m4-beta",
       status: "partialPropertyTest",
       framing: "partialMechanism",
-      surface: "Lawvere reorderability certificate with differential commutativity witness",
+      surface:
+        "TransformCatalog reorderability certificate with differential commutativity witness",
       evidencePath: "rust/crates/omena-lawvere/src/lib.rs",
       evidenceMarkers: [
         "ReorderabilityCertificateV0",
-        "LawvereDifferentialCommutativityWitnessV0",
+        "TransformCatalogDifferentialCommutativityWitnessV0",
         "reorderability_certificate_from_differential_v0",
         "requiresDifferentialCommutativityWitness",
         "differentialCommutativityCorpus",
       ],
-      nextAction: "expand corpus coverage before final Lawvere semantics wording",
+      nextAction: "expand corpus coverage before final TransformCatalog semantics wording",
     },
     {
-      id: "m4-beta.rg-flow-fixed-point",
+      id: "m4-beta.multiscale-complexity-heuristic-fixed-point",
       stage: "m4-beta",
       status: "partialPropertyTest",
       framing: "partialMechanism",
-      surface: "RG beta vector, fixed-point metric, and coupling Jacobian spectrum",
+      surface:
+        "multiscale-complexity heuristic beta vector, fixed-point metric, and coupling Jacobian spectrum",
       evidencePath: "rust/crates/omena-rg-flow/src/lib.rs",
       evidenceMarkers: [
         "BetaVectorV0",
         "CouplingJacobianSpectrumV0",
-        "estimate_coupling_jacobian_spectrum_v0",
+        "estimate_multiscale_complexity_heuristic_coupling_jacobian_spectrum_v0",
         "fixed_point_reached",
         "beta_vector_from_couplings",
       ],
-      nextAction: "continue product wiring once downstream RG-flow consumers are selected",
+      nextAction:
+        "continue product wiring once downstream multiscale-complexity-heuristic consumers are selected",
     },
     {
-      id: "m4-beta.hypergraph-ifds-summary",
+      id: "m4-beta.hypergraph-monotone-fact-propagation-summary",
       stage: "m4-beta",
       status: "partialPropertyTest",
       framing: "partialMechanism",
-      surface: "hypergraph IFDS projection seed",
+      surface: "hypergraph monotone fact propagation projection seed",
       evidencePath: "rust/crates/omena-cross-file-summary/src/lib.rs",
       evidenceMarkers: [
         "OmenaUnifiedHypergraphConnectivityOracle",
-        "tabulate_hypergraph_ifds_summary_edges",
+        "tabulate_hypergraph_monotone_fact_propagation_summary_edges",
       ],
-      nextAction: "treat as seed substrate; full streaming IFDS lives in m4-gamma",
+      nextAction:
+        "treat as seed substrate; full demand-sliced monotone fact propagation lives in m4-gamma",
     },
     {
       id: "m4-beta.replica-ensemble-projection",
@@ -404,15 +417,15 @@ function buildTheoryClaimGuard(): {
         "continue remaining verify-cross-project-symmetry residual; compare-design-system-theory now has computed cross-project evidence",
     },
     {
-      id: "m4-gamma.streaming-ifds-transfer-cache",
+      id: "m4-gamma.demand-sliced-monotone-fact-propagation-transfer-cache",
       stage: "m4-gamma",
       status: "partialPropertyTest",
       framing: "partialMechanism",
-      surface: "streaming IFDS transfer and summary-cache substrate",
+      surface: "demand-sliced monotone fact propagation transfer and summary-cache substrate",
       evidencePath: "rust/crates/omena-streaming-ifds/src/lib.rs",
       evidenceMarkers: [
-        "StreamingIFDSTransferFunctionV0",
-        "StreamingIFDSSummaryCacheEntryV0",
+        "DemandSlicedMonotoneFactPropagationTransferFunctionV0",
+        "DemandSlicedMonotoneFactPropagationSummaryCacheEntryV0",
         "PolylogDynamicConnectivityBackendV0",
       ],
       nextAction:
@@ -445,7 +458,7 @@ function buildTheoryClaimGuard(): {
       dynamicDyck: "notClaimed",
       externalDatalog: "notClaimed",
       egglogExecution: "notClaimed",
-      sheafOrModalTheorem: "notClaimed",
+      [LEGACY_CONTEXT_GLUE_OR_MODAL_THEOREM_KEY_V0]: "notClaimed",
       fullPerceptualTooling: "notClaimed",
     },
     stages,

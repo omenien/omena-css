@@ -961,6 +961,22 @@ pub fn compute_omena_sif_leaf_hash_v1(source_bytes: &[u8]) -> OmenaSifDigestV1 {
     OmenaSifDigestV1::from_blake3_bytes(source_bytes)
 }
 
+/// Computes the repository-wide stable address for a cache shard or
+/// workspace partition. Only identity belongs in `identity_parts`; mutable
+/// content stays inside the load-verified artifact stored at this address.
+pub fn compute_omena_stable_cache_shard_address_v1(
+    product: &str,
+    identity_parts: &[&str],
+) -> Result<OmenaSifDigestV1, serde_json::Error> {
+    let input = serde_json::json!({
+        "schemaVersion": "address-v1",
+        "product": product,
+        "identityParts": identity_parts,
+    });
+    let canonical_bytes = write_omena_canonical_json_bytes_v1(&input)?;
+    Ok(compute_omena_sif_leaf_hash_v1(canonical_bytes.as_slice()))
+}
+
 pub fn compute_omena_sif_interface_hash_v1(
     toolchain_id: &str,
     exports: &OmenaSifExportsV1,
@@ -1527,6 +1543,23 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn stable_cache_shard_address_preserves_the_existing_recipe() -> Result<(), serde_json::Error> {
+        let product = "omena-lsp-server.workspace-cache-root";
+        let identity_parts = ["file:///workspace", "src/App.tsx"];
+        let legacy_input = json!({
+            "schemaVersion": "address-v1",
+            "product": product,
+            "identityParts": identity_parts,
+        });
+        let legacy_bytes = write_omena_canonical_json_bytes_v1(&legacy_input)?;
+        assert_eq!(
+            compute_omena_stable_cache_shard_address_v1(product, &identity_parts)?,
+            compute_omena_sif_leaf_hash_v1(legacy_bytes.as_slice())
+        );
+        Ok(())
+    }
 
     #[test]
     fn schema_file_is_valid_json() -> Result<(), serde_json::Error> {

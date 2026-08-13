@@ -1,5 +1,5 @@
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
-import type { AbstractClassValue } from "./class-value-domain";
+import { classValueMatchesCandidate, type AbstractClassValue } from "./class-value-domain";
 
 export interface ClassValueUniverseAxisValueV0 {
   readonly name: string;
@@ -98,52 +98,9 @@ export function projectAbstractValueClassNames(
   value: AbstractClassValue,
   universe: ClassValueUniverseLookupResultV0,
 ): readonly string[] {
-  const classNames = classNamesForUniverse(universe);
-  switch (value.kind) {
-    case "bottom":
-      return [];
-    case "exact":
-      return classNames.filter((className) => className === value.value);
-    case "finiteSet": {
-      const candidates = new Set(value.values);
-      return classNames.filter((className) => candidates.has(className));
-    }
-    case "prefix":
-      return classNames.filter((className) => className.startsWith(value.prefix));
-    case "suffix":
-      return classNames.filter((className) => className.endsWith(value.suffix));
-    case "prefixSuffix":
-      return classNames.filter(
-        (className) => className.startsWith(value.prefix) && className.endsWith(value.suffix),
-      );
-    case "charInclusion":
-      return classNames.filter((className) =>
-        satisfiesCharInclusion(
-          className,
-          value.mustChars,
-          value.mayChars,
-          Boolean(value.mayIncludeOtherChars),
-        ),
-      );
-    case "composite":
-      return classNames.filter(
-        (className) =>
-          (value.prefix === undefined || className.startsWith(value.prefix)) &&
-          (value.suffix === undefined || className.endsWith(value.suffix)) &&
-          (value.minLength === undefined || className.length >= value.minLength) &&
-          satisfiesCharInclusion(
-            className,
-            value.mustChars,
-            value.mayChars,
-            Boolean(value.mayIncludeOtherChars),
-          ),
-      );
-    case "top":
-      return classNames;
-    default:
-      value satisfies never;
-      return [];
-  }
+  return classNamesForUniverse(universe).filter((className) =>
+    classValueMatchesCandidate(value, className),
+  );
 }
 
 export function classNamesForUniverse(
@@ -200,19 +157,6 @@ function uniqueSelectorsById(selectors: readonly SelectorDeclHIR[]): readonly Se
     result.push(selector);
   }
   return result;
-}
-
-function satisfiesCharInclusion(
-  className: string,
-  mustChars: string,
-  mayChars: string,
-  mayIncludeOtherChars: boolean,
-): boolean {
-  const charSet = new Set(Array.from(className));
-  const mustSet = new Set(Array.from(mustChars));
-  const maySet = new Set(Array.from(mayChars));
-  if (Array.from(mustSet).some((char) => !charSet.has(char))) return false;
-  return mayIncludeOtherChars || !Array.from(charSet).some((char) => !maySet.has(char));
 }
 
 function uniqueSortedStrings(values: readonly string[]): readonly string[] {

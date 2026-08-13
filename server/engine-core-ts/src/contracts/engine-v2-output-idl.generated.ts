@@ -13,6 +13,7 @@ export type StringConstraintKindV2Json =
   | "prefixSuffix"
   | "charInclusion"
   | "composite";
+export type Utf16CodeUnitLengthV2Json = number;
 export type CertaintyShapeKindV2Json = "exact" | "boundedFinite" | "constrained" | "unknown";
 
 export interface EngineOutputV2Json {
@@ -38,8 +39,8 @@ export interface ExpressionSemanticsPayloadV2Json {
   readonly valueConstraintKind?: StringConstraintKindV2Json;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -112,8 +113,8 @@ export interface SourceExpressionResolutionPayloadV2Json {
   readonly valueCertaintyConstraintKind?: StringConstraintKindV2Json;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;

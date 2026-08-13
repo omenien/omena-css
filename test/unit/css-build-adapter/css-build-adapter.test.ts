@@ -212,7 +212,63 @@ describe("@omena/css-build-adapter", () => {
       "planner-import-inline",
       "planner-scss-evaluate",
     ]);
+    expect(JSON.parse(bundleCalls[0]?.[3] as string)).toMatchObject({
+      classNameRewrites: [{ originalName: "button", rewrittenName: "_button_0" }],
+    });
     expect(bundleCalls[0]?.[5]).toEqual([stylePath]);
+  });
+
+  it("builds CSS bytes with the selected module-interface token", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "omena-build-adapter-interface-token-"));
+    tempRoots.push(root);
+    const stylePath = path.join(root, "Button.module.css");
+    const source = ".button { color: red; }";
+    const observedContexts: unknown[] = [];
+    const engine = {
+      ...bundlerHostMock({ button: "_Ab1cdE_button _Zy9xW8_base" }),
+      summarizeTransformBundleFromSourceJson: () => JSON.stringify({ plannedPassIds: [] }),
+      buildStyleSourcesWithContextJson: (
+        _targetPath: string,
+        _sourcesJson: string,
+        _passIds: string[],
+        contextJson: string,
+      ) => {
+        const context = JSON.parse(contextJson) as {
+          classNameRewrites: readonly { rewrittenName: string }[];
+        };
+        observedContexts.push(context);
+        return JSON.stringify({
+          execution: {
+            outputCss: `.${context.classNameRewrites[0]?.rewrittenName}{color:red}`,
+            executedPassIds: [],
+          },
+        });
+      },
+    };
+
+    await expect(
+      rebuildAndCache(
+        stylePath,
+        source,
+        {
+          cwd: root,
+          configFile: false,
+          engine,
+          context: {
+            classNameRewrites: [{ originalName: "button", rewrittenName: "_Cd2efG_button" }],
+          },
+        },
+        createOmenaBuildState({ cwd: root }),
+      ),
+    ).resolves.toMatchObject({
+      code: "._Cd2efG_button{color:red}",
+      classMap: { button: "_Cd2efG_button _Zy9xW8_base" },
+    });
+    expect(observedContexts).toEqual([
+      {
+        classNameRewrites: [{ originalName: "button", rewrittenName: "_Cd2efG_button" }],
+      },
+    ]);
   });
 
   it("rejects open bundle outcomes without returning partial CSS", async () => {

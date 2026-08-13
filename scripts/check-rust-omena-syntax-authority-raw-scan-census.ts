@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { maskRustCfgTestItems } from "./lib/rust-cfg-test-mask";
 
 type SiteDisposition = "migration-target" | "named-exempt";
 
@@ -117,6 +118,11 @@ interface ProductPathMatrix {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const censusPath = path.join(repoRoot, "rust/omena-syntax-authority-raw-scan-census.json");
 const writeMode = process.argv.includes("--write");
+const acceptNewlyVisibleSites = process.argv.includes("--accept-newly-visible-sites");
+assert.ok(
+  !acceptNewlyVisibleSites || writeMode,
+  "--accept-newly-visible-sites is valid only while writing a reviewed baseline",
+);
 const injectRawScan = process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_RAW_SCAN === "1";
 const injectTokenCaseComparison =
   process.env.OMENA_SYNTAX_AUTHORITY_TEST_INJECT_TOKEN_CASE_COMPARE === "1";
@@ -241,11 +247,15 @@ const tokenCaseComparisonSites = tokenCaseOperations.adHocSites;
 const currentNamedExemptSiteCount = sites.filter(
   (site) => site.disposition === "named-exempt",
 ).length;
-const baselineSiteCount = existing?.baselineSiteCount ?? sites.length;
-const baselineNamedExemptSiteCount =
-  existing?.baselineNamedExemptSiteCount ?? currentNamedExemptSiteCount;
-const baselineClassSelectorScannerSiteCount =
-  existing?.classSelectorScanner?.baselineSiteCount ?? classSelectorScannerSites.length;
+const baselineSiteCount = acceptNewlyVisibleSites
+  ? sites.length
+  : (existing?.baselineSiteCount ?? sites.length);
+const baselineNamedExemptSiteCount = acceptNewlyVisibleSites
+  ? currentNamedExemptSiteCount
+  : (existing?.baselineNamedExemptSiteCount ?? currentNamedExemptSiteCount);
+const baselineClassSelectorScannerSiteCount = acceptNewlyVisibleSites
+  ? classSelectorScannerSites.length
+  : (existing?.classSelectorScanner?.baselineSiteCount ?? classSelectorScannerSites.length);
 
 assert.ok(sites.length > 0, "raw syntax scan census must be non-vacuous");
 assert.ok(
@@ -274,7 +284,7 @@ assert.deepEqual(
   "parser syntax-token case comparisons must route through matches_ignore_ascii_case",
 );
 
-if (existing && writeMode) {
+if (existing && writeMode && !acceptNewlyVisibleSites) {
   const previousKeys = new Set(existing.sites.map(stableSiteKey));
   const addedSites = sites.filter((site) => !previousKeys.has(stableSiteKey(site)));
   assert.deepEqual(
@@ -464,7 +474,7 @@ function scanModuleInterfaceLessScanner(): RawScanCensus["moduleInterfaceLessSca
       "fn injected_less_scanner_call(source: &str) { let _ = split_legacy_less_statements(source); }\n" +
       source;
   }
-  const scannable = maskCommentsAndTestTail(source);
+  const scannable = maskCommentsAndTestItems(source);
   const directCallFunctions = [...scannable.matchAll(/\bsplit_legacy_less_statements\s*\(/gu)]
     .filter((match) => {
       const line = source.split(/\r?\n/u)[lineNumberAt(source, match.index) - 1]?.trim() ?? "";
@@ -537,7 +547,7 @@ function scanTokenCaseOperations(): {
         "let duplicate = text.to_ascii_lowercase(); let lowered = duplicate.to_ascii_lowercase();",
       );
     }
-    const scannable = maskCommentsAndTestTail(source);
+    const scannable = maskCommentsAndTestItems(source);
     for (const match of scannable.matchAll(caseOperation)) {
       const line = lineNumberAt(source, match.index);
       const operation = match[1] as TokenCaseOperation;
@@ -604,7 +614,7 @@ function scanRawSyntaxSites(): RawScanSite[] {
     if (injectRawScan && relativePath === "rust/crates/omena-parser/src/facts/mod.rs") {
       source = `fn injected_raw_scan(source: &str) { let _ = source.find('{'); }\n${source}`;
     }
-    const scannable = maskCommentsAndTestTail(source);
+    const scannable = maskCommentsAndTestItems(source);
     const occupied = new Set<string>();
 
     for (const pattern of patterns) {
@@ -677,7 +687,7 @@ function scanClassSelectorScannerSites(): RawScanSite[] {
         "fn injected_class_scanner(bytes: &[u8], index: usize) -> bool { bytes[index] == b'.' }\n" +
         source;
     }
-    const scannable = maskCommentsAndTestTail(source);
+    const scannable = maskCommentsAndTestItems(source);
     for (const pattern of classSelectorScannerPatterns) {
       pattern.expression.lastIndex = 0;
       for (const match of scannable.matchAll(pattern.expression)) {
@@ -824,7 +834,7 @@ function classify(relativePath: string): {
   };
 }
 
-function maskCommentsAndTestTail(source: string): string {
+function maskCommentsAndTestItems(source: string): string {
   const chars = [...source];
   let inBlockComment = 0;
   let inLineComment = false;
@@ -882,14 +892,7 @@ function maskCommentsAndTestTail(source: string): string {
     }
   }
 
-  let masked = chars.join("");
-  const testModule = masked.match(/#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*mod\s+[A-Za-z0-9_]+\s*\{/u);
-  if (testModule?.index !== undefined) {
-    masked = `${masked.slice(0, testModule.index)}${masked
-      .slice(testModule.index)
-      .replace(/[^\n]/gu, " ")}`;
-  }
-  return masked;
+  return maskRustCfgTestItems(chars.join(""));
 }
 
 function lineNumberAt(source: string, offset: number): number {

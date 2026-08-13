@@ -16,9 +16,12 @@ use omena_reachability_datalog_lab::{
     datalog_fact_keys_v0, datalog_reachable_node_ids, selector_equality_witness_v0,
 };
 use omena_streaming_ifds::{
-    ExactStreamingConnectivityOracleV0, omena_streaming_ifds_batch_fact_keys_v0,
-    run_streaming_ifds_demand_v0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
-    streaming_ifds_structural_projection_node_ids_v0,
+    DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0,
+    demand_sliced_monotone_fact_propagation_batch_fact_keys_v0,
+    demand_sliced_monotone_fact_propagation_event_input_v0,
+    demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0,
+    run_demand_sliced_monotone_fact_propagation_demand_v0,
+    run_demand_sliced_monotone_fact_propagation_exact_v0,
 };
 use serde::Serialize;
 
@@ -135,7 +138,7 @@ struct ProductReachabilityParityV0 {
 pub fn summarize_reachability_second_oracle_equivalence_v0()
 -> OmenaDiffReachabilityEquivalenceReportV0 {
     let baseline = BatchHypergraphConnectivityOracle;
-    let streaming = ExactStreamingConnectivityOracleV0::default();
+    let streaming = DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default();
     let files = reachability_equivalence_fixtures_v0()
         .into_iter()
         .map(|fixture| {
@@ -342,37 +345,40 @@ fn fixture_adjacency(
 fn product_reachability_parity_for_fixture_v0(
     fixture: &ReachabilityEquivalenceFixtureV0,
 ) -> ProductReachabilityParityV0 {
-    let seed = vec![streaming_ifds_event_input_v0(
+    let seed = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
         format!("{}:seed", fixture.id),
         1,
         fixture.start_node_id.clone(),
         fixture.seed_value.clone(),
         None,
     )];
-    let first = run_streaming_ifds_exact_v0(
+    let first = run_demand_sliced_monotone_fact_propagation_exact_v0(
         format!("{}:initial", fixture.id),
         fixture.start_node_id.as_str(),
         &fixture.hyperedges,
         &seed,
-        &ExactStreamingConnectivityOracleV0::default(),
+        &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
         None,
     );
-    let warm_event = vec![streaming_ifds_event_input_v0(
+    let warm_event = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
         format!("{}:warm", fixture.id),
         2,
         fixture.start_node_id.clone(),
         fixture.seed_value.clone(),
         None,
     )];
-    let warm = run_streaming_ifds_exact_v0(
+    let warm = run_demand_sliced_monotone_fact_propagation_exact_v0(
         format!("{}:warm-run", fixture.id),
         fixture.start_node_id.as_str(),
         &fixture.hyperedges,
         &warm_event,
-        &ExactStreamingConnectivityOracleV0::default(),
+        &DemandSlicedMonotoneFactPropagationExactConnectivityOracleV0::default(),
         Some(&first.summary_cache),
     );
-    let batch_fact_keys = omena_streaming_ifds_batch_fact_keys_v0(&fixture.hyperedges, &warm_event);
+    let batch_fact_keys = demand_sliced_monotone_fact_propagation_batch_fact_keys_v0(
+        &fixture.hyperedges,
+        &warm_event,
+    );
     let incremental_fact_keys = warm
         .summary_cache
         .iter()
@@ -390,15 +396,15 @@ fn product_reachability_parity_for_fixture_v0(
 
 fn demand_reachability_parity_for_fixture_v0(
     fixture: &ReachabilityEquivalenceFixtureV0,
-) -> omena_streaming_ifds::StreamingIFDSDemandReportV0 {
-    let event = vec![streaming_ifds_event_input_v0(
+) -> omena_streaming_ifds::DemandSlicedMonotoneFactPropagationDemandReportV0 {
+    let event = vec![demand_sliced_monotone_fact_propagation_event_input_v0(
         format!("{}:demand", fixture.id),
         3,
         fixture.start_node_id.clone(),
         fixture.seed_value.clone(),
         None,
     )];
-    run_streaming_ifds_demand_v0(
+    run_demand_sliced_monotone_fact_propagation_demand_v0(
         std::slice::from_ref(&fixture.start_node_id),
         &fixture.demand_target_node_ids,
         &fixture.hyperedges,
@@ -409,7 +415,7 @@ fn demand_reachability_parity_for_fixture_v0(
 fn structural_projection_node_ids_for_fixture_v0(
     fixture: &ReachabilityEquivalenceFixtureV0,
 ) -> Vec<String> {
-    streaming_ifds_structural_projection_node_ids_v0(
+    demand_sliced_monotone_fact_propagation_structural_projection_node_ids_v0(
         std::slice::from_ref(&fixture.start_node_id),
         &fixture.demand_target_node_ids,
         &fixture.hyperedges,
@@ -672,8 +678,8 @@ fn hyperedge(
     UnifiedHypergraphHyperedgeV0 {
         schema_version: "0",
         product: "omena-diff-test.reachability-fixture",
-        layer_marker: "hypergraph-ifds",
-        feature_gate: "hypergraph-ifds",
+        layer_marker: "hypergraph-monotone-fact-propagation",
+        feature_gate: "hypergraph-monotone-fact-propagation",
         hyperedge_id: id.to_string(),
         edge_kind,
         source_summary_edge_id: id.to_string(),

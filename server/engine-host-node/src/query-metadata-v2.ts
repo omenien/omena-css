@@ -1,4 +1,5 @@
 import type { StringConstraintKindV2, ValueDomainKindV2 } from "../../engine-core-ts/src/contracts";
+import type { Utf16CodeUnitLength } from "../../engine-core-ts/src/core/abstract-value/class-value-domain";
 import type { SourceExpressionResolution } from "../../engine-core-ts/src/core/query/read-source-expression-resolution";
 
 export function classifyValueDomainV2(
@@ -8,8 +9,8 @@ export function classifyValueDomainV2(
   readonly constraintKind?: StringConstraintKindV2;
   readonly prefix?: string;
   readonly suffix?: string;
-  readonly minLen?: number;
-  readonly maxLen?: number;
+  readonly minLen?: Utf16CodeUnitLength;
+  readonly maxLen?: Utf16CodeUnitLength;
   readonly charMust?: string;
   readonly charMay?: string;
   readonly mayIncludeOtherChars?: boolean;

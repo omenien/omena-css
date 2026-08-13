@@ -4246,7 +4246,7 @@ fn parse_selector_segments(raw: &str) -> Vec<SelectorSegment> {
 }
 
 fn is_selector_ident_continue(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') || !ch.is_ascii()
+    omena_syntax::ident::is_css_name_continue(ch)
 }
 
 fn starts_selector_component_after_ampersand(ch: char) -> bool {

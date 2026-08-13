@@ -293,13 +293,13 @@ fn linked_emission_routes_reachability_by_owning_module() -> Result<(), String> 
         css.contains("color: red"),
         "the entry-owned shared selector must remain: {css:?}"
     );
-    let dependency_shared_declaration_retained = css.contains("padding: 8px");
+    let dependency_shared_declaration_removed = !css.contains("padding: 8px");
     let dependency_owned_selector_retained = css.contains("color: blue");
     // FALSIFIER: id=linked-emission-cli-007 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green
     assert!(
-        dependency_shared_declaration_retained && dependency_owned_selector_retained,
-        "emitted-token preservation mismatch: \
-         dependency_shared_declaration_retained={dependency_shared_declaration_retained}, \
+        dependency_shared_declaration_removed && dependency_owned_selector_retained,
+        "module-qualified ownership mismatch: \
+         dependency_shared_declaration_removed={dependency_shared_declaration_removed}, \
          dependency_owned_selector_retained={dependency_owned_selector_retained}, css={css:?}"
     );
     // FALSIFIER: id=linked-emission-cli-008 class=placement via=--inject-cross-module-declaration-loss producer=can-fail owner=linked-emission-instrument entry=committed-corpus-green

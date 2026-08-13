@@ -1,11 +1,23 @@
 import {
   runShadowExpressionDomainCallSiteFlowAnalysisInput,
+  runShadowExpressionDomainControlFlowAnalysisInput,
   runShadowExpressionDomainFlowAnalysisInput,
   runShadowExpressionDomainProvenanceExplanationsInput,
   runShadowExpressionDomainReducedProductIterationInput,
+  runShadowExpressionDomainSelectorProjectionInput,
+  runShadowExpressionSemanticsCanonicalProducerInput,
+  runShadowSelectorUsageCanonicalProducerInput,
+  runShadowSourceResolutionCanonicalProducerInput,
   type EngineInputV2,
   type StringTypeFactsV2,
 } from "./rust-shadow-shared";
+
+const PRE_EXISTING_FLOW_HEDGE_LAYERS = [
+  "FlowIterationLimit provenance",
+  "converged/iterationCount fields",
+  "checker-CLI converged=N/M counter",
+  "human flowIterationWidening label and TypeScript mirror",
+] as const;
 
 const INPUT: EngineInputV2 = {
   version: "2",
@@ -58,6 +70,88 @@ const REDUCED_PRODUCT_INPUT: EngineInputV2 = {
   ],
 };
 
+const CERTAINTY_HEDGE_INPUT: EngineInputV2 = {
+  version: "2",
+  workspace: {
+    root: "/tmp/cme-expression-domain-certainty-hedge",
+    classnameTransform: "asIs",
+    settingsKey: "synthetic-expression-domain-certainty-hedge",
+  },
+  sources: [
+    {
+      filePath: "/tmp/Certainty.tsx",
+      document: {
+        classExpressions: [
+          {
+            id: "expr-certainty-exact",
+            kind: "styleAccess",
+            scssModulePath: "/tmp/Certainty.module.scss",
+            range: range(0, 0, 0, 11),
+            className: "x",
+            rootBindingDeclId: null,
+            accessPath: ["styles", "x"],
+          },
+        ],
+      },
+      bindingGraph: {
+        declarations: [],
+        resolutions: [],
+      },
+    },
+  ],
+  styles: [
+    {
+      filePath: "/tmp/Certainty.module.scss",
+      document: {
+        selectors: [
+          {
+            name: "x",
+            viewKind: "canonical",
+            canonicalName: "x",
+            range: range(0, 0, 0, 11),
+            nestedSafety: "safe",
+            composes: null,
+            bemSuffix: null,
+          },
+        ],
+      },
+    },
+  ],
+  typeFacts: [
+    {
+      filePath: "/tmp/Certainty.tsx",
+      expressionId: "expr-certainty-exact",
+      facts: {
+        kind: "exact",
+        values: ["x"],
+      },
+      controlFlowGraph: {
+        entryBlockId: "seed",
+        blocks: [
+          {
+            id: "seed",
+            kind: "assignment",
+            transferKind: "assignFacts",
+            successorBlockIds: ["loop"],
+            boundaryEffect: "unknownBoundary",
+            facts: {
+              kind: "finiteSet",
+              values: ["a", "b"],
+            },
+          },
+          {
+            id: "loop",
+            kind: "loopBody",
+            transferKind: "concatFacts",
+            successorBlockIds: ["loop"],
+            boundaryEffect: "unknownBoundary",
+          },
+        ],
+      },
+    },
+  ],
+};
+
 void (async () => {
   process.stdout.write("== rust-expression-domain-flow-analysis:synthetic ==\n");
 
@@ -66,6 +160,16 @@ void (async () => {
   const provenanceSummary = await runShadowExpressionDomainProvenanceExplanationsInput(INPUT);
   const reducedProductSummary =
     await runShadowExpressionDomainReducedProductIterationInput(REDUCED_PRODUCT_INPUT);
+  const certaintyControlFlow =
+    await runShadowExpressionDomainControlFlowAnalysisInput(CERTAINTY_HEDGE_INPUT);
+  const certaintyProjection =
+    await runShadowExpressionDomainSelectorProjectionInput(CERTAINTY_HEDGE_INPUT);
+  const certaintyExpressionSemantics =
+    await runShadowExpressionSemanticsCanonicalProducerInput(CERTAINTY_HEDGE_INPUT);
+  const certaintySourceResolution =
+    await runShadowSourceResolutionCanonicalProducerInput(CERTAINTY_HEDGE_INPUT);
+  const certaintySelectorUsage =
+    await runShadowSelectorUsageCanonicalProducerInput(CERTAINTY_HEDGE_INPUT);
   const branchAGraph = findAnalysis(summary, "/tmp/App.tsx:expr-branch-a:expression-domain-flow");
   const branchANode = findNode(branchAGraph, "expr-branch-a");
   const cardOnlyGraph = findAnalysis(
@@ -77,7 +181,7 @@ void (async () => {
   assertEqual(summary.product, "engine-input-producers.expression-domain-flow-analysis", "product");
   assertEqual(summary.analyses.length, INPUT.typeFacts.length, "per-expression graph count");
   assertEqual(
-    summary.analyses.every((entry) => entry.analysis.contextSensitivity === "1-cfa"),
+    summary.analyses.every((entry) => entry.analysis.contextSensitivity === "perSuppliedGraph"),
     true,
     "context sensitivity",
   );
@@ -199,8 +303,122 @@ void (async () => {
     "provenance root operation",
   );
 
+  const certaintyCases = [
+    {
+      expressionId: "expr-certainty-exact",
+      selectorName: "x",
+      baseCertainty: "exact",
+      valueKind: "exact",
+    },
+  ] as const;
+  const certaintyGraphIds: string[] = [];
+  for (const certaintyCase of certaintyCases) {
+    const certaintyGraphId = `/tmp/Certainty.tsx:${certaintyCase.expressionId}:expression-domain-control-flow`;
+    certaintyGraphIds.push(certaintyGraphId);
+    const certaintyControlEntry = certaintyControlFlow.analyses.find(
+      (entry) => entry.graphId === certaintyGraphId,
+    );
+    if (!certaintyControlEntry) {
+      throw new Error(`missing selector-certainty control-flow graph: ${certaintyGraphId}`);
+    }
+    const certaintyProjectionEntry = certaintyProjection.projections.find(
+      (entry) =>
+        entry.filePath === "/tmp/Certainty.tsx" && entry.nodeId === certaintyCase.expressionId,
+    );
+    if (!certaintyProjectionEntry) {
+      throw new Error(`missing selector-certainty projection for graph: ${certaintyGraphId}`);
+    }
+    const expressionCandidate = certaintyExpressionSemantics.canonicalBundle.candidates.find(
+      (entry) => entry.queryId === certaintyCase.expressionId,
+    );
+    if (!expressionCandidate) {
+      throw new Error(
+        `missing expression-semantics certainty product: ${certaintyCase.expressionId}`,
+      );
+    }
+    const sourceCandidate = certaintySourceResolution.canonicalBundle.candidates.find(
+      (entry) => entry.queryId === certaintyCase.expressionId,
+    );
+    if (!sourceCandidate) {
+      throw new Error(`missing source-resolution certainty product: ${certaintyCase.expressionId}`);
+    }
+    const usageCandidate = certaintySelectorUsage.canonicalBundle.candidates.find(
+      (entry) => entry.queryId === certaintyCase.selectorName,
+    );
+    if (!usageCandidate) {
+      throw new Error(`missing selector-usage certainty product: ${certaintyCase.selectorName}`);
+    }
+
+    assertEqual(
+      certaintyControlEntry.analysis.flowAnalysis.converged,
+      false,
+      `selector-certainty source-CFG convergence graph=${certaintyGraphId}`,
+    );
+    assertEqual(
+      certaintyControlEntry.analysis.flowAnalysis.nodes.every(
+        (node) => node.value.kind === "top" && node.value.provenance === "flowIterationLimit",
+      ),
+      true,
+      `selector-certainty FlowIterationLimit provenance graph=${certaintyGraphId}`,
+    );
+    assertEqual(
+      JSON.stringify({
+        valueKind: certaintyProjectionEntry.valueKind,
+        selectorNames: certaintyProjectionEntry.selectorNames,
+        certainty: certaintyProjectionEntry.certainty,
+      }),
+      JSON.stringify({
+        valueKind: certaintyCase.valueKind,
+        selectorNames: [certaintyCase.selectorName],
+        certainty: "possible",
+      }),
+      `selector-certainty typed query demotion ${certaintyCase.baseCertainty}->possible graph=${certaintyGraphId}`,
+    );
+    for (const [product, candidate] of [
+      ["expression-semantics", expressionCandidate],
+      ["source-resolution", sourceCandidate],
+    ] as const) {
+      assertEqual(
+        JSON.stringify({
+          selectorNames: candidate.selectorNames,
+          certainty: candidate.selectorCertainty,
+          shapeKind: candidate.selectorCertaintyShapeKind,
+          shapeLabel: candidate.selectorCertaintyShapeLabel,
+        }),
+        JSON.stringify({
+          selectorNames: [certaintyCase.selectorName],
+          certainty: "possible",
+          shapeKind: "unknown",
+          shapeLabel: "unknown",
+        }),
+        `${product} certainty demotion ${certaintyCase.baseCertainty}->possible graph=${certaintyGraphId}`,
+      );
+    }
+    assertEqual(
+      JSON.stringify({
+        totalReferences: usageCandidate.totalReferences,
+        exactReferences: usageCandidate.exactReferenceCount,
+        inferredOrBetterReferences: usageCandidate.inferredOrBetterReferenceCount,
+      }),
+      JSON.stringify({
+        totalReferences: 1,
+        exactReferences: 0,
+        inferredOrBetterReferences: 0,
+      }),
+      `selector-usage certainty aggregate demotion ${certaintyCase.baseCertainty}->possible graph=${certaintyGraphId}`,
+    );
+  }
+  const certaintyHedgedGraphCount = certaintyProjection.projections.filter(
+    (entry) => entry.certainty === "possible",
+  ).length;
+  assertEqual(
+    certaintyHedgedGraphCount >= certaintyCases.length,
+    true,
+    `selector-certainty product census floor graphs=${certaintyGraphIds.join("|")}`,
+  );
+
   process.stdout.write(
-    `validated expression-domain flow analysis: graphs=${summary.analyses.length} nodes=${summary.analyses.reduce((count, entry) => count + entry.analysis.nodes.length, 0)} callSiteProduct=${callSiteSummary.product} reducedProduct=${reducedProductSummary.product} provenance=${provenanceSummary.product}\n`,
+    `validated expression-domain flow analysis: graphs=${summary.analyses.length} nodes=${summary.analyses.reduce((count, entry) => count + entry.analysis.nodes.length, 0)} callSiteProduct=${callSiteSummary.product} reducedProduct=${reducedProductSummary.product} provenance=${provenanceSummary.product} certaintyHedgedGraphs=${certaintyHedgedGraphCount} certaintyGraphIds=${certaintyGraphIds.join("|")} certaintyDemotion=exact->possible certaintyProducts=query|expression-semantics|source-resolution|selector-usage preExistingLayers=${PRE_EXISTING_FLOW_HEDGE_LAYERS.join("|")}\n`,
   );
 })();
 
@@ -235,6 +453,13 @@ function factInFile(filePath: string, expressionId: string, facts: StringTypeFac
     filePath,
     expressionId,
     facts,
+  };
+}
+
+function range(startLine: number, startCharacter: number, endLine: number, endCharacter: number) {
+  return {
+    start: { line: startLine, character: startCharacter },
+    end: { line: endLine, character: endCharacter },
   };
 }
 

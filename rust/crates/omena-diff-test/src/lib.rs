@@ -46,7 +46,7 @@ use omena_parser::{
 use omena_query::{
     OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
     OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0, OmenaQueryStyleSourceInputV0,
-    summarize_omena_query_cascade_site_outcomes_from_source,
+    summarize_omena_query_cascade_section_outcomes_from_source,
     summarize_omena_query_m4_axis_c_readiness, summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_hover_candidates,
@@ -434,10 +434,12 @@ pub struct SelectorContextSoundnessReportV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct IncrementalIdentityReuseEquivalenceReportV0 {
+/// Documentation pin for the value-only, same-tree-shape edit corpus.
+pub struct IncrementalSameShapeValueEditEquivalenceReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub source_pair: &'static str,
+    pub unrepresented_edit_class: &'static str,
     pub unchanged_syntax_id_stable: bool,
     pub changed_syntax_id_differs: bool,
     pub incremental_matches_from_scratch_delta: bool,
@@ -2729,8 +2731,10 @@ fn span_record(range: &impl std::fmt::Debug) -> String {
     format!("{range:?}")
 }
 
-pub fn summarize_incremental_identity_reuse_equivalence_v0()
--> IncrementalIdentityReuseEquivalenceReportV0 {
+/// Documentation pin: this report deliberately excludes sibling-shift edits
+/// and names that missing class in its serialized payload.
+pub fn summarize_incremental_same_shape_value_edit_equivalence_v0()
+-> IncrementalSameShapeValueEditEquivalenceReportV0 {
     let previous_source = ".alpha { color: red; } .beta { color: blue; }";
     let next_source = ".alpha { color: green; } .beta { color: blue; }";
     let previous_alpha_id = parser_rule_syntax_node_id(previous_source, ".alpha");
@@ -2822,10 +2826,11 @@ pub fn summarize_incremental_identity_reuse_equivalence_v0()
     ];
     let all_fields_match = fields.iter().all(|field| field.matches);
 
-    IncrementalIdentityReuseEquivalenceReportV0 {
+    IncrementalSameShapeValueEditEquivalenceReportV0 {
         schema_version: "0",
-        product: "omena-diff-test.incremental-identity-reuse-equivalence",
+        product: "omena-diff-test.incremental-same-shape-value-edit-equivalence",
         source_pair: "css-two-rule-alpha-edit-beta-unchanged",
+        unrepresented_edit_class: "sibling insertion, deletion, or reordering that changes positional parser identity",
         unchanged_syntax_id_stable: previous_beta_id == next_beta_id,
         changed_syntax_id_differs: previous_alpha_id != next_alpha_id,
         incremental_matches_from_scratch_delta: identity_keyed_reuse
@@ -3073,6 +3078,7 @@ fn type_fact_control_flow_block(
         symbol_ordinal: None,
         variable_name: None,
         expression_kind: None,
+        boundary_effect: "unknownBoundary".to_string(),
         facts: None,
     }
 }
@@ -8472,12 +8478,16 @@ code: missingCustomProperty
     }
 
     #[test]
-    fn reports_incremental_identity_reuse_equivalence_with_field_reports() {
-        let report = summarize_incremental_identity_reuse_equivalence_v0();
+    fn reports_incremental_same_shape_value_edit_equivalence_with_missing_edit_class() {
+        let report = summarize_incremental_same_shape_value_edit_equivalence_v0();
 
         assert_eq!(
             report.product,
-            "omena-diff-test.incremental-identity-reuse-equivalence"
+            "omena-diff-test.incremental-same-shape-value-edit-equivalence"
+        );
+        assert_eq!(
+            report.unrepresented_edit_class,
+            "sibling insertion, deletion, or reordering that changes positional parser identity"
         );
         assert!(report.unchanged_syntax_id_stable);
         assert!(report.changed_syntax_id_differs);

@@ -50,6 +50,13 @@ impl TransformSemanticPreservationTelemetryV0 {
             self.blocked_pass_count += 1;
         }
     }
+
+    /// Records an executor-observed pass that admission blocked before semantic comparison.
+    /// It is deliberately not counted as preserved.
+    pub(crate) fn record_blocked_before_observation(&mut self) {
+        self.observed_pass_count += 1;
+        self.blocked_pass_count += 1;
+    }
 }
 
 impl Default for TransformSemanticPreservationTelemetryV0 {

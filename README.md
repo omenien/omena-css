@@ -58,6 +58,10 @@ captured finding, so the example changes when product behavior changes.
 - NAPI, WASM, CLI, and LSP workflows over snapshot-bound contracts.
 - Vite, PostCSS, ESLint, Stylelint, and VS Code integration surfaces.
 
+For CSS Modules, the emitted token is not a contract; `classMap`, `namedExports`,
+and the generated `.d.ts` are. Hand-writing an emitted token into markup, tests,
+or CSS is unsupported.
+
 ## Product Guides
 
 | Area         | Guide                                                                                                           |

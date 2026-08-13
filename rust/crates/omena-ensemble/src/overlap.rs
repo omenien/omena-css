@@ -2,17 +2,20 @@ use std::collections::BTreeMap;
 
 use omena_cascade::CascadeOutcome;
 
+#[allow(deprecated)]
+use crate::types::CascadeSiteKeyV0;
 use crate::types::{
-    CascadeSiteKeyV0, DistributionModality, HistogramBinV0, OutcomeMode, OutcomeProjectionPolicyV0,
-    OverlapAttributionV0, ParisiM4AlphaSource, ParisiSource, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
-    ReplicaOverlapDistributionV0, ReplicaOverlapV0, ReplicaSiteOutcomeV0, ReplicaSnapshotV0,
-    SamplingPolicy,
+    CascadeSectionKeyV0, DistributionModality, HistogramBinV0, OutcomeMode,
+    OutcomeProjectionPolicyV0, OverlapAttributionV0, ParisiM4AlphaSource, ParisiSource,
+    REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+    REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaOverlapDistributionV0, ReplicaOverlapV0,
+    ReplicaSiteOutcomeV0, ReplicaSnapshotV0, SamplingPolicy,
 };
 use crate::{
     ConsumerId, InheritTreatment, ProjectionFamily, RankedSetTreatment, TopVariantTreatment,
 };
 
+#[allow(deprecated)]
 pub fn compute_replica_overlap<I, J>(
     alpha: &str,
     beta: &str,
@@ -483,10 +486,39 @@ fn peak_q_values(values: &[f64]) -> Vec<f64> {
     }
 }
 
+pub fn cascade_section_key(
+    element_selector: impl Into<String>,
+    property: impl Into<String>,
+) -> CascadeSectionKeyV0 {
+    CascadeSectionKeyV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.cascade-section-key",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+        element_selector: element_selector.into(),
+        property: property.into(),
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy key product owned by omena-ensemble maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+pub(crate) const LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0: &str = "omena-ensemble.cascade-site-key";
+
+/// Compatibility constructor for the pre-deflation serialized product.
+///
+/// Owner: `omena-ensemble` maintainers. Removal is not before 1.0 and requires
+/// downstream migration plus zero audited in-repo non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_key; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+#[allow(deprecated)]
 pub fn site(element_selector: impl Into<String>, property: impl Into<String>) -> CascadeSiteKeyV0 {
     CascadeSiteKeyV0 {
         schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
-        product: "omena-ensemble.cascade-site-key",
+        product: LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0,
         layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
         feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         element_selector: element_selector.into(),

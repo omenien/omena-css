@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::automaton::{automaton_class_value_from_values, automaton_is_well_formed_acyclic};
+use crate::automaton::{automaton_class_value_from_owned_values, automaton_is_well_formed_acyclic};
 use crate::{
     ABSTRACT_VALUE_CASCADE_FAMILY_CLAIM_LEVEL_V0, AbstractClassValueProvenanceV0,
     AbstractClassValueV0, AbstractValueDomainSummaryV0, CompositeClassValueInputV0, FactPrecision,
@@ -78,16 +78,10 @@ where
     I: IntoIterator<Item = S>,
     S: Into<String>,
 {
-    let normalized = normalize_values(values);
-    match normalized.len() {
-        0 => bottom_class_value(),
-        1 => exact_class_value(normalized[0].clone()),
-        2..=MAX_FINITE_CLASS_VALUES => AbstractClassValueV0::FiniteSet { values: normalized },
-        _ => automaton_class_value_from_values(
-            &normalized,
-            Some(AbstractClassValueProvenanceV0::FiniteSetWideningAutomaton),
-        ),
-    }
+    automaton_class_value_from_owned_values(
+        values.into_iter().map(Into::into),
+        Some(AbstractClassValueProvenanceV0::FiniteSetWideningAutomaton),
+    )
 }
 
 pub fn prefix_class_value(
@@ -357,7 +351,7 @@ pub(crate) fn composite_min_length_for_constraints(
     }
 }
 
-fn prefix_suffix_overlap_len(prefix: &str, suffix: &str) -> usize {
+pub(crate) fn prefix_suffix_overlap_len(prefix: &str, suffix: &str) -> usize {
     let max_overlap = prefix.len().min(suffix.len());
 
     for overlap in (0..=max_overlap).rev() {
@@ -371,19 +365,6 @@ fn prefix_suffix_overlap_len(prefix: &str, suffix: &str) -> usize {
     }
 
     0
-}
-
-fn normalize_values<I, S>(values: I) -> Vec<String>
-where
-    I: IntoIterator<Item = S>,
-    S: Into<String>,
-{
-    values
-        .into_iter()
-        .map(Into::into)
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
 }
 
 fn longest_common_prefix(values: &[String]) -> String {

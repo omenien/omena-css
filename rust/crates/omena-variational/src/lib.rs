@@ -1,4 +1,4 @@
-//! Variational cascade inference contracts.
+//! Designer-intent evidence propagation scaffold.
 //!
 //! Stochastic evidence is isolated in this crate and disabled by default. V0
 //! contracts serialize log quantities in bits; any nats arithmetic stays behind
@@ -16,11 +16,32 @@ use serde::Serialize;
 pub const VARIATIONAL_SCHEMA_VERSION_V0: &str = "0";
 pub const VARIATIONAL_LAYER_MARKER_V0: &str = "variational-cascade";
 pub const VARIATIONAL_FEATURE_GATE_V0: &str = "variational";
-const DESIGNER_INTENT_BP_MAX_ITERATIONS_V0: usize = 12;
-const DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0: f64 = 0.005;
-const DESIGNER_INTENT_BP_DAMPING_V0: f64 = 0.35;
-const DESIGNER_INTENT_BP_FEEDBACK_WEIGHT_V0: f64 = 0.08;
-const DESIGNER_INTENT_BP_MAX_FEEDBACK_BITS_V0: f64 = 0.35;
+const DESIGNER_INTENT_EVIDENCE_MAX_ITERATIONS_V0: usize = 12;
+const DESIGNER_INTENT_EVIDENCE_CONVERGENCE_EPSILON_BITS_V0: f64 = 0.005;
+const DESIGNER_INTENT_EVIDENCE_DAMPING_V0: f64 = 0.35;
+const DESIGNER_INTENT_EVIDENCE_FEEDBACK_WEIGHT_V0: f64 = 0.08;
+const DESIGNER_INTENT_EVIDENCE_MAX_FEEDBACK_BITS_V0: f64 = 0.35;
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-variational maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+const DESIGNER_INTENT_LEGACY_TRACE_PRODUCT_V0: &str =
+    "omena-variational.designer-intent-belief-propagation";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-variational maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+const DESIGNER_INTENT_LEGACY_MESSAGE_PRODUCT_V0: &str =
+    "omena-variational.designer-intent-bp-message";
+
+#[cfg(test)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-variational maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+const DESIGNER_INTENT_LEGACY_PRODUCT_BYTES_V0: &[u8] = br#"["omena-variational.designer-intent-belief-propagation","omena-variational.designer-intent-bp-message"]"#;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -234,6 +255,51 @@ pub fn designer_intent_posterior_input_v0(
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DesignerIntentEvidencePropagationTraceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub selector_name: String,
+    pub factor_count: usize,
+    pub iteration_count: usize,
+    pub converged: bool,
+    pub max_delta_bits: f64,
+    pub free_energy_delta_bits: f64,
+    pub free_energy: VariationalFreeEnergyV0,
+    pub message_count: usize,
+    pub messages: Vec<DesignerIntentEvidenceMessageV0>,
+    pub posterior_scores: Vec<DesignerIntentScoreV0>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DesignerIntentMessageDirectionV0 {
+    IntentToFactor,
+    FactorToIntent,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesignerIntentEvidenceMessageV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub iteration_index: usize,
+    pub direction: DesignerIntentMessageDirectionV0,
+    pub source_factor: &'static str,
+    pub target_intent: PatternIntentV0,
+    pub message_bits: f64,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-variational maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DesignerIntentBeliefPropagationTraceV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -251,13 +317,10 @@ pub struct DesignerIntentBeliefPropagationTraceV0 {
     pub posterior_scores: Vec<DesignerIntentScoreV0>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum DesignerIntentMessageDirectionV0 {
-    IntentToFactor,
-    FactorToIntent,
-}
-
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-variational maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesignerIntentBeliefPropagationMessageV0 {
@@ -297,7 +360,7 @@ pub fn summarize_variational_default_posterior_v0(
 pub fn infer_designer_intent_posterior_v0(
     input: DesignerIntentPosteriorInputV0,
 ) -> DesignerIntentPosteriorV0 {
-    let trace = designer_intent_belief_propagation_trace_v0(&input);
+    let trace = designer_intent_evidence_propagation_trace_v0(&input);
 
     DesignerIntentPosteriorV0 {
         schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
@@ -315,9 +378,9 @@ pub fn infer_designer_intent_posterior_v0(
     }
 }
 
-pub fn designer_intent_belief_propagation_trace_v0(
+pub fn designer_intent_evidence_propagation_trace_v0(
     input: &DesignerIntentPosteriorInputV0,
-) -> DesignerIntentBeliefPropagationTraceV0 {
+) -> DesignerIntentEvidencePropagationTraceV0 {
     let selector = normalize_selector_name_for_intent_v0(&input.selector_name);
     let factors = designer_intent_evidence_factors_v0(&selector, input);
     let intents = [
@@ -341,7 +404,7 @@ pub fn designer_intent_belief_propagation_trace_v0(
         &factor_to_intent_messages,
     );
 
-    for iteration_index in 0..DESIGNER_INTENT_BP_MAX_ITERATIONS_V0 {
+    for iteration_index in 0..DESIGNER_INTENT_EVIDENCE_MAX_ITERATIONS_V0 {
         iteration_count = iteration_index + 1;
         let mut intent_to_factor_messages = vec![vec![0.0; intents.len()]; factors.len()];
 
@@ -360,9 +423,9 @@ pub fn designer_intent_belief_propagation_trace_v0(
             for (intent_index, intent) in intents.iter().enumerate() {
                 let message_bits = raw_intent_messages[intent_index] - normalization_bits;
                 intent_to_factor_messages[factor_index][intent_index] = message_bits;
-                messages.push(DesignerIntentBeliefPropagationMessageV0 {
+                messages.push(DesignerIntentEvidenceMessageV0 {
                     schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
-                    product: "omena-variational.designer-intent-bp-message",
+                    product: "omena-variational.designer-intent-evidence-message",
                     layer_marker: VARIATIONAL_LAYER_MARKER_V0,
                     feature_gate: VARIATIONAL_FEATURE_GATE_V0,
                     iteration_index,
@@ -381,18 +444,18 @@ pub fn designer_intent_belief_propagation_trace_v0(
                 let feedback_bits = (intent_to_factor_messages[factor_index][intent_index]
                     - prior_log_probability_bits)
                     .clamp(
-                        -DESIGNER_INTENT_BP_MAX_FEEDBACK_BITS_V0,
-                        DESIGNER_INTENT_BP_MAX_FEEDBACK_BITS_V0,
+                        -DESIGNER_INTENT_EVIDENCE_MAX_FEEDBACK_BITS_V0,
+                        DESIGNER_INTENT_EVIDENCE_MAX_FEEDBACK_BITS_V0,
                     )
-                    * DESIGNER_INTENT_BP_FEEDBACK_WEIGHT_V0;
+                    * DESIGNER_INTENT_EVIDENCE_FEEDBACK_WEIGHT_V0;
                 let target_message_bits = evidence_bits + feedback_bits;
-                let message_bits = DESIGNER_INTENT_BP_DAMPING_V0
+                let message_bits = DESIGNER_INTENT_EVIDENCE_DAMPING_V0
                     * factor_to_intent_messages[factor_index][intent_index]
-                    + (1.0 - DESIGNER_INTENT_BP_DAMPING_V0) * target_message_bits;
+                    + (1.0 - DESIGNER_INTENT_EVIDENCE_DAMPING_V0) * target_message_bits;
                 next_factor_to_intent_messages[factor_index][intent_index] = message_bits;
-                messages.push(DesignerIntentBeliefPropagationMessageV0 {
+                messages.push(DesignerIntentEvidenceMessageV0 {
                     schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
-                    product: "omena-variational.designer-intent-bp-message",
+                    product: "omena-variational.designer-intent-evidence-message",
                     layer_marker: VARIATIONAL_LAYER_MARKER_V0,
                     feature_gate: VARIATIONAL_FEATURE_GATE_V0,
                     iteration_index,
@@ -424,8 +487,8 @@ pub fn designer_intent_belief_propagation_trace_v0(
         factor_to_intent_messages = next_factor_to_intent_messages;
         free_energy = next_free_energy;
 
-        if max_delta_bits <= DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0
-            && free_energy_delta_bits <= DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0
+        if max_delta_bits <= DESIGNER_INTENT_EVIDENCE_CONVERGENCE_EPSILON_BITS_V0
+            && free_energy_delta_bits <= DESIGNER_INTENT_EVIDENCE_CONVERGENCE_EPSILON_BITS_V0
         {
             converged = true;
             break;
@@ -435,9 +498,9 @@ pub fn designer_intent_belief_propagation_trace_v0(
     let posterior_scores =
         designer_intent_scores_from_log_probabilities_v0(&intents, &posterior_log_probability_bits);
 
-    DesignerIntentBeliefPropagationTraceV0 {
+    DesignerIntentEvidencePropagationTraceV0 {
         schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
-        product: "omena-variational.designer-intent-belief-propagation",
+        product: "omena-variational.designer-intent-evidence-propagation",
         layer_marker: VARIATIONAL_LAYER_MARKER_V0,
         feature_gate: VARIATIONAL_FEATURE_GATE_V0,
         selector_name: input.selector_name.clone(),
@@ -450,6 +513,62 @@ pub fn designer_intent_belief_propagation_trace_v0(
         message_count: messages.len(),
         messages,
         posterior_scores,
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-variational maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
+pub fn designer_intent_belief_propagation_trace_v0(
+    input: &DesignerIntentPosteriorInputV0,
+) -> DesignerIntentBeliefPropagationTraceV0 {
+    #[allow(deprecated)]
+    designer_intent_legacy_wire_compatibility_trace_v0(input)
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility owner: omena-variational maintainers; removal condition: not before 1.0, and only after downstream migration and zero in-repo non-compat uses"
+)]
+#[allow(deprecated)]
+pub fn designer_intent_legacy_wire_compatibility_trace_v0(
+    input: &DesignerIntentPosteriorInputV0,
+) -> DesignerIntentBeliefPropagationTraceV0 {
+    let trace = designer_intent_evidence_propagation_trace_v0(input);
+    #[allow(deprecated)]
+    let messages = trace
+        .messages
+        .into_iter()
+        .map(|message| DesignerIntentBeliefPropagationMessageV0 {
+            schema_version: message.schema_version,
+            product: DESIGNER_INTENT_LEGACY_MESSAGE_PRODUCT_V0,
+            layer_marker: message.layer_marker,
+            feature_gate: message.feature_gate,
+            iteration_index: message.iteration_index,
+            direction: message.direction,
+            source_factor: message.source_factor,
+            target_intent: message.target_intent,
+            message_bits: message.message_bits,
+        })
+        .collect();
+
+    DesignerIntentBeliefPropagationTraceV0 {
+        schema_version: trace.schema_version,
+        product: DESIGNER_INTENT_LEGACY_TRACE_PRODUCT_V0,
+        layer_marker: trace.layer_marker,
+        feature_gate: trace.feature_gate,
+        selector_name: trace.selector_name,
+        factor_count: trace.factor_count,
+        iteration_count: trace.iteration_count,
+        converged: trace.converged,
+        max_delta_bits: trace.max_delta_bits,
+        free_energy_delta_bits: trace.free_energy_delta_bits,
+        free_energy: trace.free_energy,
+        message_count: trace.message_count,
+        messages,
+        posterior_scores: trace.posterior_scores,
     }
 }
 
@@ -803,6 +922,23 @@ pub fn provenance_posterior_node_v0(
     }
 }
 
+/// Returns the observable variational channel for an automaton preconstruction cutoff.
+///
+/// Cardinality and materialized-byte refusals remain separate so downstream summaries do not
+/// collapse two different precision costs into a generic automaton limit.
+#[must_use]
+pub fn automaton_preconstruction_cutoff_channel_v0(
+    provenance: AbstractClassValueProvenanceV0,
+) -> Option<&'static str> {
+    match provenance {
+        AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit => {
+            Some("languageCardinality")
+        }
+        AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit => Some("materializedBytes"),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -848,24 +984,25 @@ mod tests {
     }
 
     #[test]
-    fn belief_propagation_trace_carries_non_tautological_factor_messages() {
+    fn evidence_propagation_trace_carries_non_tautological_factor_messages() {
         let tied = designer_intent_posterior_input_v0(".button--primary", 2, 1, 0);
         let explicit = DesignerIntentPosteriorInputV0 {
             duplicate_property_tie_count: 0,
             ..tied.clone()
         };
-        let tied_trace = designer_intent_belief_propagation_trace_v0(&tied);
-        let explicit_trace = designer_intent_belief_propagation_trace_v0(&explicit);
+        let tied_trace = designer_intent_evidence_propagation_trace_v0(&tied);
+        let explicit_trace = designer_intent_evidence_propagation_trace_v0(&explicit);
 
         assert_eq!(tied_trace.factor_count, 5);
         assert!(tied_trace.iteration_count > 1);
         assert!(tied_trace.converged);
         assert!(
-            tied_trace.max_delta_bits <= DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0,
+            tied_trace.max_delta_bits <= DESIGNER_INTENT_EVIDENCE_CONVERGENCE_EPSILON_BITS_V0,
             "final iteration should satisfy posterior fixpoint tolerance"
         );
         assert!(
-            tied_trace.free_energy_delta_bits <= DESIGNER_INTENT_BP_CONVERGENCE_EPSILON_BITS_V0,
+            tied_trace.free_energy_delta_bits
+                <= DESIGNER_INTENT_EVIDENCE_CONVERGENCE_EPSILON_BITS_V0,
             "free-energy objective should participate in convergence"
         );
         assert_eq!(
@@ -875,7 +1012,7 @@ mod tests {
         );
         assert!(
             tied_trace.message_count > 25,
-            "iterative belief propagation should retain more than one factor-to-intent sweep"
+            "iterative evidence propagation should retain more than one factor-to-intent sweep"
         );
         assert!(tied_trace.messages.iter().any(|message| {
             message.direction == DesignerIntentMessageDirectionV0::IntentToFactor
@@ -912,9 +1049,53 @@ mod tests {
         );
     }
 
+    #[test]
+    #[allow(deprecated)]
+    fn legacy_wire_adapter_preserves_trace_and_message_product_bytes() {
+        let input = designer_intent_posterior_input_v0(".button--primary", 2, 1, 0);
+        let trace = designer_intent_legacy_wire_compatibility_trace_v0(&input);
+        let canonical_trace = designer_intent_evidence_propagation_trace_v0(&input);
+        let first_message_product = trace.messages.first().map(|message| message.product);
+        assert!(
+            first_message_product.is_some(),
+            "legacy compatibility trace should retain messages"
+        );
+        let actual =
+            serde_json::to_vec(&(trace.product, first_message_product.unwrap_or_default()));
+
+        assert!(
+            actual.is_ok(),
+            "legacy compatibility products should serialize"
+        );
+        assert_eq!(
+            actual.unwrap_or_default(),
+            DESIGNER_INTENT_LEGACY_PRODUCT_BYTES_V0
+        );
+
+        let canonical_bytes = serde_json::to_string(&canonical_trace);
+        assert!(canonical_bytes.is_ok());
+        let canonical_bytes = canonical_bytes.unwrap_or_default();
+        let expected_legacy_bytes = canonical_bytes
+            .replace(
+                canonical_trace.product,
+                DESIGNER_INTENT_LEGACY_TRACE_PRODUCT_V0,
+            )
+            .replace(
+                "omena-variational.designer-intent-evidence-message",
+                DESIGNER_INTENT_LEGACY_MESSAGE_PRODUCT_V0,
+            )
+            .into_bytes();
+        let actual_legacy_bytes = serde_json::to_vec(&trace);
+        assert!(actual_legacy_bytes.is_ok());
+        assert_eq!(
+            actual_legacy_bytes.unwrap_or_default(),
+            expected_legacy_bytes
+        );
+    }
+
     fn designer_intent_single_sweep_trace_for_test_v0(
         input: &DesignerIntentPosteriorInputV0,
-    ) -> DesignerIntentBeliefPropagationTraceV0 {
+    ) -> DesignerIntentEvidencePropagationTraceV0 {
         let selector = normalize_selector_name_for_intent_v0(&input.selector_name);
         let factors = designer_intent_evidence_factors_v0(&selector, input);
         let intents = [
@@ -943,9 +1124,9 @@ mod tests {
             &posterior_log_probability_bits,
         );
 
-        DesignerIntentBeliefPropagationTraceV0 {
+        DesignerIntentEvidencePropagationTraceV0 {
             schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
-            product: "omena-variational.designer-intent-belief-propagation",
+            product: "omena-variational.designer-intent-evidence-propagation",
             layer_marker: VARIATIONAL_LAYER_MARKER_V0,
             feature_gate: VARIATIONAL_FEATURE_GATE_V0,
             selector_name: input.selector_name.clone(),
@@ -965,9 +1146,9 @@ mod tests {
                 .flat_map(|factor| {
                     intents
                         .iter()
-                        .map(|intent| DesignerIntentBeliefPropagationMessageV0 {
+                        .map(|intent| DesignerIntentEvidenceMessageV0 {
                             schema_version: VARIATIONAL_SCHEMA_VERSION_V0,
-                            product: "omena-variational.designer-intent-bp-message",
+                            product: "omena-variational.designer-intent-evidence-message",
                             layer_marker: VARIATIONAL_LAYER_MARKER_V0,
                             feature_gate: VARIATIONAL_FEATURE_GATE_V0,
                             iteration_index: 0,
@@ -1043,8 +1224,52 @@ mod tests {
         assert!(!annotation.mutates_existing_provenance_enum);
     }
 
+    #[test]
+    fn preconstruction_cutoff_provenance_annotations_stay_distinct() {
+        let annotation = provenance_posterior_annotation_v0(
+            "automaton-preconstruction-cutoffs",
+            vec![
+                provenance_posterior_node_v0(
+                    AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit,
+                    -0.5,
+                    -1.0,
+                ),
+                provenance_posterior_node_v0(
+                    AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit,
+                    -0.75,
+                    -1.5,
+                ),
+            ],
+        );
+
+        assert_eq!(
+            annotation.provenance,
+            Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit)
+        );
+        assert_eq!(
+            annotation.annotations[0].provenance,
+            AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit
+        );
+        assert_eq!(
+            annotation.annotations[1].provenance,
+            AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit
+        );
+        assert_ne!(
+            annotation.annotations[0].provenance,
+            annotation.annotations[1].provenance
+        );
+        assert_eq!(
+            automaton_preconstruction_cutoff_channel_v0(annotation.annotations[0].provenance),
+            Some("languageCardinality")
+        );
+        assert_eq!(
+            automaton_preconstruction_cutoff_channel_v0(annotation.annotations[1].provenance),
+            Some("materializedBytes")
+        );
+    }
+
     fn score_bits_for_intent(
-        trace: &DesignerIntentBeliefPropagationTraceV0,
+        trace: &DesignerIntentEvidencePropagationTraceV0,
         intent: PatternIntentV0,
     ) -> f64 {
         trace

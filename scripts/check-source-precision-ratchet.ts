@@ -4,6 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+type Utf8ByteLengthV0 = number;
+
 type Tier =
   | "top"
   | "automaton"
@@ -22,7 +24,7 @@ interface ClassValue {
   readonly values?: readonly string[];
   readonly prefix?: string;
   readonly suffix?: string;
-  readonly minLength?: number;
+  readonly minLength?: Utf8ByteLengthV0;
 }
 
 interface SourcePrecisionReference {
@@ -258,11 +260,15 @@ function matchesClassValue(value: ClassValue, candidate: string): boolean {
       return (
         candidate.startsWith(String(value.prefix ?? "")) &&
         candidate.endsWith(String(value.suffix ?? "")) &&
-        candidate.length >= Number(value.minLength ?? 0)
+        utf8ByteLength(candidate) >= Number(value.minLength ?? 0)
       );
     default:
       return false;
   }
+}
+
+function utf8ByteLength(value: string): Utf8ByteLengthV0 {
+  return Buffer.byteLength(value, "utf8");
 }
 
 function integerCount(value: number, label: string): number {

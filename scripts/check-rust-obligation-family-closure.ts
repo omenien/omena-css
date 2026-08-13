@@ -70,7 +70,7 @@ function extractFunctionBody(source: string, fnName: string): string {
 function countUntypedCarrierFamilies(): number {
   const cascadeProof = read("rust/crates/omena-cascade-proof/src/lib.rs");
   const transformEgg = read("rust/crates/omena-transform-egg/src/lib.rs");
-  const lawvere = read("rust/crates/omena-lawvere/src/lib.rs");
+  const transform_catalog = read("rust/crates/omena-lawvere/src/lib.rs");
 
   const transformRewriteInputNew = cascadeProof.match(
     /impl TransformRewriteProofInputV0 \{[\s\S]*?pub fn new\(([\s\S]*?)\n    \) -> Self/,
@@ -81,10 +81,13 @@ function countUntypedCarrierFamilies(): number {
   );
 
   const eggProofBody = extractStructBody(transformEgg, "EggRewriteProofV0");
-  const lawvereCertificateBody = extractStructBody(lawvere, "ReorderabilityCertificateV0");
+  const transform_catalogCertificateBody = extractStructBody(
+    transform_catalog,
+    "ReorderabilityCertificateV0",
+  );
   const carrierTwoTyped =
     eggProofBody.includes("obligation_family") &&
-    lawvereCertificateBody.includes("obligation_family");
+    transform_catalogCertificateBody.includes("obligation_family");
 
   return Number(!carrierOneTyped) + Number(!carrierTwoTyped);
 }
@@ -153,7 +156,7 @@ const carrierBoundFamilies = new Set(
     "rust/crates/omena-cascade-proof/src/lib.rs",
     "rust/crates/omena-transform-cst/src/lib.rs",
     "rust/crates/omena-transform-egg/src/lib.rs",
-    "rust/crates/omena-transform-egg/src/lawvere_analysis.rs",
+    "rust/crates/omena-transform-egg/src/transform_catalog_analysis.rs",
     "rust/crates/omena-lawvere/src/lib.rs",
   ].flatMap((relativePath) =>
     [...read(relativePath).matchAll(/ObligationFamilyIdV0::([A-Z][A-Za-z0-9]+)/g)].map(

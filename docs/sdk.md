@@ -15,6 +15,10 @@ omena-css exposes the same snapshot-bound workflows through NAPI, WASM, the
 `contracts/engine-sdk-workflow/main.tsp` owns request, response, partition, and
 typed error envelopes.
 
+For CSS Modules, the emitted token is not a contract; `classMap`, `namedExports`,
+and the generated `.d.ts` are. Hand-writing an emitted token into markup, tests,
+or CSS is unsupported.
+
 ## Registry Availability
 
 The repository and npm registry do not currently expose identical NAPI
@@ -113,6 +117,20 @@ omena sdk request.json
 The request contains `workspaceRoot`, `styleSources`, `operation`, and the typed
 `request` payload. JSON output wraps the workflow response in
 `omena-cli.sdk-workflow` metadata.
+
+`workspaceRoot` is required on bundler-host resolve requests. Clients upgrading
+from the earlier request shape must add it explicitly and keep the value stable
+across workspace relocation; Omena uses that boundary to derive portable CSS
+Module identity. A component-bounded path inside the root keeps its
+caller-visible spelling even when it traverses a link; a path outside that
+lexical boundary is accepted only when its canonical target is inside the
+canonical root.
+
+CSS Module token-integrity enforcement is opt-in. `Strict` mode rejects output
+when selected interface tokens and emitted bytes disagree or ownership analysis
+is incomplete. `Descriptive` mode reports the same census and reasons without
+rejecting output, so callers that do not select `Strict` are not guaranteed to
+fail closed on an incomplete carrier.
 
 ## LSP
 

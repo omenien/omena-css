@@ -11,6 +11,12 @@ const wasmPath = "rust/crates/omena-wasm/src/lib.rs";
 const declarationPath = "packages/css-build-adapter/index.d.ts";
 const generatedDeclarationPath = "packages/css-build-adapter/bundler-host-contract.generated.d.ts";
 const wireFixturePath = "rust/crates/omena-query/tests/fixtures/bundle-execution-scope-wire.json";
+const wireCompatBaselinePath =
+  "rust/crates/omena-query/tests/fixtures/bundle-execution-scope-wire-compat-baseline.json";
+const bundleModuleWireKeyFixturePath =
+  "rust/crates/omena-query/tests/fixtures/bundle-module-execution-wire-keys.json";
+const foldContractPath =
+  "rust/crates/omena-query/tests/fixtures/bundle-execution-fold-contract.json";
 const executionWireFixtureDirectory =
   "rust/crates/omena-transform-passes/tests/fixtures/execution-summary-wire";
 const adapterGatePath = "scripts/check-rust-omena-bundler-adapter-pass-authority.ts";
@@ -18,6 +24,7 @@ const adapterTestPath = "test/unit/css-build-adapter/css-build-adapter.test.ts";
 const publicApiPath = "rust/crates/omena-query/tests/snapshots/public-api.txt";
 const TRANSFORM_EXECUTION_SUMMARY_UNDECLARED_WIRE_KEYS = [
   "cascadeProofObligations",
+  "closedWorldAdmission",
   "cssImportInlines",
   "cssModuleComposesExports",
   "cssModuleEvaluation",
@@ -73,6 +80,15 @@ const adapterGateSource = readFileSync(adapterGatePath, "utf8");
 const adapterTestSource = readFileSync(adapterTestPath, "utf8");
 const publicApiSource = readFileSync(publicApiPath, "utf8");
 const wireFixture = JSON.parse(readFileSync(wireFixturePath, "utf8")) as Record<string, unknown>;
+const wireCompatBaseline = JSON.parse(readFileSync(wireCompatBaselinePath, "utf8")) as Record<
+  string,
+  unknown
+>;
+const bundleModuleWireKeySample = asWireKeySample(
+  JSON.parse(readFileSync(bundleModuleWireKeyFixturePath, "utf8")),
+  "bundle-module-execution-wire-keys.json",
+);
+const foldContract = asObject(JSON.parse(readFileSync(foldContractPath, "utf8")));
 const executionWireKeySamples = readdirSync(executionWireFixtureDirectory)
   .filter((fileName) => fileName.endsWith(".json"))
   .toSorted()
@@ -98,6 +114,22 @@ const injectExecutionWireFieldAdd = process.argv.includes("--inject-execution-wi
 const injectExecutionRequiredOmission = process.argv.includes(
   "--inject-execution-required-omission",
 );
+const injectBundleAggregateFieldAdd = process.argv.includes("--inject-bundle-aggregate-field-add");
+const injectBundleFoldRowDrop = process.argv.includes("--inject-bundle-fold-row-drop");
+const injectBundleWitnessMissing = process.argv.includes("--inject-bundle-witness-missing");
+const injectBundleCarrierAccountingDrop = process.argv.includes(
+  "--inject-bundle-carrier-accounting-drop",
+);
+const injectBundleCarrierPartitionOverlap = process.argv.includes(
+  "--inject-bundle-carrier-partition-overlap",
+);
+const injectBundleDuplicateByteAuthority = process.argv.includes(
+  "--inject-bundle-duplicate-byte-authority",
+);
+const injectBundleWireFieldRename = process.argv.includes("--inject-bundle-wire-field-rename");
+const injectBundleWireSampleLoss = process.argv.includes("--inject-bundle-wire-sample-loss");
+const injectBundleCompatByteChange = process.argv.includes("--inject-bundle-compat-byte-change");
+const injectBundleLegacyEmpty = process.argv.includes("--inject-bundle-legacy-empty");
 if (injectDeclarationDrift) {
   declarationSource = declarationSource.replace(
     "readonly segmentCount: number;",
@@ -122,6 +154,15 @@ if (injectCommentOnlyAssertion) {
   );
 }
 const wireDispositions = asArray(wireFixture.sourceMapDispositions).map(asObject);
+const bundleExecution = asObject(wireFixture.bundleExecution);
+const bundleEmissionExecution = asObject(bundleExecution.emissionExecution);
+if (injectBundleWireFieldRename) {
+  bundleExecution.aggregateMutationTotal = bundleExecution.aggregateMutationCount;
+  delete bundleExecution.aggregateMutationCount;
+}
+if (injectBundleCompatByteChange) {
+  wireFixture.product = "omena-query.bundle-execution-scope.changed";
+}
 if (injectWireFieldRename) {
   const fallback = wireDispositions.at(-1);
   assert.notEqual(fallback, undefined);
@@ -193,6 +234,144 @@ if (injectFlipScope) {
 
 const executionWireKeys = new Set(executionSummarySamples.flatMap((sample) => sample.keys));
 if (injectDropField) executionWireKeys.delete([...executionWireKeys].toSorted().at(-1) ?? "");
+
+const foldRows = asArray(foldContract.foldRows).map(asObject);
+const absentRows = asArray(foldContract.absentFields).map(asObject);
+const summaryOwnedFields = asArray(foldContract.summaryOwnedFields).map((field) => String(field));
+if (injectBundleFoldRowDrop) foldRows.pop();
+if (injectBundleWitnessMissing && foldRows[0]) {
+  foldRows[0].divergenceWitnessFixture = "missing_bundle_execution_divergence_witness";
+}
+if (injectBundleCarrierAccountingDrop) absentRows.pop();
+if (injectBundleCarrierPartitionOverlap) {
+  absentRows.push({ field: "mutationCount", reason: "reListingNotFold" });
+}
+const rustBundleSummaryFields = extractRustStructFields(
+  queryTypesSource,
+  "BundleExecutionSummaryV0",
+);
+const rustAggregateFields = rustBundleSummaryFields
+  .filter((field) => field.startsWith("aggregate"))
+  .toSorted();
+if (injectBundleAggregateFieldAdd) rustAggregateFields.push("aggregateUnbackedCount");
+const tableAggregateFields = foldRows.map((row) => String(row.field)).toSorted();
+const allowedFoldTokens = new Set(["sum", "orderedUnion"]);
+// FALSIFIER: id=bundle-execution-fold-row-shape class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=authored-table reentry=fold-contract-schema-change
+assert.ok(
+  foldRows.every(
+    (row) =>
+      typeof row.field === "string" &&
+      typeof row.sourceField === "string" &&
+      typeof row.fold === "string" &&
+      allowedFoldTokens.has(row.fold) &&
+      typeof row.meaning === "string" &&
+      row.meaning.length > 0 &&
+      typeof row.divergenceWitnessFixture === "string",
+  ),
+  "bundle execution fold rows must carry the complete authored contract",
+);
+// FALSIFIER: id=bundle-execution-aggregate-without-row class=accounting via=--inject-bundle-aggregate-field-add,--inject-bundle-fold-row-drop producer=can-fail owner=bundle-execution-contract entry=four-authored-folds
+assert.deepEqual(
+  rustAggregateFields,
+  tableAggregateFields,
+  `bundle aggregate fields without authored rows: ${rustAggregateFields
+    .filter((field) => !tableAggregateFields.includes(field))
+    .join(",")}; authored rows without fields: ${tableAggregateFields
+    .filter((field) => !rustAggregateFields.includes(field))
+    .join(",")}`,
+);
+for (const row of foldRows) {
+  const witness = String(row.divergenceWitnessFixture);
+  // FALSIFIER: id=bundle-execution-fold-witness-resolution class=liveness via=--inject-bundle-witness-missing producer=can-fail owner=bundle-execution-contract entry=product-run-witnesses
+  assert.match(
+    transformSource,
+    new RegExp(`\\bfn\\s+${escapeRegExp(witness)}\\s*\\(`, "u"),
+    `bundle fold witness does not resolve: ${witness}`,
+  );
+  const rustField = camelToSnake(String(row.field));
+  const fieldOffset = queryTypesSource.indexOf(`pub ${rustField}:`);
+  const declarationPrefix = queryTypesSource.slice(Math.max(0, fieldOffset - 180), fieldOffset);
+  // FALSIFIER: id=bundle-execution-fold-doc-token class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=doc-table-token reentry=aggregate-field-doc-changes
+  assert.match(
+    declarationPrefix,
+    new RegExp(`Fold: \`${escapeRegExp(String(row.fold))}\``, "u"),
+    `${row.field} doc comment must name fold ${row.fold}`,
+  );
+}
+const directFoldSourceFields = foldRows
+  .map((row) => String(row.sourceField))
+  .filter((field) => !field.includes("."));
+const carrierClassificationCounts = new Map<string, number>();
+for (const field of [
+  ...summaryOwnedFields,
+  ...directFoldSourceFields,
+  ...absentRows.map((row) => String(row.field)),
+]) {
+  carrierClassificationCounts.set(field, (carrierClassificationCounts.get(field) ?? 0) + 1);
+}
+const multiplyClassifiedCarrierFields = [...carrierClassificationCounts]
+  .filter(([, count]) => count > 1)
+  .map(([field]) => field)
+  .toSorted();
+// FALSIFIER: id=bundle-execution-carrier-partition class=accounting via=--inject-bundle-carrier-partition-overlap producer=can-fail owner=bundle-execution-contract entry=exclusive-carrier-classification
+assert.deepEqual(
+  multiplyClassifiedCarrierFields,
+  [],
+  `execution carrier fields must have exactly one classification: ${multiplyClassifiedCarrierFields.join(",")}`,
+);
+const accountedCarrierFields = new Set([
+  ...summaryOwnedFields,
+  ...directFoldSourceFields,
+  ...absentRows.map((row) => String(row.field)),
+]);
+// FALSIFIER: id=bundle-execution-carrier-totality class=accounting via=--inject-bundle-carrier-accounting-drop producer=can-fail owner=bundle-execution-contract entry=twenty-eight-carrier-fields
+assert.deepEqual(
+  [...accountedCarrierFields].toSorted(),
+  [...executionWireKeys].toSorted(),
+  "every execution carrier field must be summary-owned, directly folded, or absent with reason",
+);
+const allowedAbsentReasons = new Set([
+  "noBundleMeaning",
+  "reListingNotFold",
+  "producerEntailedConstant",
+  "ownedByByteAuthority",
+  "noDivergenceWitness",
+]);
+// FALSIFIER: id=bundle-execution-absent-reason-vocabulary class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=closed-reason-vocabulary reentry=absent-reason-schema-change
+assert.ok(
+  absentRows.every(
+    (row) => typeof row.field === "string" && allowedAbsentReasons.has(String(row.reason)),
+  ),
+  "bundle execution absent fields must use the closed reason vocabulary",
+);
+const absentReasonByField = new Map(
+  absentRows.map((row) => [String(row.field), String(row.reason)]),
+);
+// FALSIFIER: id=bundle-execution-no-meaning-fields class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=plan-policy-forest-absent reentry=producer-gains-bundle-level-meaning
+assert.deepEqual(
+  ["passPlan", "provenanceDerivationForest", "strictPolicy"].map((field) => [
+    field,
+    absentReasonByField.get(field),
+  ]),
+  [
+    ["passPlan", "noBundleMeaning"],
+    ["provenanceDerivationForest", "noBundleMeaning"],
+    ["strictPolicy", "noBundleMeaning"],
+  ],
+);
+// FALSIFIER: id=bundle-execution-measured-absence-policy class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=pickup-measured-classification reentry=product-divergence-corpus-change
+assert.deepEqual(
+  ["plannedOnlyPassIds", "moduleQualifiedShake", "closedWorldAdmission"].map((field) => [
+    field,
+    absentReasonByField.get(field),
+  ]),
+  [
+    ["plannedOnlyPassIds", "noBundleMeaning"],
+    ["moduleQualifiedShake", "reListingNotFold"],
+    ["closedWorldAdmission", "reListingNotFold"],
+  ],
+);
+
 // A serialized field addition makes the computed domain larger; production
 // fixtures can emit that state after any additive summary-field change.
 assert.equal(
@@ -217,6 +396,50 @@ assert.deepEqual(
   bundleFields.toSorted(),
   projectedFields.toSorted(),
   "bundle-scoped fields must be derived from the linked execution projection",
+);
+const emissionExecutionFields = extractRustStructFields(
+  queryTypesSource,
+  "BundleEmissionExecutionV0",
+);
+if (injectBundleDuplicateByteAuthority) {
+  emissionExecutionFields.push("materializedOutputByteLen");
+}
+const emissionExecutionBody = extractTypeBody(queryTypesSource, "struct BundleEmissionExecutionV0");
+// FALSIFIER: id=bundle-execution-single-byte-authority class=accounting via=--inject-bundle-duplicate-byte-authority producer=can-fail owner=bundle-execution-contract entry=regions-and-counts-only
+assert.ok(
+  emissionExecutionFields.every((field) => !/(?:css|byte)/iu.test(field)) &&
+    !/\bString\b/u.test(emissionExecutionBody),
+  "bundle emission execution must not duplicate CSS or byte-total authority",
+);
+const compatProjection = structuredClone(wireFixture);
+delete compatProjection.bundleExecution;
+// FALSIFIER: id=bundle-execution-additive-wire-values class=accounting via=--inject-bundle-compat-byte-change producer=can-fail owner=bundle-execution-contract entry=existing-wire-byte-identical
+assert.deepEqual(
+  compatProjection,
+  wireCompatBaseline,
+  "existing execution-scope wire values must remain byte-compatible",
+);
+// FALSIFIER: id=bundle-execution-additive-wire-key class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=single-additive-root-key reentry=scope-evidence-wire-expands
+assert.deepEqual(
+  Object.keys(wireFixture)
+    .filter((key) => !(key in wireCompatBaseline))
+    .toSorted(),
+  ["bundleExecution"],
+  "bundle execution must be the only additive execution-scope root key",
+);
+const bundleRunBody = extractFunctionBody(
+  transformSource,
+  "run_omena_query_bundle_with_optional_module_reachability",
+);
+const legacyExecutionScopeAbsent =
+  /OmenaQueryBundleEmissionPathV0::ImportInlineLegacy\s*=>[\s\S]*?summary\.execution,\s*None,\s*OmenaQueryBundleEmissionPathV0::ImportInlineLegacy,\s*None,\s*None,/u.test(
+    bundleRunBody,
+  ) && !injectBundleLegacyEmpty;
+// FALSIFIER: id=bundle-execution-legacy-absence class=placement via=--inject-bundle-legacy-empty producer=can-fail owner=bundle-execution-contract entry=legacy-scope-absent
+assert.equal(
+  legacyExecutionScopeAbsent,
+  true,
+  "legacy emission must not claim an empty linked bundle aggregate",
 );
 assert.equal(scopeRows.find((row) => row.fieldName === "moduleQualifiedShake")?.scope, "Entry");
 assert.equal(scopeRows.find((row) => row.fieldName === "passPlan")?.scope, "Entry");
@@ -262,17 +485,27 @@ for (const [path, source, testName] of [
   );
   assert.match(testBody, /entry\.input_byte_len/u);
   assert.match(testBody, /artifact\.per_pass_provenance/u);
+  if (path !== queryTestPath) {
+    // FALSIFIER: id=bundle-execution-client-reachability class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=napi-wasm-product-tests reentry=public-client-test-shape-changes
+    assert.match(testBody, /bundle_execution/u);
+  }
 }
 
 const fieldScopes = asArray(wireFixture.fieldScopes).map(asObject);
 const moduleExecutions = asArray(wireFixture.moduleExecutions).map(asObject);
 const bundleComposite = asObject(wireFixture.bundleComposite);
 const entryModuleInstance = asObject(wireFixture.entryModuleInstance);
+const moduleRegionSamples = asArray(bundleEmissionExecution.moduleRegions).map(asObject);
+const orderEntryRegionSamples = asArray(bundleEmissionExecution.orderEntryRegions).map(asObject);
 const bundleWireSamplesByInterface = new Map<string, readonly Record<string, unknown>[]>([
   ["OmenaBundleExecutionScopeEvidenceV0", [wireFixture]],
   ["OmenaBundleExecutionFieldScopeV0", fieldScopes],
   ["OmenaBundleModuleExecutionByteFactsV0", moduleExecutions],
   ["OmenaBundleCompositeExecutionByteFactsV0", [bundleComposite]],
+  ["OmenaBundleExecutionSummaryV0", [bundleExecution]],
+  ["OmenaBundleEmissionExecutionV0", [bundleEmissionExecution]],
+  ["OmenaLinkedEmissionModuleRegionV0", moduleRegionSamples],
+  ["OmenaLinkedEmissionOrderEntryRegionV0", orderEntryRegionSamples],
   ["OmenaLinkedSourceMapDispositionV0", wireDispositions],
   [
     "OmenaModuleInstanceKeyV0",
@@ -283,6 +516,9 @@ const bundleWireSamplesByInterface = new Map<string, readonly Record<string, unk
     ],
   ],
 ]);
+if (injectBundleWireSampleLoss) {
+  bundleWireSamplesByInterface.delete("OmenaBundleExecutionSummaryV0");
+}
 const localInterfaces = extractTypeScriptInterfaces(declarationSource);
 const generatedInterfaces = extractTypeScriptInterfaces(generatedDeclarationSource);
 const allInterfaces = new Map([...generatedInterfaces, ...localInterfaces]);
@@ -292,7 +528,11 @@ const wireReachableInterfaces = new Set(
     ...reachableTypeScriptInterfaces(allInterfaces, "OmenaTransformExecutionSummaryV0"),
   ].toSorted(),
 );
-const keySamplesByInterface = groupWireKeySamplesByInterface(executionWireKeySamples);
+const keySamplesByInterface = groupWireKeySamplesByInterface([
+  ...executionWireKeySamples,
+  bundleModuleWireKeySample,
+]);
+// FALSIFIER: id=bundle-execution-reachable-sample-closure class=accounting via=--inject-bundle-wire-sample-loss producer=can-fail owner=bundle-execution-contract entry=computed-reachable-interface-set
 assert.deepEqual(
   [
     ...new Set([...bundleWireSamplesByInterface.keys(), ...keySamplesByInterface.keys()]),
@@ -306,6 +546,7 @@ for (const interfaceName of wireReachableInterfaces) {
   const fields = extractTypeScriptInterfaceFieldDefinitions(body ?? "");
   const valueSamples = bundleWireSamplesByInterface.get(interfaceName);
   const keySamples = keySamplesByInterface.get(interfaceName);
+  // FALSIFIER: id=bundle-execution-wire-sample-nonempty class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=reachable-sample-map-entry reentry=sample-registration-representation-changes
   assert.ok(
     (valueSamples?.length ?? 0) + (keySamples?.length ?? 0) > 0,
     `${interfaceName} has no wire samples`,
@@ -450,6 +691,9 @@ assert.match(stripRustComments(adapterGateSource), /executionScope: null/u);
 assert.match(stripRustComments(adapterTestSource), /executionScope/u);
 
 for (const surface of [
+  "BundleExecutionSummaryV0",
+  "BundleModuleExecutionV0",
+  "BundleEmissionExecutionV0",
   "OmenaQueryBundleExecutionScopeEvidenceV0",
   "OmenaQueryBundleExecutionScopeResultV0",
   "run_omena_query_bundle_with_execution_scope_evidence_and_options",
@@ -482,6 +726,12 @@ console.log(
       entryFieldCount: scopeRows.filter((row) => row.scope === "Entry").length,
       bundleFieldCount: bundleFields.length,
       projectedBundleFieldCount: projectedFields.length,
+      bundleAggregateFieldCount: rustAggregateFields.length,
+      bundleFoldRowCount: foldRows.length,
+      bundleAbsentFieldCount: absentRows.length,
+      additiveExecutionScopeWireKeyCount: Object.keys(wireFixture).filter(
+        (key) => !(key in wireCompatBaseline),
+      ).length,
       retainedExecutionProducerCount,
       perModuleCstBuildCount: cstBuildCount,
       localTypeScriptInterfaceCount: localInterfaces.size,
@@ -599,6 +849,14 @@ function assertTypeScriptValueShape(
     assert.equal(typeof value, "string", `${label} must serialize as a string`);
     return;
   }
+  if (typeExpression === "number | null") {
+    // FALSIFIER: id=bundle-execution-nullable-number-wire-shape class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=nullable-region-order-index reentry=nullable-number-wire-representation-changes
+    assert.ok(
+      value === null || typeof value === "number",
+      `${label} must serialize as a number or null`,
+    );
+    return;
+  }
   if (typeExpression === "number") {
     assert.equal(typeof value, "number", `${label} must serialize as a number`);
     return;
@@ -630,7 +888,7 @@ function assertTypeScriptWireType(
     expectedWireType = "string";
   } else if (typeExpression === "string") {
     expectedWireType = "string";
-  } else if (typeExpression === "number") {
+  } else if (typeExpression === "number" || typeExpression === "number | null") {
     expectedWireType = "number";
   } else if (typeExpression === "boolean") {
     expectedWireType = "boolean";
@@ -645,9 +903,10 @@ function assertTypeScriptWireType(
 function asWireKeySample(value: unknown, fileName: string): WireKeySample {
   const sample = asObject(value);
   assert.equal(sample.schemaVersion, "0", `${fileName} has the wrong schema version`);
-  assert.equal(
-    sample.product,
-    "omena-transform-passes.wire-key-sample",
+  // FALSIFIER: id=bundle-execution-wire-sample-product class=structuralEntailment via=STRUCTURAL producer=entailed owner=bundle-execution-contract entry=two-authoritative-key-sample-producers reentry=wire-key-sample-product-expands
+  assert.ok(
+    sample.product === "omena-transform-passes.wire-key-sample" ||
+      sample.product === "omena-query.bundle-execution-wire-key-sample",
     `${fileName} has the wrong product`,
   );
   assert.equal(typeof sample.interfaceName, "string", `${fileName} lacks interfaceName`);
@@ -721,6 +980,10 @@ function extractBracedBody(input: string, declarationStart: number, label: strin
 
 function snakeToCamel(value: string): string {
   return value.replace(/_([a-z0-9])/gu, (_match, character: string) => character.toUpperCase());
+}
+
+function camelToSnake(value: string): string {
+  return value.replace(/[A-Z]/gu, (character) => `_${character.toLowerCase()}`);
 }
 
 function lowerCamel(value: string): string {

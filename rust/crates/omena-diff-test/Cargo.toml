@@ -36,9 +36,12 @@ omena-testkit = { path = "../omena-testkit", version = "=0.3.0" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.3.0" }
 omena-transform-passes = { path = "../omena-transform-passes", version = "=0.3.0" }
 omena-value-lattice = { path = "../omena-value-lattice", version = "=0.3.0" }
+proc-macro2 = { version = "1.0.106", features = ["span-locations"] }
+quote = "1.0.45"
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+syn = { version = "2.0.117", features = ["full", "visit"] }
 toml.workspace = true
 
 [dev-dependencies]

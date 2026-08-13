@@ -12,6 +12,7 @@ import {
 import type { Node, SourceFile } from "@typescript/native-preview/unstable/ast";
 import ts from "../../engine-core-ts/src/ts-facade";
 import type { ResolvedType } from "@omena/shared";
+import { utf8ByteOffsetAtUtf16Offset } from "../../engine-core-ts/src/core/source-frontend/source-text-offsets";
 import {
   createTypeFactTableEntryV1,
   createTypeFactTableEntryV2,
@@ -342,7 +343,19 @@ function findUniqueNodeAtExactSpan(
     visit(node);
     return undefined;
   });
-  return exactNodes.length === 1 ? exactNodes[0] : undefined;
+  const exactNode = exactNodes.length === 1 ? exactNodes[0] : undefined;
+  return exactNode ? nodeWithUtf8WireSpan(sourceFile.text, exactNode) : undefined;
+}
+
+function nodeWithUtf8WireSpan(source: string, node: Node): Node {
+  // The native-preview AST exposes UTF-16 spans, while getTypeAtLocation serializes
+  // a node handle for a tsgo endpoint whose raw location convention is UTF-8 bytes.
+  const wireNode = Object.create(node) as Node;
+  Object.defineProperties(wireNode, {
+    pos: { value: utf8ByteOffsetAtUtf16Offset(source, node.pos) },
+    end: { value: utf8ByteOffsetAtUtf16Offset(source, node.end) },
+  });
+  return wireNode;
 }
 
 function skipSourceTrivia(source: string, start: number, end: number): number {

@@ -5,6 +5,10 @@ import path from "node:path";
 import ts from "typescript";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import type { TypeFactControlFlowGraphV2 } from "../../../server/engine-core-ts/src/contracts";
+import {
+  finiteClassValueUniverseV0,
+  projectAbstractValueClassNames,
+} from "../../../server/engine-core-ts/src/core/abstract-value/class-value-universe";
 import { selectTypeFactCollector } from "../../../server/engine-host-node/src/type-fact-collector";
 import {
   buildTsgoTypeFactApiOptions,
@@ -461,6 +465,80 @@ function render() {
       valueCertainty: "exact",
       reason: "flowLiteral",
     });
+  });
+
+  it("projects native prefix-suffix facts through their UTF-16 minimum", () => {
+    const source = `
+function render() {
+  const size = "typescript-fallback";
+  return cx(size);
+}
+`;
+    const graph: TypeFactControlFlowGraphV2 = {
+      entryBlockId: "entry",
+      blocks: [
+        {
+          id: "entry",
+          kind: "entry",
+          transferKind: "entry",
+          successorBlockIds: ["assignment"],
+        },
+        {
+          id: "assignment",
+          kind: "assignment",
+          transferKind: "assignFacts",
+          successorBlockIds: ["exit"],
+          variableName: "size",
+          facts: {
+            kind: "constrained",
+            constraintKind: "prefixSuffix",
+            prefix: "카드-",
+            suffix: "-활성",
+            minLen: 6,
+          },
+        },
+        {
+          id: "exit",
+          kind: "exit",
+          transferKind: "exit",
+          successorBlockIds: [],
+        },
+      ],
+    };
+    const sourceEntry = createSourceEntries({
+      source,
+      range: rangeOf(source, "cx(size)"),
+      rootName: "size",
+    })[0] as TypeFactSourceEntry;
+    const expression = sourceEntry.analysis.sourceDocument.classExpressions[0];
+    if (!expression || expression.kind !== "symbolRef") {
+      throw new Error("expected a symbolRef expression");
+    }
+
+    const resolution = resolveSymbolValuesFromRustControlFlow({
+      source: sourceEntry.document.content,
+      sourcePath: sourceEntry.document.filePath,
+      expression,
+      provider: {
+        controlFlowGraphForSymbolExpression() {
+          return graph;
+        },
+      },
+    });
+    if (!resolution) throw new Error("expected a native control-flow resolution");
+
+    expect(resolution.abstractValue).toEqual({
+      kind: "prefixSuffix",
+      prefix: "카드-",
+      suffix: "-활성",
+      minLength: 6,
+    });
+    expect(
+      projectAbstractValueClassNames(
+        resolution.abstractValue,
+        finiteClassValueUniverseV0(["카드-활성", "카드--활성"]),
+      ),
+    ).toEqual(["카드--활성"]);
   });
 
   it("routes tsgo collection through the tsgo worker", async () => {

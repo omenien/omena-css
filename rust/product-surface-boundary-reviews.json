@@ -29,9 +29,9 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-bundler",
-          "value": 28,
+          "value": 40,
           "unit": "commits",
-          "response": "The measured interval contains twenty-eight bundler boundary changes; public API changes remain guarded by rust/omena-bundler/public-surface and require explicit snapshot review."
+          "response": "The measured interval contains forty bundler boundary changes; public API changes remain guarded by rust/omena-bundler/public-surface and require explicit snapshot review."
         },
         "dependencyDirection": {
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
@@ -61,7 +61,7 @@
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
           "value": 4,
           "unit": "directWorkspaceConsumers",
-          "sourceLines": 5425,
+          "sourceLines": 6516,
           "response": "Four transform, differential, and distribution consumers share the boundary; folding it would duplicate or invert ownership."
         }
       }
@@ -84,9 +84,9 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- rust/crates/omena-scss-eval",
-          "value": 5,
+          "value": 8,
           "unit": "commits",
-          "response": "The measured interval contains five evaluator boundary changes, all covered by Rust workspace API and conformance gates; future changes must preserve that review path."
+          "response": "The measured interval contains eight evaluator boundary changes, all covered by Rust workspace API and conformance gates; future changes must preserve that review path."
         },
         "dependencyDirection": {
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
@@ -117,7 +117,7 @@
           "command": "cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1",
           "value": 4,
           "unit": "directWorkspaceConsumers",
-          "sourceLines": 45665,
+          "sourceLines": 45820,
           "response": "Four consumers and substantial language-specific implementation make the physical boundary preferable to embedding the evaluator in the facade."
         }
       }
@@ -140,9 +140,9 @@
       "measurements": {
         "apiSurfaceStability": {
           "command": "git rev-list --count 4098be1fc..HEAD -- server/checker-cli",
-          "value": 0,
+          "value": 1,
           "unit": "commits",
-          "response": "No churn was observed in the interval, but the boundary remains operational rather than public; consumer migration is the retirement gate."
+          "response": "One operational entrypoint change was observed in the interval; the boundary remains operational rather than public, and consumer migration is the retirement gate."
         },
         "dependencyDirection": {
           "command": "git grep -l --fixed-strings 'server/checker-cli/src' -- scripts test packages server",
@@ -175,7 +175,7 @@
           "command": "git grep -l --fixed-strings 'server/checker-cli/src' -- scripts test packages server",
           "value": 13,
           "unit": "sourceConsumers",
-          "sourceLines": 1774,
+          "sourceLines": 1810,
           "response": "Thirteen current consumers make immediate deletion unsafe; the list is committed so migration progress is measurable."
         }
       }

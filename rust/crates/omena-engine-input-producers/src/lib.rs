@@ -60,6 +60,7 @@ pub use source_side::summarize_source_side_evaluator_candidates_input;
 pub use type_facts::summarize_type_fact_input;
 pub type EngineInputWireV2 = engine_contract_v2_idl_generated::EngineInputV2Json;
 pub type StringTypeFactsV2 = engine_contract_v2_idl_generated::StringTypeFactsV2Json;
+pub type Utf16CodeUnitLengthV2 = engine_contract_v2_idl_generated::Utf16CodeUnitLengthV2Json;
 pub type TypeFactControlFlowBlockV2 =
     engine_contract_v2_idl_generated::TypeFactControlFlowBlockV2Json;
 pub type TypeFactControlFlowGraphV2 =
@@ -253,9 +254,9 @@ pub struct ExpressionDomainFragmentV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -286,9 +287,9 @@ pub struct ExpressionDomainCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -328,9 +329,9 @@ pub struct ExpressionDomainEvaluatorCandidatePayloadV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -679,9 +680,9 @@ pub struct SourceResolutionCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -733,9 +734,9 @@ pub struct SourceResolutionEvaluatorCandidatePayloadV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -839,9 +840,9 @@ pub struct ExpressionSemanticsFragmentV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value_min_len: Option<usize>,
+    value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value_max_len: Option<usize>,
+    value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -925,9 +926,9 @@ pub struct ExpressionSemanticsCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -984,9 +985,9 @@ pub struct ExpressionSemanticsEvaluatorCandidatePayloadV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_min_len: Option<usize>,
+    pub value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_max_len: Option<usize>,
+    pub value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1037,9 +1038,9 @@ pub struct SourceResolutionFragmentV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     value_suffix: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value_min_len: Option<usize>,
+    value_min_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value_max_len: Option<usize>,
+    value_max_len: Option<Utf16CodeUnitLengthV2>,
     #[serde(skip_serializing_if = "Option::is_none")]
     value_char_must: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1106,8 +1107,8 @@ fn collect_constraint_detail_counts(
 pub(crate) struct ConstraintDetailInput<'a> {
     pub(crate) prefix: Option<&'a String>,
     pub(crate) suffix: Option<&'a String>,
-    pub(crate) min_len: Option<usize>,
-    pub(crate) max_len: Option<usize>,
+    pub(crate) min_len: Option<Utf16CodeUnitLengthV2>,
+    pub(crate) max_len: Option<Utf16CodeUnitLengthV2>,
     pub(crate) char_must: Option<&'a String>,
     pub(crate) char_may: Option<&'a String>,
     pub(crate) may_include_other_chars: Option<bool>,
@@ -1150,42 +1151,81 @@ pub(crate) fn map_value_certainty_shape_label(facts: &StringTypeFactsV2) -> Stri
     omena_abstract_value::value_certainty_shape_label_from_facts(&abstract_value_facts(facts))
 }
 
-pub(crate) fn map_selector_certainty_shape_kind(
-    facts: &StringTypeFactsV2,
-    matched_selector_count: usize,
-    selector_universe_count: usize,
-) -> String {
-    omena_abstract_value::selector_certainty_shape_kind_from_facts(
-        &abstract_value_facts(facts),
-        matched_selector_count,
-        selector_universe_count,
-    )
-    .to_string()
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SelectorCertaintyProjectionV0 {
+    pub(crate) certainty: String,
+    pub(crate) shape_kind: String,
+    pub(crate) shape_label: String,
 }
 
-pub(crate) fn map_selector_certainty_shape_label(
-    facts: &StringTypeFactsV2,
-    matched_selector_count: usize,
-    selector_universe_count: usize,
-) -> String {
-    omena_abstract_value::selector_certainty_shape_label_from_facts(
-        &abstract_value_facts(facts),
-        matched_selector_count,
-        selector_universe_count,
-    )
+/// Consumes the already-published flow-analysis signals when deriving selector certainty.
+pub(crate) fn hedge_selector_certainty_for_flow(
+    base: omena_abstract_value::SelectorProjectionCertaintyV0,
+    graph_converged: bool,
+    contains_flow_iteration_limit: bool,
+) -> omena_abstract_value::SelectorProjectionCertaintyV0 {
+    if graph_converged && !contains_flow_iteration_limit {
+        base
+    } else {
+        omena_abstract_value::SelectorProjectionCertaintyV0::Possible
+    }
 }
 
-pub(crate) fn map_selector_certainty(
+pub(crate) fn map_selector_certainty_projection(
     facts: &StringTypeFactsV2,
     matched_selector_count: usize,
     selector_universe_count: usize,
-) -> String {
-    omena_abstract_value::selector_certainty_from_facts(
-        &abstract_value_facts(facts),
+    flow_hedge: Option<&expression_domain::ExpressionDomainSelectorCertaintyFlowHedgeV0>,
+) -> SelectorCertaintyProjectionV0 {
+    use omena_abstract_value::SelectorProjectionCertaintyV0;
+
+    let abstract_facts = abstract_value_facts(facts);
+    let base = match omena_abstract_value::selector_certainty_from_facts(
+        &abstract_facts,
         matched_selector_count,
         selector_universe_count,
-    )
-    .to_string()
+    ) {
+        "exact" => SelectorProjectionCertaintyV0::Exact,
+        "inferred" => SelectorProjectionCertaintyV0::Inferred,
+        _ => SelectorProjectionCertaintyV0::Possible,
+    };
+    let certainty = flow_hedge.map_or(base, |hedge| {
+        hedge_selector_certainty_for_flow(
+            base,
+            hedge.graph_converged,
+            hedge.contains_flow_iteration_limit,
+        )
+    });
+    let flow_demoted = base != SelectorProjectionCertaintyV0::Possible
+        && certainty == SelectorProjectionCertaintyV0::Possible;
+
+    if flow_demoted {
+        return SelectorCertaintyProjectionV0 {
+            certainty: "possible".to_string(),
+            shape_kind: "unknown".to_string(),
+            shape_label: "unknown".to_string(),
+        };
+    }
+
+    SelectorCertaintyProjectionV0 {
+        certainty: match certainty {
+            SelectorProjectionCertaintyV0::Exact => "exact",
+            SelectorProjectionCertaintyV0::Inferred => "inferred",
+            SelectorProjectionCertaintyV0::Possible => "possible",
+        }
+        .to_string(),
+        shape_kind: omena_abstract_value::selector_certainty_shape_kind_from_facts(
+            &abstract_facts,
+            matched_selector_count,
+            selector_universe_count,
+        )
+        .to_string(),
+        shape_label: omena_abstract_value::selector_certainty_shape_label_from_facts(
+            &abstract_facts,
+            matched_selector_count,
+            selector_universe_count,
+        ),
+    }
 }
 
 pub(crate) fn finite_values_for_facts(facts: &StringTypeFactsV2) -> Option<Vec<String>> {
@@ -1219,6 +1259,9 @@ pub(crate) fn resolve_selector_names(
         "exact" | "finiteSet" => {
             let mut names = Vec::new();
             for value in facts.values.as_ref().into_iter().flatten() {
+                if !matches_external_utf16_length_bounds(value, facts) {
+                    continue;
+                }
                 push_canonical_match(style, value, &mut names);
             }
             names
@@ -1250,6 +1293,10 @@ fn resolve_constrained_selector_names(
 }
 
 fn matches_selector_constraints(selector: &StyleSelectorV2, facts: &StringTypeFactsV2) -> bool {
+    if !matches_external_utf16_length_bounds(&selector.name, facts) {
+        return false;
+    }
+
     match facts.constraint_kind.as_deref() {
         Some("prefix") => facts
             .prefix
@@ -1268,13 +1315,7 @@ fn matches_selector_constraints(selector: &StyleSelectorV2, facts: &StringTypeFa
                 .suffix
                 .as_ref()
                 .is_none_or(|suffix| selector.name.ends_with(suffix));
-            let min_len_ok = facts
-                .min_len
-                .is_none_or(|min_len| selector.name.len() >= min_len);
-            let max_len_ok = facts
-                .max_len
-                .is_none_or(|max_len| selector.name.len() <= max_len);
-            prefix_ok && suffix_ok && min_len_ok && max_len_ok
+            prefix_ok && suffix_ok
         }
         Some("charInclusion") => matches_char_constraints(
             &selector.name,
@@ -1291,16 +1332,8 @@ fn matches_selector_constraints(selector: &StyleSelectorV2, facts: &StringTypeFa
                 .suffix
                 .as_ref()
                 .is_none_or(|suffix| selector.name.ends_with(suffix));
-            let min_len_ok = facts
-                .min_len
-                .is_none_or(|min_len| selector.name.len() >= min_len);
-            let max_len_ok = facts
-                .max_len
-                .is_none_or(|max_len| selector.name.len() <= max_len);
             prefix_ok
                 && suffix_ok
-                && min_len_ok
-                && max_len_ok
                 && matches_char_constraints(
                     &selector.name,
                     facts.char_must.as_deref().unwrap_or(""),
@@ -1310,6 +1343,12 @@ fn matches_selector_constraints(selector: &StyleSelectorV2, facts: &StringTypeFa
         }
         _ => false,
     }
+}
+
+fn matches_external_utf16_length_bounds(value: &str, facts: &StringTypeFactsV2) -> bool {
+    let value_length = omena_abstract_value::external_utf16_code_unit_length(value);
+    facts.min_len.is_none_or(|min_len| value_length >= min_len)
+        && facts.max_len.is_none_or(|max_len| value_length <= max_len)
 }
 
 fn matches_char_constraints(
@@ -1376,4 +1415,108 @@ fn canonical_name_for_view_name(style: &StyleAnalysisInputV2, view_name: &str) -
         .and_then(|selector| selector.canonical_name.clone())
         .or_else(|| matched.canonical_name.clone())
         .or_else(|| Some(matched.name.clone()))
+}
+
+#[cfg(test)]
+pub(crate) fn configure_nonconvergent_selector_certainty_fixture(
+    entry: &mut TypeFactEntryV2,
+    exact_value: &str,
+) {
+    entry.facts = StringTypeFactsV2 {
+        kind: "exact".to_string(),
+        constraint_kind: None,
+        values: Some(vec![exact_value.to_string()]),
+        prefix: None,
+        suffix: None,
+        min_len: None,
+        max_len: None,
+        char_must: None,
+        char_may: None,
+        may_include_other_chars: None,
+        provenance: None,
+    };
+    entry.control_flow_graph = Some(nonconvergent_selector_certainty_control_flow_graph());
+}
+
+#[cfg(test)]
+fn nonconvergent_selector_certainty_control_flow_graph() -> TypeFactControlFlowGraphV2 {
+    TypeFactControlFlowGraphV2 {
+        entry_block_id: "seed".to_string(),
+        blocks: vec![
+            TypeFactControlFlowBlockV2 {
+                id: "seed".to_string(),
+                kind: "assignment".to_string(),
+                transfer_kind: "assignFacts".to_string(),
+                successor_block_ids: vec!["loop".to_string()],
+                symbol_ordinal: None,
+                variable_name: None,
+                expression_kind: None,
+                boundary_effect: "unknownBoundary".to_string(),
+                facts: Some(StringTypeFactsV2 {
+                    kind: "finiteSet".to_string(),
+                    constraint_kind: None,
+                    values: Some(vec!["a".to_string(), "b".to_string()]),
+                    prefix: None,
+                    suffix: None,
+                    min_len: None,
+                    max_len: None,
+                    char_must: None,
+                    char_may: None,
+                    may_include_other_chars: None,
+                    provenance: None,
+                }),
+            },
+            TypeFactControlFlowBlockV2 {
+                id: "loop".to_string(),
+                kind: "loopBody".to_string(),
+                transfer_kind: "concatFacts".to_string(),
+                successor_block_ids: vec!["loop".to_string()],
+                symbol_ordinal: None,
+                variable_name: None,
+                expression_kind: None,
+                boundary_effect: "unknownBoundary".to_string(),
+                facts: None,
+            },
+        ],
+    }
+}
+
+#[cfg(test)]
+mod selector_certainty_flow_tests {
+    use super::{
+        StringTypeFactsV2, hedge_selector_certainty_for_flow, map_selector_certainty_projection,
+    };
+    use omena_abstract_value::SelectorProjectionCertaintyV0;
+
+    #[test]
+    fn shared_flow_hedge_demotes_inferred_certainty_to_possible() {
+        let certainty =
+            hedge_selector_certainty_for_flow(SelectorProjectionCertaintyV0::Inferred, false, true);
+
+        println!("selector-certainty shared hedge inferred->possible");
+        assert_eq!(certainty, SelectorProjectionCertaintyV0::Possible);
+    }
+
+    #[test]
+    fn no_flow_hedge_preserves_base_possible_certainty_shape() {
+        let facts = StringTypeFactsV2 {
+            kind: "exact".to_string(),
+            constraint_kind: None,
+            values: Some(vec!["absent".to_string()]),
+            prefix: None,
+            suffix: None,
+            min_len: None,
+            max_len: None,
+            char_must: None,
+            char_may: None,
+            may_include_other_chars: None,
+            provenance: None,
+        };
+
+        let projection = map_selector_certainty_projection(&facts, 0, 1, None);
+
+        assert_eq!(projection.certainty, "possible");
+        assert_eq!(projection.shape_kind, "unknown");
+        assert_eq!(projection.shape_label, "unknown");
+    }
 }

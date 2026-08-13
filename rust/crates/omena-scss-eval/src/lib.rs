@@ -24,20 +24,22 @@ use serde::Serialize;
 
 pub use omena_transform_cst::STABLE_NODE_KEY_TYPE_LABEL_V0;
 
+#[allow(deprecated)]
+pub use control_flow::OmenaScssEvalControlFlowWideningWitnessV0;
 pub use control_flow::{
     OmenaScssEvalCallReturnEdgeV0, OmenaScssEvalCallReturnIrSummaryV0,
-    OmenaScssEvalCallReturnNodeV0, OmenaScssEvalControlFlowBindingValueV0,
-    OmenaScssEvalControlFlowBlockIdV0, OmenaScssEvalControlFlowBlockV0,
-    OmenaScssEvalControlFlowEdgeV0, OmenaScssEvalControlFlowGraphBlockV0,
-    OmenaScssEvalControlFlowGraphV0, OmenaScssEvalControlFlowIrSummaryV0,
-    OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,
-    OmenaScssEvalControlFlowOracleCorpusReportV0, OmenaScssEvalControlFlowPruneReachabilityV0,
+    OmenaScssEvalCallReturnNodeV0, OmenaScssEvalControlFlowAscendingChainWitnessV0,
+    OmenaScssEvalControlFlowBindingValueV0, OmenaScssEvalControlFlowBlockIdV0,
+    OmenaScssEvalControlFlowBlockV0, OmenaScssEvalControlFlowEdgeV0,
+    OmenaScssEvalControlFlowGraphBlockV0, OmenaScssEvalControlFlowGraphV0,
+    OmenaScssEvalControlFlowIrSummaryV0, OmenaScssEvalControlFlowOracleCorpusFixtureReportV0,
+    OmenaScssEvalControlFlowOracleCorpusReportV0,
+    OmenaScssEvalControlFlowPropagationDepthWitnessV0, OmenaScssEvalControlFlowPruneReachabilityV0,
     OmenaScssEvalControlFlowValueAnalysisV0, OmenaScssEvalControlFlowValueBlockV0,
-    OmenaScssEvalControlFlowWideningWitnessV0, OmenaScssEvalTypedValueKindCountV0,
-    OmenaScssEvalTypedValueLatticeWitnessV0, analyze_scss_control_flow_values,
-    build_scss_control_flow_graph, summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
-    summarize_scss_control_flow_oracle_corpus, summarize_scss_control_flow_prune_reachability,
-    summarize_typed_value_lattice_witness,
+    OmenaScssEvalTypedValueKindCountV0, OmenaScssEvalTypedValueLatticeWitnessV0,
+    analyze_scss_control_flow_values, build_scss_control_flow_graph, summarize_scss_call_return_ir,
+    summarize_scss_control_flow_ir, summarize_scss_control_flow_oracle_corpus,
+    summarize_scss_control_flow_prune_reachability, summarize_typed_value_lattice_witness,
 };
 #[cfg(feature = "scanner-oracle")]
 pub use control_flow::{

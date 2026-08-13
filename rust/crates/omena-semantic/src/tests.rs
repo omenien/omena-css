@@ -2085,6 +2085,48 @@ fn design_token_workspace_provenance_is_permutation_invariant_and_load_bearing()
 }
 
 #[test]
+fn design_token_full_tie_pins_local_before_workspace_chain_order() -> Result<(), String> {
+    let sheet = parse_style_module(
+        "Component.module.css",
+        ".button { --brand: local; color: var(--brand); }",
+    )
+    .ok_or_else(|| "CSS module path should parse".to_string())?;
+    let workspace_candidate = DesignTokenWorkspaceDeclarationFactV0 {
+        file_path: "/tmp/workspace.css".to_string(),
+        name: "--brand".to_string(),
+        value: "workspace".to_string(),
+        source_order: 0,
+        import_graph_distance: Some(0),
+        import_graph_order: Some(0),
+        byte_span: ParserByteSpanV0::default(),
+        range: ParserRangeV0::default(),
+        selector_contexts: vec![".button".to_string()],
+        condition_context: Vec::new(),
+        layer_names: Vec::new(),
+        under_media: false,
+        under_supports: false,
+        under_layer: false,
+    };
+
+    let summary = summarize_style_semantic_graph_for_path_with_workspace_declarations(
+        &sheet,
+        &sample_engine_input(),
+        Some("/tmp/Component.module.css"),
+        &[workspace_candidate],
+    );
+    let ranked_reference = &summary
+        .design_token_semantics
+        .cascade_ranking_signal
+        .ranked_references[0];
+
+    assert_eq!(
+        ranked_reference.winner_declaration_file_path, None,
+        "the public API admits a full tie, so local-before-workspace chain order is structural"
+    );
+    Ok(())
+}
+
+#[test]
 fn exposes_lossless_cst_contract_for_precise_consumers() -> Result<(), String> {
     let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
         .ok_or_else(|| "SCSS module path should parse".to_string())?;

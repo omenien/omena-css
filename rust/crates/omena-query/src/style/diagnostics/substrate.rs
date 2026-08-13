@@ -36,7 +36,7 @@ pub(in crate::style) struct OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
         OmenaQuerySassModuleCrossFileResolutionV0,
     /// RES-C: plain resolution with `(package_manifests)` + EMPTY path mappings.
     /// Consumers: unresolved-sass-import (always) and the unified-SCC pass's Sass leg
-    /// (`hypergraph-ifds` builds only). Equals RES-A only when both mapping vecs are
+    /// (`hypergraph-monotone-fact-propagation` builds only). Equals RES-A only when both mapping vecs are
     /// empty, so it stays a separate slot.
     pub(in crate::style) sass_resolution_without_path_mappings:
         OmenaQuerySassModuleCrossFileResolutionV0,
@@ -46,10 +46,10 @@ pub(in crate::style) struct OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
     /// mode), external top-any ranges + SIF boundary (Sif mode).
     pub(in crate::style) sass_resolution_with_external_sifs:
         OmenaQuerySassModuleCrossFileResolutionV0,
-    /// RES-E (`hypergraph-ifds` only): css-modules resolution with
+    /// RES-E (`hypergraph-monotone-fact-propagation` only): css-modules resolution with
     /// `(package_manifests)`, consumed by the unified-SCC pass via the workspace
     /// cross-file summary. Default builds run the empty SCC stub and never compute it.
-    #[cfg(feature = "hypergraph-ifds")]
+    #[cfg(feature = "hypergraph-monotone-fact-propagation")]
     pub(in crate::style) css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
 }
 
@@ -113,7 +113,7 @@ pub(in crate::style) fn collect_omena_query_workspace_diagnostics_substrate_from
         &[],
         &[],
     );
-    #[cfg(feature = "hypergraph-ifds")]
+    #[cfg(feature = "hypergraph-monotone-fact-propagation")]
     let css_modules_resolution =
         summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
     OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
@@ -122,7 +122,7 @@ pub(in crate::style) fn collect_omena_query_workspace_diagnostics_substrate_from
         sass_resolution_without_manifests,
         sass_resolution_without_path_mappings,
         sass_resolution_with_external_sifs,
-        #[cfg(feature = "hypergraph-ifds")]
+        #[cfg(feature = "hypergraph-monotone-fact-propagation")]
         css_modules_resolution,
     }
 }
@@ -136,7 +136,7 @@ pub(in crate::style) fn collect_omena_query_workspace_diagnostics_substrate_from
     sass_resolution_without_path_mappings: &OmenaQuerySassModuleCrossFileResolutionV0,
     sass_resolution_with_external_sifs: &OmenaQuerySassModuleCrossFileResolutionV0,
 ) -> OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
-    #[cfg(not(feature = "hypergraph-ifds"))]
+    #[cfg(not(feature = "hypergraph-monotone-fact-propagation"))]
     let _ = css_modules_resolution;
     OmenaQueryWorkspaceDiagnosticsSubstrateV0 {
         style_fact_entries,
@@ -144,7 +144,7 @@ pub(in crate::style) fn collect_omena_query_workspace_diagnostics_substrate_from
         sass_resolution_without_manifests: sass_resolution_without_manifests.clone(),
         sass_resolution_without_path_mappings: sass_resolution_without_path_mappings.clone(),
         sass_resolution_with_external_sifs: sass_resolution_with_external_sifs.clone(),
-        #[cfg(feature = "hypergraph-ifds")]
+        #[cfg(feature = "hypergraph-monotone-fact-propagation")]
         css_modules_resolution: css_modules_resolution.clone(),
     }
 }
@@ -183,7 +183,7 @@ pub(in crate::style) struct OmenaQueryWorkspaceSharedPassProductsV0 {
     pub(in crate::style) inline_style_overrides_by_style: Option<
         std::collections::BTreeMap<String, Vec<crate::OmenaQueryInlineStyleRuntimeOverrideV0>>,
     >,
-    #[cfg(feature = "hypergraph-ifds")]
+    #[cfg(feature = "hypergraph-monotone-fact-propagation")]
     pub(in crate::style) cross_file_scc_report:
         Option<crate::OmenaQueryUnifiedCrossFileSccReportV0>,
 }

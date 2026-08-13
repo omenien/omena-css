@@ -1,15 +1,26 @@
+use crate::cache_limits::{
+    DEFAULT_PERSISTENT_CACHE_LIMITS, PersistentCacheLimitsV0, ensure_cache_root_attribution,
+    read_cache_shard_with_limits, write_cache_shard_atomically_with_limits,
+};
+use crate::cache_root::LspCacheStorageConfigV0;
 use crate::protocol::file_uri_to_path;
 use omena_query::{OmenaQueryStyleResolutionInputsV0, OmenaWorkspaceOccurrenceV0};
 use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes_v1};
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::{collections::BTreeSet, fs, path::PathBuf};
+#[cfg(test)]
+use std::fs;
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = "0";
 const WORKSPACE_OCCURRENCE_SHARD_PRODUCT: &str = "omena-lsp-server.workspace-occurrence-shard";
 const WORKSPACE_OCCURRENCE_SHARD_KEY_PRODUCT: &str =
     "omena-lsp-server.workspace-occurrence-shard-key";
 const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = "workspace-occurrence-shards-v1";
+const WORKSPACE_OCCURRENCE_SHARD_LIMITS: PersistentCacheLimitsV0 = DEFAULT_PERSISTENT_CACHE_LIMITS;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,6 +42,7 @@ pub(crate) struct LspWorkspaceOccurrenceShardLoadV0 {
 }
 
 pub(crate) fn load_workspace_occurrence_shard(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -46,8 +58,14 @@ pub(crate) fn load_workspace_occurrence_shard(
         dependency_digest,
         resolution_inputs,
     )?;
-    let path = workspace_occurrence_shard_path(workspace_folder_uri, document_uri, language_id)?;
-    let bytes = fs::read(path).ok()?;
+    let path = workspace_occurrence_shard_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    )?;
+    let bytes =
+        read_workspace_occurrence_shard(path.as_path(), &WORKSPACE_OCCURRENCE_SHARD_LIMITS)?;
     let shard: Value = serde_json::from_slice(bytes.as_slice()).ok()?;
     if shard.pointer("/schemaVersion").and_then(Value::as_str)
         != Some(WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION)
@@ -88,7 +106,9 @@ pub(crate) fn load_workspace_occurrence_shard(
     Some(LspWorkspaceOccurrenceShardLoadV0 { occurrences })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn store_workspace_occurrence_shard(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -107,18 +127,14 @@ pub(crate) fn store_workspace_occurrence_shard(
     ) else {
         return;
     };
-    let Some(path) =
-        workspace_occurrence_shard_path(workspace_folder_uri, document_uri, language_id)
-    else {
+    let Some(path) = workspace_occurrence_shard_path(
+        cache_storage,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+    ) else {
         return;
     };
-    let Some(dir) = path.parent() else {
-        return;
-    };
-    if fs::create_dir_all(dir).is_err() {
-        return;
-    }
-    crate::disk_cache::ensure_omena_cache_root_markers(dir);
     let payload = json!({
         "occurrences": occurrences,
         "occurrenceCount": occurrences.len(),
@@ -146,10 +162,30 @@ pub(crate) fn store_workspace_occurrence_shard(
     let Ok(bytes) = serde_json::to_vec(&shard) else {
         return;
     };
-    let temporary_path = path.with_extension(format!("tmp-{}", std::process::id()));
-    if fs::write(temporary_path.as_path(), bytes).is_ok() {
-        let _ = fs::rename(temporary_path, path);
+    if write_workspace_occurrence_shard(
+        path.as_path(),
+        bytes.as_slice(),
+        &WORKSPACE_OCCURRENCE_SHARD_LIMITS,
+    ) && let Some(dir) = path.parent()
+    {
+        crate::disk_cache::ensure_omena_cache_root_markers(dir);
+        ensure_cache_root_attribution(dir, workspace_folder_uri.unwrap_or(document_uri));
     }
+}
+
+fn read_workspace_occurrence_shard(
+    path: &Path,
+    limits: &PersistentCacheLimitsV0,
+) -> Option<Vec<u8>> {
+    read_cache_shard_with_limits(path, limits)
+}
+
+fn write_workspace_occurrence_shard(
+    path: &Path,
+    bytes: &[u8],
+    limits: &PersistentCacheLimitsV0,
+) -> bool {
+    write_cache_shard_atomically_with_limits(path, bytes, limits)
 }
 
 pub(crate) fn workspace_occurrence_dependency_digest<T: Serialize>(value: &T) -> Option<String> {
@@ -189,6 +225,7 @@ fn workspace_occurrence_shard_key(
 }
 
 fn workspace_occurrence_shard_path(
+    cache_storage: &LspCacheStorageConfigV0,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -205,12 +242,13 @@ fn workspace_occurrence_shard_path(
     if hex.is_empty() || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
         return None;
     }
-    Some(
-        root.join(".cache")
-            .join("omena")
-            .join(WORKSPACE_OCCURRENCE_SHARD_DIR)
-            .join(format!("{hex}.json")),
+    crate::cache_root::resolved_workspace_cache_dir(
+        cache_storage,
+        workspace_folder_uri,
+        root.as_path(),
+        WORKSPACE_OCCURRENCE_SHARD_DIR,
     )
+    .map(|dir| dir.join(format!("{hex}.json")))
 }
 
 fn workspace_occurrence_shard_digest(value: &Value) -> Option<String> {
@@ -238,6 +276,92 @@ mod tests {
     };
 
     #[test]
+    fn workspace_occurrence_store_enforces_reachable_count_byte_and_shard_limits() {
+        let root = unique_temp_root("omena_workspace_occurrence_store_limits")
+            .unwrap_or_else(|_| std::env::temp_dir().join("omena-workspace-occurrence-limits"));
+        let workspace_uri = path_to_file_uri(root.as_path());
+        let editor_workspace_storage = root.join("editor-storage").join("workspace");
+        let cache_storage = LspCacheStorageConfigV0 {
+            initialization_global_storage: Some(root.join("editor-storage").join("global")),
+            initialization_workspace_storage: Some(editor_workspace_storage.clone()),
+            location: crate::cache_root::CacheLocationV0::Editor,
+            ..LspCacheStorageConfigV0::default()
+        };
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let default_document_uri = path_to_file_uri(root.join("src/default-limit.tsx").as_path());
+        let default_path = workspace_occurrence_shard_path(
+            &cache_storage,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+            "typescriptreact",
+        );
+        assert!(default_path.is_some(), "workspace-occurrence default path");
+        let Some(default_path) = default_path else {
+            return;
+        };
+        assert!(
+            default_path.starts_with(editor_workspace_storage.as_path()),
+            "workspace-occurrence production cap exercise must use the resolved editor root"
+        );
+        if let Some(parent) = default_path.parent() {
+            assert!(fs::create_dir_all(parent).is_ok());
+        }
+        let oversized_text_hash = "x".repeat(
+            usize::try_from(WORKSPACE_OCCURRENCE_SHARD_LIMITS.max_shard_bytes)
+                .unwrap_or(8 * 1024 * 1024)
+                + 1,
+        );
+        store_workspace_occurrence_shard(
+            &cache_storage,
+            Some(workspace_uri.as_str()),
+            default_document_uri.as_str(),
+            "typescriptreact",
+            oversized_text_hash.as_str(),
+            None,
+            &resolution_inputs,
+            &[],
+        );
+        assert!(
+            !default_path.exists(),
+            "workspace-occurrence default max-shard constant must be reachable through the real store"
+        );
+        let cache_dir = default_path.parent();
+        assert!(
+            cache_dir.is_some(),
+            "workspace-occurrence default cache dir"
+        );
+        if let Some(cache_dir) = cache_dir {
+            crate::cache_limits::assert_production_store_enforces_default_count_and_total(
+                "workspace-occurrence-shard",
+                cache_dir,
+                default_path.as_path(),
+                || {
+                    store_workspace_occurrence_shard(
+                        &cache_storage,
+                        Some(workspace_uri.as_str()),
+                        default_document_uri.as_str(),
+                        "typescriptreact",
+                        "blake3:default-cap-fixture",
+                        None,
+                        &resolution_inputs,
+                        &[],
+                    );
+                },
+            );
+        }
+
+        crate::cache_limits::assert_real_cache_store_enforces_reachable_limits(
+            "workspace-occurrence-shard",
+            write_workspace_occurrence_shard,
+            read_workspace_occurrence_shard,
+        );
+        eprintln!(
+            "storeEntryCaps cache=workspace-occurrence-shard resolvedEditorRoot=true defaultCount=true defaultTotalBytes=true defaultMaxShardRefused=true lowLevelCount=true lowLevelTotalBytes=true lowLevelShardBytes=true"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn workspace_occurrence_shard_excludes_source_text_and_roundtrips_bytes()
     -> Result<(), Box<dyn Error>> {
         let root = unique_temp_root("omena_workspace_occurrence_shard_contract")?;
@@ -250,8 +374,10 @@ mod tests {
         let dependency_digest = Some("blake3:dependency-contract");
         let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
         let occurrences = vec![fixture_occurrence(document_uri.as_str())];
+        let cache_storage = LspCacheStorageConfigV0::default();
 
         store_workspace_occurrence_shard(
+            &cache_storage,
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
@@ -271,6 +397,7 @@ mod tests {
         .ok_or("missing workspace occurrence shard key")?;
         let _ = key;
         let shard_path = workspace_occurrence_shard_path(
+            &cache_storage,
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
@@ -291,6 +418,7 @@ mod tests {
         );
 
         let loaded = load_workspace_occurrence_shard(
+            &cache_storage,
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
@@ -302,6 +430,7 @@ mod tests {
         assert_eq!(loaded.occurrences, occurrences);
 
         store_workspace_occurrence_shard(
+            &cache_storage,
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",

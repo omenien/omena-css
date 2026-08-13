@@ -24,3 +24,6 @@ omena-abstract-value = { path = "../omena-abstract-value", version = "=0.3.0" }
 omena-checker = { path = "../omena-checker", version = "=0.3.0" }
 omena-product-hints = { path = "../omena-product-hints", version = "=0.3.0" }
 serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

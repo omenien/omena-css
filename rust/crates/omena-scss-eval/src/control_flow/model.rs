@@ -1,4 +1,4 @@
-use omena_abstract_value::AbstractCssValueV0;
+use omena_abstract_value::{AbstractClassValueV0, AbstractCssValueV0};
 use omena_transform_cst::StableNodeKeyV0;
 use serde::Serialize;
 
@@ -132,7 +132,7 @@ pub struct OmenaScssEvalControlFlowValueAnalysisV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaScssEvalControlFlowWideningWitnessV0 {
+pub struct OmenaScssEvalControlFlowPropagationDepthWitnessV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub mode: &'static str,
@@ -143,6 +143,33 @@ pub struct OmenaScssEvalControlFlowWideningWitnessV0 {
     pub converged: bool,
     pub iteration_count: usize,
     pub widened_to_top_count: usize,
+    pub output_top_count: usize,
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaScssEvalControlFlowPropagationDepthWitnessV0; this witness measures propagation depth, not widening"
+)]
+pub type OmenaScssEvalControlFlowWideningWitnessV0 =
+    OmenaScssEvalControlFlowPropagationDepthWitnessV0;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaScssEvalControlFlowAscendingChainWitnessV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub mode: &'static str,
+    pub value_type: &'static str,
+    pub policy: &'static str,
+    pub max_iterations: usize,
+    pub node_count: usize,
+    pub converged: bool,
+    pub iteration_count: usize,
+    pub solver_product: &'static str,
+    pub context_sensitivity: &'static str,
+    pub result_node_id: &'static str,
+    pub result_kind: &'static str,
+    pub result_value: AbstractClassValueV0,
     pub output_top_count: usize,
 }
 

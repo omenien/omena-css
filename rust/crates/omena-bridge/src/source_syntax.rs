@@ -1,6 +1,7 @@
+use engine_input_producers::StringTypeFactsV2;
 use omena_abstract_value::{
-    AbstractClassValueV0, concatenate_abstract_class_values, exact_class_value,
-    finite_set_class_value,
+    AbstractClassValueV0, ClassBoundaryEffectV0, OrderedTokenWordV0,
+    concatenate_abstract_class_values, exact_class_value, finite_set_class_value,
 };
 use omena_parser::ParserByteSpanV0;
 use omena_syntax::ident::{
@@ -110,6 +111,7 @@ pub struct SourceBindingIndexV0 {
     pub declares_style_imports: Vec<SourceDeclaresStyleImportFactV0>,
     pub style_import_resolves_modules: Vec<SourceStyleImportResolvesModuleFactV0>,
     pub class_expression_nodes: Vec<SourceClassExpressionNodeFactV0>,
+    pub class_attribute_sites: Vec<SourceClassAttributeSiteFactV0>,
     pub expression_targets_modules: Vec<SourceExpressionTargetsModuleFactV0>,
     pub classnames_bind_utility_bindings: Vec<SourceClassnamesBindUtilityBindingFactV0>,
     pub class_util_bindings: Vec<SourceClassUtilityBindingFactV0>,
@@ -186,6 +188,33 @@ pub struct SourceClassExpressionNodeFactV0 {
     pub byte_span: ParserByteSpanV0,
     pub kind: &'static str,
     pub target_style_uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceClassAttributeSiteFactV0 {
+    pub attribute_name: String,
+    pub site_byte_span: ParserByteSpanV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_byte_span: Option<ParserByteSpanV0>,
+    pub value_kind: &'static str,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub target_style_uris: Vec<String>,
+    pub boundary_effect: ClassBoundaryEffectV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ordered_word: Option<OrderedTokenWordV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_facts: Option<StringTypeFactsV2>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub guarded_tokens: Vec<SourceGuardedClassTokenFactV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceGuardedClassTokenFactV0 {
+    pub token: String,
+    pub condition: String,
+    pub condition_kind: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -931,6 +960,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     let mut scope_contains_decls = ast_facts.scope_contains_decls;
     scope_contains_decls.sort();
     scope_contains_decls.dedup();
+    let mut class_attribute_sites = ast_facts.class_attribute_sites;
     let mut style_import_bindings = imported_style_targets
         .iter()
         .filter_map(|target| {
@@ -1035,6 +1065,21 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     ));
     class_expression_nodes.sort();
     class_expression_nodes.dedup();
+    for site in &mut class_attribute_sites {
+        if let Some(value_span) = site.value_byte_span {
+            site.target_style_uris.extend(
+                class_expression_nodes
+                    .iter()
+                    .filter(|node| {
+                        value_span.start <= node.byte_span.start
+                            && node.byte_span.end <= value_span.end
+                    })
+                    .map(|node| node.target_style_uri.clone()),
+            );
+        }
+        site.target_style_uris.sort();
+        site.target_style_uris.dedup();
+    }
     let mut expression_targets_modules = syntax_index
         .selector_references
         .iter()
@@ -1164,6 +1209,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         declares_style_imports,
         style_import_resolves_modules,
         class_expression_nodes,
+        class_attribute_sites,
         expression_targets_modules,
         classnames_bind_utility_bindings,
         class_util_bindings,
@@ -1961,6 +2007,7 @@ struct SourceSyntaxAstFacts {
     style_property_access_selector_names: BTreeMap<(usize, usize, Option<String>), String>,
     inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     class_name_expression_spans: Vec<ParserByteSpanV0>,
+    class_attribute_sites: Vec<SourceClassAttributeSiteFactV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
     symbol_ref_class_value_bindings: Vec<SymbolRefClassValueBinding>,
@@ -1994,6 +2041,7 @@ fn collect_source_syntax_ast_facts(
             style_property_access_selector_names: BTreeMap::new(),
             inline_style_declarations: Vec::new(),
             class_name_expression_spans: Vec::new(),
+            class_attribute_sites: Vec::new(),
             classnames_bind_utility_bindings: Vec::new(),
             classnames_bind_call_arguments: Vec::new(),
             symbol_ref_class_value_bindings: Vec::new(),
@@ -2016,6 +2064,7 @@ fn collect_source_syntax_ast_facts(
     let mut collector = SourceSyntaxAstCollector {
         source_path,
         source,
+        program: &program,
         scoping,
         property_access_targets: property_access_targets.as_slice(),
         style_targets: style_targets.as_slice(),
@@ -2031,6 +2080,7 @@ fn collect_source_syntax_ast_facts(
         style_property_access_selector_names: BTreeMap::new(),
         inline_style_declarations: Vec::new(),
         class_name_expression_spans: Vec::new(),
+        class_attribute_sites: Vec::new(),
         classnames_bind_utility_bindings: Vec::new(),
         classnames_bind_call_arguments: Vec::new(),
         symbol_ref_class_value_bindings: Vec::new(),
@@ -2052,6 +2102,7 @@ fn collect_source_syntax_ast_facts(
         style_property_access_selector_names: collector.style_property_access_selector_names,
         inline_style_declarations: collector.inline_style_declarations,
         class_name_expression_spans: collector.class_name_expression_spans,
+        class_attribute_sites: collector.class_attribute_sites,
         classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
         classnames_bind_call_arguments: collector.classnames_bind_call_arguments,
         symbol_ref_class_value_bindings: collector.symbol_ref_class_value_bindings,
@@ -2616,6 +2667,7 @@ fn collect_vue_use_css_module_bindings_from_variable_declaration(
 struct SourceSyntaxAstCollector<'a, 'b, 's> {
     source_path: &'a str,
     source: &'a str,
+    program: &'a Program<'a>,
     scoping: &'s Scoping,
     property_access_targets: &'a [SourceStyleBindingTarget],
     style_targets: &'a [SourceStyleBindingTarget],
@@ -2631,6 +2683,7 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
     style_property_access_selector_names: BTreeMap<(usize, usize, Option<String>), String>,
     inline_style_declarations: Vec<SourceInlineStyleDeclarationFactV0>,
     class_name_expression_spans: Vec<ParserByteSpanV0>,
+    class_attribute_sites: Vec<SourceClassAttributeSiteFactV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
     classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
     symbol_ref_class_value_bindings: Vec<SymbolRefClassValueBinding>,
@@ -3302,11 +3355,14 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         for attribute in &element.opening_element.attributes {
             match attribute {
                 oxc_ast::ast::JSXAttributeItem::Attribute(attribute) => {
-                    if is_jsx_class_name_attribute(&attribute.name)
+                    if is_jsx_class_attribute(&attribute.name)
                         && let Some(value) = &attribute.value
                     {
                         self.collect_class_name_string_literal_attribute(value);
                         self.collect_class_name_expression_attribute(value);
+                    }
+                    if is_jsx_class_attribute(&attribute.name) {
+                        self.collect_class_attribute_site(attribute);
                     }
                     if is_jsx_style_attribute(&attribute.name)
                         && let Some(value) = &attribute.value
@@ -3345,7 +3401,7 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         for attribute in &element.opening_element.attributes {
             match attribute {
                 oxc_ast::ast::JSXAttributeItem::Attribute(attribute)
-                    if is_jsx_class_name_attribute(&attribute.name) =>
+                    if is_jsx_class_attribute(&attribute.name) =>
                 {
                     match attribute.value.as_ref() {
                         Some(JSXAttributeValue::StringLiteral(literal)) => {
@@ -3396,6 +3452,181 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         if let Some(span) = jsx_expression_span(&container.expression) {
             self.class_name_expression_spans.push(span);
         }
+    }
+
+    fn collect_class_attribute_site(&mut self, attribute: &oxc_ast::ast::JSXAttribute<'a>) {
+        let Some(attribute_name) = attribute.name.as_identifier() else {
+            return;
+        };
+        let site_byte_span = parser_byte_span(attribute.span);
+        let target_style_uris = self
+            .single_imported_style_target_uri()
+            .into_iter()
+            .collect();
+        let (value_byte_span, value_kind, value, guarded_tokens) = match attribute.value.as_ref() {
+            None => (None, "missing", None, Vec::new()),
+            Some(JSXAttributeValue::StringLiteral(literal)) => (
+                Some(parser_byte_span(literal.span)),
+                "stringLiteral",
+                Some(
+                    crate::source_cfg::summarize_source_class_site_literal_value(
+                        literal.value.as_str(),
+                    ),
+                ),
+                Vec::new(),
+            ),
+            Some(JSXAttributeValue::ExpressionContainer(container)) => {
+                let expression = container.expression.as_expression();
+                (
+                    jsx_expression_span(&container.expression),
+                    "expression",
+                    expression.map(|expression| {
+                        crate::source_cfg::summarize_source_class_site_expression_value_from_program(
+                            self.program,
+                            self.scoping,
+                            expression,
+                        )
+                    }),
+                    expression
+                        .map(|expression| self.guarded_class_tokens(expression))
+                        .unwrap_or_default(),
+                )
+            }
+            Some(JSXAttributeValue::Element(element)) => (
+                Some(parser_byte_span(element.span)),
+                "element",
+                None,
+                Vec::new(),
+            ),
+            Some(JSXAttributeValue::Fragment(fragment)) => (
+                Some(parser_byte_span(fragment.span)),
+                "fragment",
+                None,
+                Vec::new(),
+            ),
+        };
+        let (source_facts, boundary_effect, ordered_word) = value
+            .map(|value| (value.facts, value.boundary_effect, value.ordered_word))
+            .unwrap_or((None, ClassBoundaryEffectV0::UnknownBoundary, None));
+        self.class_attribute_sites
+            .push(SourceClassAttributeSiteFactV0 {
+                attribute_name: attribute_name.name.as_str().to_string(),
+                site_byte_span,
+                value_byte_span,
+                value_kind,
+                target_style_uris,
+                boundary_effect,
+                ordered_word,
+                source_facts,
+                guarded_tokens,
+            });
+    }
+
+    fn guarded_class_tokens(
+        &self,
+        expression: &Expression<'a>,
+    ) -> Vec<SourceGuardedClassTokenFactV0> {
+        let mut tokens = Vec::new();
+        self.collect_guarded_class_tokens(expression, &mut tokens);
+        tokens.sort();
+        tokens.dedup();
+        tokens
+    }
+
+    fn collect_guarded_class_tokens(
+        &self,
+        expression: &Expression<'a>,
+        tokens: &mut Vec<SourceGuardedClassTokenFactV0>,
+    ) {
+        let expression = unwrap_transparent_expression(expression).unwrap_or(expression);
+        match expression {
+            Expression::CallExpression(call) if self.is_class_utility_call(call) => {
+                for argument in &call.arguments {
+                    if let Some(expression) = argument_expression(argument) {
+                        self.collect_guarded_class_tokens(expression, tokens);
+                    }
+                }
+            }
+            Expression::ObjectExpression(object) => {
+                for property in &object.properties {
+                    let ObjectPropertyKind::ObjectProperty(property) = property else {
+                        continue;
+                    };
+                    let Some(token) = property_key_text(self.source, &property.key) else {
+                        continue;
+                    };
+                    let condition = self.expression_source(&property.value);
+                    if let Some(condition) = condition {
+                        tokens.push(SourceGuardedClassTokenFactV0 {
+                            token,
+                            condition,
+                            condition_kind: "objectMapEntry",
+                        });
+                    }
+                }
+            }
+            Expression::LogicalExpression(logical) if logical.operator.is_and() => {
+                if let Some(token) = static_class_token_value(&logical.right)
+                    && let Some(condition) = self.expression_source(&logical.left)
+                {
+                    tokens.push(SourceGuardedClassTokenFactV0 {
+                        token,
+                        condition,
+                        condition_kind: "logicalAnd",
+                    });
+                }
+            }
+            Expression::ConditionalExpression(conditional) => {
+                let condition = self.expression_source(&conditional.test);
+                if let Some(condition) = condition {
+                    if let Some(token) = static_class_token_value(&conditional.consequent) {
+                        tokens.push(SourceGuardedClassTokenFactV0 {
+                            token,
+                            condition: condition.clone(),
+                            condition_kind: "conditionalConsequent",
+                        });
+                    }
+                    if let Some(token) = static_class_token_value(&conditional.alternate) {
+                        tokens.push(SourceGuardedClassTokenFactV0 {
+                            token,
+                            condition: format!("!({condition})"),
+                            condition_kind: "conditionalAlternate",
+                        });
+                    }
+                }
+            }
+            Expression::ArrayExpression(array) => {
+                for element in &array.elements {
+                    if let Some(expression) = array_expression_element_expression(element) {
+                        self.collect_guarded_class_tokens(expression, tokens);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn is_class_utility_call(&self, call: &CallExpression<'a>) -> bool {
+        let Some(Expression::Identifier(callee)) = unwrap_transparent_expression(&call.callee)
+        else {
+            return false;
+        };
+        matches!(
+            callee.name.as_str(),
+            "clsx" | "classnames" | "classNames" | "cn"
+        ) || self
+            .classnames_bind_utility_bindings
+            .iter()
+            .any(|binding| binding.binding == callee.name.as_str())
+    }
+
+    fn expression_source(&self, expression: &Expression<'a>) -> Option<String> {
+        let span = parser_byte_span(expression.span());
+        self.source
+            .get(span.start..span.end)
+            .map(str::trim)
+            .filter(|source| !source.is_empty())
+            .map(str::to_string)
     }
 
     fn collect_inline_style_attribute(&mut self, value: &JSXAttributeValue<'a>) {
@@ -3893,6 +4124,15 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
                 .then_with(|| left.end.cmp(&right.end))
         });
         self.class_string_literals.dedup();
+        self.class_attribute_sites.sort_by(|left, right| {
+            left.site_byte_span
+                .start
+                .cmp(&right.site_byte_span.start)
+                .then_with(|| left.site_byte_span.end.cmp(&right.site_byte_span.end))
+                .then_with(|| left.attribute_name.cmp(&right.attribute_name))
+        });
+        self.class_attribute_sites
+            .dedup_by(|left, right| left.site_byte_span == right.site_byte_span);
         self.style_property_accesses.sort_by(|left, right| {
             left.byte_span
                 .start
@@ -3966,8 +4206,22 @@ fn parser_byte_span(span: Span) -> ParserByteSpanV0 {
     }
 }
 
-fn is_jsx_class_name_attribute(name: &JSXAttributeName<'_>) -> bool {
-    matches!(name, JSXAttributeName::Identifier(identifier) if identifier.name.as_str() == "className")
+fn is_jsx_class_attribute(name: &JSXAttributeName<'_>) -> bool {
+    matches!(name, JSXAttributeName::Identifier(identifier) if matches!(identifier.name.as_str(), "className" | "class"))
+}
+
+fn static_class_token_value(expression: &Expression<'_>) -> Option<String> {
+    match unwrap_transparent_expression(expression)? {
+        Expression::StringLiteral(literal) => Some(literal.value.as_str().to_string()),
+        Expression::TemplateLiteral(template) if template.expressions.is_empty() => template
+            .quasis
+            .first()?
+            .value
+            .cooked
+            .as_ref()
+            .map(ToString::to_string),
+        _ => None,
+    }
 }
 
 fn is_jsx_style_attribute(name: &JSXAttributeName<'_>) -> bool {
@@ -4172,14 +4426,15 @@ fn string_expression_value_and_span(
 }
 
 fn split_class_names(value: &str) -> Vec<String> {
-    let mut class_names = value
-        .split_whitespace()
-        .filter(|part| !part.is_empty())
-        .map(str::to_string)
-        .collect::<Vec<_>>();
-    class_names.sort();
-    class_names.dedup();
-    class_names
+    let omena_abstract_value::DomClassTokenizationV0::Known { word, .. } =
+        omena_abstract_value::tokenize_dom_class_attribute_v0(Some(value))
+    else {
+        return Vec::new();
+    };
+    word.tokens()
+        .iter()
+        .map(|token| token.as_str().to_string())
+        .collect()
 }
 
 fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {
