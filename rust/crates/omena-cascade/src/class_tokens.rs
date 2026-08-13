@@ -185,8 +185,6 @@ pub fn tokenize_dom_class_attribute_v0(value: Option<&str>) -> DomClassTokenizat
 
 #[cfg(test)]
 mod band_law_tests {
-    use std::collections::BTreeSet;
-
     use proptest::prelude::*;
 
     use super::*;
@@ -212,19 +210,6 @@ mod band_law_tests {
             .iter()
             .map(CanonicalClassKeyV0::as_str)
             .collect()
-    }
-
-    fn last_occurrence_control(left: &[usize], right: &[usize]) -> Vec<usize> {
-        let mut seen = BTreeSet::new();
-        let mut result = left
-            .iter()
-            .chain(right)
-            .rev()
-            .filter(|token| seen.insert(**token))
-            .copied()
-            .collect::<Vec<_>>();
-        result.reverse();
-        result
     }
 
     proptest! {
@@ -313,11 +298,18 @@ mod band_law_tests {
     }
 
     #[test]
-    fn last_occurrence_negative_control_violates_absorption() {
-        let u = [0, 1];
-        let v = [0];
-        let uv = last_occurrence_control(&u, &v);
-        assert_ne!(last_occurrence_control(&uv, &u), uv);
+    fn product_from_keys_pins_the_last_occurrence_absorption_counterexample() {
+        let alpha = ClassNameV0::new("alpha").canonical_key();
+        let beta = ClassNameV0::new("beta").canonical_key();
+        let u = OrderedTokenWordV0::from_keys([alpha.clone(), beta]);
+        let v = OrderedTokenWordV0::from_keys([alpha]);
+        let uv = u.combine_first_occurrence(&v);
+        assert_eq!(token_labels(&uv), vec!["alpha", "beta"]);
+        assert_eq!(
+            uv.combine_first_occurrence(&u),
+            uv,
+            "the product constructor must retain first occurrence for absorption"
+        );
     }
 
     #[test]

@@ -482,12 +482,12 @@ function classBoundaryEffectForCall(call: ts.CallExpression): FlowBlockSnapshot[
     ts.isIdentifier(callee) &&
     (callee.text === "clsx" || callee.text === "classnames" || callee.text === "classNames")
   ) {
-    return "concatAtTokenBoundary";
+    return call.arguments.length >= 2 ? "concatAtTokenBoundary" : "unknownBoundary";
   }
   if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "join") {
     return "unknownBoundary";
   }
-  const separator = call.arguments[0] ? staticStringValue(call.arguments[0]) : ",";
+  const separator = call.arguments[0] ? staticStringValue(call.arguments[0]) : null;
   if (separator === null) return "unknownBoundary";
   return [...separator].some(isDomClassAsciiWhitespace)
     ? "concatAtTokenBoundary"

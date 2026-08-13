@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-lawvere.transform-catalog-independence",
+  "profiles": [
+    {
+      "profileId": "exact-emission-bytes-v0",
+      "observers": ["rawBytes"]
+    }
+  ],
+  "entries": [
+    {
+      "leftPassId": "number-compression",
+      "rightPassId": "color-compression",
+      "disposition": "independent",
+      "justification": {
+        "observationProfileId": "exact-emission-bytes-v0",
+        "descriptorEdge": null,
+        "leftPreservesRightPreconditions": ["equivalentLiteralValue"],
+        "rightPreservesLeftPreconditions": ["equivalentLiteralValue"],
+        "observationRows": [
+          {
+            "fixtureId": "disjoint-color-and-number",
+            "inputCss": ".a { color: rgb(255, 0, 0); margin: 0.50px; }",
+            "observer": "rawBytes",
+            "leftThenRight": ".a { color: red; margin: .5px; }",
+            "rightThenLeft": ".a { color: red; margin: .5px; }"
+          },
+          {
+            "fixtureId": "hex-color-and-opacity",
+            "inputCss": ".b { color: #ff0000; opacity: 0.500; }",
+            "observer": "rawBytes",
+            "leftThenRight": ".b { color: red; opacity: .5; }",
+            "rightThenLeft": ".b { color: red; opacity: .5; }"
+          }
+        ]
+      }
+    },
+    {
+      "leftPassId": "color-mix-lowering",
+      "rightPassId": "color-function-lowering",
+      "disposition": "dependent",
+      "justification": {
+        "observationProfileId": null,
+        "descriptorEdge": {
+          "kind": "conflictsWith",
+          "fromPassId": "color-mix-lowering",
+          "toPassId": "color-function-lowering"
+        },
+        "leftPreservesRightPreconditions": [],
+        "rightPreservesLeftPreconditions": [],
+        "observationRows": []
+      }
+    }
+  ]
+}

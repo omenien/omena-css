@@ -765,6 +765,29 @@
               ]
             }
           ]
+        },
+        {
+          "id": "proof-kernel-token-ownership-admission-values",
+          "kind": "selection-outcome-changing",
+          "surface": "ClassTreeShake closed-world admission and TransformExecutionSummaryV0.closedWorldAdmission",
+          "reason": "A complete ownership census is admitted only when the proof kernel independently checks token separability and binds its issuance token to the exact admission endpoints; favourable aggregate counts alone no longer admit a destructive pass.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+              "needles": [
+                "checked_token_ownership_admission_v0(census, module_instance, pass_kind).is_none()",
+                "check_rewrite_certificate_v0(",
+                ".filter(|token| token.matches_endpoints_v0(&before, &after))"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+              "needles": [
+                "fn proof_kernel_token_closes_favourable_ownership_count_bypass()",
+                "proofKernelToken:tree-shake-class"
+              ]
+            }
+          ]
         }
       ]
     },
@@ -1260,6 +1283,37 @@
             "LawvereSaturationExecutionV0",
             "LawvereDifferentialCorpusTierV0",
             "LawvereDifferentialCommutativityWitnessV0"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "transform-catalog-checked-independence-values",
+          "kind": "selection-outcome-changing",
+          "surface": "Canonical transform-catalog parallel plans, traces, and reorderability certificates",
+          "reason": "Canonical plans and traces now derive layers from committed checked independence data, and a reorderability certificate is accepted only when the proof kernel issues an endpoint-bound adjacent-swap token; deprecated compatibility entrypoints retain the prior scaffold, rank, and differential-only values.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lawvere/src/lib.rs",
+              "needles": [
+                "scheduler_status: \"independenceDataReady\"",
+                "rank_clusters: transform_catalog_independence_clusters_v0(requested)",
+                "checked_adjacent_swap_token_v0(left, right, &data).ok()",
+                "fn parallel_plan_uses_independence_data_and_declares_non_consumption()",
+                "fn committed_independent_pair_receives_checked_reorder_token()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lawvere/src/independence.rs",
+              "needles": [
+                "default_transform_observation_matrix_v0()",
+                "fn canonical_schedule_agrees_with_independent_bounded_oracle()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lawvere/data/transform-catalog-independence-v0.json",
+              "needles": ["\"disposition\": \"independent\"", "\"disposition\": \"dependent\""]
+            }
           ]
         }
       ]

@@ -12,6 +12,9 @@ export function ClassSitePlane({ flag }: { flag: boolean }) {
       <div className={flag ? "active" : "idle"} />
       <div className={`btn-${size}`} />
       <div className={clsx("card", "raised")} />
+      <div className={clsx("a", flag && "b")} />
+      <div className={flag && "x"} />
+      <div className={clsx("d", flag ? "e" : undefined)} />
       <div className={clsx({ active: flag })} />
       <div className={computeClassName()} />
       <div className={styles.root} />

@@ -931,7 +931,11 @@ fn class_boundary_effect_for_call(
         Expression::Identifier(identifier)
             if matches!(identifier.name.as_str(), "clsx" | "classnames" | "classNames")
     ) {
-        return ClassBoundaryEffectV0::ConcatAtTokenBoundary;
+        return if call.arguments.len() >= 2 {
+            ClassBoundaryEffectV0::ConcatAtTokenBoundary
+        } else {
+            ClassBoundaryEffectV0::UnknownBoundary
+        };
     }
     let Expression::StaticMemberExpression(member) = transparent_expression(&call.callee) else {
         return ClassBoundaryEffectV0::UnknownBoundary;
@@ -1220,12 +1224,15 @@ fn expression_type_facts_inner(
         ]),
         Expression::LogicalExpression(expression) => {
             if expression.operator.is_and() {
-                return expression_type_facts_inner(
-                    &expression.right,
-                    context,
-                    seen_functions,
-                    seen_bindings,
-                );
+                return merge_type_facts([
+                    Some(exact_type_facts("")),
+                    expression_type_facts_inner(
+                        &expression.right,
+                        context,
+                        seen_functions,
+                        seen_bindings,
+                    ),
+                ]);
             }
             merge_type_facts([
                 expression_type_facts_inner(
@@ -1291,7 +1298,12 @@ fn class_boundary_call_type_facts(
             .iter()
             .map(|argument| {
                 argument_expression(argument).and_then(|expression| {
-                    expression_type_facts_inner(expression, context, seen_functions, seen_bindings)
+                    class_list_argument_type_facts(
+                        expression,
+                        context,
+                        seen_functions,
+                        seen_bindings,
+                    )
                 })
             })
             .collect::<Option<Vec<_>>>()?;
@@ -1326,6 +1338,48 @@ fn class_boundary_call_type_facts(
         })
         .collect::<Option<Vec<_>>>()?;
     concatenate_type_fact_sequence(facts, separator)
+}
+
+fn class_list_argument_type_facts(
+    expression: &Expression<'_>,
+    context: &ExpressionFactContext<'_, '_>,
+    seen_functions: &mut BTreeSet<String>,
+    seen_bindings: &mut BTreeSet<usize>,
+) -> Option<StringTypeFactsV2> {
+    match transparent_expression(expression) {
+        Expression::BooleanLiteral(_) | Expression::NullLiteral(_) => Some(exact_type_facts("")),
+        Expression::Identifier(identifier) if identifier.name.as_str() == "undefined" => {
+            Some(exact_type_facts(""))
+        }
+        Expression::LogicalExpression(expression) if expression.operator.is_and() => {
+            merge_type_facts([
+                Some(exact_type_facts("")),
+                class_list_argument_type_facts(
+                    &expression.right,
+                    context,
+                    seen_functions,
+                    seen_bindings,
+                ),
+            ])
+        }
+        Expression::ConditionalExpression(expression) => merge_type_facts([
+            class_list_argument_type_facts(
+                &expression.consequent,
+                context,
+                seen_functions,
+                seen_bindings,
+            ),
+            class_list_argument_type_facts(
+                &expression.alternate,
+                context,
+                seen_functions,
+                seen_bindings,
+            ),
+        ]),
+        expression => {
+            expression_type_facts_inner(expression, context, seen_functions, seen_bindings)
+        }
+    }
 }
 
 fn concatenate_type_fact_sequence(
@@ -1657,7 +1711,7 @@ fn span_end(span: Span) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        ClassBoundaryEffectV0, prefix_suffix_type_facts,
+        ClassBoundaryEffectV0, boundary_effect_wire_value, prefix_suffix_type_facts,
         source_type_fact_control_flow_graph_from_snapshot,
         summarize_omena_bridge_source_control_flow_graph_for_source_language,
     };
@@ -1875,7 +1929,7 @@ mod tests {
         );
         assert_eq!(
             block("guarded")?.boundary_effect,
-            ClassBoundaryEffectV0::ConcatAtTokenBoundary
+            ClassBoundaryEffectV0::UnknownBoundary
         );
         assert!(block("guarded")?.ordered_word.is_none());
         assert_eq!(
@@ -1902,6 +1956,65 @@ mod tests {
         assert_eq!(rows[3]["construct"], "arrayJoin");
         assert_eq!(rows[4]["construct"], "objectMapEntry");
         assert_eq!(rows[5]["construct"], "opaqueOperands");
+
+        let mut source = vec![
+            "declare function clsx(...values: unknown[]): string;".to_string(),
+            "declare function left(): string;".to_string(),
+            "declare function right(): string;".to_string(),
+            "export function Probe(flag: boolean) {".to_string(),
+        ];
+        for (index, row) in rows.iter().enumerate() {
+            let expression = row["probeExpression"]
+                .as_str()
+                .ok_or_else(|| std::io::Error::other("transfer row needs probeExpression"))?;
+            source.push(format!("  const probe_{index} = {expression};"));
+            if let (Some(control), Some(_)) = (
+                row["controlExpression"].as_str(),
+                row["controlBoundaryEffect"].as_str(),
+            ) {
+                source.push(format!("  const control_{index} = {control};"));
+            }
+        }
+        source.push("  return probe_5;".to_string());
+        source.push("}".to_string());
+        let source = source.join("\n");
+        let reference = source
+            .rfind("probe_5")
+            .ok_or_else(|| std::io::Error::other("transfer probe reference"))?;
+        let graph = summarize_omena_bridge_source_control_flow_graph_for_source_language(
+            "/fake/ws/src/BoundaryProbe.ts",
+            source.as_str(),
+            Some("typescript"),
+            "probe_5",
+            reference,
+        )
+        .ok_or_else(|| std::io::Error::other("transfer probes should produce CFG"))?;
+        for (index, row) in rows.iter().enumerate() {
+            let expected = row["expectedBoundaryEffect"]
+                .as_str()
+                .ok_or_else(|| std::io::Error::other("transfer row needs expected effect"))?;
+            let probe = graph
+                .snapshot
+                .blocks
+                .iter()
+                .find(|block| block.variable_name.as_deref() == Some(&format!("probe_{index}")))
+                .ok_or_else(|| std::io::Error::other("missing transfer probe block"))?;
+            assert_eq!(boundary_effect_wire_value(probe.boundary_effect), expected);
+            if let Some(expected_control) = row["controlBoundaryEffect"].as_str() {
+                let control = graph
+                    .snapshot
+                    .blocks
+                    .iter()
+                    .find(|block| {
+                        block.variable_name.as_deref() == Some(&format!("control_{index}"))
+                    })
+                    .ok_or_else(|| std::io::Error::other("missing transfer control block"))?;
+                assert_eq!(
+                    boundary_effect_wire_value(control.boundary_effect),
+                    expected_control
+                );
+            }
+        }
         Ok(())
     }
 

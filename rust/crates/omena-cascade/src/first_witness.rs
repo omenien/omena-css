@@ -600,6 +600,51 @@ mod tests {
     }
 
     #[test]
+    fn independent_construction_after_cache_flush_reuses_the_canonical_node()
+    -> Result<(), FirstWitnessErrorV0> {
+        let mut manager = FirstWitnessManagerV0::new(
+            VariableOrderRegistrationV0::site_first_appearance(["a", "b", "c"])?,
+            FirstWitnessManagerConfigV0 {
+                shortcuts: false,
+                apply_cache_capacity: 32,
+                rebuild_interval_operations: 1,
+            },
+        );
+        let a = manager.variable("a")?;
+        let b = manager.variable("b")?;
+        let c = manager.variable("c")?;
+        let a_and_b = manager.and(a, b)?;
+        let not_a = manager.not(a)?;
+        let not_a_and_c = manager.and(not_a, c)?;
+        let first = manager.or(a_and_b, not_a_and_c)?;
+
+        let mut roots = [first];
+        let report = manager
+            .reclaim_if_due(&mut roots)?
+            .ok_or(FirstWitnessErrorV0::InvalidNode(first))?;
+        assert_eq!(manager.apply_cache_len(), 0, "rebuild flushes apply cache");
+        let first = roots[0];
+
+        let a = manager.variable("a")?;
+        let b = manager.variable("b")?;
+        let c = manager.variable("c")?;
+        let not_a = manager.not(a)?;
+        let c_and_not_a = manager.and(c, not_a)?;
+        let b_and_a = manager.and(b, a)?;
+        let second = manager.or(c_and_not_a, b_and_a)?;
+
+        assert_eq!(
+            second, first,
+            "cache-independent construction of one function must reuse its NodeId"
+        );
+        eprintln!(
+            "{{\"cacheFlushed\":true,\"firstNodeId\":{first},\"secondNodeId\":{second},\"nodesBeforeRebuild\":{},\"nodesAfterRebuild\":{}}}",
+            report.nodes_before, report.nodes_after,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn contradiction_and_excluded_middle_reduce_to_terminals() -> Result<(), FirstWitnessErrorV0> {
         let mut manager = manager(true)?;
         let condition = manager.variable("c")?;
