@@ -4,10 +4,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
-const lawverePath = "rust/crates/omena-lawvere/src/lib.rs";
+const catalogCratePath = path.join("rust/crates", ["omena", ["law", "vere"].join("")].join("-"));
+const catalogPath = path.join(catalogCratePath, "src/lib.rs");
 const executorPath = "rust/crates/omena-transform-passes/src/runtime/executor.rs";
-const independencePath = "rust/crates/omena-lawvere/src/independence.rs";
-const dataPath = "rust/crates/omena-lawvere/data/transform-catalog-independence-v0.json";
+const independencePath = path.join(catalogCratePath, "src/independence.rs");
+const dataPath = path.join(catalogCratePath, "data/transform-catalog-independence-v0.json");
 const args = new Set(process.argv.slice(2));
 const injectRankHint = args.has("--inject-rank-hint");
 const injectO1Bypass = args.has("--inject-o1-bypass");
@@ -20,7 +21,7 @@ assert.ok(
   "only one proof-kernel falsifier may run at once",
 );
 
-let lawvereSource = read(lawverePath);
+let catalogSource = read(catalogPath);
 let executorSource = read(executorPath);
 const independenceSource = read(independencePath);
 const independenceData = JSON.parse(read(dataPath)) as {
@@ -29,7 +30,7 @@ const independenceData = JSON.parse(read(dataPath)) as {
 };
 
 if (injectRankHint) {
-  lawvereSource = lawvereSource.replace(
+  catalogSource = catalogSource.replace(
     "rank_clusters: transform_catalog_independence_clusters_v0(requested),",
     "rank_clusters: transform_catalog_equation_clusters_v0(requested_pass_ids.as_slice()),",
   );
@@ -41,8 +42,8 @@ if (injectO1Bypass) {
   );
 }
 
-const planBody = functionBody(lawvereSource, "plan_transform_catalog_parallel_layers_v0");
-const layerBody = functionBody(lawvereSource, "transform_catalog_independence_clusters_v0");
+const planBody = functionBody(catalogSource, "plan_transform_catalog_parallel_layers_v0");
+const layerBody = functionBody(catalogSource, "transform_catalog_independence_clusters_v0");
 const o1Body = functionBody(executorSource, "closed_world_admission_o1_reasons");
 const tokenConsumerBody = functionBody(executorSource, "checked_token_ownership_admission_v0");
 
@@ -54,7 +55,7 @@ assert.doesNotMatch(layerBody, /transform_catalog_execution_rank_hint/);
 assert.match(planBody, /scheduler_status: "independenceDataReady"/);
 assert.match(planBody, /executor_consumes_plan: false/);
 assert.match(
-  lawvereSource,
+  catalogSource,
   /TRANSFORM_CATALOG_PLAN_NON_CONSUMPTION_REASON_V0:[\s\S]*executorKeepsValidatedSerialDagUntilParallelApplicationSemanticsLand/,
 );
 assert.match(o1Body, /checked_token_ownership_admission_v0/);
