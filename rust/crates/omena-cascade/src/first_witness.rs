@@ -556,7 +556,16 @@ impl std::error::Error for FirstWitnessErrorV0 {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum ApplyOperationV0 {
     Boolean(BooleanOperationV0),
-    FirstWitness,
+    FirstWitness(FirstWitnessTerminalBehaviorV0),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum FirstWitnessTerminalBehaviorV0 {
+    LeftBiased,
+    #[cfg(test)]
+    RightBiased,
+    #[cfg(test)]
+    BrokenRecursion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -716,7 +725,19 @@ impl FirstWitnessManagerV0 {
     ) -> Result<NodeId, FirstWitnessErrorV0> {
         self.require_node(left)?;
         self.require_node(right)?;
-        self.choose_first_witness_recursive(left, right)
+        self.choose_first_witness_recursive(left, right, FirstWitnessTerminalBehaviorV0::LeftBiased)
+    }
+
+    #[cfg(test)]
+    fn choose_first_witness_with_terminal_behavior_for_test(
+        &mut self,
+        left: NodeId,
+        right: NodeId,
+        behavior: FirstWitnessTerminalBehaviorV0,
+    ) -> Result<NodeId, FirstWitnessErrorV0> {
+        self.require_node(left)?;
+        self.require_node(right)?;
+        self.choose_first_witness_recursive(left, right, behavior)
     }
 
     pub fn apply(
@@ -840,6 +861,7 @@ impl FirstWitnessManagerV0 {
         &mut self,
         left: NodeId,
         right: NodeId,
+        terminal_behavior: FirstWitnessTerminalBehaviorV0,
     ) -> Result<NodeId, FirstWitnessErrorV0> {
         self.choice_counters.recursive_invocations += 1;
         let left_node = self.require_node(left)?;
@@ -856,10 +878,36 @@ impl FirstWitnessManagerV0 {
             }
         }
         if let (Node::Term(left_terminal), Node::Term(_)) = (left_node, right_node) {
-            return Ok(if left_terminal == 0 { right } else { left });
+            return Ok(match terminal_behavior {
+                FirstWitnessTerminalBehaviorV0::LeftBiased => {
+                    if left_terminal == 0 {
+                        right
+                    } else {
+                        left
+                    }
+                }
+                #[cfg(test)]
+                FirstWitnessTerminalBehaviorV0::RightBiased => {
+                    if right == GUARDED_CASCADE_BOT_NODE_ID_V0 {
+                        left
+                    } else {
+                        right
+                    }
+                }
+                #[cfg(test)]
+                FirstWitnessTerminalBehaviorV0::BrokenRecursion => {
+                    if left_terminal == 0
+                        && matches!(right_node, Node::Term(terminal) if terminal > 1)
+                    {
+                        TRUE_NODE_ID_V0
+                    } else {
+                        GUARDED_CASCADE_BOT_NODE_ID_V0
+                    }
+                }
+            });
         }
         let key = ApplyCacheKeyV0 {
-            operation: ApplyOperationV0::FirstWitness,
+            operation: ApplyOperationV0::FirstWitness(terminal_behavior),
             left,
             right,
         };
@@ -871,8 +919,8 @@ impl FirstWitnessManagerV0 {
         let variable = top_variable(left_node, right_node);
         let (left_low, left_high) = cofactors(left, left_node, variable);
         let (right_low, right_high) = cofactors(right, right_node, variable);
-        let low = self.choose_first_witness_recursive(left_low, right_low)?;
-        let high = self.choose_first_witness_recursive(left_high, right_high)?;
+        let low = self.choose_first_witness_recursive(left_low, right_low, terminal_behavior)?;
+        let high = self.choose_first_witness_recursive(left_high, right_high, terminal_behavior)?;
         let result = self.choose(variable, low, high)?;
         self.cache_insert(key, result);
         Ok(result)
@@ -1197,6 +1245,373 @@ mod tests {
                 rebuild_interval_operations: 64,
             },
         ))
+    }
+
+    fn winner_manager(
+        shortcuts: bool,
+        variable_count: usize,
+    ) -> Result<FirstWitnessManagerV0, FirstWitnessErrorV0> {
+        let atoms = (0..variable_count)
+            .map(|index| format!("guard-{index}"))
+            .collect::<Vec<_>>();
+        let mut manager = FirstWitnessManagerV0::new(
+            VariableOrderRegistrationV0::site_first_appearance(atoms)?,
+            FirstWitnessManagerConfigV0 {
+                shortcuts,
+                apply_cache_capacity: 16_384,
+                rebuild_interval_operations: u64::MAX,
+            },
+        );
+        manager.register_declaration_terminals([0, 1, 2])?;
+        Ok(manager)
+    }
+
+    fn intern_terminal_table(
+        manager: &mut FirstWitnessManagerV0,
+        values: &[NodeId],
+        variable: u16,
+    ) -> Result<NodeId, FirstWitnessErrorV0> {
+        if values.len() == 1 || values.iter().all(|value| *value == values[0]) {
+            return Ok(values[0]);
+        }
+        let midpoint = values.len() / 2;
+        let low = intern_terminal_table(manager, &values[..midpoint], variable + 1)?;
+        let high = intern_terminal_table(manager, &values[midpoint..], variable + 1)?;
+        manager.choose(variable, low, high)
+    }
+
+    fn assignment_for_index(index: usize, variable_count: usize) -> Vec<bool> {
+        (0..variable_count)
+            .map(|variable| index & (1 << (variable_count - variable - 1)) != 0)
+            .collect()
+    }
+
+    fn winner_truth_table(
+        manager: &FirstWitnessManagerV0,
+        root: NodeId,
+        variable_count: usize,
+    ) -> Result<Vec<Option<u32>>, FirstWitnessErrorV0> {
+        (0..(1 << variable_count))
+            .map(|index| {
+                evaluate_guarded_cascade_winner_v0(
+                    manager,
+                    GuardedCascadeWinnerRootV0(root),
+                    &assignment_for_index(index, variable_count),
+                )
+            })
+            .collect()
+    }
+
+    fn next_law_seed(state: &mut u64) -> u64 {
+        *state ^= *state << 13;
+        *state ^= *state >> 7;
+        *state ^= *state << 17;
+        *state
+    }
+
+    #[derive(Debug, Default)]
+    struct FirstWitnessLawReportV0 {
+        associativity_violations: usize,
+        idempotence_violations: usize,
+        absorption_violations: usize,
+        left_identity_violations: usize,
+        right_identity_violations: usize,
+        result_roots: Vec<NodeId>,
+    }
+
+    struct FirstWitnessLawRunV0 {
+        report: FirstWitnessLawReportV0,
+        counters: FirstWitnessChoiceOperationCountersV0,
+        tables: Vec<Vec<Option<u32>>>,
+    }
+
+    fn run_first_witness_laws(
+        manager: &mut FirstWitnessManagerV0,
+        operands: &[[NodeId; 3]],
+    ) -> Result<FirstWitnessLawReportV0, FirstWitnessErrorV0> {
+        let mut report = FirstWitnessLawReportV0::default();
+        let behavior = if std::env::var_os("OMENA_G122_INJECT_FIRST_WITNESS_LAST_WINS").is_some() {
+            FirstWitnessTerminalBehaviorV0::RightBiased
+        } else {
+            FirstWitnessTerminalBehaviorV0::LeftBiased
+        };
+        for [left, middle, right] in operands.iter().copied() {
+            let mut choose = |left, right| {
+                manager.choose_first_witness_with_terminal_behavior_for_test(left, right, behavior)
+            };
+            let left_middle = choose(left, middle)?;
+            let middle_right = choose(middle, right)?;
+            let associative_left = choose(left_middle, right)?;
+            let associative_right = choose(left, middle_right)?;
+            let idempotent = choose(left, left)?;
+            let absorbed = choose(left_middle, left)?;
+            let left_identity = choose(GUARDED_CASCADE_BOT_NODE_ID_V0, left)?;
+            let right_identity = choose(left, GUARDED_CASCADE_BOT_NODE_ID_V0)?;
+            report.associativity_violations += usize::from(associative_left != associative_right);
+            report.idempotence_violations += usize::from(idempotent != left);
+            report.absorption_violations += usize::from(absorbed != left_middle);
+            report.left_identity_violations += usize::from(left_identity != left);
+            report.right_identity_violations += usize::from(right_identity != left);
+            report.result_roots.extend([
+                associative_left,
+                associative_right,
+                idempotent,
+                absorbed,
+                left_identity,
+                right_identity,
+            ]);
+        }
+        Ok(report)
+    }
+
+    fn seeded_winner_operands(
+        manager: &mut FirstWitnessManagerV0,
+        trial_count: usize,
+        variable_count: usize,
+    ) -> Result<Vec<[NodeId; 3]>, FirstWitnessErrorV0> {
+        let terminals = [
+            GUARDED_CASCADE_BOT_NODE_ID_V0,
+            manager.declaration_terminal(0)?,
+            manager.declaration_terminal(1)?,
+            manager.declaration_terminal(2)?,
+        ];
+        let table_size = 1 << variable_count;
+        let mut seed = 0x1220_cafe_dead_beef_u64;
+        (0..trial_count)
+            .map(|_| {
+                let mut roots = [GUARDED_CASCADE_BOT_NODE_ID_V0; 3];
+                for root in &mut roots {
+                    let values = (0..table_size)
+                        .map(|_| {
+                            let terminal = next_law_seed(&mut seed) as usize % terminals.len();
+                            terminals[terminal]
+                        })
+                        .collect::<Vec<_>>();
+                    *root = intern_terminal_table(manager, &values, 0)?;
+                }
+                Ok(roots)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn first_witness_laws_hold_in_both_modes_and_the_switch_is_live()
+    -> Result<(), FirstWitnessErrorV0> {
+        const TRIAL_COUNT: usize = 256;
+        const VARIABLE_COUNT: usize = 3;
+        fn run(shortcuts: bool) -> Result<FirstWitnessLawRunV0, FirstWitnessErrorV0> {
+            let mut manager = winner_manager(shortcuts, VARIABLE_COUNT)?;
+            let operands = seeded_winner_operands(&mut manager, TRIAL_COUNT, VARIABLE_COUNT)?;
+            let report = run_first_witness_laws(&mut manager, &operands)?;
+            let tables = report
+                .result_roots
+                .iter()
+                .map(|root| winner_truth_table(&manager, *root, VARIABLE_COUNT))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(FirstWitnessLawRunV0 {
+                report,
+                counters: manager.first_witness_counters(),
+                tables,
+            })
+        }
+
+        let shortcut = run(true)?;
+        let recursive = run(false)?;
+        for report in [&shortcut.report, &recursive.report] {
+            assert_eq!(report.associativity_violations, 0);
+            assert_eq!(report.idempotence_violations, 0);
+            assert_eq!(report.absorption_violations, 0);
+            assert_eq!(report.left_identity_violations, 0);
+            assert_eq!(report.right_identity_violations, 0);
+        }
+        assert_eq!(shortcut.tables, recursive.tables);
+        assert_eq!(shortcut.report.result_roots, recursive.report.result_roots);
+        assert!(
+            recursive.counters.recursive_invocations > shortcut.counters.recursive_invocations,
+            "disabling shortcuts must reach more recursive calls"
+        );
+        assert!(
+            recursive.counters.apply_cache_lookups > shortcut.counters.apply_cache_lookups,
+            "disabling shortcuts must reach more apply-cache probes"
+        );
+        eprintln!(
+            "{{\"trialCount\":{TRIAL_COUNT},\"variableCount\":{VARIABLE_COUNT},\"violations\":0,\"shortcutsOn\":{{\"recursiveInvocations\":{},\"applyCacheLookups\":{}}},\"shortcutsOff\":{{\"recursiveInvocations\":{},\"applyCacheLookups\":{}}}}}",
+            shortcut.counters.recursive_invocations,
+            shortcut.counters.apply_cache_lookups,
+            recursive.counters.recursive_invocations,
+            recursive.counters.apply_cache_lookups,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn first_witness_negative_controls_are_observed_by_the_product_recursion()
+    -> Result<(), FirstWitnessErrorV0> {
+        const VARIABLE_COUNT: usize = 1;
+        let mut manager = winner_manager(false, VARIABLE_COUNT)?;
+        let bot = GUARDED_CASCADE_BOT_NODE_ID_V0;
+        let first = manager.declaration_terminal(0)?;
+        let second = manager.declaration_terminal(1)?;
+        let guarded_first = manager.choose(0, bot, first)?;
+        let guarded_second = manager.choose(0, bot, second)?;
+        let right_biased_pair = manager.choose_first_witness_with_terminal_behavior_for_test(
+            guarded_first,
+            guarded_second,
+            FirstWitnessTerminalBehaviorV0::RightBiased,
+        )?;
+        let right_biased_absorbed = manager.choose_first_witness_with_terminal_behavior_for_test(
+            right_biased_pair,
+            guarded_first,
+            FirstWitnessTerminalBehaviorV0::RightBiased,
+        )?;
+        assert_ne!(
+            right_biased_pair, right_biased_absorbed,
+            "last-wins must violate left-regular-band absorption"
+        );
+        let left_right = manager.choose_first_witness(guarded_first, guarded_second)?;
+        let right_left = manager.choose_first_witness(guarded_second, guarded_first)?;
+        assert_ne!(
+            left_right, right_left,
+            "the first-witness operation must expose a non-commutativity witness"
+        );
+        eprintln!(
+            "{{\"lastWinsAbsorptionViolations\":1,\"nonCommutativityWitnesses\":1,\"rightBiasedPair\":{right_biased_pair},\"rightBiasedAbsorbed\":{right_biased_absorbed},\"leftRight\":{left_right},\"rightLeft\":{right_left}}}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn exhaustive_first_applicable_oracle_and_canonicality_both_directions()
+    -> Result<(), FirstWitnessErrorV0> {
+        const VARIABLE_COUNT: usize = 12;
+        let mut manager = winner_manager(false, VARIABLE_COUNT)?;
+        let bot = GUARDED_CASCADE_BOT_NODE_ID_V0;
+        let declarations = [
+            manager.declaration_terminal(0)?,
+            manager.declaration_terminal(1)?,
+            manager.declaration_terminal(2)?,
+        ];
+        let table_size = 1 << VARIABLE_COUNT;
+        let mut seed = 0xa2a3_1220_5eed_u64;
+        let mut operand_tables = Vec::new();
+        let mut operand_roots = Vec::new();
+        for _ in 0..declarations.len() {
+            let table = (0..table_size)
+                .map(|_| {
+                    if next_law_seed(&mut seed) & 1 == 0 {
+                        bot
+                    } else {
+                        declarations[operand_tables.len()]
+                    }
+                })
+                .collect::<Vec<_>>();
+            operand_roots.push(intern_terminal_table(&mut manager, &table, 0)?);
+            operand_tables.push(table);
+        }
+        let mut product_root = bot;
+        for operand in &operand_roots {
+            product_root = manager.choose_first_witness(product_root, *operand)?;
+        }
+        let oracle_table = (0..table_size)
+            .map(|index| {
+                operand_tables
+                    .iter()
+                    .find_map(|table| (table[index] != bot).then_some(table[index]))
+                    .unwrap_or(bot)
+            })
+            .collect::<Vec<_>>();
+        let independent_root = intern_terminal_table(&mut manager, &oracle_table, 0)?;
+        assert_eq!(
+            product_root, independent_root,
+            "pointwise table interning and the product fold must canonicalize to one NodeId"
+        );
+        let product_table = (0..table_size)
+            .map(|index| {
+                evaluate_guarded_cascade_winner_v0(
+                    &manager,
+                    GuardedCascadeWinnerRootV0(product_root),
+                    &assignment_for_index(index, VARIABLE_COUNT),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let oracle_declarations = oracle_table
+            .iter()
+            .map(|terminal| {
+                if *terminal == bot {
+                    Ok(None)
+                } else {
+                    match manager.require_node(*terminal)? {
+                        Node::Term(value) => Ok(Some(value - 1)),
+                        Node::Int { .. } => Err(FirstWitnessErrorV0::InvalidNode(*terminal)),
+                    }
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mismatch_count = product_table
+            .iter()
+            .zip(&oracle_declarations)
+            .filter(|(product, oracle)| product != oracle)
+            .count();
+        assert_eq!(mismatch_count, 0);
+        let mut different_table = oracle_table.clone();
+        different_table[0] = if different_table[0] == bot {
+            declarations[0]
+        } else {
+            bot
+        };
+        let different_root = intern_terminal_table(&mut manager, &different_table, 0)?;
+        assert_ne!(
+            product_root, different_root,
+            "different terminal functions must not share a NodeId"
+        );
+        eprintln!(
+            "{{\"variableCount\":{VARIABLE_COUNT},\"checkedPointCount\":{table_size},\"mismatchCount\":{mismatch_count},\"productNodeId\":{product_root},\"independentNodeId\":{independent_root},\"differentNodeId\":{different_root}}}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn broken_recursion_masking_table_pins_each_law_cell() -> Result<(), FirstWitnessErrorV0> {
+        fn cell(shortcuts: bool) -> Result<[bool; 4], FirstWitnessErrorV0> {
+            let mut manager = winner_manager(shortcuts, 2)?;
+            let behavior = FirstWitnessTerminalBehaviorV0::BrokenRecursion;
+            let bot = GUARDED_CASCADE_BOT_NODE_ID_V0;
+            let declaration = manager.declaration_terminal(1)?;
+            let guarded = manager.choose(0, bot, declaration)?;
+            let idempotence = manager
+                .choose_first_witness_with_terminal_behavior_for_test(guarded, guarded, behavior)?
+                == guarded;
+            let bot_guarded = manager
+                .choose_first_witness_with_terminal_behavior_for_test(bot, guarded, behavior)?;
+            let bot_bot =
+                manager.choose_first_witness_with_terminal_behavior_for_test(bot, bot, behavior)?;
+            let associative_left = manager
+                .choose_first_witness_with_terminal_behavior_for_test(bot_bot, guarded, behavior)?;
+            let associative_right = manager.choose_first_witness_with_terminal_behavior_for_test(
+                bot,
+                bot_guarded,
+                behavior,
+            )?;
+            let associativity = associative_left == associative_right;
+            let absorbed = manager.choose_first_witness_with_terminal_behavior_for_test(
+                bot_guarded,
+                bot,
+                behavior,
+            )?;
+            let absorption = absorbed == bot_guarded;
+            let a2 = winner_truth_table(&manager, bot_guarded, 2)?
+                == winner_truth_table(&manager, guarded, 2)?;
+            Ok([associativity, idempotence, absorption, a2])
+        }
+
+        let shortcuts_on = cell(true)?;
+        let shortcuts_off = cell(false)?;
+        assert_eq!(shortcuts_on, [false, true, true, false]);
+        assert_eq!(shortcuts_off, [false, false, false, false]);
+        eprintln!(
+            "{{\"brokenRecursion\":true,\"shortcutsOn\":{{\"associativity\":false,\"idempotence\":true,\"absorption\":true,\"a2\":false}},\"shortcutsOff\":{{\"associativity\":false,\"idempotence\":false,\"absorption\":false,\"a2\":false}}}}"
+        );
+        Ok(())
     }
 
     #[test]
