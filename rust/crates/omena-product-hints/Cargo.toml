@@ -21,3 +21,6 @@ default = []
 [dependencies]
 omena-cascade = { path = "../omena-cascade", version = "=0.3.0" }
 serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

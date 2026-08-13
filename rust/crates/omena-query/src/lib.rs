@@ -2,6 +2,41 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility diagnostic code owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0: &str =
+    omena_query_checker_orchestrator::MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0;
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility provenance owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0: [&str; 2] = [
+    "omena-query-checker-orchestrator.rg-flow-gate",
+    "omena-checker.rg-flow-rules",
+];
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility diagnostic message owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_MESSAGE_V0: &str = "RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism.";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility diagnostic message owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const OMENA_QUERY_CASCADE_SECTION_AGGREGATION_COMPATIBILITY_MESSAGE_V0: &str = "Cascade custom-property ranking forms a reference cycle, so the categorical cosheaf-colimit witness for the cascade-ranking primitive is not functorial: the ranking primitive plays conflicting categorical roles in this stylesheet.";
+
+pub use omena_cascade::{
+    CascadeRankedSetLossCaptureV0 as OmenaQueryCascadeRankedSetLossCaptureV0,
+    capture_cascade_ranked_set_losses as capture_omena_query_cascade_ranked_set_losses,
+};
+pub use omena_query_core::{GuardedTokenLanguageV0, GuardedTokenMapV0};
+
 mod explain;
 pub use explain::{
     OmenaQueryExplainAvailabilityV0, OmenaQueryExplainCapabilityV0,
@@ -28,14 +63,17 @@ use omena_bridge::{
 };
 pub use omena_bridge::{
     OmenaBridgeExternalSifCacheContextV0 as OmenaQueryExternalSifCacheContextV0,
+    OmenaBridgeExternalSifStorageV0 as OmenaQueryExternalSifStorageV0,
     generate_omena_bridge_sif_for_resolved_style_path,
     generate_omena_bridge_sif_for_resolved_style_path_with_cache_context,
+    generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage,
 };
 pub use omena_bridge::{
     SourceBindingDeclFactV0 as OmenaQuerySourceBindingDeclFactV0,
     SourceBindingIndexV0 as OmenaQuerySourceBindingIndexV0,
     SourceBindingScopeFactV0 as OmenaQuerySourceBindingScopeFactV0,
     SourceBindingStyleImportFactV0 as OmenaQuerySourceBindingStyleImportFactV0,
+    SourceClassAttributeSiteFactV0 as OmenaQuerySourceClassAttributeSiteFactV0,
     SourceClassExpressionNodeFactV0 as OmenaQuerySourceClassExpressionNodeFactV0,
     SourceClassUtilityBindingFactV0 as OmenaQuerySourceClassUtilityBindingFactV0,
     SourceClassValuePatternMatcherV0 as OmenaQuerySourceClassValuePatternMatcherV0,
@@ -55,6 +93,7 @@ pub use omena_bridge::{
     SourceFlowBindingRefV0 as OmenaQuerySourceFlowBindingRefV0,
     SourceFlowBlockGraphSnapshotV0 as OmenaQuerySourceFlowBlockGraphSnapshotV0,
     SourceFlowBlockSnapshotV0 as OmenaQuerySourceFlowBlockSnapshotV0,
+    SourceGuardedClassTokenFactV0 as OmenaQuerySourceGuardedClassTokenFactV0,
     SourceImportDeclarationSummaryV0 as OmenaQuerySourceImportDeclarationSummaryV0,
     SourceImportDeclarationV0 as OmenaQuerySourceImportDeclarationV0,
     SourceImportedStyleBindingV0 as OmenaQuerySourceImportedStyleBindingV0,
@@ -105,12 +144,13 @@ pub type OmenaQuerySourceTypeFactControlFlowGraphV0 =
     omena_bridge::OmenaBridgeSourceTypeFactControlFlowGraphV0;
 pub use omena_cross_file_summary::{
     BatchHypergraphConnectivityOracle, HypergraphClosureMode, HypergraphClosurePath,
-    HypergraphIFDSSummaryEdgeV0, OmenaCrossFileGraphDeltaEdgeV0, OmenaCrossFileGraphDeltaV0,
-    OmenaCrossFileLinearProvenanceV0, OmenaCrossFileSummaryNodeRoleV0,
+    HypergraphMonotoneFactPropagationSummaryEdgeV0, OmenaCrossFileGraphDeltaEdgeV0,
+    OmenaCrossFileGraphDeltaV0, OmenaCrossFileLinearProvenanceV0, OmenaCrossFileSummaryNodeRoleV0,
     OmenaCrossFileSummaryRawEdgeKindV0, OmenaCrossFileSummaryViewReportV0,
     OmenaQueryCrossFileSccEvidenceV0, OmenaQueryCrossFileSummaryCapabilitiesV0,
     OmenaQueryCrossFileSummaryEdgeKindCountV0, OmenaQueryCrossFileSummaryEdgeV0,
     OmenaQueryCrossFileSummaryV0, OmenaQueryUnifiedCrossFileHypergraphV0,
+    OmenaQueryUnifiedCrossFileMonotoneFactPropagationHypergraphV0,
     OmenaQueryUnifiedCrossFileSccReportV0, OmenaUnifiedHypergraphConnectivityOracle,
     ReverseDependencyIndexV0, UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0,
     apply_reverse_dependency_delta_v0, collect_directed_graph_cycles,
@@ -122,7 +162,17 @@ pub use omena_cross_file_summary::{
     recompute_cross_file_summary_raw_edge_kind_counts_v0, reverse_dependency_closure_v0,
     reverse_dependency_index_from_edges_v0, summarize_cross_file_graph_delta_v0,
     summarize_cross_file_summary_view_v0, summarize_omena_query_unified_cross_file_hypergraph,
-    summarize_omena_query_unified_cross_file_scc_report, tabulate_hypergraph_ifds_summary_edges,
+    summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph,
+    summarize_omena_query_unified_cross_file_scc_report,
+    tabulate_hypergraph_monotone_fact_propagation_summary_edges,
+};
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility re-export owned by omena-query maintainers; use HypergraphMonotoneFactPropagationSummaryEdgeV0 and tabulate_hypergraph_monotone_fact_propagation_summary_edges; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use omena_cross_file_summary::{
+    HypergraphIFDSSummaryEdgeV0, tabulate_hypergraph_ifds_summary_edges,
 };
 pub use omena_parser::{
     ModuleIdV0 as OmenaQueryModuleIdV0, OpenWorldSnapshotV0 as OmenaQueryOpenWorldSnapshotV0,
@@ -193,13 +243,14 @@ pub use omena_query_core::{
     SourceResolutionCanonicalProducerSignalV0, SourceResolutionQueryFragmentsV0, StringTypeFactsV2,
     StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
     abstract_class_value_from_facts, abstract_class_value_kind, canonicalize_css_value,
-    derive_cascade_restriction_maps_v0, fact_precision_from_class_value,
+    derive_context_indexed_cascade_restriction_maps_v0, fact_precision_from_class_value,
     fact_precision_from_class_value_with_witness, iterate_reduced_class_value_product_constraints,
     join_abstract_class_values, narrow_abstract_property_value_for_cascade_branch,
     narrow_abstract_property_value_for_pseudo_state, prefix_suffix_class_value,
     snapshot_from_graph_input, split_top_level_value_arguments,
     split_top_level_whitespace_value_components,
-    summarize_cascade_dimensional_refinement_bridge_v0, summarize_cascade_value_family_v0,
+    summarize_cascade_dimensional_refinement_bridge_v0,
+    summarize_context_indexed_cascade_value_family_v0,
     summarize_omena_query_core_abstract_value_domain,
     summarize_omena_query_expression_domain_call_site_flow_analysis,
     summarize_omena_query_expression_domain_control_flow_analysis,
@@ -220,6 +271,12 @@ pub use omena_query_core::{
     summarize_omena_query_source_resolution_runtime,
     summarize_polynomial_provenance_from_linear_v0, verify_provenance_semiring_laws_on_fixtures,
 };
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the context-indexed cascade value family adapters; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use omena_query_core::{derive_cascade_restriction_maps_v0, summarize_cascade_value_family_v0};
 pub use omena_query_transform_runner::{
     CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
     ExternalCssSemanticChangeClassificationV0 as OmenaQueryExternalCssSemanticChangeClassificationV0,
@@ -257,6 +314,7 @@ pub use omena_query_transform_runner::{
     TransformExecutionPolicyV0 as OmenaQueryTransformExecutionPolicyV0,
     TransformExecutionSummaryV0 as OmenaQueryTransformExecutionSummaryV0,
     TransformImportInlineV0 as OmenaQueryTransformImportInlineV0,
+    TransformModuleCssModuleContextV0 as OmenaQueryTransformModuleCssModuleContextV0,
     TransformModuleEvaluationNativeEditV0 as OmenaQueryTransformModuleEvaluationNativeEditV0,
     TransformModuleEvaluationNativeReplacementV0 as OmenaQueryTransformModuleEvaluationNativeReplacementV0,
     TransformModuleEvaluationOracleV0 as OmenaQueryTransformModuleEvaluationOracleV0,
@@ -292,12 +350,12 @@ pub use omena_query_transform_runner::{
     summarize_omena_transform_bundle_from_source,
 };
 use omena_query_transform_runner::{
-    EggRewriteSourceWitnessV0, TransformBundleAssetUrlRewriteSummaryV0,
-    TransformBundleSourceSummaryV0, TransformEggPlanV0, TransformExecutionContextV0,
-    TransformExecutionPolicyV0, TransformExecutionSummaryV0, TransformPassExecutionOutcomeV0,
-    TransformPassKind, TransformPassPlanV0, TransformSourceMapSegmentV0,
-    TransformStrictPolicyEventV0, TransformStrictPolicyReasonV0, TransformTargetPlanV0,
-    all_transform_pass_kinds, execute_egg_rewrite_witnesses_for_css_source,
+    EggRewriteSourceWitnessV0, LinkedEmissionModuleRegionV0, LinkedEmissionOrderEntryRegionV0,
+    TransformBundleAssetUrlRewriteSummaryV0, TransformBundleSourceSummaryV0, TransformEggPlanV0,
+    TransformExecutionContextV0, TransformExecutionPolicyV0, TransformExecutionSummaryV0,
+    TransformPassExecutionOutcomeV0, TransformPassKind, TransformPassPlanV0,
+    TransformSourceMapSegmentV0, TransformStrictPolicyEventV0, TransformStrictPolicyReasonV0,
+    TransformTargetPlanV0, all_transform_pass_kinds, execute_egg_rewrite_witnesses_for_css_source,
     execute_transform_passes_on_source_with_dialect_and_context,
     execute_transform_passes_on_source_with_dialect_context_and_policy,
     execute_transform_passes_on_source_with_dialect_context_closed_world_bundle_precision_and_policy,
@@ -306,18 +364,18 @@ use omena_query_transform_runner::{
     serialize_transform_source_map_v3_with_source_contents,
     summarize_static_css_custom_property_fixed_point_from_source, transform_source_map_point,
 };
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 pub use omena_query_transform_runner::{
-    LawvereDifferentialCommutativityWitnessV0 as OmenaQueryLawvereDifferentialCommutativityWitnessV0,
-    LawvereModelTraceV0 as OmenaQueryLawvereModelTraceV0,
-    ReorderabilityCertificateV0 as OmenaQueryLawvereReorderabilityCertificateV0,
-    TransformPassParallelPlanV0 as OmenaQueryLawvereTransformPassParallelPlanV0,
+    ReorderabilityCertificateV0 as OmenaQueryTransformCatalogReorderabilityCertificateV0,
+    TransformCatalogDifferentialCommutativityWitnessV0 as OmenaQueryTransformCatalogDifferentialCommutativityWitnessV0,
+    TransformCatalogModelTraceV0 as OmenaQueryTransformCatalogModelTraceV0,
+    TransformCatalogTransformPassParallelPlanV0 as OmenaQueryTransformCatalogTransformPassParallelPlanV0,
 };
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
 use omena_query_transform_runner::{
-    evaluate_lawvere_reorderability_with_differential_corpus,
-    execute_transform_passes_on_source_with_lawvere_trace_and_dialect,
-    plan_transform_passes_parallel_lawvere_layers,
+    evaluate_transform_catalog_reorderability_with_differential_corpus,
+    execute_transform_passes_on_source_with_transform_catalog_trace_and_dialect,
+    plan_transform_passes_parallel_transform_catalog_layers,
 };
 use omena_resolver::{
     OmenaResolverBoundaryStateKindV0, OmenaResolverBoundaryStateV0, OmenaResolverBoundaryTopV0,
@@ -429,15 +487,39 @@ pub use boundary::{
     summarize_omena_query_static_stylesheet_evaluator_from_source,
     summarize_omena_query_static_stylesheet_evaluator_oracle_corpus,
 };
+/// Compatibility aliases for the superseded trace name.
+/// Owner: `omena-query` maintainers. Removal condition: not before 1.0, after
+/// downstream migration and zero audited non-compatibility uses.
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the OmenaQueryTransformCatalog* surface; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use omena_query_transform_runner::{
+    LawvereDifferentialCommutativityWitnessV0 as OmenaQueryLawvereDifferentialCommutativityWitnessV0,
+    LawvereModelTraceV0 as OmenaQueryLawvereModelTraceV0,
+    ReorderabilityCertificateV0 as OmenaQueryLawvereReorderabilityCertificateV0,
+    TransformPassParallelPlanV0 as OmenaQueryLawvereTransformPassParallelPlanV0,
+};
 pub use source::{
     OmenaQueryBridgeExternalSifResolutionV0, OmenaQueryBundlerPathAliasMappingV0,
+    OmenaQueryCanonicalClassTokenV0, OmenaQueryClassSitePlaneV0,
+    OmenaQueryClassSiteTokenProvenanceV0, OmenaQueryClassSiteTypeFactInputV0,
+    OmenaQueryClassSiteUnknownCauseV0, OmenaQueryClassSiteValueV0,
     OmenaQuerySourcePrecisionReferenceV0, OmenaQueryStyleModuleDiskCandidateIdentityV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryTsconfigPathMappingV0,
+    build_omena_query_guarded_token_map_for_site,
     canonicalize_omena_query_source_selector_references,
     collect_omena_query_vue_style_module_bindings,
     load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_bridge_external_sifs_for_seed_pairs,
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage,
     resolve_omena_query_bridge_external_sifs_for_style_sources,
+    resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage,
+    resolve_omena_query_class_site_value_for_source,
+    resolve_omena_query_class_site_values_for_source,
+    resolve_omena_query_class_site_values_for_source_with_type_facts,
     resolve_omena_query_source_precision_for_source, resolve_omena_query_style_uri_for_specifier,
     resolve_omena_query_style_uri_for_specifier_with_package_manifests,
     resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
@@ -452,11 +534,14 @@ pub use source::{
     summarize_omena_query_source_syntax_index_with_type_fact_attempts,
     summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
 };
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
 pub use style::execute_omena_query_transform_passes_from_source_with_lawvere_trace;
+#[cfg(feature = "transform-catalog-trace")]
+pub use style::execute_omena_query_transform_passes_from_source_with_transform_catalog_trace;
 pub use style::{
     OmenaQueryBundlePlanInputV0, OmenaQueryCascadeOriginStylesheetV0,
-    OmenaQueryCascadeSiteOutcomeV0, OmenaQueryCssModuleClassExportV0,
+    OmenaQueryCascadeSectionOutcomeV0, OmenaQueryCssModuleClassExportV0,
     OmenaQueryCssModuleClassReferenceV0, OmenaQueryCssModuleExportUsageStatusV0,
     OmenaQueryCssModuleExportUsageV0, OmenaQueryCssModuleIcssExportV0,
     OmenaQueryCssModuleInterfaceV0, OmenaQueryCssModulesExportUsageReportV0,
@@ -516,10 +601,13 @@ pub use style::{
     run_omena_query_bundle_with_evidence_for_style_sources_with_context,
     run_omena_query_bundle_with_execution_scope_evidence_and_options,
     run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options,
+    run_omena_query_bundle_with_module_css_module_contexts_and_options,
+    run_omena_query_bundle_with_module_css_module_contexts_for_style_sources_with_context_and_options,
     run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options,
     run_omena_query_bundle_with_module_reachability_and_options,
     run_omena_query_bundle_with_semantic_inputs,
     run_omena_query_bundle_with_semantic_inputs_and_options,
+    run_omena_query_bundle_with_token_ownership_census_and_options,
     summarize_html_standard_user_agent_sample_v0, summarize_omena_query_analyzed_graph,
     summarize_omena_query_build_decision_coverage_refusal,
     summarize_omena_query_build_preflight_refusals,
@@ -528,7 +616,7 @@ pub use style::{
     summarize_omena_query_cascade_aware_style_diagnostics,
     summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis,
     summarize_omena_query_cascade_origin_stylesheet_v0,
-    summarize_omena_query_cascade_site_outcomes_from_source,
+    summarize_omena_query_cascade_section_outcomes_from_source,
     summarize_omena_query_categorical_design_system_cross_project_summary,
     summarize_omena_query_closed_world_outcome_for_style_source,
     summarize_omena_query_consumer_build_source_map_v3,
@@ -536,6 +624,7 @@ pub use style::{
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_css_modules_export_usage,
     summarize_omena_query_css_modules_interface_bundle,
+    summarize_omena_query_css_modules_interface_bundle_with_module_identity_root,
     summarize_omena_query_css_modules_interface_summary_view,
     summarize_omena_query_css_modules_local_composes_style_diagnostics,
     summarize_omena_query_css_modules_resolution_style_diagnostics,
@@ -633,6 +722,14 @@ pub use style::{
     summarize_omena_query_workspace_occurrence_index_from_source_occurrences,
     validate_omena_query_closed_world_decision_parity,
 };
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaQueryCascadeSectionOutcomeV0 and summarize_omena_query_cascade_section_outcomes_from_source; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use style::{
+    OmenaQueryCascadeSiteOutcomeV0, summarize_omena_query_cascade_site_outcomes_from_source,
+};
 #[cfg(feature = "salsa-memo")]
 pub use style::{
     OmenaQueryCommittedStyleSemanticGraphV0, OmenaQueryCommittedWaveSubstrateV0,
@@ -683,10 +780,9 @@ pub use style::{
     reset_workspace_cross_file_summary_direct_recompute_count_for_test,
     reset_workspace_cross_file_summary_internal_compute_count_for_test,
 };
-#[cfg(feature = "lawvere-trace")]
-pub use types::OmenaQueryLawvereTransformExecuteSummaryV0;
 pub use types::{
-    AnalyzedGraphV0, CanonicalFormV0, DesignSystemMinimumDescriptionV0, FastFactsV0, ModelClassV0,
+    AnalyzedGraphV0, BundleEmissionExecutionV0, BundleExecutionSummaryV0, BundleModuleExecutionV0,
+    CanonicalFormV0, DesignSystemMinimumDescriptionV0, FastFactsV0, ModelClassV0,
     OmenaQueryBoundarySummaryV0, OmenaQueryBuildAdmissionRequirementsV0,
     OmenaQueryBuildVerificationProfileV0, OmenaQueryBundleArtifactV0,
     OmenaQueryBundleCodeSplitWorkspacePlanOutputV0, OmenaQueryBundleCodeSplitWorkspacePlanV0,
@@ -694,8 +790,9 @@ pub use types::{
     OmenaQueryBundleEvidenceGateV0, OmenaQueryBundleEvidenceManifestV0,
     OmenaQueryBundleExecutionScopeEvidenceV0, OmenaQueryBundleExecutionScopeResultV0,
     OmenaQueryBundleModuleExecutionByteFactsV0, OmenaQueryBundleReachabilityEvidenceV0,
-    OmenaQueryBundleResultV0, OmenaQueryBundleWithEvidenceV0, OmenaQueryCascadeAtPositionV0,
-    OmenaQueryCascadeConfidenceV0, OmenaQueryCascadeInsightV0,
+    OmenaQueryBundleResultV0, OmenaQueryBundleTokenOwnershipResultV0,
+    OmenaQueryBundleWithEvidenceV0, OmenaQueryCascadeAtPositionV0, OmenaQueryCascadeConfidenceV0,
+    OmenaQueryCascadeInsightV0, OmenaQueryCascadeLayerTopologyIncompleteV0,
     OmenaQueryCascadeNarrowingEvidenceV0, OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0,
     OmenaQueryClosedWorldBlockerV0, OmenaQueryClosedWorldDecisionParityV0,
     OmenaQueryClosedWorldOutcomeV0, OmenaQueryCodeActionPlanV0, OmenaQueryCodeActionV0,
@@ -764,4 +861,9 @@ pub(crate) use types::{
     OMENA_QUERY_TSGO_PROVIDER_UNAVAILABLE_PROVENANCE, OMENA_QUERY_TYPE_ORACLE_UNKNOWN_VALUE_DOMAIN,
     apply_omena_query_checker_product_gate_to_source_diagnostics,
     apply_omena_query_checker_product_gate_to_style_diagnostics, source_diagnostic_precision,
+};
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+pub use types::{
+    OmenaQueryLawvereTransformExecuteSummaryV0, OmenaQueryTransformCatalogTransformExecuteSummaryV0,
 };

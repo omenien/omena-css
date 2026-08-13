@@ -6,6 +6,8 @@
 //!
 //! The public types intentionally keep their `V0` suffix during the 0.x line.
 
+#[cfg(test)]
+mod carrier_hygiene_assertions;
 mod emission_items;
 mod emission_order;
 
@@ -20,11 +22,15 @@ pub use emission_order::{
     EmissionOrderKeyV0, EmissionOrderingPolicyV0, EmissionPlanV0,
 };
 
-use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, ModuleRank, Specificity};
+use omena_cascade::{
+    CascadeKey, CascadeLevel, LayerOrdinal, ModuleRank, OpenWorldTieEvidence, Specificity,
+    normalized_layer_rank,
+};
 use omena_cross_file_summary::{EdgeOrderRelevanceV0, OmenaCrossFileSummaryRawEdgeKindV0};
 use omena_parser::{
-    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldLinkedModuleV0,
-    ClosedWorldModuleMetadataV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
+    ClosedWorldBundleBuildErrorV0, ClosedWorldBundleV0, ClosedWorldComposesEdgeV0,
+    ClosedWorldLinkedModuleV0, ClosedWorldModuleMetadataV0,
+    ClosedWorldModuleReachabilityEvidenceV0, ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0,
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
     ParsedEmissionSelectorFactsV0, ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind,
     ParsedStyleFacts, ParsedVariableFactKind, StyleDialect, collect_style_fact_collection,
@@ -312,6 +318,9 @@ impl TransformBundleParsedModuleInputV0 {
     }
 }
 
+#[deprecated(
+    note = "use TransformBundleInstanceReachabilityInputV0 so the module instance and derivation are explicit"
+)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TransformBundleSemanticReachabilityInputV0 {
     pub source_path: String,
@@ -321,6 +330,52 @@ pub struct TransformBundleSemanticReachabilityInputV0 {
     pub custom_property_names: Vec<String>,
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InstanceReachabilityDerivationV0 {
+    /// Reserved for a producer that can distinguish configured module instances.
+    ///
+    /// InstanceAttributed remains unproduced; path-union reachability is a disclosed over-approximation.
+    InstanceAttributed,
+    PathUnionNoInstanceDiscriminator,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformBundleInstanceReachabilityInputV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub class_names: Vec<String>,
+    pub keyframe_names: Vec<String>,
+    pub value_names: Vec<String>,
+    pub custom_property_names: Vec<String>,
+    pub derivation: InstanceReachabilityDerivationV0,
+}
+
+impl TransformBundleInstanceReachabilityInputV0 {
+    pub fn new(
+        module_instance: ModuleInstanceKeyV0,
+        derivation: InstanceReachabilityDerivationV0,
+    ) -> Self {
+        Self {
+            module_instance,
+            class_names: Vec::new(),
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+            derivation,
+        }
+    }
+
+    pub fn has_reachable_symbols(&self) -> bool {
+        !self.class_names.is_empty()
+            || !self.keyframe_names.is_empty()
+            || !self.value_names.is_empty()
+            || !self.custom_property_names.is_empty()
+    }
+}
+
+#[allow(deprecated)]
 impl TransformBundleSemanticReachabilityInputV0 {
     pub fn new(source_path: impl Into<String>) -> Self {
         Self {
@@ -343,6 +398,8 @@ pub struct LinkerDependencyEdgeV0 {
     pub kind: TransformBundleEdgeKind,
     pub import_source: String,
     pub import_ordinal: Option<u32>,
+    pub local_names: Vec<String>,
+    pub remote_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -372,6 +429,10 @@ pub struct LinkerInputV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransformBundleLinkerProjectionV0 {
     inputs: Vec<LinkerInputV0>,
+    module_reachability_evidence:
+        BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
+    module_reachability_derivations:
+        BTreeMap<ModuleInstanceKeyV0, InstanceReachabilityDerivationV0>,
 }
 
 #[non_exhaustive]
@@ -394,6 +455,25 @@ impl TransformBundleLinkProjectionSetV0 {
 impl TransformBundleLinkerProjectionV0 {
     pub fn inputs(&self) -> &[LinkerInputV0] {
         &self.inputs
+    }
+
+    pub fn module_reachability_evidence(
+        &self,
+        module_instance: &ModuleInstanceKeyV0,
+    ) -> ClosedWorldModuleReachabilityEvidenceV0 {
+        self.module_reachability_evidence
+            .get(module_instance)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub fn module_reachability_derivation(
+        &self,
+        module_instance: &ModuleInstanceKeyV0,
+    ) -> Option<InstanceReachabilityDerivationV0> {
+        self.module_reachability_derivations
+            .get(module_instance)
+            .copied()
     }
 }
 
@@ -464,10 +544,51 @@ impl TransformBundleResolvedDependencyV0 {
     }
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BundleResolutionAuthorityV0 {
+    /// Every dependency edge must have a supplied resolved record.
+    Resolved,
+    /// Unmatched edges fall back to importer-relative path candidates.
+    #[default]
+    LegacyPathInferred,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundleDependencyResolutionDisclosureV0 {
+    pub source_instance: ModuleInstanceKeyV0,
+    pub import_source: String,
+    pub import_ordinal: Option<u32>,
+    pub authority: BundleResolutionAuthorityV0,
+}
+
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformBundleLinkOptionsV0 {
     pub emission_ordering_policy: EmissionOrderingPolicyV0,
+    pub dependency_resolution_authority: BundleResolutionAuthorityV0,
+}
+
+impl TransformBundleLinkOptionsV0 {
+    pub const fn with_emission_ordering_policy(
+        mut self,
+        emission_ordering_policy: EmissionOrderingPolicyV0,
+    ) -> Self {
+        self.emission_ordering_policy = emission_ordering_policy;
+        self
+    }
+
+    pub const fn with_dependency_resolution_authority(
+        mut self,
+        dependency_resolution_authority: BundleResolutionAuthorityV0,
+    ) -> Self {
+        self.dependency_resolution_authority = dependency_resolution_authority;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -485,18 +606,21 @@ impl LinkedStylesheetRuleV0 {
     pub fn cascade_key_with_global_source_order(
         &self,
         level: CascadeLevel,
-        layer_rank: LayerRank,
+        layer_ordinal: LayerOrdinal,
+        important: bool,
         scope_proximity: u32,
         specificity: Specificity,
         module_rank: ModuleRank,
-    ) -> CascadeKey {
-        CascadeKey::new(
-            level,
-            layer_rank,
-            scope_proximity,
-            specificity,
-            module_rank,
-            self.global_order_index,
+    ) -> (CascadeKey, OpenWorldTieEvidence) {
+        (
+            CascadeKey::new(
+                level,
+                normalized_layer_rank(important, Some(layer_ordinal)),
+                scope_proximity,
+                specificity,
+                self.global_order_index,
+            ),
+            OpenWorldTieEvidence::new(module_rank),
         )
     }
 }
@@ -528,6 +652,7 @@ pub struct LinkedStylesheetWithEmissionItemsV0 {
     pub emission_item_plan: EmissionItemPlanV0,
     pub emission_item_order: LinkedEmissionItemOrderV0,
     pub projection_disclosures: Vec<EmissionItemProjectionDisclosureV0>,
+    pub dependency_resolution_disclosures: Vec<BundleDependencyResolutionDisclosureV0>,
 }
 
 /// Couples legacy admission evidence with a requested emission-policy result from one prepared graph.
@@ -680,6 +805,11 @@ pub enum TransformBundleLinkErrorV0 {
         source_path: String,
         import_source: String,
     },
+    UnresolvedDependencyEdge {
+        source_path: String,
+        import_source: String,
+        import_ordinal: Option<u32>,
+    },
     ClosedWorldBundle {
         error: ClosedWorldBundleBuildErrorV0,
     },
@@ -744,6 +874,7 @@ pub fn summarize_omena_transform_bundle_from_source(
     }
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_omena_transform_bundle_modules<P: AsRef<str>>(
     entrypoint_paths: &[P],
     modules: &[TransformBundleModuleInputV0],
@@ -751,6 +882,8 @@ pub fn link_omena_transform_bundle_modules<P: AsRef<str>>(
     link_omena_transform_bundle_modules_with_semantic_reachability(entrypoint_paths, modules, &[])
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
+#[allow(deprecated)]
 pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<str>>(
     entrypoint_paths: &[P],
     modules: &[TransformBundleModuleInputV0],
@@ -764,6 +897,8 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability<P: AsRef<s
     )
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
+#[allow(deprecated)]
 pub fn link_omena_transform_bundle_modules_with_semantic_reachability_and_metadata<
     P: AsRef<str>,
 >(
@@ -781,6 +916,8 @@ pub fn link_omena_transform_bundle_modules_with_semantic_reachability_and_metada
     )
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
+#[allow(deprecated)]
 pub fn link_omena_transform_bundle_modules_with_options<P: AsRef<str>>(
     entrypoint_paths: &[P],
     modules: &[TransformBundleModuleInputV0],
@@ -798,6 +935,7 @@ pub fn link_omena_transform_bundle_modules_with_options<P: AsRef<str>>(
     )
 }
 
+#[allow(deprecated)]
 pub fn project_omena_transform_bundle_linker_inputs(
     modules: &[TransformBundleModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
@@ -819,6 +957,7 @@ pub fn project_omena_transform_bundle_linker_inputs(
     )
 }
 
+#[allow(deprecated)]
 pub fn project_omena_transform_bundle_linker_and_emission_items(
     modules: &[TransformBundleModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
@@ -842,9 +981,22 @@ pub fn project_omena_transform_bundle_linker_and_emission_items(
     )
 }
 
+#[allow(deprecated)]
 pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules(
     modules: &[TransformBundleParsedModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
+) -> TransformBundleLinkerProjectionV0 {
+    let instance_reachability_inputs =
+        fan_out_path_reachability_to_instances(modules, reachability_inputs);
+    project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_instance_reachability(
+        modules,
+        instance_reachability_inputs.as_slice(),
+    )
+}
+
+pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_instance_reachability(
+    modules: &[TransformBundleParsedModuleInputV0],
+    reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
 ) -> TransformBundleLinkerProjectionV0 {
     let mut inputs = Vec::new();
     for module in modules {
@@ -860,18 +1012,37 @@ pub fn project_omena_transform_bundle_linker_inputs_from_parsed_modules(
             ));
         }
     }
-    apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
-    TransformBundleLinkerProjectionV0 { inputs }
+    let (module_reachability_evidence, module_reachability_derivations) =
+        apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), reachability_inputs);
+    TransformBundleLinkerProjectionV0 {
+        inputs,
+        module_reachability_evidence,
+        module_reachability_derivations,
+    }
 }
 
+#[allow(deprecated)]
 pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules(
     modules: &[TransformBundleParsedModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
 ) -> TransformBundleLinkProjectionSetV0 {
-    let linker_projection = project_omena_transform_bundle_linker_inputs_from_parsed_modules(
+    let instance_reachability_inputs =
+        fan_out_path_reachability_to_instances(modules, reachability_inputs);
+    project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability(
         modules,
-        reachability_inputs,
-    );
+        instance_reachability_inputs.as_slice(),
+    )
+}
+
+pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability(
+    modules: &[TransformBundleParsedModuleInputV0],
+    reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
+) -> TransformBundleLinkProjectionSetV0 {
+    let linker_projection =
+        project_omena_transform_bundle_linker_inputs_from_parsed_modules_with_instance_reachability(
+            modules,
+            reachability_inputs,
+        );
     let mut emission_item_inputs = Vec::new();
     for module in modules {
         let items =
@@ -893,6 +1064,7 @@ pub fn project_omena_transform_bundle_linker_and_emission_items_from_parsed_modu
     }
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_omena_transform_bundle_projection_with_resolved_dependencies_and_options<
     P: AsRef<str>,
 >(
@@ -912,6 +1084,7 @@ pub fn link_omena_transform_bundle_projection_with_resolved_dependencies_and_opt
         projection.inputs(),
         resolved_dependencies,
         module_metadata,
+        &projection.module_reachability_evidence,
         options,
     )
 }
@@ -937,7 +1110,51 @@ pub fn link_omena_transform_bundle_projection_with_emission_items_and_resolved_d
         emission_item_projection.inputs(),
         resolved_dependencies,
         module_metadata,
+        &linker_projection.module_reachability_evidence,
         options,
+    )
+}
+
+pub fn link_resolved_bundle<P: AsRef<str>>(
+    entrypoint_paths: &[P],
+    linker_projection: &TransformBundleLinkerProjectionV0,
+    emission_item_projection: &TransformBundleEmissionItemProjectionV0,
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    emission_ordering_policy: EmissionOrderingPolicyV0,
+) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+    link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+        entrypoint_paths,
+        linker_projection,
+        emission_item_projection,
+        resolved_dependencies,
+        module_metadata,
+        TransformBundleLinkOptionsV0::default()
+            .with_emission_ordering_policy(emission_ordering_policy)
+            .with_dependency_resolution_authority(BundleResolutionAuthorityV0::Resolved),
+    )
+}
+
+#[deprecated(
+    note = "supply resolved dependencies and use link_resolved_bundle when dependency authority must be complete"
+)]
+pub fn link_legacy_path_inferred_bundle<P: AsRef<str>>(
+    entrypoint_paths: &[P],
+    linker_projection: &TransformBundleLinkerProjectionV0,
+    emission_item_projection: &TransformBundleEmissionItemProjectionV0,
+    resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    emission_ordering_policy: EmissionOrderingPolicyV0,
+) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
+    link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
+        entrypoint_paths,
+        linker_projection,
+        emission_item_projection,
+        resolved_dependencies,
+        module_metadata,
+        TransformBundleLinkOptionsV0::default()
+            .with_emission_ordering_policy(emission_ordering_policy)
+            .with_dependency_resolution_authority(BundleResolutionAuthorityV0::LegacyPathInferred),
     )
 }
 
@@ -963,6 +1180,7 @@ pub fn evaluate_omena_transform_bundle_projection_emission_admission_with_resolv
         emission_item_projection.inputs(),
         resolved_dependencies,
         module_metadata,
+        &linker_projection.module_reachability_evidence,
         options,
     )
 }
@@ -978,6 +1196,7 @@ pub fn compare_omena_transform_bundle_emission_policies<P: AsRef<str>>(
         &[],
         TransformBundleLinkOptionsV0 {
             emission_ordering_policy: EmissionOrderingPolicyV0::ModuleIdLegacy,
+            ..TransformBundleLinkOptionsV0::default()
         },
     )?;
     let import_order = link_omena_transform_bundle_modules_with_options(
@@ -987,6 +1206,7 @@ pub fn compare_omena_transform_bundle_emission_policies<P: AsRef<str>>(
         &[],
         TransformBundleLinkOptionsV0 {
             emission_ordering_policy: EmissionOrderingPolicyV0::ImportOrderPreserving,
+            ..TransformBundleLinkOptionsV0::default()
         },
     )?;
     let module_id_legacy_rules = &module_id_legacy.global_rule_order.rules;
@@ -1244,6 +1464,7 @@ fn materialize_linked_stylesheet_in_module_order(
     })
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_stylesheet_from_projection(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
@@ -1255,6 +1476,7 @@ pub fn link_stylesheet_from_projection(
     )
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_stylesheet_from_projection_with_options(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
@@ -1268,6 +1490,7 @@ pub fn link_stylesheet_from_projection_with_options(
     )
 }
 
+/// Legacy LinkedStylesheetV0 entry points do not expose dependency resolution provenance.
 pub fn link_stylesheet_from_projection_with_resolved_dependencies_and_options(
     entrypoint_paths: &[&str],
     inputs: &[LinkerInputV0],
@@ -1279,6 +1502,7 @@ pub fn link_stylesheet_from_projection_with_resolved_dependencies_and_options(
         inputs,
         resolved_dependencies,
         &[],
+        &BTreeMap::new(),
         options,
     )
 }
@@ -1288,6 +1512,10 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
     inputs: &[LinkerInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetV0, TransformBundleLinkErrorV0> {
     let prepared = prepare_linked_stylesheet_context(
@@ -1295,6 +1523,8 @@ fn link_stylesheet_from_projection_with_metadata_and_options(
         inputs,
         resolved_dependencies,
         module_metadata,
+        module_reachability_evidence,
+        options.dependency_resolution_authority,
     )?;
     link_stylesheet_from_prepared_context(prepared, inputs, resolved_dependencies, options)
 }
@@ -1334,6 +1564,7 @@ fn build_linked_stylesheet_order_from_prepared_context(
         &prepared.entrypoints,
         resolved_dependencies,
         options.emission_ordering_policy,
+        options.dependency_resolution_authority,
     )?;
     let global_rule_order =
         emission_order::build_global_rule_order_from_plan(inputs, &emission_plan)?;
@@ -1343,6 +1574,7 @@ fn build_linked_stylesheet_order_from_prepared_context(
 struct PreparedLinkedStylesheetContextV0 {
     entrypoints: Vec<ModuleInstanceKeyV0>,
     closed_world_bundle: ClosedWorldBundleV0,
+    dependency_resolution_disclosures: Vec<BundleDependencyResolutionDisclosureV0>,
 }
 
 fn prepare_linked_stylesheet_context(
@@ -1350,6 +1582,11 @@ fn prepare_linked_stylesheet_context(
     inputs: &[LinkerInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
+    resolution_authority: BundleResolutionAuthorityV0,
 ) -> Result<PreparedLinkedStylesheetContextV0, TransformBundleLinkErrorV0> {
     let instances_by_path = module_instances_by_linker_path(inputs);
     let entrypoints = entrypoint_paths
@@ -1362,20 +1599,25 @@ fn prepare_linked_stylesheet_context(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let linked_modules = collect_closed_world_linked_modules_from_projection(
-        inputs,
-        resolved_dependencies,
-        &instances_by_path,
-    )?;
+    let (linked_modules, dependency_resolution_disclosures) =
+        collect_closed_world_linked_modules_from_projection(
+            inputs,
+            resolved_dependencies,
+            &instances_by_path,
+            resolution_authority,
+        )?;
+    let module_metadata =
+        module_metadata_with_reachability_evidence(module_metadata, module_reachability_evidence);
     let closed_world_bundle = ClosedWorldBundleV0::try_from_linked_modules_with_metadata(
         entrypoints.clone(),
         linked_modules,
-        module_metadata.to_vec(),
+        module_metadata,
     )
     .map_err(|error| TransformBundleLinkErrorV0::ClosedWorldBundle { error })?;
     Ok(PreparedLinkedStylesheetContextV0 {
         entrypoints,
         closed_world_bundle,
+        dependency_resolution_disclosures,
     })
 }
 
@@ -1385,6 +1627,10 @@ fn link_stylesheet_from_projection_with_emission_items_and_metadata_and_options(
     emission_item_inputs: &[EmissionItemInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
     options: TransformBundleLinkOptionsV0,
 ) -> Result<LinkedStylesheetWithEmissionItemsV0, TransformBundleLinkErrorV0> {
     let prepared = prepare_linked_stylesheet_context(
@@ -1392,6 +1638,8 @@ fn link_stylesheet_from_projection_with_emission_items_and_metadata_and_options(
         linker_inputs,
         resolved_dependencies,
         module_metadata,
+        module_reachability_evidence,
+        options.dependency_resolution_authority,
     )?;
     link_stylesheet_from_prepared_context_with_emission_items(
         prepared,
@@ -1408,6 +1656,10 @@ fn evaluate_stylesheet_emission_admission_from_projection(
     emission_item_inputs: &[EmissionItemInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
     options: TransformBundleLinkOptionsV0,
 ) -> TransformBundleEmissionAdmissionV0 {
     let prepared = match prepare_linked_stylesheet_context(
@@ -1415,6 +1667,8 @@ fn evaluate_stylesheet_emission_admission_from_projection(
         linker_inputs,
         resolved_dependencies,
         module_metadata,
+        module_reachability_evidence,
+        options.dependency_resolution_authority,
     ) {
         Ok(prepared) => prepared,
         Err(error) => {
@@ -1428,7 +1682,8 @@ fn evaluate_stylesheet_emission_admission_from_projection(
         &prepared,
         linker_inputs,
         resolved_dependencies,
-        TransformBundleLinkOptionsV0::default(),
+        TransformBundleLinkOptionsV0::default()
+            .with_dependency_resolution_authority(options.dependency_resolution_authority),
     )
     .is_err();
     let requested_policy_result = link_stylesheet_from_prepared_context_with_emission_items(
@@ -1457,6 +1712,7 @@ fn link_stylesheet_from_prepared_context_with_emission_items(
         &prepared.entrypoints,
         resolved_dependencies,
         options.emission_ordering_policy,
+        options.dependency_resolution_authority,
     )?;
     let emission_plan =
         emission_order::build_emission_plan_from_module_plan(linker_inputs, &module_plan)?;
@@ -1501,6 +1757,7 @@ fn link_stylesheet_from_prepared_context_with_emission_items(
         emission_item_plan,
         emission_item_order,
         projection_disclosures,
+        dependency_resolution_disclosures: prepared.dependency_resolution_disclosures,
     })
 }
 
@@ -1564,6 +1821,8 @@ fn linker_input_from_module_facts(
                         kind: edge.kind,
                         import_source: import_source.clone(),
                         import_ordinal: edge.import_ordinal,
+                        local_names: edge.local_names.clone(),
+                        remote_names: edge.remote_names.clone(),
                     })
             })
             .collect(),
@@ -1622,40 +1881,272 @@ fn collect_ordered_linker_rules(facts: &ParsedStyleFacts) -> Vec<LinkerRuleV0> {
         .collect()
 }
 
-fn apply_semantic_reachability_to_linker_inputs(
-    inputs: &mut [LinkerInputV0],
+#[allow(deprecated)]
+fn fan_out_path_reachability_to_instances(
+    modules: &[TransformBundleParsedModuleInputV0],
     reachability_inputs: &[TransformBundleSemanticReachabilityInputV0],
-) {
-    if reachability_inputs.is_empty() {
-        return;
+) -> Vec<TransformBundleInstanceReachabilityInputV0> {
+    let instances_by_path = modules.iter().fold(
+        BTreeMap::<String, Vec<ModuleInstanceKeyV0>>::new(),
+        |mut by_path, module| {
+            by_path
+                .entry(normalize_bundle_path(PathBuf::from(module.source_path())))
+                .or_default()
+                .extend(module.module_instance_keys());
+            by_path
+        },
+    );
+    let mut reachability_by_path =
+        BTreeMap::<String, TransformBundleSemanticReachabilityInputV0>::new();
+    for input in reachability_inputs
+        .iter()
+        .filter(|input| input.has_reachable_symbols())
+    {
+        let normalized_path = normalize_bundle_path(PathBuf::from(&input.source_path));
+        let merged = reachability_by_path
+            .entry(normalized_path.clone())
+            .or_insert_with(|| TransformBundleSemanticReachabilityInputV0::new(normalized_path));
+        merged.class_names.extend(input.class_names.iter().cloned());
+        merged
+            .keyframe_names
+            .extend(input.keyframe_names.iter().cloned());
+        merged.value_names.extend(input.value_names.iter().cloned());
+        merged
+            .custom_property_names
+            .extend(input.custom_property_names.iter().cloned());
+        merged.class_names = dedupe_names(merged.class_names.drain(..));
+        merged.keyframe_names = dedupe_names(merged.keyframe_names.drain(..));
+        merged.value_names = dedupe_names(merged.value_names.drain(..));
+        merged.custom_property_names = dedupe_names(merged.custom_property_names.drain(..));
     }
 
-    let instances_by_path = module_instances_by_linker_path(inputs);
+    reachability_by_path
+        .into_iter()
+        .flat_map(|(path, reachability)| {
+            instances_by_path
+                .get(path.as_str())
+                .into_iter()
+                .flatten()
+                .map(move |instance| {
+                    let mut input = TransformBundleInstanceReachabilityInputV0::new(
+                        instance.clone(),
+                        InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+                    );
+                    input.class_names.clone_from(&reachability.class_names);
+                    input
+                        .keyframe_names
+                        .clone_from(&reachability.keyframe_names);
+                    input.value_names.clone_from(&reachability.value_names);
+                    input
+                        .custom_property_names
+                        .clone_from(&reachability.custom_property_names);
+                    input
+                })
+        })
+        .collect()
+}
+
+fn apply_semantic_reachability_to_linker_inputs(
+    inputs: &mut [LinkerInputV0],
+    reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
+) -> (
+    BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
+    BTreeMap<ModuleInstanceKeyV0, InstanceReachabilityDerivationV0>,
+) {
+    let (reachability_inputs, incomplete_composes_target_instances) =
+        instance_reachability_inputs_closed_over_composes(inputs, reachability_inputs);
     let module_index_by_instance = inputs
         .iter()
         .enumerate()
         .map(|(index, input)| (input.instance.clone(), index))
         .collect::<BTreeMap<_, _>>();
+    let mut evidence_by_instance = inputs
+        .iter()
+        .map(|input| {
+            (
+                input.instance.clone(),
+                ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut derivation_by_instance = BTreeMap::new();
 
-    for input in reachability_inputs {
-        if !input.has_reachable_symbols() {
-            continue;
-        }
-        let normalized_path = normalize_bundle_path(PathBuf::from(&input.source_path));
-        let Some(instances) = instances_by_path.get(&normalized_path) else {
+    for input in reachability_inputs.values() {
+        let Some(index) = module_index_by_instance
+            .get(&input.module_instance)
+            .copied()
+        else {
             continue;
         };
-        for instance in instances {
-            let Some(index) = module_index_by_instance.get(instance).copied() else {
+        derivation_by_instance.insert(input.module_instance.clone(), input.derivation);
+        if incomplete_composes_target_instances.contains(&input.module_instance) {
+            // A composed-name carrier with a missing side cannot justify filtering its closure
+            // target. Typed absence is attached to the module whose declarations could be lost.
+            continue;
+        }
+        evidence_by_instance.insert(
+            input.module_instance.clone(),
+            ClosedWorldModuleReachabilityEvidenceV0::Supplied,
+        );
+        inputs[index].class_names.clear();
+        inputs[index]
+            .class_names
+            .extend(input.class_names.iter().cloned());
+        inputs[index].class_names = dedupe_names(inputs[index].class_names.drain(..));
+        inputs[index].keyframe_names.clear();
+        inputs[index]
+            .keyframe_names
+            .extend(input.keyframe_names.iter().cloned());
+        inputs[index].keyframe_names = dedupe_names(inputs[index].keyframe_names.drain(..));
+        inputs[index].value_names.clear();
+        inputs[index]
+            .value_names
+            .extend(input.value_names.iter().cloned());
+        inputs[index].value_names = dedupe_names(inputs[index].value_names.drain(..));
+        inputs[index].custom_property_names.clear();
+        inputs[index]
+            .custom_property_names
+            .extend(input.custom_property_names.iter().cloned());
+        inputs[index].custom_property_names =
+            dedupe_names(inputs[index].custom_property_names.drain(..));
+    }
+    (evidence_by_instance, derivation_by_instance)
+}
+
+fn instance_reachability_inputs_closed_over_composes(
+    inputs: &[LinkerInputV0],
+    reachability_inputs: &[TransformBundleInstanceReachabilityInputV0],
+) -> (
+    BTreeMap<ModuleInstanceKeyV0, TransformBundleInstanceReachabilityInputV0>,
+    BTreeSet<ModuleInstanceKeyV0>,
+) {
+    let instances_by_path = module_instances_by_linker_path(inputs);
+    let mut by_instance =
+        BTreeMap::<ModuleInstanceKeyV0, TransformBundleInstanceReachabilityInputV0>::new();
+    let mut incomplete_composes_target_instances = BTreeSet::new();
+    for input in reachability_inputs
+        .iter()
+        .filter(|input| input.has_reachable_symbols())
+    {
+        let merged = by_instance
+            .entry(input.module_instance.clone())
+            .or_insert_with(|| {
+                TransformBundleInstanceReachabilityInputV0::new(
+                    input.module_instance.clone(),
+                    input.derivation,
+                )
+            });
+        if input.derivation == InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator {
+            merged.derivation = InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator;
+        }
+        merged.class_names.extend(input.class_names.iter().cloned());
+        merged
+            .keyframe_names
+            .extend(input.keyframe_names.iter().cloned());
+        merged.value_names.extend(input.value_names.iter().cloned());
+        merged
+            .custom_property_names
+            .extend(input.custom_property_names.iter().cloned());
+        merged.class_names = dedupe_names(merged.class_names.drain(..));
+        merged.keyframe_names = dedupe_names(merged.keyframe_names.drain(..));
+        merged.value_names = dedupe_names(merged.value_names.drain(..));
+        merged.custom_property_names = dedupe_names(merged.custom_property_names.drain(..));
+    }
+
+    loop {
+        let snapshot = by_instance.clone();
+        let mut additions = BTreeMap::<ModuleInstanceKeyV0, Vec<String>>::new();
+        for input in inputs {
+            let Some(source_reachability) = snapshot.get(&input.instance) else {
                 continue;
             };
-            inputs[index].class_names = dedupe_names(input.class_names.iter().cloned());
-            inputs[index].keyframe_names = dedupe_names(input.keyframe_names.iter().cloned());
-            inputs[index].value_names = dedupe_names(input.value_names.iter().cloned());
-            inputs[index].custom_property_names =
-                dedupe_names(input.custom_property_names.iter().cloned());
+            for edge in input
+                .dependency_edges
+                .iter()
+                .filter(|edge| edge.kind == TransformBundleEdgeKind::CssModuleComposesExternal)
+            {
+                let target_path =
+                    import_path_candidates(input.source_path.as_str(), edge.import_source.as_str())
+                        .into_iter()
+                        .find(|candidate| instances_by_path.contains_key(candidate));
+                let Some(target_path) = target_path else {
+                    continue;
+                };
+                let Some(target_instances) = instances_by_path.get(&target_path) else {
+                    continue;
+                };
+                if edge.local_names.is_empty() || edge.remote_names.is_empty() {
+                    incomplete_composes_target_instances.extend(target_instances.iter().cloned());
+                    continue;
+                }
+                for local_name in &edge.local_names {
+                    if !source_reachability
+                        .class_names
+                        .iter()
+                        .any(|reachable| reachable == local_name)
+                    {
+                        continue;
+                    }
+                    for remote_name in &edge.remote_names {
+                        for target_instance in target_instances {
+                            additions
+                                .entry(target_instance.clone())
+                                .or_default()
+                                .push(remote_name.clone());
+                        }
+                    }
+                }
+            }
+        }
+        let mut changed = false;
+        for (target_instance, class_names) in additions {
+            let target = by_instance
+                .entry(target_instance.clone())
+                .or_insert_with(|| {
+                    TransformBundleInstanceReachabilityInputV0::new(
+                        target_instance,
+                        InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+                    )
+                });
+            target.derivation = InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator;
+            let before = target.class_names.len();
+            target.class_names.extend(class_names);
+            target.class_names = dedupe_names(target.class_names.drain(..));
+            changed |= target.class_names.len() != before;
+        }
+        if !changed {
+            break;
         }
     }
+    (by_instance, incomplete_composes_target_instances)
+}
+
+fn module_metadata_with_reachability_evidence(
+    module_metadata: &[ClosedWorldModuleMetadataV0],
+    module_reachability_evidence: &BTreeMap<
+        ModuleInstanceKeyV0,
+        ClosedWorldModuleReachabilityEvidenceV0,
+    >,
+) -> Vec<ClosedWorldModuleMetadataV0> {
+    let mut metadata_by_instance = module_metadata
+        .iter()
+        .cloned()
+        .map(|metadata| (metadata.module_instance().clone(), metadata))
+        .collect::<BTreeMap<_, _>>();
+    for (module_instance, reachability_evidence) in module_reachability_evidence {
+        metadata_by_instance
+            .entry(module_instance.clone())
+            .and_modify(|metadata| {
+                *metadata = metadata
+                    .clone()
+                    .with_reachability_evidence(*reachability_evidence);
+            })
+            .or_insert_with(|| {
+                ClosedWorldModuleMetadataV0::new(module_instance.clone())
+                    .with_reachability_evidence(*reachability_evidence)
+            });
+    }
+    metadata_by_instance.into_values().collect()
 }
 
 pub(crate) fn module_instances_by_linker_path(
@@ -1706,22 +2197,51 @@ fn collect_closed_world_linked_modules_from_projection(
     inputs: &[LinkerInputV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
-) -> Result<Vec<ClosedWorldLinkedModuleV0>, TransformBundleLinkErrorV0> {
-    inputs
+    resolution_authority: BundleResolutionAuthorityV0,
+) -> Result<
+    (
+        Vec<ClosedWorldLinkedModuleV0>,
+        Vec<BundleDependencyResolutionDisclosureV0>,
+    ),
+    TransformBundleLinkErrorV0,
+> {
+    let linked_with_disclosures = inputs
         .iter()
         .map(|input| {
             let mut linked = ClosedWorldLinkedModuleV0::new(input.instance.clone());
+            let mut disclosures = Vec::new();
             for edge in &input.dependency_edges {
-                let dependency = resolve_imported_module_instance_for_edge(
+                let resolution = resolve_imported_module_instance_for_edge(
                     input,
                     edge,
                     resolved_dependencies,
                     instances_by_path,
-                )?
-                .ok_or_else(|| TransformBundleLinkErrorV0::MissingDependency {
-                    source_path: input.source_path.clone(),
-                    import_source: edge.import_source.clone(),
+                    resolution_authority,
+                )?;
+                let dependency = resolution.target_instance.clone().ok_or_else(|| {
+                    TransformBundleLinkErrorV0::MissingDependency {
+                        source_path: input.source_path.clone(),
+                        import_source: edge.import_source.clone(),
+                    }
                 })?;
+                disclosures.push(BundleDependencyResolutionDisclosureV0 {
+                    source_instance: input.instance.clone(),
+                    import_source: edge.import_source.clone(),
+                    import_ordinal: edge.import_ordinal,
+                    authority: resolution.authority,
+                });
+                if edge.kind == TransformBundleEdgeKind::CssModuleComposesExternal {
+                    for local_name in &edge.local_names {
+                        for remote_name in &edge.remote_names {
+                            linked = linked.with_composes_edge(ClosedWorldComposesEdgeV0 {
+                                from_module: input.instance.clone(),
+                                from_symbol: local_name.clone(),
+                                to_module: dependency.clone(),
+                                to_symbol: remote_name.clone(),
+                            });
+                        }
+                    }
+                }
                 linked = linked.with_dependency(dependency);
             }
             for name in dedupe_names(input.class_names.iter().cloned()) {
@@ -1738,9 +2258,31 @@ fn collect_closed_world_linked_modules_from_projection(
             }
             linked.dependencies.sort();
             linked.dependencies.dedup();
-            Ok(linked)
+            linked.composes_edges.sort_by(|left, right| {
+                (
+                    &left.from_module,
+                    &left.from_symbol,
+                    &left.to_module,
+                    &left.to_symbol,
+                )
+                    .cmp(&(
+                        &right.from_module,
+                        &right.from_symbol,
+                        &right.to_module,
+                        &right.to_symbol,
+                    ))
+            });
+            linked.composes_edges.dedup();
+            linked.composes_edge_observation_count = linked.composes_edges.len();
+            Ok((linked, disclosures))
         })
-        .collect()
+        .collect::<Result<Vec<_>, TransformBundleLinkErrorV0>>()?;
+    let (linked_modules, disclosure_groups): (Vec<_>, Vec<_>) =
+        linked_with_disclosures.into_iter().unzip();
+    let mut disclosures = disclosure_groups.into_iter().flatten().collect::<Vec<_>>();
+    disclosures.sort();
+    disclosures.dedup();
+    Ok((linked_modules, disclosures))
 }
 
 const fn bundle_edge_module_dependency_reason(
@@ -1787,12 +2329,18 @@ pub(crate) fn resolve_imported_module_instance(
     Ok(None)
 }
 
+pub(crate) struct DependencyResolutionOutcomeV0 {
+    pub(crate) target_instance: Option<ModuleInstanceKeyV0>,
+    pub(crate) authority: BundleResolutionAuthorityV0,
+}
+
 pub(crate) fn resolve_imported_module_instance_for_edge(
     input: &LinkerInputV0,
     edge: &LinkerDependencyEdgeV0,
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     instances_by_path: &BTreeMap<String, Vec<ModuleInstanceKeyV0>>,
-) -> Result<Option<ModuleInstanceKeyV0>, TransformBundleLinkErrorV0> {
+    resolution_authority: BundleResolutionAuthorityV0,
+) -> Result<DependencyResolutionOutcomeV0, TransformBundleLinkErrorV0> {
     let mut matches = resolved_dependencies.iter().filter(|dependency| {
         dependency.source_instance == input.instance
             && dependency.edge_kind == edge.kind
@@ -1809,22 +2357,35 @@ pub(crate) fn resolve_imported_module_instance_for_edge(
                 ),
             });
         }
-        return Ok(resolved
-            .resolution
-            .target_instance
-            .as_ref()
-            .and_then(|target| {
-                instances_by_path
-                    .get(target.module().as_str())
-                    .filter(|instances| instances.contains(target))
-                    .map(|_| target.clone())
-            }));
+        return Ok(DependencyResolutionOutcomeV0 {
+            target_instance: resolved
+                .resolution
+                .target_instance
+                .as_ref()
+                .and_then(|target| {
+                    instances_by_path
+                        .get(target.module().as_str())
+                        .filter(|instances| instances.contains(target))
+                        .map(|_| target.clone())
+                }),
+            authority: BundleResolutionAuthorityV0::Resolved,
+        });
     }
-    resolve_imported_module_instance(
-        input.source_path.as_str(),
-        edge.import_source.as_str(),
-        instances_by_path,
-    )
+    if resolution_authority == BundleResolutionAuthorityV0::Resolved {
+        return Err(TransformBundleLinkErrorV0::UnresolvedDependencyEdge {
+            source_path: input.source_path.clone(),
+            import_source: edge.import_source.clone(),
+            import_ordinal: edge.import_ordinal,
+        });
+    }
+    Ok(DependencyResolutionOutcomeV0 {
+        target_instance: resolve_imported_module_instance(
+            input.source_path.as_str(),
+            edge.import_source.as_str(),
+            instances_by_path,
+        )?,
+        authority: BundleResolutionAuthorityV0::LegacyPathInferred,
+    })
 }
 
 fn import_path_candidates(source_path: &str, import_source: &str) -> Vec<String> {
@@ -2360,17 +2921,21 @@ fn dialect_label(dialect: StyleDialect) -> &'static str {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use super::{
-        LinkerDependencyEdgeV0, LinkerInputV0, LinkerRuleV0,
-        TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0, TransformBundleAssetUrlKind,
-        TransformBundleChunkKind, TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
-        TransformBundleLinkErrorV0, TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
+        InstanceReachabilityDerivationV0, LinkedStylesheetRuleV0, LinkerDependencyEdgeV0,
+        LinkerInputV0, LinkerRuleV0, TRANSFORM_BUNDLE_EDGE_KIND_VARIANTS_V0,
+        TransformBundleAssetUrlKind, TransformBundleChunkKind,
+        TransformBundleDependencyResolutionV0, TransformBundleEdgeKind,
+        TransformBundleInstanceReachabilityInputV0, TransformBundleLinkErrorV0,
+        TransformBundleLinkOptionsV0, TransformBundleModuleInputV0,
         TransformBundleResolvedDependencyV0, TransformBundleSemanticReachabilityInputV0,
-        TransformBundleTransformedModuleV0, bundle_edge_is_module_dependency,
-        bundle_edge_module_dependency_reason, collect_transform_ir_bundle_asset_urls,
+        TransformBundleTransformedModuleV0, apply_semantic_reachability_to_linker_inputs,
+        bundle_edge_is_module_dependency, bundle_edge_module_dependency_reason,
+        carrier_hygiene_assertions, collect_transform_ir_bundle_asset_urls,
         compare_omena_transform_bundle_emission_policies, link_omena_transform_bundle_modules,
         link_omena_transform_bundle_modules_with_options,
         link_omena_transform_bundle_modules_with_semantic_reachability,
@@ -2382,7 +2947,8 @@ mod tests {
     };
     use omena_cross_file_summary::EdgeOrderRelevanceV0;
     use omena_parser::{
-        ConfigurationHashV0, ModuleIdV0, ModuleInstanceKeyV0, ParsedSelectorFactKind, StyleDialect,
+        ClosedWorldModuleReachabilityEvidenceV0, ConfigurationHashV0, ModuleIdV0,
+        ModuleInstanceKeyV0, ParsedSelectorFactKind, StyleDialect,
     };
 
     #[test]
@@ -2823,6 +3389,7 @@ mod tests {
             &[first],
             &[],
             super::EmissionOrderingPolicyV0::ModuleIdLegacy,
+            super::BundleResolutionAuthorityV0::LegacyPathInferred,
         )
         .map_err(|error| format!("{error:?}"))?;
         let original = super::emission_order::build_global_rule_order_from_plan(&inputs, &plan)
@@ -2907,6 +3474,7 @@ mod tests {
             &[],
             TransformBundleLinkOptionsV0 {
                 emission_ordering_policy: super::EmissionOrderingPolicyV0::ModuleIdLegacy,
+                ..TransformBundleLinkOptionsV0::default()
             },
         )
         .map_err(|error| format!("{error:?}"))?;
@@ -2948,6 +3516,7 @@ mod tests {
             &[],
             TransformBundleLinkOptionsV0 {
                 emission_ordering_policy: super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                ..TransformBundleLinkOptionsV0::default()
             },
         )
         .map_err(|error| format!("{error:?}"))?;
@@ -2996,6 +3565,7 @@ mod tests {
                 &[],
                 TransformBundleLinkOptionsV0 {
                     emission_ordering_policy: policy,
+                    ..TransformBundleLinkOptionsV0::default()
                 },
             )
             .map_err(|error| format!("{error:?}"))
@@ -3119,6 +3689,8 @@ mod tests {
                 kind: TransformBundleEdgeKind::CssImport,
                 import_source: import_source.to_string(),
                 import_ordinal: Some(0),
+                local_names: Vec::new(),
+                remote_names: Vec::new(),
             }],
             class_names: vec![selector.to_string()],
             keyframe_names: Vec::new(),
@@ -3160,6 +3732,8 @@ mod tests {
                     kind: TransformBundleEdgeKind::CssModuleComposesLocal,
                     import_source: import_source.to_string(),
                     import_ordinal: Some(0),
+                    local_names: Vec::new(),
+                    remote_names: Vec::new(),
                 }],
                 class_names: Vec::new(),
                 keyframe_names: Vec::new(),
@@ -3182,6 +3756,39 @@ mod tests {
                 edge_kind: TransformBundleEdgeKind::CssModuleComposesLocal,
             })
         );
+    }
+
+    #[test]
+    fn public_cascade_key_helper_normalizes_the_layer_ordinal() {
+        let rule = LinkedStylesheetRuleV0 {
+            global_order_index: 7,
+            module_instance: ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.css")),
+            selector_name: "target".to_string(),
+            selector_kind: "class",
+            range_start: 0,
+            range_end: 7,
+        };
+        let layer_ordinal = omena_cascade::LayerOrdinal::new(2);
+        assert_eq!(layer_ordinal.map(omena_cascade::LayerOrdinal::get), Some(2));
+        let Some(layer_ordinal) = layer_ordinal else {
+            return;
+        };
+        let module_rank = omena_cascade::ModuleRank::new(3, 2, 1);
+        let (key, open_world_tie_evidence) = rule.cascade_key_with_global_source_order(
+            omena_cascade::CascadeLevel::AuthorNormal,
+            layer_ordinal,
+            false,
+            0,
+            omena_cascade::Specificity::new(0, 1, 0),
+            module_rank,
+        );
+
+        assert_eq!(
+            key.layer_rank,
+            omena_cascade::normalized_layer_rank(false, Some(layer_ordinal))
+        );
+        assert_eq!(key.source_order, 7);
+        assert_eq!(open_world_tie_evidence.module_rank, module_rank);
     }
 
     #[test]
@@ -3217,6 +3824,9 @@ mod tests {
             vec![0, 1]
         );
 
+        let Some(layer_ordinal) = omena_cascade::LayerOrdinal::new(0) else {
+            return Err("zero must remain a sentinel-safe layer ordinal".to_string());
+        };
         let declarations = button_rules
             .iter()
             .map(|rule| {
@@ -3225,6 +3835,18 @@ mod tests {
                 } else {
                     "blue"
                 };
+                let (key, open_world_tie_evidence) = rule.cascade_key_with_global_source_order(
+                    omena_cascade::CascadeLevel::AuthorNormal,
+                    layer_ordinal,
+                    false,
+                    0,
+                    omena_cascade::Specificity::new(0, 1, 0),
+                    if rule.global_order_index == 0 {
+                        omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
+                    } else {
+                        omena_cascade::ModuleRank::ZERO
+                    },
+                );
                 omena_cascade::CascadeDeclaration {
                     id: format!(
                         "{}:{}",
@@ -3233,17 +3855,8 @@ mod tests {
                     ),
                     property: "color".to_string(),
                     value: omena_cascade::CascadeValue::Literal(value.to_string()),
-                    key: rule.cascade_key_with_global_source_order(
-                        omena_cascade::CascadeLevel::AuthorNormal,
-                        omena_cascade::LayerRank(0),
-                        0,
-                        omena_cascade::Specificity::new(0, 1, 0),
-                        if rule.global_order_index == 0 {
-                            omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
-                        } else {
-                            omena_cascade::ModuleRank::ZERO
-                        },
-                    ),
+                    key,
+                    open_world_tie_evidence,
                     specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
                 }
             })
@@ -3279,6 +3892,9 @@ mod tests {
 
         let linked = link_omena_transform_bundle_modules(&["src/app.module.css"], &modules)
             .map_err(|err| format!("{err:?}"))?;
+        let Some(layer_ordinal) = omena_cascade::LayerOrdinal::new(0) else {
+            return Err("zero must remain a sentinel-safe layer ordinal".to_string());
+        };
         let declarations = linked
             .global_rule_order
             .rules
@@ -3286,6 +3902,18 @@ mod tests {
             .filter(|rule| rule.selector_name == "button")
             .map(|rule| {
                 let linked_later = rule.global_order_index == 1;
+                let (key, open_world_tie_evidence) = rule.cascade_key_with_global_source_order(
+                    omena_cascade::CascadeLevel::AuthorNormal,
+                    layer_ordinal,
+                    false,
+                    0,
+                    omena_cascade::Specificity::new(0, 1, 0),
+                    if linked_later {
+                        omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
+                    } else {
+                        omena_cascade::ModuleRank::ZERO
+                    },
+                );
                 omena_cascade::CascadeDeclaration {
                     id: format!(
                         "{}:{}",
@@ -3298,17 +3926,8 @@ mod tests {
                     } else {
                         "red".to_string()
                     }),
-                    key: rule.cascade_key_with_global_source_order(
-                        omena_cascade::CascadeLevel::AuthorNormal,
-                        omena_cascade::LayerRank(0),
-                        0,
-                        omena_cascade::Specificity::new(0, 1, 0),
-                        if linked_later {
-                            omena_cascade::ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)
-                        } else {
-                            omena_cascade::ModuleRank::ZERO
-                        },
-                    ),
+                    key,
+                    open_world_tie_evidence,
                     specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
                 }
             })
@@ -3369,7 +3988,7 @@ mod tests {
             declaration.key.layer_rank,
             std::cmp::Reverse(declaration.key.scope_proximity),
             declaration.key.specificity,
-            declaration.key.module_rank,
+            declaration.open_world_tie_evidence.module_rank,
         )
     }
 
@@ -3465,6 +4084,315 @@ mod tests {
             linked.closed_world_bundle.reachability().class_names(),
             &["used".to_string()]
         );
+        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("Button.module.css"));
+        assert_eq!(
+            linked
+                .closed_world_bundle
+                .module_reachability_evidence(&instance),
+            ClosedWorldModuleReachabilityEvidenceV0::Supplied
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn empty_semantic_reachability_records_module_input_absence_without_narrowing()
+    -> Result<(), String> {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "Button.module.css",
+            ".used { color: blue; } .dead { color: red; }",
+            StyleDialect::Css,
+        )];
+        let reachability = TransformBundleSemanticReachabilityInputV0::new("Button.module.css");
+
+        let linked = link_omena_transform_bundle_modules_with_semantic_reachability(
+            &["Button.module.css"],
+            &modules,
+            &[reachability],
+        )
+        .map_err(|err| format!("semantic reachability bundle should link: {err:?}"))?;
+        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("Button.module.css"));
+
+        assert_eq!(
+            linked.closed_world_bundle.reachability().class_names(),
+            &["dead".to_string(), "used".to_string()],
+            "recording absent evidence must preserve the prior fail-open byte behavior"
+        );
+        assert_eq!(
+            linked
+                .closed_world_bundle
+                .module_reachability_evidence(&instance),
+            ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn instance_reachability_keeps_configured_consumers_distinct() {
+        let red = ModuleInstanceKeyV0::new(
+            ModuleIdV0::new("shared.module.css"),
+            ConfigurationHashV0::new("with:red"),
+        );
+        let blue = ModuleInstanceKeyV0::new(
+            ModuleIdV0::new("shared.module.css"),
+            ConfigurationHashV0::new("with:blue"),
+        );
+        let mut inputs = vec![
+            LinkerInputV0 {
+                source_path: "shared.module.css".to_string(),
+                instance: red.clone(),
+                dependency_edges: Vec::new(),
+                class_names: vec!["alpha".to_string(), "beta".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: Vec::new(),
+            },
+            LinkerInputV0 {
+                source_path: "shared.module.css".to_string(),
+                instance: blue.clone(),
+                dependency_edges: Vec::new(),
+                class_names: vec!["alpha".to_string(), "beta".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: Vec::new(),
+            },
+        ];
+        let mut red_reachability = TransformBundleInstanceReachabilityInputV0::new(
+            red.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        red_reachability.class_names.push("alpha".to_string());
+        let mut blue_reachability = TransformBundleInstanceReachabilityInputV0::new(
+            blue.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        blue_reachability.class_names.push("beta".to_string());
+
+        let (evidence, _) = apply_semantic_reachability_to_linker_inputs(
+            inputs.as_mut_slice(),
+            &[red_reachability, blue_reachability],
+        );
+
+        carrier_hygiene_assertions::assert_configured_instance_reachability(
+            inputs[0].class_names.as_slice(),
+            inputs[1].class_names.as_slice(),
+            &evidence,
+            &red,
+            &blue,
+        );
+    }
+
+    #[test]
+    fn instance_reachability_unions_duplicate_rows() {
+        let instance = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("shared.module.css"));
+        let mut inputs = vec![LinkerInputV0 {
+            source_path: "shared.module.css".to_string(),
+            instance: instance.clone(),
+            dependency_edges: Vec::new(),
+            class_names: vec!["alpha".to_string(), "beta".to_string()],
+            keyframe_names: Vec::new(),
+            value_names: Vec::new(),
+            custom_property_names: Vec::new(),
+            ordered_rules: Vec::new(),
+        }];
+        let mut alpha = TransformBundleInstanceReachabilityInputV0::new(
+            instance.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        alpha.class_names.push("alpha".to_string());
+        let mut beta = TransformBundleInstanceReachabilityInputV0::new(
+            instance,
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        beta.class_names.push("beta".to_string());
+
+        apply_semantic_reachability_to_linker_inputs(inputs.as_mut_slice(), &[alpha, beta]);
+
+        carrier_hygiene_assertions::assert_duplicate_instance_reachability(
+            inputs[0].class_names.as_slice(),
+        );
+    }
+
+    #[test]
+    fn legacy_path_reachability_unions_normalized_rows_across_symbol_sets() {
+        let modules = vec![TransformBundleModuleInputV0::new(
+            "shared.module.css",
+            r#"
+@value primary: red;
+@value secondary: blue;
+@keyframes enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes leave { from { opacity: 1; } to { opacity: 0; } }
+:root { --primary: red; --secondary: blue; }
+.alpha { animation: enter 1s; }
+.beta { animation: leave 1s; }
+"#,
+            StyleDialect::Css,
+        )];
+        let mut first = TransformBundleSemanticReachabilityInputV0::new("./shared.module.css");
+        first.class_names.push("alpha".to_string());
+        first.keyframe_names.push("enter".to_string());
+        first.value_names.push("primary".to_string());
+        first.custom_property_names.push("--primary".to_string());
+        let mut second = TransformBundleSemanticReachabilityInputV0::new("shared.module.css");
+        second.class_names.push("beta".to_string());
+        second.keyframe_names.push("leave".to_string());
+        second.value_names.push("secondary".to_string());
+        second.custom_property_names.push("--secondary".to_string());
+
+        let projection = project_omena_transform_bundle_linker_inputs(&modules, &[first, second]);
+        let input = &projection.inputs()[0];
+
+        carrier_hygiene_assertions::assert_legacy_path_union(input);
+    }
+
+    fn incomplete_composes_carrier_fixture() -> (
+        Vec<LinkerInputV0>,
+        BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
+        ModuleInstanceKeyV0,
+        ModuleInstanceKeyV0,
+    ) {
+        let source = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.module.css"));
+        let target = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("base.module.css"));
+        let mut inputs = vec![
+            LinkerInputV0 {
+                source_path: "entry.module.css".to_string(),
+                instance: source.clone(),
+                dependency_edges: vec![LinkerDependencyEdgeV0 {
+                    kind: TransformBundleEdgeKind::CssModuleComposesExternal,
+                    import_source: "./base.module.css".to_string(),
+                    import_ordinal: Some(0),
+                    local_names: Vec::new(),
+                    remote_names: vec!["base".to_string()],
+                }],
+                class_names: vec!["card".to_string(), "other".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: Vec::new(),
+            },
+            LinkerInputV0 {
+                source_path: "base.module.css".to_string(),
+                instance: target.clone(),
+                dependency_edges: Vec::new(),
+                class_names: vec!["base".to_string(), "other".to_string()],
+                keyframe_names: Vec::new(),
+                value_names: Vec::new(),
+                custom_property_names: Vec::new(),
+                ordered_rules: Vec::new(),
+            },
+        ];
+        let mut source_reachability = TransformBundleInstanceReachabilityInputV0::new(
+            source.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        source_reachability.class_names.push("card".to_string());
+        let mut target_reachability = TransformBundleInstanceReachabilityInputV0::new(
+            target.clone(),
+            InstanceReachabilityDerivationV0::PathUnionNoInstanceDiscriminator,
+        );
+        target_reachability.class_names.push("base".to_string());
+
+        let (evidence, _) = apply_semantic_reachability_to_linker_inputs(
+            inputs.as_mut_slice(),
+            &[source_reachability, target_reachability],
+        );
+        (inputs, evidence, source, target)
+    }
+
+    #[test]
+    fn incomplete_composes_carrier_marks_closure_target_evidence_absent() {
+        let (_, evidence, source, target) = incomplete_composes_carrier_fixture();
+        carrier_hygiene_assertions::assert_incomplete_composes_target_evidence(
+            &evidence, &source, &target,
+        );
+    }
+
+    #[test]
+    fn incomplete_composes_carrier_keeps_closure_target_symbols_fail_open() {
+        let (inputs, _, _, _) = incomplete_composes_carrier_fixture();
+        carrier_hygiene_assertions::assert_incomplete_composes_target_symbols(
+            inputs[0].class_names.as_slice(),
+            inputs[1].class_names.as_slice(),
+        );
+    }
+
+    #[test]
+    fn external_composes_names_reach_the_sealed_closed_world_bundle() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "entry.module.css",
+                ".card { composes: base from \"./base.module.css\"; color: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "base.module.css",
+                ".base { padding: 8px; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let linked = link_omena_transform_bundle_modules(&["entry.module.css"], &modules)
+            .map_err(|error| format!("composes fixture should link: {error:?}"))?;
+
+        let edges = linked.closed_world_bundle.composes_edges();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].from_module.module().as_str(), "entry.module.css");
+        assert_eq!(edges[0].from_symbol, "card");
+        assert_eq!(edges[0].to_module.module().as_str(), "base.module.css");
+        assert_eq!(edges[0].to_symbol, "base");
+        Ok(())
+    }
+
+    #[test]
+    fn composes_closure_expands_module_qualified_semantic_reachability() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "entry.module.css",
+                ".card { composes: base from \"./base.module.css\"; color: red; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "base.module.css",
+                ".base { padding: 8px; } .other { color: green; }",
+                StyleDialect::Css,
+            ),
+        ];
+        let mut entry_reachability =
+            TransformBundleSemanticReachabilityInputV0::new("entry.module.css");
+        entry_reachability.class_names.push("card".to_string());
+        let mut base_reachability =
+            TransformBundleSemanticReachabilityInputV0::new("base.module.css");
+        base_reachability.class_names.push("other".to_string());
+
+        let linked = link_omena_transform_bundle_modules_with_semantic_reachability(
+            &["base.module.css"],
+            &modules,
+            &[entry_reachability, base_reachability],
+        )
+        .map_err(|error| format!("composes reachability fixture should link: {error:?}"))?;
+        let entry = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("entry.module.css"));
+        let base = ModuleInstanceKeyV0::unconfigured(ModuleIdV0::new("base.module.css"));
+
+        assert_eq!(
+            linked.closed_world_bundle.linked_modules(),
+            std::slice::from_ref(&base),
+            "workspace scan evidence must not widen the emission module set"
+        );
+        assert_eq!(
+            linked
+                .closed_world_bundle
+                .reachability()
+                .symbols_for_module(&base)
+                .map(|symbols| symbols.class_names()),
+            Some(&["base".to_string(), "other".to_string()][..])
+        );
+        assert_eq!(linked.closed_world_bundle.composes_edges().len(), 1);
+        assert_eq!(
+            linked
+                .closed_world_bundle
+                .composes_origin_symbol_is_reachable(&entry, "card"),
+            Some(true)
+        );
         Ok(())
     }
 
@@ -3488,6 +4416,8 @@ mod tests {
                         kind: TransformBundleEdgeKind::CssImport,
                         import_source: "./theme.css".to_string(),
                         import_ordinal: Some(0),
+                        local_names: Vec::new(),
+                        remote_names: Vec::new(),
                     }],
                     class_names: vec!["app".to_string()],
                     keyframe_names: Vec::new(),
@@ -3616,6 +4546,93 @@ mod tests {
             Some("packageStyleModule")
         );
         assert_eq!(resolved.resolution.policy_step_keys.len(), 8);
+        Ok(())
+    }
+
+    #[test]
+    fn resolution_authority_is_enforced_per_dependency_edge() -> Result<(), String> {
+        let modules = vec![
+            TransformBundleModuleInputV0::new(
+                "src/app.css",
+                r#"@import "./tokens.css"; @import "./theme"; .app { color: green; }"#,
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/tokens.css",
+                ".token { color: rebeccapurple; }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "src/theme.scss",
+                ".theme { color: purple; }",
+                StyleDialect::Scss,
+            ),
+        ];
+        let projections =
+            super::project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
+        let resolved_tokens = TransformBundleResolvedDependencyV0::new(
+            modules[0].module_instance_key(),
+            TransformBundleEdgeKind::CssImport,
+            "./tokens.css",
+            Some(0),
+            TransformBundleDependencyResolutionV0::attempted(
+                vec!["fileRelativeOrAbsolute"],
+                "fileRelative",
+                1,
+                Some(modules[1].module_instance_key()),
+            ),
+        );
+        let resolved_theme = TransformBundleResolvedDependencyV0::new(
+            modules[0].module_instance_key(),
+            TransformBundleEdgeKind::CssImport,
+            "./theme",
+            Some(1),
+            TransformBundleDependencyResolutionV0::attempted(
+                vec!["fileRelativeOrAbsolute"],
+                "fileRelative",
+                1,
+                Some(modules[2].module_instance_key()),
+            ),
+        );
+
+        let strict_error = super::link_resolved_bundle(
+            &["src/app.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            std::slice::from_ref(&resolved_tokens),
+            &[],
+            super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+        );
+        let legacy = super::link_legacy_path_inferred_bundle(
+            &["src/app.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            std::slice::from_ref(&resolved_tokens),
+            &[],
+            super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+        )
+        .map_err(|error| format!("legacy fallback should link: {error:?}"))?;
+        let inferred = legacy
+            .dependency_resolution_disclosures
+            .iter()
+            .filter(|disclosure| {
+                disclosure.authority == super::BundleResolutionAuthorityV0::LegacyPathInferred
+            })
+            .collect::<Vec<_>>();
+        let strict = super::link_resolved_bundle(
+            &["src/app.css"],
+            projections.linker_projection(),
+            projections.emission_item_projection(),
+            &[resolved_tokens, resolved_theme],
+            &[],
+            super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+        )
+        .map_err(|error| format!("complete resolved edge set should link: {error:?}"))?;
+        carrier_hygiene_assertions::assert_resolution_authority(
+            &strict_error,
+            inferred.as_slice(),
+            strict.dependency_resolution_disclosures.as_slice(),
+        );
         Ok(())
     }
 
@@ -3792,6 +4809,7 @@ mod tests {
                 TransformBundleLinkOptionsV0 {
                     emission_ordering_policy:
                         super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                    ..TransformBundleLinkOptionsV0::default()
                 },
             )
             .map_err(|error| format!("emission-item link failed: {error:?}"))?;
@@ -3997,6 +5015,7 @@ mod tests {
                 TransformBundleLinkOptionsV0 {
                     emission_ordering_policy:
                         super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                    ..TransformBundleLinkOptionsV0::default()
                 },
             )
             .map_err(|error| format!("emission-item link failed: {error:?}"))?;
@@ -4060,6 +5079,7 @@ mod tests {
                 TransformBundleLinkOptionsV0 {
                     emission_ordering_policy:
                         super::EmissionOrderingPolicyV0::ImportOrderPreserving,
+                    ..TransformBundleLinkOptionsV0::default()
                 },
             )
             .map_err(|error| format!("emission-item link failed: {error:?}"))?;

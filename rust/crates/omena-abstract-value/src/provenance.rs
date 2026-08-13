@@ -109,6 +109,12 @@ fn root_operation(
         Some(AbstractClassValueProvenanceV0::CompositeConcat) => "reducedProductConcat",
         Some(AbstractClassValueProvenanceV0::UnconstrainedInput) => "unconstrainedInput",
         Some(AbstractClassValueProvenanceV0::AutomatonStateLimit) => "automatonStateWidening",
+        Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit) => {
+            "automatonLanguageCardinalityWidening"
+        }
+        Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit) => {
+            "automatonMaterializedByteWidening"
+        }
         Some(AbstractClassValueProvenanceV0::FlowIterationLimit) => "flowIterationWidening",
         Some(AbstractClassValueProvenanceV0::MissingFlowPredecessor) => "missingFlowPredecessor",
         Some(AbstractClassValueProvenanceV0::JoinUnrepresentable) => "unrepresentableJoin",
@@ -171,6 +177,12 @@ fn root_reason(
         }
         Some(AbstractClassValueProvenanceV0::AutomatonStateLimit) => {
             "the finite language exceeded the bounded automaton state limit"
+        }
+        Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit) => {
+            "the finite language exceeded the preconstruction cardinality limit"
+        }
+        Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit) => {
+            "the finite language exceeded the preconstruction materialized-byte limit"
         }
         Some(AbstractClassValueProvenanceV0::FlowIterationLimit) => {
             "the class-value flow did not converge within its iteration limit"

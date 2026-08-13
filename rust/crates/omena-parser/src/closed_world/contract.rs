@@ -1,9 +1,11 @@
 //! Closed-world contract types: module identity, instance keys, linked-module
 //! facts, reachability, and the sealed bundle exposed to consumers.
 
-use serde::Serialize;
+use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleIdV0(String);
 
@@ -29,7 +31,7 @@ impl From<String> for ModuleIdV0 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigurationHashV0(String);
 
@@ -53,7 +55,7 @@ impl Default for ConfigurationHashV0 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleInstanceKeyV0 {
     module: ModuleIdV0,
@@ -83,9 +85,20 @@ impl ModuleInstanceKeyV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ClosedWorldComposesEdgeV0 {
+    pub from_module: ModuleInstanceKeyV0,
+    pub from_symbol: String,
+    pub to_module: ModuleInstanceKeyV0,
+    pub to_symbol: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClosedWorldLinkedModuleV0 {
     pub instance: ModuleInstanceKeyV0,
     pub dependencies: Vec<ModuleInstanceKeyV0>,
+    pub composes_edges: Vec<ClosedWorldComposesEdgeV0>,
+    pub composes_edge_observation_count: usize,
     pub class_names: Vec<String>,
     pub keyframe_names: Vec<String>,
     pub value_names: Vec<String>,
@@ -97,6 +110,8 @@ impl ClosedWorldLinkedModuleV0 {
         Self {
             instance,
             dependencies: Vec::new(),
+            composes_edges: Vec::new(),
+            composes_edge_observation_count: 0,
             class_names: Vec::new(),
             keyframe_names: Vec::new(),
             value_names: Vec::new(),
@@ -106,6 +121,13 @@ impl ClosedWorldLinkedModuleV0 {
 
     pub fn with_dependency(mut self, dependency: ModuleInstanceKeyV0) -> Self {
         self.dependencies.push(dependency);
+        self
+    }
+
+    pub fn with_composes_edge(mut self, edge: ClosedWorldComposesEdgeV0) -> Self {
+        self.composes_edges.push(edge);
+        self.composes_edge_observation_count =
+            self.composes_edge_observation_count.saturating_add(1);
         self
     }
 
@@ -156,11 +178,30 @@ impl ClosedWorldSourcePrecisionSummaryV0 {
     }
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClosedWorldModuleReachabilityEvidenceV0 {
+    Supplied,
+    #[default]
+    ModuleReachabilityInputAbsent,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClosedWorldComposesScanStateV0 {
+    ScannedClosed,
+    #[default]
+    SourceSetOpen,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosedWorldModuleMetadataV0 {
     module_instance: ModuleInstanceKeyV0,
     interface_hash: Option<String>,
     source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+    reachability_evidence: ClosedWorldModuleReachabilityEvidenceV0,
+    composes_scan_state: ClosedWorldComposesScanStateV0,
 }
 
 impl ClosedWorldModuleMetadataV0 {
@@ -169,6 +210,9 @@ impl ClosedWorldModuleMetadataV0 {
             module_instance,
             interface_hash: None,
             source_precision: None,
+            reachability_evidence:
+                ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent,
+            composes_scan_state: ClosedWorldComposesScanStateV0::SourceSetOpen,
         }
     }
 
@@ -195,6 +239,30 @@ impl ClosedWorldModuleMetadataV0 {
 
     pub fn source_precision(&self) -> Option<ClosedWorldSourcePrecisionSummaryV0> {
         self.source_precision
+    }
+
+    pub fn with_reachability_evidence(
+        mut self,
+        reachability_evidence: ClosedWorldModuleReachabilityEvidenceV0,
+    ) -> Self {
+        self.reachability_evidence = reachability_evidence;
+        self
+    }
+
+    pub fn reachability_evidence(&self) -> ClosedWorldModuleReachabilityEvidenceV0 {
+        self.reachability_evidence
+    }
+
+    pub fn with_composes_scan_state(
+        mut self,
+        composes_scan_state: ClosedWorldComposesScanStateV0,
+    ) -> Self {
+        self.composes_scan_state = composes_scan_state;
+        self
+    }
+
+    pub fn composes_scan_state(&self) -> ClosedWorldComposesScanStateV0 {
+        self.composes_scan_state
     }
 }
 
@@ -393,17 +461,47 @@ pub struct ClosedWorldBundleV0 {
     interface_hashes: ClosedWorldInterfaceHashSetV0,
     #[serde(skip_serializing_if = "Option::is_none")]
     source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    composes_edges: Vec<ClosedWorldComposesEdgeV0>,
+    #[serde(skip)]
+    composes_scan_state: ClosedWorldComposesScanStateV0,
+    #[serde(skip)]
+    composes_edge_observation_count: usize,
+    #[serde(skip)]
+    composes_origin_class_names: BTreeMap<ModuleInstanceKeyV0, Vec<String>>,
+    #[serde(skip)]
+    module_reachability_evidence:
+        BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
+}
+
+pub(super) struct ClosedWorldBundleEvidenceV0 {
+    pub(super) interface_hashes: ClosedWorldInterfaceHashSetV0,
+    pub(super) source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+    pub(super) composes_edges: Vec<ClosedWorldComposesEdgeV0>,
+    pub(super) composes_scan_state: ClosedWorldComposesScanStateV0,
+    pub(super) composes_edge_observation_count: usize,
+    pub(super) composes_origin_class_names: BTreeMap<ModuleInstanceKeyV0, Vec<String>>,
+    pub(super) module_reachability_evidence:
+        BTreeMap<ModuleInstanceKeyV0, ClosedWorldModuleReachabilityEvidenceV0>,
 }
 
 impl ClosedWorldBundleV0 {
-    pub(crate) fn seal(
+    pub(super) fn seal(
         entrypoints: Vec<ModuleInstanceKeyV0>,
         linked_modules: Vec<ModuleInstanceKeyV0>,
         reachability: ReachabilityIndexV0,
         closure_hash: String,
-        interface_hashes: ClosedWorldInterfaceHashSetV0,
-        source_precision: Option<ClosedWorldSourcePrecisionSummaryV0>,
+        evidence: ClosedWorldBundleEvidenceV0,
     ) -> Self {
+        let ClosedWorldBundleEvidenceV0 {
+            interface_hashes,
+            source_precision,
+            composes_edges,
+            composes_scan_state,
+            composes_edge_observation_count,
+            composes_origin_class_names,
+            module_reachability_evidence,
+        } = evidence;
         Self {
             entrypoints,
             linked_modules,
@@ -411,6 +509,11 @@ impl ClosedWorldBundleV0 {
             closure_hash,
             interface_hashes,
             source_precision,
+            composes_edges,
+            composes_scan_state,
+            composes_edge_observation_count,
+            composes_origin_class_names,
+            module_reachability_evidence,
         }
     }
 
@@ -457,6 +560,49 @@ impl ClosedWorldBundleV0 {
 
     pub fn source_precision(&self) -> Option<ClosedWorldSourcePrecisionSummaryV0> {
         self.source_precision
+    }
+
+    pub fn composes_edges(&self) -> &[ClosedWorldComposesEdgeV0] {
+        self.composes_edges.as_slice()
+    }
+
+    pub fn composes_scan_state(&self) -> ClosedWorldComposesScanStateV0 {
+        self.composes_scan_state
+    }
+
+    pub fn composes_edge_observation_count(&self) -> usize {
+        self.composes_edge_observation_count
+    }
+
+    pub fn composes_origin_symbol_is_reachable(
+        &self,
+        module_instance: &ModuleInstanceKeyV0,
+        symbol: &str,
+    ) -> Option<bool> {
+        match self
+            .module_reachability_evidence
+            .get(module_instance)
+            .copied()
+        {
+            Some(ClosedWorldModuleReachabilityEvidenceV0::Supplied) => Some(
+                self.composes_origin_class_names
+                    .get(module_instance)
+                    .is_some_and(|class_names| class_names.iter().any(|name| name == symbol)),
+            ),
+            Some(ClosedWorldModuleReachabilityEvidenceV0::ModuleReachabilityInputAbsent) | None => {
+                None
+            }
+        }
+    }
+
+    pub fn module_reachability_evidence(
+        &self,
+        module_instance: &ModuleInstanceKeyV0,
+    ) -> ClosedWorldModuleReachabilityEvidenceV0 {
+        self.module_reachability_evidence
+            .get(module_instance)
+            .copied()
+            .unwrap_or_default()
     }
 }
 

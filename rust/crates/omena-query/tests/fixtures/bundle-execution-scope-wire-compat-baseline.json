@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-query.bundle-execution-scope",
+  "entryModuleInstance": {
+    "module": "src/app.css",
+    "configuration": "with:none"
+  },
+  "fieldScopes": [
+    {
+      "fieldName": "outcomes",
+      "scope": "entry",
+      "derivation": "retained entry outcomes"
+    },
+    {
+      "fieldName": "outputCss",
+      "scope": "bundle",
+      "derivation": "materialized bundle css"
+    }
+  ],
+  "moduleExecutions": [
+    {
+      "moduleInstance": {
+        "module": "src/app.css",
+        "configuration": "with:none"
+      },
+      "inputByteLen": 23,
+      "outputByteLen": 17,
+      "generatedStart": 2,
+      "generatedEnd": 19
+    }
+  ],
+  "bundleComposite": {
+    "moduleCount": 1,
+    "summedModuleInputByteLen": 23,
+    "summedModuleOutputByteLen": 17,
+    "interModuleSeparatorByteLen": 2,
+    "materializedOutputByteLen": 19
+  },
+  "sourceMapDispositions": [
+    {
+      "moduleInstance": {
+        "module": "src/app.css",
+        "configuration": "with:none"
+      },
+      "granularity": "cstAnchors",
+      "segmentCount": 3
+    },
+    {
+      "moduleInstance": {
+        "module": "src/app.css",
+        "configuration": "with:none"
+      },
+      "granularity": "wholeModuleFallback",
+      "fallbackReason": "module output differs; fallback uses source-start convention without token correspondence",
+      "segmentCount": 1
+    }
+  ]
+}

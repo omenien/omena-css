@@ -1,15 +1,16 @@
-//! Deterministic fuzz harness entry points for cascade invariants.
+//! Deterministic generated self-check entry points for cascade invariants.
 //!
 //! The public functions convert compact seed cases into repeatable cascade
 //! ranking and custom-property substitution checks used by cargo-fuzz smoke
-//! gates and the H1 readiness bundle.
+//! gates. Their expected values are generated from the same inputs, so these
+//! checks are not browser-conformance or regression evidence.
 
 use crate::{
     CascadeDeclaration, CascadeEvaluationFuzzCaseV0, CascadeEvaluationFuzzResultV0,
     CascadeFuzzSeedReportV0, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue,
-    CustomPropertyEnv, LayerRank, ModuleRank, Specificity, VarSubstitutionFuzzCaseV0,
-    VarSubstitutionFuzzResultV0, cascade_property, rank_cascade_items,
-    substitute_custom_properties,
+    CustomPropertyEnv, LayerOrdinal, ModuleRank, OpenWorldTieEvidence, Specificity,
+    VarSubstitutionFuzzCaseV0, VarSubstitutionFuzzResultV0, cascade_property,
+    normalized_layer_rank, rank_cascade_items, substitute_custom_properties,
 };
 
 pub fn run_cascade_evaluation_fuzz_case(
@@ -94,7 +95,7 @@ pub fn run_var_substitution_fuzz_case(
     }
 }
 
-pub fn run_cascade_fuzz_seed_corpus() -> CascadeFuzzSeedReportV0 {
+pub fn run_generated_cascade_invariant_self_check_corpus() -> CascadeFuzzSeedReportV0 {
     let seeds = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144];
     let cascade_results = seeds
         .into_iter()
@@ -126,7 +127,7 @@ pub fn run_cascade_fuzz_seed_corpus() -> CascadeFuzzSeedReportV0 {
 
     CascadeFuzzSeedReportV0 {
         schema_version: "0",
-        product: "omena-cascade.fuzz-seed-corpus",
+        product: "omena-cascade.generated-invariant-self-check-corpus",
         case_count,
         passed_count,
         failed_count: case_count - passed_count,
@@ -147,26 +148,28 @@ fn generated_cascade_fuzz_declarations(
             } else {
                 "margin"
             };
+            let layer_important = fuzz_next(&mut state).is_multiple_of(2);
+            let layer_ordinal = LayerOrdinal::new((fuzz_next(&mut state) % 10) as i32);
             CascadeDeclaration {
                 id: format!("decl-{seed}-{index}"),
                 property: property.to_string(),
                 value: CascadeValue::Literal(format!("v{}", fuzz_next(&mut state) % 17)),
                 key: CascadeKey::new(
                     fuzz_cascade_level(fuzz_next(&mut state)),
-                    LayerRank((fuzz_next(&mut state) % 9) as i32 - 4),
+                    normalized_layer_rank(layer_important, layer_ordinal),
                     (fuzz_next(&mut state) % 12) as u32,
                     Specificity::new(
                         (fuzz_next(&mut state) % 4) as u32,
                         (fuzz_next(&mut state) % 8) as u32,
                         (fuzz_next(&mut state) % 12) as u32,
                     ),
-                    ModuleRank::new(
-                        (fuzz_next(&mut state) % 5) as u32,
-                        (fuzz_next(&mut state) % 7) as u32,
-                        (fuzz_next(&mut state) % 11) as u32,
-                    ),
                     index as u32,
                 ),
+                open_world_tie_evidence: OpenWorldTieEvidence::new(ModuleRank::new(
+                    (fuzz_next(&mut state) % 5) as u32,
+                    (fuzz_next(&mut state) % 7) as u32,
+                    (fuzz_next(&mut state) % 11) as u32,
+                )),
                 specificity_exactness: crate::SpecificityExactnessV0::Exact,
             }
         })
@@ -174,15 +177,16 @@ fn generated_cascade_fuzz_declarations(
 }
 
 fn fuzz_cascade_level(value: u64) -> CascadeLevel {
-    match value % 9 {
+    match value % 10 {
         0 => CascadeLevel::UserAgentNormal,
         1 => CascadeLevel::UserNormal,
         2 => CascadeLevel::AuthorNormal,
         3 => CascadeLevel::InlineNormal,
         4 => CascadeLevel::Animation,
         5 => CascadeLevel::AuthorImportant,
-        6 => CascadeLevel::UserImportant,
-        7 => CascadeLevel::UserAgentImportant,
+        6 => CascadeLevel::InlineImportant,
+        7 => CascadeLevel::UserImportant,
+        8 => CascadeLevel::UserAgentImportant,
         _ => CascadeLevel::Transition,
     }
 }

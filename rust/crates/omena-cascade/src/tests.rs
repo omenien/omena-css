@@ -1,5 +1,6 @@
 use super::*;
 use std::{
+    cmp::Reverse,
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
@@ -7,6 +8,22 @@ use std::{
 
 fn declaration(id: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {
     declaration_with_specificity_exactness(id, value, key, SpecificityExactnessV0::Exact)
+}
+
+fn declaration_with_tie_evidence(
+    id: &str,
+    value: &str,
+    key: CascadeKey,
+    open_world_tie_evidence: OpenWorldTieEvidence,
+) -> CascadeDeclaration {
+    CascadeDeclaration {
+        id: id.to_string(),
+        property: "color".to_string(),
+        value: CascadeValue::Literal(value.to_string()),
+        key,
+        open_world_tie_evidence,
+        specificity_exactness: SpecificityExactnessV0::Exact,
+    }
 }
 
 fn declaration_with_specificity_exactness(
@@ -20,6 +37,7 @@ fn declaration_with_specificity_exactness(
         property: "color".to_string(),
         value: CascadeValue::Literal(value.to_string()),
         key,
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness,
     }
 }
@@ -41,6 +59,7 @@ fn property_declaration(
             Specificity::new(0, 1, 0),
             source_order,
         ),
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: SpecificityExactnessV0::Exact,
     }
 }
@@ -52,14 +71,119 @@ fn key(
     specificity: Specificity,
     source_order: u32,
 ) -> CascadeKey {
+    let Some(layer_ordinal) = LayerOrdinal::new(layer_rank) else {
+        unreachable!("test fixtures only use sentinel-safe layer ordinals");
+    };
     CascadeKey::new(
         level,
-        LayerRank(layer_rank),
+        normalized_layer_rank(false, Some(layer_ordinal)),
         scope_proximity,
         specificity,
-        ModuleRank::ZERO,
         source_order,
     )
+}
+
+fn generated_cascade_keys() -> Vec<CascadeKey> {
+    let mut keys = Vec::new();
+    for level in [CascadeLevel::AuthorNormal, CascadeLevel::AuthorImportant] {
+        for layer_ordinal in [0, 1] {
+            for scope_proximity in [1, 3] {
+                for specificity in [Specificity::ZERO, Specificity::new(0, 1, 0)] {
+                    for source_order in [1, 2] {
+                        keys.push(CascadeKey::new(
+                            level,
+                            normalized_layer_rank(false, LayerOrdinal::new(layer_ordinal)),
+                            scope_proximity,
+                            specificity,
+                            source_order,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    keys
+}
+
+fn token_texts(word: &OrderedTokenWordV0) -> Vec<&str> {
+    word.tokens()
+        .iter()
+        .map(omena_syntax::ident::CanonicalClassKeyV0::as_str)
+        .collect()
+}
+
+fn known_dom_word(value: &str) -> OrderedTokenWordV0 {
+    let DomClassTokenizationV0::Known { word, .. } = tokenize_dom_class_attribute_v0(Some(value))
+    else {
+        unreachable!("a supplied class attribute is a known tokenizer input");
+    };
+    word
+}
+
+#[test]
+fn dom_class_tokenizer_preserves_first_order_and_uses_only_ascii_whitespace() {
+    assert_eq!(token_texts(&known_dom_word("b a b")), vec!["b", "a"]);
+    assert_eq!(
+        token_texts(&known_dom_word("a\u{00a0}b")),
+        vec!["a\u{00a0}b"]
+    );
+    assert_eq!(
+        token_texts(&known_dom_word("a\u{000b}b")),
+        vec!["a\u{000b}b"],
+        "vertical tab is ASCII but not DOM class whitespace"
+    );
+    assert!(matches!(
+        tokenize_dom_class_attribute_v0(None),
+        DomClassTokenizationV0::Unknown {
+            cause: DomClassTokenizationUnknownCauseV0::InputUnavailable
+        }
+    ));
+}
+
+#[test]
+fn token_support_enforces_subset_and_matches_ordered_support() {
+    let left = known_dom_word("button primary");
+    let right = known_dom_word("primary large");
+    let combined = left.combine_first_occurrence(&right);
+    assert_eq!(token_texts(&combined), vec!["button", "primary", "large"]);
+    let support = token_support_v0(&combined);
+    let left_support = token_support_v0(&left);
+    let right_support = token_support_v0(&right);
+    let expected_union = left_support
+        .may()
+        .union(right_support.may())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        support
+            .must()
+            .iter()
+            .map(omena_syntax::ident::CanonicalClassKeyV0::as_str)
+            .collect::<Vec<_>>(),
+        vec!["button", "large", "primary"]
+    );
+    assert_eq!(support.must(), support.may());
+    assert_eq!(support.may(), &expected_union);
+
+    let button = omena_syntax::ident::ClassNameV0::new("button").canonical_key();
+    let primary = omena_syntax::ident::ClassNameV0::new("primary").canonical_key();
+    assert!(TokenSupportV0::new([button.clone()], [button.clone(), primary.clone()]).is_some());
+    assert!(TokenSupportV0::new([button, primary.clone()], [primary]).is_none());
+}
+
+#[test]
+fn attribute_and_selector_escape_planes_share_keys_without_escape_aware_tokenization() {
+    let attribute = known_dom_word(r"a\2d b");
+    assert_eq!(token_texts(&attribute), vec!["a-", "b"]);
+
+    let escaped_selector = omena_syntax::ident::class_selector_names(r".a\2d b");
+    let plain_selector = omena_syntax::ident::class_selector_names(".a-b");
+    assert_eq!(escaped_selector.len(), 1);
+    assert_eq!(plain_selector.len(), 1);
+    assert_eq!(
+        escaped_selector[0].name.clone().canonical_key(),
+        plain_selector[0].name.clone().canonical_key()
+    );
 }
 
 #[test]
@@ -80,18 +204,76 @@ fn origin_inputs_drive_every_non_temporal_cascade_level() {
         CascadeLevel::UserNormal,
         CascadeLevel::AuthorNormal,
         CascadeLevel::InlineNormal,
+        CascadeLevel::InlineImportant,
         CascadeLevel::AuthorImportant,
         CascadeLevel::UserImportant,
         CascadeLevel::UserAgentImportant,
     ]);
 
     assert_eq!(driven_levels, expected);
-    assert_eq!(cascade_level_catalog_v0().len(), 9);
-    assert_eq!(driven_levels.len(), 7);
+    assert_eq!(cascade_level_catalog_v0().len(), 10);
+    assert_eq!(driven_levels.len(), 8);
     assert_eq!(
         cascade_level_for_origin(CascadeOriginV0::Inline, true),
-        CascadeLevel::AuthorImportant
+        CascadeLevel::InlineImportant
     );
+}
+
+#[test]
+fn element_attached_style_outranks_author_rules_across_adverse_layers() {
+    let strongest_specificity = Specificity::new(u32::MAX, u32::MAX, u32::MAX);
+    let normal_inline = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Inline, false),
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        u32::MAX,
+        Specificity::ZERO,
+        0,
+    );
+    let normal_author = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Author, false),
+        normalized_layer_rank(false, None),
+        0,
+        strongest_specificity,
+        u32::MAX,
+    );
+    let important_inline = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Inline, true),
+        normalized_layer_rank(true, None),
+        u32::MAX,
+        Specificity::ZERO,
+        0,
+    );
+    let important_author = CascadeKey::new(
+        cascade_level_for_origin(CascadeOriginV0::Author, true),
+        normalized_layer_rank(true, LayerOrdinal::new(0)),
+        0,
+        strongest_specificity,
+        u32::MAX,
+    );
+
+    assert!(normal_inline > normal_author);
+    assert!(important_inline > important_author);
+    for (inline_key, author_key, expected_id) in [
+        (normal_inline, normal_author, "inline-normal"),
+        (important_inline, important_author, "inline-important"),
+    ] {
+        let outcome = cascade_property(
+            [
+                declaration(expected_id, "inline", inline_key),
+                declaration("author-rule", "author", author_key),
+            ],
+            "color",
+        );
+        let winner_id = match outcome {
+            CascadeOutcome::Definite { winner, .. } => Some(winner.id),
+            _ => None,
+        };
+        assert_eq!(
+            winner_id.as_deref(),
+            Some(expected_id),
+            "cross-level style-attribute comparison must be definite"
+        );
+    }
 }
 
 #[test]
@@ -227,7 +409,7 @@ fn keeps_scope_proximity_unknown_for_inexact_dynamic_classes() {
 }
 
 #[test]
-fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
+fn orders_cascade_keys_by_level_layer_specificity_scope_and_source() {
     let base = key(
         CascadeLevel::AuthorNormal,
         0,
@@ -283,96 +465,241 @@ fn orders_cascade_keys_by_level_layer_scope_specificity_and_source() {
 }
 
 #[test]
-fn carries_module_rank_without_using_it_as_an_exact_order_axis() {
-    let css_specificity_winner = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        LayerRank(0),
-        1,
-        Specificity::new(0, 2, 0),
-        ModuleRank::ZERO,
-        1,
+fn library_axis_order_prefers_specificity_before_scope_proximity() {
+    let outer = declaration(
+        "outer-high-specificity",
+        "OUTER",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            2,
+            Specificity::new(1, 0, 1),
+            0,
+        ),
     );
-    let module_rank_winner = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        LayerRank(0),
-        1,
-        Specificity::new(0, 1, 0),
-        ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
-        2,
-    );
-    assert!(
-        css_specificity_winner > module_rank_winner,
-        "real CSS specificity must outrank import-graph provenance evidence"
-    );
-
-    let earlier_module = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        LayerRank(0),
-        1,
-        Specificity::ZERO,
-        ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
-        1,
-    );
-    let later_module = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        LayerRank(0),
-        1,
-        Specificity::ZERO,
-        ModuleRank::ZERO,
-        2,
-    );
-    assert!(
-        later_module > earlier_module,
-        "exact cascade ordering uses source order, not module provenance rank"
+    let inner = declaration(
+        "inner-low-specificity",
+        "INNER",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            0,
+            Specificity::new(0, 1, 0),
+            1,
+        ),
     );
 
-    let first = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        LayerRank(0),
-        1,
-        Specificity::ZERO,
-        ModuleRank::ZERO,
-        1,
-    );
-    let same_exact_key_different_module_rank = CascadeKey::new(
-        CascadeLevel::AuthorNormal,
-        LayerRank(0),
-        1,
-        Specificity::ZERO,
-        ModuleRank::new(1, 2, 3),
-        1,
-    );
+    let observed = [
+        [outer.clone(), inner.clone()],
+        [inner.clone(), outer.clone()],
+    ]
+    .into_iter()
+    .map(
+        |declarations| match cascade_property(declarations, "color") {
+            CascadeOutcome::Definite { winner, .. } => {
+                ("Definite", Some(winner.id), Some(winner.value))
+            }
+            CascadeOutcome::RankedSet(_) => ("RankedSet", None, None),
+            CascadeOutcome::Inherit => ("Inherit", None, None),
+            CascadeOutcome::Top => ("Top", None, None),
+        },
+    )
+    .collect::<Vec<_>>();
+    let expected = vec![
+        (
+            "Definite",
+            Some("outer-high-specificity".to_string()),
+            Some(CascadeValue::Literal("OUTER".to_string())),
+        ),
+        (
+            "Definite",
+            Some("outer-high-specificity".to_string()),
+            Some(CascadeValue::Literal("OUTER".to_string())),
+        ),
+    ];
+
     assert_eq!(
-        first.cmp(&same_exact_key_different_module_rank),
-        std::cmp::Ordering::Equal
+        observed, expected,
+        "the published cascade order requires specificity to precede scoping proximity"
     );
 }
 
 #[test]
-fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
-    let weaker_module_hint = declaration(
-        "weaker-module-hint",
-        "red",
-        CascadeKey::new(
+fn equal_scope_proximity_prefers_high_specificity_definite_winner() -> Result<(), String> {
+    let low = declaration(
+        "low-specificity",
+        "LOW",
+        key(
             CascadeLevel::AuthorNormal,
-            LayerRank(0),
+            0,
             1,
-            Specificity::ZERO,
-            ModuleRank::ZERO,
+            Specificity::new(0, 1, 0),
+            2,
+        ),
+    );
+    let high = declaration(
+        "high-specificity",
+        "HIGH",
+        key(
+            CascadeLevel::AuthorNormal,
+            0,
+            1,
+            Specificity::new(1, 0, 0),
             1,
         ),
     );
-    let stronger_module_hint = declaration(
+
+    for declarations in [[low.clone(), high.clone()], [high.clone(), low.clone()]] {
+        let CascadeOutcome::Definite { winner, .. } = cascade_property(declarations, "color")
+        else {
+            return Err("equal-proximity exact declarations must produce a definite winner".into());
+        };
+        assert_eq!(winner.id, "high-specificity");
+        assert_eq!(winner.value, CascadeValue::Literal("HIGH".to_string()));
+    }
+    Ok(())
+}
+
+#[test]
+fn open_world_tie_evidence_is_not_a_cascade_key_axis() {
+    let css_specificity_winner = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::new(0, 2, 0),
+        1,
+    );
+    let weaker_specificity = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::new(0, 1, 0),
+        2,
+    );
+    assert!(
+        css_specificity_winner > weaker_specificity,
+        "real CSS specificity must outrank import-graph provenance evidence"
+    );
+
+    let earlier_source = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        1,
+    );
+    let later_source = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        2,
+    );
+    assert!(
+        later_source > earlier_source,
+        "exact cascade ordering uses source order, not module provenance rank"
+    );
+
+    let evidence = OpenWorldTieEvidence::new(ModuleRank::new(1, 2, 3));
+    assert_eq!(evidence.module_rank, ModuleRank::new(1, 2, 3));
+    assert_eq!(OpenWorldTieEvidence::NONE, OpenWorldTieEvidence::ZERO);
+}
+
+#[test]
+fn generated_cascade_key_equality_matches_total_order_equality() {
+    let mut keys = generated_cascade_keys();
+    keys.extend(keys.iter().copied().take(2).collect::<Vec<_>>());
+
+    for (left_index, left) in keys.iter().enumerate() {
+        for (right_index, right) in keys.iter().enumerate() {
+            assert_eq!(
+                left == right,
+                left.cmp(right) == std::cmp::Ordering::Equal,
+                "Eq and Ord diverged for generated pair ({left_index}, {right_index})"
+            );
+        }
+    }
+}
+
+#[test]
+fn generated_btree_set_lookup_returns_only_stored_equal_keys() {
+    let stored = generated_cascade_keys()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let mut probes = generated_cascade_keys();
+    probes.push(CascadeKey::new(
+        CascadeLevel::Transition,
+        normalized_layer_rank(false, LayerOrdinal::new(7)),
+        9,
+        Specificity::new(3, 4, 5),
+        99,
+    ));
+
+    for (probe_index, probe) in probes.into_iter().enumerate() {
+        let equal_key_is_stored = stored.iter().any(|stored_key| *stored_key == probe);
+        assert_eq!(
+            stored.contains(&probe),
+            equal_key_is_stored,
+            "BTreeSet::contains disagreed with Eq for probe {probe_index}"
+        );
+        assert_eq!(
+            stored
+                .get(&probe)
+                .is_some_and(|stored_key| *stored_key == probe),
+            equal_key_is_stored,
+            "BTreeSet::get returned a non-equal key for probe {probe_index}"
+        );
+    }
+}
+
+#[test]
+fn generated_binary_search_hits_if_and_only_if_a_key_is_equal() {
+    let mut sorted = generated_cascade_keys();
+    sorted.sort();
+    sorted.dedup();
+    let mut probes = generated_cascade_keys();
+    probes.push(CascadeKey::new(
+        CascadeLevel::UserAgentNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(7)),
+        9,
+        Specificity::new(3, 4, 5),
+        99,
+    ));
+
+    for (probe_index, probe) in probes.into_iter().enumerate() {
+        let equal_key_is_stored = sorted.contains(&probe);
+        let search = sorted.binary_search(&probe);
+        assert_eq!(
+            search.is_ok(),
+            equal_key_is_stored,
+            "binary_search disagreed with Eq for probe {probe_index}"
+        );
+        if let Ok(found_index) = search {
+            assert_eq!(sorted[found_index], probe);
+        }
+    }
+}
+
+#[test]
+fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
+    let tied_key = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        1,
+    );
+    let weaker_module_hint = declaration_with_tie_evidence(
+        "weaker-module-hint",
+        "red",
+        tied_key,
+        OpenWorldTieEvidence::NONE,
+    );
+    let stronger_module_hint = declaration_with_tie_evidence(
         "stronger-module-hint",
         "blue",
-        CascadeKey::new(
-            CascadeLevel::AuthorNormal,
-            LayerRank(0),
-            1,
-            Specificity::ZERO,
-            ModuleRank::new(u32::MAX, u32::MAX, u32::MAX),
-            1,
-        ),
+        tied_key,
+        OpenWorldTieEvidence::new(ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)),
     );
 
     let outcome = cascade_property_open_world([weaker_module_hint, stronger_module_hint], "color");
@@ -387,6 +714,217 @@ fn open_world_ambiguity_returns_ranked_set_with_module_rank_hint() {
     assert_eq!(ranked.len(), 2);
     assert_eq!(ranked[0].id, "stronger-module-hint");
     assert_eq!(ranked[1].id, "weaker-module-hint");
+}
+
+#[test]
+fn generated_open_world_tie_evidence_is_independent_of_input_order() -> Result<(), String> {
+    for (key_index, tied_key) in generated_cascade_keys().into_iter().enumerate() {
+        for stronger_rank in [ModuleRank::new(1, 0, 0), ModuleRank::new(2, 3, 5)] {
+            let weaker = (tied_key, OpenWorldTieEvidence::NONE);
+            let stronger = (tied_key, OpenWorldTieEvidence::new(stronger_rank));
+
+            assert_eq!(
+                weaker.0.cmp(&stronger.0),
+                std::cmp::Ordering::Equal,
+                "open-world module provenance must stay outside the specification-key order for generated key {key_index}"
+            );
+            assert_ne!(
+                weaker.1.module_rank, stronger.1.module_rank,
+                "the independence arm requires distinct open-world evidence for generated key {key_index}"
+            );
+
+            for items in [
+                [("weaker", weaker), ("stronger", stronger)],
+                [("stronger", stronger), ("weaker", weaker)],
+            ] {
+                let (winner, _) = select_open_world_cascade_winner(items, |(_, ranked)| *ranked)
+                    .ok_or_else(|| "the fixture always contains two candidates".to_string())?;
+                assert_eq!(
+                    winner.0, "stronger",
+                    "tie evidence depended on input order for generated key {key_index}"
+                );
+            }
+
+            for declarations in [
+                [
+                    declaration_with_tie_evidence(
+                        "weaker",
+                        "red",
+                        tied_key,
+                        OpenWorldTieEvidence::NONE,
+                    ),
+                    declaration_with_tie_evidence(
+                        "stronger",
+                        "blue",
+                        tied_key,
+                        OpenWorldTieEvidence::new(stronger_rank),
+                    ),
+                ],
+                [
+                    declaration_with_tie_evidence(
+                        "stronger",
+                        "blue",
+                        tied_key,
+                        OpenWorldTieEvidence::new(stronger_rank),
+                    ),
+                    declaration_with_tie_evidence(
+                        "weaker",
+                        "red",
+                        tied_key,
+                        OpenWorldTieEvidence::NONE,
+                    ),
+                ],
+            ] {
+                let CascadeOutcome::RankedSet(ranked) =
+                    cascade_property_open_world(declarations, "color")
+                else {
+                    return Err(format!(
+                        "tie evidence fabricated a definite winner for generated key {key_index}"
+                    ));
+                };
+                assert_eq!(ranked[0].id, "stronger");
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn open_world_module_provenance_remains_below_source_order() -> Result<(), String> {
+    let earlier_with_stronger_provenance = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        1,
+    );
+    let later_with_weaker_provenance = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        normalized_layer_rank(false, LayerOrdinal::new(0)),
+        1,
+        Specificity::ZERO,
+        2,
+    );
+
+    let (winner, _) = select_open_world_cascade_winner(
+        [
+            (
+                "earlier",
+                (
+                    earlier_with_stronger_provenance,
+                    OpenWorldTieEvidence::new(ModuleRank::new(u32::MAX, u32::MAX, u32::MAX)),
+                ),
+            ),
+            (
+                "later",
+                (later_with_weaker_provenance, OpenWorldTieEvidence::NONE),
+            ),
+        ],
+        |(_, ranked)| *ranked,
+    )
+    .ok_or_else(|| "the fixture always contains two candidates".to_string())?;
+    assert_eq!(
+        winner.0, "later",
+        "reversion: promoting module provenance above CascadeKey::Ord makes the earlier candidate win"
+    );
+    Ok(())
+}
+
+#[test]
+fn open_world_selector_matches_the_hand_written_axis_order() -> Result<(), String> {
+    let mut candidates = Vec::new();
+    for level in [CascadeLevel::AuthorNormal, CascadeLevel::AuthorImportant] {
+        for layer_ordinal in [0, 1] {
+            for scope_proximity in [1, 3] {
+                for specificity in [Specificity::ZERO, Specificity::new(0, 1, 0)] {
+                    for source_order in [1, 2] {
+                        for module_rank in [ModuleRank::ZERO, ModuleRank::new(1, 0, 0)] {
+                            candidates.push((
+                                CascadeKey::new(
+                                    level,
+                                    normalized_layer_rank(false, LayerOrdinal::new(layer_ordinal)),
+                                    scope_proximity,
+                                    specificity,
+                                    source_order,
+                                ),
+                                OpenWorldTieEvidence::new(module_rank),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (left_index, left) in candidates.iter().copied().enumerate() {
+        for (right_index, right) in candidates.iter().copied().enumerate() {
+            if left_index == right_index {
+                continue;
+            }
+
+            // This test-only tuple is projected from CSS Cascading and Inheritance
+            // Level 6 section 2.1, Cascade Sorting Order (W3C Working Draft,
+            // 6 September 2024): specificity precedes scoping proximity. Module
+            // provenance is Omena's post-key tie-break, not a specification axis.
+            let oracle_key = |(key, evidence): (CascadeKey, OpenWorldTieEvidence)| {
+                (
+                    key.level,
+                    key.layer_rank.get(),
+                    key.specificity.ids,
+                    key.specificity.classes,
+                    key.specificity.elements,
+                    Reverse(key.scope_proximity),
+                    key.source_order,
+                    evidence.module_rank.distance_priority,
+                    evidence.module_rank.import_order_priority,
+                    evidence.module_rank.file_order_priority,
+                )
+            };
+            let expected = if oracle_key(left) > oracle_key(right) {
+                "left"
+            } else {
+                "right"
+            };
+            let (selected, _) = select_open_world_cascade_winner(
+                [("left", left), ("right", right)],
+                |(_, ranked)| *ranked,
+            )
+            .ok_or_else(|| "the enumerated fixture always contains two candidates".to_string())?;
+
+            let outcome = cascade_property_open_world(
+                [
+                    declaration_with_tie_evidence("left", "red", left.0, left.1),
+                    declaration_with_tie_evidence("right", "blue", right.0, right.1),
+                ],
+                "color",
+            );
+            let ranked = match outcome {
+                CascadeOutcome::Definite {
+                    winner,
+                    also_considered,
+                    ..
+                } => std::iter::once(winner)
+                    .chain(also_considered)
+                    .collect::<Vec<_>>(),
+                CascadeOutcome::RankedSet(ranked) => ranked,
+                other => {
+                    return Err(format!(
+                        "two matching declarations must be ranked, got {other:?}"
+                    ));
+                }
+            };
+
+            assert_eq!(
+                selected.0, expected,
+                "open-world selector disagreed for pair ({left_index}, {right_index})"
+            );
+            assert_eq!(
+                ranked[0].id, expected,
+                "cascade_property_open_world disagreed for pair ({left_index}, {right_index})"
+            );
+        }
+    }
+    Ok(())
 }
 
 #[test]
@@ -541,10 +1079,10 @@ fn cascade_margin_schema_is_substrate_only_until_calibrated() {
         vec![
             "level",
             "layerRank",
-            "scopeProximity",
             "specificityIds",
             "specificityClasses",
             "specificityElements",
+            "scopeProximity",
             "sourceOrder",
         ]
     );
@@ -574,6 +1112,7 @@ fn computes_values_through_var_substitution() {
         custom_property_env: env,
         parent_computed_value: Some(CascadeValue::Literal("blue".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     assert_eq!(result.product, "omena-cascade.computed-value");
@@ -594,6 +1133,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("purple".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(inherited.status, ComputedCascadeValueStatusV0::Inherited);
     assert_eq!(inherited.value, CascadeValue::Literal("purple".to_string()));
@@ -605,6 +1145,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("0.5".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(initial.status, ComputedCascadeValueStatusV0::Initial);
     assert_eq!(initial.value, CascadeValue::Literal("1".to_string()));
@@ -621,6 +1162,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("green".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(
         unset_inherited.status,
@@ -642,6 +1184,7 @@ fn resolves_inheritance_initial_and_unset_keywords() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("0.5".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(unset_initial.status, ComputedCascadeValueStatusV0::Initial);
     assert_eq!(unset_initial.value, CascadeValue::Literal("1".to_string()));
@@ -719,6 +1262,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
         registered_custom_property: Some(registration(false, BTreeMap::new())),
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(initial.status, ComputedCascadeValueStatusV0::Initial);
     assert_eq!(initial.value, CascadeValue::Literal("8px".to_string()));
@@ -730,6 +1274,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
         registered_custom_property: Some(registration(true, BTreeMap::new())),
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(inherited.status, ComputedCascadeValueStatusV0::Inherited);
     assert_eq!(inherited.value, CascadeValue::Literal("16px".to_string()));
@@ -752,6 +1297,7 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
                 CascadeRegisteredValueVerdictV0::Unmatched,
             )]),
         )),
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(
         invalid.status,
@@ -779,9 +1325,178 @@ fn registered_custom_properties_drive_inheritance_initial_values_and_syntax_fall
                 CascadeRegisteredValueVerdictV0::Matched,
             )]),
         )),
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(valid.status, ComputedCascadeValueStatusV0::Resolved);
     assert_eq!(valid.value, CascadeValue::Literal("12px".to_string()));
+}
+
+#[test]
+fn standard_property_syntax_unmatched_uses_iacvt_fallback() {
+    let declaration_id = "invalid-color";
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            declaration_id,
+            "color",
+            CascadeValue::Literal("definitely-not-a-color".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            declaration_id.to_string(),
+            CascadeStandardValueVerdictV0::Unmatched,
+        )]),
+    });
+
+    // The grammar-owning caller emits Unmatched for this definite invalid
+    // literal. Removing or relabeling that verdict observes Resolved instead.
+    assert_eq!(
+        result.status,
+        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+    );
+    assert!(result.invalid_at_computed_value_time);
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"standardPropertySyntaxUnmatched")
+    );
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"invalidAtComputedValueTimeFallsBackAsUnset")
+    );
+}
+
+#[test]
+fn standard_property_syntax_unknown_is_typed_indeterminate() {
+    let declaration_id = "unknown-color";
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            declaration_id,
+            "color",
+            CascadeValue::Literal("future-color-function(1)".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            declaration_id.to_string(),
+            CascadeStandardValueVerdictV0::Unknown,
+        )]),
+    });
+
+    // NotValidatable is a live caller output for unsupported grammar forms.
+    // Mapping it to Matched makes both the status and typed reason differ.
+    assert_eq!(result.status, ComputedCascadeValueStatusV0::Indeterminate);
+    assert_eq!(
+        result.indeterminate_reason,
+        Some(ComputedCascadeIndeterminateReasonV0::StandardPropertySyntaxIndeterminate)
+    );
+}
+
+#[test]
+fn standard_property_syntax_unknown_defers_across_var_substitution() {
+    let declaration_id = "variable-color";
+    let mut custom_property_env = CustomPropertyEnv::new();
+    custom_property_env.insert(
+        "--tone".to_string(),
+        CascadeValue::Literal("red".to_string()),
+    );
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            declaration_id,
+            "color",
+            CascadeValue::Var {
+                name: "--tone".to_string(),
+                fallback: None,
+            },
+            1,
+        )],
+        custom_property_env,
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            declaration_id.to_string(),
+            CascadeStandardValueVerdictV0::Unknown,
+        )]),
+    });
+
+    assert_eq!(result.status, ComputedCascadeValueStatusV0::Resolved);
+    assert_eq!(result.value, CascadeValue::Literal("red".to_string()));
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"standardPropertySyntaxDeferredByVarReference")
+    );
+}
+
+#[test]
+fn missing_standard_property_verdict_is_explicitly_unavailable() {
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            "unchecked-color",
+            "color",
+            CascadeValue::Literal("!!! not-a-color 42px };drop".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
+    });
+
+    // Callers can omit a declaration id. The result may proceed for backward
+    // compatibility, but it must not claim that a grammar match was observed.
+    assert!(
+        result
+            .derivation_steps
+            .contains(&"standardPropertySyntaxVerdictUnavailable")
+    );
+    assert!(
+        !result
+            .derivation_steps
+            .contains(&"standardPropertySyntaxMatched")
+    );
+}
+
+#[test]
+fn iacvt_fallback_preserves_its_indeterminate_reason_separately() {
+    let declaration_id = "invalid-future-property";
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "future-property".to_string(),
+        declarations: vec![property_declaration(
+            declaration_id,
+            "future-property",
+            CascadeValue::Literal("invalid".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            declaration_id.to_string(),
+            CascadeStandardValueVerdictV0::Unmatched,
+        )]),
+    });
+
+    // Unknown inheritance metadata is a live fallback state. Clearing the
+    // sibling reason at the IACVT choke point makes this assertion observe None.
+    assert_eq!(
+        result.status,
+        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+    );
+    assert_eq!(result.indeterminate_reason, None);
+    assert_eq!(
+        result.fallback_indeterminate_reason,
+        Some(ComputedCascadeIndeterminateReasonV0::PropertyInheritanceMetadataUnavailable)
+    );
 }
 
 #[test]
@@ -792,6 +1507,7 @@ fn unregistered_custom_property_keeps_the_inherited_computed_value_contract() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: Some(CascadeValue::Literal("16px".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     assert_eq!(result.status, ComputedCascadeValueStatusV0::Inherited);
@@ -837,6 +1553,7 @@ fn unknown_property_metadata_is_typed_as_indeterminate() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
     assert_eq!(result.status, ComputedCascadeValueStatusV0::Indeterminate);
     assert_eq!(result.value, CascadeValue::Indeterminate);
@@ -869,6 +1586,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     let unknown_initial_value = compute_cascade_computed_value(CascadeComputedValueInputV0 {
@@ -877,6 +1595,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     let unknown_declaration = property_declaration(
@@ -899,6 +1618,24 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
                 CascadeRegisteredValueVerdictV0::Unknown,
             )]),
         }),
+        standard_property_value_verdicts: BTreeMap::new(),
+    });
+
+    let unknown_standard_syntax = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: "color".to_string(),
+        declarations: vec![property_declaration(
+            "unknown-color",
+            "color",
+            CascadeValue::Literal("future-color-function(1)".to_string()),
+            1,
+        )],
+        custom_property_env: CustomPropertyEnv::new(),
+        parent_computed_value: None,
+        registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::from([(
+            "unknown-color".to_string(),
+            CascadeStandardValueVerdictV0::Unknown,
+        )]),
     });
 
     let inherited_from_indeterminate =
@@ -908,6 +1645,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
             custom_property_env: CustomPropertyEnv::new(),
             parent_computed_value: Some(CascadeValue::Indeterminate),
             registered_custom_property: None,
+            standard_property_value_verdicts: BTreeMap::new(),
         });
 
     let fixtures = [
@@ -915,6 +1653,7 @@ fn every_computed_value_indeterminate_reason_has_a_typed_fixture() {
         unknown_inheritance,
         unknown_initial_value,
         unknown_registered_syntax,
+        unknown_standard_syntax,
         inherited_from_indeterminate,
     ];
     for fixture in &fixtures {
@@ -960,6 +1699,7 @@ fn genuine_substitution_failure_survives_unknown_metadata_fallbacks() {
             custom_property_env: env,
             parent_computed_value: None,
             registered_custom_property: None,
+            standard_property_value_verdicts: BTreeMap::new(),
         });
 
         assert_eq!(
@@ -1005,6 +1745,7 @@ fn treats_guaranteed_invalid_var_substitution_as_iacvt_unset() {
         custom_property_env: env,
         parent_computed_value: Some(CascadeValue::Literal("canvas".to_string())),
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     assert_eq!(
@@ -1763,6 +2504,21 @@ fn parses_simple_selector_specificity() {
 }
 
 #[test]
+fn simple_selector_signature_uses_escape_aware_class_names() {
+    let signature = parse_simple_selector_signature(r".a\.b.카드");
+    assert!(
+        signature.is_some(),
+        "escape-aware class selector should parse"
+    );
+    if let Some(signature) = signature {
+        // Both class spellings are emitted directly by this selector; an ASCII or
+        // non-escape-aware extractor makes one of these assertions false.
+        assert!(signature.required_classes.contains(r"a\.b"));
+        assert!(signature.required_classes.contains("카드"));
+    }
+}
+
+#[test]
 fn where_pseudo_contributes_zero_specificity() {
     // RFC-0007-B B3: `:where(.box)` must parse (not drop the rule) and contribute
     // zero specificity, so a bare `.box` still beats it.
@@ -1988,6 +2744,7 @@ fn inexact_specificity_reaches_computed_value_as_indeterminate() {
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value: None,
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     assert_eq!(result.status, ComputedCascadeValueStatusV0::Indeterminate);
@@ -2574,10 +3331,13 @@ fn summarizes_custom_property_least_fixed_point() {
 }
 
 #[test]
-fn fuzz_seed_corpus_preserves_cascade_and_var_invariants() {
-    let report = run_cascade_fuzz_seed_corpus();
+fn generated_invariant_self_check_corpus_preserves_cascade_and_var_invariants() {
+    let report = run_generated_cascade_invariant_self_check_corpus();
 
-    assert_eq!(report.product, "omena-cascade.fuzz-seed-corpus");
+    assert_eq!(
+        report.product,
+        "omena-cascade.generated-invariant-self-check-corpus"
+    );
     assert_eq!(report.failed_count, 0);
     assert_eq!(report.passed_count, report.case_count);
     assert!(
@@ -2629,14 +3389,17 @@ fn summarizes_current_boundary_status() {
     );
     assert!(summary.ready_surfaces.contains(&"scopeFlattenProof"));
     assert!(summary.ready_surfaces.contains(&"layerFlattenProof"));
-    assert!(summary.ready_surfaces.contains(&"wptCascadeSeedCorpus"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"cascadeOrderingAxisSelfCheckCorpus")
+    );
     assert!(
         summary
             .ready_surfaces
             .contains(&"cascadeConformanceSeedCorpus")
     );
     assert!(!summary.not_ready_surfaces.contains(&"selectorMatchWitness"));
-    assert!(!summary.not_ready_surfaces.contains(&"wptCascadeCorpus"));
     assert!(summary.not_ready_surfaces.contains(&"fullWptCascadeCorpus"));
 }
 
@@ -2645,7 +3408,17 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
     let report = run_cascade_conformance_seed_corpus();
 
     assert_eq!(report.product, "omena-cascade.conformance-seed-corpus");
-    assert_eq!(report.case_count, 17);
+    assert_eq!(report.case_count, 39);
+    let important_origin_pin = report
+        .results
+        .iter()
+        .find(|result| result.name == "inline-important-outranks-author-important")
+        .map(|result| (result.actual_outcome, result.actual_winner_id.as_deref()));
+    // Element-attached declarations outrank style-rule declarations at equal importance.
+    assert_eq!(
+        important_origin_pin,
+        Some(("definite", Some("inline-important")))
+    );
     assert_eq!(report.passed_count, report.case_count);
     assert_eq!(report.failed_count, 0);
     assert!(report.results.iter().all(|result| result.passed));
@@ -2659,10 +3432,107 @@ fn seed_conformance_corpus_passes_current_cascade_model() {
 }
 
 #[test]
-fn wpt_cascade_seed_corpus_passes_current_cascade_model() {
-    let report = run_wpt_cascade_seed_corpus();
+fn conformance_corpus_counts_direction_conflicts() {
+    let conformance_report = run_cascade_conformance_seed_corpus();
+    let direction_conflicts = conformance_report
+        .results
+        .iter()
+        .filter(|result| {
+            result
+                .name
+                .starts_with("specificity-precedes-opposed-scope-")
+        })
+        .collect::<Vec<_>>();
+    let failures = direction_conflicts
+        .iter()
+        .filter(|result| !result.passed)
+        .collect::<Vec<_>>();
 
-    assert_eq!(report.product, "omena-cascade.wpt-cascade-seed-corpus");
+    for result in &failures {
+        eprintln!(
+            "direction_conflict_failure case={} expected_deciding_axis=specificity expected_winner={:?} actual_winner={:?}",
+            result.name, result.expected_winner_id, result.actual_winner_id
+        );
+    }
+    eprintln!(
+        "direction_conflict_count={} direction_conflict_failure_count={}",
+        direction_conflicts.len(),
+        failures.len()
+    );
+    assert_eq!(direction_conflicts.len(), 18);
+    assert_eq!(failures.len(), 0);
+}
+
+#[test]
+fn equal_specificity_proximity_sweep_remains_complement() {
+    let self_check_report = run_cascade_ordering_axis_self_check_corpus();
+    let equal_specificity_proximity_complement = self_check_report
+        .results
+        .iter()
+        .filter(|result| result.name.starts_with("self-check-scope-proximity-"))
+        .collect::<Vec<_>>();
+    let failure_count = equal_specificity_proximity_complement
+        .iter()
+        .filter(|result| !result.passed)
+        .count();
+
+    eprintln!(
+        "equal_specificity_proximity_complement_count={} equal_specificity_proximity_failure_count={failure_count}",
+        equal_specificity_proximity_complement.len(),
+    );
+    assert_eq!(equal_specificity_proximity_complement.len(), 56);
+    assert_eq!(failure_count, 0);
+}
+
+fn hand_written_cascade_winner(case_name: &str) -> Option<String> {
+    run_cascade_conformance_seed_corpus()
+        .results
+        .into_iter()
+        .find(|result| result.name == case_name)
+        .and_then(|result| result.passed.then_some(result.actual_winner_id))
+        .flatten()
+}
+
+#[test]
+fn normal_layer_order_control_remains_spec_aligned() {
+    assert_eq!(
+        hand_written_cascade_winner("layer-rank-beats-specificity-within-level").as_deref(),
+        Some("higher-layer")
+    );
+}
+
+#[test]
+fn important_layer_order_conformance_is_hand_written() {
+    assert_eq!(
+        hand_written_cascade_winner("important-layer-order-is-reversed").as_deref(),
+        Some("earlier-layer")
+    );
+}
+
+#[test]
+fn unlayered_normal_conformance_is_hand_written() {
+    assert_eq!(
+        hand_written_cascade_winner("unlayered-normal-outranks-layered-normal").as_deref(),
+        Some("unlayered")
+    );
+}
+
+#[test]
+fn unlayered_important_conformance_is_hand_written() {
+    assert_eq!(
+        hand_written_cascade_winner("layered-important-outranks-unlayered-important").as_deref(),
+        Some("layered")
+    );
+}
+
+#[test]
+fn ordering_axis_self_check_corpus_passes_current_cascade_model() {
+    let report = run_cascade_ordering_axis_self_check_corpus();
+
+    assert_eq!(
+        report.product,
+        "omena-cascade.ordering-axis-self-check-corpus"
+    );
     assert!(report.case_count >= 200);
     assert_eq!(report.passed_count, report.case_count);
     assert_eq!(report.failed_count, 0);

@@ -11,7 +11,7 @@ import { parseArgs } from "node:util";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const REPOSITORY_URL = "https://github.com/omenien/omena-css";
-const NODE_ENGINE = ">=22";
+const NODE_ENGINE = ">=26";
 
 const PACKAGE_SPECS = [
   {

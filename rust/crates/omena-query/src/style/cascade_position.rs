@@ -5,23 +5,25 @@ use omena_bridge::{OmenaBridgeParserRangeV0, StyleSemanticGraphSummaryV0};
 use omena_cascade::{
     CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue,
     ComputedCascadeValueStatusV0, CustomPropertyEnv, CustomPropertyLeastFixedPointEntryV0,
-    LayerRank, ModuleRank, Specificity, compute_cascade_computed_value,
-    summarize_custom_property_least_fixed_point,
+    LayerOrdinal, OpenWorldTieEvidence, Specificity, compute_cascade_computed_value,
+    normalized_layer_rank, summarize_custom_property_least_fixed_point,
 };
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 use omena_query_transform_runner::parse_static_css_cascade_value;
 use omena_semantic::DesignTokenRankedReferenceV0;
+use omena_syntax::ident::is_ascii_word_continue;
 
 use crate::{
     AbstractPropertyValueV0, CascadeContextV0, CascadeDimensionalRefinementBridgeV0,
     CascadeValueFamilyMemberV0, OmenaQueryAnalysisPrecisionV0, OmenaQueryAnalysisResultV0,
     OmenaQueryCascadeAtPositionV0, OmenaQueryEvaluationRuntimeSummaryV0,
-    RefinementPropertyPredicateV0, derive_cascade_restriction_maps_v0,
-    summarize_cascade_dimensional_refinement_bridge_v0, summarize_cascade_value_family_v0,
+    RefinementPropertyPredicateV0, derive_context_indexed_cascade_restriction_maps_v0,
+    summarize_cascade_dimensional_refinement_bridge_v0,
+    summarize_context_indexed_cascade_value_family_v0,
 };
 
 use super::{
-    byte_offset_for_parser_position, is_css_identifier_continue, parser_range_for_byte_span,
+    byte_offset_for_parser_position, parser_range_for_byte_span,
     summarize_omena_query_style_semantic_graph_from_source,
 };
 
@@ -77,6 +79,7 @@ fn cascade_at_position_analysis_result(
     )
 }
 
+#[allow(deprecated)]
 pub fn read_omena_query_cascade_at_position_with_categorical_evidence(
     style_path: &str,
     style_source: &str,
@@ -293,17 +296,18 @@ fn compute_referenced_declaration_cascade_value_seed(
             value: cascade_value,
             key: CascadeKey::new(
                 CascadeLevel::AuthorNormal,
-                LayerRank(0),
+                normalized_layer_rank(false, LayerOrdinal::new(0)),
                 0,
                 Specificity::ZERO,
-                ModuleRank::ZERO,
                 declaration.source_order.min(u32::MAX as usize) as u32,
             ),
+            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
             specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
         }],
         custom_property_env: custom_property_env.clone(),
         parent_computed_value: None,
         registered_custom_property: None,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     Some(ReferencedDeclarationComputedValueSeed {
@@ -354,8 +358,9 @@ fn summarize_query_cascade_refinement_evidence(
             pseudo_state: None,
         },
     }];
-    let restrictions = derive_cascade_restriction_maps_v0(members.as_slice());
-    let family = summarize_cascade_value_family_v0(reference_name, members, restrictions);
+    let restrictions = derive_context_indexed_cascade_restriction_maps_v0(members.as_slice());
+    let family =
+        summarize_context_indexed_cascade_value_family_v0(reference_name, members, restrictions);
     let predicate = RefinementPropertyPredicateV0::Not {
         predicate: Box::new(RefinementPropertyPredicateV0::ExactValue {
             property_name: reference_name.to_string(),
@@ -540,7 +545,7 @@ fn is_selector_name_boundary(source: &str, byte_offset: usize) -> bool {
     source[byte_offset..]
         .chars()
         .next()
-        .is_none_or(|ch| !is_css_identifier_continue(ch))
+        .is_none_or(|ch| !is_ascii_word_continue(ch))
 }
 
 fn parser_range_from_semantic_range(range: OmenaBridgeParserRangeV0) -> ParserRangeV0 {

@@ -14,7 +14,7 @@ use crate::types::{
     OmenaQueryEngineInputModuleAttributionV0, normalize_omena_query_style_path,
     resolve_omena_query_style_path_against_known,
 };
-use std::borrow::Cow;
+use omena_syntax::ident::ClassNameV0;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy)]
@@ -126,14 +126,14 @@ pub(super) fn merge_transform_context(
         );
     }
     if !context.class_name_rewrites.is_empty() {
-        merge_context_records_by_key(
+        merge_class_context_records_by_key(
             &mut merged.class_name_rewrites,
             &context.class_name_rewrites,
             |rewrite| rewrite.original_name.as_str(),
         );
     }
     if !context.css_module_composes_resolutions.is_empty() {
-        merge_context_records_by_key(
+        merge_class_context_records_by_key(
             &mut merged.css_module_composes_resolutions,
             &context.css_module_composes_resolutions,
             |resolution| resolution.local_class_name.as_str(),
@@ -202,65 +202,7 @@ fn normalize_reachable_class_name(name: &str) -> Option<&str> {
 }
 
 pub(super) fn css_identifier_names_match(left: &str, right: &str) -> bool {
-    left == right || decode_css_identifier_escapes(left) == decode_css_identifier_escapes(right)
-}
-
-pub(super) fn decode_css_identifier_escapes(text: &str) -> Cow<'_, str> {
-    if !text.contains('\\') {
-        return Cow::Borrowed(text);
-    }
-
-    let mut output = String::with_capacity(text.len());
-    let mut index = 0usize;
-    while index < text.len() {
-        let Some(ch) = text[index..].chars().next() else {
-            break;
-        };
-        if ch != '\\' {
-            output.push(ch);
-            index += ch.len_utf8();
-            continue;
-        }
-
-        index += ch.len_utf8();
-        let Some(next) = text[index..].chars().next() else {
-            output.push('\\');
-            break;
-        };
-        if next.is_ascii_hexdigit() {
-            let hex_start = index;
-            let mut hex_end = index;
-            let mut digit_count = 0usize;
-            while hex_end < text.len() && digit_count < 6 {
-                let Some(candidate) = text[hex_end..].chars().next() else {
-                    break;
-                };
-                if !candidate.is_ascii_hexdigit() {
-                    break;
-                }
-                hex_end += candidate.len_utf8();
-                digit_count += 1;
-            }
-            if let Some(decoded) = u32::from_str_radix(&text[hex_start..hex_end], 16)
-                .ok()
-                .and_then(char::from_u32)
-            {
-                output.push(decoded);
-            }
-            index = hex_end;
-            if let Some(terminator) = text[index..].chars().next()
-                && terminator.is_ascii_whitespace()
-            {
-                index += terminator.len_utf8();
-            }
-            continue;
-        }
-
-        output.push(next);
-        index += next.len_utf8();
-    }
-
-    Cow::Owned(output)
+    ClassNameV0::new(left).same_as(&ClassNameV0::new(right))
 }
 
 pub(super) fn merge_target_options_transform_context(
@@ -289,6 +231,24 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
     styles: impl IntoIterator<Item = (&'a str, &'a str)>,
     resolution_context: TransformResolutionContext<'_>,
 ) -> OmenaQueryTransformContextFromSourcesSummaryV0 {
+    derive_omena_query_transform_context_from_sources_with_resolution_context(
+        target_style_path,
+        styles,
+        resolution_context,
+    )
+    .summary
+}
+
+pub(super) struct OmenaQueryTransformContextFromSourcesDerivationV0 {
+    pub(super) summary: OmenaQueryTransformContextFromSourcesSummaryV0,
+    pub(super) style_fact_entries: Vec<OmenaQueryStyleFactEntry>,
+}
+
+pub(super) fn derive_omena_query_transform_context_from_sources_with_resolution_context<'a>(
+    target_style_path: &str,
+    styles: impl IntoIterator<Item = (&'a str, &'a str)>,
+    resolution_context: TransformResolutionContext<'_>,
+) -> OmenaQueryTransformContextFromSourcesDerivationV0 {
     let style_sources = styles.into_iter().collect::<Vec<_>>();
     let style_count = style_sources.len();
     let style_fact_entries = collect_omena_query_style_fact_entries(style_sources.as_slice());
@@ -300,9 +260,16 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
         .iter()
         .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
-    let target_entry = style_fact_entries
+    let known_style_paths = available_style_paths
         .iter()
-        .find(|entry| entry.style_path == target_style_path);
+        .map(|path| normalize_omena_query_style_path(path))
+        .collect::<Vec<_>>();
+    let canonical_target_style_path =
+        resolve_omena_query_style_path_against_known(target_style_path, &known_style_paths)
+            .unwrap_or_else(|| normalize_omena_query_style_path(target_style_path));
+    let target_entry = style_fact_entries.iter().find(|entry| {
+        normalize_omena_query_style_path(entry.style_path.as_str()) == canonical_target_style_path
+    });
 
     let mut context = TransformExecutionContextV0::default();
 
@@ -365,7 +332,7 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
         );
     }
 
-    OmenaQueryTransformContextFromSourcesSummaryV0 {
+    let summary = OmenaQueryTransformContextFromSourcesSummaryV0 {
         schema_version: "0",
         product: "omena-query.transform-context",
         target_style_path: target_style_path.to_string(),
@@ -389,6 +356,10 @@ pub(super) fn summarize_omena_query_transform_context_from_sources_with_resoluti
             "designTokenRouteProducer",
             "transitiveImportInlineProducer",
         ],
+    };
+    OmenaQueryTransformContextFromSourcesDerivationV0 {
+        summary,
+        style_fact_entries,
     }
 }
 
@@ -672,4 +643,264 @@ where
         }
     }
     target.sort_by(|left, right| key(left).cmp(key(right)));
+}
+
+fn merge_class_context_records_by_key<T, F>(target: &mut Vec<T>, overrides: &[T], key: F)
+where
+    T: Clone,
+    F: Fn(&T) -> &str,
+{
+    // Precedence follows the caller's module partition and then source declaration order.
+    // An explicit record replaces a derived record under the same canonical class key;
+    // raw spelling order never selects a winner. A future module-qualified compound key
+    // adds module identity to this normalized name component rather than decoding it again.
+    let mut merged = Vec::with_capacity(target.len() + overrides.len());
+    append_class_context_records_first_witness(&mut merged, overrides, &key);
+    append_class_context_records_first_witness(&mut merged, target, &key);
+    *target = merged;
+}
+
+fn append_class_context_records_first_witness<T, F>(target: &mut Vec<T>, candidates: &[T], key: &F)
+where
+    T: Clone,
+    F: Fn(&T) -> &str,
+{
+    let occupied_canonical_keys = target
+        .iter()
+        .map(|existing| ClassNameV0::new(key(existing)).canonical_key())
+        .collect::<BTreeSet<_>>();
+    let mut admitted_raw_keys = target
+        .iter()
+        .map(|existing| key(existing).to_string())
+        .collect::<BTreeSet<_>>();
+    for item in candidates {
+        let item_key = ClassNameV0::new(key(item));
+        if !occupied_canonical_keys.contains(&item_key.canonical_key())
+            && admitted_raw_keys.insert(key(item).to_string())
+        {
+            target.push(item.clone());
+        }
+    }
+}
+
+pub(super) fn merge_module_css_module_contexts_first_witness(
+    left: &[TransformModuleCssModuleContextV0],
+    right: &[TransformModuleCssModuleContextV0],
+) -> Vec<TransformModuleCssModuleContextV0> {
+    let mut merged = Vec::<TransformModuleCssModuleContextV0>::new();
+    for context in left.iter().chain(right) {
+        let target = if let Some(index) = merged
+            .iter()
+            .position(|candidate| candidate.module_instance == context.module_instance)
+        {
+            &mut merged[index]
+        } else {
+            let index = merged.len();
+            merged.push(TransformModuleCssModuleContextV0::new(
+                context.module_instance.clone(),
+            ));
+            &mut merged[index]
+        };
+        append_class_context_records_first_witness(
+            &mut target.class_name_rewrites,
+            context.class_name_rewrites.as_slice(),
+            &|rewrite: &TransformClassNameRewriteV0| rewrite.original_name.as_str(),
+        );
+        append_class_context_records_first_witness(
+            &mut target.composes_resolutions,
+            context.composes_resolutions.as_slice(),
+            &|resolution: &TransformCssModuleComposesResolutionV0| {
+                resolution.local_class_name.as_str()
+            },
+        );
+    }
+    merged
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omena_query_transform_runner::{
+        TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
+        TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformImportInlineV0,
+    };
+
+    fn class_rewrite(original_name: &str, rewritten_name: &str) -> TransformClassNameRewriteV0 {
+        TransformClassNameRewriteV0 {
+            original_name: original_name.to_string(),
+            rewritten_name: rewritten_name.to_string(),
+        }
+    }
+
+    #[test]
+    fn explicit_class_rewrite_precedence_ignores_escape_spelling_order() {
+        for (derived_name, explicit_name) in [(r#"\E9 tat"#, "état"), ("état", r#"\E9 tat"#)] {
+            let derived = TransformExecutionContextV0 {
+                class_name_rewrites: vec![class_rewrite(derived_name, "_derived")],
+                css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
+                    local_class_name: derived_name.to_string(),
+                    exported_class_names: vec!["derived".to_string()],
+                }],
+                ..TransformExecutionContextV0::default()
+            };
+            let explicit = TransformExecutionContextV0 {
+                class_name_rewrites: vec![class_rewrite(explicit_name, "_explicit")],
+                css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
+                    local_class_name: explicit_name.to_string(),
+                    exported_class_names: vec!["explicit".to_string()],
+                }],
+                ..TransformExecutionContextV0::default()
+            };
+
+            let merged = merge_transform_context(derived, &explicit);
+
+            assert_eq!(
+                merged.class_name_rewrites,
+                vec![class_rewrite(explicit_name, "_explicit")]
+            );
+            assert_eq!(
+                merged.css_module_composes_resolutions,
+                vec![TransformCssModuleComposesResolutionV0 {
+                    local_class_name: explicit_name.to_string(),
+                    exported_class_names: vec!["explicit".to_string()],
+                }]
+            );
+            println!(
+                "canonical-merge derived={derived_name:?} explicit={explicit_name:?} winner={:?}",
+                merged.class_name_rewrites
+            );
+        }
+    }
+
+    #[test]
+    fn class_merge_normalization_does_not_apply_to_other_context_keys() {
+        let derived = TransformExecutionContextV0 {
+            import_inlines: vec![TransformImportInlineV0 {
+                import_source: r#"\E9 tat"#.to_string(),
+                replacement_css: "derived".to_string(),
+            }],
+            css_module_value_resolutions: vec![TransformCssModuleValueResolutionV0 {
+                local_name: r#"\E9 tat"#.to_string(),
+                resolved_value: "derived".to_string(),
+            }],
+            design_token_routes: vec![TransformDesignTokenRouteV0 {
+                token_name: r#"\E9 tat"#.to_string(),
+                routed_value: "derived".to_string(),
+            }],
+            ..TransformExecutionContextV0::default()
+        };
+        let explicit = TransformExecutionContextV0 {
+            import_inlines: vec![TransformImportInlineV0 {
+                import_source: "état".to_string(),
+                replacement_css: "explicit".to_string(),
+            }],
+            css_module_value_resolutions: vec![TransformCssModuleValueResolutionV0 {
+                local_name: "état".to_string(),
+                resolved_value: "explicit".to_string(),
+            }],
+            design_token_routes: vec![TransformDesignTokenRouteV0 {
+                token_name: "état".to_string(),
+                routed_value: "explicit".to_string(),
+            }],
+            ..TransformExecutionContextV0::default()
+        };
+
+        let merged = merge_transform_context(derived, &explicit);
+
+        assert_eq!(merged.import_inlines.len(), 2);
+        assert_eq!(merged.css_module_value_resolutions.len(), 2);
+        assert_eq!(merged.design_token_routes.len(), 2);
+    }
+
+    fn module_context(
+        module: &str,
+        original_name: &str,
+        rewritten_name: &str,
+    ) -> TransformModuleCssModuleContextV0 {
+        TransformModuleCssModuleContextV0::new(omena_parser::ModuleInstanceKeyV0::unconfigured(
+            omena_parser::ModuleIdV0::new(module),
+        ))
+        .with_class_name_rewrites(vec![class_rewrite(original_name, rewritten_name)])
+    }
+
+    fn merge_module_css_module_contexts_last_witness(
+        left: &[TransformModuleCssModuleContextV0],
+        right: &[TransformModuleCssModuleContextV0],
+    ) -> Vec<TransformModuleCssModuleContextV0> {
+        merge_module_css_module_contexts_first_witness(right, left)
+    }
+
+    #[test]
+    fn module_context_explicit_precedence_ignores_escape_spelling_order() {
+        for (derived_name, explicit_name) in [(r#"\E9 tat"#, "état"), ("état", r#"\E9 tat"#)] {
+            let explicit = vec![module_context(
+                "src/app.module.css",
+                explicit_name,
+                "_explicit",
+            )];
+            let derived = vec![module_context(
+                "src/app.module.css",
+                derived_name,
+                "_derived",
+            )];
+
+            let merged = merge_module_css_module_contexts_first_witness(&explicit, &derived);
+
+            // FALSIFIER: raw-spelling equality admits both records, or a
+            // derived-first merge selects `_derived`. Both states are emitted
+            // by these two module-context inputs, so the arm is not structural.
+            assert_eq!(
+                merged,
+                vec![module_context(
+                    "src/app.module.css",
+                    explicit_name,
+                    "_explicit",
+                )]
+            );
+            println!(
+                "module-canonical-merge derived={derived_name:?} explicit={explicit_name:?} winner={:?}",
+                merged[0].class_name_rewrites
+            );
+        }
+    }
+
+    #[test]
+    fn module_context_first_witness_merge_obeys_left_regular_band_laws() {
+        let u = vec![
+            module_context("src/a.module.css", "shared", "_u"),
+            module_context("src/b.module.css", "own", "_b"),
+        ];
+        let v = vec![
+            module_context("src/a.module.css", "shared", "_v"),
+            module_context("src/c.module.css", "own", "_c"),
+        ];
+        let w = vec![module_context("src/a.module.css", "third", "_w")];
+
+        let uv = merge_module_css_module_contexts_first_witness(&u, &v);
+        assert_eq!(
+            merge_module_css_module_contexts_first_witness(&uv, &w),
+            merge_module_css_module_contexts_first_witness(
+                &u,
+                &merge_module_css_module_contexts_first_witness(&v, &w),
+            ),
+            "associativity"
+        );
+        assert_eq!(
+            merge_module_css_module_contexts_first_witness(&u, &u),
+            u,
+            "idempotence"
+        );
+        assert_eq!(
+            merge_module_css_module_contexts_first_witness(&uv, &u),
+            uv,
+            "left-regular-band absorption"
+        );
+
+        let last_wins_uv = merge_module_css_module_contexts_last_witness(&u, &v);
+        let last_wins_uv_then_u = merge_module_css_module_contexts_last_witness(&last_wins_uv, &u);
+        assert_ne!(
+            last_wins_uv_then_u, last_wins_uv,
+            "a last-wins variant must fail the absorption control"
+        );
+    }
 }

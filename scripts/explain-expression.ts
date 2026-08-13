@@ -1,4 +1,5 @@
 import path from "node:path";
+import type { Utf16CodeUnitLengthV2Json } from "../server/engine-core-ts/src/contracts/engine-v2-output-idl.generated";
 import { explainExpressionAtLocationAsync } from "../server/engine-host-node/src/explain-expression";
 import { shutdownEngineShadowRunnerDaemon } from "../server/engine-host-node/src/selected-query-backend";
 
@@ -129,8 +130,8 @@ function formatExplainResult(
       readonly valueConstraintKind?: string;
       readonly valuePrefix?: string;
       readonly valueSuffix?: string;
-      readonly valueMinLen?: number;
-      readonly valueMaxLen?: number;
+      readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+      readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
       readonly valueCharMust?: string;
       readonly valueCharMay?: string;
       readonly valueMayIncludeOtherChars?: boolean;

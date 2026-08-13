@@ -14,6 +14,8 @@ mod diagnostics_sass;
 mod diagnostics_style;
 #[path = "tests/disk_cache.rs"]
 mod disk_cache;
+#[path = "tests/escaped_class_navigation.rs"]
+mod escaped_class_navigation;
 #[path = "tests/explain_hover_trace.rs"]
 mod explain_hover_trace;
 #[path = "tests/explain_request.rs"]

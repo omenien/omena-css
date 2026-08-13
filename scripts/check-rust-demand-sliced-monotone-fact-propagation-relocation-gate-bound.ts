@@ -11,8 +11,11 @@ const slopeReportPath =
   slopeReportEnv ??
   join(mkdtempSync(join(tmpdir(), "omena-slope-report-")), "report.json");
 const approvalReportPath =
-  process.env.OMENA_STREAMING_IFDS_RELOCATION_APPROVAL_REPORT ??
-  join(mkdtempSync(join(tmpdir(), "omena-relocation-approval-")), "report.json");
+  process.env.OMENA_DEMAND_SLICED_MONOTONE_FACT_PROPAGATION_RELOCATION_APPROVAL_REPORT ??
+  join(
+    mkdtempSync(join(tmpdir(), "omena-demand-sliced-fact-propagation-approval-")),
+    "report.json",
+  );
 
 if (slopeReportEnv && !existsSync(slopeReportPath)) {
   throw new Error(`expected slope report from previous benchmark step: ${slopeReportPath}`);
@@ -32,7 +35,7 @@ if (!slopeReportOverride && !slopeReportEnv) {
 const gateArgs = [
   "--import",
   "tsx",
-  "./scripts/check-rust-omena-streaming-ifds-relocation-gate.ts",
+  "./scripts/check-rust-demand-sliced-monotone-fact-propagation-relocation-gate.ts",
   "--slope-report-path",
   slopeReportPath,
   "--require-slope",

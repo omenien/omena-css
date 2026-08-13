@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-cascade.key-axis-order",
+  "axisOrder": [
+    "level",
+    "layerRank",
+    "specificityIds",
+    "specificityClasses",
+    "specificityElements",
+    "scopeProximity",
+    "sourceOrder"
+  ],
+  "rankedSetPrefixAxisVocabulary": ["level", "layerRank"]
+}

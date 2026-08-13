@@ -26,7 +26,7 @@ const platformRoot = path.join(pkgDir, "npm");
 const MAIN_PACKAGE_NAME = "@omena/napi";
 const REPOSITORY_URL = "https://github.com/omenien/omena-css";
 const DESCRIPTION = "Node native bindings for the Omena CSS parser and transform checks";
-const NODE_ENGINE = ">=22";
+const NODE_ENGINE = ">=26";
 
 const PLATFORM_PACKAGES = [
   {

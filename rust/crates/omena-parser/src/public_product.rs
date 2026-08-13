@@ -15,6 +15,7 @@ use crate::{
     summarize_omena_parser_parity_lite,
 };
 use cstree::text::TextRange;
+use omena_syntax::ident::class_selector_names;
 use serde::Serialize;
 
 mod style_blocks;
@@ -2033,40 +2034,16 @@ fn class_names_in_selector(
     source: &str,
     full_header: &str,
 ) -> Vec<(String, ParserByteSpanV0)> {
-    let mut names = Vec::new();
-    let mut index = 0usize;
-    let mut paren_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let bytes = selector.as_bytes();
-    while index < bytes.len() {
-        match bytes[index] {
-            b'(' => paren_depth += 1,
-            b')' => paren_depth = paren_depth.saturating_sub(1),
-            b'[' => bracket_depth += 1,
-            b']' => bracket_depth = bracket_depth.saturating_sub(1),
-            b'.' if paren_depth == 0 && bracket_depth == 0 => {
-                let start = index + 1;
-                let mut end = start;
-                while end < bytes.len()
-                    && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-'))
-                {
-                    end += 1;
-                }
-                if end > start {
-                    let name = selector[start..end].to_string();
-                    names.push((
-                        name.clone(),
-                        source_span_for_header_piece(source, full_header, &name),
-                    ));
-                }
-                index = end;
-                continue;
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-    names
+    class_selector_names(selector)
+        .into_iter()
+        .map(|entry| {
+            let name = entry.name.into_raw();
+            (
+                name.clone(),
+                source_span_for_header_piece(source, full_header, &name),
+            )
+        })
+        .collect()
 }
 
 fn selector_names_for_offset(blocks: &[StyleBlock], offset: usize) -> Vec<String> {

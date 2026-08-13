@@ -4,7 +4,10 @@
 //! for summaries and parser fact collection.
 
 use cstree::text::{TextRange, TextSize};
-use omena_syntax::{StyleDialect, SyntaxKind};
+use omena_syntax::{
+    StyleDialect, SyntaxKind,
+    ident::{is_css_name_continue, is_css_name_start},
+};
 
 use crate::{
     DialectExtension, ParseError, ParseErrorCode, TemplatePlaceholderMode,
@@ -78,12 +81,11 @@ pub(crate) fn public_token_text(text: &str) -> String {
 }
 
 pub(crate) fn is_name_start(char: char) -> bool {
-    let char = css_syntax_preprocessed_char(char);
-    char == '_' || char == '-' || char.is_alphabetic() || !char.is_ascii()
+    is_css_name_start(css_syntax_preprocessed_char(char))
 }
 
 pub(crate) fn is_name_continue(char: char) -> bool {
-    is_name_start(char) || char.is_ascii_digit()
+    is_css_name_continue(css_syntax_preprocessed_char(char))
 }
 
 pub(crate) fn is_non_printable_code_point(char: char) -> bool {

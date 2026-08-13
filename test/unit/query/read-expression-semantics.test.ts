@@ -173,6 +173,70 @@ describe("readExpressionSemantics", () => {
     );
     expect(semantics.selectorNames).toEqual(["btn-primary-active", "btn-secondary-active"]);
   });
+
+  it("keeps the two automaton preconstruction cutoff causes distinct for top values", () => {
+    const sourceFile = ts.createSourceFile(
+      "/fake/ws/src/Button.tsx",
+      "cx(size);",
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const expression: ClassExpressionHIR = {
+      kind: "symbolRef",
+      id: "expr:symbol",
+      origin: "cxCall",
+      rawReference: "size",
+      rootName: "size",
+      pathSegments: [],
+      range: rangeForToken(sourceFile, "size"),
+      scssModulePath: SCSS_PATH,
+    };
+    const cases = [
+      {
+        provenance: "automatonLanguageCardinalityLimit" as const,
+        operation: "automatonLanguageCardinalityWidening",
+        reason: "the finite language exceeded the preconstruction cardinality limit",
+      },
+      {
+        provenance: "automatonMaterializedByteLimit" as const,
+        operation: "automatonMaterializedByteWidening",
+        reason: "the finite language exceeded the preconstruction materialized-byte limit",
+      },
+    ];
+
+    for (const cutoff of cases) {
+      const semantics = readExpressionSemantics(
+        {
+          expression,
+          sourceFile,
+          styleDocument: styleDocument(["button"]),
+        },
+        {
+          typeResolver: new FakeTypeResolver(),
+          filePath: "/fake/ws/src/Button.tsx",
+          workspaceRoot: "/fake/ws",
+          resolveSymbolValues: () => ({
+            abstractValue: { kind: "top", provenance: cutoff.provenance },
+            valueCertainty: "possible",
+            reason: "flowBranch",
+          }),
+        },
+      );
+
+      expect(semantics.valueDomainKind).toBe("top");
+      expect(semantics.valueDomainProvenanceTree).toMatchObject({
+        valueKind: "top",
+        valueProvenance: cutoff.provenance,
+        root: {
+          operation: cutoff.operation,
+          resultKind: "top",
+          resultProvenance: cutoff.provenance,
+          reason: cutoff.reason,
+        },
+      });
+    }
+  });
 });
 
 function rangeForToken(sourceFile: ts.SourceFile, token: string) {

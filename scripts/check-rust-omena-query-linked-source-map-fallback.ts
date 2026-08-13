@@ -18,11 +18,17 @@ interface AmbiguityFixtureV0 {
 const sourcePath = "rust/crates/omena-query/src/style/transform.rs";
 const fixturePath =
   "rust/crates/omena-query/tests/fixtures/linked-source-map-fallback-ambiguity.json";
+const reasonFixturePath =
+  "rust/crates/omena-query/tests/fixtures/linked-source-map-fallback-reasons.json";
 const source = readFileSync(sourcePath, "utf8");
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as AmbiguityFixtureV0;
+const expectedReasons = JSON.parse(readFileSync(reasonFixturePath, "utf8")) as Readonly<
+  Record<string, string>
+>;
 
 const injectMatchCount = process.argv.includes("--inject-ambiguous-match-count");
 const injectReasonDrift = process.argv.includes("--inject-fallback-reason-drift");
+const injectReasonValueDrift = process.argv.includes("--inject-fallback-reason-value-drift");
 const injectSegmentDrift = process.argv.includes("--inject-fallback-segment-drift");
 
 const matchingWindowStarts = injectMatchCount ? [0] : fixture.matchingWindowStarts;
@@ -32,6 +38,18 @@ assert.deepEqual(matchingWindowStarts, [0, fixture.generatedTokens.length]);
 const reasonEntries = [
   ...source.matchAll(/const\s+(LINKED_FALLBACK_[A-Z_]+_REASON):\s*&str\s*=\s*"([^"]+)";/gu),
 ].map((match) => ({ authority: match[1], value: match[2] }));
+const observedReasons = Object.fromEntries(
+  reasonEntries.map(({ authority, value }) => [authority, value]),
+);
+if (injectReasonValueDrift) {
+  observedReasons.LINKED_FALLBACK_SOURCE_START_REASON = "injected reason drift";
+}
+// FALSIFIER: id=linked-source-map-reason-values class=accounting via=--inject-fallback-reason-value-drift producer=can-fail entry=authored-reason-vocabulary owner=linked-source-map-fallback
+assert.deepEqual(
+  observedReasons,
+  expectedReasons,
+  "fallback reason values must match the authored compatibility vocabulary",
+);
 const reasonAuthority = Object.fromEntries(
   reasonEntries.map(({ authority, value }) => [
     authority,

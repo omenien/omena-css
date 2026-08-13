@@ -4,9 +4,25 @@
 //! narrower checker handoff: it invokes `omena-checker`, verifies that emitted
 //! rule codes are registered, and returns a gate summary alongside evaluations.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
+
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility diagnostic code owned by omena-query-checker-orchestrator maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0: &str =
+    "rgFlowRelevantOperator";
+pub const MULTISCALE_COMPLEXITY_HEURISTIC_DIAGNOSTIC_CODE_V0: &str =
+    "multiscaleComplexityHeuristicRelevantOperator";
+
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy orchestrator wire fixture owned by omena-query-checker-orchestrator maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[cfg(test)]
+const LEGACY_MULTISCALE_GATE_EXPECTED_WIRE_V0: &str = r#"{"product":"omena-query-checker-orchestrator.rg-flow-gate","enabledRuleNames":["rg-flow-relevant-operator"],"emittedRuleNames":["rg-flow-relevant-operator"],"readySurfaces":["checkerRuleRegistry","rgFlowCouplingSpectrum","rgFlowOptInDeepAnalysisHintScope","registeredRuleDiagnosticGate","queryDiagnosticHandoff"],"evaluationMessage":"RG-flow opt-in deep-analysis hint found a relevant coupling operator; review custom-property fixed-point sensitivity. This is not a default product decision mechanism."}"#;
 
 pub use omena_abstract_value::{AbstractClassValueV0, top_class_value};
 use omena_abstract_value::{
@@ -15,34 +31,82 @@ use omena_abstract_value::{
     external_string_type_facts_from_abstract_class_value,
 };
 pub use omena_checker::{
-    CanonicalSelector, CategoricalCascadeEvidenceV0,
-    OmenaCheckerActiveCustomPropertyRegistrationV0, OmenaCheckerCascadeDeclarationInputV0,
-    OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
-    OmenaCheckerCategoricalEvaluationV0, OmenaCheckerCategoricalInputV0,
-    OmenaCheckerCategoricalPrimitiveRolePairInputV0, OmenaCheckerCategoricalRoleMappingInputV0,
-    OmenaCheckerCustomPropertyInputV0, OmenaCheckerCustomPropertyRegistrationInputV0,
-    OmenaCheckerMTierEvaluationV0, OmenaCheckerReplicaEnsembleEvaluationV0,
+    CanonicalSelector, CascadeStandardValueVerdictV0, CategoricalCascadeEvidenceV0,
+    MULTISCALE_COMPLEXITY_HEURISTIC_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
+    MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0,
+    MULTISCALE_COMPLEXITY_HEURISTIC_PRODUCT_SURFACE_V0,
+    OmenaCheckerActiveCustomPropertyRegistrationV0, OmenaCheckerCanonicalRuleCodeV0,
+    OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
+    OmenaCheckerCascadeInputV0, OmenaCheckerCategoricalEvaluationV0,
+    OmenaCheckerCategoricalInputV0, OmenaCheckerCategoricalPrimitiveRolePairInputV0,
+    OmenaCheckerCategoricalRoleMappingInputV0, OmenaCheckerCustomPropertyInputV0,
+    OmenaCheckerCustomPropertyRegistrationInputV0, OmenaCheckerMTierEvaluationV0,
+    OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0,
+    OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0,
+    OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0,
+    OmenaCheckerMultiscaleComplexityHeuristicInputV0, OmenaCheckerReplicaEnsembleEvaluationV0,
     OmenaCheckerReplicaEnsembleInputV0, OmenaCheckerReplicaEnsembleReportInputV0,
-    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
-    OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0,
-    OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0,
+    OmenaCheckerRuleCodeV0, OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0,
     OmenaCheckerSmtLayerInversionDeclarationInputV0, OmenaCheckerSmtLayerInversionInputV0,
     OmenaCheckerSmtLayerInversionObligationInputV0, OmenaCheckerSmtObligationInputV0,
-    RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, RG_FLOW_MECHANISM_SCOPE_V0,
-    RG_FLOW_PRODUCT_SURFACE_V0, active_omena_checker_custom_property_registrations_v0,
-    checker_cascade_primitive_role_catalog_v0,
-    checker_categorical_cascade_evidence_for_exercised_primitives_v0,
-    checker_categorical_cascade_evidence_v0,
+    active_omena_checker_custom_property_registrations_v0,
+    checker_cascade_implementation_role_catalog_v0,
+    checker_cascade_section_evidence_for_exercised_primitives_v0,
+    checker_cascade_section_evidence_v0,
 };
 use omena_checker::{
     OmenaCheckerDynamicClassDomainInputV0, active_omena_checker_smt_backend_kind_name_v0,
     active_omena_checker_smt_product_scope_v0, active_omena_checker_smt_solver_backed_v0,
-    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_categorical_rules,
-    evaluate_omena_checker_m_tier_rules, evaluate_omena_checker_replica_ensemble_rules,
-    evaluate_omena_checker_rg_flow_rules, evaluate_omena_checker_smt_layer_inversion_rules,
-    evaluate_omena_checker_smt_rules, list_omena_checker_m_tier_rule_code_names,
+    evaluate_omena_checker_cascade_rules,
+    evaluate_omena_checker_cascade_rules_with_standard_property_value_verdicts,
+    evaluate_omena_checker_categorical_rules, evaluate_omena_checker_m_tier_rules,
+    evaluate_omena_checker_multiscale_complexity_heuristic_rules,
+    evaluate_omena_checker_replica_ensemble_rules,
+    evaluate_omena_checker_smt_layer_inversion_rules, evaluate_omena_checker_smt_rules,
+    list_omena_checker_canonical_rule_code_names, list_omena_checker_m_tier_rule_code_names,
     list_omena_checker_rule_code_names,
 };
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the OmenaCheckerMultiscaleComplexityHeuristic* surface; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use omena_checker::{
+    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
+    OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0,
+};
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the MULTISCALE_COMPLEXITY_HEURISTIC_* constants; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use omena_checker::{
+    RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0, RG_FLOW_MECHANISM_SCOPE_V0,
+    RG_FLOW_PRODUCT_SURFACE_V0,
+};
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use the checker_cascade_section_* and checker_cascade_implementation_role_catalog_v0 surfaces; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use omena_checker::{
+    checker_cascade_primitive_role_catalog_v0,
+    checker_categorical_cascade_evidence_for_exercised_primitives_v0,
+    checker_categorical_cascade_evidence_v0,
+};
+pub use omena_checker::{standard_property_value_verdict_v0, standard_property_value_verdicts_v0};
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-product-hints maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use omena_product_hints::compatibility_key_from_cascade_section_key_v0;
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_key; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub use omena_product_hints::site;
 pub use omena_product_hints::{
     CATEGORICAL_FEATURE_GATE_V0, CATEGORICAL_LAYER_MARKER_V0, CATEGORICAL_SCHEMA_VERSION_V0,
     DesignSystemEdgeKindCountV0, DesignSystemInvariantSummaryV0, DesignSystemModelV0,
@@ -54,7 +118,7 @@ pub use omena_product_hints::{
     REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0,
     REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0,
     ReplicaSnapshotV0, ReportOptionsV0, ReportRecommendation,
-    build_cross_file_inconsistency_report, site,
+    build_cross_file_inconsistency_report, cascade_section_key,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -92,8 +156,10 @@ pub fn gate_omena_query_checker_product_diagnostic_code_v0(
 ) -> OmenaQueryCheckerProductDiagnosticGateV0 {
     let checker_rule_code_name =
         query_product_diagnostic_checker_rule_code_name_v0(product_diagnostic_code);
-    let checker_rule_registered = checker_rule_code_name
-        .is_some_and(|rule_code| list_omena_checker_rule_code_names().contains(&rule_code));
+    let checker_rule_registered = checker_rule_code_name.is_some_and(|rule_code| {
+        list_omena_checker_rule_code_names().contains(&rule_code)
+            || list_omena_checker_canonical_rule_code_names().contains(&rule_code)
+    });
     let checker_owned = checker_rule_code_name.is_some();
     let provenance = if checker_rule_registered {
         vec![
@@ -116,6 +182,7 @@ pub fn gate_omena_query_checker_product_diagnostic_code_v0(
     }
 }
 
+#[allow(deprecated)]
 pub fn query_product_diagnostic_checker_rule_code_name_v0(
     product_diagnostic_code: &str,
 ) -> Option<&'static str> {
@@ -154,7 +221,12 @@ pub fn query_product_diagnostic_checker_rule_code_name_v0(
             Some(OmenaCheckerRuleCodeV0::DesignerIntentInconsistency.as_str())
         }
         "cascadeSmtViolation" => Some(OmenaCheckerRuleCodeV0::CascadeSMTViolation.as_str()),
-        "rgFlowRelevantOperator" => Some(OmenaCheckerRuleCodeV0::RgFlowRelevantOperator.as_str()),
+        MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0 => {
+            Some(OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator.as_str())
+        }
+        MULTISCALE_COMPLEXITY_HEURISTIC_DIAGNOSTIC_CODE_V0 => Some(
+            OmenaCheckerCanonicalRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator.as_str(),
+        ),
         "categoricalCascadeEvidenceInconsistency" => {
             Some(OmenaCheckerRuleCodeV0::CategoricalCascadeEvidenceInconsistency.as_str())
         }
@@ -168,11 +240,28 @@ pub fn query_product_diagnostic_checker_rule_code_name_v0(
 pub fn run_omena_query_checker_cascade_gate_v0(
     input: OmenaCheckerCascadeInputV0,
 ) -> OmenaQueryCheckerCascadeGateV0 {
+    finish_omena_query_checker_cascade_gate(evaluate_omena_checker_cascade_rules(input))
+}
+
+pub fn run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0(
+    input: OmenaCheckerCascadeInputV0,
+    standard_property_value_verdicts: &BTreeMap<String, CascadeStandardValueVerdictV0>,
+) -> OmenaQueryCheckerCascadeGateV0 {
+    finish_omena_query_checker_cascade_gate(
+        evaluate_omena_checker_cascade_rules_with_standard_property_value_verdicts(
+            input,
+            standard_property_value_verdicts,
+        ),
+    )
+}
+
+fn finish_omena_query_checker_cascade_gate(
+    evaluations: Vec<OmenaCheckerCascadeEvaluationV0>,
+) -> OmenaQueryCheckerCascadeGateV0 {
     let registered_rules = list_omena_checker_rule_code_names()
         .into_iter()
         .collect::<BTreeSet<_>>();
     let enabled_rule_names = cascade_gate_enabled_rule_names_v0();
-    let evaluations = evaluate_omena_checker_cascade_rules(input);
     let emitted_rule_names = evaluations
         .iter()
         .map(|evaluation| evaluation.rule_code_name)
@@ -226,7 +315,7 @@ fn cascade_gate_enabled_rule_names_v0() -> Vec<&'static str> {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OmenaQueryCheckerRgFlowGateV0 {
+pub struct OmenaQueryCheckerMultiscaleComplexityHeuristicGateV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub orchestrator_kind: &'static str,
@@ -239,25 +328,27 @@ pub struct OmenaQueryCheckerRgFlowGateV0 {
     pub unregistered_rule_count: usize,
     pub evaluation_count: usize,
     pub enforcement_passed: bool,
-    pub evaluations: Vec<OmenaCheckerRgFlowEvaluationV0>,
+    pub evaluations: Vec<OmenaCheckerMultiscaleComplexityHeuristicEvaluationV0>,
     pub ready_surfaces: Vec<&'static str>,
 }
 
-/// Invoke the real RG-flow coupling-Jacobian-spectrum evaluator and gate its
+/// Invoke the real multiscale-complexity-heuristic coupling-Jacobian-spectrum evaluator and gate its
 /// emitted rule codes against the registered checker rule registry.
 ///
 /// The coupling flows are produced by the caller from real parsed stylesheet
 /// structure; this gate runs the genuine `estimate_coupling_jacobian_spectrum_v0`
-/// mechanism inside `evaluate_omena_checker_rg_flow_rules` and only surfaces
-/// `rg-flow-relevant-operator` diagnostics when the spectral radius exceeds one.
-pub fn run_omena_query_checker_rg_flow_gate_v0(
-    input: OmenaCheckerRgFlowInputV0,
-) -> OmenaQueryCheckerRgFlowGateV0 {
-    let registered_rules = list_omena_checker_rule_code_names()
+/// mechanism inside `evaluate_omena_checker_multiscale_complexity_heuristic_rules` and only surfaces
+/// `multiscale-complexity-heuristic-relevant-operator` diagnostics when the spectral radius exceeds one.
+pub fn run_omena_query_checker_multiscale_complexity_heuristic_gate_v0(
+    input: OmenaCheckerMultiscaleComplexityHeuristicInputV0,
+) -> OmenaQueryCheckerMultiscaleComplexityHeuristicGateV0 {
+    let registered_rules = list_omena_checker_canonical_rule_code_names()
         .into_iter()
         .collect::<BTreeSet<_>>();
-    let enabled_rule_names = vec![OmenaCheckerRuleCodeV0::RgFlowRelevantOperator.as_str()];
-    let evaluations = evaluate_omena_checker_rg_flow_rules(input);
+    let enabled_rule_names = vec![
+        OmenaCheckerCanonicalRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator.as_str(),
+    ];
+    let evaluations = evaluate_omena_checker_multiscale_complexity_heuristic_rules(input);
     let emitted_rule_names = evaluations
         .iter()
         .map(|evaluation| evaluation.rule_code_name)
@@ -269,13 +360,14 @@ pub fn run_omena_query_checker_rg_flow_gate_v0(
         .filter(|rule| !registered_rules.contains(**rule))
         .count();
 
-    OmenaQueryCheckerRgFlowGateV0 {
+    OmenaQueryCheckerMultiscaleComplexityHeuristicGateV0 {
         schema_version: "0",
-        product: "omena-query-checker-orchestrator.rg-flow-gate",
+        product: "omena-query-checker-orchestrator.multiscale-complexity-heuristic-gate",
         orchestrator_kind: "registered-rule-diagnostic-gate",
-        mechanism_scope: RG_FLOW_MECHANISM_SCOPE_V0,
-        product_surface: RG_FLOW_PRODUCT_SURFACE_V0,
-        default_product_decision_mechanism: RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
+        mechanism_scope: MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0,
+        product_surface: MULTISCALE_COMPLEXITY_HEURISTIC_PRODUCT_SURFACE_V0,
+        default_product_decision_mechanism:
+            MULTISCALE_COMPLEXITY_HEURISTIC_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
         enabled_rule_names,
         emitted_rule_names,
         registered_rule_count: registered_rules.len(),
@@ -285,8 +377,8 @@ pub fn run_omena_query_checker_rg_flow_gate_v0(
         evaluations,
         ready_surfaces: vec![
             "checkerRuleRegistry",
-            "rgFlowCouplingSpectrum",
-            "rgFlowOptInDeepAnalysisHintScope",
+            "multiscaleComplexityHeuristicCouplingSpectrum",
+            "multiscaleComplexityHeuristicOptInDeepAnalysisHintScope",
             "registeredRuleDiagnosticGate",
             "queryDiagnosticHandoff",
         ],
@@ -661,6 +753,7 @@ pub fn run_omena_query_checker_k_limited_flow_m_tier_gate_v0(
                 nodes: vec![ClassValueFlowNodeV0 {
                     id: "exit".to_string(),
                     predecessors: Vec::new(),
+                    boundary_effect: omena_abstract_value::ClassBoundaryEffectV0::UnknownBoundary,
                     transfer: ClassValueFlowTransferV0::AssignFacts(
                         external_string_type_facts_from_abstract_class_value(&context.exit_value),
                     ),
@@ -738,6 +831,145 @@ pub fn run_omena_query_checker_k_limited_flow_m_tier_gate_v0(
             "queryDiagnosticHandoff",
         ],
     }
+}
+
+/// Pre-1.0 nominal compatibility gate.
+/// Owner: `omena-query-checker-orchestrator` maintainers. Removal condition:
+/// not before 1.0, after downstream migration and zero audited non-compat uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaQueryCheckerMultiscaleComplexityHeuristicGateV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+#[allow(deprecated)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCheckerRgFlowGateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub orchestrator_kind: &'static str,
+    pub mechanism_scope: &'static str,
+    pub product_surface: &'static str,
+    pub default_product_decision_mechanism: bool,
+    pub enabled_rule_names: Vec<&'static str>,
+    pub emitted_rule_names: Vec<&'static str>,
+    pub registered_rule_count: usize,
+    pub unregistered_rule_count: usize,
+    pub evaluation_count: usize,
+    pub enforcement_passed: bool,
+    pub evaluations: Vec<OmenaCheckerRgFlowEvaluationV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility wire adapter owned by omena-query-checker-orchestrator maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn run_omena_query_checker_multiscale_complexity_heuristic_compatibility_gate_v0(
+    input: OmenaCheckerMultiscaleComplexityHeuristicInputV0,
+) -> OmenaQueryCheckerRgFlowGateV0 {
+    run_omena_query_checker_rg_flow_gate_v0(OmenaCheckerRgFlowInputV0 {
+        flows: input
+            .flows
+            .into_iter()
+            .map(|flow| OmenaCheckerRgFlowCouplingInputV0 {
+                workspace_path: flow.workspace_path,
+                before: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+                    k_env: flow.before.k_env,
+                    k_decl: flow.before.k_decl,
+                    k_cycle: flow.before.k_cycle,
+                    k_dirty: flow.before.k_dirty,
+                },
+                after: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+                    k_env: flow.after.k_env,
+                    k_decl: flow.after.k_decl,
+                    k_cycle: flow.after.k_cycle,
+                    k_dirty: flow.after.k_dirty,
+                },
+            })
+            .collect(),
+    })
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use run_omena_query_checker_multiscale_complexity_heuristic_gate_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn run_omena_query_checker_rg_flow_gate_v0(
+    input: OmenaCheckerRgFlowInputV0,
+) -> OmenaQueryCheckerRgFlowGateV0 {
+    let registered_rules = list_omena_checker_rule_code_names()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let enabled_rule_names = vec![OmenaCheckerRuleCodeV0::RgFlowRelevantOperator.as_str()];
+    let evaluations = omena_checker::evaluate_omena_checker_rg_flow_rules(input);
+    let emitted_rule_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let unregistered_rule_count = emitted_rule_names
+        .iter()
+        .filter(|rule| !registered_rules.contains(**rule))
+        .count();
+
+    OmenaQueryCheckerRgFlowGateV0 {
+        schema_version: "0",
+        product: "omena-query-checker-orchestrator.rg-flow-gate",
+        orchestrator_kind: "registered-rule-diagnostic-gate",
+        mechanism_scope: RG_FLOW_MECHANISM_SCOPE_V0,
+        product_surface: RG_FLOW_PRODUCT_SURFACE_V0,
+        default_product_decision_mechanism: RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
+        enabled_rule_names,
+        emitted_rule_names,
+        registered_rule_count: registered_rules.len(),
+        unregistered_rule_count,
+        evaluation_count: evaluations.len(),
+        enforcement_passed: unregistered_rule_count == 0,
+        evaluations,
+        ready_surfaces: vec![
+            "checkerRuleRegistry",
+            "rgFlowCouplingSpectrum",
+            "rgFlowOptInDeepAnalysisHintScope",
+            "registeredRuleDiagnosticGate",
+            "queryDiagnosticHandoff",
+        ],
+    }
+}
+
+#[cfg(test)]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy orchestrator wire fixture adapter owned by omena-query-checker-orchestrator maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn compatibility_multiscale_gate_serialized_projection_v0() -> Result<String, serde_json::Error> {
+    let gate = run_omena_query_checker_rg_flow_gate_v0(OmenaCheckerRgFlowInputV0 {
+        flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
+            workspace_path: "workspace://divergent-token-graph".to_string(),
+            before: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+                k_env: 2,
+                k_decl: 2,
+                k_cycle: 0,
+                k_dirty: 0,
+            },
+            after: OmenaCheckerRgFlowCouplingSpaceInputV0 {
+                k_env: 2,
+                k_decl: 2,
+                k_cycle: 2,
+                k_dirty: 0,
+            },
+        }],
+    });
+    serde_json::to_string(&serde_json::json!({
+        "product": gate.product,
+        "enabledRuleNames": gate.enabled_rule_names,
+        "emittedRuleNames": gate.emitted_rule_names,
+        "readySurfaces": gate.ready_surfaces,
+        "evaluationMessage": gate.evaluations[0].message,
+    }))
 }
 
 #[cfg(test)]
@@ -895,6 +1127,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn product_diagnostic_gate_maps_query_diagnostics_to_registered_checker_rules() {
         let product_codes = [
             "missingModule",
@@ -920,7 +1153,7 @@ mod tests {
             "unspecifiedCascadeTie",
             "designerIntentInconsistency",
             "cascadeSmtViolation",
-            "rgFlowRelevantOperator",
+            MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0,
             "categoricalCascadeEvidenceInconsistency",
             "replicaEnsembleInconsistency",
         ];
@@ -944,33 +1177,45 @@ mod tests {
     }
 
     #[test]
-    fn rg_flow_gate_emits_relevant_operator_for_divergent_coupling_flow() {
-        let gate = run_omena_query_checker_rg_flow_gate_v0(OmenaCheckerRgFlowInputV0 {
-            flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
-                workspace_path: "workspace://divergent-token-graph".to_string(),
-                before: rg_flow_coupling(2, 2, 0, 0),
-                after: rg_flow_coupling(2, 2, 2, 0),
-            }],
-        });
+    fn multiscale_complexity_heuristic_gate_emits_relevant_operator_for_divergent_coupling_flow() {
+        let gate = run_omena_query_checker_multiscale_complexity_heuristic_gate_v0(
+            OmenaCheckerMultiscaleComplexityHeuristicInputV0 {
+                flows: vec![OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0 {
+                    workspace_path: "workspace://divergent-token-graph".to_string(),
+                    before: multiscale_complexity_heuristic_coupling(2, 2, 0, 0),
+                    after: multiscale_complexity_heuristic_coupling(2, 2, 2, 0),
+                }],
+            },
+        );
 
         assert!(gate.enforcement_passed);
         assert_eq!(gate.unregistered_rule_count, 0);
         assert_eq!(gate.evaluation_count, 1);
-        assert_eq!(gate.mechanism_scope, RG_FLOW_MECHANISM_SCOPE_V0);
-        assert_eq!(gate.product_surface, RG_FLOW_PRODUCT_SURFACE_V0);
+        assert_eq!(
+            gate.product,
+            "omena-query-checker-orchestrator.multiscale-complexity-heuristic-gate"
+        );
+        assert_eq!(
+            gate.mechanism_scope,
+            MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0
+        );
+        assert_eq!(
+            gate.product_surface,
+            MULTISCALE_COMPLEXITY_HEURISTIC_PRODUCT_SURFACE_V0
+        );
         assert!(!gate.default_product_decision_mechanism);
         assert!(
             gate.ready_surfaces
-                .contains(&"rgFlowOptInDeepAnalysisHintScope")
+                .contains(&"multiscaleComplexityHeuristicOptInDeepAnalysisHintScope")
         );
         assert!(
             gate.emitted_rule_names
-                .contains(&"rg-flow-relevant-operator")
+                .contains(&"multiscale-complexity-heuristic-relevant-operator")
         );
         assert!(gate.evaluations[0].spectral_radius > 1.0);
         assert_eq!(
             gate.evaluations[0].mechanism_scope,
-            RG_FLOW_MECHANISM_SCOPE_V0
+            MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0
         );
         assert_eq!(
             gate.evaluations[0].mechanism_products,
@@ -979,14 +1224,25 @@ mod tests {
     }
 
     #[test]
-    fn rg_flow_gate_records_clear_suppression_for_settled_coupling_flow() {
-        let gate = run_omena_query_checker_rg_flow_gate_v0(OmenaCheckerRgFlowInputV0 {
-            flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
-                workspace_path: "workspace://settled-token-graph".to_string(),
-                before: rg_flow_coupling(2, 2, 0, 0),
-                after: rg_flow_coupling(2, 2, 0, 0),
-            }],
-        });
+    #[allow(deprecated)]
+    fn compatibility_multiscale_gate_preserves_exact_serialized_projection()
+    -> Result<(), serde_json::Error> {
+        let actual = compatibility_multiscale_gate_serialized_projection_v0()?;
+        assert_eq!(actual, LEGACY_MULTISCALE_GATE_EXPECTED_WIRE_V0);
+        Ok(())
+    }
+
+    #[test]
+    fn multiscale_complexity_heuristic_gate_records_clear_suppression_for_settled_coupling_flow() {
+        let gate = run_omena_query_checker_multiscale_complexity_heuristic_gate_v0(
+            OmenaCheckerMultiscaleComplexityHeuristicInputV0 {
+                flows: vec![OmenaCheckerMultiscaleComplexityHeuristicCouplingInputV0 {
+                    workspace_path: "workspace://settled-token-graph".to_string(),
+                    before: multiscale_complexity_heuristic_coupling(2, 2, 0, 0),
+                    after: multiscale_complexity_heuristic_coupling(2, 2, 0, 0),
+                }],
+            },
+        );
 
         assert!(gate.enforcement_passed);
         assert_eq!(gate.evaluation_count, 0);
@@ -1005,7 +1261,7 @@ mod tests {
                 primitive_role_pairs: vec![
                     OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
                         primitive_name: "cascade_property".to_string(),
-                        categorical_role: "cosheaf colimit witness".to_string(),
+                        categorical_role: "cascade section aggregation witness".to_string(),
                     },
                     OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
                         primitive_name: "prove_layer_flatten_candidate".to_string(),
@@ -1041,7 +1297,7 @@ mod tests {
                 primitive_role_pairs: vec![
                     OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
                         primitive_name: "cascade_property".to_string(),
-                        categorical_role: "cosheaf colimit witness".to_string(),
+                        categorical_role: "cascade section aggregation witness".to_string(),
                     },
                     OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
                         primitive_name: "prove_layer_flatten_candidate".to_string(),
@@ -1049,7 +1305,7 @@ mod tests {
                     },
                     OmenaCheckerCategoricalPrimitiveRolePairInputV0 {
                         primitive_name: "evaluate_static_supports_condition".to_string(),
-                        categorical_role: "site-axis decidability witness".to_string(),
+                        categorical_role: "cascade-section-axis decidability witness".to_string(),
                     },
                 ],
             }],
@@ -1358,6 +1614,35 @@ mod tests {
         );
     }
 
+    #[test]
+    fn k_limited_flow_caller_round_trips_unicode_shape_through_external_utf16_facts() {
+        let exit_value =
+            omena_abstract_value::prefix_suffix_class_value("카드-", "-활성", None, None);
+        let contexts = vec![OmenaQueryCheckerKLimitedFlowContextV0 {
+            callee_key: "classForState".to_string(),
+            call_site_stack: vec!["Card.tsx:className".to_string()],
+            exit_value: exit_value.clone(),
+        }];
+        let selector_universe = vec!["카드-활성".to_string(), "카드-큰-활성".to_string()];
+        let exported =
+            omena_abstract_value::external_string_type_facts_from_abstract_class_value(&exit_value);
+        assert_eq!(exported.min_len, Some(5));
+        assert!(selector_universe.iter().all(|selector| {
+            omena_abstract_value::external_utf16_code_unit_length(selector)
+                >= exported.min_len.unwrap_or_default()
+        }));
+
+        let gate =
+            run_omena_query_checker_k_limited_flow_m_tier_gate_v0(&contexts, &selector_universe, 1);
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(gate.contexts.len(), 1);
+        assert_eq!(
+            gate.contexts[0].exit_value, exit_value,
+            "the real checker caller must retain the byte-internal Unicode shape after its UTF-16 boundary lowering"
+        );
+    }
+
     fn context_ending_with<'a>(
         gate: &'a OmenaQueryCheckerKLimitedFlowMTierGateV0,
         suffix: &str,
@@ -1380,13 +1665,13 @@ mod tests {
         var_references: &'a [&'a str],
     }
 
-    fn rg_flow_coupling(
+    fn multiscale_complexity_heuristic_coupling(
         k_env: usize,
         k_decl: usize,
         k_cycle: usize,
         k_dirty: usize,
-    ) -> OmenaCheckerRgFlowCouplingSpaceInputV0 {
-        OmenaCheckerRgFlowCouplingSpaceInputV0 {
+    ) -> OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
+        OmenaCheckerMultiscaleComplexityHeuristicCouplingSpaceInputV0 {
             k_env,
             k_decl,
             k_cycle,

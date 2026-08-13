@@ -31,6 +31,7 @@ interface ExternalCorpusDifferentialManifestV1 {
   readonly mode: string;
   readonly selectionCriteria: OssCorpusFarmSelectionCriteriaV0;
   readonly lintCensus: RealWorkspaceLintCensusManifestV0;
+  readonly rankedSetLossCensus: RankedSetLossCensusManifestV0;
   readonly fixtures: readonly ExternalCorpusEnvelopeV1[];
 }
 
@@ -42,6 +43,95 @@ interface RealWorkspaceLintCensusManifestV0 {
   readonly perSourceFileBudgetSeconds: number;
   readonly perStyleFileBudgetSeconds: number;
   readonly githubActionsTimeBudgetMultiplier: number;
+}
+
+interface RankedSetLossCensusManifestV0 {
+  readonly reportPath: string;
+}
+
+type CascadeRankedSetLossClassV0 =
+  | "axisWinnerInexact"
+  | "noStrictAxisDominance"
+  | "singleInexactCandidate"
+  | {
+      readonly recoverableAxisDominant: { readonly axis: string };
+    };
+
+interface CascadeKeyAxisOrderArtifactV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-cascade.key-axis-order";
+  readonly axisOrder: readonly string[];
+  readonly rankedSetPrefixAxisVocabulary: readonly string[];
+}
+
+interface CascadeRankedSetLossCandidateV0 {
+  readonly declarationId: string;
+  readonly level:
+    | "userAgentNormal"
+    | "userNormal"
+    | "authorNormal"
+    | "inlineNormal"
+    | "animation"
+    | "authorImportant"
+    | "inlineImportant"
+    | "userImportant"
+    | "userAgentImportant"
+    | "transition";
+  readonly layerRank: number;
+  readonly scopeProximity: number;
+  readonly specificityExactness: "exact" | "inexact";
+}
+
+interface CascadeRankedSetLossCaptureRowV0 {
+  readonly function: "cascadeProperty" | "cascadePropertyOpenWorld";
+  readonly invocationSite: string;
+  readonly sourcePath: string;
+  readonly property: string;
+  readonly declarationIds: readonly string[];
+  readonly candidateCount: number;
+  readonly candidates: readonly CascadeRankedSetLossCandidateV0[];
+  readonly classification: CascadeRankedSetLossClassV0;
+}
+
+interface CascadeRankedSetLossCaptureV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-cascade.ranked-set-loss-capture";
+  readonly captureStateRecoveryCount: number;
+  readonly measurementInvocationCount: number;
+  readonly rankedSetOutcomeCount: number;
+  readonly multiCandidateInexactRankedSetCount: number;
+  readonly rows: readonly CascadeRankedSetLossCaptureRowV0[];
+}
+
+interface RankedSetLossCensusArtifactV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-diff-test.ranked-set-loss-census";
+  readonly generatedBy: "scripts/oss-corpus-farm.ts";
+  readonly corpusManifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json";
+  readonly limitations: readonly string[];
+  readonly entryCount: number;
+  readonly captureStateRecoveryCount: number;
+  readonly measurementInvocationCount: number;
+  readonly rankedSetOutcomeCount: number;
+  readonly multiCandidateInexactRankedSetCount: number;
+  readonly layerSyntaxFileCount: number;
+  readonly rowCount: number;
+  readonly recoverableCount: number;
+  readonly undecidableCount: number;
+  readonly classCounts: Readonly<Record<string, number>>;
+  readonly functionPopulations: Readonly<Record<string, number>>;
+  readonly invocationSitePopulations: Readonly<Record<string, number>>;
+  readonly decidingAxisCounts: Readonly<Record<string, number>>;
+  readonly unclassifiedInvocationCount: number;
+  readonly entries: readonly {
+    readonly id: string;
+    readonly captureStateRecoveryCount: number;
+    readonly measurementInvocationCount: number;
+    readonly rankedSetOutcomeCount: number;
+    readonly multiCandidateInexactRankedSetCount: number;
+    readonly rowCount: number;
+    readonly rows: readonly CascadeRankedSetLossCaptureRowV0[];
+  }[];
 }
 
 interface OssCorpusFarmSelectionCriteriaV0 {
@@ -290,6 +380,11 @@ const farmRoot = path.join(repoRoot, "rust/crates/omena-diff-test/oss-corpus-far
 const manifestPath = path.join(farmRoot, "manifest.json");
 const baselinePath = path.join(farmRoot, "baselines.json");
 const reportPath = path.join(farmRoot, "report.json");
+const rankedSetLossCensusPath = path.join(farmRoot, "ranked-set-loss-census.json");
+const cascadeKeyAxisOrderPath = path.join(
+  repoRoot,
+  "rust/crates/omena-cascade/data/cascade-key-axis-order.json",
+);
 const regressionRoot = path.join(repoRoot, "rust/crates/omena-diff-test/regressions");
 const regressionManifestPath = path.join(regressionRoot, "manifest.json");
 const rawCaptureRoot = process.env.OMENA_OSS_CORPUS_CAPTURE_DIR
@@ -320,18 +415,43 @@ void (async () => {
   const manifest = readManifest();
   assertManifest(manifest);
 
-  if (args.has("--lint-census") || args.has("--write-lint-census")) {
-    const report = runRealWorkspaceLintCensus(manifest);
-    const reportPathForManifest = resolveFarmPath(manifest.lintCensus.reportPath);
+  if (args.has("--ranked-set-loss-census") || args.has("--write-ranked-set-loss-census")) {
+    const report = runRankedSetLossCensus(manifest);
     const rendered = `${JSON.stringify(report, null, 2)}\n`;
+    if (args.has("--write-ranked-set-loss-census")) {
+      writeFileSync(rankedSetLossCensusPath, rendered);
+    } else {
+      assert.ok(existsSync(rankedSetLossCensusPath), "ranked-set loss census must be committed");
+      assert.deepEqual(
+        JSON.parse(readFileSync(rankedSetLossCensusPath, "utf8")),
+        report,
+        "ranked-set loss census drifted; regenerate it with --write-ranked-set-loss-census",
+      );
+    }
+    process.stdout.write(rendered);
+    return;
+  }
+
+  if (args.has("--lint-census") || args.has("--write-lint-census")) {
+    const { lintReport, rankedSetLossReport } = runRealWorkspaceCensuses(manifest);
+    const reportPathForManifest = resolveFarmPath(manifest.lintCensus.reportPath);
+    const rendered = `${JSON.stringify(lintReport, null, 2)}\n`;
+    const rankedSetLossRendered = `${JSON.stringify(rankedSetLossReport, null, 2)}\n`;
     if (args.has("--write-lint-census")) {
       writeFileSync(reportPathForManifest, rendered);
+      writeFileSync(rankedSetLossCensusPath, rankedSetLossRendered);
     } else {
       assert.ok(existsSync(reportPathForManifest), "lint census report must be committed");
       assert.equal(
         readFileSync(reportPathForManifest, "utf8"),
         rendered,
         "real-workspace lint census report drifted; regenerate it with --write-lint-census",
+      );
+      assert.ok(existsSync(rankedSetLossCensusPath), "ranked-set loss census must be committed");
+      assert.deepEqual(
+        JSON.parse(readFileSync(rankedSetLossCensusPath, "utf8")),
+        rankedSetLossReport,
+        "ranked-set loss census drifted; regenerate it with --write-lint-census",
       );
     }
     process.stdout.write(rendered);
@@ -392,6 +512,7 @@ async function checkDeterministicProjection(workspaceRoot: string): Promise<void
 
 function runRealWorkspaceLintCensus(
   manifest: ExternalCorpusDifferentialManifestV1,
+  onRankedSetLossCapture?: (id: string, capture: CascadeRankedSetLossCaptureV0) => void,
 ): RealWorkspaceLintCensusReportV0 {
   assertWorkspaceLintScanShape();
   assertWorkspaceStyleDiagnosticsSharedWalkShape();
@@ -448,6 +569,7 @@ function runRealWorkspaceLintCensus(
       effectivePolicy.zeroBudgetClasses,
       manifest.lintCensus,
       omenaBinary,
+      onRankedSetLossCapture,
     );
   });
 
@@ -486,18 +608,203 @@ function runRealWorkspaceLintCensus(
   return report;
 }
 
+function runRankedSetLossCensus(
+  manifest: ExternalCorpusDifferentialManifestV1,
+): RankedSetLossCensusArtifactV0 {
+  return runRealWorkspaceCensuses(manifest).rankedSetLossReport;
+}
+
+function runRealWorkspaceCensuses(manifest: ExternalCorpusDifferentialManifestV1): {
+  readonly lintReport: RealWorkspaceLintCensusReportV0;
+  readonly rankedSetLossReport: RankedSetLossCensusArtifactV0;
+} {
+  const captures = new Map<string, CascadeRankedSetLossCaptureV0>();
+  const lintReport = runRealWorkspaceLintCensus(manifest, (id, capture) => {
+    assert.ok(!captures.has(id), `duplicate ranked-set loss capture for ${id}`);
+    captures.set(id, capture);
+  });
+  return {
+    lintReport,
+    rankedSetLossReport: buildRankedSetLossCensus(manifest, captures),
+  };
+}
+
+function buildRankedSetLossCensus(
+  manifest: ExternalCorpusDifferentialManifestV1,
+  captures: ReadonlyMap<string, CascadeRankedSetLossCaptureV0>,
+): RankedSetLossCensusArtifactV0 {
+  const localEntryIds = manifest.fixtures.filter(isLocalLintCensusEntry).map(entryId);
+  assert.deepEqual(
+    [...captures.keys()].sort((left, right) => left.localeCompare(right, "en")),
+    [...localEntryIds].sort((left, right) => left.localeCompare(right, "en")),
+    "ranked-set loss census must reuse every local lint-census entry",
+  );
+  const entries = localEntryIds.map((id) => {
+    const capture = captures.get(id);
+    assert.ok(capture, `${id} ranked-set loss capture is missing`);
+    assert.equal(capture.schemaVersion, "0");
+    assert.equal(capture.product, "omena-cascade.ranked-set-loss-capture");
+    return {
+      id,
+      captureStateRecoveryCount: capture.captureStateRecoveryCount,
+      measurementInvocationCount: capture.measurementInvocationCount,
+      rankedSetOutcomeCount: capture.rankedSetOutcomeCount,
+      multiCandidateInexactRankedSetCount: capture.multiCandidateInexactRankedSetCount,
+      rowCount: capture.rows.length,
+      rows: capture.rows,
+    };
+  });
+  const rows = entries.flatMap((entry) => entry.rows);
+  const measurementInvocationCount = sum(entries.map((entry) => entry.measurementInvocationCount));
+  const captureStateRecoveryCount = sum(entries.map((entry) => entry.captureStateRecoveryCount));
+  const rankedSetOutcomeCount = sum(entries.map((entry) => entry.rankedSetOutcomeCount));
+  const multiCandidateInexactRankedSetCount = sum(
+    entries.map((entry) => entry.multiCandidateInexactRankedSetCount),
+  );
+  const layerSyntaxFileCount = manifest.fixtures
+    .filter(isLocalLintCensusEntry)
+    .flatMap((entry) =>
+      listWorkspaceCorpusFiles(path.resolve(repoRoot, entry.source.workspacePath)),
+    )
+    .filter((filePath) => /\.(?:css|scss|sass|less)$/u.test(filePath))
+    .filter((filePath) => /@layer\b/u.test(readFileSync(filePath, "utf8"))).length;
+  const classCounts = initializedCounts([
+    "recoverableAxisDominant",
+    "axisWinnerInexact",
+    "noStrictAxisDominance",
+    "singleInexactCandidate",
+  ]);
+  const functionPopulations = initializedCounts(["cascadeProperty", "cascadePropertyOpenWorld"]);
+  const invocationSitePopulations = initializedCounts([
+    "queryRuntimeStateScenarioEvaluation",
+    "queryCascadeMarginForEvaluation",
+    "collectQueryReplicaEnsembleSiteOutcomes",
+    "computeCascadeComputedValue",
+    "transformWinnerEqualityFromCascadeOutcome",
+    "unclassified",
+  ]);
+  const cascadeKeyAxisOrder = readJson<CascadeKeyAxisOrderArtifactV0>(cascadeKeyAxisOrderPath);
+  assert.equal(cascadeKeyAxisOrder.schemaVersion, "0");
+  assert.equal(cascadeKeyAxisOrder.product, "omena-cascade.key-axis-order");
+  const decidingAxisCounts = initializedCounts(cascadeKeyAxisOrder.rankedSetPrefixAxisVocabulary);
+  for (const row of rows) {
+    classCounts[classificationName(row.classification)] += 1;
+    functionPopulations[row.function] = (functionPopulations[row.function] ?? 0) + 1;
+    invocationSitePopulations[row.invocationSite] =
+      (invocationSitePopulations[row.invocationSite] ?? 0) + 1;
+    if (typeof row.classification === "object") {
+      const decidingAxis = row.classification.recoverableAxisDominant.axis;
+      assert.ok(
+        Object.hasOwn(decidingAxisCounts, decidingAxis),
+        `ranked-set loss row uses an axis outside the emitted prefix vocabulary: ${decidingAxis}`,
+      );
+      decidingAxisCounts[decidingAxis] += 1;
+    }
+  }
+  const recoverableCount = classCounts.recoverableAxisDominant;
+  const undecidableCount =
+    classCounts.axisWinnerInexact +
+    classCounts.noStrictAxisDominance +
+    classCounts.singleInexactCandidate;
+  assert.equal(
+    recoverableCount + undecidableCount,
+    rows.length,
+    "ranked-set loss classes must partition every captured row",
+  );
+  const unclassifiedInvocationCount = invocationSitePopulations.unclassified;
+  assert.equal(
+    captureStateRecoveryCount,
+    0,
+    "ranked-set capture storage recovery invalidates the bounded census",
+  );
+  assert.equal(
+    unclassifiedInvocationCount,
+    0,
+    "the bounded corpus reached an unclassified cascade invocation site",
+  );
+
+  const limitations = [
+    "Counts cover only the bounded local-workspace entries selected by the committed corpus manifest; they are not prevalence estimates.",
+    "The capture records inexactness-bail RankedSet outcomes reached during the existing lint workspace walk; callers not reached by that walk have zero observed population.",
+    "cascadePropertyOpenWorld has no production caller at this revision, so its observed population is empty by construction.",
+    "CascadeAxisPrefixV0::ScopeProximity is retained for 0.x compatibility but is unreachable from the pre-specificity classifier because specificity precedes scope proximity.",
+  ];
+  if (multiCandidateInexactRankedSetCount === 0) {
+    limitations.push(
+      "No multi-candidate inexact RankedSet outcome was observed in the bounded corpus.",
+      "The strict axis-prefix classifier had zero eligible product executions in the bounded corpus.",
+    );
+  }
+  if (layerSyntaxFileCount === 0) {
+    limitations.push("The bounded style corpus contains no @layer declaration or statement.");
+  }
+
+  return {
+    schemaVersion: "0",
+    product: "omena-diff-test.ranked-set-loss-census",
+    generatedBy: "scripts/oss-corpus-farm.ts",
+    corpusManifestPath: "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
+    limitations,
+    entryCount: entries.length,
+    captureStateRecoveryCount,
+    measurementInvocationCount,
+    rankedSetOutcomeCount,
+    multiCandidateInexactRankedSetCount,
+    layerSyntaxFileCount,
+    rowCount: rows.length,
+    recoverableCount,
+    undecidableCount,
+    classCounts,
+    functionPopulations,
+    invocationSitePopulations,
+    decidingAxisCounts,
+    unclassifiedInvocationCount,
+    entries,
+  };
+}
+
+function initializedCounts(keys: readonly string[]): Record<string, number> {
+  return Object.fromEntries(keys.map((key) => [key, 0]));
+}
+
+function sum(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+function classificationName(classification: CascadeRankedSetLossClassV0): string {
+  return typeof classification === "string" ? classification : "recoverableAxisDominant";
+}
+
 function runRealWorkspaceLintCensusEntry(
   entry: ExternalCorpusEnvelopeV1 & { readonly source: LocalWorkspaceCorpusSourceV1 },
   policyEntry: RealWorkspaceLintCensusPolicyEntryV0,
   zeroBudgetClasses: readonly ZeroBudgetClassV0[],
   budget: RealWorkspaceLintCensusManifestV0,
   omenaBinary: string,
+  onRankedSetLossCapture?: (id: string, capture: CascadeRankedSetLossCaptureV0) => void,
 ): RealWorkspaceLintCensusEntryReportV0 {
   const id = entryId(entry);
   const workspaceRoot = path.resolve(repoRoot, entry.source.workspacePath);
   assert.ok(existsSync(workspaceRoot), `${id} local workspace must exist`);
   const startedAt = Date.now();
-  const result = run(omenaBinary, ["lint", workspaceRoot, "--profile", "recommended", "--json"]);
+  const captureRoot = onRankedSetLossCapture
+    ? mkdtempSync(path.join(tmpdir(), "omena-ranked-set-loss-"))
+    : undefined;
+  const capturePath = captureRoot ? path.join(captureRoot, "capture.json") : undefined;
+  let result: { readonly stdout: string };
+  try {
+    result = run(
+      omenaBinary,
+      ["lint", workspaceRoot, "--profile", "recommended", "--json"],
+      capturePath ? { OMENA_RANKED_SET_LOSS_CENSUS_PATH: capturePath } : undefined,
+    );
+    if (capturePath && onRankedSetLossCapture) {
+      assert.ok(existsSync(capturePath), `${id} ranked-set loss capture must be written`);
+      onRankedSetLossCapture(id, readJson<CascadeRankedSetLossCaptureV0>(capturePath));
+    }
+  } finally {
+    if (captureRoot) rmSync(captureRoot, { recursive: true, force: true });
+  }
   const elapsedSeconds = (Date.now() - startedAt) / 1000;
   const envelope = JSON.parse(result.stdout) as ProductLintEnvelopeV0;
   assert.equal(envelope.product, "omena-cli.lint", `${id} must use the product lint envelope`);
@@ -1247,6 +1554,12 @@ function assertManifest(manifest: ExternalCorpusDifferentialManifestV1): void {
   assert.ok(isBoundedPath(manifest.lintCensus.policyPath));
   assert.ok(isBoundedPath(manifest.lintCensus.coveragePath));
   assert.ok(isBoundedPath(manifest.lintCensus.reportPath));
+  assert.ok(isBoundedPath(manifest.rankedSetLossCensus.reportPath));
+  assert.equal(
+    resolveFarmPath(manifest.rankedSetLossCensus.reportPath),
+    rankedSetLossCensusPath,
+    "ranked-set loss census path must resolve to the committed farm artifact",
+  );
   assert.ok(manifest.lintCensus.fixedTimeBudgetSeconds > 0);
   assert.ok(manifest.lintCensus.perSourceFileBudgetSeconds > 0);
   assert.ok(manifest.lintCensus.perStyleFileBudgetSeconds > 0);
@@ -1594,11 +1907,16 @@ function optionalValueAfter(flag: string): string | undefined {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-function run(command: string, args: readonly string[]): { readonly stdout: string } {
+function run(
+  command: string,
+  args: readonly string[],
+  environment?: Readonly<Record<string, string>>,
+): { readonly stdout: string } {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
     encoding: "utf8",
     maxBuffer: 1024 * 1024 * 64,
+    env: environment ? { ...process.env, ...environment } : process.env,
   });
   if (result.error) throw result.error;
   assert.equal(

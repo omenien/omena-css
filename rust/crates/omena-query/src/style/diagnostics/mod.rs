@@ -23,7 +23,7 @@ mod substrate;
 
 #[cfg(feature = "salsa-memo")]
 pub(in crate::style) use cascade_runtime::collect_omena_query_inline_style_runtime_overrides_by_style;
-#[cfg(feature = "hypergraph-ifds")]
+#[cfg(feature = "hypergraph-monotone-fact-propagation")]
 pub(in crate::style) use cross_file_scc::collect_omena_query_unified_cross_file_scc_report_shared;
 pub(in crate::style) use source_usage::OmenaQueryUnusedSelectorSharedV0;
 #[cfg(feature = "salsa-memo")]
@@ -45,7 +45,7 @@ pub(in crate::style) trait OmenaQueryWorkspaceSharedDiagnosticsV0 {
         &std::collections::BTreeMap<String, Vec<crate::OmenaQueryInlineStyleRuntimeOverrideV0>>,
     >;
 
-    #[cfg(feature = "hypergraph-ifds")]
+    #[cfg(feature = "hypergraph-monotone-fact-propagation")]
     fn cross_file_scc_report(&self) -> Option<&crate::OmenaQueryUnifiedCrossFileSccReportV0>;
 }
 
@@ -62,7 +62,7 @@ impl OmenaQueryWorkspaceSharedDiagnosticsV0 for OmenaQueryWorkspaceSharedPassPro
         self.inline_style_overrides_by_style.as_ref()
     }
 
-    #[cfg(feature = "hypergraph-ifds")]
+    #[cfg(feature = "hypergraph-monotone-fact-propagation")]
     fn cross_file_scc_report(&self) -> Option<&crate::OmenaQueryUnifiedCrossFileSccReportV0> {
         self.cross_file_scc_report.as_ref()
     }
@@ -81,7 +81,7 @@ impl OmenaQueryWorkspaceSharedDiagnosticsV0 for Option<OmenaQueryUnusedSelectorS
         None
     }
 
-    #[cfg(feature = "hypergraph-ifds")]
+    #[cfg(feature = "hypergraph-monotone-fact-propagation")]
     fn cross_file_scc_report(&self) -> Option<&crate::OmenaQueryUnifiedCrossFileSccReportV0> {
         None
     }
@@ -172,7 +172,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
 
 /// File-level diagnostics summary with an explicit opt-in deep-analysis switch.
 /// `deep_analysis == false` (the default LSP/CLI surface) keeps only the product
-/// cascade diagnostics; `deep_analysis == true` surfaces the rg-flow / categorical
+/// cascade diagnostics; `deep_analysis == true` surfaces the multiscale-complexity-heuristic / categorical
 /// theory hints, deduplicated against `circularVar`.
 pub fn summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
     style_uri: &str,
@@ -245,7 +245,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file_with_local_composes(
 
 /// Single-file (local composes) diagnostics summary with an explicit opt-in
 /// deep-analysis switch. `deep_analysis == false` (the default surface) keeps only
-/// the product cascade diagnostics; `deep_analysis == true` surfaces the rg-flow /
+/// the product cascade diagnostics; `deep_analysis == true` surfaces the multiscale-complexity-heuristic /
 /// categorical theory hints, deduplicated against `circularVar`.
 pub fn summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis(
     style_uri: &str,
@@ -481,6 +481,7 @@ fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -592,7 +593,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             substrate,
         ),
     );
-    #[cfg(feature = "hypergraph-ifds")]
+    #[cfg(feature = "hypergraph-monotone-fact-propagation")]
     match shared_passes.and_then(|shared| shared.cross_file_scc_report()) {
         Some(report) => summary.diagnostics.extend(
             cross_file_scc::summarize_omena_query_unified_cross_file_scc_diagnostics_from_report(
@@ -613,7 +614,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             ),
         ),
     }
-    #[cfg(not(feature = "hypergraph-ifds"))]
+    #[cfg(not(feature = "hypergraph-monotone-fact-propagation"))]
     summary.diagnostics.extend(
         summarize_omena_query_unified_cross_file_scc_diagnostics_for_workspace(
             target_style_path,
@@ -794,6 +795,7 @@ pub(in crate::style) fn summarize_omena_query_style_diagnostics_for_workspace_fi
             cascade_runtime::attach_omena_query_runtime_state_inline_overrides_with_shared(
                 target_style_path,
                 &mut summary,
+                style_sources,
                 overrides_by_style,
             )
         }

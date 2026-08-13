@@ -64,8 +64,7 @@ use OmenaCheckerRuleCodeV0::{
     MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
     MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
     NoImpreciseValue, NoUnknownDynamicClass, RegisteredPropertyTypeMismatch,
-    ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
-    UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
+    ReplicaEnsembleInconsistency, UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
 };
 
 const SOURCE_ABSTRACT_VALUE: &str = "requires source expression or source/style binding facts";
@@ -106,8 +105,16 @@ const LINT_TIER_MAPPING: &[(OmenaCheckerRuleCodeV0, OmenaCheckerLintTierV0, &str
     (DesignerIntentInconsistency, Semantic, STYLE_SEMANTICS),
     (CascadeSMTViolation, Semantic, STYLE_SEMANTICS),
     (DesignSystemMdlBudget, Semantic, STYLE_SEMANTICS),
-    (StreamingIfdsPrecisionParity, Semantic, STYLE_SEMANTICS),
-    (RgFlowRelevantOperator, Semantic, STYLE_SEMANTICS),
+    (
+        OmenaCheckerRuleCodeV0::DemandSlicedMonotoneFactPropagationPrecisionParity,
+        Semantic,
+        STYLE_SEMANTICS,
+    ),
+    (
+        OmenaCheckerRuleCodeV0::MultiscaleComplexityHeuristicRelevantOperator,
+        Semantic,
+        STYLE_SEMANTICS,
+    ),
     (ReplicaEnsembleInconsistency, Semantic, STYLE_SEMANTICS),
     (CascadeDeepConflict, Semantic, STYLE_SEMANTICS),
     (CascadeUnreachableRule, Semantic, STYLE_SEMANTICS),

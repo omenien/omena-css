@@ -1,0 +1,1943 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-rust-semver-intent",
+  "baselineWorkspaceVersion": "0.3.0",
+  "targetReleaseVersion": "0.4.0",
+  "intents": [
+    {
+      "crate": "omena-semantic",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes layer rank an opaque ordering token, changes design-token winner selection, and adds typed disclosures for ranking axes the facts do not model.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field DesignTokenRankedReferenceV0.winner_importance_status",
+            "field DesignTokenRankedReferenceV0.winner_source_order_status",
+            "field DesignTokenRankedReferenceV0.winner_layer_resolution_status"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "DesignTokenRankedReferenceV0.winner_importance_status",
+            "DesignTokenRankedReferenceV0.winner_source_order_status",
+            "DesignTokenRankedReferenceV0.winner_layer_resolution_status"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "design-token-open-world-winner-selection",
+          "kind": "selection-outcome-changing",
+          "surface": "DesignTokenRankedReferenceV0 winner declaration and provenance fields",
+          "reason": "Local and workspace declarations are selected in one cascade domain, with module provenance breaking only full CascadeKey ties.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
+              "needles": [
+                "select_open_world_cascade_winner(",
+                "file-local ordinal even when candidates come",
+                "winner_source_order_status: if candidate_file_domain_count > 1"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/style_semantic_graph.rs",
+              "needles": [
+                "fn style_semantic_graph_batch_compares_local_and_workspace_design_tokens_together()",
+                "fn style_semantic_graph_batch_prefers_the_local_file_on_a_full_cascade_tie()",
+                "\"crossFileOrdinalUncalibrated\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "design-token-ranking-disclosure-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "DesignTokenRankedReferenceV0 importance, source-order, and layer-resolution status fields",
+          "reason": "The wire now distinguishes unmodeled importance, cross-file ordinal comparisons, and unavailable layer topology without manufacturing missing cascade semantics.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
+              "needles": [
+                "winner_importance_status: \"importanceUnmodeled\"",
+                "\"crossFileOrdinalUncalibrated\"",
+                "\"layerTopologyUnavailable\""
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
+              "needles": [
+                "fn discloses_unmodeled_design_token_importance_without_ranking_it()",
+                "\"importanceUnmodeled\"",
+                "\"unlayered\"",
+                "\"resolvedLayer\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "design-token-unlayered-rank-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "DesignTokenRankedReferenceV0.winnerDeclarationLayerRank",
+          "reason": "The serialized value moves to the unlayered-normal sentinel while preserving every ordering comparison.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
+              "needles": [
+                "Opaque cascade ordering token; consumers must not interpret it as a layer-count magnitude.",
+                "return normalized_layer_rank(false, None);"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/tests.rs",
+              "needles": [
+                "fn ranks_unlayered_design_tokens_above_later_layered_tokens()",
+                "assert_eq!(ranked_reference.winner_declaration_layer_rank, i32::MAX);"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/types.rs",
+              "needles": [
+                "Opaque cascade ordering token; consumers must not interpret it as a layer-count magnitude."
+              ]
+            }
+          ]
+        },
+        {
+          "id": "design-token-unresolved-selector-fallback",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeLayerContextV0::layer_rank_for",
+          "reason": "An unresolved layered declaration uses the weakest layered rank instead of colliding with the unlayered-normal sentinel.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-semantic/src/design_tokens.rs",
+              "needles": [
+                "self.layer_ordinal_for(layer_names, selector_contexts)",
+                ".or_else(|| LayerOrdinal::new(0))",
+                "fn unresolved_layer_selector_uses_the_weakest_layered_ordering_token()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/style_semantic_graph.rs",
+              "needles": [
+                "fn unresolved_workspace_layer_never_outranks_an_unlayered_design_token()",
+                "renaming the unresolved layered file must not change the unlayered winner"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-cascade",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor seals layer-rank construction, adds explicit cascade and computed-value states, extends proof carriers, retires the old corpus entry points, orders specificity before scope proximity, separates open-world tie evidence from the specification key, and adds typed cascade-axis reach disclosure.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field CascadeDeclaration.open_world_tie_evidence",
+            "field SelectorSignature.functional_pseudo_constraints",
+            "field CascadeComputedValueResultV0.fallback_indeterminate_reason",
+            "field CustomPropertyLeastFixedPointProofV0.bounded_fixed_point_computation_witness",
+            "field CustomPropertyLeastFixedPointProofV0.monotonic_progress_witness",
+            "field SelectorMatchWitness.specificity_exactness",
+            "field CascadeComputedValueInputV0.standard_property_value_verdicts"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "CascadeDeclaration.open_world_tie_evidence",
+            "SelectorSignature.functional_pseudo_constraints",
+            "CascadeComputedValueResultV0.fallback_indeterminate_reason",
+            "CustomPropertyLeastFixedPointProofV0.bounded_fixed_point_computation_witness",
+            "CustomPropertyLeastFixedPointProofV0.monotonic_progress_witness",
+            "SelectorMatchWitness.specificity_exactness",
+            "CascadeComputedValueInputV0.standard_property_value_verdicts"
+          ]
+        },
+        {
+          "lint": "enum_no_repr_variant_discriminant_changed",
+          "evidenceNeedles": [
+            "CascadeLevel::UserImportant 6 -> 7",
+            "CascadeLevel::UserAgentImportant 7 -> 8",
+            "CascadeLevel::Transition 8 -> 9",
+            "ComputedCascadeIndeterminateReasonV0::InheritedFromIndeterminateParent 4 -> 5"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "CascadeLevel:InlineImportant",
+            "ComputedCascadeIndeterminateReasonV0:StandardPropertySyntaxIndeterminate"
+          ]
+        },
+        {
+          "lint": "function_missing",
+          "evidenceNeedles": [
+            "function omena_cascade::run_wpt_cascade_seed_corpus",
+            "function omena_cascade::run_cascade_fuzz_seed_corpus"
+          ]
+        },
+        {
+          "lint": "method_parameter_count_changed",
+          "evidenceNeedles": [
+            "omena_cascade::CascadeKey::new takes 6 parameters",
+            "but now takes 5 parameters"
+          ]
+        },
+        {
+          "lint": "struct_pub_field_missing",
+          "evidenceNeedles": [
+            "field 0 of struct LayerRank",
+            "field module_rank of struct CascadeKey"
+          ]
+        },
+        {
+          "lint": "struct_pub_field_now_doc_hidden",
+          "evidenceNeedles": ["field LayerRank.0"]
+        }
+      ],
+      "expectedWarnings": [
+        {
+          "lint": "partial_ord_enum_variants_reordered",
+          "evidenceNeedles": [
+            "CascadeLevel::UserImportant moved from position 7 to 8",
+            "CascadeLevel::UserAgentImportant moved from position 8 to 9",
+            "CascadeLevel::Transition moved from position 9 to 10",
+            "ComputedCascadeIndeterminateReasonV0::InheritedFromIndeterminateParent moved from position 5 to 6"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "inline-important-cascade-level-order",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeLevel Ord, cascade_level_catalog_v0(), and cascade_level_rank",
+          "reason": "Element-attached important declarations move above author-important declarations in enum order, the public level catalog, and the cascade-key rank.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": [
+                "#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]",
+                "Animation,\n    AuthorImportant,\n    InlineImportant,\n    UserImportant,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/origin.rs",
+              "needles": [
+                "CascadeLevel::Animation,\n        CascadeLevel::AuthorImportant,\n        CascadeLevel::InlineImportant,\n        CascadeLevel::UserImportant,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/axis_order.rs",
+              "needles": [
+                "CascadeLevel::AuthorImportant => 5,\n        CascadeLevel::InlineImportant => 6,"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cascade-spec-axis-order-and-classification",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeKey::Ord, the emitted omena-cascade.key-axis-order schema, CascadeMarginSchemaV0.axisOrder, and CascadeRankedSetLossClassV0 deciding-axis classification",
+          "reason": "Specificity axes now outrank scope proximity, so public key ordering and serialized axis order follow the CSS cascade while scope proximity no longer qualifies as a strict pre-specificity dominance axis.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/axis_order.rs",
+              "needles": [
+                "CascadeKeyAxisV0::SpecificityIds,\n    CascadeKeyAxisV0::SpecificityClasses,\n    CascadeKeyAxisV0::SpecificityElements,\n    CascadeKeyAxisV0::ScopeProximity,",
+                "compare_axes(left, right, cascade_key_axis_order_v0().iter().copied())"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": ["crate::axis_order::compare_cascade_key_axes_v0(self, other)"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/ranking.rs",
+              "needles": [
+                "axis_order: cascade_key_axis_order_v0()\n            .iter()",
+                "first_deciding_cascade_key_axis_v0(&winner, &challenger)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/ranked_set_loss_census.rs",
+              "needles": [
+                "compare_cascade_axis_prefix(&winner.key, &runner_up.key)",
+                "first_deciding_cascade_key_axis_v0(winner, runner_up)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/data/cascade-key-axis-order.json",
+              "needles": [
+                "\"product\": \"omena-cascade.key-axis-order\"",
+                "\"specificityElements\",\n    \"scopeProximity\",\n    \"sourceOrder\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "open-world-tie-evidence-carrier-shape",
+          "kind": "selection-outcome-changing",
+          "surface": "CascadeDeclaration.open_world_tie_evidence and select_open_world_cascade_winner callback shape",
+          "reason": "Module provenance moves out of CascadeKey into an explicit carrier, and open-world selection now requires callers to return that carrier beside the specification key.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/model.rs",
+              "needles": ["pub open_world_tie_evidence: OpenWorldTieEvidence"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/ranking.rs",
+              "needles": ["key_and_evidence_for: impl Fn(&T) -> (CascadeKey, OpenWorldTieEvidence)"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/tests/snapshots/public-api.txt",
+              "needles": [
+                "impl core::ops::function::Fn(&T) -> (omena_cascade::CascadeKey, omena_cascade::OpenWorldTieEvidence)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-bundler",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The public cascade-key helper accepts an ordinal and importance and returns the specification key beside open-world tie evidence, linked dependency edges carry composed selector names, reachability is keyed by module instance, and dependency resolution now has an explicit authority mode with consumer-visible disclosures.",
+      "expectedFailures": [
+        {
+          "lint": "method_parameter_count_changed",
+          "evidenceNeedles": [
+            "omena_bundler::LinkedStylesheetRuleV0::cascade_key_with_global_source_order takes 5 parameters",
+            "but now takes 6 parameters"
+          ]
+        },
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field LinkerDependencyEdgeV0.local_names",
+            "field LinkerDependencyEdgeV0.remote_names"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "LinkerDependencyEdgeV0.local_names",
+            "LinkerDependencyEdgeV0.remote_names"
+          ]
+        },
+        {
+          "lint": "enum_no_repr_variant_discriminant_changed",
+          "evidenceNeedles": [
+            "variant TransformBundleLinkErrorV0::ClosedWorldBundle 3 -> 4",
+            "variant TransformBundleLinkErrorV0::InvalidEmissionPlan 4 -> 5",
+            "variant TransformBundleLinkErrorV0::UnsupportedEmissionCycle 5 -> 6"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": ["variant TransformBundleLinkErrorV0:UnresolvedDependencyEdge"]
+        },
+        {
+          "lint": "struct_marked_non_exhaustive",
+          "evidenceNeedles": ["struct TransformBundleLinkOptionsV0"]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["Struct TransformBundleSemanticReachabilityInputV0"]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "module-qualified-composes-reachability-closure",
+          "kind": "selection-outcome-changing",
+          "surface": "ClosedWorldBundleV0 module-qualified class reachability",
+          "reason": "A reachable composed selector is propagated to its owning dependency module before destructive class shaking, while unrelated selectors remain removable.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+              "needles": [
+                "instance_reachability_inputs_closed_over_composes(",
+                "fn composes_closure_expands_module_qualified_semantic_reachability()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "linked-stylesheet-cascade-evidence-return",
+          "kind": "selection-outcome-changing",
+          "surface": "LinkedStylesheetRuleV0::cascade_key_with_global_source_order return carrier",
+          "reason": "The public helper returns the specification key and open-world tie evidence as separate values so callers cannot silently treat module provenance as a cascade axis.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bundler/src/lib.rs",
+              "needles": [
+                ") -> (CascadeKey, OpenWorldTieEvidence) {",
+                "OpenWorldTieEvidence::new(module_rank)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-bundler/tests/snapshots/public-api.txt",
+              "needles": [
+                "cascade_key_with_global_source_order(&self, omena_cascade::model::CascadeLevel, omena_cascade::model::LayerOrdinal, bool, u32, omena_cascade::model::Specificity, omena_cascade::model::ModuleRank) -> (omena_cascade::model::CascadeKey, omena_cascade::model::OpenWorldTieEvidence)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-parser",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "Closed-world linked modules carry module-qualified composes adjacency while the sealed bundle exposes additive evidence and adjacency accessors.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field ClosedWorldLinkedModuleV0.composes_edges",
+            "field ClosedWorldLinkedModuleV0.composes_edge_observation_count"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "ClosedWorldLinkedModuleV0.composes_edges",
+            "ClosedWorldLinkedModuleV0.composes_edge_observation_count"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-query",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses, class sites expose typed token support and guarded-token explanations, and measured legacy declarations remain deprecated beside additive accurate APIs.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field OmenaBundlerHostResolveModuleRequestV0.workspace_root",
+            "field OmenaQueryInlineStyleRuntimeOverrideV0.important",
+            "field OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_widened_to_top_count",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_converged",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_converged",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_result_kind",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "OmenaBundlerHostResolveModuleRequestV0.workspace_root",
+            "OmenaQueryInlineStyleRuntimeOverrideV0.important",
+            "OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_widened_to_top_count",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_converged",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_converged",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_result_kind",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness"
+          ]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "variant OmenaQueryExplainFactValueV0:ClassSiteValue",
+            "variant OmenaQueryExplainCapabilityV0:ClassSite",
+            "variant OmenaQueryExplainTargetV0:ClassSite",
+            "variant OmenaQueryExplainInputV0:ClassSite",
+            "variant OmenaQueryExplainFactReferenceV0:ClassSiteFact"
+          ]
+        },
+        {
+          "lint": "struct_field_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness_widened_to_top_count",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness_converged",
+            "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness_widened_to_top_count",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness_converged",
+            "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.widening_witness"
+          ]
+        },
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_query::execute_omena_query_transform_passes_from_source_with_lawvere_trace",
+            "function omena_query::summarize_omena_query_cascade_site_outcomes_from_source"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_query::execute_omena_query_transform_passes_from_source_with_lawvere_trace",
+            "omena_query::summarize_omena_query_cascade_site_outcomes_from_source"
+          ]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "Struct OmenaQueryLawvereTransformExecuteSummaryV0",
+            "Struct OmenaQueryCascadeSiteOutcomeV0"
+          ],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": [
+            "OmenaQueryLawvereTransformExecuteSummaryV0",
+            "OmenaQueryCascadeSiteOutcomeV0"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "class-site-token-resolution-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryClassSiteValueV0 precisionTier, orderedWord, support, tokenProvenance, and class-site explain values",
+          "reason": "Class-carrying source sites now return typed ordered-token and support values, including finite joined type-fact results and structured unknown causes, instead of having no site-indexed query result.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/class_site_values.rs",
+              "needles": [
+                "fn class_site_plane_matches_authored_sites_with_and_without_type_facts()",
+                "assert_support(site, &row.must, &row.may, row.site_text.as_str());",
+                "assert_support(\n            site,\n            &row.must_with_type_fact,\n            &row.may_with_type_fact,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/source.rs",
+              "needles": [
+                "pub fn resolve_omena_query_class_site_value_for_source(",
+                "pub fn resolve_omena_query_class_site_values_for_source_with_type_facts("
+              ]
+            }
+          ]
+        },
+        {
+          "id": "inline-important-runtime-winner",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryRuntimeStateScenarioEvidenceV0.winnerValue, winnerDeclarationId, and declarationIds",
+          "reason": "A source-text inline value ending in !important no longer supplies the cascade winner or a synthetic inline declaration identity.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/style_diagnostics.rs",
+              "needles": [
+                "assert_eq!(inline_scenario.winner_value.as_deref(), Some(\"red\"));",
+                ".is_some_and(|id| id.starts_with(\"decl-\"))",
+                ".all(|id| !id.starts_with(\"inline-style:\"))"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "inline-important-source-element-computed-value",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryElementComputedValueV0.status and computedValue",
+          "reason": "A source-text inline value ending in !important is preserved as unsupported static input instead of being exposed as a resolved literal.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
+              "needles": [
+                "fn source_element_computed_value_rejects_jsx_inline_important_suffix()",
+                "OmenaQueryElementComputedValueStatusV0::UnsupportedStaticValue",
+                "assert_eq!(color.computed_value, None);"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "selector-class-name-extraction-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryRuntimeStateScenarioEvidenceV0.selectorClassNames",
+          "reason": "Selector evidence now excludes string and nested-pseudo phantoms while preserving escaped and non-ASCII authored class names.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+              "needles": [
+                "fn extracts_selector_classes_without_string_or_depth_phantoms()",
+                "assert!(query_selector_class_names(r#\"[data-x=\"a.b\"]\"#).is_empty());",
+                "query_selector_class_names(\".card .title\"),\n            [\"card\", \"title\"]"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "css-module-resolved-class-identity-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryCssModuleClassExportV0.resolvedClasses ordering and cardinality",
+          "reason": "Decode-equivalent class references collapse to one canonical module/name identity while the owning class remains first.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/module_interface.rs",
+              "needles": [
+                "fn css_modules_interface_collapses_decode_equivalent_composes_in_owner_first_order()",
+                "assert_eq!(button.resolved_classes.len(), 2);",
+                "assert_eq!(button.resolved_classes[0].name, \"button\");"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "class-context-merge-precedence-values",
+          "kind": "selection-outcome-changing",
+          "surface": "TransformExecutionContextV0 classNameRewrites and cssModuleComposesResolutions ordering",
+          "reason": "Explicit class records replace decode-equivalent derived records at declaration position instead of being ordered by raw escape spelling.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/transform/context.rs",
+              "needles": [
+                "fn explicit_class_rewrite_precedence_ignores_escape_spelling_order()",
+                "vec![class_rewrite(explicit_name, \"_explicit\")]",
+                "exported_class_names: vec![\"explicit\".to_string()]"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "closed-world-admission-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "TransformExecutionSummaryV0.closedWorldAdmission and local closed-world interface hashes",
+          "reason": "Destructive pass refusals are reported separately from strict verification and local module interfaces carry deterministic evidence hashes.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+              "needles": [
+                "with_interface_hash(linker_input_interface_hash(",
+                "fn closed_world_bundle_reachability_precision(",
+                "populate_workspace_bundle_edges_for_admission_witness("
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+              "needles": ["pub closed_world_admission: TransformClosedWorldAdmissionSummaryV0"]
+            }
+          ]
+        },
+        {
+          "id": "cascade-confidence-axis-order",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryCascadeConfidenceV0.dominantAxisWeightBasisPoints, confidenceScoreBasisPoints, and confidenceBucket",
+          "reason": "Specificity confidence weights now outrank scope proximity and the serialized score and bucket are derived from the same cascade-axis authority.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/confidence.rs",
+              "needles": [
+                "let axis_order = AXIS_ORDER.get_or_init(|| summarize_cascade_margin_schema_v0().axis_order);",
+                ".and_then(|position| u16::try_from((axis_order.len() - position) * 1_000).ok())",
+                "query_cascade_confidence_score_basis_points("
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cascade/src/axis_order.rs",
+              "needles": [
+                "CascadeKeyAxisV0::SpecificityElements,\n    CascadeKeyAxisV0::ScopeProximity,\n    CascadeKeyAxisV0::SourceOrder,"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "scss-control-flow-witness-taxonomy-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0 propagationDepthWitness, ascendingChainWitness, and deprecated wideningWitness compatibility values",
+          "reason": "The query boundary now reports the former pass-through witness as a converged propagation-depth result, exposes a distinct non-Top prefix-widening witness for ascending chains, and makes the deprecated widening fields exact copies of the propagation-depth fields.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/boundary/evaluator.rs",
+              "needles": [
+                "propagation_depth_witness_converged: corpus.propagation_depth_witness_converged",
+                "ascending_chain_witness_result_kind: corpus.ascending_chain_witness_result_kind",
+                "propagation_depth_witness: corpus.propagation_depth_witness.clone()",
+                "ascending_chain_witness: corpus.ascending_chain_witness.clone()",
+                "widening_witness: corpus.widening_witness.clone()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests/scss_evaluator.rs",
+              "needles": [
+                "assert!(summary.propagation_depth_witness_converged);",
+                "assert_eq!(summary.propagation_depth_witness.output_top_count, 0);",
+                "assert!(summary.ascending_chain_witness_converged);",
+                "serde_json::json!({ \"kind\": \"prefix\", \"prefix\": \"item-\" })",
+                "assert_eq!(summary.widening_witness, summary.propagation_depth_witness);"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "selector-certainty-flow-hedge-values",
+          "kind": "selection-outcome-changing",
+          "surface": "Re-exported OmenaQueryExpressionDomainSelectorProjectionV0 projections[].certainty values",
+          "reason": "The public query re-export now demotes otherwise exact or inferred selector certainty to possible when the corresponding source control-flow graph is non-converged or carries FlowIterationLimit provenance.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/lib.rs",
+              "needles": [
+                "summarize_omena_query_expression_domain_selector_projection,",
+                "summarize_omena_query_expression_domain_selector_projection_with_precision,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
+              "needles": [
+                "fn nonconverged_flow_hedge_demotes_typed_query_projection()",
+                "assert_eq!(entry.certainty, SelectorProjectionCertaintyV0::Possible);"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-transform-passes",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor aligns static keyframe-name admission, adds the closed-world admission reason and summary wire, and retains measured legacy declarations as deprecated compatibility surfaces beside additive accurate APIs.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": ["field TransformExecutionSummaryV0.closed_world_admission"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["TransformExecutionSummaryV0.closed_world_admission"]
+        },
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "TransformBlockedReasonV0:ClosedWorldAdmission",
+            "TransformStrictPolicyReasonV0:ClosedWorldEvidenceIncomplete",
+            "TransformStrictPolicyReasonV0:EvidenceUnavailable",
+            "TransformStrictPolicyReasonV0:LivenessNotClosed",
+            "TransformStrictPolicyReasonV0:OwnershipNotSeparable"
+          ]
+        },
+        {
+          "lint": "struct_marked_non_exhaustive",
+          "evidenceNeedles": ["struct TransformStructuralIrTransactionTelemetryV0"]
+        },
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_transform_passes::execute_transform_passes_on_source_with_lawvere_trace_and_dialect",
+            "function omena_transform_passes::plan_transform_passes_parallel_lawvere_layers",
+            "function omena_transform_passes::execute_transform_passes_on_source_with_lawvere_trace",
+            "function omena_transform_passes::evaluate_lawvere_reorderability_with_differential_corpus"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_transform_passes::execute_transform_passes_on_source_with_lawvere_trace_and_dialect",
+            "omena_transform_passes::plan_transform_passes_parallel_lawvere_layers",
+            "omena_transform_passes::execute_transform_passes_on_source_with_lawvere_trace",
+            "omena_transform_passes::evaluate_lawvere_reorderability_with_differential_corpus"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "keyframe-custom-ident-newline-escape-values",
+          "kind": "selection-outcome-changing",
+          "surface": "Static animation-name candidates used by keyframe tree shaking",
+          "reason": "A backslash followed by a CSS newline no longer produces a static custom-ident candidate.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/domains/keyframes.rs",
+              "needles": [
+                "css_identifier_escape_sequence_end(value, index)",
+                "fn rejects_newline_escapes_as_static_animation_names()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "closed-world-admission-refusal-values",
+          "kind": "selection-outcome-changing",
+          "surface": "FactConsuming transform dispatch and TransformExecutionSummaryV0.closedWorldAdmission",
+          "reason": "A destructive pass with incomplete closed-world evidence or non-closed composes liveness is planned-only and retains its input bytes with a typed named refusal.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+              "needles": [
+                "closed_world_admission_o3_reasons(",
+                "closed_world_admission_o2_reasons(",
+                "TransformBlockedReasonV0::ClosedWorldAdmission"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+              "needles": [
+                "fn fact_consuming_pass_refuses_incomplete_closed_world_evidence_without_dropping_bytes()",
+                "fn closed_world_composes_admission_covers_tri_state_and_independent_producer_matrix()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "proof-kernel-token-ownership-admission-values",
+          "kind": "selection-outcome-changing",
+          "surface": "ClassTreeShake closed-world admission and TransformExecutionSummaryV0.closedWorldAdmission",
+          "reason": "A complete ownership census is admitted only when the proof kernel independently checks token separability and binds its issuance token to the exact admission endpoints; favourable aggregate counts alone no longer admit a destructive pass.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
+              "needles": [
+                "checked_token_ownership_admission_v0(census, module_instance, pass_kind).is_none()",
+                "check_rewrite_certificate_v0(",
+                ".filter(|token| token.matches_endpoints_v0(&before, &after))"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/tests/runtime_boundary.rs",
+              "needles": [
+                "fn proof_kernel_token_closes_favourable_ownership_count_bypass()",
+                "proofKernelToken:tree-shake-class"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-bridge",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, surface, and inline-importance observations and emits concatenated source-fact length bounds in the external UTF-16-code-unit contract.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field SourceInlineStyleDeclarationFactV0.important",
+            "field SourceSelectorReferenceFactV0.surface",
+            "field SourceSyntaxIndexV0.type_fact_target_skipped",
+            "field SourceSyntaxIndexV0.type_fact_target_skipped_count"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "SourceInlineStyleDeclarationFactV0.important",
+            "SourceSelectorReferenceFactV0.surface",
+            "SourceSyntaxIndexV0.type_fact_target_skipped",
+            "SourceSyntaxIndexV0.type_fact_target_skipped_count"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "source-cfg-concat-utf16-length-wire-value",
+          "kind": "selection-outcome-changing",
+          "surface": "StringTypeFactsV2.minLen emitted for source CFG prefix/suffix concatenations",
+          "reason": "A non-ASCII concatenation now carries its JavaScript-compatible UTF-16-code-unit minimum instead of a Rust UTF-8-byte count, so downstream selector membership no longer rejects genuine Unicode members.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bridge/src/source_cfg.rs",
+              "needles": [
+                "external_string_type_facts_from_abstract_class_value, prefix_suffix_class_value,",
+                "facts.min_len = external_string_type_facts_from_abstract_class_value(&value).min_len;",
+                "fn source_cfg_prefix_suffix_fact_preserves_explicit_concat_utf16_length()",
+                "assert_eq!(facts.min_len, Some(6));"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-evidence-graph",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds an honestly earned sampled-fixture family and removes the evidence-free typed-invariant token constructor.",
+      "expectedFailures": [
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": ["GuaranteeFamilyV0:SampledFixtureCorpus"]
+        },
+        {
+          "lint": "inherent_method_missing",
+          "evidenceNeedles": ["TypedInvariantWitnessTokenV0::from_incremental_layer_evidence"]
+        }
+      ]
+    },
+    {
+      "crate": "omena-incremental",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor makes incremental fixture evidence report the family actually earned by each producer.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "incremental-evidence-earned-family-wire-values",
+          "kind": "wire-value-order-preserving",
+          "surface": "EvidenceNodeV0 earnedVia values produced by incremental evidence graphs",
+          "reason": "The shadow differential earns sampledFixtureCorpus only from nonempty recomputed agreement; the four non-differential producers disclose floorAssumption.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-incremental/src/lib.rs",
+              "needles": [
+                "fn shadow_delta_family_stamp(",
+                "FamilyStampV0::sampled_fixture_corpus(&token)",
+                "None => FamilyStampV0::floor_assumption()",
+                "fn shadow_delta_fixture_stamp_refuses_mismatch_and_flag_disagreement()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-evidence-graph/src/lib.rs",
+              "needles": [
+                "SampledFixtureCorpus",
+                "SampledFixtureCorpusTokenV0::from_matching_string_vectors",
+                "fixture_witness_family_matches",
+                "Self::FloorAssumption => \"floorAssumption\"",
+                "Self::SampledFixtureCorpus => \"sampledFixtureCorpus\""
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-abstract-value",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state, stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels, adds preconstruction finite-language cost walls whose typed Top results carry two distinct serialized provenance variants, changes bounded flow results through deterministic reverse-postorder iteration, loop-header widening and narrowing, and structured incremental invalidation, defines the external length boundary in UTF-16 code units, and retains measured legacy declarations as deprecated compatibility surfaces beside additive accurate APIs.",
+      "expectedFailures": [
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "CssValueValidationReasonV0:UnvalidatedStandardFunction",
+            "AbstractClassValueProvenanceV0:AutomatonLanguageCardinalityLimit",
+            "AbstractClassValueProvenanceV0:AutomatonMaterializedByteLimit"
+          ]
+        },
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_abstract_value::derive_cascade_restriction_maps_v0",
+            "function omena_abstract_value::summarize_belief_propagation_iteration_v0",
+            "function omena_abstract_value::cascade_context_refinement_morphism_v0",
+            "function omena_abstract_value::summarize_reduced_product_belief_propagation_domain_graph_v0",
+            "function omena_abstract_value::summarize_cascade_value_family_v0"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_abstract_value::derive_cascade_restriction_maps_v0",
+            "omena_abstract_value::summarize_belief_propagation_iteration_v0",
+            "omena_abstract_value::cascade_context_refinement_morphism_v0",
+            "omena_abstract_value::summarize_reduced_product_belief_propagation_domain_graph_v0",
+            "omena_abstract_value::summarize_cascade_value_family_v0"
+          ]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "Struct BeliefPropagationIterationV0",
+            "Struct BeliefPropagationDomainGraphV0",
+            "Struct BeliefPropagationDomainVariableV0",
+            "Struct BeliefPropagationMessageV0",
+            "Struct BeliefPropagationDomainFactorV0"
+          ],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": [
+            "BeliefPropagationIterationV0",
+            "BeliefPropagationDomainGraphV0",
+            "BeliefPropagationDomainVariableV0",
+            "BeliefPropagationMessageV0",
+            "BeliefPropagationDomainFactorV0"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "abstract-value-supplied-graph-context-wire-values",
+          "kind": "wire-value-order-preserving",
+          "surface": "AbstractValueFlowAnalysisSummaryV0, ClassValueFlowAnalysisV0, and ClassValueControlFlowAnalysisV0 contextSensitivity",
+          "reason": "Analyses that receive no call site now report perSuppliedGraph; the caller-supplied one-CFA and k-limited products retain their compatibility labels with explicit scope disclosure.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/flow.rs",
+              "needles": [
+                "Summarizes analyses over caller-supplied graphs.",
+                "context_sensitivity: \"perSuppliedGraph\"",
+                "Partitions caller-supplied graphs by caller-supplied call-site identifiers.",
+                "context_sensitivity: \"1-cfa\"",
+                "context_sensitivity: format!(\"{max_context_depth}-cfa\")"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
+              "needles": [
+                "fn cfa_context_sensitivity_labels_match_supplied_inputs()",
+                "\"summarize_omena_abstract_value_flow_analysis\"",
+                "\"analyze_class_value_control_flow_graph\"",
+                "\"analyze_k_limited_call_site_flows\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "automaton-finite-language-preconstruction-cost-walls",
+          "kind": "selection-outcome-changing",
+          "surface": "AbstractClassValueV0::Top provenance produced by finite-language automaton construction, concatenation, and enumeration",
+          "reason": "Oversized factory inputs now refuse before oversized normalization, Cartesian-product materialization, trie construction, or accepted-language enumeration and return Top with a distinct cause. Publicly hand-constructed automata are additionally cut off by transition-count and cumulative transition-symbol-byte walls before validation or enumeration when consumed; the one-to-eight factory exact/finite exception and in-wall representations retain their bounded domain result.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/types.rs",
+              "needles": [
+                "pub const MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY: usize =\n    MAX_STRING_AUTOMATON_STATES * MAX_FINITE_CLASS_VALUES;",
+                "pub const MAX_STRING_AUTOMATON_MATERIALIZED_BYTES: usize =\n    MAX_STRING_AUTOMATON_STATES * MAX_STRING_AUTOMATON_STATES;",
+                "#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]\n#[serde(rename_all = \"camelCase\")]\npub enum AbstractClassValueProvenanceV0 {",
+                "AutomatonLanguageCardinalityLimit,",
+                "AutomatonMaterializedByteLimit,"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/automaton.rs",
+              "needles": [
+                "if let Err(limit) = preflight_automaton_branch_values(values.iter().map(String::as_str)) {\n        return top_class_value_with_provenance(limit.provenance());\n    }\n    let values = normalize_automaton_values(values);",
+                "pub(crate) fn automaton_class_value_from_owned_values(",
+                "if let Err(limit) = preflight.observe(&value) {\n            return top_class_value_with_provenance(limit.provenance());\n        }\n        normalized.insert(value);",
+                "let cost = concatenated_language_cost(left.cost, right.cost)?;\n    let mut values = Vec::with_capacity(cost.cardinality);",
+                "if cardinality > MAX_STRING_AUTOMATON_LANGUAGE_CARDINALITY {",
+                "if materialized_bytes > MAX_STRING_AUTOMATON_MATERIALIZED_BYTES {",
+                "accepted_strings_from_automaton(automaton, cost.cardinality)",
+                "preflight_automaton_structure(automaton)?;",
+                "if automaton.transitions.len() > MAX_STRING_AUTOMATON_MATERIALIZED_BYTES {\n        return Err(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit);\n    }",
+                "symbol_bytes = symbol_bytes\n            .checked_add(transition.symbol.len())\n            .ok_or(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit)?;"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/domain.rs",
+              "needles": [
+                "pub fn finite_set_class_value<I, S>(values: I) -> AbstractClassValueV0",
+                "automaton_class_value_from_owned_values(\n        values.into_iter().map(Into::into),"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/provenance.rs",
+              "needles": [
+                "Some(AbstractClassValueProvenanceV0::AutomatonLanguageCardinalityLimit) => {\n            \"automatonLanguageCardinalityWidening\"\n        }",
+                "Some(AbstractClassValueProvenanceV0::AutomatonMaterializedByteLimit) => {\n            \"automatonMaterializedByteWidening\"\n        }",
+                "the finite language exceeded the preconstruction cardinality limit",
+                "the finite language exceeded the preconstruction materialized-byte limit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "class-value-flow-rpo-widening-and-incremental-values",
+          "kind": "selection-outcome-changing",
+          "surface": "BoundedJoinFixpointResultV0 and ClassValueFlowAnalysisV0 convergence, iterationCount, and node values, ClassValueFlowIncrementalAnalysisV0 reuse decisions, and AbstractValueFlowAnalysisSummaryV0.reusePolicy",
+          "reason": "Reverse-postorder rounds remove propagation-depth cap failures without changing the below-cap value, loop-header prefix widening and narrowing produce a sound non-Top result for representable ascending chains, structured solver, context, order, and fact digests prevent stale clean reuse, separately supplied snapshots and analyses require deterministic fresh equivalence before reuse, and duplicate node IDs fail closed before either batch analysis or incremental reuse.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/flow.rs",
+              "needles": [
+                "const CLASS_VALUE_FLOW_SOLVER_REVISION_V0: &str = \"iterativeRpoLoopHeaderPrefixWideningNarrowingV1\";",
+                "reuse_policy: \"reuse previous context analysis only when its omena-incremental plan is clean and deterministic fresh-equivalence verification matches\"",
+                "fn assert_unique_flow_node_ids(node_ids: &[String])",
+                "let schedule = if policy.reverse_postorder {",
+                "if let Some(widened) = widen_ascending_loop_header_value(&previous, &candidate) {",
+                "serde_json::to_string(&payload).unwrap_or_else(|error| error.to_string())",
+                "let verified_fresh_analysis = structurally_reusable_previous_analysis"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
+              "needles": [
+                "fn iterative_rpo_crosses_a_66_node_reverse_dag_without_class_widening()",
+                "assert_eq!(full.analysis.iteration_count, 2);",
+                "fn loop_header_prefix_widening_closes_the_product_shaped_ascending_chain()",
+                "Some(&prefix_class_value(\"z\", None))",
+                "fn incremental_flow_invalidates_context_and_output_order_before_reuse()",
+                "fn structured_incremental_digest_separates_delimiter_bearing_fact_boundaries()",
+                "fn incremental_flow_rejects_a_snapshot_analysis_pair_from_different_inputs()",
+                "fn duplicate_flow_node_ids_fail_closed_in_batch_analysis()",
+                "fn duplicate_flow_node_ids_fail_closed_before_incremental_reuse()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "external-string-facts-utf16-length-boundary-values",
+          "kind": "selection-outcome-changing",
+          "surface": "ExternalStringTypeFactsV0 min_len/max_len filtering and external_string_type_facts_from_abstract_class_value min_len",
+          "reason": "Concrete external values are filtered by JavaScript-compatible UTF-16-code-unit bounds. Inbound lower bounds are soundly weakened into the byte-only internal domain, outbound byte lower bounds are exported through an overlap-aware conservative UTF-16 lower bound, and no unsupported internal maximum is manufactured.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/facts.rs",
+              "needles": [
+                "pub fn external_utf16_code_unit_length(value: &str) -> Utf16CodeUnitLengthV0",
+                "pub fn external_utf16_code_unit_min_length_lower_bound(",
+                "fn sound_internal_byte_minimum_from_external_utf16_minimum(",
+                "fn value_matches_external_length_bounds(value: &str, facts: &ExternalStringTypeFactsV0) -> bool",
+                "facts.max_len.is_none_or(|maximum| length <= maximum)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-abstract-value/src/tests.rs",
+              "needles": [
+                "fn external_length_bounds_measure_utf16_code_units_for_finite_values()",
+                "fn external_length_lowering_keeps_byte_domain_sound_and_exports_a_utf16_lower_bound()",
+                "assert_eq!(exported.max_len, None);"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query-checker-orchestrator/src/lib.rs",
+              "needles": [
+                "fn k_limited_flow_caller_round_trips_unicode_shape_through_external_utf16_facts()",
+                "external_string_type_facts_from_abstract_class_value(&exit_value)",
+                "the real checker caller must retain the byte-internal Unicode shape after its UTF-16 boundary lowering"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-variational",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds accurately named trace APIs while measured legacy declarations remain deprecated compatibility surfaces through the migration window.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_variational::designer_intent_belief_propagation_trace_v0"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": ["omena_variational::designer_intent_belief_propagation_trace_v0"]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "Struct DesignerIntentBeliefPropagationMessageV0",
+            "Struct DesignerIntentBeliefPropagationTraceV0"
+          ],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": [
+            "DesignerIntentBeliefPropagationMessageV0",
+            "DesignerIntentBeliefPropagationTraceV0"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-streaming-ifds",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds accurately named public APIs while measured legacy declarations remain deprecated compatibility surfaces with their exact prior behavior and wire values.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_streaming_ifds::streaming_ifds_demand_index_v0",
+            "function omena_streaming_ifds::streaming_ifds_frame_rule_bridge_policy_v0"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_streaming_ifds::streaming_ifds_demand_index_v0",
+            "omena_streaming_ifds::streaming_ifds_demand_eager_equivalence_v0",
+            "omena_streaming_ifds::streaming_ifds_default_settle_soak_revisions_v0",
+            "omena_streaming_ifds::run_streaming_ifds_demand_v0",
+            "omena_streaming_ifds::summarize_streaming_ifds_cross_file_reachability_v0",
+            "omena_streaming_ifds::streaming_ifds_event_input_v0",
+            "omena_streaming_ifds::streaming_ifds_summary_cache_entry_v0",
+            "omena_streaming_ifds::streaming_ifds_reachability_condensation_v0",
+            "omena_streaming_ifds::streaming_ifds_latency_budget_v0",
+            "omena_streaming_ifds::polylog_connectivity_witness_v0",
+            "omena_streaming_ifds::streaming_ifds_fact_key_route_with_gate_v0",
+            "omena_streaming_ifds::incremental_reachable_node_ids_zset",
+            "omena_streaming_ifds::streaming_ifds_settle_soak_revision_v0",
+            "omena_streaming_ifds::omena_streaming_ifds_batch_fact_keys_v0",
+            "omena_streaming_ifds::streaming_ifds_demand_readiness_v0",
+            "omena_streaming_ifds::run_streaming_ifds_exact_v0",
+            "omena_streaming_ifds::streaming_ifds_update_v0",
+            "omena_streaming_ifds::streaming_ifds_transfer_functions_v0",
+            "omena_streaming_ifds::streaming_ifds_structural_projection_node_ids_v0",
+            "omena_streaming_ifds::streaming_ifds_solver_hygiene_policy_v0",
+            "omena_streaming_ifds::streaming_ifds_fact_key_route_v0",
+            "omena_streaming_ifds::summarize_reachability_dirty_set_profile_v0",
+            "omena_streaming_ifds::run_streaming_ifds_settle_equal_v0",
+            "omena_streaming_ifds::run_streaming_ifds_settle_soak_v0",
+            "omena_streaming_ifds::run_streaming_ifds_demand_with_index_v0",
+            "omena_streaming_ifds::summarize_streaming_ifds_cross_file_reachability_with_condensation_v0",
+            "omena_streaming_ifds::streaming_ifds_refinement_revision_bump_v0",
+            "omena_streaming_ifds::streaming_ifds_frame_rule_bridge_policy_v0"
+          ]
+        },
+        {
+          "lint": "global_value_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "constant STREAMING_IFDS_SCHEMA_VERSION_V0",
+            "constant STREAMING_IFDS_LAYER_MARKER_V0"
+          ],
+          "witnessLinePrefix": "  constant ",
+          "expectedWitnesses": [
+            "STREAMING_IFDS_SCHEMA_VERSION_V0",
+            "STREAMING_IFDS_LAYER_MARKER_V0",
+            "STREAMING_IFDS_RELOCATION_APPROVAL_PRODUCT_V0",
+            "STREAMING_IFDS_SLOPE_ARTIFACT_PRODUCT_V0",
+            "STREAMING_IFDS_BOUNDARY_ARTIFACT_PRODUCT_V0",
+            "STREAMING_IFDS_FEATURE_GATE_V0",
+            "STREAMING_IFDS_MIN_SETTLE_SOAK_REVISION_COUNT_V0"
+          ]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "Struct StreamingIFDSAnalysisReportV0",
+            "Enum StreamingIFDSEventKindV0",
+            "Enum StreamingIFDSFallbackCauseV0"
+          ],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": [
+            "StreamingIFDSDemandReportV0",
+            "StreamingIFDSGateArtifactConjunctV0",
+            "StreamingIFDSDemandReadinessInputV0",
+            "StreamingIFDSSettleEqualReportV0",
+            "StreamingIfdsEventInputV0",
+            "StreamingIFDSUpdateV0",
+            "StreamingIfdsFrameRuleBridgePolicyV0",
+            "PolylogDynamicConnectivityBackendV0",
+            "PolylogConnectivityWitnessV0",
+            "StreamingIFDSFactV0",
+            "StreamingIFDSDemandReadinessReportV0",
+            "StreamingIFDSRouteDecisionV0",
+            "StreamingIFDSSummaryCacheEntryV0",
+            "StreamingIFDSDemandIndexV0",
+            "StreamingIFDSSettleSoakRevisionReportV0",
+            "StreamingIFDSAnalysisReportV0",
+            "StreamingIfdsSolverHygienePolicyV0",
+            "StreamingIFDSTransferFunctionV0",
+            "StreamingIfdsReachabilityCondensationV0",
+            "StreamingIFDSDemandEagerEquivalenceReportV0",
+            "StreamingIFDSCrossFileReachabilityReportV0",
+            "StreamingIFDSSettleSoakRevisionInputV0",
+            "StreamingIFDSSettleSoakReportV0",
+            "ExactStreamingConnectivityOracleV0",
+            "StreamingIfdsLatencyBudgetV0",
+            "StreamingIFDSGateArtifactVerdictV0"
+          ]
+        },
+        {
+          "lint": "type_method_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "method omena_streaming_ifds::StreamingIFDSAnalysisReportV0::fallback_applied_for"
+          ],
+          "witnessLinePrefix": "  method ",
+          "expectedWitnesses": [
+            "omena_streaming_ifds::StreamingIFDSAnalysisReportV0::fallback_applied_for"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-lawvere",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds accurately named public APIs while measured legacy declarations remain deprecated compatibility surfaces with exact prior behavior.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_lawvere::lawvere_generator_metadata_v0",
+            "function omena_lawvere::lawvere_catalog_role_v0"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_lawvere::lawvere_generator_metadata_v0",
+            "omena_lawvere::lawvere_differential_corpus_tiers_v0",
+            "omena_lawvere::trace_lawvere_model_v0",
+            "omena_lawvere::lawvere_generator_metadata_catalog_v0",
+            "omena_lawvere::lawvere_catalog_role_v0",
+            "omena_lawvere::reorderability_certificate_from_differential_v0",
+            "omena_lawvere::plan_transform_pass_parallel_layers_v0",
+            "omena_lawvere::summarize_lawvere_theory_v0",
+            "omena_lawvere::lawvere_execution_rank_hint",
+            "omena_lawvere::lawvere_differential_commutativity_witness_v0",
+            "omena_lawvere::lawvere_equation_clusters_v0",
+            "omena_lawvere::summarize_lawvere_saturation_execution_v0",
+            "omena_lawvere::reorderability_certificate_v0"
+          ]
+        },
+        {
+          "lint": "global_value_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "constant LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0",
+            "constant LAWVERE_THEORY_VERSION_V0"
+          ],
+          "witnessLinePrefix": "  constant ",
+          "expectedWitnesses": [
+            "LAWVERE_GLOBAL_TRANSFORM_THEOREM_CLAIMED_V0",
+            "LAWVERE_PRODUCT_PATH_EVIDENCE_READY_V0",
+            "LAWVERE_MECHANISM_SCOPE_V0",
+            "LAWVERE_THEORY_VERSION_V0"
+          ]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["Struct TransformPassParallelPlanV0", "Enum LawvereCatalogRoleV0"],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": [
+            "TransformPassParallelPlanV0",
+            "LawvereTheorySummaryV0",
+            "LawvereModelTraceV0",
+            "LawvereDifferentialCommutativityCaseV0",
+            "LawvereGeneratorMetadataV0",
+            "LawvereEquationClusterV0",
+            "LawvereSaturationExecutionV0",
+            "LawvereDifferentialCorpusTierV0",
+            "LawvereDifferentialCommutativityWitnessV0"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "transform-catalog-checked-independence-values",
+          "kind": "selection-outcome-changing",
+          "surface": "Canonical transform-catalog parallel plans, traces, and reorderability certificates",
+          "reason": "Canonical plans and traces now derive layers from committed checked independence data, and a reorderability certificate is accepted only when the proof kernel issues an endpoint-bound adjacent-swap token; deprecated compatibility entrypoints retain the prior scaffold, rank, and differential-only values.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lawvere/src/lib.rs",
+              "needles": [
+                "scheduler_status: \"independenceDataReady\"",
+                "rank_clusters: transform_catalog_independence_clusters_v0(requested)",
+                "checked_adjacent_swap_token_v0(left, right, &data).ok()",
+                "fn parallel_plan_uses_independence_data_and_declares_non_consumption()",
+                "fn committed_independent_pair_receives_checked_reorder_token()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lawvere/src/independence.rs",
+              "needles": [
+                "default_transform_observation_matrix_v0()",
+                "fn canonical_schedule_agrees_with_independent_bounded_oracle()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lawvere/data/transform-catalog-independence-v0.json",
+              "needles": ["\"disposition\": \"independent\"", "\"disposition\": \"dependent\""]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-rg-flow",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds accurately named public APIs while measured legacy declarations remain deprecated compatibility surfaces with their exact prior behavior and wire values.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_rg_flow::estimate_coupling_jacobian_spectrum_v0",
+            "function omena_rg_flow::summarize_rg_flow_metric"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_rg_flow::estimate_coupling_jacobian_spectrum_v0",
+            "omena_rg_flow::static_dynamic_coupling_check",
+            "omena_rg_flow::summary_edge_ref",
+            "omena_rg_flow::classify_universality",
+            "omena_rg_flow::estimate_beta_function_from_custom_property_summary",
+            "omena_rg_flow::two_layer_fixed_point",
+            "omena_rg_flow::exponent_triple",
+            "omena_rg_flow::aggregate_module",
+            "omena_rg_flow::critical_exponent_observable",
+            "omena_rg_flow::confidence_band",
+            "omena_rg_flow::summarize_workspace_zset",
+            "omena_rg_flow::coupling_space",
+            "omena_rg_flow::replica_overlap_coupling_from_m4_alpha",
+            "omena_rg_flow::rg_flow_migration_gate_summary",
+            "omena_rg_flow::fit_quality",
+            "omena_rg_flow::summarize_ecosystem_contract",
+            "omena_rg_flow::file_summary",
+            "omena_rg_flow::estimate_branching_process",
+            "omena_rg_flow::summarize_rg_flow_metric"
+          ]
+        },
+        {
+          "lint": "global_value_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "constant RG_FLOW_LAYER_MARKER_V0",
+            "constant RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0"
+          ],
+          "witnessLinePrefix": "  constant ",
+          "expectedWitnesses": [
+            "RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0",
+            "RG_FLOW_FEATURE_GATE_V0",
+            "RG_FLOW_PRODUCT_SURFACE_V0",
+            "RG_FLOW_LAYER_MARKER_V0",
+            "RG_FLOW_MECHANISM_SCOPE_V0",
+            "RG_FLOW_SCHEMA_VERSION_V0"
+          ]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "Struct RGFlowMetricV0",
+            "Struct RGFlowMigrationGateV0",
+            "Struct RGFlowMigrationGateSummaryV0"
+          ],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": [
+            "RGFlowMetricV0",
+            "RGFlowMigrationGateV0",
+            "RGFlowMigrationGateSummaryV0"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-categorical",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds accurately named declaration, plan, and aggregation APIs while measured legacy declarations and module reexports remain deprecated compatibility surfaces.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_categorical::categorical_cascade_evidence_v0",
+            "function omena_categorical::categorical_cascade_evidence_for_exercised_primitives_v0"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_categorical::categorical_cascade_evidence_v0",
+            "omena_categorical::site::check_cascade_site_axioms_v0",
+            "omena_categorical::check_cascade_site_axioms_v0",
+            "omena_categorical::cascade_primitive_roles_v0",
+            "omena_categorical::categorical_evidence_endpoints_v0",
+            "omena_categorical::site::site_axis_object_id_v0",
+            "omena_categorical::site_axis_object_id_v0",
+            "omena_categorical::categorical_fixture_evidence_for_endpoint_v0",
+            "omena_categorical::summarize_categorical_foundation_v0",
+            "omena_categorical::cosheaf::witness_cosheaf_colimit_v0",
+            "omena_categorical::witness_cosheaf_colimit_v0",
+            "omena_categorical::site::cascade_site_v0",
+            "omena_categorical::cascade_site_v0",
+            "omena_categorical::categorical_cascade_evidence_for_exercised_primitives_v0"
+          ]
+        },
+        {
+          "lint": "struct_field_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["field CategoricalFoundationSummaryV0.lawvere_dependency_direction"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["CategoricalFoundationSummaryV0.lawvere_dependency_direction"]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["Struct CascadeSiteV0", "Enum SiteAxisV0", "Enum SiteTruthValueV0"],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": [
+            "CascadeSiteV0",
+            "CascadeSiteV0",
+            "CosheafSectionV0",
+            "CosheafSectionV0",
+            "CosheafColimitWitnessV0",
+            "CosheafColimitWitnessV0",
+            "CascadeDeclarationSheafV0",
+            "CascadeDeclarationSheafV0",
+            "SiteAxiomCheckV0",
+            "SiteAxiomCheckV0",
+            "RestrictionMorphismV0",
+            "RestrictionMorphismV0",
+            "CascadeCosheafV0",
+            "CascadeCosheafV0"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-checker",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds accurate canonical rule-code, evaluation, and evidence APIs while measured legacy declarations remain deprecated compatibility surfaces.",
+      "expectedFailures": [
+        {
+          "lint": "enum_variant_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "variant omena_checker::OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity",
+            "variant omena_checker::OmenaCheckerRuleCodeV0::RgFlowRelevantOperator"
+          ],
+          "witnessLinePrefix": "  variant ",
+          "expectedWitnesses": [
+            "omena_checker::OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity",
+            "omena_checker::OmenaCheckerRuleCodeV0::RgFlowRelevantOperator"
+          ]
+        },
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_checker::checker_categorical_cascade_evidence_for_exercised_primitives_v0",
+            "function omena_checker::evaluate_omena_checker_rg_flow_rules"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_checker::checker_categorical_cascade_evidence_for_exercised_primitives_v0",
+            "omena_checker::evaluate_omena_checker_streaming_ifds_rules",
+            "omena_checker::checker_cascade_primitive_role_catalog_v0",
+            "omena_checker::checker_categorical_cascade_evidence_v0",
+            "omena_checker::evaluate_omena_checker_rg_flow_rules"
+          ]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "Struct OmenaCheckerStreamingIfdsEvaluationV0",
+            "Struct OmenaCheckerRgFlowCouplingSpaceInputV0"
+          ],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": [
+            "OmenaCheckerStreamingIfdsEvaluationV0",
+            "OmenaCheckerRgFlowCouplingInputV0",
+            "OmenaCheckerRgFlowEvaluationV0",
+            "OmenaCheckerRgFlowInputV0",
+            "OmenaCheckerStreamingIfdsReportInputV0",
+            "OmenaCheckerStreamingIfdsInputV0",
+            "OmenaCheckerRgFlowCouplingSpaceInputV0"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-query-checker-orchestrator",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds an accurately named gate while measured legacy declarations remain deprecated compatibility surfaces with the prior gate bytes.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_query_checker_orchestrator::run_omena_query_checker_rg_flow_gate_v0"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_query_checker_orchestrator::run_omena_query_checker_rg_flow_gate_v0"
+          ]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["Struct OmenaQueryCheckerRgFlowGateV0"],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": ["OmenaQueryCheckerRgFlowGateV0"]
+        }
+      ]
+    },
+    {
+      "crate": "omena-query-transform-runner",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The accurate transform-catalog runner boundary is additive while summarize_omena_query_transform_runner_boundary_v0 remains a deprecated compatibility function with the exact prior serialized boundary.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_query_transform_runner::summarize_omena_query_transform_runner_boundary_v0"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_query_transform_runner::summarize_omena_query_transform_runner_boundary_v0"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-product-hints",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds accurately named product hints while measured legacy declarations remain deprecated compatibility surfaces.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_product_hints::coupling_space",
+            "function omena_product_hints::categorical_cascade_evidence_v0"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_product_hints::coupling_space",
+            "omena_product_hints::site",
+            "omena_product_hints::cascade_primitive_roles_v0",
+            "omena_product_hints::estimate_coupling_jacobian_spectrum_v0",
+            "omena_product_hints::categorical_evidence_endpoints_v0",
+            "omena_product_hints::categorical_cascade_evidence_for_exercised_primitives_v0",
+            "omena_product_hints::categorical_cascade_evidence_v0"
+          ]
+        },
+        {
+          "lint": "global_value_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "constant RG_FLOW_FEATURE_GATE_V0",
+            "constant RG_FLOW_LAYER_MARKER_V0"
+          ],
+          "witnessLinePrefix": "  constant ",
+          "expectedWitnesses": [
+            "RG_FLOW_FEATURE_GATE_V0",
+            "RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0",
+            "RG_FLOW_SCHEMA_VERSION_V0",
+            "RG_FLOW_MECHANISM_SCOPE_V0",
+            "RG_FLOW_LAYER_MARKER_V0",
+            "RG_FLOW_PRODUCT_SURFACE_V0"
+          ]
+        },
+        {
+          "lint": "struct_field_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["field ReplicaSiteOutcomeV0.site"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["ReplicaSiteOutcomeV0.site"]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["Struct CascadeSiteKeyV0"],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": ["CascadeSiteKeyV0"]
+        }
+      ]
+    },
+    {
+      "crate": "omena-ensemble",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds an accurately named key while measured legacy declarations remain deprecated compatibility surfaces at both module and root reexport boundaries.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_ensemble::overlap::site",
+            "function omena_ensemble::site"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": ["omena_ensemble::overlap::site", "omena_ensemble::site"]
+        },
+        {
+          "lint": "struct_field_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["field ReplicaSiteOutcomeV0.site"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["ReplicaSiteOutcomeV0.site", "ReplicaSiteOutcomeV0.site"]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["Struct CascadeSiteKeyV0"],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": ["CascadeSiteKeyV0", "CascadeSiteKeyV0"]
+        }
+      ]
+    },
+    {
+      "crate": "omena-cross-file-summary",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds an accurately named summary edge while measured legacy declarations remain deprecated compatibility surfaces with exact prior carriers.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_cross_file_summary::tabulate_hypergraph_ifds_summary_edges"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": ["omena_cross_file_summary::tabulate_hypergraph_ifds_summary_edges"]
+        },
+        {
+          "lint": "struct_field_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["field OmenaQueryUnifiedCrossFileHypergraphV0.summary_edges"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["OmenaQueryUnifiedCrossFileHypergraphV0.summary_edges"]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["Struct HypergraphIFDSSummaryEdgeV0"],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": ["HypergraphIFDSSummaryEdgeV0"]
+        }
+      ]
+    },
+    {
+      "crate": "omena-transform-egg",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds accurately named analysis carriers while measured legacy declarations remain deprecated compatibility surfaces.",
+      "expectedFailures": [
+        {
+          "lint": "function_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "function omena_transform_egg::summarize_lawvere_analysis_carrier_witness_v0",
+            "function omena_transform_egg::execute_egg_rewrite_with_lawvere_analysis"
+          ],
+          "witnessLinePrefix": "  function ",
+          "expectedWitnesses": [
+            "omena_transform_egg::summarize_lawvere_analysis_carrier_witness_v0",
+            "omena_transform_egg::execute_egg_rewrite_with_lawvere_analysis"
+          ]
+        },
+        {
+          "lint": "type_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": ["Struct LawvereSpecificityCarrierV0", "Struct LawvereAnalysis"],
+          "witnessLinePrefix": "  Struct ",
+          "expectedWitnesses": [
+            "LawvereSpecificityCarrierV0",
+            "LawvereAnalysis",
+            "LawvereProvenanceCarrierV0",
+            "LawvereAnalysisDataV0",
+            "LawvereAnalysisCarrierWitnessV0",
+            "LawvereComputedValueCarrierV0",
+            "LawvereVarStateCarrierV0"
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-engine-input-producers",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor re-emits the supplied-graph context label through the serialized expression-domain flow summary, demotes selector certainty and its aggregate counts when the corresponding flow graph is non-converged or carries FlowIterationLimit provenance, and interprets external selector length bounds as UTF-16 code units for exact, finite, and constrained products.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "expression-domain-supplied-graph-context-wire-value",
+          "kind": "wire-value-order-preserving",
+          "surface": "ExpressionDomainFlowAnalysisV0 analyses[].analysis.contextSensitivity",
+          "reason": "The embedded abstract-value analysis now reports perSuppliedGraph instead of 1-cfa when no call-site partition is supplied.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/expression_domain.rs",
+              "needles": [
+                "fn summarizes_expression_domain_flow_analysis()",
+                "wire[\"analyses\"][0][\"analysis\"][\"contextSensitivity\"]",
+                "\"perSuppliedGraph\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "selector-certainty-flow-hedge-values",
+          "kind": "selection-outcome-changing",
+          "surface": "Expression-semantics and source-resolution selectorCertainty/shape values plus selector-usage exact and inferred-or-better aggregate counts",
+          "reason": "A type-fact flow graph that is non-converged or contains FlowIterationLimit provenance now demotes otherwise exact or inferred selector certainty to possible, resets its shape to unknown, and removes the reference from exact and inferred-or-better aggregates.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/lib.rs",
+              "needles": [
+                "pub(crate) fn hedge_selector_certainty_for_flow(",
+                "if graph_converged && !contains_flow_iteration_limit {",
+                "omena_abstract_value::SelectorProjectionCertaintyV0::Possible",
+                "shape_kind: \"unknown\".to_string()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/expression_semantics.rs",
+              "needles": [
+                "fn nonconverged_flow_hedge_demotes_expression_semantics_product()",
+                "assert_eq!(candidate.selector_certainty, \"possible\");",
+                "assert_eq!(candidate.selector_certainty_shape_kind, \"unknown\");"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/selector_usage.rs",
+              "needles": [
+                "fn nonconverged_flow_hedge_demotes_selector_usage_aggregates()",
+                "assert_eq!(candidate.exact_reference_count, 0);",
+                "assert_eq!(candidate.inferred_or_better_reference_count, 0);"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/source_resolution.rs",
+              "needles": [
+                "fn nonconverged_flow_hedge_demotes_source_resolution_product()",
+                "assert_eq!(candidate.selector_certainty, \"possible\");",
+                "assert_eq!(candidate.selector_certainty_shape_label, \"unknown\");"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "selector-membership-utf16-length-bounds",
+          "kind": "selection-outcome-changing",
+          "surface": "Expression-semantics and source-resolution selectorNames selected from StringTypeFactsV2 minLen/maxLen, together with the TypeSpec/TypeScript UTF-16 unit and prefix/suffix overlap semantics",
+          "reason": "Exact, finite-set, prefix/suffix, and composite selector candidates now apply minLen and maxLen through the shared UTF-16-code-unit measurement authority, changing non-ASCII membership and overlap-sensitive ASCII minima while preserving unit-equivalent ASCII controls. The same change declares that unit in the TypeSpec and generated mirrors, makes the TypeScript prefix/suffix and composite minima overlap-aware, and compares those typed minima in the TypeScript lattice; authored parity fixtures bind both engines to the membership sets.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/lib.rs",
+              "needles": [
+                "fn matches_external_utf16_length_bounds(value: &str, facts: &StringTypeFactsV2) -> bool",
+                "let value_length = omena_abstract_value::external_utf16_code_unit_length(value);",
+                "facts.max_len.is_none_or(|max_len| value_length <= max_len)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-engine-input-producers/src/source_resolution.rs",
+              "needles": [
+                "fn source_resolution_applies_utf16_min_and_max_bounds_to_non_ascii_selectors()",
+                "fn source_resolution_applies_utf16_bounds_to_exact_and_finite_values()",
+                "the original Korean E8 candidates are five, seven, and seven UTF-16 units",
+                "the finite seven-unit value must be excluded once the maximum drops below it"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-query-core",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor consumes source control-flow convergence in the public expression-domain selector projection and demotes otherwise exact or inferred certainty when that graph is non-converged or carries FlowIterationLimit provenance.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "selector-certainty-flow-hedge-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryExpressionDomainSelectorProjectionV0 projections[].certainty",
+          "reason": "A projection backed by a non-converged source control-flow graph, or by FlowIterationLimit provenance, now reports possible instead of exact or inferred while preserving the projected value kind and selector names.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
+              "needles": [
+                "let selector_certainty_flow_hedges = expression_domain_selector_certainty_flow_hedges(input);",
+                "hedge_selector_certainty_for_flow(",
+                "fn nonconverged_flow_hedge_demotes_typed_query_projection()",
+                "assert_eq!(entry.certainty, SelectorProjectionCertaintyV0::Possible);",
+                "fn colon_colliding_graph_ids_bind_selector_certainty_by_type_fact_tuple()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query-core/src/lib.rs",
+              "needles": [
+                "assert!(!control_entry.analysis.flow_analysis.converged);",
+                "Some(AbstractClassValueProvenanceV0::FlowIterationLimit)",
+                "assert_eq!(entry.certainty, SelectorProjectionCertaintyV0::Possible);"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-scss-eval",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor separates the public control-flow oracle's propagation-depth witness from an ascending-chain widening witness and deprecates the inaccurately named widening compatibility fields while preserving them through the 0.4.0 window.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness_widened_to_top_count",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness_converged",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness_converged",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness_result_kind",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness_widened_to_top_count",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness_converged",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness_converged",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness_result_kind",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.propagation_depth_witness",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.ascending_chain_witness"
+          ]
+        },
+        {
+          "lint": "struct_field_marked_deprecated",
+          "level": "minor",
+          "evidenceNeedles": [
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness_widened_to_top_count",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness_converged",
+            "field OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness_widened_to_top_count",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness_converged",
+            "OmenaScssEvalControlFlowOracleCorpusReportV0.widening_witness"
+          ]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "scss-control-flow-witness-taxonomy-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaScssEvalControlFlowOracleCorpusReportV0 propagationDepthWitness, ascendingChainWitness, and deprecated wideningWitness compatibility values",
+          "reason": "The former pass-through witness now reports its actual propagation-depth mechanism and converges without Top under reverse-postorder iteration; a distinct ascending-chain witness converges to the prefix item-, while deprecated widening fields mirror the propagation-depth result.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-scss-eval/src/control_flow/oracle_corpus.rs",
+              "needles": [
+                "let propagation_depth_witness = summarize_scss_control_flow_propagation_depth_witness();",
+                "let ascending_chain_witness = summarize_scss_control_flow_ascending_chain_witness();",
+                "let widening_witness = propagation_depth_witness.clone();",
+                "propagation_depth_witness_converged: propagation_depth_witness.converged",
+                "ascending_chain_witness_result_kind: ascending_chain_witness.result_kind"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-scss-eval/src/control_flow/oracle_corpus.rs",
+              "needles": [
+                "assert_eq!(report.ascending_chain_witness.output_top_count, 0);",
+                "assert!(report.propagation_depth_witness_converged);",
+                "assert_eq!(report.propagation_depth_witness.output_top_count, 0);",
+                "assert!(report.ascending_chain_witness_converged);",
+                "prefix: \"item-\".to_string()",
+                "assert_eq!(report.widening_witness, report.propagation_depth_witness);"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "crate": "omena-lsp-server",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects and includes the already-landed language-server state additions.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field ScheduledLspOutput.diagnostics_publish_receipt",
+            "field LspDeferredDiagnosticsDispatchV0.diagnostics_publish_registry",
+            "field LspShellStateSnapshot.source_type_fact_cache_telemetry"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "ScheduledLspOutput.diagnostics_publish_receipt",
+            "LspDeferredDiagnosticsDispatchV0.diagnostics_publish_registry",
+            "LspShellStateSnapshot.source_type_fact_cache_telemetry"
+          ]
+        },
+        {
+          "lint": "constructible_struct_adds_private_field",
+          "evidenceNeedles": ["field LspDeferredDiagnosticsDispatchV0.reactive_shadow_flush_id"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": ["LspDeferredDiagnosticsDispatchV0.reactive_shadow_flush_id"]
+        }
+      ],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "lsp-cache-write-surface-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "LspTrustBoundaryV0.diskWriteSurfaces",
+          "reason": "The serialized write-surface value changes from path strings to typed objects carrying root kind, resolved rung, root shape, and cache directories.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
+              "needles": [
+                "pub disk_write_surfaces: Vec<CacheWriteSurfaceV0>",
+                "disk_write_surfaces: declared_cache_write_surfaces_for_rungs(lsp_rung, bridge_rung)",
+                "pub cache_directories: Vec<&'static str>"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

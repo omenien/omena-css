@@ -12,10 +12,10 @@ interface SemanticPreservationModelConformanceV0 {
   readonly cascadeSeedCaseCount: number;
   readonly cascadeSeedFailedCount: number;
   readonly cascadeSeedDigest: string;
-  readonly wptSeedProduct: string;
-  readonly wptSeedCaseCount: number;
-  readonly wptSeedFailedCount: number;
-  readonly wptSeedDigest: string;
+  readonly orderingAxisSelfCheckProduct: string;
+  readonly orderingAxisSelfCheckCaseCount: number;
+  readonly orderingAxisSelfCheckFailedCount: number;
+  readonly orderingAxisSelfCheckDigest: string;
   readonly semanticObservationCaseCount: number;
   readonly semanticObservationFailedCount: number;
   readonly modelConformancePassed: boolean;
@@ -35,10 +35,16 @@ assert.equal(artifact.cascadeSeedProduct, "omena-cascade.conformance-seed-corpus
 assert.ok(artifact.cascadeSeedCaseCount > 0, "cascade seed corpus must not be empty");
 assert.equal(artifact.cascadeSeedFailedCount, 0);
 assert.match(artifact.cascadeSeedDigest, /^fnv1a64:[0-9a-f]{16}$/u);
-assert.equal(artifact.wptSeedProduct, "omena-cascade.wpt-cascade-seed-corpus");
-assert.ok(artifact.wptSeedCaseCount >= 200, "WPT seed corpus coverage regressed");
-assert.equal(artifact.wptSeedFailedCount, 0);
-assert.match(artifact.wptSeedDigest, /^fnv1a64:[0-9a-f]{16}$/u);
+assert.equal(
+  artifact.orderingAxisSelfCheckProduct,
+  "omena-cascade.ordering-axis-self-check-corpus",
+);
+assert.ok(
+  artifact.orderingAxisSelfCheckCaseCount >= 200,
+  "ordering-axis self-check coverage regressed",
+);
+assert.equal(artifact.orderingAxisSelfCheckFailedCount, 0);
+assert.match(artifact.orderingAxisSelfCheckDigest, /^fnv1a64:[0-9a-f]{16}$/u);
 assert.ok(
   artifact.semanticObservationCaseCount > 0,
   "semantic observation conformance cases must not be empty",
@@ -72,7 +78,7 @@ process.stdout.write(
       artifactPath: path.relative(repoRoot, artifactPath),
       artifactSha256: createHash("sha256").update(artifactSource).digest("hex"),
       cascadeSeedCaseCount: artifact.cascadeSeedCaseCount,
-      wptSeedCaseCount: artifact.wptSeedCaseCount,
+      orderingAxisSelfCheckCaseCount: artifact.orderingAxisSelfCheckCaseCount,
       semanticObservationCaseCount: artifact.semanticObservationCaseCount,
       rustGatePassed: true,
     },

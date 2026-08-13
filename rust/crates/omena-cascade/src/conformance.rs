@@ -1,13 +1,14 @@
 //! Conformance seed corpora for the cascade algebra.
 //!
-//! The cases here are intentionally small and explicit so H1 gates can prove
-//! the cascade ordering and WPT-derived seed policies without claiming full WPT
-//! coverage.
+//! The hand-written cases are intentionally small and explicit. The generated
+//! ordering-axis sweep is only an implementation self-check and is not evidence
+//! for browser conformance or for regressions covered by the hand-written cases.
 
 use crate::{
     CascadeConformanceSeedCase, CascadeConformanceSeedReport, CascadeConformanceSeedResult,
-    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,
-    ModuleRank, Specificity, SpecificityExactnessV0, cascade_property,
+    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOriginV0, CascadeOutcome, CascadeValue,
+    LayerOrdinal, OpenWorldTieEvidence, Specificity, SpecificityExactnessV0,
+    cascade_level_for_origin, cascade_property, normalized_layer_rank,
     parse_simple_selector_signature,
 };
 
@@ -78,6 +79,7 @@ fn run_selector_specificity_seed_case(
                     signature.specificity,
                     expected.source_order,
                 ),
+                open_world_tie_evidence: OpenWorldTieEvidence::NONE,
                 specificity_exactness: signature.specificity_exactness,
             })
         })
@@ -107,8 +109,8 @@ fn run_selector_specificity_seed_case(
     }
 }
 
-pub fn run_wpt_cascade_seed_corpus() -> CascadeConformanceSeedReport {
-    let results = wpt_cascade_seed_cases()
+pub fn run_cascade_ordering_axis_self_check_corpus() -> CascadeConformanceSeedReport {
+    let results = cascade_ordering_axis_self_check_cases()
         .into_iter()
         .map(run_cascade_conformance_seed_case)
         .collect::<Vec<_>>();
@@ -117,7 +119,7 @@ pub fn run_wpt_cascade_seed_corpus() -> CascadeConformanceSeedReport {
 
     CascadeConformanceSeedReport {
         schema_version: "0",
-        product: "omena-cascade.wpt-cascade-seed-corpus",
+        product: "omena-cascade.ordering-axis-self-check-corpus",
         case_count,
         passed_count,
         failed_count: case_count.saturating_sub(passed_count),
@@ -149,7 +151,7 @@ fn run_cascade_conformance_seed_case(
 }
 
 fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
-    vec![
+    let mut cases = vec![
         CascadeConformanceSeedCase {
             name: "source-order-breaks-identical-key".to_string(),
             property: "color",
@@ -247,9 +249,43 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: Some("author-important".to_string()),
         },
         CascadeConformanceSeedCase {
+            name: "inline-important-outranks-author-important".to_string(),
+            property: "color",
+            declarations: vec![
+                conformance_decl(
+                    "author-important",
+                    "color",
+                    "blue",
+                    conformance_key(
+                        CascadeLevel::AuthorImportant,
+                        0,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        2,
+                    ),
+                ),
+                conformance_decl(
+                    "inline-important",
+                    "color",
+                    "red",
+                    conformance_key(
+                        cascade_level_for_origin(CascadeOriginV0::Inline, true),
+                        0,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        1,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("inline-important".to_string()),
+        },
+        CascadeConformanceSeedCase {
             name: "layer-rank-beats-specificity-within-level".to_string(),
             property: "color",
             declarations: vec![
+                // Normal declarations in later layers outrank earlier layers.
+                // Reversion: collapse the higher layer ordinal to the lower ordinal.
                 conformance_decl(
                     "lower-layer-specific",
                     "color",
@@ -279,7 +315,116 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: Some("higher-layer".to_string()),
         },
         CascadeConformanceSeedCase {
-            name: "scope-proximity-beats-specificity-tie".to_string(),
+            name: "important-layer-order-is-reversed".to_string(),
+            property: "color",
+            declarations: vec![
+                // Important declarations in earlier layers outrank later layers.
+                // Reversion: normalize the important layer ranks as normal ranks.
+                conformance_decl(
+                    "earlier-layer",
+                    "color",
+                    "red",
+                    conformance_layer_key(
+                        CascadeLevel::AuthorImportant,
+                        true,
+                        Some(0),
+                        0,
+                        Specificity::new(0, 1, 0),
+                        1,
+                    ),
+                ),
+                conformance_decl(
+                    "later-layer-specific",
+                    "color",
+                    "blue",
+                    conformance_layer_key(
+                        CascadeLevel::AuthorImportant,
+                        true,
+                        Some(1),
+                        0,
+                        Specificity::new(1, 0, 0),
+                        2,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("earlier-layer".to_string()),
+        },
+        CascadeConformanceSeedCase {
+            name: "unlayered-normal-outranks-layered-normal".to_string(),
+            property: "color",
+            declarations: vec![
+                // Normal declarations outside a layer outrank all layered declarations.
+                // Reversion: map the unlayered declaration to layer ordinal zero.
+                conformance_decl(
+                    "layered-specific",
+                    "color",
+                    "red",
+                    conformance_layer_key(
+                        CascadeLevel::AuthorNormal,
+                        false,
+                        Some(1),
+                        0,
+                        Specificity::new(1, 0, 0),
+                        2,
+                    ),
+                ),
+                conformance_decl(
+                    "unlayered",
+                    "color",
+                    "blue",
+                    conformance_layer_key(
+                        CascadeLevel::AuthorNormal,
+                        false,
+                        None,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        1,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("unlayered".to_string()),
+        },
+        CascadeConformanceSeedCase {
+            name: "layered-important-outranks-unlayered-important".to_string(),
+            property: "color",
+            declarations: vec![
+                // Important declarations reverse the layer order, including the
+                // implicit outer layer occupied by unlayered declarations.
+                // Reversion: map the unlayered declaration to rank zero.
+                conformance_decl(
+                    "layered",
+                    "color",
+                    "red",
+                    conformance_layer_key(
+                        CascadeLevel::AuthorImportant,
+                        true,
+                        Some(1),
+                        0,
+                        Specificity::new(0, 1, 0),
+                        1,
+                    ),
+                ),
+                conformance_decl(
+                    "unlayered-specific",
+                    "color",
+                    "blue",
+                    conformance_layer_key(
+                        CascadeLevel::AuthorImportant,
+                        true,
+                        None,
+                        0,
+                        Specificity::new(1, 0, 0),
+                        2,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("layered".to_string()),
+        },
+        CascadeConformanceSeedCase {
+            name: "nearer-scope-breaks-equal-specificity-tie".to_string(),
             property: "color",
             declarations: vec![
                 conformance_decl(
@@ -328,7 +473,92 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_outcome: "inherit",
             expected_winner_id: None,
         },
-    ]
+    ];
+
+    cases.extend(direction_conflict_conformance_seed_cases());
+    cases
+}
+
+fn direction_conflict_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
+    let specificities = [
+        ("zero", Specificity::ZERO),
+        ("class", Specificity::new(0, 1, 0)),
+        ("id", Specificity::new(1, 0, 0)),
+    ];
+    let proximities = [0, 1, 3];
+    let mut cases = Vec::new();
+
+    for (left_specificity_rank, (left_specificity_name, left_specificity)) in
+        specificities.into_iter().enumerate()
+    {
+        for (right_specificity_rank, (right_specificity_name, right_specificity)) in
+            specificities.into_iter().enumerate()
+        {
+            if left_specificity_rank == right_specificity_rank {
+                continue;
+            }
+
+            for left_proximity in proximities {
+                for right_proximity in proximities {
+                    if left_proximity == right_proximity {
+                        continue;
+                    }
+
+                    let specificity_prefers_left = left_specificity_rank > right_specificity_rank;
+                    let proximity_prefers_left = left_proximity < right_proximity;
+                    if specificity_prefers_left == proximity_prefers_left {
+                        continue;
+                    }
+
+                    // CSS Cascading Level 6 applies specificity before scoping
+                    // proximity. These inputs deliberately make the two axes
+                    // disagree, so the spec-authored winner is determined only
+                    // from the enumerated specificity rank above.
+                    let expected_winner = if specificity_prefers_left {
+                        "left"
+                    } else {
+                        "right"
+                    };
+                    cases.push(CascadeConformanceSeedCase {
+                        name: format!(
+                            "specificity-precedes-opposed-scope-{left_specificity_name}-{left_proximity}-vs-{right_specificity_name}-{right_proximity}"
+                        ),
+                        property: "color",
+                        declarations: vec![
+                            conformance_decl(
+                                "left",
+                                "color",
+                                "red",
+                                conformance_key(
+                                    CascadeLevel::AuthorNormal,
+                                    0,
+                                    left_proximity,
+                                    left_specificity,
+                                    1,
+                                ),
+                            ),
+                            conformance_decl(
+                                "right",
+                                "color",
+                                "blue",
+                                conformance_key(
+                                    CascadeLevel::AuthorNormal,
+                                    0,
+                                    right_proximity,
+                                    right_specificity,
+                                    2,
+                                ),
+                            ),
+                        ],
+                        expected_outcome: "definite",
+                        expected_winner_id: Some(expected_winner.to_string()),
+                    });
+                }
+            }
+        }
+    }
+
+    cases
 }
 
 fn selector_specificity_conformance_seed_cases() -> Vec<SelectorSpecificitySeedCase> {
@@ -583,13 +813,14 @@ fn inexact_selector_specificity_case(
     }
 }
 
-fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
+fn cascade_ordering_axis_self_check_cases() -> Vec<CascadeConformanceSeedCase> {
     let levels = [
         CascadeLevel::UserAgentNormal,
         CascadeLevel::UserNormal,
         CascadeLevel::AuthorNormal,
         CascadeLevel::InlineNormal,
         CascadeLevel::Animation,
+        CascadeLevel::InlineImportant,
         CascadeLevel::AuthorImportant,
         CascadeLevel::UserImportant,
         CascadeLevel::UserAgentImportant,
@@ -611,7 +842,7 @@ fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
 
             let winner = if left > right { "left" } else { "right" };
             cases.push(CascadeConformanceSeedCase {
-                name: format!("wpt-origin-importance-order-{left:?}-vs-{right:?}"),
+                name: format!("self-check-origin-importance-order-{left:?}-vs-{right:?}"),
                 property: "color",
                 declarations: vec![
                     conformance_decl(
@@ -633,8 +864,8 @@ fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
         }
     }
 
-    for layer_left in -3..=3 {
-        for layer_right in -3..=3 {
+    for layer_left in 0..=6 {
+        for layer_right in 0..=6 {
             if layer_left == layer_right {
                 continue;
             }
@@ -645,7 +876,7 @@ fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
                 "right"
             };
             cases.push(CascadeConformanceSeedCase {
-                name: format!("wpt-layer-order-{layer_left}-vs-{layer_right}"),
+                name: format!("self-check-layer-order-{layer_left}-vs-{layer_right}"),
                 property: "color",
                 declarations: vec![
                     conformance_decl(
@@ -691,7 +922,7 @@ fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
                 "right"
             };
             cases.push(CascadeConformanceSeedCase {
-                name: format!("wpt-scope-proximity-{scope_left}-vs-{scope_right}"),
+                name: format!("self-check-scope-proximity-{scope_left}-vs-{scope_right}"),
                 property: "color",
                 declarations: vec![
                     conformance_decl(
@@ -733,7 +964,7 @@ fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
 
             let winner = if left > right { "left" } else { "right" };
             cases.push(CascadeConformanceSeedCase {
-                name: format!("wpt-specificity-order-{left:?}-vs-{right:?}"),
+                name: format!("self-check-specificity-order-{left:?}-vs-{right:?}"),
                 property: "color",
                 declarations: vec![
                     conformance_decl(
@@ -767,7 +998,7 @@ fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
                 "right"
             };
             cases.push(CascadeConformanceSeedCase {
-                name: format!("wpt-source-order-{source_left}-vs-{source_right}"),
+                name: format!("self-check-source-order-{source_left}-vs-{source_right}"),
                 property: "color",
                 declarations: vec![
                     conformance_decl(
@@ -811,12 +1042,37 @@ fn conformance_key(
     specificity: Specificity,
     source_order: u32,
 ) -> CascadeKey {
+    let Some(layer_ordinal) = LayerOrdinal::new(layer_rank) else {
+        unreachable!("the conformance corpus only emits sentinel-safe layer ordinals");
+    };
     CascadeKey::new(
         level,
-        LayerRank(layer_rank),
+        normalized_layer_rank(false, Some(layer_ordinal)),
         scope_proximity,
         specificity,
-        ModuleRank::ZERO,
+        source_order,
+    )
+}
+
+fn conformance_layer_key(
+    level: CascadeLevel,
+    important: bool,
+    layer_ordinal: Option<i32>,
+    scope_proximity: u32,
+    specificity: Specificity,
+    source_order: u32,
+) -> CascadeKey {
+    let layer_ordinal = layer_ordinal.map(|ordinal| {
+        let Some(ordinal) = LayerOrdinal::new(ordinal) else {
+            unreachable!("the conformance corpus only emits sentinel-safe layer ordinals");
+        };
+        ordinal
+    });
+    CascadeKey::new(
+        level,
+        normalized_layer_rank(important, layer_ordinal),
+        scope_proximity,
+        specificity,
         source_order,
     )
 }
@@ -827,6 +1083,7 @@ fn conformance_decl(id: &str, property: &str, value: &str, key: CascadeKey) -> C
         property: property.to_string(),
         value: CascadeValue::Literal(value.to_string()),
         key,
+        open_world_tie_evidence: OpenWorldTieEvidence::NONE,
         specificity_exactness: SpecificityExactnessV0::Exact,
     }
 }

@@ -104,17 +104,17 @@ pub struct CategoricalCascadeEvidenceV0 {
     pub default_feature_enabled: bool,
 }
 
-pub fn categorical_evidence_endpoints_v0() -> Vec<CategoricalEvidenceEndpointV0> {
+pub fn cascade_section_evidence_endpoints_v0() -> Vec<CategoricalEvidenceEndpointV0> {
     [
         (
-            "rust/omena-categorical/verify-site-stability",
-            "omena-categorical.cascade-site",
-            "site axioms",
+            "rust/omena-categorical/verify-cascade-section-aggregation-plan-stability",
+            "omena-categorical.cascade-section-aggregation-plan",
+            "cascade section aggregation plan stability",
         ),
         (
-            "rust/omena-categorical/verify-cosheaf-covariance",
-            "omena-categorical.cascade-cosheaf",
-            "cosheaf covariance",
+            "rust/omena-categorical/verify-cascade-section-aggregation-covariance",
+            "omena-categorical.cascade-section-aggregation",
+            "cascade section aggregation covariance",
         ),
         (
             "rust/omena-categorical/verify-beck-chevalley",
@@ -172,9 +172,32 @@ pub fn categorical_evidence_endpoints_v0() -> Vec<CategoricalEvidenceEndpointV0>
     .collect()
 }
 
-pub fn cascade_primitive_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_evidence_endpoints_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn categorical_evidence_endpoints_v0() -> Vec<CategoricalEvidenceEndpointV0> {
+    let mut endpoints = cascade_section_evidence_endpoints_v0();
+    if let Some(endpoint) = endpoints.get_mut(0) {
+        endpoint.endpoint_id = "rust/omena-categorical/verify-site-stability";
+        endpoint.evidence_product = "omena-categorical.cascade-site";
+        endpoint.fixture_focus = "site axioms";
+    }
+    if let Some(endpoint) = endpoints.get_mut(1) {
+        endpoint.endpoint_id = "rust/omena-categorical/verify-cosheaf-covariance";
+        endpoint.evidence_product = "omena-categorical.cascade-cosheaf";
+        endpoint.fixture_focus = "cosheaf covariance";
+    }
+    endpoints
+}
+
+pub fn cascade_implementation_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
     [
-        ("ranking", "cascade_property", "cosheaf colimit witness"),
+        (
+            "ranking",
+            "cascade_property",
+            "cascade section aggregation witness",
+        ),
         (
             "proof",
             "prove_layer_flatten_candidate",
@@ -193,7 +216,7 @@ pub fn cascade_primitive_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
         (
             "evaluation",
             "evaluate_static_supports_condition",
-            "site-axis decidability witness",
+            "cascade-section-axis decidability witness",
         ),
     ]
     .into_iter()
@@ -211,14 +234,35 @@ pub fn cascade_primitive_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
     .collect()
 }
 
-pub fn categorical_cascade_evidence_v0(
-    source_product: &'static str,
-) -> CategoricalCascadeEvidenceV0 {
-    let endpoints = categorical_evidence_endpoints_v0();
-    let cascade_primitive_roles = cascade_primitive_roles_v0();
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_implementation_roles_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn cascade_primitive_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
+    let mut roles = cascade_implementation_roles_v0();
+    if let Some(role) = roles
+        .iter_mut()
+        .find(|role| role.primitive_name == "cascade_property")
+    {
+        role.categorical_role = "cosheaf colimit witness";
+    }
+    if let Some(role) = roles
+        .iter_mut()
+        .find(|role| role.primitive_name == "evaluate_static_supports_condition")
+    {
+        role.categorical_role = "site-axis decidability witness";
+    }
+    roles
+}
+
+pub fn cascade_section_evidence_v0(source_product: &'static str) -> CategoricalCascadeEvidenceV0 {
+    let endpoints = cascade_section_evidence_endpoints_v0();
+    let cascade_primitive_roles = cascade_implementation_roles_v0();
     let fixture_evidence = endpoints
         .iter()
-        .map(|endpoint| categorical_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id))
+        .map(|endpoint| {
+            cascade_section_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id, &endpoints)
+        })
         .collect();
     CategoricalCascadeEvidenceV0 {
         schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
@@ -247,12 +291,55 @@ pub fn categorical_cascade_evidence_v0(
     }
 }
 
-pub fn categorical_cascade_evidence_for_exercised_primitives_v0(
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_evidence_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn categorical_cascade_evidence_v0(
+    source_product: &'static str,
+) -> CategoricalCascadeEvidenceV0 {
+    let endpoints = categorical_evidence_endpoints_v0();
+    let cascade_primitive_roles = cascade_primitive_roles_v0();
+    let fixture_evidence = endpoints
+        .iter()
+        .map(|endpoint| {
+            cascade_section_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id, &endpoints)
+        })
+        .collect();
+    CategoricalCascadeEvidenceV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.cascade-evidence",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        source_product,
+        endpoint_count: endpoints.len(),
+        endpoints,
+        fixture_evidence,
+        functor_applications: vec![apply_cascade_role_mapping_functor_v0(
+            "cascade-primitive-role-functor",
+            "omena-categorical.cascade-primitive-role-functor",
+            &cascade_primitive_roles
+                .iter()
+                .map(|role| {
+                    (
+                        role.primitive_name.to_string(),
+                        slug_v0(role.categorical_role),
+                    )
+                })
+                .collect::<Vec<_>>(),
+        )],
+        cascade_primitive_roles,
+        default_feature_enabled: false,
+    }
+}
+
+pub fn cascade_section_evidence_for_exercised_primitives_v0(
     source_product: &'static str,
     exercised_primitive_role_pairs: &[(String, String)],
 ) -> CategoricalCascadeEvidenceV0 {
-    let endpoints = categorical_evidence_endpoints_v0();
-    let cascade_primitive_roles = cascade_primitive_roles_v0()
+    let endpoints = cascade_section_evidence_endpoints_v0();
+    let cascade_primitive_roles = cascade_implementation_roles_v0()
         .into_iter()
         .filter(|role| {
             exercised_primitive_role_pairs
@@ -262,7 +349,9 @@ pub fn categorical_cascade_evidence_for_exercised_primitives_v0(
         .collect::<Vec<_>>();
     let fixture_evidence = endpoints
         .iter()
-        .map(|endpoint| categorical_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id))
+        .map(|endpoint| {
+            cascade_section_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id, &endpoints)
+        })
         .collect();
     CategoricalCascadeEvidenceV0 {
         schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
@@ -283,8 +372,52 @@ pub fn categorical_cascade_evidence_for_exercised_primitives_v0(
     }
 }
 
-fn categorical_fixture_evidence_for_endpoint_v0(
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_evidence_for_exercised_primitives_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn categorical_cascade_evidence_for_exercised_primitives_v0(
+    source_product: &'static str,
+    exercised_primitive_role_pairs: &[(String, String)],
+) -> CategoricalCascadeEvidenceV0 {
+    let endpoints = categorical_evidence_endpoints_v0();
+    let cascade_primitive_roles = cascade_primitive_roles_v0()
+        .into_iter()
+        .filter(|role| {
+            exercised_primitive_role_pairs
+                .iter()
+                .any(|(primitive_name, _)| primitive_name == role.primitive_name)
+        })
+        .collect::<Vec<_>>();
+    let fixture_evidence = endpoints
+        .iter()
+        .map(|endpoint| {
+            cascade_section_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id, &endpoints)
+        })
+        .collect();
+    CategoricalCascadeEvidenceV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.cascade-evidence",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        source_product,
+        endpoint_count: endpoints.len(),
+        endpoints,
+        fixture_evidence,
+        functor_applications: vec![apply_cascade_role_mapping_functor_v0(
+            "cascade-exercised-primitive-role-functor",
+            "omena-categorical.cascade-primitive-role-functor",
+            exercised_primitive_role_pairs,
+        )],
+        cascade_primitive_roles,
+        default_feature_enabled: false,
+    }
+}
+
+fn cascade_section_fixture_evidence_for_endpoint_v0(
     endpoint_id: &'static str,
+    endpoints: &[CategoricalEvidenceEndpointV0],
 ) -> CategoricalEndpointFixtureEvidenceV0 {
     let deferred = endpoint_id == "rust/omena-categorical/verify-cross-project-symmetry";
     let claim_scope = if deferred {
@@ -292,8 +425,8 @@ fn categorical_fixture_evidence_for_endpoint_v0(
     } else {
         "computedEvidence"
     };
-    let evidence_product = categorical_evidence_endpoints_v0()
-        .into_iter()
+    let evidence_product = endpoints
+        .iter()
         .find(|endpoint| endpoint.endpoint_id == endpoint_id)
         .map(|endpoint| endpoint.evidence_product)
         .unwrap_or("omena-categorical.unknown");
@@ -798,13 +931,66 @@ fn differing_design_system_model_sort_names_v0(models: &[DesignSystemModelV0]) -
     differing_sort_names.into_iter().collect()
 }
 
+pub const MULTISCALE_COMPLEXITY_HEURISTIC_SCHEMA_VERSION_V0: &str = "0";
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy layer byte owned by omena-product-hints maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_MULTISCALE_COMPLEXITY_LAYER_BYTES_V0: &str = "rg-flow-statistical";
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy feature byte owned by omena-product-hints maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+const LEGACY_MULTISCALE_COMPLEXITY_FEATURE_BYTES_V0: &str = "rg-flow";
+#[allow(deprecated)]
+const MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_LAYER_MARKER_V0: &str =
+    LEGACY_MULTISCALE_COMPLEXITY_LAYER_BYTES_V0;
+#[allow(deprecated)]
+const MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_FEATURE_GATE_V0: &str =
+    LEGACY_MULTISCALE_COMPLEXITY_FEATURE_BYTES_V0;
+pub const MULTISCALE_COMPLEXITY_HEURISTIC_LAYER_MARKER_V0: &str =
+    "multiscale-complexity-heuristic-statistical";
+pub const MULTISCALE_COMPLEXITY_HEURISTIC_FEATURE_GATE_V0: &str = "multiscale-complexity-heuristic";
+pub const MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0: &str =
+    "optInDeepAnalysisJacobianSpectrumHintSubstrate";
+pub const MULTISCALE_COMPLEXITY_HEURISTIC_PRODUCT_SURFACE_V0: &str =
+    "deepAnalysisCascadeSensitivityHint";
+pub const MULTISCALE_COMPLEXITY_HEURISTIC_DEFAULT_PRODUCT_DECISION_MECHANISM_V0: bool = false;
+const MULTISCALE_COMPLEXITY_HEURISTIC_EIGEN_EPSILON: f64 = 1e-9;
+
+/// Pre-1.0 wire compatibility constants owned by `omena-product-hints`
+/// maintainers. Remove after downstream migration and zero audited non-compat uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use MULTISCALE_COMPLEXITY_HEURISTIC_*; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub const RG_FLOW_SCHEMA_VERSION_V0: &str = "0";
+#[deprecated(
+    since = "0.4.0",
+    note = "use MULTISCALE_COMPLEXITY_HEURISTIC_*; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub const RG_FLOW_LAYER_MARKER_V0: &str = "rg-flow-statistical";
+#[deprecated(
+    since = "0.4.0",
+    note = "use MULTISCALE_COMPLEXITY_HEURISTIC_*; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 pub const RG_FLOW_FEATURE_GATE_V0: &str = "rg-flow";
-pub const RG_FLOW_MECHANISM_SCOPE_V0: &str = "optInDeepAnalysisJacobianSpectrumHintSubstrate";
-pub const RG_FLOW_PRODUCT_SURFACE_V0: &str = "deepAnalysisCascadeSensitivityHint";
-pub const RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0: bool = false;
-const RG_FLOW_EIGEN_EPSILON: f64 = 1e-9;
+#[deprecated(
+    since = "0.4.0",
+    note = "use MULTISCALE_COMPLEXITY_HEURISTIC_*; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const RG_FLOW_MECHANISM_SCOPE_V0: &str = MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0;
+#[deprecated(
+    since = "0.4.0",
+    note = "use MULTISCALE_COMPLEXITY_HEURISTIC_*; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const RG_FLOW_PRODUCT_SURFACE_V0: &str = MULTISCALE_COMPLEXITY_HEURISTIC_PRODUCT_SURFACE_V0;
+#[deprecated(
+    since = "0.4.0",
+    note = "use MULTISCALE_COMPLEXITY_HEURISTIC_*; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub const RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0: bool =
+    MULTISCALE_COMPLEXITY_HEURISTIC_DEFAULT_PRODUCT_DECISION_MECHANISM_V0;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -835,17 +1021,19 @@ pub struct CouplingJacobianSpectrumV0 {
     pub computed_from: &'static str,
 }
 
-pub fn coupling_space(
+fn coupling_space_with_markers_v0(
     k_env: usize,
     k_decl: usize,
     k_cycle: usize,
     k_dirty: usize,
+    layer_marker: &'static str,
+    feature_gate: &'static str,
 ) -> CouplingSpaceV0 {
     CouplingSpaceV0 {
-        schema_version: RG_FLOW_SCHEMA_VERSION_V0,
+        schema_version: MULTISCALE_COMPLEXITY_HEURISTIC_SCHEMA_VERSION_V0,
         product: "omena-rg-flow.coupling-space",
-        layer_marker: RG_FLOW_LAYER_MARKER_V0,
-        feature_gate: RG_FLOW_FEATURE_GATE_V0,
+        layer_marker,
+        feature_gate,
         k_env,
         k_decl,
         k_cycle,
@@ -853,9 +1041,52 @@ pub fn coupling_space(
     }
 }
 
-pub fn estimate_coupling_jacobian_spectrum_v0(
+/// Pre-1.0 neutral-name compatibility constructor.
+/// Owner: `omena-product-hints` maintainers. Removal condition: not before
+/// 1.0, after downstream migration and zero audited non-compatibility uses.
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use multiscale_complexity_heuristic_coupling_space; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn coupling_space(
+    k_env: usize,
+    k_decl: usize,
+    k_cycle: usize,
+    k_dirty: usize,
+) -> CouplingSpaceV0 {
+    coupling_space_with_markers_v0(
+        k_env,
+        k_decl,
+        k_cycle,
+        k_dirty,
+        MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_LAYER_MARKER_V0,
+        MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_FEATURE_GATE_V0,
+    )
+}
+
+/// Construct a coupling-space carrier with accurate diagnostic-layer bytes.
+pub fn multiscale_complexity_heuristic_coupling_space(
+    k_env: usize,
+    k_decl: usize,
+    k_cycle: usize,
+    k_dirty: usize,
+) -> CouplingSpaceV0 {
+    coupling_space_with_markers_v0(
+        k_env,
+        k_decl,
+        k_cycle,
+        k_dirty,
+        MULTISCALE_COMPLEXITY_HEURISTIC_LAYER_MARKER_V0,
+        MULTISCALE_COMPLEXITY_HEURISTIC_FEATURE_GATE_V0,
+    )
+}
+
+fn coupling_jacobian_spectrum_with_markers_v0(
     before: &CouplingSpaceV0,
     after: &CouplingSpaceV0,
+    layer_marker: &'static str,
+    feature_gate: &'static str,
 ) -> CouplingJacobianSpectrumV0 {
     let beta_env = signed_delta(after.k_env, before.k_env);
     let beta_decl = signed_delta(after.k_decl, before.k_decl);
@@ -907,18 +1138,53 @@ pub fn estimate_coupling_jacobian_spectrum_v0(
         .fold(0.0, f64::max);
 
     CouplingJacobianSpectrumV0 {
-        schema_version: RG_FLOW_SCHEMA_VERSION_V0,
+        schema_version: MULTISCALE_COMPLEXITY_HEURISTIC_SCHEMA_VERSION_V0,
         product: "omena-rg-flow.coupling-jacobian-spectrum",
-        layer_marker: RG_FLOW_LAYER_MARKER_V0,
-        feature_gate: RG_FLOW_FEATURE_GATE_V0,
-        mechanism_scope: RG_FLOW_MECHANISM_SCOPE_V0,
-        product_surface: RG_FLOW_PRODUCT_SURFACE_V0,
-        default_product_decision_mechanism: RG_FLOW_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
+        layer_marker,
+        feature_gate,
+        mechanism_scope: MULTISCALE_COMPLEXITY_HEURISTIC_MECHANISM_SCOPE_V0,
+        product_surface: MULTISCALE_COMPLEXITY_HEURISTIC_PRODUCT_SURFACE_V0,
+        default_product_decision_mechanism:
+            MULTISCALE_COMPLEXITY_HEURISTIC_DEFAULT_PRODUCT_DECISION_MECHANISM_V0,
         matrix,
         eigenvalues,
         spectral_radius,
         computed_from: "finite-difference-linearization-v0",
     }
+}
+
+/// Pre-1.0 neutral-name compatibility estimator.
+/// Owner: `omena-product-hints` maintainers. Removal condition: not before
+/// 1.0, after downstream migration and zero audited non-compatibility uses.
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use estimate_multiscale_complexity_heuristic_coupling_jacobian_spectrum_v0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+pub fn estimate_coupling_jacobian_spectrum_v0(
+    before: &CouplingSpaceV0,
+    after: &CouplingSpaceV0,
+) -> CouplingJacobianSpectrumV0 {
+    coupling_jacobian_spectrum_with_markers_v0(
+        before,
+        after,
+        MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_LAYER_MARKER_V0,
+        MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_FEATURE_GATE_V0,
+    )
+}
+
+/// Additive canonical projection with accurate diagnostic-layer bytes. The
+/// pre-existing neutral estimator retains its V0 serialized layer and feature.
+pub fn estimate_multiscale_complexity_heuristic_coupling_jacobian_spectrum_v0(
+    before: &CouplingSpaceV0,
+    after: &CouplingSpaceV0,
+) -> CouplingJacobianSpectrumV0 {
+    coupling_jacobian_spectrum_with_markers_v0(
+        before,
+        after,
+        MULTISCALE_COMPLEXITY_HEURISTIC_LAYER_MARKER_V0,
+        MULTISCALE_COMPLEXITY_HEURISTIC_FEATURE_GATE_V0,
+    )
 }
 
 fn signed_delta(after: usize, before: usize) -> f64 {
@@ -935,7 +1201,7 @@ fn coupling_cross_sensitivity(
     target_before: usize,
 ) -> f64 {
     let source_delta = signed_delta(source_after, source_before).abs();
-    if source_delta <= RG_FLOW_EIGEN_EPSILON {
+    if source_delta <= MULTISCALE_COMPLEXITY_HEURISTIC_EIGEN_EPSILON {
         0.0
     } else {
         source_delta / source_before.saturating_add(target_before).max(1) as f64
@@ -1149,6 +1415,14 @@ pub const REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0: &str =
 pub const REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0: &str = "defaultCrossFileConsistencyHint";
 pub const REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0: bool = false;
 
+/// Pre-1.0 nominal compatibility key.
+///
+/// Owner: `omena-product-hints` maintainers. Removal is not before 1.0 and
+/// requires downstream migration plus zero audited in-repo non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use CascadeSectionKeyV0; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeSiteKeyV0 {
@@ -1158,6 +1432,49 @@ pub struct CascadeSiteKeyV0 {
     pub feature_gate: &'static str,
     pub element_selector: String,
     pub property: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeSectionKeyV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub element_selector: String,
+    pub property: String,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-product-hints maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+pub fn cascade_section_key_from_site_key_v0(key: CascadeSiteKeyV0) -> CascadeSectionKeyV0 {
+    CascadeSectionKeyV0 {
+        schema_version: key.schema_version,
+        product: "omena-ensemble.cascade-section-key",
+        layer_marker: key.layer_marker,
+        feature_gate: key.feature_gate,
+        element_selector: key.element_selector,
+        property: key.property,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-product-hints maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+pub fn compatibility_key_from_cascade_section_key_v0(key: CascadeSectionKeyV0) -> CascadeSiteKeyV0 {
+    CascadeSiteKeyV0 {
+        schema_version: key.schema_version,
+        product: "omena-ensemble.cascade-site-key",
+        layer_marker: key.layer_marker,
+        feature_gate: key.feature_gate,
+        element_selector: key.element_selector,
+        property: key.property,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1171,6 +1488,7 @@ pub struct LinearProvenanceTagV0 {
     pub label: String,
 }
 
+#[allow(deprecated)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplicaSiteOutcomeV0 {
@@ -1178,6 +1496,10 @@ pub struct ReplicaSiteOutcomeV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    #[deprecated(
+        since = "0.4.0",
+        note = "use a future cascade-section outcome carrier; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+    )]
     pub site: CascadeSiteKeyV0,
     pub outcome: CascadeOutcome,
     pub provenance: Option<LinearProvenanceTagV0>,
@@ -1410,10 +1732,39 @@ pub enum ReportRecommendation {
     UndetectablePhase,
 }
 
+pub fn cascade_section_key(
+    element_selector: impl Into<String>,
+    property: impl Into<String>,
+) -> CascadeSectionKeyV0 {
+    CascadeSectionKeyV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.cascade-section-key",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+        element_selector: element_selector.into(),
+        property: property.into(),
+    }
+}
+
+#[deprecated(
+    since = "0.4.0",
+    note = "legacy key product owned by omena-product-hints maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+const LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0: &str = "omena-ensemble.cascade-site-key";
+
+/// Compatibility constructor for the pre-deflation serialized product.
+///
+/// Owner: `omena-product-hints` maintainers. Removal is not before 1.0 and
+/// requires downstream migration plus zero audited in-repo non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use cascade_section_key; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+#[allow(deprecated)]
 pub fn site(element_selector: impl Into<String>, property: impl Into<String>) -> CascadeSiteKeyV0 {
     CascadeSiteKeyV0 {
         schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
-        product: "omena-ensemble.cascade-site-key",
+        product: LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0,
         layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
         feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         element_selector: element_selector.into(),
@@ -1517,6 +1868,7 @@ fn compute_overlap_distribution(
     }
 }
 
+#[allow(deprecated)]
 fn compute_replica_overlap<I, J>(
     alpha: &str,
     beta: &str,
@@ -1809,5 +2161,109 @@ fn peak_q_values(values: &[f64]) -> Vec<f64> {
         vec![low]
     } else {
         vec![low, high]
+    }
+}
+
+#[cfg(test)]
+mod cascade_section_key_tests {
+    #[allow(deprecated)]
+    use super::{
+        CascadeSectionKeyV0, CascadeSiteKeyV0, LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0,
+        cascade_section_key, site,
+    };
+
+    #[deprecated(
+        since = "0.4.0",
+        note = "legacy key wire fixture owned by omena-product-hints maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+    )]
+    const LEGACY_CASCADE_SECTION_KEY_EXPECTED_WIRE_V0: &str = r#"{"schemaVersion":"0","product":"omena-ensemble.cascade-site-key","layerMarker":"replica-ensemble","featureGate":"replica-ensemble","elementSelector":".button","property":"color"}"#;
+
+    #[allow(deprecated)]
+    #[deprecated(
+        since = "0.4.0",
+        note = "legacy key conversion fixture owned by omena-product-hints maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+    )]
+    fn assert_compatibility_key_conversion_v0(
+        canonical: CascadeSectionKeyV0,
+        legacy: CascadeSiteKeyV0,
+    ) {
+        let canonical_from_legacy = super::cascade_section_key_from_site_key_v0(legacy.clone());
+        let legacy_from_canonical =
+            super::compatibility_key_from_cascade_section_key_v0(canonical.clone());
+        assert_eq!(canonical_from_legacy, canonical);
+        assert_eq!(legacy_from_canonical, legacy);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn canonical_and_legacy_key_products_are_distinct_with_legacy_fields_preserved()
+    -> Result<(), serde_json::Error> {
+        let canonical = cascade_section_key(".button", "color");
+        let legacy = site(".button", "color");
+
+        assert_eq!(canonical.product, "omena-ensemble.cascade-section-key");
+        assert_eq!(legacy.product, LEGACY_CASCADE_SECTION_KEY_PRODUCT_V0);
+        assert_eq!(legacy.schema_version, "0");
+        assert_eq!(legacy.layer_marker, "replica-ensemble");
+        assert_eq!(legacy.feature_gate, "replica-ensemble");
+        assert_eq!(legacy.element_selector, ".button");
+        assert_eq!(legacy.property, "color");
+        assert_eq!(legacy.schema_version, canonical.schema_version);
+        assert_eq!(legacy.layer_marker, canonical.layer_marker);
+        assert_eq!(legacy.feature_gate, canonical.feature_gate);
+        assert_eq!(legacy.element_selector, canonical.element_selector);
+        assert_eq!(legacy.property, canonical.property);
+
+        assert_eq!(
+            serde_json::to_string(&legacy)?,
+            LEGACY_CASCADE_SECTION_KEY_EXPECTED_WIRE_V0
+        );
+        assert_eq!(
+            serde_json::to_string(&canonical)?,
+            r#"{"schemaVersion":"0","product":"omena-ensemble.cascade-section-key","layerMarker":"replica-ensemble","featureGate":"replica-ensemble","elementSelector":".button","property":"color"}"#
+        );
+
+        assert_compatibility_key_conversion_v0(canonical, legacy);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod multiscale_complexity_heuristic_wire_tests {
+    #[allow(deprecated)]
+    use super::{
+        coupling_space, estimate_coupling_jacobian_spectrum_v0,
+        estimate_multiscale_complexity_heuristic_coupling_jacobian_spectrum_v0,
+        multiscale_complexity_heuristic_coupling_space,
+    };
+
+    #[deprecated(
+        since = "0.4.0",
+        note = "legacy coupling wire fixture owned by omena-product-hints maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
+    const LEGACY_COUPLING_AND_SPECTRUM_EXPECTED_WIRE_V0: &str = r#"[{"schemaVersion":"0","product":"omena-rg-flow.coupling-space","layerMarker":"rg-flow-statistical","featureGate":"rg-flow","kEnv":1,"kDecl":1,"kCycle":0,"kDirty":0},{"schemaVersion":"0","product":"omena-rg-flow.coupling-jacobian-spectrum","layerMarker":"rg-flow-statistical","featureGate":"rg-flow","mechanismScope":"optInDeepAnalysisJacobianSpectrumHintSubstrate","productSurface":"deepAnalysisCascadeSensitivityHint","defaultProductDecisionMechanism":false,"matrix":[[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0]],"eigenvalues":[0.0,0.0,0.0,0.0],"spectralRadius":0.0,"computedFrom":"finite-difference-linearization-v0"}]"#;
+
+    #[test]
+    #[allow(deprecated)]
+    fn compatibility_and_canonical_coupling_surfaces_keep_distinct_exact_wire_bytes()
+    -> Result<(), serde_json::Error> {
+        let compatibility = coupling_space(1, 1, 0, 0);
+        let compatibility_spectrum =
+            estimate_coupling_jacobian_spectrum_v0(&compatibility, &compatibility);
+        assert_eq!(
+            serde_json::to_string(&(compatibility, compatibility_spectrum))?,
+            LEGACY_COUPLING_AND_SPECTRUM_EXPECTED_WIRE_V0
+        );
+
+        let canonical = multiscale_complexity_heuristic_coupling_space(1, 1, 0, 0);
+        let canonical_spectrum =
+            estimate_multiscale_complexity_heuristic_coupling_jacobian_spectrum_v0(
+                &canonical, &canonical,
+            );
+        assert_eq!(
+            serde_json::to_string(&(canonical, canonical_spectrum))?,
+            r#"[{"schemaVersion":"0","product":"omena-rg-flow.coupling-space","layerMarker":"multiscale-complexity-heuristic-statistical","featureGate":"multiscale-complexity-heuristic","kEnv":1,"kDecl":1,"kCycle":0,"kDirty":0},{"schemaVersion":"0","product":"omena-rg-flow.coupling-jacobian-spectrum","layerMarker":"multiscale-complexity-heuristic-statistical","featureGate":"multiscale-complexity-heuristic","mechanismScope":"optInDeepAnalysisJacobianSpectrumHintSubstrate","productSurface":"deepAnalysisCascadeSensitivityHint","defaultProductDecisionMechanism":false,"matrix":[[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0]],"eigenvalues":[0.0,0.0,0.0,0.0],"spectralRadius":0.0,"computedFrom":"finite-difference-linearization-v0"}]"#
+        );
+        Ok(())
     }
 }

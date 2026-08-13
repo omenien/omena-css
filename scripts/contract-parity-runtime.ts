@@ -1,4 +1,5 @@
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   collectSourceDocuments,
   createWorkspaceAnalysisHost,
@@ -114,13 +115,60 @@ function normalizeValue(value: unknown, workspaceRoot: string): unknown {
 }
 
 function normalizePathString(value: string, workspaceRoot: string): string {
-  if (value === workspaceRoot) {
-    return "<workspace>";
+  const withPortableFileUrls = replaceWorkspaceReference(
+    value,
+    pathToFileURL(workspaceRoot).href,
+    "/",
+  );
+  if (!hasWorkspaceReference(withPortableFileUrls, workspaceRoot, path.sep)) {
+    return withPortableFileUrls;
   }
-  if (value.startsWith(`${workspaceRoot}${path.sep}`)) {
-    return `<workspace>/${toPosix(path.relative(workspaceRoot, value))}`;
+
+  const withPortableSeparators =
+    path.sep === "/" ? withPortableFileUrls : withPortableFileUrls.replaceAll(path.sep, "/");
+  return replaceWorkspaceReference(withPortableSeparators, toPosix(workspaceRoot), "/");
+}
+
+function hasWorkspaceReference(value: string, workspaceRoot: string, separator: string): boolean {
+  let cursor = 0;
+
+  for (;;) {
+    const occurrence = value.indexOf(workspaceRoot, cursor);
+    if (occurrence === -1) return false;
+
+    const afterWorkspaceRoot = occurrence + workspaceRoot.length;
+    if (afterWorkspaceRoot === value.length || value.startsWith(separator, afterWorkspaceRoot)) {
+      return true;
+    }
+    cursor = afterWorkspaceRoot;
   }
-  return value;
+}
+
+function replaceWorkspaceReference(
+  value: string,
+  workspaceRoot: string,
+  separator: string,
+): string {
+  let cursor = 0;
+  let normalized = "";
+
+  for (;;) {
+    const occurrence = value.indexOf(workspaceRoot, cursor);
+    if (occurrence === -1) return normalized + value.slice(cursor);
+
+    const afterWorkspaceRoot = occurrence + workspaceRoot.length;
+    normalized += value.slice(cursor, occurrence);
+
+    if (value.startsWith(separator, afterWorkspaceRoot)) {
+      normalized += "<workspace>/";
+      cursor = afterWorkspaceRoot + separator.length;
+      continue;
+    }
+    if (afterWorkspaceRoot === value.length) return normalized + "<workspace>";
+
+    normalized += workspaceRoot;
+    cursor = afterWorkspaceRoot;
+  }
 }
 
 function sortObjectKeys(value: unknown): unknown {

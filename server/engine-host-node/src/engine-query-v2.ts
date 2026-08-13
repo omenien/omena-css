@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import {
   describeAbstractValueReason,
   describeSelectorCertaintyReason,
@@ -231,10 +232,14 @@ export function buildSelectedQueryResultsV2(
 
   return results.toSorted(
     (a, b) =>
-      a.filePath.localeCompare(b.filePath) ||
-      a.kind.localeCompare(b.kind) ||
-      a.queryId.localeCompare(b.queryId),
+      compareUtf8ByteOrder(a.filePath, b.filePath) ||
+      compareUtf8ByteOrder(a.kind, b.kind) ||
+      compareUtf8ByteOrder(a.queryId, b.queryId),
   );
+}
+
+function compareUtf8ByteOrder(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
 function createSourceResolutionPayloadReader(

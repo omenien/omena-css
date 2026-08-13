@@ -23,6 +23,58 @@ export interface DocumentationPageData {
   pageTree: Awaited<ReturnType<typeof source.serializePageTree>>;
   title: string;
   description: string | undefined;
+  canonicalUrl: string;
+}
+
+export function createDocumentationHead(data: DocumentationPageData | undefined) {
+  if (!data) return { meta: [] };
+
+  const title = `${data.title} | Omena`;
+
+  return {
+    meta: [
+      {
+        title,
+      },
+      {
+        name: "description",
+        content: data.description,
+      },
+      {
+        property: "og:type",
+        content: "article",
+      },
+      {
+        property: "og:title",
+        content: title,
+      },
+      {
+        property: "og:description",
+        content: data.description,
+      },
+      {
+        property: "og:url",
+        content: data.canonicalUrl,
+      },
+      {
+        name: "twitter:title",
+        content: title,
+      },
+      {
+        name: "twitter:description",
+        content: data.description,
+      },
+      {
+        "script:ld+json": createDocumentationStructuredData(data),
+      },
+    ],
+    links: [
+      {
+        rel: "canonical",
+        href: data.canonicalUrl,
+      },
+    ],
+  };
 }
 
 export const loadDocumentationPage = createServerFn({
@@ -39,6 +91,7 @@ export const loadDocumentationPage = createServerFn({
       pageTree: await source.serializePageTree(source.getPageTree()),
       title: page.data.title,
       description: page.data.description,
+      canonicalUrl: documentationCanonicalUrl(page.path),
     };
   });
 
@@ -112,4 +165,47 @@ function DocumentationMain({ children, className, ...props }: ComponentProps<"ar
       <article className="contents">{children}</article>
     </main>
   );
+}
+
+function documentationCanonicalUrl(sourcePath: string): string {
+  const slug = sourcePath.replace(/\.(?:md|mdx)$/u, "");
+  const pathname = slug === "index" ? "/" : `/docs/${slug}/`;
+  return new URL(pathname, site.origin).href;
+}
+
+function createDocumentationStructuredData(data: DocumentationPageData) {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${site.origin}/#website`,
+        name: "Omena Documentation",
+        url: `${site.origin}/`,
+        description: site.description,
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": `${site.origin}/#software`,
+        name: site.name,
+        applicationCategory: "DeveloperApplication",
+        operatingSystem: "Cross-platform",
+        url: `${site.origin}/`,
+        sameAs: site.repository,
+      },
+      {
+        "@type": "TechArticle",
+        headline: data.title,
+        description: data.description,
+        url: data.canonicalUrl,
+        mainEntityOfPage: data.canonicalUrl,
+        isPartOf: {
+          "@id": `${site.origin}/#website`,
+        },
+        about: {
+          "@id": `${site.origin}/#software`,
+        },
+      },
+    ],
+  };
 }

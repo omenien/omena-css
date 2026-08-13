@@ -1,9 +1,43 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omena_cascade::LayerOrdinal;
 use omena_parser::ParsedCst;
 use omena_syntax::{SyntaxKind, SyntaxNode, css_keyword};
 
-use crate::{ParserByteSpanV0, StyleLayerBlockBindingV0, StyleLayerOrderNodeV0};
+use crate::{ParserByteSpanV0, StyleLayerBlockBindingV0, StyleLayerIndexV0, StyleLayerOrderNodeV0};
+
+/// Result of resolving a source span against the canonical layer topology.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayerBindingResolutionV0 {
+    /// `Some` identifies a layered declaration; `None` is unlayered.
+    Resolved(Option<LayerOrdinal>),
+    /// Existing bindings cannot prove a complete layer order.
+    TopologyIncomplete { unresolved_count: usize },
+}
+
+/// Resolves the innermost layer block containing a source span.
+pub fn layer_ordinal_for_byte_span(
+    layer_index: &StyleLayerIndexV0,
+    span_start: usize,
+    span_end: usize,
+) -> LayerBindingResolutionV0 {
+    if !layer_index.topology_complete {
+        return LayerBindingResolutionV0::TopologyIncomplete {
+            unresolved_count: layer_index.unresolved_topology_count,
+        };
+    }
+
+    let ordinal = layer_index
+        .block_bindings
+        .iter()
+        .filter(|binding| {
+            binding.byte_span.start <= span_start && span_end <= binding.byte_span.end
+        })
+        .max_by_key(|binding| binding.nesting_depth)
+        .map(|binding| i32::try_from(binding.cascade_rank).unwrap_or(i32::MAX - 1))
+        .and_then(LayerOrdinal::new);
+    LayerBindingResolutionV0::Resolved(ordinal)
+}
 
 pub(crate) struct LayerOrderFactsV0 {
     pub(crate) order_nodes: Vec<StyleLayerOrderNodeV0>,

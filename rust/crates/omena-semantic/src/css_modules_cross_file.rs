@@ -1,6 +1,9 @@
 //! CSS Modules cross-file closure and resolution summaries for semantic consumers.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use omena_cross_file_summary::{
     HypergraphClosurePath, collect_hypergraph_transitive_closure_paths,
@@ -8,7 +11,15 @@ use omena_cross_file_summary::{
 use omena_resolver::{
     OmenaResolverStylePackageManifestV0, resolve_omena_resolver_style_module_source,
 };
+use omena_syntax::{
+    css_keyword,
+    ident::{CanonicalClassKeyV0, ClassNameV0},
+};
 use serde::Serialize;
+
+fn canonical_class_key(name: &str) -> CanonicalClassKeyV0 {
+    ClassNameV0::new(name).canonical_key()
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -421,8 +432,11 @@ fn resolve_css_modules_import_edge(
         .map(|facts| exported_names_for_kind(facts).to_vec())
         .unwrap_or_default();
     let imported_names = sorted_unique_strings(imported_names);
-    let matched_names =
-        sorted_name_intersection(imported_names.as_slice(), exported_names.as_slice());
+    let matched_names = if css_keyword(import_kind).equals("composes") {
+        sorted_class_name_intersection(imported_names.as_slice(), exported_names.as_slice())
+    } else {
+        sorted_name_intersection(imported_names.as_slice(), exported_names.as_slice())
+    };
     let status = if resolved_style_path.is_none() {
         "unresolvedSource"
     } else if imported_names.is_empty() {
@@ -466,10 +480,55 @@ fn sorted_name_intersection(left: &[String], right: &[String]) -> Vec<String> {
         .collect()
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+fn sorted_class_name_intersection(left: &[String], right: &[String]) -> Vec<String> {
+    let right = right
+        .iter()
+        .map(|name| canonical_class_key(name))
+        .collect::<BTreeSet<_>>();
+    left.iter()
+        .filter(|name| right.contains(&canonical_class_key(name)))
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+#[derive(Debug, Clone)]
 struct CssModulesComposesNode {
     style_path: String,
     selector_name: String,
+    selector_key: CanonicalClassKeyV0,
+}
+
+impl CssModulesComposesNode {
+    fn new(style_path: impl Into<String>, selector_name: impl Into<String>) -> Self {
+        let selector_name = selector_name.into();
+        Self {
+            style_path: style_path.into(),
+            selector_key: canonical_class_key(&selector_name),
+            selector_name,
+        }
+    }
+}
+
+impl PartialEq for CssModulesComposesNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.style_path == other.style_path && self.selector_key == other.selector_key
+    }
+}
+
+impl Eq for CssModulesComposesNode {}
+
+impl PartialOrd for CssModulesComposesNode {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CssModulesComposesNode {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (&self.style_path, &self.selector_key).cmp(&(&other.style_path, &other.selector_key))
+    }
 }
 
 fn summarize_css_modules_composes_closure(
@@ -533,7 +592,7 @@ fn collect_css_modules_composes_adjacency(
         let class_names = facts
             .class_selector_names
             .iter()
-            .map(String::as_str)
+            .map(|name| canonical_class_key(name))
             .collect::<BTreeSet<_>>();
         for edge in &facts.css_module_composes_edges {
             if edge.kind == "global" {
@@ -563,30 +622,28 @@ fn collect_css_modules_composes_adjacency(
                         facts
                             .class_selector_names
                             .iter()
-                            .map(String::as_str)
+                            .map(|name| canonical_class_key(name))
                             .collect::<BTreeSet<_>>()
                     })
                     .unwrap_or_default()
             };
             for owner_selector_name in &edge.owner_selector_names {
-                if !class_names.contains(owner_selector_name.as_str()) {
+                if !class_names.contains(&canonical_class_key(owner_selector_name)) {
                     continue;
                 }
-                let owner = CssModulesComposesNode {
-                    style_path: (*style_path).to_string(),
-                    selector_name: owner_selector_name.clone(),
-                };
+                let owner =
+                    CssModulesComposesNode::new((*style_path).to_string(), owner_selector_name);
                 for target_selector_name in &edge.target_names {
-                    if !target_class_names.contains(target_selector_name.as_str()) {
+                    if !target_class_names.contains(&canonical_class_key(target_selector_name)) {
                         continue;
                     }
                     graph
                         .entry(owner.clone())
                         .or_insert_with(BTreeSet::new)
-                        .insert(CssModulesComposesNode {
-                            style_path: target_style_path.clone(),
-                            selector_name: target_selector_name.clone(),
-                        });
+                        .insert(CssModulesComposesNode::new(
+                            target_style_path.clone(),
+                            target_selector_name,
+                        ));
                 }
             }
         }

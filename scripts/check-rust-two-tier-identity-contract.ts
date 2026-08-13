@@ -52,6 +52,10 @@ const sessionStableStringKeyCollections = new Set([
   "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionV0.registered_style_paths",
 ]);
 
+const sessionStablePathKeyCollections = new Set([
+  "rust/crates/omena-lsp-server/src/state.rs#LspShellState.swept_legacy_cache_roots",
+]);
+
 const scanTargets: readonly ScanTarget[] = [
   {
     sourcePath: "rust/crates/omena-query/src/style/salsa_memo.rs",
@@ -159,6 +163,14 @@ function buildExpectedInventory(): readonly InventoryEntry[] {
     staleStringKeyClassifications,
     [],
     "session-stable String-key classifications must name live scanned collections",
+  );
+  const stalePathKeyClassifications = [...sessionStablePathKeyCollections].filter(
+    (id) => !scannedIds.has(id),
+  );
+  assert.deepEqual(
+    stalePathKeyClassifications,
+    [],
+    "session-stable PathBuf-key classifications must name live scanned collections",
   );
   return [
     ...scannedCollections.map(classifyCollection),
@@ -321,6 +333,16 @@ function classifyCollection(entry: ScannedCollection): InventoryEntry {
       persistentIdentityKey: true,
       justification:
         "String key is a canonical style path, URI, URL, or content hash in the scanned persistent store.",
+    };
+  }
+
+  if (entry.keyType === "PathBuf" && sessionStablePathKeyCollections.has(entry.id)) {
+    return {
+      ...entry,
+      identityTier: "session-stable",
+      persistentIdentityKey: true,
+      justification:
+        "PathBuf is a workspace cache root retained only to deduplicate legacy-cache maintenance within one LSP session.",
     };
   }
 

@@ -214,11 +214,10 @@ jobs:
               continue
             fi
             echo "::group::cargo-semver-checks ${crate}"
-            cargo semver-checks check-release \
-              --manifest-path rust/Cargo.toml \
-              --package "${crate}" \
-              --all-features \
-              --color never
+            baseline_version="$(jq -er --arg crate "${crate}" '.latestPublishedVersions[$crate]' crate-registry-state.json)"
+            pnpm omena-check run rust/release-semver -- \
+              --crate "${crate}" \
+              --baseline-version "${baseline_version}"
             echo "::endgroup::"
           done < canonical-publish-order.txt
 

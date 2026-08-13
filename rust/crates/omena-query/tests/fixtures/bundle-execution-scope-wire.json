@@ -36,6 +36,205 @@
     "interModuleSeparatorByteLen": 2,
     "materializedOutputByteLen": 19
   },
+  "bundleExecution": {
+    "schemaVersion": "0",
+    "product": "omena-query.bundle-execution",
+    "entryModuleInstance": {
+      "module": "src/app.css",
+      "configuration": "with:none"
+    },
+    "moduleExecutions": [
+      {
+        "moduleInstance": {
+          "module": "src/app.css",
+          "configuration": "with:none"
+        },
+        "execution": {
+          "schemaVersion": "0",
+          "product": "omena-transform-passes.execution",
+          "inputByteLen": 23,
+          "outputByteLen": 17,
+          "requestedPassIds": ["whitespace-strip"],
+          "orderedPassIds": ["whitespace-strip"],
+          "executedPassIds": ["whitespace-strip"],
+          "plannedOnlyPassIds": [],
+          "mutationCount": 6,
+          "provenancePreserved": true,
+          "outputCss": ".appss{color:red}",
+          "cssModuleEvaluation": null,
+          "cssImportInlines": [],
+          "cssModuleComposesExports": [],
+          "designTokenRoutes": [],
+          "semanticRemovals": [],
+          "cascadeProofObligations": {
+            "schemaVersion": "0",
+            "product": "omena-transform-passes.cascade-proof-obligations",
+            "obligationCount": 0,
+            "acceptedCount": 0,
+            "blockedCount": 0,
+            "checkedPassIds": [],
+            "obligations": []
+          },
+          "provenanceDerivationForest": {
+            "schemaVersion": "0",
+            "product": "omena-transform-passes.provenance-derivation-forest",
+            "rootCount": 1,
+            "nodeCount": 1,
+            "nodes": [
+              {
+                "nodeIndex": 0,
+                "parentIndex": null,
+                "passId": "whitespace-strip",
+                "status": "applied",
+                "inputByteLen": 23,
+                "outputByteLen": 17,
+                "sourceSpanStart": 6,
+                "sourceSpanEnd": 23,
+                "generatedSpanStart": 6,
+                "generatedSpanEnd": 17,
+                "mutationSpans": [
+                  {
+                    "sourceSpanStart": 6,
+                    "sourceSpanEnd": 23,
+                    "generatedSpanStart": 6,
+                    "generatedSpanEnd": 17
+                  }
+                ],
+                "mutationCount": 6,
+                "provenancePreserved": true,
+                "detail": "normalized lexer trivia where adjacent token boundaries remain unambiguous"
+              }
+            ]
+          },
+          "structuralIrTransactionTelemetry": {
+            "transactionCommitCount": 0,
+            "irMetadataRefreshCount": 0,
+            "irTransactionCommitCount": 0,
+            "irMaterializationCount": 0,
+            "irMutationCount": 0
+          },
+          "semanticPreservationTelemetry": {
+            "observedPassCount": 0,
+            "preservedPassCount": 0,
+            "blockedPassCount": 0,
+            "observedSurface": {
+              "keyAxes": ["selector", "property", "context"],
+              "valueAxes": ["value", "important"],
+              "orderingRules": ["sourceOrder", "importantPrecedence"],
+              "unobservedAxes": [
+                "interSelectorSpecificityCompetition",
+                "cascadeLayerOrder",
+                "origin",
+                "scopeProximity",
+                "domDependentMatching",
+                "inheritance",
+                "customPropertyEnvironment",
+                "animationAndTransition"
+              ],
+              "claimScope": "observedSurfaceOnly",
+              "vocabularyReview": "deferredUntilFullCascadeObservation"
+            }
+          },
+          "dischargeLedgerTelemetry": {
+            "lookupCount": 0,
+            "matchedLookupCount": 0,
+            "acceptedStampCount": 0,
+            "blockedLookupCount": 0
+          },
+          "strictPolicy": {
+            "profileId": null,
+            "refusedCount": 0,
+            "rolledBackCount": 0,
+            "refusalReasons": [],
+            "rollbackReasons": []
+          },
+          "closedWorldAdmission": {
+            "refusedCount": 0,
+            "refusalReasons": []
+          },
+          "decisions": [
+            {
+              "kind": "applied",
+              "outcome": {
+                "passId": "whitespace-strip",
+                "status": "applied",
+                "inputByteLen": 23,
+                "outputByteLen": 17,
+                "mutationCount": 6,
+                "provenancePreserved": true,
+                "detail": "normalized lexer trivia where adjacent token boundaries remain unambiguous"
+              },
+              "rollbackReceipt": {
+                "passId": "whitespace-strip",
+                "attemptedMutationCount": 6,
+                "inputContentSignature": "1ddb7422a102d734d562a6df1fc3b2c96d1f9178889c35b94873d11c42542bca",
+                "restorable": {
+                  "kind": "committedIrrecoverable"
+                }
+              }
+            }
+          ],
+          "outcomes": [
+            {
+              "passId": "whitespace-strip",
+              "status": "applied",
+              "inputByteLen": 23,
+              "outputByteLen": 17,
+              "mutationCount": 6,
+              "provenancePreserved": true,
+              "detail": "normalized lexer trivia where adjacent token boundaries remain unambiguous"
+            }
+          ],
+          "passPlan": {
+            "schemaVersion": "0",
+            "product": "omena-transform-passes.plan",
+            "buildProfile": {
+              "schemaVersion": "0",
+              "product": "omena-transform-cst.build-profile",
+              "profileId": "descriptor-ordered-transform-plan",
+              "passIds": ["whitespace-strip"]
+            },
+            "requestedPassIds": ["whitespace-strip"],
+            "orderedPassIds": ["whitespace-strip"],
+            "satisfiedDagEdgeCount": 0,
+            "violatedDagEdgeCount": 0,
+            "allRequestedRegistered": true,
+            "conflictingUnorderedPassPairs": []
+          }
+        }
+      }
+    ],
+    "emissionExecution": {
+      "moduleRegions": [
+        {
+          "moduleInstance": {
+            "module": "src/app.css",
+            "configuration": "with:none"
+          },
+          "firstGlobalOrderIndex": 0,
+          "generatedStart": 0,
+          "generatedEnd": 17
+        }
+      ],
+      "orderEntryRegions": [
+        {
+          "globalOrderIndex": 0,
+          "moduleInstance": {
+            "module": "src/app.css",
+            "configuration": "with:none"
+          },
+          "generatedStart": 0,
+          "generatedEnd": 17
+        }
+      ],
+      "emittedModuleCount": 1,
+      "globalOrderEntryCount": 1
+    },
+    "aggregateMutationCount": 6,
+    "aggregateExecutedPassIds": ["whitespace-strip"],
+    "aggregateSemanticRemovalCount": 0,
+    "aggregateClosedWorldRefusalCount": 0
+  },
   "sourceMapDispositions": [
     {
       "moduleInstance": {
@@ -51,7 +250,7 @@
         "configuration": "with:none"
       },
       "granularity": "wholeModuleFallback",
-      "fallbackReason": "__SOURCE_START_FALLBACK_REASON__",
+      "fallbackReason": "module output differs; fallback uses source-start convention without token correspondence",
       "segmentCount": 1
     }
   ]

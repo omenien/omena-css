@@ -783,6 +783,12 @@ pub struct OmenaQueryBundleArtifactV0 {
     pub code_split_outputs: Vec<OmenaQueryBundleCodeSplitWorkspacePlanOutputV0>,
     pub asset_rewrites: Vec<TransformBundleAssetUrlRewriteSummaryV0>,
     pub per_pass_provenance: Vec<TransformPassExecutionOutcomeV0>,
+    /// Compatibility projection that retains entry-scoped execution fields.
+    ///
+    /// Linked consumers should read `BundleExecutionSummaryV0` from
+    /// `OmenaQueryBundleExecutionScopeEvidenceV0::bundle_execution`. This field
+    /// remains serialized unchanged; deprecation does not alter the wire shape,
+    /// and removal is reserved for a future major release.
     pub execution: TransformExecutionSummaryV0,
     pub ready_surfaces: Vec<&'static str>,
 }
@@ -793,6 +799,26 @@ pub struct OmenaQueryBundleResultV0 {
     pub artifact: OmenaQueryBundleArtifactV0,
     pub closed_world_outcome: OmenaQueryClosedWorldOutcomeV0,
     pub closed_world_decision_parity: OmenaQueryClosedWorldDecisionParityV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct OmenaQueryBundleTokenOwnershipResultV0 {
+    pub bundle_result: OmenaQueryBundleResultV0,
+    pub ownership_census: omena_query_transform_runner::CssModuleTokenOwnershipCensusV0,
+}
+
+impl OmenaQueryBundleTokenOwnershipResultV0 {
+    pub(crate) fn new(
+        bundle_result: OmenaQueryBundleResultV0,
+        ownership_census: omena_query_transform_runner::CssModuleTokenOwnershipCensusV0,
+    ) -> Self {
+        Self {
+            bundle_result,
+            ownership_census,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -853,6 +879,65 @@ pub struct OmenaQueryLinkedSourceMapDispositionV0 {
     pub segment_count: usize,
 }
 
+/// One linked module's complete transform execution.
+///
+/// Per-module truth remains available because most transform execution fields
+/// have no defensible bundle-level fold.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct BundleModuleExecutionV0 {
+    pub module_instance: omena_parser::ModuleInstanceKeyV0,
+    pub execution: TransformExecutionSummaryV0,
+}
+
+/// Region and count evidence owned by linked bundle materialization.
+///
+/// This type deliberately carries neither CSS text nor a byte total. The
+/// materialized CSS remains on the bundle artifact, and
+/// `OmenaQueryBundleCompositeExecutionByteFactsV0` remains the sole byte
+/// accounting authority.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct BundleEmissionExecutionV0 {
+    pub module_regions: Vec<LinkedEmissionModuleRegionV0>,
+    pub order_entry_regions: Vec<LinkedEmissionOrderEntryRegionV0>,
+    pub emitted_module_count: usize,
+    pub global_order_entry_count: usize,
+}
+
+/// Bundle-level transform execution for the linked emission path.
+///
+/// The aggregate fields are intentionally narrower than
+/// `TransformExecutionSummaryV0`: each one has an authored fold and a product
+/// run where the folded value differs from the entry module. This summary says
+/// nothing about the legacy emission path, and fields without a defensible fold
+/// remain available only through `module_executions`. The current product
+/// corpus bounds which `aggregate_*` fields have witnesses; it is not a claim
+/// that the set is exhaustive. Fold tokens document the intended operation,
+/// but witnesses remain load-bearing: the current corpus distinguishes the
+/// refusal-count sum, while mutation and semantic-removal values happen to make
+/// `sum` and `max` agree.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct BundleExecutionSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub entry_module_instance: omena_parser::ModuleInstanceKeyV0,
+    pub module_executions: Vec<BundleModuleExecutionV0>,
+    pub emission_execution: BundleEmissionExecutionV0,
+    /// Fold: `sum` over each module execution's mutation count.
+    pub aggregate_mutation_count: usize,
+    /// Fold: `orderedUnion` over executed pass identifiers in module order.
+    pub aggregate_executed_pass_ids: Vec<&'static str>,
+    /// Fold: `sum` over each module execution's semantic removal count.
+    pub aggregate_semantic_removal_count: usize,
+    /// Fold: `sum` over each module execution's closed-world refusal count.
+    pub aggregate_closed_world_refusal_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -863,6 +948,7 @@ pub struct OmenaQueryBundleExecutionScopeEvidenceV0 {
     pub field_scopes: Vec<OmenaQueryExecutionFieldScopeV0>,
     pub module_executions: Vec<OmenaQueryBundleModuleExecutionByteFactsV0>,
     pub bundle_composite: OmenaQueryBundleCompositeExecutionByteFactsV0,
+    pub bundle_execution: BundleExecutionSummaryV0,
     pub source_map_dispositions: Vec<OmenaQueryLinkedSourceMapDispositionV0>,
 }
 
@@ -1029,7 +1115,38 @@ pub struct OmenaQueryTransformExecuteSummaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
-#[cfg(feature = "lawvere-trace")]
+#[cfg(feature = "transform-catalog-trace")]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryTransformCatalogTransformExecuteSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub product_scope: &'static str,
+    pub default_product_mechanism: bool,
+    pub global_transform_theorem_claimed: bool,
+    pub execution: OmenaQueryTransformExecuteSummaryV0,
+    /// Compatibility field owned by `omena-query` maintainers. Remove not
+    /// before 1.0, after downstream migration and zero audited non-compat uses.
+    #[deprecated(
+        since = "0.4.0",
+        note = "use transform_catalog_trace(); removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+    )]
+    pub lawvere_trace: OmenaQueryTransformCatalogModelTraceV0,
+    pub parallel_plan: OmenaQueryTransformCatalogTransformPassParallelPlanV0,
+    pub reorderability_certificates: Vec<OmenaQueryTransformCatalogReorderabilityCertificateV0>,
+    pub differential_witnesses: Vec<OmenaQueryTransformCatalogDifferentialCommutativityWitnessV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+/// Pre-1.0 nominal compatibility summary for the former trace surface.
+/// Owner: `omena-query` maintainers. Removal condition: not before 1.0,
+/// after downstream migration and zero audited in-repo non-compatibility uses.
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "use OmenaQueryTransformCatalogTransformExecuteSummaryV0; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryLawvereTransformExecuteSummaryV0 {
@@ -1039,11 +1156,32 @@ pub struct OmenaQueryLawvereTransformExecuteSummaryV0 {
     pub default_product_mechanism: bool,
     pub global_transform_theorem_claimed: bool,
     pub execution: OmenaQueryTransformExecuteSummaryV0,
-    pub lawvere_trace: OmenaQueryLawvereModelTraceV0,
-    pub parallel_plan: OmenaQueryLawvereTransformPassParallelPlanV0,
-    pub reorderability_certificates: Vec<OmenaQueryLawvereReorderabilityCertificateV0>,
-    pub differential_witnesses: Vec<OmenaQueryLawvereDifferentialCommutativityWitnessV0>,
+    pub lawvere_trace: omena_query_transform_runner::LawvereModelTraceV0,
+    pub parallel_plan: omena_query_transform_runner::TransformPassParallelPlanV0,
+    pub reorderability_certificates: Vec<omena_query_transform_runner::ReorderabilityCertificateV0>,
+    pub differential_witnesses:
+        Vec<omena_query_transform_runner::LawvereDifferentialCommutativityWitnessV0>,
     pub ready_surfaces: Vec<&'static str>,
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+impl OmenaQueryTransformCatalogTransformExecuteSummaryV0 {
+    #[allow(deprecated)]
+    pub fn transform_catalog_trace(&self) -> &OmenaQueryTransformCatalogModelTraceV0 {
+        transform_catalog_trace_from_legacy_field_v0(self)
+    }
+}
+
+#[cfg(feature = "transform-catalog-trace")]
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility field adapter owned by omena-query maintainers; removal is not before 1.0 and requires downstream migration plus zero audited non-compatibility uses"
+)]
+fn transform_catalog_trace_from_legacy_field_v0(
+    summary: &OmenaQueryTransformCatalogTransformExecuteSummaryV0,
+) -> &OmenaQueryTransformCatalogModelTraceV0 {
+    &summary.lawvere_trace
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1311,7 +1449,9 @@ impl OmenaQueryEngineInputModuleReachabilityV0 {
                 let mut declared_owner_paths = self
                     .declared_class_names_by_style_path
                     .iter()
-                    .filter(|(_, names)| names.contains(class_name))
+                    .filter(|(_, names)| {
+                        class_name_collection_contains(names.iter().map(String::as_str), class_name)
+                    })
                     .map(|(style_path, _)| style_path);
                 let Some(first_owner_path) = declared_owner_paths.next() else {
                     return true;
@@ -1490,13 +1630,18 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
             .flat_map(|entry| entry.class_names.iter().cloned())
             .collect::<BTreeSet<_>>();
         for class_name in &flat_class_names {
-            if directly_attributed_class_names.contains(class_name) {
+            if class_name_collection_contains(
+                directly_attributed_class_names.iter().map(String::as_str),
+                class_name,
+            ) {
                 continue;
             }
             let declared_owner_paths = attribution
                 .declared_class_names_by_style_path
                 .iter()
-                .filter(|(_, names)| names.contains(class_name))
+                .filter(|(_, names)| {
+                    class_name_collection_contains(names.iter().map(String::as_str), class_name)
+                })
                 .map(|(style_path, _)| normalize_omena_query_style_path(style_path))
                 .collect::<BTreeSet<_>>();
             for entry in &mut entries {
@@ -1608,6 +1753,16 @@ impl OmenaQueryModuleReachabilityAttributionReportV0 {
     pub fn attributed_empty_module_count(&self) -> usize {
         self.attributed_empty_module_count
     }
+}
+
+fn class_name_collection_contains<'a>(
+    names: impl IntoIterator<Item = &'a str>,
+    candidate: &str,
+) -> bool {
+    let candidate = omena_syntax::ident::ClassNameV0::new(candidate);
+    names
+        .into_iter()
+        .any(|name| omena_syntax::ident::ClassNameV0::new(name).same_as(&candidate))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -1851,6 +2006,14 @@ pub struct OmenaQueryStaticConditionPruningEvidenceV0 {
     pub anchor_context: bool,
 }
 
+/// Why a cascade result could not use a complete named-layer ordering.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCascadeLayerTopologyIncompleteV0 {
+    /// Number of unresolved layer-topology facts observed by the semantic index.
+    pub unresolved_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub schema_version: &'static str,
@@ -1866,6 +2029,7 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub scenarios: Vec<OmenaQueryRuntimeStateScenarioV0>,
     pub static_condition_pruning: Vec<OmenaQueryStaticConditionPruningEvidenceV0>,
     pub inline_style_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
+    pub cascade_layer_topology_incomplete: Option<OmenaQueryCascadeLayerTopologyIncompleteV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1905,7 +2069,20 @@ pub struct OmenaQueryInlineStyleRuntimeOverrideV0 {
     pub property_name: String,
     pub value: Option<String>,
     pub cascade_tier: &'static str,
+    /// Whether the static source text ended with a CSS `!important` suffix.
+    ///
+    /// This is a source-text observation, not a claim about browser setter behavior.
+    pub important: bool,
     pub static_value: bool,
+}
+
+impl OmenaQueryInlineStyleRuntimeOverrideV0 {
+    /// Whether the originating static source text ended with `!important`.
+    ///
+    /// The flag describes source syntax, not browser setter behavior.
+    pub fn important_suffix_present(&self) -> bool {
+        self.important
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -2218,6 +2395,7 @@ pub struct OmenaQueryCascadeAtPositionV0 {
     pub winner_declaration_file_path: Option<String>,
     pub winner_declaration_range: Option<ParserRangeV0>,
     pub winner_context_kind: Option<&'static str>,
+    /// Opaque cascade ordering token; consumers must not interpret it as a layer-count magnitude.
     pub winner_declaration_layer_rank: Option<i32>,
     pub winner_declaration_layer_name: Option<String>,
     pub candidate_declaration_count: usize,

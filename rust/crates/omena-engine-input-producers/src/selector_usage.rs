@@ -8,7 +8,12 @@ use crate::{
     SelectorUsageEvaluatorCandidateV0, SelectorUsageEvaluatorCandidatesV0, SelectorUsageFragmentV0,
     SelectorUsageFragmentsV0, SelectorUsagePlanSummaryV0, SelectorUsageQueryFragmentV0,
     SelectorUsageQueryFragmentsV0, SelectorUsageReferenceSiteV0, StyleAnalysisInputV2,
-    StyleSelectorV2, canonical_selector_count, map_selector_certainty, resolve_selector_names,
+    StyleSelectorV2, canonical_selector_count,
+    expression_domain::{
+        ExpressionDomainSelectorCertaintyFlowHedgesV0,
+        collect_expression_domain_selector_certainty_flow_hedges,
+    },
+    map_selector_certainty_projection, resolve_selector_names,
 };
 
 pub fn summarize_selector_usage_plan_input(input: &EngineInputV2) -> SelectorUsagePlanSummaryV0 {
@@ -190,6 +195,15 @@ pub fn summarize_selector_usage_canonical_producer_signal_input(
 }
 
 fn collect_selector_usage_input_rows(input: &EngineInputV2) -> SelectorUsageInputRows {
+    let selector_certainty_flow_hedges =
+        collect_expression_domain_selector_certainty_flow_hedges(input);
+    collect_selector_usage_input_rows_with_flow_hedges(input, &selector_certainty_flow_hedges)
+}
+
+fn collect_selector_usage_input_rows_with_flow_hedges(
+    input: &EngineInputV2,
+    selector_certainty_flow_hedges: &ExpressionDomainSelectorCertaintyFlowHedgesV0,
+) -> SelectorUsageInputRows {
     let mut expression_index = BTreeMap::new();
     let mut style_index = BTreeMap::new();
     let mut canonical_by_file = BTreeMap::<String, BTreeSet<String>>::new();
@@ -230,11 +244,14 @@ fn collect_selector_usage_input_rows(input: &EngineInputV2) -> SelectorUsageInpu
             continue;
         }
 
-        let selector_certainty = map_selector_certainty(
+        let selector_certainty = map_selector_certainty_projection(
             &entry.facts,
             selector_names.len(),
             canonical_selector_count(style),
-        );
+            selector_certainty_flow_hedges
+                .get(&(entry.file_path.clone(), entry.expression_id.clone())),
+        )
+        .certainty;
         let is_direct_source = matches!(expression.kind.as_str(), "literal" | "styleAccess");
 
         for selector_name in selector_names {
@@ -571,7 +588,7 @@ mod tests {
         summarize_selector_usage_fragments_input, summarize_selector_usage_plan_input,
         summarize_selector_usage_query_fragments_input,
     };
-    use crate::test_support::sample_input;
+    use crate::{configure_nonconvergent_selector_certainty_fixture, test_support::sample_input};
     use serde_json::json;
 
     #[test]
@@ -671,6 +688,30 @@ mod tests {
         assert!(!card.has_expanded_references);
         assert!(card.has_style_dependency_references);
         assert!(card.has_any_references);
+    }
+
+    #[test]
+    fn nonconverged_flow_hedge_demotes_selector_usage_aggregates() {
+        let mut input = sample_input();
+        input.styles[0].document.selectors[0].name = "x".to_string();
+        input.styles[0].document.selectors[0].canonical_name = Some("x".to_string());
+        configure_nonconvergent_selector_certainty_fixture(&mut input.type_facts[0], "x");
+        let product = summarize_selector_usage_canonical_producer_signal_input(&input);
+        let candidate = &product.canonical_bundle.candidates[0];
+
+        assert_eq!(candidate.query_id, "x");
+        assert_eq!(candidate.total_references, 1);
+        assert_eq!(candidate.exact_reference_count, 0);
+        assert_eq!(candidate.inferred_or_better_reference_count, 0);
+        assert_eq!(
+            product
+                .evaluator_candidates
+                .results
+                .iter()
+                .find(|entry| entry.query_id == "x")
+                .map(|entry| entry.payload.inferred_or_better_reference_count),
+            Some(0)
+        );
     }
 
     #[test]

@@ -59,6 +59,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     )
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 pub(super) fn summarize_omena_query_cross_file_summary_from_module_interfaces(
     module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
     css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
@@ -362,6 +363,7 @@ fn style_design_token_surface_for_entry(
     }
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn style_design_token_surface_for_module_interface(
     projection: &OmenaQueryModuleInterfaceProjectionV0,
 ) -> OmenaQueryStyleDesignTokenSurfaceV0 {
@@ -528,6 +530,7 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary_with_r
     )
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 fn summarize_omena_query_source_selector_reference_cross_file_summary_from_module_interfaces(
     module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
@@ -773,6 +776,7 @@ pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_style_summ
     )
 }
 
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
 pub(super) fn summarize_omena_query_workspace_cross_file_summary_from_module_interfaces(
     module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],

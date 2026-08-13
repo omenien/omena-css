@@ -18,6 +18,7 @@ import type {
   ExpressionSemanticsSummary,
   ValueDomainProvenanceTree,
 } from "../../engine-core-ts/src/core/query/read-expression-semantics";
+import type { Utf16CodeUnitLengthV2Json } from "../../engine-core-ts/src/contracts/engine-v2-output-idl.generated";
 import {
   buildSelectedQueryBackendInput,
   buildSelectedQueryBackendInputAsync,
@@ -48,8 +49,8 @@ export interface ExpressionSemanticsEvaluatorCandidatePayloadV0 {
   readonly valueConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
-  readonly valueMinLen?: number;
-  readonly valueMaxLen?: number;
+  readonly valueMinLen?: Utf16CodeUnitLengthV2Json;
+  readonly valueMaxLen?: Utf16CodeUnitLengthV2Json;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;

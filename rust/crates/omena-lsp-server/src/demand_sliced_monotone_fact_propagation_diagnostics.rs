@@ -3,10 +3,11 @@ use omena_query::{
     summarize_omena_query_unified_cross_file_hypergraph,
 };
 use omena_streaming_ifds::{
-    StreamingIFDSCrossFileReachabilityReportV0, StreamingIfdsReachabilityCondensationV0,
-    streaming_ifds_reachability_condensation_v0,
-    summarize_streaming_ifds_cross_file_reachability_v0,
-    summarize_streaming_ifds_cross_file_reachability_with_condensation_v0,
+    DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0,
+    DemandSlicedMonotoneFactPropagationReachabilityCondensationV0,
+    demand_sliced_monotone_fact_propagation_reachability_condensation_v0,
+    summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0,
+    summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_with_condensation_v0,
 };
 
 /// Target-INDEPENDENT reachability state shared across a wave (rfcs#111, the
@@ -14,7 +15,7 @@ use omena_streaming_ifds::{
 /// condensation, built once per committed graph instead of once per target.
 #[derive(Debug)]
 pub(crate) struct SharedStreamingReachabilityV0 {
-    condensation: StreamingIfdsReachabilityCondensationV0,
+    condensation: DemandSlicedMonotoneFactPropagationReachabilityCondensationV0,
 }
 
 pub(crate) fn shared_streaming_reachability_for_lsp(
@@ -23,7 +24,9 @@ pub(crate) fn shared_streaming_reachability_for_lsp(
     let hypergraph =
         summarize_omena_query_unified_cross_file_hypergraph(committed_cross_file_summary);
     SharedStreamingReachabilityV0 {
-        condensation: streaming_ifds_reachability_condensation_v0(hypergraph.hyperedges.as_slice()),
+        condensation: demand_sliced_monotone_fact_propagation_reachability_condensation_v0(
+            hypergraph.hyperedges.as_slice(),
+        ),
     }
 }
 
@@ -33,7 +36,7 @@ pub(crate) fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp(
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let hypergraph =
         summarize_omena_query_unified_cross_file_hypergraph(committed_cross_file_summary);
-    let report = summarize_streaming_ifds_cross_file_reachability_v0(
+    let report = summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0(
         target_style_path,
         hypergraph.hyperedges.as_slice(),
     );
@@ -46,7 +49,7 @@ pub(crate) fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp_sh
     target_style_path: &str,
     shared: &SharedStreamingReachabilityV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
-    let report = summarize_streaming_ifds_cross_file_reachability_with_condensation_v0(
+    let report = summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_with_condensation_v0(
         target_style_path,
         &shared.condensation,
     );
@@ -54,7 +57,7 @@ pub(crate) fn summarize_cross_file_streaming_reachability_diagnostics_for_lsp_sh
 }
 
 fn reachability_report_diagnostics(
-    report: StreamingIFDSCrossFileReachabilityReportV0,
+    report: DemandSlicedMonotoneFactPropagationCrossFileReachabilityReportV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     if report.reachable_foreign_paths.is_empty() {
         return Vec::new();

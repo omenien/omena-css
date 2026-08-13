@@ -11,6 +11,14 @@ pub const REPLICA_ENSEMBLE_MECHANISM_SCOPE_V0: &str =
 pub const REPLICA_ENSEMBLE_PRODUCT_SURFACE_V0: &str = "defaultCrossFileConsistencyHint";
 pub const REPLICA_ENSEMBLE_DEFAULT_PRODUCT_DECISION_MECHANISM_V0: bool = false;
 
+/// Pre-1.0 nominal compatibility key.
+///
+/// Owner: `omena-ensemble` maintainers. Removal is not before 1.0 and requires
+/// downstream migration plus zero audited in-repo non-compatibility uses.
+#[deprecated(
+    since = "0.4.0",
+    note = "use CascadeSectionKeyV0; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeSiteKeyV0 {
@@ -20,6 +28,49 @@ pub struct CascadeSiteKeyV0 {
     pub feature_gate: &'static str,
     pub element_selector: String,
     pub property: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeSectionKeyV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub element_selector: String,
+    pub property: String,
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-ensemble maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+pub fn cascade_section_key_from_site_key_v0(key: CascadeSiteKeyV0) -> CascadeSectionKeyV0 {
+    CascadeSectionKeyV0 {
+        schema_version: key.schema_version,
+        product: "omena-ensemble.cascade-section-key",
+        layer_marker: key.layer_marker,
+        feature_gate: key.feature_gate,
+        element_selector: key.element_selector,
+        property: key.property,
+    }
+}
+
+#[allow(deprecated)]
+#[deprecated(
+    since = "0.4.0",
+    note = "compatibility conversion owned by omena-ensemble maintainers; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+)]
+pub fn compatibility_key_from_cascade_section_key_v0(key: CascadeSectionKeyV0) -> CascadeSiteKeyV0 {
+    CascadeSiteKeyV0 {
+        schema_version: key.schema_version,
+        product: "omena-ensemble.cascade-site-key",
+        layer_marker: key.layer_marker,
+        feature_gate: key.feature_gate,
+        element_selector: key.element_selector,
+        property: key.property,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -33,6 +84,7 @@ pub struct LinearProvenanceTagV0 {
     pub label: String,
 }
 
+#[allow(deprecated)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplicaSiteOutcomeV0 {
@@ -40,6 +92,10 @@ pub struct ReplicaSiteOutcomeV0 {
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    #[deprecated(
+        since = "0.4.0",
+        note = "use a future cascade-section outcome carrier; removal is not before 1.0 and requires downstream migration plus zero audited in-repo non-compatibility uses"
+    )]
     pub site: CascadeSiteKeyV0,
     pub outcome: CascadeOutcome,
     pub provenance: Option<LinearProvenanceTagV0>,

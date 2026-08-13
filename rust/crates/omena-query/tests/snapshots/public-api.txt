@@ -21,9 +21,12 @@ pub use omena_query::ExpressionSemanticsCanonicalProducerSignalV0
 pub use omena_query::ExpressionSemanticsQueryFragmentsV0
 pub use omena_query::ExternalStringTypeFactsV0
 pub use omena_query::FactPrecision
+pub use omena_query::GuardedTokenLanguageV0
+pub use omena_query::GuardedTokenMapV0
 pub use omena_query::HypergraphClosureMode
 pub use omena_query::HypergraphClosurePath
 pub use omena_query::HypergraphIFDSSummaryEdgeV0
+pub use omena_query::HypergraphMonotoneFactPropagationSummaryEdgeV0
 pub use omena_query::IncrementalEditDistancePriorityInputV0
 pub use omena_query::IncrementalGraphInputV0
 pub use omena_query::IncrementalInvalidationPriorityPlanV0
@@ -49,6 +52,7 @@ pub use omena_query::OmenaParserStyleDialect
 pub use omena_query::OmenaPlugin
 pub use omena_query::OmenaQueryAnalysisPrecisionV0
 pub use omena_query::OmenaQueryAnalysisResultV0
+pub use omena_query::OmenaQueryCascadeRankedSetLossCaptureV0
 pub use omena_query::OmenaQueryCategoricalDesignSystemInvariantSummaryV0
 pub use omena_query::OmenaQueryCategoricalDesignSystemModelV0
 pub use omena_query::OmenaQueryCrossFileSccEvidenceV0
@@ -70,6 +74,7 @@ pub use omena_query::OmenaQueryExternalCssSemanticChangeV0
 pub use omena_query::OmenaQueryExternalCssSemanticDiffV0
 pub use omena_query::OmenaQueryExternalCssSemanticEntryV0
 pub use omena_query::OmenaQueryExternalSifCacheContextV0
+pub use omena_query::OmenaQueryExternalSifStorageV0
 pub use omena_query::OmenaQueryFragmentBundleV0
 pub use omena_query::OmenaQueryMinifyPassClassificationV0
 pub use omena_query::OmenaQueryMinifyPassProfileClassV0
@@ -101,6 +106,7 @@ pub use omena_query::OmenaQuerySourceBindingDeclFactV0
 pub use omena_query::OmenaQuerySourceBindingIndexV0
 pub use omena_query::OmenaQuerySourceBindingScopeFactV0
 pub use omena_query::OmenaQuerySourceBindingStyleImportFactV0
+pub use omena_query::OmenaQuerySourceClassAttributeSiteFactV0
 pub use omena_query::OmenaQuerySourceClassExpressionNodeFactV0
 pub use omena_query::OmenaQuerySourceClassUtilityBindingFactV0
 pub use omena_query::OmenaQuerySourceClassValuePatternMatcherV0
@@ -120,6 +126,7 @@ pub use omena_query::OmenaQuerySourceExpressionTargetsModuleFactV0
 pub use omena_query::OmenaQuerySourceFlowBindingRefV0
 pub use omena_query::OmenaQuerySourceFlowBlockGraphSnapshotV0
 pub use omena_query::OmenaQuerySourceFlowBlockSnapshotV0
+pub use omena_query::OmenaQuerySourceGuardedClassTokenFactV0
 pub use omena_query::OmenaQuerySourceImportDeclarationSummaryV0
 pub use omena_query::OmenaQuerySourceImportDeclarationV0
 pub use omena_query::OmenaQuerySourceImportedStyleBindingV0
@@ -170,6 +177,7 @@ pub use omena_query::OmenaQueryTransformExecutionContextV0
 pub use omena_query::OmenaQueryTransformExecutionPolicyV0
 pub use omena_query::OmenaQueryTransformExecutionSummaryV0
 pub use omena_query::OmenaQueryTransformImportInlineV0
+pub use omena_query::OmenaQueryTransformModuleCssModuleContextV0
 pub use omena_query::OmenaQueryTransformModuleEvaluationNativeEditV0
 pub use omena_query::OmenaQueryTransformModuleEvaluationNativeReplacementV0
 pub use omena_query::OmenaQueryTransformModuleEvaluationOracleV0
@@ -187,6 +195,7 @@ pub use omena_query::OmenaQueryTransformStyleDialect
 pub use omena_query::OmenaQueryTransformTargetQueryPlanV0
 pub use omena_query::OmenaQueryTransformVendorPrefixPolicyV0
 pub use omena_query::OmenaQueryUnifiedCrossFileHypergraphV0
+pub use omena_query::OmenaQueryUnifiedCrossFileMonotoneFactPropagationHypergraphV0
 pub use omena_query::OmenaQueryUnifiedCrossFileSccReportV0
 pub use omena_query::OmenaQueryUtilityClassIntelligenceReportV0
 pub use omena_query::OmenaQueryUtilityClassLintSignalV0
@@ -238,6 +247,7 @@ pub use omena_query::built_in_omena_query_plugins
 pub use omena_query::built_in_omena_query_style_intelligence_provider
 pub use omena_query::built_in_omena_query_style_intelligence_providers
 pub use omena_query::canonicalize_css_value
+pub use omena_query::capture_omena_query_cascade_ranked_set_losses
 pub use omena_query::classify_omena_query_utility_class
 pub use omena_query::closed_world_omena_query_minify_build_profile
 pub use omena_query::collect_directed_graph_cycles
@@ -255,12 +265,14 @@ pub use omena_query::default_omena_query_minify_build_profiles
 pub use omena_query::default_omena_query_minify_pass_classifications
 pub use omena_query::default_omena_query_transform_print_options
 pub use omena_query::derive_cascade_restriction_maps_v0
+pub use omena_query::derive_context_indexed_cascade_restriction_maps_v0
 pub use omena_query::diagnostics_read_set_for_target_v0
 pub use omena_query::execute_built_in_omena_query_plugin
 pub use omena_query::fact_precision_from_class_value
 pub use omena_query::fact_precision_from_class_value_with_witness
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path
 pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context
+pub use omena_query::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage
 pub use omena_query::invalidate_omena_resolver_style_identity_cache
 pub use omena_query::iterate_reduced_class_value_product_constraints
 pub use omena_query::join_abstract_class_values
@@ -289,6 +301,7 @@ pub use omena_query::split_top_level_whitespace_value_components
 pub use omena_query::strict_omena_query_verification_build_profile
 pub use omena_query::summarize_cascade_dimensional_refinement_bridge_v0
 pub use omena_query::summarize_cascade_value_family_v0
+pub use omena_query::summarize_context_indexed_cascade_value_family_v0
 pub use omena_query::summarize_cross_file_graph_delta_v0
 pub use omena_query::summarize_cross_file_summary_view_v0
 pub use omena_query::summarize_omena_query_core_abstract_value_domain
@@ -312,11 +325,13 @@ pub use omena_query::summarize_omena_query_source_resolution_query_fragments
 pub use omena_query::summarize_omena_query_source_resolution_runtime
 pub use omena_query::summarize_omena_query_style_resolution_policy_v0
 pub use omena_query::summarize_omena_query_unified_cross_file_hypergraph
+pub use omena_query::summarize_omena_query_unified_cross_file_monotone_fact_propagation_hypergraph
 pub use omena_query::summarize_omena_query_unified_cross_file_scc_report
 pub use omena_query::summarize_omena_query_utility_class_intelligence_for_config
 pub use omena_query::summarize_omena_transform_bundle_from_source
 pub use omena_query::summarize_polynomial_provenance_from_linear_v0
 pub use omena_query::tabulate_hypergraph_ifds_summary_edges
+pub use omena_query::tabulate_hypergraph_monotone_fact_propagation_summary_edges
 pub use omena_query::verify_provenance_semiring_laws_on_fixtures
 pub enum omena_query::ModelClassV0
 pub omena_query::ModelClassV0::Nml
@@ -352,6 +367,16 @@ pub omena_query::OmenaQueryBundleEmissionPathV0::ImportInlineLegacy
 pub omena_query::OmenaQueryBundleEmissionPathV0::LinkedOrder
 impl omena_query::OmenaQueryBundleEmissionPathV0
 pub const fn omena_query::OmenaQueryBundleEmissionPathV0::as_wire_label(self) -> &'static str
+pub enum omena_query::OmenaQueryClassSitePlaneV0
+pub omena_query::OmenaQueryClassSitePlaneV0::Cfg
+pub omena_query::OmenaQueryClassSitePlaneV0::Joined
+pub omena_query::OmenaQueryClassSitePlaneV0::TypeFact
+pub enum omena_query::OmenaQueryClassSiteUnknownCauseV0
+pub omena_query::OmenaQueryClassSiteUnknownCauseV0::NonFiniteRawLanguage
+pub omena_query::OmenaQueryClassSiteUnknownCauseV0::SiteNotEnumerated
+pub omena_query::OmenaQueryClassSiteUnknownCauseV0::SourceValueUnavailable
+pub omena_query::OmenaQueryClassSiteUnknownCauseV0::TypeFactNotProvided
+pub omena_query::OmenaQueryClassSiteUnknownCauseV0::TypeFactRefused
 pub enum omena_query::OmenaQueryClosedWorldBlockerV0
 pub omena_query::OmenaQueryClosedWorldBlockerV0::AmbiguousModulePath
 pub omena_query::OmenaQueryClosedWorldBlockerV0::AmbiguousModulePath::source_path: alloc::string::String
@@ -417,6 +442,7 @@ pub omena_query::OmenaQueryExplainAvailabilityV0::NotYetAvailable
 pub enum omena_query::OmenaQueryExplainCapabilityV0
 pub omena_query::OmenaQueryExplainCapabilityV0::Bundle
 pub omena_query::OmenaQueryExplainCapabilityV0::Cascade
+pub omena_query::OmenaQueryExplainCapabilityV0::ClassSite
 pub omena_query::OmenaQueryExplainCapabilityV0::Diagnostic
 pub omena_query::OmenaQueryExplainCapabilityV0::HoverTrace
 pub omena_query::OmenaQueryExplainCapabilityV0::Precision
@@ -429,6 +455,9 @@ pub omena_query::OmenaQueryExplainFactReferenceV0::CascadeResolution
 pub omena_query::OmenaQueryExplainFactReferenceV0::CascadeResolution::position: omena_parser::spans::ParserPositionV0
 pub omena_query::OmenaQueryExplainFactReferenceV0::CascadeResolution::style_path: alloc::string::String
 pub omena_query::OmenaQueryExplainFactReferenceV0::CascadeResolution::winner_range: core::option::Option<omena_parser::spans::ParserRangeV0>
+pub omena_query::OmenaQueryExplainFactReferenceV0::ClassSiteFact
+pub omena_query::OmenaQueryExplainFactReferenceV0::ClassSiteFact::site_byte_span: omena_parser::spans::ParserByteSpanV0
+pub omena_query::OmenaQueryExplainFactReferenceV0::ClassSiteFact::source_path: alloc::string::String
 pub omena_query::OmenaQueryExplainFactReferenceV0::ClosedWorldReachability
 pub omena_query::OmenaQueryExplainFactReferenceV0::ClosedWorldReachability::closure_hash: alloc::string::String
 pub omena_query::OmenaQueryExplainFactReferenceV0::ClosedWorldReachability::guarantee: omena_evidence_graph::GuaranteeKindV0
@@ -458,6 +487,8 @@ pub omena_query::OmenaQueryExplainFactValueV0::CascadeResolution
 pub omena_query::OmenaQueryExplainFactValueV0::CascadeResolution::candidate_count: usize
 pub omena_query::OmenaQueryExplainFactValueV0::CascadeResolution::status: alloc::string::String
 pub omena_query::OmenaQueryExplainFactValueV0::CascadeResolution::winner_source_order: core::option::Option<usize>
+pub omena_query::OmenaQueryExplainFactValueV0::ClassSiteValue
+pub omena_query::OmenaQueryExplainFactValueV0::ClassSiteValue::value: alloc::boxed::Box<omena_query::OmenaQueryClassSiteValueV0>
 pub omena_query::OmenaQueryExplainFactValueV0::DiagnosticIdentity
 pub omena_query::OmenaQueryExplainFactValueV0::DiagnosticIdentity::severity: alloc::string::String
 pub omena_query::OmenaQueryExplainFactValueV0::HoverResolution
@@ -486,6 +517,8 @@ pub omena_query::OmenaQueryExplainInputV0::BundleUnavailable
 pub omena_query::OmenaQueryExplainInputV0::BundleUnavailable::chunk_reference: &'a str
 pub omena_query::OmenaQueryExplainInputV0::Cascade
 pub omena_query::OmenaQueryExplainInputV0::Cascade::result: &'a omena_query::OmenaQueryCascadeAtPositionV0
+pub omena_query::OmenaQueryExplainInputV0::ClassSite
+pub omena_query::OmenaQueryExplainInputV0::ClassSite::value: &'a omena_query::OmenaQueryClassSiteValueV0
 pub omena_query::OmenaQueryExplainInputV0::Diagnostic
 pub omena_query::OmenaQueryExplainInputV0::Diagnostic::diagnostic: &'a omena_query::OmenaQueryStyleDiagnosticV0
 pub omena_query::OmenaQueryExplainInputV0::Diagnostic::style_path: &'a str
@@ -520,6 +553,9 @@ pub omena_query::OmenaQueryExplainTargetV0::Bundle::chunk_reference: alloc::stri
 pub omena_query::OmenaQueryExplainTargetV0::Cascade
 pub omena_query::OmenaQueryExplainTargetV0::Cascade::position: omena_parser::spans::ParserPositionV0
 pub omena_query::OmenaQueryExplainTargetV0::Cascade::style_path: alloc::string::String
+pub omena_query::OmenaQueryExplainTargetV0::ClassSite
+pub omena_query::OmenaQueryExplainTargetV0::ClassSite::site_byte_span: omena_parser::spans::ParserByteSpanV0
+pub omena_query::OmenaQueryExplainTargetV0::ClassSite::source_path: alloc::string::String
 pub omena_query::OmenaQueryExplainTargetV0::Diagnostic
 pub omena_query::OmenaQueryExplainTargetV0::Diagnostic::code: alloc::string::String
 pub omena_query::OmenaQueryExplainTargetV0::Diagnostic::range: omena_parser::spans::ParserRangeV0
@@ -630,6 +666,24 @@ pub omena_query::AnalyzedGraphV0::product: &'static str
 pub omena_query::AnalyzedGraphV0::schema_version: &'static str
 pub omena_query::AnalyzedGraphV0::style_path: alloc::string::String
 pub omena_query::AnalyzedGraphV0::tier: &'static str
+#[non_exhaustive] pub struct omena_query::BundleEmissionExecutionV0
+pub omena_query::BundleEmissionExecutionV0::emitted_module_count: usize
+pub omena_query::BundleEmissionExecutionV0::global_order_entry_count: usize
+pub omena_query::BundleEmissionExecutionV0::module_regions: alloc::vec::Vec<omena_bundler::LinkedEmissionModuleRegionV0>
+pub omena_query::BundleEmissionExecutionV0::order_entry_regions: alloc::vec::Vec<omena_bundler::LinkedEmissionOrderEntryRegionV0>
+#[non_exhaustive] pub struct omena_query::BundleExecutionSummaryV0
+pub omena_query::BundleExecutionSummaryV0::aggregate_closed_world_refusal_count: usize
+pub omena_query::BundleExecutionSummaryV0::aggregate_executed_pass_ids: alloc::vec::Vec<&'static str>
+pub omena_query::BundleExecutionSummaryV0::aggregate_mutation_count: usize
+pub omena_query::BundleExecutionSummaryV0::aggregate_semantic_removal_count: usize
+pub omena_query::BundleExecutionSummaryV0::emission_execution: omena_query::BundleEmissionExecutionV0
+pub omena_query::BundleExecutionSummaryV0::entry_module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_query::BundleExecutionSummaryV0::module_executions: alloc::vec::Vec<omena_query::BundleModuleExecutionV0>
+pub omena_query::BundleExecutionSummaryV0::product: &'static str
+pub omena_query::BundleExecutionSummaryV0::schema_version: &'static str
+#[non_exhaustive] pub struct omena_query::BundleModuleExecutionV0
+pub omena_query::BundleModuleExecutionV0::execution: omena_transform_passes::model::TransformExecutionSummaryV0
+pub omena_query::BundleModuleExecutionV0::module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub struct omena_query::CanonicalFormV0
 pub omena_query::CanonicalFormV0::ast_size_bits: f64
 pub omena_query::CanonicalFormV0::before: alloc::string::String
@@ -695,6 +749,7 @@ pub omena_query::OmenaBundlerHostResolveModuleRequestV0::package_manifests: allo
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::snapshot_id: omena_incremental::OmenaWorkspaceSnapshotIdV0
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::style_path: alloc::string::String
 pub omena_query::OmenaBundlerHostResolveModuleRequestV0::style_sources: alloc::vec::Vec<omena_query::OmenaQueryStyleSourceInputV0>
+pub omena_query::OmenaBundlerHostResolveModuleRequestV0::workspace_root: alloc::string::String
 pub struct omena_query::OmenaBundlerHostResolveModuleResponseV0
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::class_map: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub omena_query::OmenaBundlerHostResolveModuleResponseV0::composes_edges: alloc::vec::Vec<omena_query::OmenaBundlerHostComposesEdgeV0>
@@ -804,6 +859,7 @@ pub omena_query::OmenaQueryBundleEvidenceManifestV0::source_precision: core::opt
 pub omena_query::OmenaQueryBundleEvidenceManifestV0::style_path: alloc::string::String
 #[non_exhaustive] pub struct omena_query::OmenaQueryBundleExecutionScopeEvidenceV0
 pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::bundle_composite: omena_query::OmenaQueryBundleCompositeExecutionByteFactsV0
+pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::bundle_execution: omena_query::BundleExecutionSummaryV0
 pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::entry_module_instance: omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::field_scopes: alloc::vec::Vec<omena_query::OmenaQueryExecutionFieldScopeV0>
 pub omena_query::OmenaQueryBundleExecutionScopeEvidenceV0::module_executions: alloc::vec::Vec<omena_query::OmenaQueryBundleModuleExecutionByteFactsV0>
@@ -838,11 +894,19 @@ pub struct omena_query::OmenaQueryBundleResultV0
 pub omena_query::OmenaQueryBundleResultV0::artifact: omena_query::OmenaQueryBundleArtifactV0
 pub omena_query::OmenaQueryBundleResultV0::closed_world_decision_parity: omena_query::OmenaQueryClosedWorldDecisionParityV0
 pub omena_query::OmenaQueryBundleResultV0::closed_world_outcome: omena_query::OmenaQueryClosedWorldOutcomeV0
+#[non_exhaustive] pub struct omena_query::OmenaQueryBundleTokenOwnershipResultV0
+pub omena_query::OmenaQueryBundleTokenOwnershipResultV0::bundle_result: omena_query::OmenaQueryBundleResultV0
+pub omena_query::OmenaQueryBundleTokenOwnershipResultV0::ownership_census: omena_transform_passes::model::CssModuleTokenOwnershipCensusV0
 pub struct omena_query::OmenaQueryBundleWithEvidenceV0
 pub omena_query::OmenaQueryBundleWithEvidenceV0::artifact: omena_query::OmenaQueryBundleArtifactV0
 pub omena_query::OmenaQueryBundleWithEvidenceV0::closed_world_decision_parity: omena_query::OmenaQueryClosedWorldDecisionParityV0
 pub omena_query::OmenaQueryBundleWithEvidenceV0::closed_world_outcome: omena_query::OmenaQueryClosedWorldOutcomeV0
 pub omena_query::OmenaQueryBundleWithEvidenceV0::evidence: omena_query::OmenaQueryBundleEvidenceManifestV0
+pub struct omena_query::OmenaQueryCanonicalClassTokenV0(_)
+impl omena_query::OmenaQueryCanonicalClassTokenV0
+pub fn omena_query::OmenaQueryCanonicalClassTokenV0::as_str(&self) -> &str
+impl serde_core::ser::Serialize for omena_query::OmenaQueryCanonicalClassTokenV0
+pub fn omena_query::OmenaQueryCanonicalClassTokenV0::serialize<S>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
 pub struct omena_query::OmenaQueryCanonicalFormInput
 pub omena_query::OmenaQueryCanonicalFormInput::ast_size_bits: f64
 pub omena_query::OmenaQueryCanonicalFormInput::before: alloc::string::String
@@ -912,6 +976,8 @@ pub omena_query::OmenaQueryCascadeInsightV0::related_source_order: core::option:
 pub omena_query::OmenaQueryCascadeInsightV0::relationship: &'static str
 pub omena_query::OmenaQueryCascadeInsightV0::selector: alloc::string::String
 pub omena_query::OmenaQueryCascadeInsightV0::source_order: u32
+pub struct omena_query::OmenaQueryCascadeLayerTopologyIncompleteV0
+pub omena_query::OmenaQueryCascadeLayerTopologyIncompleteV0::unresolved_count: usize
 pub struct omena_query::OmenaQueryCascadeNarrowingEvidenceV0
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::condition_context: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryCascadeNarrowingEvidenceV0::declaration_ids: alloc::vec::Vec<alloc::string::String>
@@ -932,6 +998,12 @@ pub omena_query::OmenaQueryCascadeOriginStylesheetV0::schema_version: &'static s
 pub omena_query::OmenaQueryCascadeOriginStylesheetV0::source_name: alloc::string::String
 pub omena_query::OmenaQueryCascadeOriginStylesheetV0::source_pin: core::option::Option<alloc::string::String>
 pub omena_query::OmenaQueryCascadeOriginStylesheetV0::source_url: core::option::Option<alloc::string::String>
+pub struct omena_query::OmenaQueryCascadeSectionOutcomeV0
+pub omena_query::OmenaQueryCascadeSectionOutcomeV0::product: &'static str
+pub omena_query::OmenaQueryCascadeSectionOutcomeV0::property: alloc::string::String
+pub omena_query::OmenaQueryCascadeSectionOutcomeV0::schema_version: &'static str
+pub omena_query::OmenaQueryCascadeSectionOutcomeV0::selector: alloc::string::String
+pub omena_query::OmenaQueryCascadeSectionOutcomeV0::winning_value: alloc::string::String
 pub struct omena_query::OmenaQueryCascadeSiteOutcomeV0
 pub omena_query::OmenaQueryCascadeSiteOutcomeV0::product: &'static str
 pub omena_query::OmenaQueryCascadeSiteOutcomeV0::property: alloc::string::String
@@ -949,6 +1021,34 @@ pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::project
 pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::schema_version: &'static str
 pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::source_product: &'static str
 pub omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0::theory_product: &'static str
+pub struct omena_query::OmenaQueryClassSiteTokenProvenanceV0
+pub omena_query::OmenaQueryClassSiteTokenProvenanceV0::boundary_provenance: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaQueryClassSiteTokenProvenanceV0::guard_conditions: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaQueryClassSiteTokenProvenanceV0::may: bool
+pub omena_query::OmenaQueryClassSiteTokenProvenanceV0::must: bool
+pub omena_query::OmenaQueryClassSiteTokenProvenanceV0::planes: alloc::vec::Vec<omena_query::OmenaQueryClassSitePlaneV0>
+pub omena_query::OmenaQueryClassSiteTokenProvenanceV0::token: omena_query::OmenaQueryCanonicalClassTokenV0
+pub struct omena_query::OmenaQueryClassSiteTypeFactInputV0
+pub omena_query::OmenaQueryClassSiteTypeFactInputV0::facts: core::option::Option<engine_input_producers::StringTypeFactsV2>
+pub omena_query::OmenaQueryClassSiteTypeFactInputV0::refusal_cause: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQueryClassSiteTypeFactInputV0::site_byte_span: omena_parser::spans::ParserByteSpanV0
+pub struct omena_query::OmenaQueryClassSiteValueV0
+pub omena_query::OmenaQueryClassSiteValueV0::attribute_name: alloc::string::String
+pub omena_query::OmenaQueryClassSiteValueV0::contributing_planes: alloc::vec::Vec<omena_query::OmenaQueryClassSitePlaneV0>
+pub omena_query::OmenaQueryClassSiteValueV0::ordered_word: core::option::Option<omena_cascade::class_tokens::OrderedTokenWordV0>
+pub omena_query::OmenaQueryClassSiteValueV0::precision_tier: &'static str
+pub omena_query::OmenaQueryClassSiteValueV0::product: &'static str
+pub omena_query::OmenaQueryClassSiteValueV0::raw_value: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQueryClassSiteValueV0::schema_version: &'static str
+pub omena_query::OmenaQueryClassSiteValueV0::site_byte_span: omena_parser::spans::ParserByteSpanV0
+pub omena_query::OmenaQueryClassSiteValueV0::source_language: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQueryClassSiteValueV0::source_path: alloc::string::String
+pub omena_query::OmenaQueryClassSiteValueV0::support: core::option::Option<omena_cascade::class_tokens::TokenSupportV0>
+pub omena_query::OmenaQueryClassSiteValueV0::target_style_uris: alloc::vec::Vec<alloc::string::String>
+pub omena_query::OmenaQueryClassSiteValueV0::token_provenance: alloc::vec::Vec<omena_query::OmenaQueryClassSiteTokenProvenanceV0>
+pub omena_query::OmenaQueryClassSiteValueV0::type_fact_cause: core::option::Option<alloc::string::String>
+pub omena_query::OmenaQueryClassSiteValueV0::unknown_cause: core::option::Option<omena_query::OmenaQueryClassSiteUnknownCauseV0>
+pub omena_query::OmenaQueryClassSiteValueV0::value_byte_span: core::option::Option<omena_parser::spans::ParserByteSpanV0>
 pub struct omena_query::OmenaQueryClosedWorldDecisionParityV0
 pub omena_query::OmenaQueryClosedWorldDecisionParityV0::equivalent: bool
 pub omena_query::OmenaQueryClosedWorldDecisionParityV0::legacy_open_decision: bool
@@ -1277,11 +1377,14 @@ pub omena_query::OmenaQueryIcssImportEdgeFactV0::local_name: alloc::string::Stri
 pub omena_query::OmenaQueryIcssImportEdgeFactV0::remote_name: alloc::string::String
 pub struct omena_query::OmenaQueryInlineStyleRuntimeOverrideV0
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::cascade_tier: &'static str
+pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::important: bool
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::property_name: alloc::string::String
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::range: omena_parser::spans::ParserRangeV0
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::source_path: alloc::string::String
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::static_value: bool
 pub omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::value: core::option::Option<alloc::string::String>
+impl omena_query::OmenaQueryInlineStyleRuntimeOverrideV0
+pub fn omena_query::OmenaQueryInlineStyleRuntimeOverrideV0::important_suffix_present(&self) -> bool
 pub struct omena_query::OmenaQueryInsightV0
 pub omena_query::OmenaQueryInsightV0::cascade_insight: core::option::Option<omena_query::OmenaQueryCascadeInsightV0>
 pub omena_query::OmenaQueryInsightV0::confidence: &'static str
@@ -1486,6 +1589,7 @@ pub omena_query::OmenaQueryRuntimeStateDriverSummaryV0::provenance: alloc::vec::
 pub omena_query::OmenaQueryRuntimeStateDriverSummaryV0::scenario_count: usize
 pub omena_query::OmenaQueryRuntimeStateDriverSummaryV0::status: &'static str
 pub struct omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
+pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::cascade_layer_topology_incomplete: core::option::Option<omena_query::OmenaQueryCascadeLayerTopologyIncompleteV0>
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::confidence_tier: &'static str
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::confidence_tier_within_modeled_environment: &'static str
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::driver_summaries: alloc::vec::Vec<omena_query::OmenaQueryRuntimeStateDriverSummaryV0>
@@ -1500,6 +1604,7 @@ pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::selector_class_names:
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::static_boundary: omena_query::OmenaQueryRuntimeStateStaticBoundaryV0
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::static_condition_pruning: alloc::vec::Vec<omena_query::OmenaQueryStaticConditionPruningEvidenceV0>
 impl omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
+pub fn omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::cascade_layer_topology_incomplete(&self) -> core::option::Option<omena_query::OmenaQueryCascadeLayerTopologyIncompleteV0>
 pub fn omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::result_certainty(&self) -> &'static str
 pub fn omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::result_certainty_within_modeled_environment(&self) -> &'static str
 impl serde_core::ser::Serialize for omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0
@@ -1729,6 +1834,9 @@ pub omena_query::OmenaQuerySchemaVersionPolicyV0::rejected_version_policy: &'sta
 pub omena_query::OmenaQuerySchemaVersionPolicyV0::schema_version: &'static str
 pub struct omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::all_supported_fixtures_converged: bool
+pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::ascending_chain_witness: omena_scss_eval::control_flow::model::OmenaScssEvalControlFlowAscendingChainWitnessV0
+pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::ascending_chain_witness_converged: bool
+pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::ascending_chain_witness_result_kind: &'static str
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::back_edge_fixture_count: usize
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::branch_fixture_count: usize
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::call_return_fixture_count: usize
@@ -1744,6 +1852,9 @@ pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::no_fla
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::no_merged_cross_file_graph: bool
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::node_key_type: &'static str
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::product: &'static str
+pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::propagation_depth_witness: omena_scss_eval::control_flow::model::OmenaScssEvalControlFlowPropagationDepthWitnessV0
+pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::propagation_depth_witness_converged: bool
+pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::propagation_depth_witness_widened_to_top_count: usize
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::prune_reachability_changed_fixture_count: usize
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::prune_reachability_fixture_count: usize
 pub omena_query::OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0::prune_reachability_flat_css_cfg_built_count: usize
@@ -2396,11 +2507,16 @@ pub omena_query::StyleEditDistanceSummaryV0::selector_delta: usize
 pub omena_query::StyleEditDistanceSummaryV0::tier: &'static str
 pub omena_query::StyleEditDistanceSummaryV0::total_distance: usize
 pub const omena_query::OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0: &str
+pub const omena_query::OMENA_QUERY_CASCADE_SECTION_AGGREGATION_COMPATIBILITY_MESSAGE_V0: &str
+pub const omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0: &str
+pub const omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_MESSAGE_V0: &str
+pub const omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0: [&str; 2]
 pub const omena_query::OMENA_WORKSPACE_SESSION_PROTOCOL_VERSION_V0: &str
 pub fn omena_query::attach_omena_query_consumer_build_bundle_summary(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &str)
 pub fn omena_query::attach_omena_query_consumer_build_source_map_v3(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &str)
 pub fn omena_query::attach_omena_query_consumer_build_source_map_v3_with_sources(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0])
 pub fn omena_query::attach_omena_query_consumer_build_source_map_v3_with_sources_and_resolution_inputs(&mut omena_query::OmenaQueryConsumerBuildSummaryV0, &[omena_query::OmenaQueryStyleSourceInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0)
+pub fn omena_query::build_omena_query_guarded_token_map_for_site(&omena_query::OmenaQueryClassSiteValueV0) -> core::result::Result<omena_abstract_value::guarded_token_map::GuardedTokenMapV0, omena_cascade::first_witness::FirstWitnessErrorV0>
 pub fn omena_query::canonicalize_omena_query_source_selector_references(&mut alloc::vec::Vec<omena_bridge::source_syntax::SourceSelectorReferenceFactV0>)
 pub fn omena_query::check_omena_query_schema_version(core::option::Option<&str>) -> omena_query::OmenaQuerySchemaVersionCheckV0
 pub fn omena_query::collect_omena_query_style_cascade_narrowing_substrate(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryStyleCascadeNarrowingSubstrateV0
@@ -2459,7 +2575,12 @@ pub fn omena_query::render_omena_query_css_module_typescript_declaration(&omena_
 pub fn omena_query::render_omena_query_css_modules_interface_json(&omena_query::OmenaQueryCssModulesInterfaceBundleV0) -> core::result::Result<alloc::string::String, serde_json::error::Error>
 pub fn omena_query::resolve_omena_bundler_host_module_v0(omena_query::OmenaBundlerHostResolveModuleRequestV0) -> omena_query::OmenaBundlerHostResolveModuleResponseV0
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_seed_pairs(impl core::iter::traits::iterator::Iterator<Item = (alloc::string::String, alloc::string::String)>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
+pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage(impl core::iter::traits::iterator::Iterator<Item = (alloc::string::String, alloc::string::String)>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0, &omena_bridge::style_resolution::OmenaBridgeExternalSifStorageV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
+pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0, &omena_bridge::style_resolution::OmenaBridgeExternalSifStorageV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
+pub fn omena_query::resolve_omena_query_class_site_value_for_source(&str, &str, core::option::Option<&str>, omena_parser::spans::ParserByteSpanV0) -> core::option::Option<omena_query::OmenaQueryClassSiteValueV0>
+pub fn omena_query::resolve_omena_query_class_site_values_for_source(&str, &str, core::option::Option<&str>) -> alloc::vec::Vec<omena_query::OmenaQueryClassSiteValueV0>
+pub fn omena_query::resolve_omena_query_class_site_values_for_source_with_type_facts(&str, &str, core::option::Option<&str>, &[omena_query::OmenaQueryClassSiteTypeFactInputV0]) -> alloc::vec::Vec<omena_query::OmenaQueryClassSiteValueV0>
 pub fn omena_query::resolve_omena_query_sass_forward_sources(&omena_query::OmenaQuerySassModuleSourcesV0) -> alloc::vec::Vec<alloc::string::String>
 pub fn omena_query::resolve_omena_query_sass_module_use_sources_for_candidate(&omena_query::OmenaQuerySassModuleSourcesV0, core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
 pub fn omena_query::resolve_omena_query_sass_symbol_declarations(&[omena_query::OmenaQueryStyleHoverCandidateV0], &str, &str) -> alloc::vec::Vec<omena_query::OmenaQueryStyleHoverCandidateV0>
@@ -2477,10 +2598,13 @@ pub fn omena_query::run_omena_query_bundle_for_style_sources_with_context(&str, 
 pub fn omena_query::run_omena_query_bundle_with_evidence_for_style_sources_with_context(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String]) -> core::result::Result<omena_query::OmenaQueryBundleWithEvidenceV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_execution_scope_evidence_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleExecutionScopeResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_execution_scope_for_style_sources_with_context_and_options(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleExecutionScopeResultV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_module_css_module_contexts_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0, &str, &[omena_transform_passes::model::TransformModuleCssModuleContextV0]) -> core::result::Result<omena_query::OmenaQueryBundleExecutionScopeResultV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_module_css_module_contexts_for_style_sources_with_context_and_options(&str, &str, &[omena_query::OmenaQueryStyleSourceInputV0], &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0, &[omena_query::OmenaQueryStylePackageManifestV0], &[alloc::string::String], &[omena_transform_passes::model::TransformModuleCssModuleContextV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleExecutionScopeResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_module_reachability_and_execution_scope_evidence_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0, &omena_query::OmenaQueryEngineInputModuleReachabilityV0) -> core::result::Result<omena_query::OmenaQueryBundleExecutionScopeResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_module_reachability_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0, &omena_query::OmenaQueryEngineInputModuleReachabilityV0) -> core::result::Result<omena_query::OmenaQueryModuleAttributedBundleResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_semantic_inputs(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0]) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
 pub fn omena_query::run_omena_query_bundle_with_semantic_inputs_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleResultV0, alloc::string::String>
+pub fn omena_query::run_omena_query_bundle_with_token_ownership_census_and_options(omena_query::OmenaQueryBundlePlanInputV0<'_>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryConsumerBuildOptionsV0) -> core::result::Result<omena_query::OmenaQueryBundleTokenOwnershipResultV0, alloc::string::String>
 pub fn omena_query::summarize_html_standard_user_agent_sample_v0() -> omena_query::OmenaQueryCascadeOriginStylesheetV0
 pub fn omena_query::summarize_omena_query_analyzed_graph(&str, &str) -> omena_query::AnalyzedGraphV0
 pub fn omena_query::summarize_omena_query_boundary(&engine_input_producers::EngineInputV2) -> omena_query::OmenaQueryBoundarySummaryV0
@@ -2493,6 +2617,7 @@ pub fn omena_query::summarize_omena_query_canonical_form(omena_query::OmenaQuery
 pub fn omena_query::summarize_omena_query_cascade_aware_style_diagnostics(&str, &str, &[omena_query::OmenaQueryStyleHoverCandidateV0]) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(&str, &str, &[omena_query::OmenaQueryStyleHoverCandidateV0], bool) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_cascade_origin_stylesheet_v0(impl core::convert::Into<alloc::string::String>, &str, omena_cascade::origin::CascadeOriginV0) -> omena_query::OmenaQueryCascadeOriginStylesheetV0
+pub fn omena_query::summarize_omena_query_cascade_section_outcomes_from_source(&str) -> alloc::vec::Vec<omena_query::OmenaQueryCascadeSectionOutcomeV0>
 pub fn omena_query::summarize_omena_query_cascade_site_outcomes_from_source(&str) -> alloc::vec::Vec<omena_query::OmenaQueryCascadeSiteOutcomeV0>
 pub fn omena_query::summarize_omena_query_categorical_design_system_cross_project_summary(&[(&str, &omena_cross_file_summary::OmenaQueryCrossFileSummaryV0)]) -> omena_query::OmenaQueryCategoricalDesignSystemCrossProjectSummaryV0
 pub fn omena_query::summarize_omena_query_closed_world_outcome_for_style_source(&str, &str, &[alloc::string::String], &omena_transform_passes::model::TransformExecutionContextV0) -> omena_query::OmenaQueryClosedWorldOutcomeV0
@@ -2501,6 +2626,7 @@ pub fn omena_query::summarize_omena_query_consumer_build_source_map_v3_with_reso
 pub fn omena_query::summarize_omena_query_consumer_check_style_source(&str, &str) -> omena_query::OmenaQueryConsumerCheckSummaryV0
 pub fn omena_query::summarize_omena_query_css_modules_export_usage(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQuerySourceDocumentInputV0], &[omena_query::OmenaQueryStylePackageManifestV0], core::option::Option<&str>) -> omena_query::OmenaQueryCssModulesExportUsageReportV0
 pub fn omena_query::summarize_omena_query_css_modules_interface_bundle(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> omena_query::OmenaQueryCssModulesInterfaceBundleV0
+pub fn omena_query::summarize_omena_query_css_modules_interface_bundle_with_module_identity_root(&str, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> core::result::Result<omena_query::OmenaQueryCssModulesInterfaceBundleV0, alloc::string::String>
 pub fn omena_query::summarize_omena_query_css_modules_interface_summary_view(&omena_cross_file_summary::OmenaCrossFileSummaryViewReportV0, &omena_query::OmenaQueryCssModulesInterfaceBundleV0, &omena_query::OmenaQueryCssModulesExportUsageReportV0) -> omena_query::OmenaQueryCssModulesInterfaceSummaryViewV0
 pub fn omena_query::summarize_omena_query_css_modules_local_composes_style_diagnostics(&str, &str) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>
 pub fn omena_query::summarize_omena_query_css_modules_resolution_style_diagnostics(&str, &str, &[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryStylePackageManifestV0]) -> alloc::vec::Vec<omena_query::OmenaQueryStyleDiagnosticV0>

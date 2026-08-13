@@ -268,6 +268,9 @@ pub enum TransformBlockedReasonV0 {
         reasons: Vec<TransformStrictPolicyReasonV0>,
     },
     PassImplementation,
+    ClosedWorldAdmission {
+        reasons: Vec<TransformStrictPolicyReasonV0>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -613,6 +616,188 @@ pub enum TransformStrictPolicyReasonV0 {
     UnknownPass,
     ClosedWorldEvidenceUnavailable,
     DecisionCoverageIncomplete,
+    ClosedWorldEvidenceIncomplete {
+        missing: Vec<String>,
+    },
+    LivenessNotClosed {
+        symbol: String,
+        from_module: ModuleInstanceKeyV0,
+        via_edge: &'static str,
+    },
+    EvidenceUnavailable,
+    OwnershipNotSeparable {
+        token: String,
+        module_paths: Vec<String>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum CssModuleTokenCollisionPathScopeV0 {
+    BothPaths,
+    ImportInlineLegacyOnly,
+    LinkedOrderOnly,
+}
+
+impl CssModuleTokenCollisionPathScopeV0 {
+    pub const fn as_wire_label(self) -> &'static str {
+        match self {
+            Self::BothPaths => "bothPaths",
+            Self::ImportInlineLegacyOnly => "importInlineLegacyOnly",
+            Self::LinkedOrderOnly => "linkedOrderOnly",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CssModuleTokenOwnershipV0 {
+    pub emitted_token: String,
+    pub module_instances: Vec<ModuleInstanceKeyV0>,
+    pub module_paths: Vec<String>,
+    pub original_names: Vec<String>,
+}
+
+impl CssModuleTokenOwnershipV0 {
+    pub fn new(
+        emitted_token: impl Into<String>,
+        module_instances: Vec<ModuleInstanceKeyV0>,
+        module_paths: Vec<String>,
+        original_names: Vec<String>,
+    ) -> Self {
+        Self {
+            emitted_token: emitted_token.into(),
+            module_instances,
+            module_paths,
+            original_names,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CssModuleTokenCollisionV0 {
+    pub emitted_token: String,
+    pub module_instances: Vec<ModuleInstanceKeyV0>,
+    pub module_paths: Vec<String>,
+    pub original_names: Vec<String>,
+    pub observed_emission_paths: Vec<&'static str>,
+    pub path_scope: CssModuleTokenCollisionPathScopeV0,
+}
+
+impl CssModuleTokenCollisionV0 {
+    pub fn new(
+        ownership: CssModuleTokenOwnershipV0,
+        observed_emission_paths: Vec<&'static str>,
+        path_scope: CssModuleTokenCollisionPathScopeV0,
+    ) -> Self {
+        Self {
+            emitted_token: ownership.emitted_token,
+            module_instances: ownership.module_instances,
+            module_paths: ownership.module_paths,
+            original_names: ownership.original_names,
+            observed_emission_paths,
+            path_scope,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CssModuleTokenInterfaceMismatchV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub module_path: String,
+    pub original_name: String,
+    pub promised_token: String,
+    pub emitted_token: String,
+}
+
+impl CssModuleTokenInterfaceMismatchV0 {
+    pub fn new(
+        module_instance: ModuleInstanceKeyV0,
+        module_path: impl Into<String>,
+        original_name: impl Into<String>,
+        promised_token: impl Into<String>,
+        emitted_token: impl Into<String>,
+    ) -> Self {
+        Self {
+            module_instance,
+            module_path: module_path.into(),
+            original_name: original_name.into(),
+            promised_token: promised_token.into(),
+            emitted_token: emitted_token.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct CssModuleTokenOwnershipCensusV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub scope: &'static str,
+    pub emission_path: &'static str,
+    pub complete: bool,
+    pub modeled_preimage_count: usize,
+    pub emitted_token_count: usize,
+    pub token_ownerships: Vec<CssModuleTokenOwnershipV0>,
+    pub module_token_collision_count: usize,
+    pub module_token_collisions: Vec<CssModuleTokenCollisionV0>,
+    pub unattributed_emitted_tokens: Vec<String>,
+    pub interface_mismatches: Vec<CssModuleTokenInterfaceMismatchV0>,
+    pub unavailable_reasons: Vec<String>,
+}
+
+impl CssModuleTokenOwnershipCensusV0 {
+    pub fn new(
+        emission_path: &'static str,
+        modeled_preimage_count: usize,
+        token_ownerships: Vec<CssModuleTokenOwnershipV0>,
+        module_token_collisions: Vec<CssModuleTokenCollisionV0>,
+        unattributed_emitted_tokens: Vec<String>,
+        interface_mismatches: Vec<CssModuleTokenInterfaceMismatchV0>,
+    ) -> Self {
+        let module_token_collision_count = module_token_collisions.len();
+        let emitted_token_count = token_ownerships.len() + unattributed_emitted_tokens.len();
+        Self {
+            schema_version: "0",
+            product: "omena-query.css-module-token-ownership-census",
+            scope: "bundleEmission",
+            emission_path,
+            complete: unattributed_emitted_tokens.is_empty(),
+            modeled_preimage_count,
+            emitted_token_count,
+            token_ownerships,
+            module_token_collision_count,
+            module_token_collisions,
+            unattributed_emitted_tokens,
+            interface_mismatches,
+            unavailable_reasons: Vec::new(),
+        }
+    }
+
+    pub fn unavailable(emission_path: &'static str, reason: impl Into<String>) -> Self {
+        Self {
+            schema_version: "0",
+            product: "omena-query.css-module-token-ownership-census",
+            scope: "bundleEmission",
+            emission_path,
+            complete: false,
+            modeled_preimage_count: 0,
+            emitted_token_count: 0,
+            token_ownerships: Vec::new(),
+            module_token_collision_count: 0,
+            module_token_collisions: Vec::new(),
+            unattributed_emitted_tokens: Vec::new(),
+            interface_mismatches: Vec::new(),
+            unavailable_reasons: vec![reason.into()],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -662,6 +847,43 @@ impl TransformStrictPolicySummaryV0 {
             reasons,
         });
         self.rolled_back_count = self.rollback_reasons.len();
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ClosedWorldAdmissionTierV0;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformClosedWorldAdmissionEventV0 {
+    pub pass_id: String,
+    pub module_instance: Option<ModuleInstanceKeyV0>,
+    pub reasons: Vec<TransformStrictPolicyReasonV0>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformClosedWorldAdmissionSummaryV0 {
+    pub refused_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evidence_scope: Option<&'static str>,
+    pub refusal_reasons: Vec<TransformClosedWorldAdmissionEventV0>,
+}
+
+impl TransformClosedWorldAdmissionSummaryV0 {
+    pub fn record_refusal(
+        &mut self,
+        pass_id: impl Into<String>,
+        module_instance: Option<ModuleInstanceKeyV0>,
+        reasons: Vec<TransformStrictPolicyReasonV0>,
+    ) {
+        self.refusal_reasons
+            .push(TransformClosedWorldAdmissionEventV0 {
+                pass_id: pass_id.into(),
+                module_instance,
+                reasons,
+            });
+        self.refused_count = self.refusal_reasons.len();
     }
 }
 
@@ -888,8 +1110,13 @@ pub struct TransformLexCacheSpliceTelemetryV0 {
 /// retirement.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct TransformStructuralIrTransactionTelemetryV0 {
     pub transaction_commit_count: u64,
+    pub ir_metadata_refresh_count: u64,
+    pub ir_transaction_commit_count: u64,
+    pub ir_materialization_count: u64,
+    pub ir_mutation_count: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -998,6 +1225,7 @@ pub struct TransformExecutionSummaryV0 {
     pub semantic_preservation_telemetry: TransformSemanticPreservationTelemetryV0,
     pub discharge_ledger_telemetry: TransformDischargeLedgerTelemetryV0,
     pub strict_policy: TransformStrictPolicySummaryV0,
+    pub closed_world_admission: TransformClosedWorldAdmissionSummaryV0,
     pub decisions: Vec<TransformDecision>,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
@@ -1362,6 +1590,49 @@ pub struct TransformClassNameRewriteV0 {
     pub rewritten_name: String,
 }
 
+/// Module-qualified CSS Modules rewrite input.
+///
+/// Consumers that need different rewrites for identical class spellings in
+/// different modules use this carrier instead of flattening those rewrites
+/// into [`TransformExecutionContextV0::class_name_rewrites`]. The module key is
+/// compared before the canonical class-name key. Under an equal compound key,
+/// the consumer-supplied record is the first witness and wins independently of
+/// raw spelling or later presentation sorting.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct TransformModuleCssModuleContextV0 {
+    pub module_instance: ModuleInstanceKeyV0,
+    pub class_name_rewrites: Vec<TransformClassNameRewriteV0>,
+    pub composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
+}
+
+impl TransformModuleCssModuleContextV0 {
+    pub fn new(module_instance: ModuleInstanceKeyV0) -> Self {
+        Self {
+            module_instance,
+            class_name_rewrites: Vec::new(),
+            composes_resolutions: Vec::new(),
+        }
+    }
+
+    pub fn with_class_name_rewrites(
+        mut self,
+        class_name_rewrites: Vec<TransformClassNameRewriteV0>,
+    ) -> Self {
+        self.class_name_rewrites = class_name_rewrites;
+        self
+    }
+
+    pub fn with_composes_resolutions(
+        mut self,
+        composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
+    ) -> Self {
+        self.composes_resolutions = composes_resolutions;
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformCssModuleComposesResolutionV0 {
@@ -1387,7 +1658,8 @@ pub struct TransformDesignTokenRouteV0 {
 mod evidence_graph_tests {
     use super::*;
     use omena_cascade::{
-        CascadeKey, CascadeValue, LayerRank, ModuleRank, Specificity, cascade_property,
+        CascadeKey, CascadeValue, LayerOrdinal, OpenWorldTieEvidence, Specificity,
+        cascade_property, normalized_layer_rank,
     };
 
     fn winner_equality_test_declaration(
@@ -1401,12 +1673,12 @@ mod evidence_graph_tests {
             value: CascadeValue::Literal(value.to_string()),
             key: CascadeKey::new(
                 CascadeLevel::AuthorNormal,
-                LayerRank(0),
+                normalized_layer_rank(false, LayerOrdinal::new(0)),
                 0,
                 Specificity::new(0, 1, 0),
-                ModuleRank::ZERO,
                 source_order,
             ),
+            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
             specificity_exactness: omena_cascade::SpecificityExactnessV0::Exact,
         }
     }

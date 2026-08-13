@@ -118,6 +118,7 @@ pub fn summarize_omena_query_registered_custom_property_computed_value_v0(
         custom_property_env: CustomPropertyEnv::new(),
         parent_computed_value,
         registered_custom_property,
+        standard_property_value_verdicts: BTreeMap::new(),
     });
 
     OmenaQueryRegisteredCustomPropertyComputedValueV0 {

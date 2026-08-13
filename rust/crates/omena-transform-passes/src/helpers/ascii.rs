@@ -15,19 +15,6 @@ pub(crate) fn starts_with_ascii_case_insensitive(text: &str, prefix: &str) -> bo
             .all(|(left, right)| left.eq_ignore_ascii_case(right))
 }
 
-pub(crate) fn ascii_css_identifier_end(text: &str, start: usize) -> usize {
-    let bytes = text.as_bytes();
-    let mut end = start;
-    while end < bytes.len() && css_identifier_byte_is_plain(bytes[end]) {
-        end += 1;
-    }
-    end
-}
-
-fn css_identifier_byte_is_plain(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')
-}
-
 pub(crate) fn normalize_ascii_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }

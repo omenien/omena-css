@@ -146,6 +146,44 @@ export interface OmenaBundleCompositeExecutionByteFactsV0 {
   readonly materializedOutputByteLen: number;
 }
 
+export interface OmenaBundleModuleExecutionV0 {
+  readonly moduleInstance: OmenaModuleInstanceKeyV0;
+  readonly execution: OmenaTransformExecutionSummaryV0;
+}
+
+export interface OmenaLinkedEmissionModuleRegionV0 {
+  readonly moduleInstance: OmenaModuleInstanceKeyV0;
+  readonly firstGlobalOrderIndex: number | null;
+  readonly generatedStart: number;
+  readonly generatedEnd: number;
+}
+
+export interface OmenaLinkedEmissionOrderEntryRegionV0 {
+  readonly globalOrderIndex: number;
+  readonly moduleInstance: OmenaModuleInstanceKeyV0;
+  readonly generatedStart: number;
+  readonly generatedEnd: number;
+}
+
+export interface OmenaBundleEmissionExecutionV0 {
+  readonly moduleRegions: readonly OmenaLinkedEmissionModuleRegionV0[];
+  readonly orderEntryRegions: readonly OmenaLinkedEmissionOrderEntryRegionV0[];
+  readonly emittedModuleCount: number;
+  readonly globalOrderEntryCount: number;
+}
+
+export interface OmenaBundleExecutionSummaryV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-query.bundle-execution";
+  readonly entryModuleInstance: OmenaModuleInstanceKeyV0;
+  readonly moduleExecutions: readonly OmenaBundleModuleExecutionV0[];
+  readonly emissionExecution: OmenaBundleEmissionExecutionV0;
+  readonly aggregateMutationCount: number;
+  readonly aggregateExecutedPassIds: readonly string[];
+  readonly aggregateSemanticRemovalCount: number;
+  readonly aggregateClosedWorldRefusalCount: number;
+}
+
 export interface OmenaLinkedSourceMapDispositionV0 {
   readonly moduleInstance: OmenaModuleInstanceKeyV0;
   readonly granularity: "cstAnchors" | "wholeModuleFallback";
@@ -160,6 +198,7 @@ export interface OmenaBundleExecutionScopeEvidenceV0 {
   readonly fieldScopes: readonly OmenaBundleExecutionFieldScopeV0[];
   readonly moduleExecutions: readonly OmenaBundleModuleExecutionByteFactsV0[];
   readonly bundleComposite: OmenaBundleCompositeExecutionByteFactsV0;
+  readonly bundleExecution: OmenaBundleExecutionSummaryV0;
   readonly sourceMapDispositions: readonly OmenaLinkedSourceMapDispositionV0[];
 }
 

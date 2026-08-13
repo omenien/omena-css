@@ -48,7 +48,7 @@ interface SemanticPreservationModelCheck {
   readonly artifactPath: string;
   readonly artifactSha256: string;
   readonly cascadeSeedCaseCount: number;
-  readonly wptSeedCaseCount: number;
+  readonly orderingAxisSelfCheckCaseCount: number;
   readonly semanticObservationCaseCount: number;
   readonly rustGatePassed: boolean;
 }
@@ -162,7 +162,7 @@ assert.equal(
 );
 assert.equal(semanticModel.rustGatePassed, true);
 assert.ok(semanticModel.cascadeSeedCaseCount > 0);
-assert.ok(semanticModel.wptSeedCaseCount > 0);
+assert.ok(semanticModel.orderingAxisSelfCheckCaseCount > 0);
 assert.ok(semanticModel.semanticObservationCaseCount > 0);
 assert.match(semanticModel.artifactSha256, /^[a-f0-9]{64}$/u);
 
@@ -256,7 +256,7 @@ process.stdout.write(
           artifactPath: semanticModel.artifactPath,
           artifactSha256: semanticModel.artifactSha256,
           cascadeSeedCaseCount: semanticModel.cascadeSeedCaseCount,
-          wptSeedCaseCount: semanticModel.wptSeedCaseCount,
+          orderingAxisSelfCheckCaseCount: semanticModel.orderingAxisSelfCheckCaseCount,
           semanticObservationCaseCount: semanticModel.semanticObservationCaseCount,
         },
         translationPreservation: {

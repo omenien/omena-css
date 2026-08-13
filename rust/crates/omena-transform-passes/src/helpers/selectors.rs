@@ -1,8 +1,9 @@
 use super::{
-    ascii::{ascii_css_identifier_end, starts_with_ascii_case_insensitive},
-    identifiers::{css_identifier_escape_sequence_end, css_identifier_text_is_plain},
+    ascii::starts_with_ascii_case_insensitive,
+    identifiers::css_identifier_text_is_plain,
     values::{matching_function_end, split_top_level_value_arguments},
 };
+use omena_syntax::ident::class_selector_name_end;
 
 pub(crate) fn split_css_selector_list(selector: &str) -> Option<Vec<String>> {
     let mut selectors = Vec::new();
@@ -259,23 +260,5 @@ pub(crate) fn local_pseudo_function_end(selector: &str, index: usize) -> Option<
 }
 
 pub(crate) fn css_class_selector_name_end(selector: &str, start: usize) -> usize {
-    let mut end = start;
-    while end < selector.len() {
-        let Some(ch) = selector[end..].chars().next() else {
-            break;
-        };
-        if ch == '\\' {
-            let Some(escape_end) = css_identifier_escape_sequence_end(selector, end) else {
-                break;
-            };
-            end = escape_end;
-            continue;
-        }
-        let next = ascii_css_identifier_end(selector, end);
-        if next == end {
-            break;
-        }
-        end = next;
-    }
-    end
+    class_selector_name_end(selector, start).unwrap_or(start)
 }

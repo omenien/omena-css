@@ -13,6 +13,7 @@ pub use omena_semantic::{
 use serde::Serialize;
 
 mod bundler_config_alias;
+mod cache_root;
 mod promotion_evidence;
 mod selector_references;
 mod source_cfg;
@@ -63,22 +64,24 @@ pub use source_language::{
     summarize_omena_bridge_source_language_parser_boundary_v0,
 };
 pub use source_syntax::{
+    SOURCE_INLINE_STYLE_IMPORTANT_SUFFIX_TIER_V0, SOURCE_INLINE_STYLE_TIER_V0,
     SourceBindingDeclFactV0, SourceBindingIndexV0, SourceBindingScopeFactV0,
-    SourceBindingStyleImportFactV0, SourceClassExpressionNodeFactV0,
-    SourceClassUtilityBindingFactV0, SourceClassValuePatternMatcherV0, SourceClassValuePatternV0,
-    SourceClassValueUniverseAxisV0, SourceClassValueUniverseEntryV0, SourceClassValueUnresolvedV0,
+    SourceBindingStyleImportFactV0, SourceClassAttributeSiteFactV0,
+    SourceClassExpressionNodeFactV0, SourceClassUtilityBindingFactV0,
+    SourceClassValuePatternMatcherV0, SourceClassValuePatternV0, SourceClassValueUniverseAxisV0,
+    SourceClassValueUniverseEntryV0, SourceClassValueUnresolvedV0,
     SourceClassnamesBindUtilityBindingFactV0, SourceDeclaresStyleImportFactV0,
     SourceDeclaresUtilityBindingFactV0, SourceDomainClassReferenceFactV0, SourceElementFactV0,
     SourceElementIdentityFactV0, SourceElementParentFactV0, SourceExpressionTargetsModuleFactV0,
-    SourceImportedStyleBindingV0, SourceInlineStyleDeclarationFactV0, SourceModuleSpecifierFactV0,
-    SourceScopeContainsDeclFactV0, SourceScopeParentFactV0, SourceSelectorReferenceFactV0,
-    SourceSelectorReferenceMatchKindV0, SourceSelectorReferenceSurfaceV0,
-    SourceStyleAccessUsesStyleImportFactV0, SourceStyleImportResolvesModuleFactV0,
-    SourceStylePropertyAccessFactV0, SourceSymbolRefUsesDeclFactV0, SourceSyntaxIndexV0,
-    SourceSyntaxIndexWithTypeFactAttemptsV0, SourceTypeFactExpressionShapeV0,
-    SourceTypeFactLexicalAttemptV0, SourceTypeFactLexicalDispositionV0,
-    SourceTypeFactProviderUnavailableFactV0, SourceTypeFactTargetSkippedFactV0,
-    SourceTypeFactTargetV0, SourceUtilityUsesStyleImportFactV0,
+    SourceGuardedClassTokenFactV0, SourceImportedStyleBindingV0,
+    SourceInlineStyleDeclarationFactV0, SourceModuleSpecifierFactV0, SourceScopeContainsDeclFactV0,
+    SourceScopeParentFactV0, SourceSelectorReferenceFactV0, SourceSelectorReferenceMatchKindV0,
+    SourceSelectorReferenceSurfaceV0, SourceStyleAccessUsesStyleImportFactV0,
+    SourceStyleImportResolvesModuleFactV0, SourceStylePropertyAccessFactV0,
+    SourceSymbolRefUsesDeclFactV0, SourceSyntaxIndexV0, SourceSyntaxIndexWithTypeFactAttemptsV0,
+    SourceTypeFactExpressionShapeV0, SourceTypeFactLexicalAttemptV0,
+    SourceTypeFactLexicalDispositionV0, SourceTypeFactProviderUnavailableFactV0,
+    SourceTypeFactTargetSkippedFactV0, SourceTypeFactTargetV0, SourceUtilityUsesStyleImportFactV0,
     canonicalize_source_selector_references, collect_omena_bridge_vue_style_module_bindings,
     summarize_omena_bridge_source_binding_index,
     summarize_omena_bridge_source_binding_index_for_source_language,
@@ -96,10 +99,12 @@ pub use style_intelligence::{
     style_intelligence_hover_at_offset,
 };
 pub use style_resolution::{
-    OmenaBridgeExternalSifCacheContextV0, OmenaBridgeStyleResolutionInputsV0,
-    OmenaBridgeStyleResolutionSummaryV0, generate_omena_bridge_lif_exports_for_resolved_style_path,
+    OmenaBridgeExternalSifCacheContextV0, OmenaBridgeExternalSifStorageV0,
+    OmenaBridgeStyleResolutionInputsV0, OmenaBridgeStyleResolutionSummaryV0,
+    generate_omena_bridge_lif_exports_for_resolved_style_path,
     generate_omena_bridge_sif_for_resolved_style_path,
     generate_omena_bridge_sif_for_resolved_style_path_with_cache_context,
+    generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage,
     load_omena_bridge_workspace_style_resolution_inputs,
     resolve_omena_bridge_style_uri_for_specifier,
     resolve_omena_bridge_style_uri_for_specifier_with_package_manifests,

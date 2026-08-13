@@ -5,42 +5,42 @@
         "bindingGraph": {
           "declarations": [
             {
-              "id": "decl:0",
+              "id": "rust-decl:import:classNames:7:17:classnames/bind",
               "kind": "import",
               "name": "classNames"
             },
             {
-              "id": "decl:1",
+              "id": "rust-decl:import:styles:49:55:./TypeFactParity.module.scss",
               "kind": "import",
               "name": "styles"
             },
             {
-              "id": "decl:2",
+              "id": "rust-decl:localVar:cx:100:102:",
               "kind": "localVar",
               "name": "cx"
             },
             {
-              "id": "decl:3",
+              "id": "rust-decl:localVar:TypeFactParity:147:161:",
               "kind": "localVar",
               "name": "TypeFactParity"
             },
             {
-              "id": "decl:4",
+              "id": "rust-decl:parameter:size:164:168:",
               "kind": "parameter",
               "name": "size"
             }
           ],
           "resolutions": [
             {
-              "declarationId": "decl:4",
-              "expressionId": "class-expr:0"
+              "declarationId": "rust-decl:parameter:size:164:168:",
+              "expressionId": "expression:rust-expression:symbolRef:6:28:6:32:<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"
             }
           ]
         },
         "document": {
           "classExpressions": [
             {
-              "id": "class-expr:0",
+              "id": "expression:rust-expression:symbolRef:6:28:6:32:<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
               "kind": "symbolRef",
               "origin": "cxCall",
               "pathSegments": [],
@@ -55,18 +55,19 @@
                 }
               },
               "rawReference": "size",
-              "rootBindingDeclId": "decl:4",
+              "rootBindingDeclId": "rust-decl:parameter:size:164:168:",
               "rootName": "size",
               "scssModulePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"
             }
           ],
+          "domainClassReferences": [],
           "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.tsx",
           "kind": "source",
           "language": "typescriptreact",
           "styleImports": [
             {
-              "bindingDeclId": "decl:1",
-              "id": "style-import:0",
+              "bindingDeclId": "rust-decl:import:styles:49:55:./TypeFactParity.module.scss",
+              "id": "styleImport:rust-style-import:styles:<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
               "kind": "styleImport",
               "localName": "styles",
               "resolved": {
@@ -77,9 +78,9 @@
           ],
           "utilityBindings": [
             {
-              "bindingDeclId": "decl:2",
+              "bindingDeclId": "rust-decl:localVar:cx:100:102:",
               "classNamesImportName": "classNames",
-              "id": "utility-binding:cx:0",
+              "id": "utilityBinding:rust-utility:classnamesBind:cx:styles:<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
               "kind": "classnamesBind",
               "localName": "cx",
               "scssModulePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
@@ -94,9 +95,14 @@
       {
         "document": {
           "animationNameRefs": [],
+          "customPropertyDecls": [],
+          "customPropertyRefs": [],
           "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
           "keyframes": [],
           "kind": "style",
+          "sassModuleForwards": [],
+          "sassModuleMemberRefs": [],
+          "sassModuleUses": [],
           "sassSymbolDecls": [],
           "sassSymbols": [],
           "selectors": [
@@ -176,19 +182,14 @@
           "blocks": [
             {
               "id": "entry",
+              "boundaryEffect": "unknownBoundary",
               "kind": "entry",
-              "successorBlockIds": ["assignment:0"],
+              "successorBlockIds": ["exit"],
               "transferKind": "entry"
             },
             {
-              "id": "assignment:0",
-              "kind": "assignment",
-              "successorBlockIds": ["exit"],
-              "transferKind": "assignFacts",
-              "variableName": "size"
-            },
-            {
               "id": "exit",
+              "boundaryEffect": "unknownBoundary",
               "kind": "exit",
               "successorBlockIds": [],
               "transferKind": "exit"
@@ -196,7 +197,7 @@
           ],
           "entryBlockId": "entry"
         },
-        "expressionId": "class-expr:0",
+        "expressionId": "expression:rust-expression:symbolRef:6:28:6:32:<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
         "facts": {
           "kind": "unknown"
         },
@@ -258,7 +259,7 @@
         "kind": "expression-semantics",
         "payload": {
           "candidateNames": [],
-          "expressionId": "class-expr:0",
+          "expressionId": "expression:rust-expression:symbolRef:6:28:6:32:<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
           "expressionKind": "symbolRef",
           "finiteValues": null,
           "selectorCertainty": "possible",
@@ -269,13 +270,13 @@
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
           "valueDomainKind": "none"
         },
-        "queryId": "class-expr:0"
+        "queryId": "expression:rust-expression:symbolRef:6:28:6:32:<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"
       },
       {
         "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.tsx",
         "kind": "source-expression-resolution",
         "payload": {
-          "expressionId": "class-expr:0",
+          "expressionId": "expression:rust-expression:symbolRef:6:28:6:32:<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
           "finiteValues": null,
           "selectorCertainty": "possible",
           "selectorCertaintyReason": "no selector could be proven for this value",
@@ -284,7 +285,7 @@
           "selectorNames": [],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"
         },
-        "queryId": "class-expr:0"
+        "queryId": "expression:rust-expression:symbolRef:6:28:6:32:<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"
       }
     ],
     "rewritePlans": [],

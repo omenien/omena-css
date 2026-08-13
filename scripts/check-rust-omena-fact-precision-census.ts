@@ -187,9 +187,16 @@ const expectedSites: readonly PrecisionSiteDispositionRecord[] = [
   site(
     "rust/crates/omena-query/src/style/transform.rs",
     "fn closed_world_source_precision_summary",
-    { Exact: 1, Conservative: 1, Heuristic: 1, Unknown: 1 },
+    { Exact: 1, Conservative: 2, Heuristic: 1, Unknown: 2 },
     "consumer",
     "the source-precision summary exhaustively counts an already-derived rank",
+  ),
+  site(
+    "rust/crates/omena-query/src/style/transform.rs",
+    "fn closed_world_bundle_reachability_precision",
+    { Exact: 1, Conservative: 1, Heuristic: 1, Unknown: 1 },
+    "consumer",
+    "the closed-world bundle adapter folds carried source-rank counts into the execution precision ceiling",
   ),
   site(
     "rust/crates/omena-query/src/style/transform/context.rs",

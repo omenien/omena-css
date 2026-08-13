@@ -11,6 +11,10 @@ use crate::{
 };
 
 pub(crate) fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value>) {
+    state
+        .resolution
+        .cache_storage
+        .apply_initialization_options(params);
     state.workspace_runtime_registry.clear();
     state.client_supports_work_done_progress = params
         .and_then(|value| value.pointer("/capabilities/window/workDoneProgress"))
@@ -25,6 +29,7 @@ pub(crate) fn initialize_workspace_folders(state: &mut LspShellState, params: Op
         }
         refresh_workspace_resolution_inputs(state);
         refresh_external_sifs_for_state(state);
+        crate::disk_cache::sweep_relocated_workspace_cache_roots(state);
         return;
     }
 
@@ -38,6 +43,7 @@ pub(crate) fn initialize_workspace_folders(state: &mut LspShellState, params: Op
     }
     refresh_workspace_resolution_inputs(state);
     refresh_external_sifs_for_state(state);
+    crate::disk_cache::sweep_relocated_workspace_cache_roots(state);
 }
 
 pub(crate) fn refresh_workspace_resolution_inputs(state: &mut LspShellState) {

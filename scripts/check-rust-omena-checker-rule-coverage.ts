@@ -5,6 +5,18 @@ import { spawnSync } from "node:child_process";
 const packageJsonSource = readFileSync("package.json", "utf8");
 const runnerSource = readFileSync("rust/crates/engine-shadow-runner/src/main.rs", "utf8");
 
+/**
+ * @deprecated Compatibility owner: omena-checker maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const LEGACY_DEMAND_PROPAGATION_RULE_CODE_V0 = "streaming-ifds-precision-parity";
+
+/**
+ * @deprecated Compatibility owner: omena-checker maintainers. Removal condition:
+ * not before 1.0; remove only after downstream migration and zero in-repo non-compat uses.
+ */
+const LEGACY_MULTISCALE_HEURISTIC_RULE_CODE_V0 = "rg-flow-relevant-operator";
+
 const REQUIRED_RULE_NAMES = [
   "no-unknown-dynamic-class",
   "no-imprecise-value",
@@ -32,8 +44,8 @@ const REQUIRED_RULE_NAMES = [
   "designer-intent-inconsistency",
   "cascade.smt-violation",
   "design-system-mdl-budget",
-  "streaming-ifds-precision-parity",
-  "rg-flow-relevant-operator",
+  LEGACY_DEMAND_PROPAGATION_RULE_CODE_V0,
+  LEGACY_MULTISCALE_HEURISTIC_RULE_CODE_V0,
   "replica-ensemble-inconsistency",
   "cascade.deep-conflict",
   "cascade.unreachable-rule",
@@ -44,8 +56,8 @@ const MECHANISM_RULE_NAMES = [
   "designer-intent-inconsistency",
   "cascade.smt-violation",
   "design-system-mdl-budget",
-  "streaming-ifds-precision-parity",
-  "rg-flow-relevant-operator",
+  LEGACY_DEMAND_PROPAGATION_RULE_CODE_V0,
+  LEGACY_MULTISCALE_HEURISTIC_RULE_CODE_V0,
   "replica-ensemble-inconsistency",
   "cascade.deep-conflict",
   "cascade.unreachable-rule",

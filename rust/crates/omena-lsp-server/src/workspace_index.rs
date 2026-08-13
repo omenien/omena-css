@@ -40,6 +40,11 @@ pub struct LspWorkspaceIndexJobV0 {
 }
 
 #[derive(Debug, Clone)]
+pub struct LspWorkspaceIndexCacheStorageV0 {
+    cache_storage: crate::cache_root::LspCacheStorageConfigV0,
+}
+
+#[derive(Debug, Clone)]
 pub struct LspWorkspaceIndexResultV0 {
     pub revision: u64,
     pub progress_token: Option<String>,
@@ -85,6 +90,14 @@ pub fn prepare_background_workspace_index_job(state: &mut LspShellState) -> LspW
     }
 }
 
+pub fn prepare_background_workspace_index_cache_storage(
+    state: &LspShellState,
+) -> LspWorkspaceIndexCacheStorageV0 {
+    LspWorkspaceIndexCacheStorageV0 {
+        cache_storage: state.resolution.cache_storage.clone(),
+    }
+}
+
 pub fn prepare_background_workspace_index_continuation_job(
     state: &mut LspShellState,
     pending_file_uris: Vec<String>,
@@ -97,6 +110,18 @@ pub fn prepare_background_workspace_index_continuation_job(
 pub fn collect_background_workspace_index(
     job: LspWorkspaceIndexJobV0,
 ) -> LspWorkspaceIndexResultV0 {
+    collect_background_workspace_index_with_cache_storage(
+        job,
+        LspWorkspaceIndexCacheStorageV0 {
+            cache_storage: crate::cache_root::LspCacheStorageConfigV0::default(),
+        },
+    )
+}
+
+pub fn collect_background_workspace_index_with_cache_storage(
+    job: LspWorkspaceIndexJobV0,
+    cache_storage: LspWorkspaceIndexCacheStorageV0,
+) -> LspWorkspaceIndexResultV0 {
     let mut documents = Vec::new();
     let candidate_uris = if job.pending_file_uris.is_empty() {
         collect_workspace_index_candidate_uris(&job)
@@ -106,6 +131,7 @@ pub fn collect_background_workspace_index(
     let mut budget = WorkspaceStyleIndexBudget::with_defaults();
     let pending_file_uris = collect_workspace_index_documents_from_candidates(
         &job,
+        &cache_storage.cache_storage,
         candidate_uris,
         &mut budget,
         &mut documents,
@@ -197,6 +223,8 @@ pub fn apply_background_workspace_index_result(
         result.exhausted
     );
     state.workspace_index_pending_file_count = result.pending_file_count;
+    state.source_type_fact_workspace_index_incomplete =
+        result.exhausted || result.pending_file_count > 0;
     if result.exhausted {
         state.workspace_style_index_exhausted_count += 1;
     }
@@ -219,6 +247,9 @@ pub(crate) fn index_workspace_style_files_with_budget(
     }
     if budget.exhausted {
         state.workspace_style_index_exhausted_count += 1;
+        state.source_type_fact_workspace_index_incomplete = true;
+    } else {
+        state.source_type_fact_workspace_index_incomplete = false;
     }
 }
 
@@ -369,6 +400,7 @@ fn collect_workspace_index_candidate_uris_from_dir(
 
 fn collect_workspace_index_documents_from_candidates(
     job: &LspWorkspaceIndexJobV0,
+    cache_storage: &crate::cache_root::LspCacheStorageConfigV0,
     candidate_uris: Vec<String>,
     budget: &mut WorkspaceStyleIndexBudget,
     documents: &mut Vec<LspTextDocumentState>,
@@ -413,6 +445,7 @@ fn collect_workspace_index_documents_from_candidates(
             .unwrap_or_default();
         let document = if !is_style_document_uri(uri.as_str())
             && let Some(sidecar) = load_source_document_index_sidecar(
+                cache_storage,
                 workspace_owner_uri.as_deref(),
                 uri.as_str(),
                 language_id.as_str(),
@@ -440,6 +473,7 @@ fn collect_workspace_index_documents_from_candidates(
             );
             if !is_style_document_uri(document.uri.as_str()) {
                 store_source_document_index_sidecar(
+                    cache_storage,
                     document.workspace_folder_uri.as_deref(),
                     document.uri.as_str(),
                     document.language_id.as_str(),
@@ -549,7 +583,7 @@ impl WorkspaceStyleIndexBudget {
     }
 }
 
-fn should_skip_workspace_index_dir(dir: &Path) -> bool {
+pub(crate) fn should_skip_workspace_index_dir(dir: &Path) -> bool {
     dir.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| {

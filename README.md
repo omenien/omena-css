@@ -2,7 +2,7 @@
 
 omena-css is a CSS-family semantic engine with CLI, LSP, SDK, build, and editor surfaces.
 
-[Browse the documentation](https://omenien.github.io/omena-css/) for guided
+[Browse the documentation](https://omena.dev/) for guided
 setup, generated reference, release notes, and an in-browser WASM playground.
 
 ## Install
@@ -57,6 +57,10 @@ captured finding, so the example changes when product behavior changes.
 - Lint, format, minify, bundle, module, Sass, intelligence, and migration commands.
 - NAPI, WASM, CLI, and LSP workflows over snapshot-bound contracts.
 - Vite, PostCSS, ESLint, Stylelint, and VS Code integration surfaces.
+
+For CSS Modules, the emitted token is not a contract; `classMap`, `namedExports`,
+and the generated `.d.ts` are. Hand-writing an emitted token into markup, tests,
+or CSS is unsupported.
 
 ## Product Guides
 

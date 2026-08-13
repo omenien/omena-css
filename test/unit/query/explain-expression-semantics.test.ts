@@ -96,6 +96,21 @@ describe("describeAbstractValue", () => {
     ).toBe("concatenation preserved edge and character constraints together");
   });
 
+  it("distinguishes automaton preconstruction cutoff reasons", () => {
+    expect(
+      describeAbstractValueReason({
+        kind: "top",
+        provenance: "automatonLanguageCardinalityLimit",
+      }),
+    ).toBe("the finite language exceeded the preconstruction cardinality limit");
+    expect(
+      describeAbstractValueReason({
+        kind: "top",
+        provenance: "automatonMaterializedByteLimit",
+      }),
+    ).toBe("the finite language exceeded the preconstruction materialized-byte limit");
+  });
+
   it("explains inferred and possible certainty from domain provenance", () => {
     expect(
       describeValueCertaintyReason(

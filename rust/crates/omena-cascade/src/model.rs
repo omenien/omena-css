@@ -20,6 +20,7 @@ pub enum CascadeLevel {
     InlineNormal,
     Animation,
     AuthorImportant,
+    InlineImportant,
     UserImportant,
     UserAgentImportant,
     Transition,
@@ -27,7 +28,52 @@ pub enum CascadeLevel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LayerRank(pub i32);
+pub struct LayerRank(i32);
+
+impl LayerRank {
+    /// Returns the opaque scalar used by the cascade key ordering.
+    pub const fn get(self) -> i32 {
+        self.0
+    }
+}
+
+/// Position in a flattened cascade-layer order before importance normalization.
+///
+/// The sentinel-safe domain is `0 <= ordinal < i32::MAX`; `None` represents an
+/// unlayered declaration at the normalization boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+pub struct LayerOrdinal(i32);
+
+impl LayerOrdinal {
+    /// Rejects ordinals that would collide with the unlayered sentinels.
+    pub const fn new(ordinal: i32) -> Option<Self> {
+        if 0 <= ordinal && ordinal < i32::MAX {
+            Some(Self(ordinal))
+        } else {
+            None
+        }
+    }
+
+    pub const fn get(self) -> i32 {
+        self.0
+    }
+}
+
+/// Maps a layer ordinal into the comparison domain used by `CascadeKey`.
+///
+/// Unlayered declarations form an implicit final layer, and the whole layer
+/// order is reversed for important declarations. This scalar encoding is sound
+/// because `CascadeKey` compares `level` before `layer_rank`, so normal and
+/// important declarations never rely on their shared zero value.
+pub const fn normalized_layer_rank(important: bool, ordinal: Option<LayerOrdinal>) -> LayerRank {
+    match (important, ordinal) {
+        (false, Some(ordinal)) => LayerRank(ordinal.get()),
+        (false, None) => LayerRank(i32::MAX),
+        (true, Some(ordinal)) => LayerRank(-ordinal.get()),
+        (true, None) => LayerRank(i32::MIN),
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,7 +111,7 @@ pub enum SpecificityExactnessV0 {
 
 impl Ord for Specificity {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.ids, self.classes, self.elements).cmp(&(other.ids, other.classes, other.elements))
+        crate::axis_order::compare_specificity_axes_v0(self, other)
     }
 }
 
@@ -124,6 +170,32 @@ impl PartialOrd for ModuleRank {
     }
 }
 
+/// Provenance evidence used only to make open-world ties deterministic.
+///
+/// This evidence is deliberately separate from [`CascadeKey`]: it is not a
+/// spec-defined cascade axis and cannot make an otherwise ambiguous cascade
+/// outcome definite.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenWorldTieEvidence {
+    pub module_rank: ModuleRank,
+}
+
+impl OpenWorldTieEvidence {
+    /// No provenance preference is available.
+    pub const NONE: Self = Self {
+        module_rank: ModuleRank::ZERO,
+    };
+
+    /// Numeric zero form retained for callers that model evidence as a rank.
+    pub const ZERO: Self = Self::NONE;
+
+    pub const fn new(module_rank: ModuleRank) -> Self {
+        Self { module_rank }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeKey {
@@ -131,7 +203,6 @@ pub struct CascadeKey {
     pub layer_rank: LayerRank,
     pub scope_proximity: u32,
     pub specificity: Specificity,
-    pub module_rank: ModuleRank,
     pub source_order: u32,
 }
 
@@ -141,7 +212,6 @@ impl CascadeKey {
         layer_rank: LayerRank,
         scope_proximity: u32,
         specificity: Specificity,
-        module_rank: ModuleRank,
         source_order: u32,
     ) -> Self {
         Self {
@@ -149,20 +219,18 @@ impl CascadeKey {
             layer_rank,
             scope_proximity,
             specificity,
-            module_rank,
             source_order,
         }
     }
 }
 
+pub(crate) fn compare_cascade_axis_prefix(left: &CascadeKey, right: &CascadeKey) -> Ordering {
+    crate::axis_order::compare_cascade_axis_prefix_v0(left, right)
+}
+
 impl Ord for CascadeKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.level
-            .cmp(&other.level)
-            .then_with(|| self.layer_rank.cmp(&other.layer_rank))
-            .then_with(|| other.scope_proximity.cmp(&self.scope_proximity))
-            .then_with(|| self.specificity.cmp(&other.specificity))
-            .then_with(|| self.source_order.cmp(&other.source_order))
+        crate::axis_order::compare_cascade_key_axes_v0(self, other)
     }
 }
 
@@ -179,6 +247,8 @@ pub struct CascadeDeclaration {
     pub property: String,
     pub value: CascadeValue,
     pub key: CascadeKey,
+    /// Non-spec evidence for deterministic ordering of open-world ties.
+    pub open_world_tie_evidence: OpenWorldTieEvidence,
     /// Trust boundary for using `key.specificity` to mint an exact winner.
     pub specificity_exactness: SpecificityExactnessV0,
 }
@@ -210,7 +280,7 @@ impl CascadeProof {
             layer_rank: declaration.key.layer_rank,
             scope_proximity: declaration.key.scope_proximity,
             specificity: declaration.key.specificity,
-            module_rank: declaration.key.module_rank,
+            module_rank: declaration.open_world_tie_evidence.module_rank,
             source_order: declaration.key.source_order,
         }
     }
@@ -281,12 +351,21 @@ define_computed_cascade_indeterminate_reasons! {
     PropertyInheritanceMetadataUnavailable => "propertyInheritanceMetadataUnavailable",
     PropertyInitialValueMetadataUnavailable => "propertyInitialValueMetadataUnavailable",
     RegisteredPropertySyntaxIndeterminate => "registeredPropertySyntaxIndeterminate",
+    StandardPropertySyntaxIndeterminate => "standardPropertySyntaxIndeterminate",
     InheritedFromIndeterminateParent => "inheritedFromIndeterminateParent",
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CascadeRegisteredValueVerdictV0 {
+    Matched,
+    Unmatched,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CascadeStandardValueVerdictV0 {
     Matched,
     Unmatched,
     Unknown,
@@ -310,6 +389,12 @@ pub struct CascadeComputedValueInputV0 {
     pub parent_computed_value: Option<CascadeValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub registered_custom_property: Option<CascadeRegisteredCustomPropertyV0>,
+    /// Caller-supplied grammar verdicts for standard (non-custom) properties,
+    /// keyed by declaration id. `omena-cascade` does not own a property grammar;
+    /// the authority is `omena-abstract-value::validate_standard_property_value_v0`,
+    /// consulted by the caller. Absence means no verdict is available, not that
+    /// the value is valid.
+    pub standard_property_value_verdicts: BTreeMap<String, CascadeStandardValueVerdictV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -326,6 +411,12 @@ pub struct CascadeComputedValueResultV0 {
     pub invalid_at_computed_value_time: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub indeterminate_reason: Option<ComputedCascadeIndeterminateReasonV0>,
+    /// Why the value the declaration falls back to could not be determined when
+    /// the declaration itself became invalid at computed-value time. This is
+    /// orthogonal to `indeterminate_reason`, which remains absent unless the
+    /// result status is `Indeterminate`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_indeterminate_reason: Option<ComputedCascadeIndeterminateReasonV0>,
     pub derivation_steps: Vec<&'static str>,
 }
 

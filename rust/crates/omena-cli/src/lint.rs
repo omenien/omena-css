@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeSet, HashMap},
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -8,6 +8,9 @@ use omena_checker::{
     OmenaCheckerLintTierV0, OmenaCheckerRuleDescriptorV0, OmenaCheckerRulePresetV0,
     list_omena_checker_lint_tier_mappings_v0, list_omena_checker_rule_code_names,
     list_omena_checker_rule_descriptors, summarize_omena_checker_lint_tier_coverage_v0,
+};
+use omena_query::{
+    OmenaQueryCascadeRankedSetLossCaptureV0, capture_omena_query_cascade_ranked_set_losses,
 };
 use omena_query::{ParserRangeV0, omena_query_checker_rule_code_name_for_diagnostic_v0};
 use serde::Serialize;
@@ -103,6 +106,7 @@ struct LintExecutionV0 {
     report: LintReportV0,
     config_content_digest: Option<String>,
     warnings: Vec<String>,
+    ranked_set_loss_capture: Option<OmenaQueryCascadeRankedSetLossCaptureV0>,
 }
 
 pub(crate) fn lint_workspace(
@@ -115,6 +119,9 @@ pub(crate) fn lint_workspace(
     let execution = build_lint_execution(root, profile, stylelint_config, write)?;
     for warning in &execution.warnings {
         eprintln!("warning: {warning}");
+    }
+    if let Some(capture) = &execution.ranked_set_loss_capture {
+        write_ranked_set_loss_capture(capture)?;
     }
     let report = execution.report;
     if json {
@@ -190,13 +197,42 @@ fn build_lint_execution(
         })
         .unwrap_or_default();
 
-    let report = build_lint_report(&absolute_root, profile, stylelint_compatibility, write)?;
+    let capture_ranked_set_losses = env::var_os("OMENA_RANKED_SET_LOSS_CENSUS_PATH").is_some();
+    let (report, ranked_set_loss_capture) = if capture_ranked_set_losses {
+        let (report, capture) = capture_omena_query_cascade_ranked_set_losses(|| {
+            build_lint_report(&absolute_root, profile, stylelint_compatibility, write)
+        })
+        .map_err(str::to_string)?;
+        (report?, Some(capture))
+    } else {
+        (
+            build_lint_report(&absolute_root, profile, stylelint_compatibility, write)?,
+            None,
+        )
+    };
     Ok(LintExecutionV0 {
         report,
         config_content_digest: loaded_config
             .as_ref()
             .map(|config| config.config_content_digest.to_string()),
         warnings,
+        ranked_set_loss_capture,
+    })
+}
+
+fn write_ranked_set_loss_capture(
+    capture: &OmenaQueryCascadeRankedSetLossCaptureV0,
+) -> Result<(), String> {
+    let path = env::var_os("OMENA_RANKED_SET_LOSS_CENSUS_PATH")
+        .map(PathBuf::from)
+        .ok_or_else(|| "ranked-set loss census path is missing".to_string())?;
+    let rendered = serde_json::to_string_pretty(capture)
+        .map_err(|error| format!("failed to serialize ranked-set loss census: {error}"))?;
+    fs::write(&path, format!("{rendered}\n")).map_err(|error| {
+        format!(
+            "failed to write ranked-set loss census {}: {error}",
+            path_string(&path)
+        )
     })
 }
 

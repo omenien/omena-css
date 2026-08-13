@@ -11,16 +11,36 @@ use crate::{
     lsp_output::set_reactive_shadow_delivery_perturbation_for_test,
     reactive_shadow::{
         ReactiveShadowFlushReportV0, ReactiveShadowObserverV0, ReactiveShadowPublishTierV0,
-        ReactiveShadowStampsV0,
+        ReactiveShadowStampsV0, set_reactive_shadow_delta_fold_target_perturbation_for_test,
+        stamps_from_state,
     },
     reactive_shadow_contract::{
-        ProposedAuthorityViolationV0, ReactiveShadowParityDimensionV0, divergence_disposition,
-        evaluate_proposed_authority_reduction, evaluate_reactive_shadow_parity,
+        ProposedAuthorityViolationV0, ReactiveShadowOracleCheckV0, ReactiveShadowParityDimensionV0,
+        divergence_disposition, evaluate_proposed_authority_reduction,
+        evaluate_reactive_shadow_parity,
     },
 };
 
-type ParityProjectionMutation = (
-    ReactiveShadowParityDimensionV0,
+const PARITY_PIPELINE_FALSIFIERS: [(ReactiveShadowParityDimensionV0, &str); 2] = [
+    (
+        ReactiveShadowParityDimensionV0::TargetSet,
+        "target_projection_rejects_an_unplanned_reported_uri",
+    ),
+    (
+        ReactiveShadowParityDimensionV0::DeliveryDecision,
+        "delivery_projection_rejects_an_inverted_writer_decision",
+    ),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReactiveShadowReportWiringCheckV0 {
+    TargetSet,
+    DeltaFoldRebuild,
+    DeliveryDecision,
+}
+
+type ReactiveShadowReportWiringMutationV0 = (
+    ReactiveShadowReportWiringCheckV0,
     fn(&mut ReactiveShadowFlushReportV0),
 );
 
@@ -134,27 +154,45 @@ fn target_projection_rejects_an_unplanned_reported_uri() -> Result<(), Box<dyn s
 }
 
 #[test]
-fn snapshot_generation_projection_uses_flush_completion_stamps()
+fn delta_fold_rebuild_rejects_a_non_fold_verification_target()
 -> Result<(), Box<dyn std::error::Error>> {
-    let initial_stamps = authority_stamps();
-    let final_stamps = ReactiveShadowStampsV0 {
+    let mut state = LspShellState::default();
+    state
+        .enable_reactive_shadow_observer()
+        .map_err(std::io::Error::other)?;
+    set_reactive_shadow_delta_fold_target_perturbation_for_test(true);
+    let _ = run_message_stream(
+        &mut state,
+        &[open_message(
+            "file:///workspace/App.module.scss",
+            1,
+            ".root { color: red; }",
+        )],
+    );
+    set_reactive_shadow_delta_fold_target_perturbation_for_test(false);
+
+    let reports = state
+        .diagnostics_publish_digest_registry
+        .reactive_shadow_reports_for_test()
+        .unwrap_or_default();
+    let parity = evaluate_reactive_shadow_parity(reports.as_slice());
+    assert_eq!(
+        parity.oracle_failures,
+        vec![ReactiveShadowOracleCheckV0::DeltaFoldRebuild]
+    );
+    assert!(parity.unclassified_divergences.is_empty());
+    Ok(())
+}
+
+#[test]
+fn stamp_state_round_trip_preserves_all_fields() {
+    let stamps = ReactiveShadowStampsV0 {
+        corpus_revision: 7,
         style_snapshot_revision: 12,
         demand_generation: 4,
-        ..initial_stamps
     };
-    let (observer, _, _) = observer_flush_with_final_stamps(initial_stamps, final_stamps)?;
-    let reports = observer.reports();
-    let Some(report) = reports.first() else {
-        return Err(std::io::Error::other("observer produced no report").into());
-    };
-    assert_eq!(report.expected_stamps, final_stamps);
-    assert_eq!(report.projected_stamps, Some(final_stamps));
-    assert!(
-        evaluate_proposed_authority_reduction(reports.as_slice())
-            .violations
-            .is_empty()
-    );
-    Ok(())
+    let state = stamps.as_state();
+    assert_eq!(stamps_from_state(Some(&state)), Some(stamps));
 }
 
 #[test]
@@ -338,7 +376,7 @@ fn deferred_digest_receipt_stays_attached_to_its_scheduler_flush()
 }
 
 #[test]
-fn seeded_event_stream_matches_all_flush_projections() -> Result<(), Box<dyn std::error::Error>> {
+fn seeded_event_stream_matches_all_parity_dimensions() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
     state
         .enable_reactive_shadow_observer()
@@ -408,11 +446,7 @@ fn seeded_event_stream_matches_all_flush_projections() -> Result<(), Box<dyn std
     let parity = evaluate_reactive_shadow_parity(reports.as_slice());
     assert_eq!(parity.flush_count, 132);
     assert_eq!(parity.target_set_equality_count, parity.flush_count);
-    assert_eq!(
-        parity.snapshot_generation_equality_count,
-        parity.flush_count
-    );
-    assert_eq!(parity.tier_digest_equality_count, parity.flush_count);
+    assert_eq!(parity.delta_fold_rebuild_count, parity.flush_count);
     assert_eq!(parity.delivery_decision_equality_count, parity.flush_count);
     assert_eq!(parity.settled_without_pending_count, parity.flush_count);
     assert!(parity.baseline_digest_observation_count > 0);
@@ -432,46 +466,66 @@ fn seeded_event_stream_matches_all_flush_projections() -> Result<(), Box<dyn std
 }
 
 #[test]
-fn every_flush_equality_rejects_its_own_projection_drift() {
+fn every_parity_dimension_has_a_flush_pipeline_falsifier() {
+    assert_eq!(
+        PARITY_PIPELINE_FALSIFIERS
+            .iter()
+            .map(|(dimension, _)| *dimension)
+            .collect::<BTreeSet<_>>(),
+        ReactiveShadowParityDimensionV0::all()
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+    );
+    assert_eq!(
+        PARITY_PIPELINE_FALSIFIERS
+            .iter()
+            .map(|(_, test_name)| *test_name)
+            .collect::<BTreeSet<_>>()
+            .len(),
+        PARITY_PIPELINE_FALSIFIERS.len()
+    );
+}
+
+#[test]
+fn wiring_check_routes_each_report_check_to_its_summary_field() {
+    // WIRING CHECK: these post-hoc mutations test report-field-to-summary routing only.
+    // They are not pipeline falsifiers and do not enter the two-dimension denominator.
     let baseline = synthetic_report();
-    let mutations: [ParityProjectionMutation; 5] = [
-        (ReactiveShadowParityDimensionV0::TargetSet, |report| {
+    let mutations: [ReactiveShadowReportWiringMutationV0; 3] = [
+        (ReactiveShadowReportWiringCheckV0::TargetSet, |report| {
             report
                 .projected_target_uris
                 .insert("file:///drift.scss".to_string());
         }),
         (
-            ReactiveShadowParityDimensionV0::SnapshotGeneration,
-            |report| {
-                report.projected_stamps = Some(ReactiveShadowStampsV0 {
-                    corpus_revision: 99,
-                    ..report.expected_stamps
-                });
-            },
+            ReactiveShadowReportWiringCheckV0::DeltaFoldRebuild,
+            |report| report.delta_fold_matches_full_rebuild = false,
         ),
-        (ReactiveShadowParityDimensionV0::TierDigest, |report| {
-            report
-                .projected_baseline_digests
-                .insert("file:///fixture.scss".to_string(), "wrong".to_string());
-        }),
         (
-            ReactiveShadowParityDimensionV0::DeliveryDecision,
+            ReactiveShadowReportWiringCheckV0::DeliveryDecision,
             |report| report.projected_delivery_decisions.clear(),
         ),
-        (ReactiveShadowParityDimensionV0::SettledWork, |report| {
-            report.settled_without_pending_work = false
-        }),
     ];
 
-    for (expected_dimension, mutate) in mutations {
+    for (expected_check, mutate) in mutations {
         let mut report = baseline.clone();
         mutate(&mut report);
         let parity = evaluate_reactive_shadow_parity(&[report]);
-        assert!(
-            parity
-                .unclassified_divergences
-                .contains(&expected_dimension)
-        );
+        match expected_check {
+            ReactiveShadowReportWiringCheckV0::TargetSet => assert_eq!(
+                parity.unclassified_divergences,
+                vec![ReactiveShadowParityDimensionV0::TargetSet]
+            ),
+            ReactiveShadowReportWiringCheckV0::DeltaFoldRebuild => assert_eq!(
+                parity.oracle_failures,
+                vec![ReactiveShadowOracleCheckV0::DeltaFoldRebuild]
+            ),
+            ReactiveShadowReportWiringCheckV0::DeliveryDecision => assert_eq!(
+                parity.unclassified_divergences,
+                vec![ReactiveShadowParityDimensionV0::DeliveryDecision]
+            ),
+        }
     }
 }
 

@@ -1,7 +1,6 @@
 use super::*;
 use crate::source_type_facts::{
-    SOURCE_TYPE_FACT_OUTCOME_NEVER_ATTEMPTED, SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED,
-    SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED,
+    SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED, SOURCE_TYPE_FACT_REASON_PROVIDER_NOT_REQUESTED,
 };
 use omena_query::{
     OmenaQuerySourceTypeFactLexicalDispositionV0, OmenaQueryStyleResolutionInputsV0,
@@ -342,7 +341,7 @@ export const view = (variant: string) =>
 }
 
 #[test]
-fn explain_hover_trace_preserves_sidecar_skipped_state_without_attempt_records() -> TestResult {
+fn explain_hover_trace_reports_skipped_target_without_attempt_records() -> TestResult {
     let source_uri = "file:///workspace-a/src/App.tsx";
     let source_text = r#"declare function resolveTheme(): string;
 export const view = <div className={resolveTheme()} />;
@@ -379,7 +378,7 @@ export const view = <div className={resolveTheme()} />;
         trace,
         Some(json!({
             "attempted": false,
-            "outcome": SOURCE_TYPE_FACT_OUTCOME_NEVER_ATTEMPTED,
+            "outcome": SOURCE_TYPE_FACT_OUTCOME_NOT_ATTEMPTED,
             "reason": skipped.reason,
             "skippedTargetCount": 1,
         })),

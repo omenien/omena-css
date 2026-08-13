@@ -80,7 +80,8 @@ pub fn refine_declaration_in_context(
             unlayered_rule_count: 0,
             important_declaration_count: usize::from(matches!(
                 declaration.key.level,
-                CascadeLevel::AuthorImportant
+                CascadeLevel::InlineImportant
+                    | CascadeLevel::AuthorImportant
                     | CascadeLevel::UserImportant
                     | CascadeLevel::UserAgentImportant
             )),
@@ -123,6 +124,12 @@ fn combine_refinement_verdicts(verdicts: &[RefinementVerdictV0]) -> RefinementVe
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::{
+        CascadeKey, CascadeValue, LayerOrdinal, OpenWorldTieEvidence, Specificity,
+        SpecificityExactnessV0, normalized_layer_rank,
+    };
+
     const EXPECTED_LEGACY_PROOFS_RS_SHA256: [u8; 32] = [
         0x49, 0xeb, 0x0f, 0x3c, 0x85, 0x80, 0x45, 0x1d, 0x72, 0x9a, 0x57, 0x87, 0x88, 0x0f, 0xc1,
         0xe1, 0x28, 0x04, 0xda, 0xf0, 0x46, 0x72, 0xd1, 0xcc, 0x4e, 0xd0, 0xab, 0x12, 0xdb, 0x6a,
@@ -133,6 +140,38 @@ mod tests {
     fn legacy_proofs_rs_byte_untouched() {
         let digest = sha256(include_bytes!("proofs.rs"));
         assert_eq!(digest, EXPECTED_LEGACY_PROOFS_RS_SHA256);
+    }
+
+    #[test]
+    fn inline_important_declarations_block_layer_flattening() {
+        let Some(layer_ordinal) = LayerOrdinal::new(0) else {
+            unreachable!("zero must remain a sentinel-safe layer ordinal");
+        };
+        let declaration = CascadeDeclaration {
+            id: "inline-important".to_string(),
+            property: "color".to_string(),
+            value: CascadeValue::Literal("red".to_string()),
+            key: CascadeKey::new(
+                CascadeLevel::InlineImportant,
+                normalized_layer_rank(true, Some(layer_ordinal)),
+                0,
+                Specificity::ZERO,
+                1,
+            ),
+            open_world_tie_evidence: OpenWorldTieEvidence::NONE,
+            specificity_exactness: SpecificityExactnessV0::Exact,
+        };
+        let witness = refine_declaration_in_context(
+            &declaration,
+            &CascadeRefinementContextV0 {
+                layer_name: Some("theme".to_string()),
+                ..CascadeRefinementContextV0::default()
+            },
+        );
+
+        // Omitting InlineImportant from the importance classifier makes this SatisfiedAll.
+        // The production refinement path can emit that false result for this one-layer fixture.
+        assert_eq!(witness.verdict, RefinementVerdictV0::Unknown);
     }
 
     fn sha256(input: &[u8]) -> [u8; 32] {

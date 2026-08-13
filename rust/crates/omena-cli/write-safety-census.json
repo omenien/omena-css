@@ -64,6 +64,13 @@
       "owner": "lock attestation state"
     },
     {
+      "path": "rust/crates/omena-cli/src/lint.rs",
+      "function": "write_ranked_set_loss_capture",
+      "writeCount": 1,
+      "classification": "artifact",
+      "owner": "ranked-set loss census sidecar"
+    },
+    {
       "path": "rust/crates/omena-cli/src/minify.rs",
       "function": "minify_source",
       "writeCount": 1,

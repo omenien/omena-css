@@ -3,8 +3,11 @@ use crate::{
     OmenaCrossFileSummaryViewReportV0, OmenaQueryCssModulesExportUsageReportV0,
     OmenaQueryModuleIdV0,
 };
+use omena_syntax::ident::{CanonicalClassKeyV0, ClassNameV0};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+
+pub(super) type EmittedClassNameIndexV0 = BTreeMap<(String, String), String>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,7 +73,7 @@ pub(super) fn summarize_css_modules_interface_bundle_from_projections(
     projections: &[OmenaQueryModuleInterfaceProjectionV0],
     resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
     icss_export_values_by_path: &BTreeMap<String, BTreeMap<String, String>>,
-    emitted_class_names: &BTreeMap<(String, String), String>,
+    emitted_class_names: &EmittedClassNameIndexV0,
 ) -> OmenaQueryCssModulesInterfaceBundleV0 {
     let mut projections = projections.iter().collect::<Vec<_>>();
     projections.sort_by(|left, right| left.style_path.cmp(&right.style_path));
@@ -106,7 +109,7 @@ fn module_interface_from_projection(
     projection: &OmenaQueryModuleInterfaceProjectionV0,
     resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
     icss_export_values: Option<&BTreeMap<String, String>>,
-    emitted_class_names: &BTreeMap<(String, String), String>,
+    emitted_class_names: &EmittedClassNameIndexV0,
 ) -> OmenaQueryCssModuleInterfaceV0 {
     let module_id = OmenaQueryModuleIdV0::new(projection.style_path.clone());
     let class_exports = projection
@@ -117,34 +120,44 @@ fn module_interface_from_projection(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .map(|name| {
-            let mut resolved_classes = BTreeSet::from([OmenaQueryCssModuleClassReferenceV0 {
-                module_id: module_id.clone(),
-                name: name.clone(),
-            }]);
-            resolved_classes.extend(
-                resolution
-                    .composes_closure_edges
-                    .iter()
-                    .filter(|edge| {
-                        edge.from_style_path == projection.style_path
-                            && edge.owner_selector_name == name
-                    })
-                    .map(|edge| OmenaQueryCssModuleClassReferenceV0 {
-                        module_id: OmenaQueryModuleIdV0::new(edge.target_style_path.clone()),
-                        name: edge.target_selector_name.clone(),
-                    }),
-            );
             let owner = OmenaQueryCssModuleClassReferenceV0 {
                 module_id: module_id.clone(),
                 name: name.clone(),
             };
-            let mut resolved_classes = resolved_classes.into_iter().collect::<Vec<_>>();
-            resolved_classes.sort_by_key(|class| if class == &owner { 0 } else { 1 });
+            let owner_key = canonical_class_reference_key(&owner);
+            let mut resolved_classes = BTreeMap::from([(owner_key.clone(), owner)]);
+            for edge in resolution.composes_closure_edges.iter().filter(|edge| {
+                edge.from_style_path == projection.style_path
+                    && ClassNameV0::new(&edge.owner_selector_name).same_as(&ClassNameV0::new(&name))
+            }) {
+                let reference = OmenaQueryCssModuleClassReferenceV0 {
+                    module_id: OmenaQueryModuleIdV0::new(edge.target_style_path.clone()),
+                    name: edge.target_selector_name.clone(),
+                };
+                resolved_classes
+                    .entry(canonical_class_reference_key(&reference))
+                    .or_insert(reference);
+            }
+            let mut resolved_classes = resolved_classes.into_values().collect::<Vec<_>>();
+            resolved_classes.sort_by_key(|class| {
+                let key = canonical_class_reference_key(class);
+                (key != owner_key, key)
+            });
             let emitted_classes = resolved_classes
                 .iter()
                 .filter_map(|class| {
                     emitted_class_names
                         .get(&(class.module_id.as_str().to_string(), class.name.clone()))
+                        .or_else(|| {
+                            emitted_class_names.iter().find_map(
+                                |((module_id, raw_name), emitted_name)| {
+                                    (module_id == class.module_id.as_str()
+                                        && ClassNameV0::new(raw_name)
+                                            .same_as(&ClassNameV0::new(&class.name)))
+                                    .then_some(emitted_name)
+                                },
+                            )
+                        })
                         .cloned()
                 })
                 .collect();
@@ -183,10 +196,22 @@ fn module_interface_from_projection(
     }
 }
 
+fn canonical_class_reference_key(
+    reference: &OmenaQueryCssModuleClassReferenceV0,
+) -> (OmenaQueryModuleIdV0, CanonicalClassKeyV0) {
+    (
+        reference.module_id.clone(),
+        ClassNameV0::new(&reference.name).canonical_key(),
+    )
+}
+
 pub fn render_omena_query_css_module_typescript_declaration(
     module: &OmenaQueryCssModuleInterfaceV0,
 ) -> String {
-    let mut output = String::from("declare const styles: {\n");
+    let mut output = String::from(
+        "// Emitted CSS Modules tokens are implementation details; class keys in this declaration are the contract.\n\
+         declare const styles: {\n",
+    );
     let export_names = module
         .class_exports
         .iter()
@@ -380,6 +405,43 @@ mod tests {
     }
 
     #[test]
+    fn css_modules_interface_collapses_decode_equivalent_composes_in_owner_first_order() {
+        let sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/base.module.css".to_string(),
+                style_source: r".a\62 c {} .abc {}".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/workspace/button.module.css".to_string(),
+                style_source: r#".button { composes: a\62 c abc from "./base.module.css"; }"#
+                    .to_string(),
+            },
+        ];
+
+        let bundle = super::super::summarize_omena_query_css_modules_interface_bundle(
+            sources.as_slice(),
+            &[],
+        );
+        let button = bundle
+            .modules
+            .iter()
+            .find(|module| module.style_path.ends_with("button.module.css"))
+            .and_then(|module| module.class_exports.first());
+
+        assert!(button.is_some());
+        if let Some(button) = button {
+            assert_eq!(button.resolved_classes.len(), 2);
+            assert_eq!(button.resolved_classes[0].name, "button");
+            assert_eq!(
+                ClassNameV0::new(&button.resolved_classes[1].name)
+                    .canonical_key()
+                    .as_str(),
+                "abc"
+            );
+        }
+    }
+
+    #[test]
     fn css_modules_interface_declaration_and_json_are_byte_deterministic() -> Result<(), String> {
         let sources = vec![
             OmenaQueryStyleSourceInputV0 {
@@ -405,6 +467,18 @@ mod tests {
         let second_declaration =
             render_omena_query_css_module_typescript_declaration(&reversed_bundle.modules[1]);
         assert_eq!(first_declaration, second_declaration);
+        assert!(first_declaration.starts_with(
+            "// Emitted CSS Modules tokens are implementation details; class keys in this declaration are the contract.\n"
+        ));
+        let mut token_changed_module = bundle.modules[1].clone();
+        for export in &mut token_changed_module.class_exports {
+            export.emitted_classes = vec!["opaque-token-change".to_string()];
+        }
+        assert_eq!(
+            first_declaration,
+            render_omena_query_css_module_typescript_declaration(&token_changed_module),
+            "the declaration header and public keys must not depend on opaque emitted tokens"
+        );
         let alpha_offset = first_declaration
             .find("alpha")
             .ok_or_else(|| "missing alpha declaration".to_string())?;

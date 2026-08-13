@@ -5,8 +5,8 @@ use omena_parser::ModuleInstanceKeyV0;
 use serde::Serialize;
 
 use crate::{
-    GlobalRuleOrderV0, LinkedStylesheetRuleV0, LinkerInputV0, TransformBundleEdgeKind,
-    TransformBundleLinkErrorV0, TransformBundleResolvedDependencyV0,
+    BundleResolutionAuthorityV0, GlobalRuleOrderV0, LinkedStylesheetRuleV0, LinkerInputV0,
+    TransformBundleEdgeKind, TransformBundleLinkErrorV0, TransformBundleResolvedDependencyV0,
     module_instances_by_linker_path, resolve_imported_module_instance_for_edge,
     selector_kind_label,
 };
@@ -99,6 +99,7 @@ pub(crate) fn build_emission_plan(
     entrypoints: &[ModuleInstanceKeyV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     policy: EmissionOrderingPolicyV0,
+    resolution_authority: BundleResolutionAuthorityV0,
 ) -> Result<EmissionPlanV0, TransformBundleLinkErrorV0> {
     let module_plan = build_emission_module_plan(
         inputs,
@@ -106,6 +107,7 @@ pub(crate) fn build_emission_plan(
         entrypoints,
         resolved_dependencies,
         policy,
+        resolution_authority,
     )?;
     build_emission_plan_from_module_plan(inputs, &module_plan)
 }
@@ -116,9 +118,14 @@ pub(crate) fn build_emission_module_plan(
     entrypoints: &[ModuleInstanceKeyV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
     policy: EmissionOrderingPolicyV0,
+    resolution_authority: BundleResolutionAuthorityV0,
 ) -> Result<EmissionModulePlanV0, TransformBundleLinkErrorV0> {
-    let dependency_facts =
-        collect_emission_dependency_facts(inputs, linked_modules, resolved_dependencies)?;
+    let dependency_facts = collect_emission_dependency_facts(
+        inputs,
+        linked_modules,
+        resolved_dependencies,
+        resolution_authority,
+    )?;
     let cycle_groups = build_cycle_groups(linked_modules, &dependency_facts)?;
     let module_order = match policy {
         EmissionOrderingPolicyV0::ModuleIdLegacy => linked_modules.to_vec(),
@@ -276,6 +283,7 @@ fn collect_emission_dependency_facts(
     inputs: &[LinkerInputV0],
     linked_modules: &[ModuleInstanceKeyV0],
     resolved_dependencies: &[TransformBundleResolvedDependencyV0],
+    resolution_authority: BundleResolutionAuthorityV0,
 ) -> Result<Vec<EmissionDependencyFactV0>, TransformBundleLinkErrorV0> {
     let reachable = linked_modules.iter().cloned().collect::<BTreeSet<_>>();
     let inputs_by_instance = inputs
@@ -312,7 +320,9 @@ fn collect_emission_dependency_facts(
                 edge,
                 resolved_dependencies,
                 &instances_by_path,
+                resolution_authority,
             )?
+            .target_instance
             .ok_or_else(|| TransformBundleLinkErrorV0::MissingDependency {
                 source_path: input.source_path.clone(),
                 import_source: edge.import_source.clone(),

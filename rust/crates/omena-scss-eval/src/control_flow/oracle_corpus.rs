@@ -2,14 +2,18 @@ use omena_parser::StyleDialect;
 use omena_transform_cst::STABLE_NODE_KEY_TYPE_LABEL_V0;
 use serde::Serialize;
 
+#[allow(deprecated)]
+use super::OmenaScssEvalControlFlowWideningWitnessV0;
 use super::{
-    OmenaScssEvalControlFlowWideningWitnessV0, OmenaScssEvalTypedValueLatticeWitnessV0,
+    OmenaScssEvalControlFlowAscendingChainWitnessV0,
+    OmenaScssEvalControlFlowPropagationDepthWitnessV0, OmenaScssEvalTypedValueLatticeWitnessV0,
     SCSS_CALL_RETURN_RECURSION_LIMIT, analyze_scss_control_flow_values, dialect_label,
-    summarize_scss_call_return_ir, summarize_scss_control_flow_ir,
-    summarize_scss_control_flow_prune_reachability, summarize_scss_control_flow_widening_witness,
-    summarize_typed_value_lattice_witness,
+    summarize_scss_call_return_ir, summarize_scss_control_flow_ascending_chain_witness,
+    summarize_scss_control_flow_ir, summarize_scss_control_flow_propagation_depth_witness,
+    summarize_scss_control_flow_prune_reachability, summarize_typed_value_lattice_witness,
 };
 
+#[allow(deprecated)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaScssEvalControlFlowOracleCorpusReportV0 {
@@ -34,7 +38,16 @@ pub struct OmenaScssEvalControlFlowOracleCorpusReportV0 {
     pub recursive_call_fixture_count: usize,
     pub converged_value_analysis_fixture_count: usize,
     pub widened_to_top_fixture_count: usize,
+    pub propagation_depth_witness_widened_to_top_count: usize,
+    pub propagation_depth_witness_converged: bool,
+    pub ascending_chain_witness_converged: bool,
+    pub ascending_chain_witness_result_kind: &'static str,
+    #[deprecated(
+        since = "0.4.0",
+        note = "use propagation_depth_witness_widened_to_top_count"
+    )]
     pub widening_witness_widened_to_top_count: usize,
+    #[deprecated(since = "0.4.0", note = "use propagation_depth_witness_converged")]
     pub widening_witness_converged: bool,
     pub prune_reachability_fixture_count: usize,
     pub prune_reachability_changed_fixture_count: usize,
@@ -44,6 +57,10 @@ pub struct OmenaScssEvalControlFlowOracleCorpusReportV0 {
     pub all_supported_fixtures_converged: bool,
     pub no_flat_css_cfg_built: bool,
     pub no_merged_cross_file_graph: bool,
+    pub propagation_depth_witness: OmenaScssEvalControlFlowPropagationDepthWitnessV0,
+    pub ascending_chain_witness: OmenaScssEvalControlFlowAscendingChainWitnessV0,
+    #[allow(deprecated)]
+    #[deprecated(since = "0.4.0", note = "use propagation_depth_witness")]
     pub widening_witness: OmenaScssEvalControlFlowWideningWitnessV0,
     pub typed_value_lattice_witness: OmenaScssEvalTypedValueLatticeWitnessV0,
     pub fixtures: Vec<OmenaScssEvalControlFlowOracleCorpusFixtureReportV0>,
@@ -91,7 +108,9 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         .iter()
         .map(scss_control_flow_oracle_corpus_fixture_report)
         .collect::<Vec<_>>();
-    let widening_witness = summarize_scss_control_flow_widening_witness();
+    let propagation_depth_witness = summarize_scss_control_flow_propagation_depth_witness();
+    let ascending_chain_witness = summarize_scss_control_flow_ascending_chain_witness();
+    let widening_witness = propagation_depth_witness.clone();
     let fixture_count = fixtures.len();
     let scss_fixture_count = fixtures
         .iter()
@@ -202,7 +221,14 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         recursive_call_fixture_count,
         converged_value_analysis_fixture_count,
         widened_to_top_fixture_count,
+        propagation_depth_witness_widened_to_top_count: propagation_depth_witness
+            .widened_to_top_count,
+        propagation_depth_witness_converged: propagation_depth_witness.converged,
+        ascending_chain_witness_converged: ascending_chain_witness.converged,
+        ascending_chain_witness_result_kind: ascending_chain_witness.result_kind,
+        #[allow(deprecated)]
         widening_witness_widened_to_top_count: widening_witness.widened_to_top_count,
+        #[allow(deprecated)]
         widening_witness_converged: widening_witness.converged,
         prune_reachability_fixture_count,
         prune_reachability_changed_fixture_count,
@@ -212,6 +238,9 @@ pub fn summarize_scss_control_flow_oracle_corpus() -> OmenaScssEvalControlFlowOr
         all_supported_fixtures_converged,
         no_flat_css_cfg_built: flat_css_cfg_built_count == 0,
         no_merged_cross_file_graph: merged_cross_file_graph_count == 0,
+        propagation_depth_witness,
+        ascending_chain_witness,
+        #[allow(deprecated)]
         widening_witness,
         typed_value_lattice_witness,
         fixtures,
@@ -693,19 +722,35 @@ mod tests {
         assert!(report.resolved_call_return_fixture_count >= 4);
         assert!(report.top_call_return_fixture_count >= 1);
         assert!(report.recursive_call_fixture_count >= 1);
-        assert!(!report.widening_witness_converged);
-        assert_eq!(
-            report.widening_witness.iteration_count,
-            report.widening_witness.max_iterations
+        assert!(report.propagation_depth_witness_converged);
+        assert!(
+            report.propagation_depth_witness.iteration_count
+                < report.propagation_depth_witness.max_iterations
         );
+        assert_eq!(report.propagation_depth_witness_widened_to_top_count, 0);
+        assert_eq!(report.propagation_depth_witness.output_top_count, 0);
+        assert!(report.ascending_chain_witness_converged);
+        assert_eq!(report.ascending_chain_witness_result_kind, "prefix");
         assert_eq!(
-            report.widening_witness_widened_to_top_count,
-            report.widening_witness.node_count
+            report.ascending_chain_witness.result_value,
+            omena_abstract_value::AbstractClassValueV0::Prefix {
+                prefix: "item-".to_string(),
+                provenance: None,
+            }
         );
-        assert_eq!(
-            report.widening_witness.output_top_count,
-            report.widening_witness.node_count
-        );
+        assert_eq!(report.ascending_chain_witness.output_top_count, 0);
+        #[allow(deprecated)]
+        {
+            assert_eq!(report.widening_witness, report.propagation_depth_witness);
+            assert_eq!(
+                report.widening_witness_converged,
+                report.propagation_depth_witness_converged
+            );
+            assert_eq!(
+                report.widening_witness_widened_to_top_count,
+                report.propagation_depth_witness_widened_to_top_count
+            );
+        }
         assert_eq!(
             report.converged_value_analysis_fixture_count,
             report.supported_fixture_count

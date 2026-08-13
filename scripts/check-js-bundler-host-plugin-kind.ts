@@ -250,7 +250,20 @@ function rustTaggedEnumFields(source: string, enumName: string): Map<string, str
 }
 
 function rustStructFields(source: string, structName: string): string[] {
-  return rustFieldNames(rustItemBody(source, `pub struct ${structName}`));
+  const fields: string[] = [];
+  let skipSerializedField = false;
+  for (const line of rustItemBody(source, `pub struct ${structName}`).split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "#[serde(skip)]") {
+      skipSerializedField = true;
+      continue;
+    }
+    const field = /^(?:pub )?([a-z][a-z0-9_]*):\s*/u.exec(trimmed)?.[1];
+    if (!field) continue;
+    if (!skipSerializedField) fields.push(lowerCamelCase(field));
+    skipSerializedField = false;
+  }
+  return fields.toSorted();
 }
 
 function rustFieldNames(source: string): string[] {
