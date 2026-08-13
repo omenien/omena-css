@@ -6,10 +6,13 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
+use serde::Serialize;
+
 pub type NodeId = u32;
 
 pub const FALSE_NODE_ID_V0: NodeId = 0;
 pub const TRUE_NODE_ID_V0: NodeId = 1;
+pub const GUARDED_CASCADE_BOT_NODE_ID_V0: NodeId = FALSE_NODE_ID_V0;
 pub const DEFAULT_APPLY_CACHE_CAPACITY_V0: usize = 4_096;
 pub const DEFAULT_REBUILD_INTERVAL_OPERATIONS_V0: u64 = 8_192;
 pub const SITE_FIRST_APPEARANCE_ORDERING_DOMAIN_V0: &str = "siteFirstAppearance";
@@ -37,6 +40,370 @@ impl VariableOrderDomainV0 {
         match self {
             Self::SiteFirstAppearance => SITE_FIRST_APPEARANCE_ORDERING_DOMAIN_V0,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GuardedCascadeSpecificityExactnessV0 {
+    Exact,
+    Inexact,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GuardedCascadeConditionKindV0 {
+    Media,
+    Supports,
+    Container,
+    StructuralPseudo,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GuardedCascadeConditionAtomV0 {
+    atom: String,
+    kind: GuardedCascadeConditionKindV0,
+    at_rule_path: Vec<u32>,
+    numeric: bool,
+}
+
+impl GuardedCascadeConditionAtomV0 {
+    pub fn media(
+        atom: impl Into<String>,
+        at_rule_path: impl IntoIterator<Item = u32>,
+        numeric: bool,
+    ) -> Self {
+        Self {
+            atom: atom.into(),
+            kind: GuardedCascadeConditionKindV0::Media,
+            at_rule_path: at_rule_path.into_iter().collect(),
+            numeric,
+        }
+    }
+
+    pub fn supports(
+        atom: impl Into<String>,
+        at_rule_path: impl IntoIterator<Item = u32>,
+        numeric: bool,
+    ) -> Self {
+        Self {
+            atom: atom.into(),
+            kind: GuardedCascadeConditionKindV0::Supports,
+            at_rule_path: at_rule_path.into_iter().collect(),
+            numeric,
+        }
+    }
+
+    pub fn container(atom: impl Into<String>, at_rule_path: impl IntoIterator<Item = u32>) -> Self {
+        Self {
+            atom: atom.into(),
+            kind: GuardedCascadeConditionKindV0::Container,
+            at_rule_path: at_rule_path.into_iter().collect(),
+            numeric: false,
+        }
+    }
+
+    pub fn structural_pseudo(atom: impl Into<String>) -> Self {
+        Self {
+            atom: atom.into(),
+            kind: GuardedCascadeConditionKindV0::StructuralPseudo,
+            at_rule_path: Vec::new(),
+            numeric: false,
+        }
+    }
+
+    pub fn atom(&self) -> &str {
+        self.atom.as_str()
+    }
+
+    pub const fn kind(&self) -> GuardedCascadeConditionKindV0 {
+        self.kind
+    }
+
+    pub fn at_rule_path(&self) -> &[u32] {
+        self.at_rule_path.as_slice()
+    }
+
+    pub const fn is_numeric(&self) -> bool {
+        self.numeric
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GuardedCascadeCandidateV0<K> {
+    declaration_id: u32,
+    element_signature: String,
+    property: String,
+    cascade_key: K,
+    specificity_exactness: GuardedCascadeSpecificityExactnessV0,
+    scope_proximity: u32,
+    conditions: Vec<GuardedCascadeConditionAtomV0>,
+}
+
+impl<K> GuardedCascadeCandidateV0<K> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        declaration_id: u32,
+        element_signature: impl Into<String>,
+        property: impl Into<String>,
+        cascade_key: K,
+        specificity_exactness: GuardedCascadeSpecificityExactnessV0,
+        scope_proximity: u32,
+        conditions: Vec<GuardedCascadeConditionAtomV0>,
+    ) -> Self {
+        Self {
+            declaration_id,
+            element_signature: element_signature.into(),
+            property: property.into(),
+            cascade_key,
+            specificity_exactness,
+            scope_proximity,
+            conditions,
+        }
+    }
+
+    pub const fn declaration_id(&self) -> u32 {
+        self.declaration_id
+    }
+
+    pub fn element_signature(&self) -> &str {
+        self.element_signature.as_str()
+    }
+
+    pub fn property(&self) -> &str {
+        self.property.as_str()
+    }
+
+    pub const fn cascade_key(&self) -> &K {
+        &self.cascade_key
+    }
+
+    pub const fn specificity_exactness(&self) -> GuardedCascadeSpecificityExactnessV0 {
+        self.specificity_exactness
+    }
+
+    pub const fn scope_proximity(&self) -> u32 {
+        self.scope_proximity
+    }
+
+    pub fn conditions(&self) -> &[GuardedCascadeConditionAtomV0] {
+        self.conditions.as_slice()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "reason",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuardedCascadeFragmentRefusalV0 {
+    EmptyCandidateSet,
+    InexactSpecificity {
+        declaration_id: u32,
+    },
+    ScopeProximityPresent {
+        declaration_id: u32,
+        scope_proximity: u32,
+    },
+    ContainerCondition {
+        declaration_id: u32,
+        atom: String,
+    },
+    StructuralPseudoCondition {
+        declaration_id: u32,
+        atom: String,
+    },
+    NumericConditionOutsideAlphabet {
+        declaration_id: u32,
+        atom: String,
+    },
+    ConditionOutsideDeclaredAlphabet {
+        declaration_id: u32,
+        atom: String,
+    },
+    MultipleProperties {
+        expected: String,
+        observed: String,
+    },
+    MultipleElementSignatures {
+        expected: String,
+        observed: String,
+    },
+    DuplicateDeclarationId {
+        declaration_id: u32,
+    },
+    NonUniqueCascadeKey {
+        first_declaration_id: u32,
+        second_declaration_id: u32,
+    },
+    ConditionAlphabetCapacityExceeded,
+}
+
+impl GuardedCascadeFragmentRefusalV0 {
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::EmptyCandidateSet => "emptyCandidateSet",
+            Self::InexactSpecificity { .. } => "inexactSpecificity",
+            Self::ScopeProximityPresent { .. } => "scopeProximityPresent",
+            Self::ContainerCondition { .. } => "containerCondition",
+            Self::StructuralPseudoCondition { .. } => "structuralPseudoCondition",
+            Self::NumericConditionOutsideAlphabet { .. } => "numericConditionOutsideAlphabet",
+            Self::ConditionOutsideDeclaredAlphabet { .. } => "conditionOutsideDeclaredAlphabet",
+            Self::MultipleProperties { .. } => "multipleProperties",
+            Self::MultipleElementSignatures { .. } => "multipleElementSignatures",
+            Self::DuplicateDeclarationId { .. } => "duplicateDeclarationId",
+            Self::NonUniqueCascadeKey { .. } => "nonUniqueCascadeKey",
+            Self::ConditionAlphabetCapacityExceeded => "conditionAlphabetCapacityExceeded",
+        }
+    }
+}
+
+impl std::fmt::Display for GuardedCascadeFragmentRefusalV0 {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "guarded cascade fragment refused: {}",
+            self.name()
+        )
+    }
+}
+
+impl std::error::Error for GuardedCascadeFragmentRefusalV0 {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GuardedCascadeFragmentV0<K> {
+    element_signature: String,
+    property: String,
+    condition_alphabet: Vec<String>,
+    candidates: Vec<GuardedCascadeCandidateV0<K>>,
+}
+
+impl<K: Clone + Ord> GuardedCascadeFragmentV0<K> {
+    pub fn admit(
+        condition_alphabet: impl IntoIterator<Item = impl Into<String>>,
+        candidates: impl IntoIterator<Item = GuardedCascadeCandidateV0<K>>,
+    ) -> Result<Self, GuardedCascadeFragmentRefusalV0> {
+        let alphabet = condition_alphabet
+            .into_iter()
+            .map(Into::into)
+            .collect::<BTreeSet<String>>();
+        if alphabet.len() > usize::from(u16::MAX) + 1 {
+            return Err(GuardedCascadeFragmentRefusalV0::ConditionAlphabetCapacityExceeded);
+        }
+        let mut candidates = candidates.into_iter().collect::<Vec<_>>();
+        let Some(first) = candidates.first() else {
+            return Err(GuardedCascadeFragmentRefusalV0::EmptyCandidateSet);
+        };
+        let element_signature = first.element_signature.clone();
+        let property = first.property.clone();
+        let mut declaration_ids = BTreeSet::new();
+        let mut cascade_keys = BTreeMap::<K, u32>::new();
+        for candidate in &candidates {
+            if candidate.element_signature != element_signature {
+                return Err(GuardedCascadeFragmentRefusalV0::MultipleElementSignatures {
+                    expected: element_signature,
+                    observed: candidate.element_signature.clone(),
+                });
+            }
+            if candidate.property != property {
+                return Err(GuardedCascadeFragmentRefusalV0::MultipleProperties {
+                    expected: property,
+                    observed: candidate.property.clone(),
+                });
+            }
+            if candidate.specificity_exactness != GuardedCascadeSpecificityExactnessV0::Exact {
+                return Err(GuardedCascadeFragmentRefusalV0::InexactSpecificity {
+                    declaration_id: candidate.declaration_id,
+                });
+            }
+            if candidate.scope_proximity != 0 {
+                return Err(GuardedCascadeFragmentRefusalV0::ScopeProximityPresent {
+                    declaration_id: candidate.declaration_id,
+                    scope_proximity: candidate.scope_proximity,
+                });
+            }
+            if !declaration_ids.insert(candidate.declaration_id) {
+                return Err(GuardedCascadeFragmentRefusalV0::DuplicateDeclarationId {
+                    declaration_id: candidate.declaration_id,
+                });
+            }
+            if let Some(first_declaration_id) =
+                cascade_keys.insert(candidate.cascade_key.clone(), candidate.declaration_id)
+            {
+                return Err(GuardedCascadeFragmentRefusalV0::NonUniqueCascadeKey {
+                    first_declaration_id,
+                    second_declaration_id: candidate.declaration_id,
+                });
+            }
+            for condition in &candidate.conditions {
+                match condition.kind {
+                    GuardedCascadeConditionKindV0::Container => {
+                        return Err(GuardedCascadeFragmentRefusalV0::ContainerCondition {
+                            declaration_id: candidate.declaration_id,
+                            atom: condition.atom.clone(),
+                        });
+                    }
+                    GuardedCascadeConditionKindV0::StructuralPseudo => {
+                        return Err(GuardedCascadeFragmentRefusalV0::StructuralPseudoCondition {
+                            declaration_id: candidate.declaration_id,
+                            atom: condition.atom.clone(),
+                        });
+                    }
+                    GuardedCascadeConditionKindV0::Media
+                    | GuardedCascadeConditionKindV0::Supports => {}
+                }
+                if !alphabet.contains(condition.atom.as_str()) {
+                    return Err(if condition.numeric {
+                        GuardedCascadeFragmentRefusalV0::NumericConditionOutsideAlphabet {
+                            declaration_id: candidate.declaration_id,
+                            atom: condition.atom.clone(),
+                        }
+                    } else {
+                        GuardedCascadeFragmentRefusalV0::ConditionOutsideDeclaredAlphabet {
+                            declaration_id: candidate.declaration_id,
+                            atom: condition.atom.clone(),
+                        }
+                    });
+                }
+            }
+        }
+        candidates.sort_by(|left, right| right.cascade_key.cmp(&left.cascade_key));
+        Ok(Self {
+            element_signature,
+            property,
+            condition_alphabet: alphabet.into_iter().collect(),
+            candidates,
+        })
+    }
+
+    pub fn element_signature(&self) -> &str {
+        self.element_signature.as_str()
+    }
+
+    pub fn property(&self) -> &str {
+        self.property.as_str()
+    }
+
+    pub fn condition_alphabet(&self) -> &[String] {
+        self.condition_alphabet.as_slice()
+    }
+
+    pub fn candidates(&self) -> &[GuardedCascadeCandidateV0<K>] {
+        self.candidates.as_slice()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(transparent)]
+pub struct GuardedCascadeWinnerRootV0(NodeId);
+
+impl GuardedCascadeWinnerRootV0 {
+    pub const fn node_id(self) -> NodeId {
+        self.0
     }
 }
 
@@ -115,6 +482,13 @@ pub struct FirstWitnessOperationCountersV0 {
     pub rebuild_node_visits: u64,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FirstWitnessChoiceOperationCountersV0 {
+    pub recursive_invocations: u64,
+    pub apply_cache_lookups: u64,
+    pub apply_cache_hits: u64,
+}
+
 impl FirstWitnessOperationCountersV0 {
     pub const fn recursive_operations(self) -> u64 {
         self.choose_invocations + self.apply_invocations
@@ -137,6 +511,10 @@ pub enum FirstWitnessErrorV0 {
     InvalidTerminal(u32),
     VariableOrderViolation { parent: u16, child: u16 },
     VariableCapacityExceeded,
+    DeclarationIdCapacityExceeded,
+    DeclarationTerminalRegistrationClosed,
+    UnregisteredDeclarationTerminal(u32),
+    MissingAssignment { variable: u16 },
 }
 
 impl std::fmt::Display for FirstWitnessErrorV0 {
@@ -154,6 +532,21 @@ impl std::fmt::Display for FirstWitnessErrorV0 {
             Self::VariableCapacityExceeded => {
                 formatter.write_str("decision variable or node capacity exceeded")
             }
+            Self::DeclarationIdCapacityExceeded => {
+                formatter.write_str("declaration id cannot be represented by the terminal alphabet")
+            }
+            Self::DeclarationTerminalRegistrationClosed => formatter
+                .write_str("declaration terminals must be registered before internal nodes exist"),
+            Self::UnregisteredDeclarationTerminal(declaration_id) => write!(
+                formatter,
+                "declaration terminal {declaration_id} was not registered"
+            ),
+            Self::MissingAssignment { variable } => {
+                write!(
+                    formatter,
+                    "assignment does not cover decision variable {variable}"
+                )
+            }
         }
     }
 }
@@ -161,8 +554,14 @@ impl std::fmt::Display for FirstWitnessErrorV0 {
 impl std::error::Error for FirstWitnessErrorV0 {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum ApplyOperationV0 {
+    Boolean(BooleanOperationV0),
+    FirstWitness,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ApplyCacheKeyV0 {
-    operation: BooleanOperationV0,
+    operation: ApplyOperationV0,
     left: NodeId,
     right: NodeId,
 }
@@ -170,12 +569,14 @@ struct ApplyCacheKeyV0 {
 #[derive(Debug, Clone)]
 pub struct FirstWitnessManagerV0 {
     nodes: Vec<Node>,
+    terminal_by_value: HashMap<u32, NodeId>,
     unique: HashMap<(u16, NodeId, NodeId), NodeId>,
     apply_cache: HashMap<ApplyCacheKeyV0, NodeId>,
     apply_cache_fifo: VecDeque<ApplyCacheKeyV0>,
     order: VariableOrderRegistrationV0,
     config: FirstWitnessManagerConfigV0,
     counters: FirstWitnessOperationCountersV0,
+    choice_counters: FirstWitnessChoiceOperationCountersV0,
     operations_at_previous_rebuild: u64,
 }
 
@@ -183,12 +584,14 @@ impl FirstWitnessManagerV0 {
     pub fn new(order: VariableOrderRegistrationV0, config: FirstWitnessManagerConfigV0) -> Self {
         Self {
             nodes: vec![Node::Term(0), Node::Term(1)],
+            terminal_by_value: HashMap::from([(0, FALSE_NODE_ID_V0), (1, TRUE_NODE_ID_V0)]),
             unique: HashMap::new(),
             apply_cache: HashMap::new(),
             apply_cache_fifo: VecDeque::new(),
             order,
             config,
             counters: FirstWitnessOperationCountersV0::default(),
+            choice_counters: FirstWitnessChoiceOperationCountersV0::default(),
             operations_at_previous_rebuild: 0,
         }
     }
@@ -205,6 +608,10 @@ impl FirstWitnessManagerV0 {
         self.counters
     }
 
+    pub const fn first_witness_counters(&self) -> FirstWitnessChoiceOperationCountersV0 {
+        self.choice_counters
+    }
+
     pub fn node(&self, node: NodeId) -> Option<Node> {
         self.nodes.get(node as usize).copied()
     }
@@ -219,6 +626,53 @@ impl FirstWitnessManagerV0 {
 
     pub fn apply_cache_len(&self) -> usize {
         self.apply_cache.len()
+    }
+
+    pub fn register_declaration_terminals(
+        &mut self,
+        declaration_ids: impl IntoIterator<Item = u32>,
+    ) -> Result<(), FirstWitnessErrorV0> {
+        let mut encoded = declaration_ids
+            .into_iter()
+            .map(|declaration_id| {
+                declaration_id
+                    .checked_add(1)
+                    .map(|terminal| (terminal, declaration_id))
+                    .ok_or(FirstWitnessErrorV0::DeclarationIdCapacityExceeded)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        encoded.sort_unstable();
+        encoded.dedup_by_key(|(terminal, _)| *terminal);
+        let has_missing = encoded
+            .iter()
+            .any(|(terminal, _)| !self.terminal_by_value.contains_key(terminal));
+        if has_missing
+            && self
+                .nodes
+                .iter()
+                .any(|node| matches!(node, Node::Int { .. }))
+        {
+            return Err(FirstWitnessErrorV0::DeclarationTerminalRegistrationClosed);
+        }
+        for (terminal, _) in encoded {
+            if self.terminal_by_value.contains_key(&terminal) {
+                continue;
+            }
+            let node = u32::try_from(self.nodes.len())
+                .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+            self.nodes.push(Node::Term(terminal));
+            self.terminal_by_value.insert(terminal, node);
+        }
+        Ok(())
+    }
+
+    pub fn declaration_terminal(&self, declaration_id: u32) -> Result<NodeId, FirstWitnessErrorV0> {
+        let terminal = declaration_id
+            .checked_add(1)
+            .ok_or(FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?;
+        self.terminal_by_value.get(&terminal).copied().ok_or(
+            FirstWitnessErrorV0::UnregisteredDeclarationTerminal(declaration_id),
+        )
     }
 
     pub fn variable(&mut self, atom: &str) -> Result<NodeId, FirstWitnessErrorV0> {
@@ -255,6 +709,16 @@ impl FirstWitnessManagerV0 {
         self.apply(BooleanOperationV0::Xor, left, right)
     }
 
+    pub fn choose_first_witness(
+        &mut self,
+        left: NodeId,
+        right: NodeId,
+    ) -> Result<NodeId, FirstWitnessErrorV0> {
+        self.require_node(left)?;
+        self.require_node(right)?;
+        self.choose_first_witness_recursive(left, right)
+    }
+
     pub fn apply(
         &mut self,
         operation: BooleanOperationV0,
@@ -278,7 +742,10 @@ impl FirstWitnessManagerV0 {
         &mut self,
         live_roots: &mut [NodeId],
     ) -> Result<Option<FirstWitnessRebuildReportV0>, FirstWitnessErrorV0> {
-        let operations = self.counters.recursive_operations();
+        let operations = self
+            .counters
+            .recursive_operations()
+            .saturating_add(self.choice_counters.recursive_invocations);
         let operations_since_previous_rebuild =
             operations.saturating_sub(self.operations_at_previous_rebuild);
         if self.config.rebuild_interval_operations == 0
@@ -290,12 +757,24 @@ impl FirstWitnessManagerV0 {
             self.require_node(root)?;
         }
         let nodes_before = self.nodes.len();
-        let mut rebuilt_nodes = vec![Node::Term(0), Node::Term(1)];
+        let mut rebuilt_nodes = self
+            .nodes
+            .iter()
+            .copied()
+            .take_while(|node| matches!(node, Node::Term(_)))
+            .collect::<Vec<_>>();
+        let rebuilt_terminal_by_value = rebuilt_nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(node, value)| match value {
+                Node::Term(value) => u32::try_from(node).ok().map(|node| (*value, node)),
+                Node::Int { .. } => None,
+            })
+            .collect::<HashMap<_, _>>();
         let mut rebuilt_unique = HashMap::new();
-        let mut remapped = HashMap::from([
-            (FALSE_NODE_ID_V0, FALSE_NODE_ID_V0),
-            (TRUE_NODE_ID_V0, TRUE_NODE_ID_V0),
-        ]);
+        let mut remapped = (0..rebuilt_nodes.len())
+            .filter_map(|node| u32::try_from(node).ok().map(|node| (node, node)))
+            .collect::<HashMap<_, _>>();
         let mut visited_node_count = 0usize;
         for root in live_roots.iter_mut() {
             *root = clone_live_node(
@@ -308,6 +787,7 @@ impl FirstWitnessManagerV0 {
             )?;
         }
         self.nodes = rebuilt_nodes;
+        self.terminal_by_value = rebuilt_terminal_by_value;
         self.unique = rebuilt_unique;
         self.apply_cache.clear();
         self.apply_cache_fifo.clear();
@@ -356,6 +836,48 @@ impl FirstWitnessManagerV0 {
         Ok(result)
     }
 
+    fn choose_first_witness_recursive(
+        &mut self,
+        left: NodeId,
+        right: NodeId,
+    ) -> Result<NodeId, FirstWitnessErrorV0> {
+        self.choice_counters.recursive_invocations += 1;
+        let left_node = self.require_node(left)?;
+        let right_node = self.require_node(right)?;
+        if self.config.shortcuts {
+            if left == right {
+                return Ok(left);
+            }
+            if matches!(left_node, Node::Term(terminal) if terminal != 0) {
+                return Ok(left);
+            }
+            if right == GUARDED_CASCADE_BOT_NODE_ID_V0 {
+                return Ok(left);
+            }
+        }
+        if let (Node::Term(left_terminal), Node::Term(_)) = (left_node, right_node) {
+            return Ok(if left_terminal == 0 { right } else { left });
+        }
+        let key = ApplyCacheKeyV0 {
+            operation: ApplyOperationV0::FirstWitness,
+            left,
+            right,
+        };
+        self.choice_counters.apply_cache_lookups += 1;
+        if let Some(result) = self.apply_cache.get(&key).copied() {
+            self.choice_counters.apply_cache_hits += 1;
+            return Ok(result);
+        }
+        let variable = top_variable(left_node, right_node);
+        let (left_low, left_high) = cofactors(left, left_node, variable);
+        let (right_low, right_high) = cofactors(right, right_node, variable);
+        let low = self.choose_first_witness_recursive(left_low, right_low)?;
+        let high = self.choose_first_witness_recursive(left_high, right_high)?;
+        let result = self.choose(variable, low, high)?;
+        self.cache_insert(key, result);
+        Ok(result)
+    }
+
     fn intern(
         &mut self,
         variable: u16,
@@ -376,6 +898,39 @@ impl FirstWitnessManagerV0 {
         }
         if low == high {
             return Ok(low);
+        }
+        if let Some(node) = self.unique.get(&(variable, low, high)).copied() {
+            return Ok(node);
+        }
+        let node = u32::try_from(self.nodes.len())
+            .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+        self.nodes.push(Node::Int {
+            var: variable,
+            lo: low,
+            hi: high,
+        });
+        self.unique.insert((variable, low, high), node);
+        Ok(node)
+    }
+
+    #[cfg(test)]
+    fn intern_without_collapse_for_test(
+        &mut self,
+        variable: u16,
+        low: NodeId,
+        high: NodeId,
+    ) -> Result<NodeId, FirstWitnessErrorV0> {
+        let low_node = self.require_node(low)?;
+        let high_node = self.require_node(high)?;
+        for child in [low_node, high_node] {
+            if let Node::Int { var: child, .. } = child
+                && child <= variable
+            {
+                return Err(FirstWitnessErrorV0::VariableOrderViolation {
+                    parent: variable,
+                    child,
+                });
+            }
         }
         if let Some(node) = self.unique.get(&(variable, low, high)).copied() {
             return Ok(node);
@@ -431,6 +986,67 @@ pub fn first_witness_fold_v0<T: Clone + Ord>(left: &[T], right: &[T]) -> Vec<T> 
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
+}
+
+pub fn build_guarded_cascade_winner_v0<K: Clone + Ord>(
+    manager: &mut FirstWitnessManagerV0,
+    fragment: &GuardedCascadeFragmentV0<K>,
+) -> Result<GuardedCascadeWinnerRootV0, FirstWitnessErrorV0> {
+    manager.register_declaration_terminals(
+        fragment
+            .candidates
+            .iter()
+            .map(|candidate| candidate.declaration_id),
+    )?;
+    let mut winner = GUARDED_CASCADE_BOT_NODE_ID_V0;
+    for candidate in &fragment.candidates {
+        let mut guarded = manager.declaration_terminal(candidate.declaration_id)?;
+        let mut variables = candidate
+            .conditions
+            .iter()
+            .map(|condition| {
+                manager
+                    .order
+                    .variable_index(condition.atom.as_str())
+                    .ok_or_else(|| FirstWitnessErrorV0::UnknownAtom(condition.atom.clone()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        variables.sort_unstable();
+        variables.dedup();
+        for variable in variables.into_iter().rev() {
+            guarded = manager.choose(variable, GUARDED_CASCADE_BOT_NODE_ID_V0, guarded)?;
+        }
+        winner = manager.choose_first_witness(winner, guarded)?;
+    }
+    Ok(GuardedCascadeWinnerRootV0(winner))
+}
+
+pub fn evaluate_guarded_cascade_winner_v0(
+    manager: &FirstWitnessManagerV0,
+    root: GuardedCascadeWinnerRootV0,
+    assignment: &[bool],
+) -> Result<Option<u32>, FirstWitnessErrorV0> {
+    let mut current = root.0;
+    loop {
+        match manager.require_node(current)? {
+            Node::Term(0) => return Ok(None),
+            Node::Term(terminal) => return Ok(Some(terminal - 1)),
+            Node::Int { var, lo, hi } => {
+                let value = assignment
+                    .get(usize::from(var))
+                    .copied()
+                    .ok_or(FirstWitnessErrorV0::MissingAssignment { variable: var })?;
+                current = if value { hi } else { lo };
+            }
+        }
+    }
+}
+
+pub const fn same_canonical_winner_function_v0(
+    left: GuardedCascadeWinnerRootV0,
+    right: GuardedCascadeWinnerRootV0,
+) -> bool {
+    left.0 == right.0
 }
 
 fn boolean_shortcut(operation: BooleanOperationV0, left: NodeId, right: NodeId) -> Option<NodeId> {
@@ -502,7 +1118,7 @@ fn canonical_apply_key(
         (right, left)
     };
     ApplyCacheKeyV0 {
-        operation,
+        operation: ApplyOperationV0::Boolean(operation),
         left,
         right,
     }
@@ -595,6 +1211,38 @@ mod tests {
         assert_ne!(
             a_and_b, a_or_b,
             "distinct functions must not share one node"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn collapse_rule_mutation_preserves_evaluation_but_breaks_canonical_identity()
+    -> Result<(), FirstWitnessErrorV0> {
+        let mut manager = manager(false)?;
+        manager.register_declaration_terminals([7])?;
+        let canonical = manager.declaration_terminal(7)?;
+        let unreduced = manager.intern_without_collapse_for_test(0, canonical, canonical)?;
+        for assignment in [[false, false, false], [true, false, false]] {
+            assert_eq!(
+                evaluate_guarded_cascade_winner_v0(
+                    &manager,
+                    GuardedCascadeWinnerRootV0(canonical),
+                    &assignment,
+                )?,
+                evaluate_guarded_cascade_winner_v0(
+                    &manager,
+                    GuardedCascadeWinnerRootV0(unreduced),
+                    &assignment,
+                )?,
+                "removing collapse must not be confused with an evaluation defect"
+            );
+        }
+        assert_ne!(
+            canonical, unreduced,
+            "without lo==hi collapse one function receives two NodeIds"
+        );
+        eprintln!(
+            "{{\"mutation\":\"collapseRuleDeleted\",\"evaluationMismatches\":0,\"canonicalNodeId\":{canonical},\"unreducedNodeId\":{unreduced},\"canonicalIdentity\":false}}"
         );
         Ok(())
     }
