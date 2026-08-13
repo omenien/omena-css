@@ -1153,19 +1153,19 @@
       "crate": "omena-bridge",
       "typeName": "ExpressionFactContext",
       "sourcePath": "rust/crates/omena-bridge/src/source_cfg.rs",
-      "line": 1096
+      "line": 1100
     },
     {
       "crate": "omena-bridge",
       "typeName": "LiteralEdgeSide",
       "sourcePath": "rust/crates/omena-bridge/src/source_cfg.rs",
-      "line": 961
+      "line": 965
     },
     {
       "crate": "omena-bridge",
       "typeName": "LiteralEdgeV0",
       "sourcePath": "rust/crates/omena-bridge/src/source_cfg.rs",
-      "line": 967
+      "line": 971
     },
     {
       "crate": "omena-bridge",
@@ -1639,7 +1639,7 @@
       "crate": "omena-bridge",
       "typeName": "Status",
       "sourcePath": "rust/crates/omena-bridge/src/source_cfg.rs",
-      "line": 1920
+      "line": 2033
     },
     {
       "crate": "omena-bridge",
