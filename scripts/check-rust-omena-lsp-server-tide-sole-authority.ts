@@ -38,7 +38,7 @@ for (const file of contract.files) {
   measuredTestCount += testCount;
 }
 assert.equal(measuredTestCount, contract.testCount);
-assert.equal(contract.testCount, 19);
+assert.equal(contract.testCount, 21);
 
 const tideRoot = path.join(root, "rust/crates/omena-lsp-server/src/tide");
 const tideSources = collectRustSources(tideRoot)

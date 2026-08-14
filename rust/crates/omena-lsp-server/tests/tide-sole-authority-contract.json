@@ -1,16 +1,16 @@
 {
   "schemaVersion": "omena.tide-sole-authority.v0",
-  "testCount": 19,
+  "testCount": 21,
   "files": [
     {
       "path": "rust/crates/omena-lsp-server/src/tests/tide_kernel.rs",
       "testCount": 11,
-      "sha256": "7c3e9e590c083c4523033765661f7505bc0519367daa9e69aee7ba58260d3849"
+      "sha256": "9dc9c90c2d9bedc4842cd36782061ef8aa739562382cce50b5748ea53a5c2702"
     },
     {
       "path": "rust/crates/omena-lsp-server/src/tests/tide_republish_executor.rs",
-      "testCount": 8,
-      "sha256": "d85de0c329ab7a38b959962e03bd1adcd48182b0ea9c021bb93906a251f826f9"
+      "testCount": 10,
+      "sha256": "25e8976f3f6eae6909db95667eb6658362ada5e64768ca7f14c6eff6f25b4438"
     }
   ],
   "futureHandoffRequirements": [
