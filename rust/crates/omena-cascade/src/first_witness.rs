@@ -17,6 +17,7 @@ pub const GUARDED_CASCADE_BOT_NODE_ID_V0: NodeId = FALSE_NODE_ID_V0;
 pub const DEFAULT_APPLY_CACHE_CAPACITY_V0: usize = 4_096;
 pub const DEFAULT_REBUILD_INTERVAL_OPERATIONS_V0: u64 = 8_192;
 pub const SITE_FIRST_APPEARANCE_ORDERING_DOMAIN_V0: &str = "siteFirstAppearance";
+pub const AT_RULE_NESTING_DFS_ORDERING_DOMAIN_V0: &str = "atRuleNestingDfs";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Node {
@@ -34,13 +35,39 @@ pub enum BooleanOperationV0 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VariableOrderDomainV0 {
     SiteFirstAppearance,
+    AtRuleNestingDfs,
 }
 
 impl VariableOrderDomainV0 {
     pub const fn name(self) -> &'static str {
         match self {
             Self::SiteFirstAppearance => SITE_FIRST_APPEARANCE_ORDERING_DOMAIN_V0,
+            Self::AtRuleNestingDfs => AT_RULE_NESTING_DFS_ORDERING_DOMAIN_V0,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtRuleNestingOrderAtomV0 {
+    atom: String,
+    at_rule_path: Vec<u32>,
+}
+
+impl AtRuleNestingOrderAtomV0 {
+    pub fn new(atom: impl Into<String>, at_rule_path: impl IntoIterator<Item = u32>) -> Self {
+        Self {
+            atom: atom.into(),
+            at_rule_path: at_rule_path.into_iter().collect(),
+        }
+    }
+
+    pub fn atom(&self) -> &str {
+        self.atom.as_str()
+    }
+
+    pub fn at_rule_path(&self) -> &[u32] {
+        self.at_rule_path.as_slice()
     }
 }
 
@@ -398,6 +425,29 @@ impl<K: Clone + Ord> GuardedCascadeFragmentV0<K> {
     }
 }
 
+pub fn at_rule_nesting_order_for_fragment_v0<K>(
+    fragment: &GuardedCascadeFragmentV0<K>,
+) -> Result<VariableOrderRegistrationV0, FirstWitnessErrorV0> {
+    #[cfg(test)]
+    if std::env::var_os("OMENA_G122_INJECT_REMOVE_AT_RULE_ORDER").is_some() {
+        return VariableOrderRegistrationV0::site_first_appearance(
+            fragment.condition_alphabet.iter().cloned(),
+        );
+    }
+    VariableOrderRegistrationV0::at_rule_nesting_dfs(
+        fragment
+            .candidates
+            .iter()
+            .flat_map(|candidate| candidate.conditions.iter())
+            .map(|condition| {
+                AtRuleNestingOrderAtomV0::new(
+                    condition.atom.clone(),
+                    condition.at_rule_path.iter().copied(),
+                )
+            }),
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
 pub struct GuardedCascadeWinnerRootV0(NodeId);
@@ -427,6 +477,30 @@ impl VariableOrderRegistrationV0 {
                 ordered.push(atom);
             }
         }
+        Self::from_ordered(VariableOrderDomainV0::SiteFirstAppearance, ordered)
+    }
+
+    pub fn at_rule_nesting_dfs(
+        atoms: impl IntoIterator<Item = AtRuleNestingOrderAtomV0>,
+    ) -> Result<Self, FirstWitnessErrorV0> {
+        let mut atoms = atoms.into_iter().collect::<Vec<_>>();
+        atoms.sort_by(|left, right| {
+            left.at_rule_path
+                .cmp(&right.at_rule_path)
+                .then_with(|| left.atom.cmp(&right.atom))
+        });
+        let mut seen = BTreeSet::new();
+        let ordered = atoms
+            .into_iter()
+            .filter_map(|atom| seen.insert(atom.atom.clone()).then_some(atom.atom))
+            .collect();
+        Self::from_ordered(VariableOrderDomainV0::AtRuleNestingDfs, ordered)
+    }
+
+    fn from_ordered(
+        domain: VariableOrderDomainV0,
+        ordered: Vec<String>,
+    ) -> Result<Self, FirstWitnessErrorV0> {
         let indices = ordered
             .iter()
             .enumerate()
@@ -437,7 +511,7 @@ impl VariableOrderRegistrationV0 {
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
         Ok(Self {
-            domain: VariableOrderDomainV0::SiteFirstAppearance,
+            domain,
             atoms: ordered,
             indices,
         })
@@ -2570,6 +2644,113 @@ mod tests {
             "{{\"declaredSynthetic\":true,\"terminalAlphabet\":\"declarationIdPlusBot\",\"alternatedMeasurementOrder\":true,\"workingSetEntries\":{working_set},\"unboundedProbe\":{unbounded_probe:?},\"budgetRows\":{rows:?},\"claim\":\"wall-clock benefit is conditional on the apply-cache budget\"}}"
         );
         Ok(())
+    }
+
+    fn blocked_pair_node_count(
+        interleaved: bool,
+        pair_count: usize,
+    ) -> Result<usize, FirstWitnessErrorV0> {
+        let atoms = if interleaved {
+            (0..pair_count)
+                .flat_map(|index| [format!("a-{index}"), format!("b-{index}")])
+                .collect::<Vec<_>>()
+        } else {
+            (0..pair_count)
+                .map(|index| format!("a-{index}"))
+                .chain((0..pair_count).map(|index| format!("b-{index}")))
+                .collect::<Vec<_>>()
+        };
+        let mut manager = FirstWitnessManagerV0::new(
+            VariableOrderRegistrationV0::site_first_appearance(atoms)?,
+            FirstWitnessManagerConfigV0 {
+                shortcuts: false,
+                apply_cache_capacity: 65_536,
+                rebuild_interval_operations: u64::MAX,
+            },
+        );
+        manager.register_declaration_terminals(
+            (0..pair_count).filter_map(|index| u32::try_from(index).ok()),
+        )?;
+        let mut winner = GUARDED_CASCADE_BOT_NODE_ID_V0;
+        for index in 0..pair_count {
+            let left = manager
+                .order()
+                .variable_index(&format!("a-{index}"))
+                .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
+            let right = manager
+                .order()
+                .variable_index(&format!("b-{index}"))
+                .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
+            let mut guarded = manager.declaration_terminal(
+                u32::try_from(index)
+                    .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+            )?;
+            for variable in [left, right].into_iter().rev() {
+                guarded = manager.choose(variable, GUARDED_CASCADE_BOT_NODE_ID_V0, guarded)?;
+            }
+            winner = manager.choose_first_witness(winner, guarded)?;
+        }
+        manager.reachable_winner_node_count(GuardedCascadeWinnerRootV0(winner))
+    }
+
+    #[test]
+    fn at_rule_nesting_dfs_registration_pins_the_blocked_pair_falsifier()
+    -> Result<(), Box<dyn std::error::Error>> {
+        const PAIR_COUNT: usize = 12;
+        const INTERLEAVED_CEILING: usize = 4 * PAIR_COUNT;
+        let fragment = GuardedCascadeFragmentV0::admit(
+            (0..PAIR_COUNT).flat_map(|index| [format!("a-{index}"), format!("b-{index}")]),
+            (0..PAIR_COUNT).map(|index| {
+                GuardedCascadeCandidateV0::new(
+                    u32::try_from(index).unwrap_or_default(),
+                    "button.primary",
+                    "color",
+                    PAIR_COUNT - index,
+                    GuardedCascadeSpecificityExactnessV0::Exact,
+                    0,
+                    vec![
+                        GuardedCascadeConditionAtomV0::media(
+                            format!("a-{index}"),
+                            [u32::try_from(index).unwrap_or_default(), 0],
+                            false,
+                        ),
+                        GuardedCascadeConditionAtomV0::supports(
+                            format!("b-{index}"),
+                            [u32::try_from(index).unwrap_or_default(), 1],
+                            false,
+                        ),
+                    ],
+                )
+            }),
+        )?;
+        let order = at_rule_nesting_order_for_fragment_v0(&fragment)?;
+        assert_eq!(order.domain(), VariableOrderDomainV0::AtRuleNestingDfs);
+        let interleaved_nodes = blocked_pair_node_count(true, PAIR_COUNT)?;
+        let blocked_nodes = blocked_pair_node_count(false, PAIR_COUNT)?;
+        assert!(interleaved_nodes <= INTERLEAVED_CEILING);
+        assert!(blocked_nodes > interleaved_nodes.saturating_mul(100));
+        eprintln!(
+            "{{\"declaredSynthetic\":true,\"domain\":\"{}\",\"pairCount\":{PAIR_COUNT},\"interleavedNodes\":{interleaved_nodes},\"blockedNodes\":{blocked_nodes},\"interleavedCeiling\":{INTERLEAVED_CEILING},\"a1ThroughA4OrderIndependent\":true}}",
+            order.domain().name(),
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn at_rule_order_domain_census_has_one_derivation_site() {
+        let source = include_str!("first_witness.rs");
+        let production = source
+            .split("\n#[cfg(test)]\nmod tests")
+            .next()
+            .unwrap_or(source);
+        let at_rule_call = ["VariableOrderRegistrationV0::at_rule_", "nesting_dfs("].concat();
+        let site_call = ["VariableOrderRegistrationV0::site_", "first_appearance("].concat();
+        assert_eq!(production.matches(&at_rule_call).count(), 1);
+        assert!(production.contains(&site_call));
+        assert_ne!(
+            AT_RULE_NESTING_DFS_ORDERING_DOMAIN_V0,
+            SITE_FIRST_APPEARANCE_ORDERING_DOMAIN_V0
+        );
     }
 
     #[test]
