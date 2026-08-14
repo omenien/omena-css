@@ -2436,8 +2436,8 @@ export const plainClass = styles.plain;
             "immediate baseline publish must include file-local baseline diagnostics: {first_codes:?}"
         );
         assert!(
-            first_codes.contains(&"missingModule"),
-            "immediate baseline publish must include target-only Sass missingModule parity: {first_codes:?}"
+            first_codes.contains(&"missing-module"),
+            "immediate baseline publish must include target-only Sass missing-module parity: {first_codes:?}"
         );
         assert!(
             !first_codes.contains(&"unreachableDeclaration"),
@@ -2457,7 +2457,7 @@ export const plainClass = styles.plain;
         let last_codes = diagnostic_codes(publishes[publishes.len() - 1]);
         assert!(
             last_codes.contains(&"missingCustomProperty")
-                && last_codes.contains(&"missingModule")
+                && last_codes.contains(&"missing-module")
                 && last_codes.contains(&"unreachableDeclaration"),
             "forced full publish must equal the tier-union shape: {last_codes:?}"
         );

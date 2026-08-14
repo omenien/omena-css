@@ -3671,7 +3671,7 @@ export function App() {
         summary
             .diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code != "missingModule"),
+            .all(|diagnostic| diagnostic.code != "missing-module"),
         "{summary:?}"
     );
     let diagnostic = summary
@@ -3743,7 +3743,7 @@ export function App() {
         summary
             .diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code != "missingModule"),
+            .all(|diagnostic| diagnostic.code != "missing-module"),
         "{summary:?}"
     );
     let diagnostic = summary
@@ -3791,7 +3791,7 @@ fn workspace_alias_resolution_surface_uses_project_config() -> Result<(), String
         summary
             .diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code != "missingModule"),
+            .all(|diagnostic| diagnostic.code != "missing-module"),
         "existing tsconfig alias target was reported missing: {summary:?}"
     );
 
@@ -3823,7 +3823,7 @@ export const app = <div className={styles.root} />;"#,
         control
             .diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "missingModule"),
+            .any(|diagnostic| diagnostic.code == "missing-module"),
         "genuinely absent alias target must remain diagnostic: {control:?}"
     );
 

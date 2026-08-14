@@ -18,7 +18,7 @@ const DIRECT_SOURCE_DIAGNOSTIC_CODES = new Set([
   "missing-resolved-class-domain",
 ]);
 const OMENA_QUERY_SOURCE_DIAGNOSTIC_CODE_MAP = new Map([
-  ["missingModule", "missing-module"],
+  ["missing-module", "missing-module"],
   ["missingStaticClass", "missing-static-class"],
   ["missingTemplatePrefix", "missing-template-prefix"],
   ["missingResolvedClassValues", "missing-resolved-class-values"],

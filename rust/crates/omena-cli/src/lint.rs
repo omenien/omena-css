@@ -560,6 +560,10 @@ mod tests {
     #[test]
     fn diagnostic_codes_use_checker_rule_spelling() {
         assert_eq!(
+            checker_rule_id_for_diagnostic("missing-module").as_deref(),
+            Some("missing-module")
+        );
+        assert_eq!(
             checker_rule_id_for_diagnostic("missingModule").as_deref(),
             Some("missing-module")
         );

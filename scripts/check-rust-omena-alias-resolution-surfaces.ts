@@ -118,7 +118,7 @@ const runnerSummary = JSON.parse(runner.stdout) as {
   diagnostics: readonly { code: string }[];
 };
 assert.equal(
-  runnerSummary.diagnostics.some((diagnostic) => diagnostic.code === "missingModule"),
+  runnerSummary.diagnostics.some((diagnostic) => diagnostic.code === "missing-module"),
   false,
   "shadow runner dropped explicit alias-resolution inputs",
 );
@@ -134,7 +134,7 @@ process.stdout.write(
       ),
       focusedTestCount: executedTestCount,
       shadowRunnerMissingModuleCount: runnerSummary.diagnostics.filter(
-        (diagnostic) => diagnostic.code === "missingModule",
+        (diagnostic) => diagnostic.code === "missing-module",
       ).length,
       wasmFilesystemDiscoveryCount: 0,
       surfaces: surfaceEvidence,

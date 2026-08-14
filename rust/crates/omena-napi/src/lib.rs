@@ -2564,7 +2564,7 @@ export const app = <div className={styles.card} />;"#
                 .to_string(),
         )?;
 
-        assert!(!json.contains("\"code\":\"missingModule\""), "{json}");
+        assert!(!json.contains("\"code\":\"missing-module\""), "{json}");
         Ok(())
     }
 

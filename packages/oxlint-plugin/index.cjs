@@ -9,7 +9,7 @@ const DIAGNOSTIC_RULES = new Map([
   [
     "missing-module",
     {
-      queryCode: "missingModule",
+      queryCode: "missing-module",
       description: "Report missing CSS Module imports.",
     },
   ],

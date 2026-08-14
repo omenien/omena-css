@@ -1780,7 +1780,7 @@ export const app = <div className={styles.card} />;"#,
             summary
                 .diagnostics
                 .iter()
-                .all(|diagnostic| diagnostic.code != "missingModule"),
+                .all(|diagnostic| diagnostic.code != "missing-module"),
             "{summary:?}"
         );
     }

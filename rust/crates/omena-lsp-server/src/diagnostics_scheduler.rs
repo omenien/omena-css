@@ -1484,6 +1484,7 @@ fn diagnostic_pipeline_tier(diagnostic: &Value) -> DiagnosticsPipelineTier {
         | "missingResolvedClassValues"
         | "missingResolvedClassDomain"
         | "missingSelector"
+        | "missing-module"
         | "missingModule"
         | "missingCustomProperty" => DiagnosticsPipelineTier::Baseline,
         _ => DiagnosticsPipelineTier::Optimizing,

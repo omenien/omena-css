@@ -41,7 +41,7 @@ const FILES = {
 } as const;
 
 const SOURCE_DIAGNOSTIC_CODE_PAIRS = [
-  ["missingModule", "missing-module"],
+  ["missing-module", "missing-module"],
   ["missingStaticClass", "missing-static-class"],
   ["missingTemplatePrefix", "missing-template-prefix"],
   ["missingResolvedClassValues", "missing-resolved-class-values"],
@@ -441,7 +441,7 @@ function assertLspSelectedQueryDiagnostics(): void {
   assertIncludes(styleProvider, "return [];", FILES.styleProvider);
   assertNotIncludes(
     sourceProvider,
-    '.filter((diagnostic) => diagnostic.code !== "missingModule")',
+    '.filter((diagnostic) => diagnostic.code !== "missing-module")',
     FILES.sourceProvider,
   );
   assertIncludes(sourceProvider, "findMissingModuleCreateFileData", FILES.sourceProvider);
