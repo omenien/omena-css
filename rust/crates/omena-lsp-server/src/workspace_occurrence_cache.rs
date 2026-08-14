@@ -15,11 +15,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = "0";
+const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = "1";
 const WORKSPACE_OCCURRENCE_SHARD_PRODUCT: &str = "omena-lsp-server.workspace-occurrence-shard";
 const WORKSPACE_OCCURRENCE_SHARD_KEY_PRODUCT: &str =
     "omena-lsp-server.workspace-occurrence-shard-key";
-const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = "workspace-occurrence-shards-v1";
+const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = "workspace-occurrence-shards-v2";
 const WORKSPACE_OCCURRENCE_SHARD_LIMITS: PersistentCacheLimitsV0 = DEFAULT_PERSISTENT_CACHE_LIMITS;
 
 #[derive(Debug, Serialize)]
@@ -38,6 +38,7 @@ struct WorkspaceOccurrenceShardKeyInputV0<'a> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct LspWorkspaceOccurrenceShardLoadV0 {
+    pub(crate) key: String,
     pub(crate) occurrences: Vec<OmenaWorkspaceOccurrenceV0>,
 }
 
@@ -103,7 +104,7 @@ pub(crate) fn load_workspace_occurrence_shard(
     if payload.get("monikerCount")?.as_u64()? as usize != moniker_count {
         return None;
     }
-    Some(LspWorkspaceOccurrenceShardLoadV0 { occurrences })
+    Some(LspWorkspaceOccurrenceShardLoadV0 { key, occurrences })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -162,15 +163,19 @@ pub(crate) fn store_workspace_occurrence_shard(
     let Ok(bytes) = serde_json::to_vec(&shard) else {
         return;
     };
-    if write_workspace_occurrence_shard(
+    let Some(dir) = path.parent() else {
+        return;
+    };
+    if std::fs::create_dir_all(dir).is_err() {
+        return;
+    }
+    crate::disk_cache::ensure_omena_cache_root_markers(dir);
+    ensure_cache_root_attribution(dir, workspace_folder_uri.unwrap_or(document_uri));
+    let _ = write_workspace_occurrence_shard(
         path.as_path(),
         bytes.as_slice(),
         &WORKSPACE_OCCURRENCE_SHARD_LIMITS,
-    ) && let Some(dir) = path.parent()
-    {
-        crate::disk_cache::ensure_omena_cache_root_markers(dir);
-        ensure_cache_root_attribution(dir, workspace_folder_uri.unwrap_or(document_uri));
-    }
+    );
 }
 
 fn read_workspace_occurrence_shard(
@@ -205,6 +210,7 @@ fn workspace_occurrence_shard_key(
     dependency_digest: Option<&str>,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<String> {
+    let dependency_digest = workspace_occurrence_shard_key_dependency_digest(dependency_digest);
     let input = WorkspaceOccurrenceShardKeyInputV0 {
         schema_version: WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION,
         crate_version: env!("CARGO_PKG_VERSION"),
@@ -222,6 +228,51 @@ fn workspace_occurrence_shard_key(
             .as_str()
             .to_string(),
     )
+}
+
+fn workspace_occurrence_shard_key_dependency_digest(
+    dependency_digest: Option<&str>,
+) -> Option<&str> {
+    #[cfg(test)]
+    if WORKSPACE_OCCURRENCE_KEY_DROP_DEPENDENCY.with(std::cell::Cell::get) {
+        return None;
+    }
+    dependency_digest
+}
+
+pub(crate) fn workspace_occurrence_shard_should_shadow(key: &str) -> bool {
+    #[cfg(test)]
+    {
+        let _ = key;
+        true
+    }
+    #[cfg(not(test))]
+    {
+        key.as_bytes()
+            .last()
+            .and_then(|byte| (*byte as char).to_digit(16))
+            .is_some_and(|nibble| nibble == 0)
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static WORKSPACE_OCCURRENCE_KEY_DROP_DEPENDENCY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+pub(crate) fn with_workspace_occurrence_key_dependency_drop_for_test<R>(
+    body: impl FnOnce() -> R,
+) -> R {
+    WORKSPACE_OCCURRENCE_KEY_DROP_DEPENDENCY.with(|drop_dependency| {
+        let previous = drop_dependency.replace(true);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
+        drop_dependency.set(previous);
+        match result {
+            Ok(result) => result,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    })
 }
 
 fn workspace_occurrence_shard_path(
@@ -405,6 +456,16 @@ mod tests {
         .ok_or("missing workspace occurrence shard path")?;
         let first_bytes = fs::read(shard_path.as_path())?;
         let first_json: Value = serde_json::from_slice(first_bytes.as_slice())?;
+        let cache_root = shard_path
+            .parent()
+            .and_then(Path::parent)
+            .ok_or("missing workspace occurrence cache root")?;
+        assert!(
+            cache_root.join(".gitignore").is_file()
+                && cache_root.join("CACHEDIR.TAG").is_file()
+                && cache_root.join(".omena-cache-owner.json").is_file(),
+            "cache ownership and self-ignore markers must precede persistent shard writes"
+        );
 
         assert_eq!(
             first_json.pointer("/containsText").and_then(Value::as_bool),
@@ -441,6 +502,53 @@ mod tests {
         );
         let second_bytes = fs::read(shard_path.as_path())?;
         assert_eq!(second_bytes, first_bytes);
+
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_occurrence_v1_shard_cannot_collide_with_v2_namespace() -> Result<(), Box<dyn Error>>
+    {
+        let root = unique_temp_root("omena_workspace_occurrence_v1_noncollision")?;
+        let workspace_uri = path_to_file_uri(root.as_path());
+        let document_uri = path_to_file_uri(root.join("src/App.module.scss").as_path());
+        let cache_storage = LspCacheStorageConfigV0::default();
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let v2_path = workspace_occurrence_shard_path(
+            &cache_storage,
+            Some(workspace_uri.as_str()),
+            document_uri.as_str(),
+            "scss",
+        )
+        .ok_or("missing v2 workspace occurrence path")?;
+        let file_name = v2_path
+            .file_name()
+            .ok_or("missing workspace occurrence shard name")?;
+        let v1_path = v2_path
+            .parent()
+            .and_then(Path::parent)
+            .ok_or("missing workspace occurrence cache root")?
+            .join("workspace-occurrence-shards-v1")
+            .join(file_name);
+        fs::create_dir_all(v1_path.parent().ok_or("missing v1 parent")?)?;
+        fs::write(v1_path.as_path(), br#"{"schemaVersion":"0"}"#)?;
+
+        assert!(
+            load_workspace_occurrence_shard(
+                &cache_storage,
+                Some(workspace_uri.as_str()),
+                document_uri.as_str(),
+                "scss",
+                "blake3:text",
+                Some("blake3:read-set"),
+                &resolution_inputs,
+            )
+            .is_none(),
+            "a planted v1 shard must not be visible through the v2 loader"
+        );
+        assert!(v1_path.is_file());
+        assert!(!v2_path.exists());
 
         let _ = fs::remove_dir_all(root);
         Ok(())

@@ -303,7 +303,7 @@ pub(crate) fn declared_cache_write_surfaces_for_rungs(
                 "diagnostics-cache-v1",
                 "source-document-index-v1",
                 "source-type-fact-cache-v1",
-                "workspace-occurrence-shards-v1",
+                "workspace-occurrence-shards-v2",
             ],
         });
     }
@@ -661,7 +661,7 @@ mod cache_storage_boundary_tests {
                         "diagnostics-cache-v1",
                         "source-document-index-v1",
                         "source-type-fact-cache-v1",
-                        "workspace-occurrence-shards-v1",
+                        "workspace-occurrence-shards-v2",
                     ],
                 }
             );

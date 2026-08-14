@@ -859,13 +859,14 @@ const RETIRED_WORKSPACE_CACHE_DIR_NAMES: &[&str] = &[
     "style-symbol-occurrence-index-v0",
     "style-symbol-occurrence-index-v1",
     "workspace-occurrence-shards-v0",
+    "workspace-occurrence-shards-v1",
 ];
 const RELOCATED_CURRENT_WORKSPACE_CACHE_DIR_NAMES: &[&str] = &[
     "diagnostics-cache-v1",
     "external-sif-v0",
     "source-document-index-v1",
     "source-type-fact-cache-v1",
-    "workspace-occurrence-shards-v1",
+    "workspace-occurrence-shards-v2",
 ];
 
 pub(crate) fn sweep_relocated_workspace_cache_roots(state: &mut crate::LspShellState) {

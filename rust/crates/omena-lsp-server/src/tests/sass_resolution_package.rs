@@ -1411,7 +1411,7 @@ fn assert_foreign_occurrence_artifacts_are_workspace_cache_confined(
     let workspace_cache_root = workspace_root.join(".cache").join("omena");
     assert!(
         workspace_cache_root
-            .join("workspace-occurrence-shards-v1")
+            .join("workspace-occurrence-shards-v2")
             .exists(),
         "foreign occurrence shards should be persisted below the workspace cache root"
     );

@@ -1,4 +1,6 @@
 use super::*;
+mod workspace_occurrence_read_set;
+
 use crate::occurrence_mapping::{
     style_symbol_occurrence_for_candidate, workspace_occurrence_from_style_symbol_occurrence,
     workspace_occurrence_matches_target_style,
@@ -10,15 +12,21 @@ use crate::style_symbol_monikers::{
     style_symbol_monikers_for_candidate, style_symbol_role_for_candidate,
     style_unresolved_sass_symbol_moniker,
 };
-use crate::workspace_occurrence_cache::{
-    load_workspace_occurrence_shard, store_workspace_occurrence_shard,
-};
 use crate::workspace_occurrences::{
     source_selector_occurrence_index_from_open_documents,
     workspace_occurrence_indexes_from_documents,
 };
 use omena_query::{StyleLanguage, summarize_omena_query_sass_module_sources};
 use std::collections::BTreeMap;
+#[cfg(test)]
+pub(crate) use workspace_occurrence_read_set::{
+    reset_workspace_occurrence_extractor_counters_for_test,
+    workspace_occurrence_extractor_rebuild_count_for_test,
+    workspace_occurrence_shadow_verification_count_for_test,
+};
+pub(crate) use workspace_occurrence_read_set::{
+    style_symbol_occurrence_read_set_digest, style_symbol_workspace_occurrences_for_document,
+};
 
 pub(crate) fn selector_reference_locations_from_open_documents(
     state: &dyn LspQueryReadView,
@@ -200,26 +208,11 @@ fn style_symbol_occurrence_index_from_documents(
     workspace_occurrence_indexes_from_documents(state, workspace_folder_uri).workspace_index
 }
 
-pub(crate) fn style_symbol_workspace_occurrences_for_document(
+fn extract_style_symbol_workspace_occurrences_for_document(
     state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     workspace_folder_uri: Option<&str>,
-    dependency_digest: Option<&str>,
 ) -> Vec<OmenaWorkspaceOccurrenceV0> {
-    let resolution_inputs =
-        resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
-    if let Some(shard) = load_workspace_occurrence_shard(
-        &state.query_resolution().cache_storage,
-        document.workspace_folder_uri.as_deref(),
-        document.uri.as_str(),
-        document.language_id.as_str(),
-        document.text_hash.as_str(),
-        dependency_digest,
-        &resolution_inputs,
-    ) {
-        return shard.occurrences;
-    }
-
     let mut style_occurrences = Vec::new();
     let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
         return Vec::new();
@@ -278,21 +271,10 @@ pub(crate) fn style_symbol_workspace_occurrences_for_document(
     }
     style_occurrences.sort();
     style_occurrences.dedup();
-    let workspace_occurrences = style_occurrences
+    style_occurrences
         .iter()
         .map(|occurrence| workspace_occurrence_from_style_symbol_occurrence(document, occurrence))
-        .collect::<Vec<_>>();
-    store_workspace_occurrence_shard(
-        &state.query_resolution().cache_storage,
-        document.workspace_folder_uri.as_deref(),
-        document.uri.as_str(),
-        document.language_id.as_str(),
-        document.text_hash.as_str(),
-        dependency_digest,
-        &resolution_inputs,
-        workspace_occurrences.as_slice(),
-    );
-    workspace_occurrences
+        .collect::<Vec<_>>()
 }
 
 pub(crate) fn source_candidate_selector_names(

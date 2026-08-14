@@ -23,6 +23,7 @@ use crate::{
         LspWorkspaceOccurrenceIndexMemo,
     },
     style_selector_definitions_from_open_documents,
+    style_symbol_provider::style_symbol_occurrence_read_set_digest,
     style_symbol_workspace_occurrences_for_document,
     workspace_occurrence_cache::{
         load_workspace_occurrence_shard, store_workspace_occurrence_shard,
@@ -91,16 +92,13 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
     source_occurrences.sort();
     source_occurrences.dedup();
     let source_phase_ms = rebuild_started.elapsed().as_millis();
-    let style_dependency_digest = workspace_occurrence_dependency_digest(&(
-        style_document_keys.as_slice(),
-        &state.query_resolution().external_sifs,
-    ));
     for document in state
         .query_documents()
         .values()
         .filter(|document| document_has_style_index(document))
         .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
     {
+        let style_dependency_digest = style_symbol_occurrence_read_set_digest(state, document);
         workspace_occurrences.extend(style_symbol_workspace_occurrences_for_document(
             state,
             document,

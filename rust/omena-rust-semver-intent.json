@@ -2010,6 +2010,28 @@
               ]
             }
           ]
+        },
+        {
+          "id": "lsp-workspace-occurrence-shard-namespace",
+          "kind": "wire-value-order-preserving",
+          "surface": "LspTrustBoundaryV0.diskWriteSurfaces[].cacheDirectories",
+          "reason": "The narrowed per-document occurrence read-set key uses a new persistent shard schema and directory namespace so pre-existing shards cannot collide with the new key contract.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
+              "needles": [
+                "workspace-occurrence-shards-v2",
+                "disk_write_surfaces: declared_cache_write_surfaces_for_rungs(lsp_rung, bridge_rung)"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/workspace_occurrence_cache.rs",
+              "needles": [
+                "const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = \"1\";",
+                "const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = \"workspace-occurrence-shards-v2\";"
+              ]
+            }
+          ]
         }
       ]
     }

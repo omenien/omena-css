@@ -185,7 +185,7 @@ assert.deepEqual(rustSummary.trustBoundary.diskWriteSurfaces, [
       "diagnostics-cache-v1",
       "source-document-index-v1",
       "source-type-fact-cache-v1",
-      "workspace-occurrence-shards-v1",
+      "workspace-occurrence-shards-v2",
     ],
   },
   {
@@ -204,7 +204,7 @@ assert.deepEqual(environmentRustSummary.trustBoundary.diskWriteSurfaces, [
       "diagnostics-cache-v1",
       "source-document-index-v1",
       "source-type-fact-cache-v1",
-      "workspace-occurrence-shards-v1",
+      "workspace-occurrence-shards-v2",
     ],
   },
   {

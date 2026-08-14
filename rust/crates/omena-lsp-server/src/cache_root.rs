@@ -418,7 +418,7 @@ mod tests {
         for cache_dir_name in [
             "diagnostics-cache-v1",
             "source-document-index-v1",
-            "workspace-occurrence-shards-v1",
+            "workspace-occurrence-shards-v2",
             "source-type-fact-cache-v1",
         ] {
             assert_eq!(
@@ -439,7 +439,7 @@ mod tests {
         for cache_dir_name in [
             "diagnostics-cache-v1",
             "source-document-index-v1",
-            "workspace-occurrence-shards-v1",
+            "workspace-occurrence-shards-v2",
             "source-type-fact-cache-v1",
         ] {
             assert!(roots.workspace.as_ref().is_some_and(|root| {

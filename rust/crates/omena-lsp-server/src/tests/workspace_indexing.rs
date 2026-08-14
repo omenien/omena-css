@@ -1,4 +1,5 @@
 use super::*;
+use std::path::PathBuf;
 
 #[cfg(all(feature = "test-support", feature = "salsa-style-diagnostics"))]
 #[test]
@@ -1682,7 +1683,7 @@ fn editor_storage_initialization_keeps_the_workspace_cache_clean() -> TestResult
     for cache_dir_name in [
         "diagnostics-cache-v1",
         "source-document-index-v1",
-        "workspace-occurrence-shards-v1",
+        "workspace-occurrence-shards-v2",
         "source-type-fact-cache-v1",
     ] {
         assert!(
@@ -1765,7 +1766,7 @@ fn cache_location_configuration_switches_all_caches_to_workspace_mode() -> TestR
     for cache_dir_name in [
         "diagnostics-cache-v1",
         "source-document-index-v1",
-        "workspace-occurrence-shards-v1",
+        "workspace-occurrence-shards-v2",
         "source-type-fact-cache-v1",
     ] {
         assert_eq!(
@@ -1786,7 +1787,7 @@ fn cache_location_configuration_switches_all_caches_to_workspace_mode() -> TestR
 
 #[test]
 fn initialization_sweeps_only_owned_workspace_cache_paths() -> TestResult {
-    const RELOCATED_LEGACY_CACHE_DIRS: [&str; 8] = [
+    const RELOCATED_LEGACY_CACHE_DIRS: [&str; 9] = [
         "diagnostics-cache-v0",
         "source-document-index-v0",
         "source-occurrence-index-v0",
@@ -1795,12 +1796,13 @@ fn initialization_sweeps_only_owned_workspace_cache_paths() -> TestResult {
         "style-symbol-occurrence-index-v0",
         "style-symbol-occurrence-index-v1",
         "workspace-occurrence-shards-v0",
+        "workspace-occurrence-shards-v1",
     ];
     const RELOCATED_CURRENT_CACHE_DIRS: [&str; 5] = [
         "diagnostics-cache-v1",
         "source-document-index-v1",
         "source-type-fact-cache-v1",
-        "workspace-occurrence-shards-v1",
+        "workspace-occurrence-shards-v2",
         "external-sif-v0",
     ];
 
@@ -4713,4 +4715,259 @@ fn bounds_workspace_style_indexing_by_budget() {
     assert!(state.document(style_uri.as_str()).is_none());
     assert_eq!(state.snapshot().workspace_style_index_exhausted_count, 1);
     let _ = std::fs::remove_dir_all(&workspace_root);
+}
+
+#[test]
+fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
+    omena_testkit::with_instrumentation_session(
+        omena_testkit::InstrumentationSessionV0::default(),
+        || {
+            let WorkspaceOccurrenceReadSetFixtureV0 {
+                mut state,
+                workspace_root,
+                workspace_uri,
+                app_uri,
+                tokens_uri,
+                unrelated_uri,
+            } = workspace_occurrence_read_set_fixture("read-set")?;
+
+            let cold_started = std::time::Instant::now();
+            crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                &state,
+                Some(workspace_uri.as_str()),
+            );
+            let cold_elapsed = cold_started.elapsed();
+
+            *state.workspace_occurrence_index_memo_lock() = None;
+            crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+            let warm_started = std::time::Instant::now();
+            crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                &state,
+                Some(workspace_uri.as_str()),
+            );
+            let warm_elapsed = warm_started.elapsed();
+            assert_eq!(
+                crate::style_symbol_provider::workspace_occurrence_extractor_rebuild_count_for_test(
+                    app_uri.as_str(),
+                ),
+                0,
+                "warm A must reload its shard without rebuilding"
+            );
+            assert_eq!(
+                crate::style_symbol_provider::workspace_occurrence_shadow_verification_count_for_test(
+                    app_uri.as_str(),
+                ),
+                1,
+                "the test lane samples every cache hit through the fresh shadow oracle"
+            );
+
+            change_occurrence_style_document(
+                &mut state,
+                unrelated_uri.as_str(),
+                2,
+                ".unrelated { color: green; }\n",
+            );
+            *state.workspace_occurrence_index_memo_lock() = None;
+            crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+            let unrelated_started = std::time::Instant::now();
+            crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                &state,
+                Some(workspace_uri.as_str()),
+            );
+            let unrelated_elapsed = unrelated_started.elapsed();
+            assert_eq!(
+                crate::style_symbol_provider::workspace_occurrence_extractor_rebuild_count_for_test(
+                    app_uri.as_str(),
+                ),
+                0,
+                "editing unrelated B must not rebuild A"
+            );
+
+            let later_uri =
+                path_to_file_uri(workspace_root.join("src/Later.module.scss").as_path());
+            std::fs::write(
+                workspace_root.join("src/Later.module.scss"),
+                ".later { color: purple; }\n",
+            )?;
+            open_occurrence_style_document(
+                &mut state,
+                later_uri.as_str(),
+                ".later { color: purple; }\n",
+            );
+            *state.workspace_occurrence_index_memo_lock() = None;
+            crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+            crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                &state,
+                Some(workspace_uri.as_str()),
+            );
+            assert_eq!(
+                crate::style_symbol_provider::workspace_occurrence_extractor_rebuild_count_for_test(
+                    app_uri.as_str(),
+                ),
+                0,
+                "opening unrelated B must not rebuild A"
+            );
+
+            change_occurrence_style_document(&mut state, tokens_uri.as_str(), 2, "$brand: blue;\n");
+            *state.workspace_occurrence_index_memo_lock() = None;
+            crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+            crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                &state,
+                Some(workspace_uri.as_str()),
+            );
+            assert_eq!(
+                crate::style_symbol_provider::workspace_occurrence_extractor_rebuild_count_for_test(
+                    app_uri.as_str(),
+                ),
+                1,
+                "editing a document in A's read set must rebuild A exactly once"
+            );
+            eprintln!(
+                "workspace-occurrence-read-set cold_ms={} warm_ms={} unrelated_edit_ms={} shadow_rate_test=1/1 app_rebuild_after_unrelated_edit=0 app_rebuild_after_unrelated_open=0 app_rebuild_after_dependency=1",
+                cold_elapsed.as_millis(),
+                warm_elapsed.as_millis(),
+                unrelated_elapsed.as_millis(),
+            );
+
+            let _ = std::fs::remove_dir_all(workspace_root);
+            Ok(())
+        },
+    )
+}
+
+#[test]
+fn workspace_occurrence_shadow_rejects_a_dropped_read_set_key_field() -> TestResult {
+    omena_testkit::with_instrumentation_session(
+        omena_testkit::InstrumentationSessionV0::default(),
+        || {
+            let WorkspaceOccurrenceReadSetFixtureV0 {
+                mut state,
+                workspace_root,
+                workspace_uri,
+                tokens_uri,
+                ..
+            } = workspace_occurrence_read_set_fixture("shadow-drop")?;
+            let mutation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                crate::workspace_occurrence_cache::with_workspace_occurrence_key_dependency_drop_for_test(
+                    || {
+                        crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                            &state,
+                            Some(workspace_uri.as_str()),
+                        );
+                        change_occurrence_style_document(
+                            &mut state,
+                            tokens_uri.as_str(),
+                            2,
+                            "$other: blue;\n",
+                        );
+                        *state.workspace_occurrence_index_memo_lock() = None;
+                        crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                            &state,
+                            Some(workspace_uri.as_str()),
+                        );
+                    },
+                );
+            }));
+            let _ = std::fs::remove_dir_all(workspace_root);
+            assert!(
+                mutation.is_err(),
+                "dropping the dependency digest must serve a stale shard and make the shadow oracle RED"
+            );
+            Ok(())
+        },
+    )
+}
+
+struct WorkspaceOccurrenceReadSetFixtureV0 {
+    state: LspShellState,
+    workspace_root: PathBuf,
+    workspace_uri: String,
+    app_uri: String,
+    tokens_uri: String,
+    unrelated_uri: String,
+}
+
+fn workspace_occurrence_read_set_fixture(
+    suffix: &str,
+) -> Result<WorkspaceOccurrenceReadSetFixtureV0, Box<dyn std::error::Error>> {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-workspace-occurrence-{suffix}-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(workspace_root.join("src"))?;
+    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+    let app_uri = path_to_file_uri(workspace_root.join("src/App.module.scss").as_path());
+    let tokens_uri = path_to_file_uri(workspace_root.join("src/_tokens.scss").as_path());
+    let unrelated_uri =
+        path_to_file_uri(workspace_root.join("src/Unrelated.module.scss").as_path());
+    let app_text = "@use \"./tokens\" as tokens;\n.root { color: tokens.$brand; }\n";
+    let tokens_text = "$brand: red;\n";
+    let unrelated_text = ".unrelated { color: red; }\n";
+    std::fs::write(workspace_root.join("src/App.module.scss"), app_text)?;
+    std::fs::write(workspace_root.join("src/_tokens.scss"), tokens_text)?;
+    std::fs::write(
+        workspace_root.join("src/Unrelated.module.scss"),
+        unrelated_text,
+    )?;
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{"uri": workspace_uri, "name": "occurrence-read-set"}],
+            },
+        }),
+    );
+    open_occurrence_style_document(&mut state, app_uri.as_str(), app_text);
+    open_occurrence_style_document(&mut state, tokens_uri.as_str(), tokens_text);
+    open_occurrence_style_document(&mut state, unrelated_uri.as_str(), unrelated_text);
+    Ok(WorkspaceOccurrenceReadSetFixtureV0 {
+        state,
+        workspace_root,
+        workspace_uri,
+        app_uri,
+        tokens_uri,
+        unrelated_uri,
+    })
+}
+
+fn open_occurrence_style_document(state: &mut LspShellState, uri: &str, text: &str) {
+    handle_lsp_message(
+        state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": text,
+                },
+            },
+        }),
+    );
+}
+
+fn change_occurrence_style_document(
+    state: &mut LspShellState,
+    uri: &str,
+    version: i64,
+    text: &str,
+) {
+    handle_lsp_message(
+        state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {"uri": uri, "version": version},
+                "contentChanges": [{"text": text}],
+            },
+        }),
+    );
 }
