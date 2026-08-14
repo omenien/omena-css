@@ -406,7 +406,7 @@
       },
       {
         "path": "rust/crates/omena-lsp-server/src/workspace_occurrences.rs",
-        "line": 245,
+        "line": 243,
         "function": "source_selector_workspace_occurrences_for_document",
         "operation": "str-eq",
         "evidence": "&& reference.name == selector_name,",
@@ -478,7 +478,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3297,
+        "line": 3384,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "str-eq",
         "evidence": "let target_class_names = if target_style_path == *style_path {",
@@ -487,7 +487,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3312,
+        "line": 3399,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
@@ -496,7 +496,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3318,
+        "line": 3405,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
@@ -505,7 +505,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3655,
+        "line": 3761,
         "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
         "operation": "insert",
         "evidence": "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:ae63d053992721d73a3fe9fb78a0b8b274443f2e6a566a7060f445635dd71ad0"
+    "siteDigest": "sha256:178411dc98362cedd8e35bf5062a33d593d70a63d10bb64ce04fb2894b4da778"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",

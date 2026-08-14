@@ -133,7 +133,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3830,
+      "line": 3936,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -142,7 +142,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3886,
+      "line": 3992,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -151,7 +151,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3972,
+      "line": 4078,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -1364,7 +1364,7 @@
       "reason": "Transform runtime scanning outside the preservation observer remains a named follow-up."
     }
   ],
-  "siteDigest": "sha256:ed6da268b8b63cbd0f290f677f008e2cf9b35c7e33f97d9afb326f43004a4ff9",
+  "siteDigest": "sha256:74bbb94bcec41b5d4b5cd6092b85e64a943c528ed16688200342bc979e04bdd1",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
