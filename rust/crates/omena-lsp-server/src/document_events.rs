@@ -187,7 +187,7 @@ pub(crate) fn did_close_text_document(state: &mut LspShellState, params: Option<
     }
     state.remove_document_uri(uri);
     if is_style_document_uri(uri) {
-        refresh_style_external_inputs_after_document_removal(state, previous_external_inputs);
+        refresh_style_external_inputs_after_document_removal(state, uri, previous_external_inputs);
         refresh_source_indexes_for_style_document_change(state, uri);
     }
 }

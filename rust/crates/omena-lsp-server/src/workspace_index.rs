@@ -201,7 +201,10 @@ pub fn apply_background_workspace_index_result(
         state
             .tide_ledger
             .advance(&[crate::tide::TideInputKindV0::DocumentSet]);
-        state.tide_reopen_republish_window();
+        state.tide_reopen_republish_window(crate::tide::TideDisownCauseV0::for_uris(
+            crate::tide::TideInputKindV0::DocumentSet,
+            bridge_source_uris.iter().cloned(),
+        ));
         crate::loop_trace!(
             "index-admit deposits sif demand (admitted={})",
             bridge_source_uris.len()
@@ -213,6 +216,7 @@ pub fn apply_background_workspace_index_result(
     }
     crate::refresh_external_sifs_for_bridge_source_delta(
         state,
+        &bridge_source_uris,
         previous_bridge_sources.as_slice(),
         next_bridge_sources.as_slice(),
     );

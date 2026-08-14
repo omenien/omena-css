@@ -1,7 +1,7 @@
 use crate::protocol::{file_uri_to_path, is_style_document_uri, normalize_path};
 use crate::tide::{
-    TideFootprintStampV0, TideFootprintV0, TideGateInputsV0, TideInputKindV0, TideLaneConfigV0,
-    TideRepublishDemandV0, TideSifDemandV0,
+    TideDisownCauseV0, TideFootprintStampV0, TideFootprintV0, TideGateInputsV0, TideInputKindV0,
+    TideLaneConfigV0, TideRepublishDemandV0, TideSifDemandV0,
 };
 use crate::{LspShellState, LspTextDocumentState};
 use omena_query::{
@@ -113,6 +113,7 @@ fn refresh_external_sifs_for_state_immediate(state: &mut LspShellState) {
 
 pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
     state: &mut LspShellState,
+    affected_document_uris: &[String],
     previous_sources: &[String],
     next_sources: &[String],
 ) {
@@ -139,7 +140,10 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         // stales any in-flight SIF job (footprint member) and deposits the
         // demand whose tide will re-resolve against the new topology.
         state.tide_ledger.advance(&[TideInputKindV0::DocumentSet]);
-        state.tide_reopen_republish_window();
+        state.tide_reopen_republish_window(TideDisownCauseV0::for_uris(
+            TideInputKindV0::DocumentSet,
+            affected_document_uris.iter().cloned(),
+        ));
         let tick = state.tide_tick;
         state
             .tide_sif_lane
@@ -416,7 +420,10 @@ pub fn apply_deferred_external_sif_refresh_result(
         invalidate_external_sif_dependents(state);
         // Output cutoff (rfcs#111 §4.1): only a CHANGED SIF set owes the
         // workspace republish; an Eq result blocks downstream entirely.
-        state.tide_reopen_republish_window();
+        state.tide_reopen_republish_window(TideDisownCauseV0::for_republish_demand(
+            TideInputKindV0::DocumentSet,
+            demand.clone(),
+        ));
         let tick = state.tide_tick;
         state.tide_republish_lane.deposit(demand, tick);
     }

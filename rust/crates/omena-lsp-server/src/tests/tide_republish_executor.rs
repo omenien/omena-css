@@ -244,7 +244,9 @@ fn disowned_republish_tide_drops_leftovers_and_rearms() -> Result<(), &'static s
     // watch moves, the wave aborts at item boundaries, and completion with
     // the stale generation must drop leftovers — the disowned demand is
     // owed again in the NEW window (per-epoch carry-over).
-    state.tide_reopen_republish_window();
+    state.tide_reopen_republish_window(crate::tide::TideDisownCauseV0::all(
+        crate::tide::TideInputKindV0::DocumentSet,
+    ));
     assert!(state.tide_republish_lane_generation() > generation);
     assert!(
         state.tide_republish_lane.has_demand(),
@@ -277,6 +279,203 @@ fn disowned_republish_tide_drops_leftovers_and_rearms() -> Result<(), &'static s
         "a disowned tide must not schedule fallback work"
     );
     assert!(!state.tide_republish_lane.in_flight());
+    Ok(())
+}
+
+#[test]
+fn disown_collision_census_attributes_in_cone_and_out_of_cone_drivers()
+-> Result<(), Box<dyn std::error::Error>> {
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-tide-disown-census-{}-{}",
+        std::process::id(),
+        crate::current_time_millis()
+    ));
+    let src_dir = workspace_path.join("src");
+    std::fs::create_dir_all(src_dir.as_path())?;
+    let alpha_path = src_dir.join("Alpha.module.scss");
+    let bystander_path = src_dir.join("Bystander.module.scss");
+    let external_path = src_dir.join("_External.scss");
+    let app_path = src_dir.join("App.tsx");
+    std::fs::write(alpha_path.as_path(), ".alpha { color: red; }\n")?;
+    std::fs::write(bystander_path.as_path(), ".bystander { color: green; }\n")?;
+    std::fs::write(external_path.as_path(), "$brand: blue;\n")?;
+    std::fs::write(
+        app_path.as_path(),
+        "import styles from './Alpha.module.scss';\nconst view = styles.al;\n",
+    )?;
+
+    let workspace_uri = crate::protocol::path_to_file_uri(workspace_path.as_path());
+    let alpha_uri = crate::protocol::path_to_file_uri(alpha_path.as_path());
+    let bystander_uri = crate::protocol::path_to_file_uri(bystander_path.as_path());
+    let external_uri = crate::protocol::path_to_file_uri(external_path.as_path());
+    let app_uri = crate::protocol::path_to_file_uri(app_path.as_path());
+    let mut state = LspShellState::default();
+    enable_deferred_external_sif_refresh(&mut state);
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": { "workspaceFolders": [{
+                "uri": workspace_uri,
+                "name": "workspace",
+            }] },
+        }),
+    );
+    open_document(
+        &mut state,
+        alpha_uri.as_str(),
+        "scss",
+        ".alpha { color: red; }",
+    );
+    open_document(
+        &mut state,
+        bystander_uri.as_str(),
+        "scss",
+        ".bystander { color: green; }",
+    );
+    open_document(
+        &mut state,
+        app_uri.as_str(),
+        "typescriptreact",
+        "import styles from './Alpha.module.scss';\nconst view = styles.al;",
+    );
+    settle_sif_lane(&mut state)?;
+    if let Some(startup) = prepare_tide_workspace_republish_job(&mut state, true) {
+        let generation = startup.generation;
+        collect_tide_workspace_republish_streaming(startup, &|_| true);
+        let _ = complete_tide_workspace_republish(&mut state, generation, Vec::new());
+    }
+
+    // Materialize the committed reverse-dependency scope before the cone
+    // flush. Without it the conservative fallback is All, and Bystander is
+    // correctly not classifiable as out-of-cone.
+    let _ = crate::resolve_style_diagnostics_for_uri(&state, alpha_uri.as_str());
+    state.tide_republish_lane.deposit(
+        TideRepublishDemandV0::cone([alpha_uri.clone()]),
+        state.tide_tick,
+    );
+    let first = prepare_tide_workspace_republish_job(&mut state, true)
+        .ok_or("the alpha cone must enter flight")?;
+    assert!(
+        !first
+            .target_uris_for_test()
+            .iter()
+            .any(|uri| crate::protocol::file_uri_equivalent(uri, bystander_uri.as_str())),
+        "the seeded edit must be outside the frozen alpha cone"
+    );
+
+    // A real unrelated document edit changes the deferred external-SIF
+    // document set. Removing the URI-set cause at that production advance
+    // site makes the out-of-cone assertion below fail.
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": { "uri": bystander_uri, "version": 2 },
+                "contentChanges": [{
+                    "text": format!(
+                        "@use \"{}\" as external;\n.bystander {{ color: external.$brand; }}",
+                        external_uri
+                    ),
+                }],
+            },
+        }),
+    );
+
+    let hover = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": { "uri": alpha_uri },
+                "position": { "line": 0, "character": 2 },
+            },
+        }),
+    );
+    assert!(
+        hover
+            .as_ref()
+            .and_then(|value| value.pointer("/result/contents"))
+            .is_some(),
+        "the scripted hover must execute against the measured workspace"
+    );
+    let completion = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": { "uri": app_uri },
+                "position": { "line": 1, "character": 22 },
+            },
+        }),
+    );
+    assert!(
+        completion
+            .as_ref()
+            .and_then(|value| value.pointer("/result/items"))
+            .and_then(serde_json::Value::as_array)
+            .is_some(),
+        "the scripted completion must execute against the measured workspace"
+    );
+
+    settle_sif_lane(&mut state)?;
+    let second = prepare_tide_workspace_republish_job(&mut state, true)
+        .ok_or("carried demand must enter a second flight")?;
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeConfiguration",
+            "params": { "settings": { "omena": { "diagnostics": {
+                "severity": "error",
+                "deepAnalysis": true,
+            } } } },
+        }),
+    );
+
+    let snapshot = state.snapshot();
+    let total: u64 = snapshot.tide_disowns_total.values().sum();
+    let out_of_cone: u64 = snapshot.tide_disowns_out_of_cone.values().sum();
+    assert_eq!(
+        snapshot.tide_disowns_total.get("documentSet"),
+        Some(&1),
+        "the unrelated document-set edit must disown one tide"
+    );
+    assert_eq!(
+        snapshot.tide_disowns_out_of_cone.get("documentSet"),
+        Some(&1),
+        "the deliberately seeded unrelated edit must be classified out-of-cone"
+    );
+    assert_eq!(
+        snapshot.tide_disowns_total.get("diagnosticSettings"),
+        Some(&1),
+        "the global diagnostic-settings driver must disown the second tide"
+    );
+    assert_eq!(
+        snapshot.tide_disowns_out_of_cone.get("diagnosticSettings"),
+        Some(&0),
+        "a global setting overlaps every in-flight cone"
+    );
+    assert_eq!((total, out_of_cone), (2, 1));
+    println!(
+        "tide-disown-census total={total} out_of_cone={out_of_cone} ratio={:.2} threshold=0.20 disposition=step-1-remains",
+        out_of_cone as f64 / total as f64
+    );
+
+    // The jobs are intentionally not executed: the test measures collision
+    // attribution at the reopen boundary. Dropping them proves both waves
+    // were genuinely in flight because their generation watches moved.
+    drop(first);
+    drop(second);
+    let _ = std::fs::remove_dir_all(workspace_path);
     Ok(())
 }
 

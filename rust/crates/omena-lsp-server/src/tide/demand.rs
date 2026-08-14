@@ -75,6 +75,48 @@ pub enum TideRepublishDemandV0 {
     All,
 }
 
+/// The semantic input that reopened a republish settle window and the
+/// portion of the workspace it can affect. An empty URI set is deliberately
+/// not overloaded as "unknown": global inputs use `All`, while document-set
+/// inputs carry the concrete documents whose membership changed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TideDisownCauseV0 {
+    pub(crate) kind: crate::tide::TideInputKindV0,
+    pub(crate) affected: TideRepublishDemandV0,
+}
+
+impl TideDisownCauseV0 {
+    pub(crate) fn all(kind: crate::tide::TideInputKindV0) -> Self {
+        Self {
+            kind,
+            affected: TideRepublishDemandV0::All,
+        }
+    }
+
+    pub(crate) fn for_uris(
+        kind: crate::tide::TideInputKindV0,
+        uris: impl IntoIterator<Item = String>,
+    ) -> Self {
+        Self {
+            kind,
+            affected: TideRepublishDemandV0::cone(uris),
+        }
+    }
+
+    pub(crate) fn for_republish_demand(
+        kind: crate::tide::TideInputKindV0,
+        affected: TideRepublishDemandV0,
+    ) -> Self {
+        Self { kind, affected }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct TideReopenV0 {
+    pub(crate) generation: u64,
+    pub(crate) disowned_cause: Option<TideDisownCauseV0>,
+}
+
 impl TideRepublishDemandV0 {
     pub fn cone(seeds: impl IntoIterator<Item = String>) -> Self {
         let seeds: BTreeSet<String> = seeds.into_iter().collect();
@@ -263,7 +305,19 @@ impl<D: TideDemandJoinV0> TideLaneV0<D> {
     /// window, so the coverage it owed is owed again (per-epoch carry-over;
     /// rfcs#111 §9.4). Returns the new generation for executors' gen-watch.
     pub fn reopen_window(&mut self) -> u64 {
-        if let Some(disowned) = self.in_flight.take() {
+        self.reopen_window_inner(None).generation
+    }
+
+    /// Production reopen with an attributed semantic-input cause. The lane
+    /// returns that cause only when it actually disowned an in-flight tide;
+    /// callers therefore cannot accidentally count harmless window probes as
+    /// collisions.
+    pub(crate) fn reopen_window_for_cause(&mut self, cause: TideDisownCauseV0) -> TideReopenV0 {
+        self.reopen_window_inner(Some(cause))
+    }
+
+    fn reopen_window_inner(&mut self, cause: Option<TideDisownCauseV0>) -> TideReopenV0 {
+        let disowned_cause = if let Some(disowned) = self.in_flight.take() {
             self.generation = self.generation.saturating_add(1);
             self.demand.join(disowned.demand);
             self.oldest_deposit_tick =
@@ -271,8 +325,14 @@ impl<D: TideDemandJoinV0> TideLaneV0<D> {
                     (Some(current), Some(carried)) => Some(current.min(carried)),
                     (tick, None) | (None, tick) => tick,
                 };
+            cause
+        } else {
+            None
+        };
+        TideReopenV0 {
+            generation: self.generation,
+            disowned_cause,
         }
-        self.generation
     }
 
     /// Executor completion for `generation`: discharges the frozen demand.

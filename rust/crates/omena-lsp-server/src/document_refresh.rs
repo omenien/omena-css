@@ -289,6 +289,7 @@ pub(crate) fn refresh_style_external_inputs_for_document_event(
     if previous.bridge_sources != next.bridge_sources {
         refresh_external_sifs_for_bridge_source_delta(
             state,
+            &[uri.to_string()],
             previous.bridge_sources.as_slice(),
             next.bridge_sources.as_slice(),
         );
@@ -297,11 +298,13 @@ pub(crate) fn refresh_style_external_inputs_for_document_event(
 
 pub(crate) fn refresh_style_external_inputs_after_document_removal(
     state: &mut LspShellState,
+    uri: &str,
     previous: StyleExternalDependencySnapshot,
 ) {
     if !previous.bridge_sources.is_empty() {
         refresh_external_sifs_for_bridge_source_delta(
             state,
+            &[uri.to_string()],
             previous.bridge_sources.as_slice(),
             &[],
         );

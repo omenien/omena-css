@@ -268,6 +268,9 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
         state
             .tide_ledger
             .advance(&[crate::tide::TideInputKindV0::DiagnosticSettings]);
+        state.tide_reopen_republish_window(crate::tide::TideDisownCauseV0::all(
+            crate::tide::TideInputKindV0::DiagnosticSettings,
+        ));
         let tick = state.tide_tick;
         state
             .tide_republish_lane
@@ -277,6 +280,9 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
         state
             .tide_ledger
             .advance(&[crate::tide::TideInputKindV0::ResolutionSettings]);
+        state.tide_reopen_republish_window(crate::tide::TideDisownCauseV0::all(
+            crate::tide::TideInputKindV0::ResolutionSettings,
+        ));
         refresh_source_indexes_for_resolution_settings_change(state);
     }
 }

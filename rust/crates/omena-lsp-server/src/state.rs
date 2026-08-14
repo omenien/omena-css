@@ -238,6 +238,12 @@ pub struct LspShellStateSnapshot {
     pub tide_republish_lane_in_flight: bool,
     pub tide_republish_lane_has_demand: bool,
     pub tide_starvation_alarm_count: u64,
+    /// Republish tides actually disowned, partitioned by the semantic input
+    /// kind that reopened the settle window.
+    pub tide_disowns_total: BTreeMap<String, u64>,
+    /// The subset of `tide_disowns_total` whose triggering document set did
+    /// not intersect the frozen tide's concrete target cone.
+    pub tide_disowns_out_of_cone: BTreeMap<String, u64>,
     /// Current backlog ages (ticks since the oldest un-flushed deposit),
     /// `None` while the lane is at bottom — the alarm count says starvation
     /// HAPPENED, these say how far behind each lane is NOW.
@@ -246,6 +252,15 @@ pub struct LspShellStateSnapshot {
     pub documents: Vec<LspTextDocumentState>,
     pub workspace_folders: Vec<LspWorkspaceFolderState>,
     pub watched_file_changes: Vec<LspWatchedFileChangeState>,
+}
+
+fn tide_disown_counts_by_driver(
+    counts: &[u64; crate::tide::ledger::TIDE_INPUT_KIND_COUNT],
+) -> BTreeMap<String, u64> {
+    crate::tide::TideInputKindV0::ALL
+        .into_iter()
+        .map(|kind| (kind.wire_name().to_string(), counts[kind as usize]))
+        .collect()
 }
 
 const DISPATCHED_REQUEST_PENDING: u8 = 0;
@@ -639,6 +654,8 @@ pub struct LspShellState {
     pub(crate) tide_ledger: crate::tide::TideEpochLedgerV0,
     pub(crate) tide_sif_lane: crate::tide::TideLaneV0<crate::tide::TideSifDemandV0>,
     pub(crate) tide_republish_lane: crate::tide::TideLaneV0<crate::tide::TideRepublishDemandV0>,
+    pub(crate) tide_disowns_total: [u64; crate::tide::ledger::TIDE_INPUT_KIND_COUNT],
+    pub(crate) tide_disowns_out_of_cone: [u64; crate::tide::ledger::TIDE_INPUT_KIND_COUNT],
     /// Executor-visible generation watch for the republish lane: flushes
     /// store their generation, window reopens bump it, and the off-loop wave
     /// compares it at item boundaries to abort disowned tides (rfcs#111).
@@ -871,6 +888,8 @@ impl LspShellState {
             tide_republish_lane_has_demand: self.tide_republish_lane.has_demand(),
             tide_starvation_alarm_count: self.tide_sif_lane.starvation_alarm_count()
                 + self.tide_republish_lane.starvation_alarm_count(),
+            tide_disowns_total: tide_disown_counts_by_driver(&self.tide_disowns_total),
+            tide_disowns_out_of_cone: tide_disown_counts_by_driver(&self.tide_disowns_out_of_cone),
             tide_sif_lane_oldest_deposit_age_ticks: self
                 .tide_sif_lane
                 .oldest_deposit_age_ticks(self.tide_tick),
@@ -921,10 +940,55 @@ impl LspShellState {
 
     /// Reopen the republish settle window: bump the lane generation (a
     /// running tide is disowned) and publish it to the executor watch.
-    pub(crate) fn tide_reopen_republish_window(&mut self) {
-        let generation = self.tide_republish_lane.reopen_window();
+    pub(crate) fn tide_reopen_republish_window(&mut self, cause: crate::tide::TideDisownCauseV0) {
+        let in_flight_demand = self.tide_republish_lane.in_flight_demand().cloned();
+        let out_of_cone = in_flight_demand
+            .as_ref()
+            .is_some_and(|demand| self.tide_disown_cause_is_out_of_cone(demand, &cause));
+        let reopened = self.tide_republish_lane.reopen_window_for_cause(cause);
+        if let Some(disowned_cause) = reopened.disowned_cause {
+            let index = disowned_cause.kind as usize;
+            self.tide_disowns_total[index] = self.tide_disowns_total[index].saturating_add(1);
+            if out_of_cone {
+                self.tide_disowns_out_of_cone[index] =
+                    self.tide_disowns_out_of_cone[index].saturating_add(1);
+            }
+            crate::loop_trace!(
+                "republish-tide disowned kind={} disposition={}",
+                disowned_cause.kind.wire_name(),
+                if out_of_cone {
+                    "out-of-cone"
+                } else {
+                    "in-cone"
+                }
+            );
+        }
         self.tide_republish_gen_watch
-            .store(generation, std::sync::atomic::Ordering::Relaxed);
+            .store(reopened.generation, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn tide_disown_cause_is_out_of_cone(
+        &self,
+        in_flight: &crate::tide::TideRepublishDemandV0,
+        cause: &crate::tide::TideDisownCauseV0,
+    ) -> bool {
+        use crate::tide::TideRepublishDemandV0;
+
+        match (&cause.affected, in_flight) {
+            (TideRepublishDemandV0::All, _)
+            | (_, TideRepublishDemandV0::All)
+            | (_, TideRepublishDemandV0::None) => false,
+            (TideRepublishDemandV0::None, TideRepublishDemandV0::Cone(_)) => true,
+            (TideRepublishDemandV0::Cone(affected), TideRepublishDemandV0::Cone(_)) => {
+                let targets =
+                    crate::diagnostics_follow_up::tide_republish_target_uris(self, in_flight);
+                !affected.iter().any(|affected_uri| {
+                    targets.iter().any(|target_uri| {
+                        crate::protocol::file_uri_equivalent(affected_uri, target_uri)
+                    })
+                })
+            }
+        }
     }
 
     #[cfg(feature = "salsa-style-diagnostics")]

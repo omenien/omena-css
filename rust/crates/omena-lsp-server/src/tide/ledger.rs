@@ -43,6 +43,18 @@ impl TideInputKindV0 {
         TideInputKindV0::DiagnosticSettings,
         TideInputKindV0::WorkspaceFolders,
     ];
+
+    pub(crate) const fn wire_name(self) -> &'static str {
+        match self {
+            Self::DocumentText => "documentText",
+            Self::DocumentSet => "documentSet",
+            Self::LockfileFingerprint => "lockfileFingerprint",
+            Self::PackageManifest => "packageManifest",
+            Self::ResolutionSettings => "resolutionSettings",
+            Self::DiagnosticSettings => "diagnosticSettings",
+            Self::WorkspaceFolders => "workspaceFolders",
+        }
+    }
 }
 
 /// A declared input set, constant per derivation.

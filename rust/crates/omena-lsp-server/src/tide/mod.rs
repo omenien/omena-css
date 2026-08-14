@@ -10,6 +10,7 @@
 pub mod demand;
 pub mod ledger;
 
+pub(crate) use demand::TideDisownCauseV0;
 pub use demand::{
     TideDemandJoinV0, TideFlushV0, TideGateInputsV0, TideLaneConfigV0, TideLaneV0,
     TideRepublishDemandV0, TideSifDemandV0,

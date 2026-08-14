@@ -1971,20 +1971,24 @@
     {
       "crate": "omena-lsp-server",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects and includes the already-landed language-server state additions.",
+      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects and includes the already-landed language-server state additions, including driver-attributed republish disown counters.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
             "field ScheduledLspOutput.diagnostics_publish_receipt",
             "field LspDeferredDiagnosticsDispatchV0.diagnostics_publish_registry",
-            "field LspShellStateSnapshot.source_type_fact_cache_telemetry"
+            "field LspShellStateSnapshot.source_type_fact_cache_telemetry",
+            "field LspShellStateSnapshot.tide_disowns_total",
+            "field LspShellStateSnapshot.tide_disowns_out_of_cone"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
             "ScheduledLspOutput.diagnostics_publish_receipt",
             "LspDeferredDiagnosticsDispatchV0.diagnostics_publish_registry",
-            "LspShellStateSnapshot.source_type_fact_cache_telemetry"
+            "LspShellStateSnapshot.source_type_fact_cache_telemetry",
+            "LspShellStateSnapshot.tide_disowns_total",
+            "LspShellStateSnapshot.tide_disowns_out_of_cone"
           ]
         },
         {
@@ -2029,6 +2033,30 @@
               "needles": [
                 "const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = \"1\";",
                 "const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = \"workspace-occurrence-shards-v2\";"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "lsp-tide-disown-collision-census-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "LspShellStateSnapshot.tideDisownsTotal and tideDisownsOutOfCone",
+          "reason": "The debug snapshot adds per-driver collision totals and the subset whose triggering document set did not intersect the frozen republish target cone.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
+              "needles": [
+                "pub tide_disowns_total: BTreeMap<String, u64>",
+                "pub tide_disowns_out_of_cone: BTreeMap<String, u64>",
+                "republish-tide disowned kind={} disposition={}"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/tests/tide_republish_executor.rs",
+              "needles": [
+                "fn disown_collision_census_attributes_in_cone_and_out_of_cone_drivers()",
+                "the deliberately seeded unrelated edit must be classified out-of-cone",
+                "tide-disown-census total={total} out_of_cone={out_of_cone}"
               ]
             }
           ]
