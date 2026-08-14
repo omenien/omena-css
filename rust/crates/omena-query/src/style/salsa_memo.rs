@@ -3369,7 +3369,7 @@ fn css_modules_resolution_with_identity_index_from_module_interfaces(
             )
         })
         .collect::<Vec<_>>();
-    summarize_css_modules_cross_file_resolution_from_module_interfaces_and_import_edges(
+    summarize_css_modules_cross_file_resolution_from_module_interfaces_and_pre_resolved_import_edges(
         module_interfaces,
         package_manifests,
         edges,

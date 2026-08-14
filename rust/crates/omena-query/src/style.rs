@@ -2658,6 +2658,23 @@ fn summarize_css_modules_cross_file_resolution_from_module_interfaces_and_import
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     edges: Vec<OmenaQueryCssModulesImportEdgeResolutionV0>,
 ) -> OmenaQueryCssModulesCrossFileResolutionV0 {
+    let semantic_facts = module_interfaces
+        .iter()
+        .map(|projection| projection.css_modules_style_facts.clone())
+        .collect::<Vec<_>>();
+    summarize_css_modules_cross_file_resolution_from_semantic_facts_and_import_edges(
+        semantic_facts,
+        package_manifests,
+        edges,
+    )
+}
+
+#[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
+fn summarize_css_modules_cross_file_resolution_from_module_interfaces_and_pre_resolved_import_edges(
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    edges: Vec<OmenaQueryCssModulesImportEdgeResolutionV0>,
+) -> OmenaQueryCssModulesCrossFileResolutionV0 {
     let mut semantic_facts = module_interfaces
         .iter()
         .map(|projection| projection.css_modules_style_facts.clone())
@@ -2707,6 +2724,18 @@ fn summarize_css_modules_cross_file_resolution_from_module_interfaces_and_import
             }
         }
     }
+    summarize_css_modules_cross_file_resolution_from_semantic_facts_and_import_edges(
+        semantic_facts,
+        package_manifests,
+        edges,
+    )
+}
+
+fn summarize_css_modules_cross_file_resolution_from_semantic_facts_and_import_edges(
+    semantic_facts: Vec<omena_semantic::CssModulesCrossFileStyleFactsV0>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    edges: Vec<OmenaQueryCssModulesImportEdgeResolutionV0>,
+) -> OmenaQueryCssModulesCrossFileResolutionV0 {
     let semantic_package_manifests = semantic_package_manifests_for_query(package_manifests);
     let closure_summary = omena_semantic::summarize_css_modules_cross_file_closure(
         semantic_facts.as_slice(),
