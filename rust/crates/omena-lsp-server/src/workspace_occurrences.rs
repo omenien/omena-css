@@ -18,14 +18,14 @@ use crate::{
         workspace_occurrence_from_source_selector_occurrence_for_lsp,
         workspace_occurrence_kind_from_source_reference_kind_for_lsp,
     },
-    protocol::{is_style_document_uri, workspace_folder_compatible},
+    protocol::{file_uri_equivalent, is_style_document_uri, workspace_folder_compatible},
     query_source_selector_reference_candidate_for_matching,
     query_style_selector_definition_for_matching, resolution_inputs_for_workspace_uri,
     state::{
         LspFileId, LspSourceSelectorOccurrenceDocumentKey, LspTextDocumentState,
         LspWorkspaceOccurrenceDocumentMemoEntry, LspWorkspaceOccurrenceIndexMemo,
     },
-    style_selector_definitions_from_open_documents,
+    style_selector_definitions_from_open_documents, style_selector_definitions_from_uri,
     style_symbol_provider::style_symbol_occurrence_read_set,
     style_symbol_workspace_occurrences_for_document,
     workspace_occurrence_cache::{
@@ -68,6 +68,10 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         && memo.environment_digest == environment_digest
         && memo.source_document_keys == source_document_keys
         && memo.style_document_keys == style_document_keys
+        && !memo
+            .document_entries
+            .values()
+            .any(workspace_occurrence_memo_entry_should_shadow)
     {
         return WorkspaceOccurrenceIndexes {
             definitions: memo.definitions.clone(),
@@ -94,7 +98,6 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
             .iter()
             .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
             .collect::<Vec<_>>();
-    let definitions_digest = workspace_occurrence_dependency_digest(&definitions);
     let mut workspace_occurrences = Vec::new();
     let mut source_occurrences = Vec::new();
     let mut document_entries = BTreeMap::new();
@@ -103,24 +106,55 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         let prior_entry = environment_matches
             .then(|| prior_memo.as_ref()?.document_entries.get(file_id))
             .flatten();
-        let document_occurrences = if let Some(entry) = prior_entry.filter(|entry| {
+        let reusable_entry = prior_entry.filter(|entry| {
             entry.document_key == document_key
-                && entry.dependency_digest == definitions_digest
-                && entry.dependency_document_uris.is_empty()
-        }) {
-            #[cfg(test)]
-            record_workspace_occurrence_memo_hit(document.uri.as_str());
-            entry.occurrences.clone()
-        } else {
-            cached_source_selector_workspace_occurrences_for_document(
-                state,
-                document,
-                workspace_folder_uri,
-                definitions.as_slice(),
-                definitions_digest.as_deref(),
-                shadow_mismatch_count.as_ref(),
-            )
-        };
+                && entry
+                    .dependency_document_uris
+                    .is_disjoint(&changed_document_uris)
+        });
+        let (document_occurrences, dependency_document_uris, dependency_digest) =
+            if let Some(entry) = reusable_entry {
+                #[cfg(test)]
+                record_workspace_occurrence_memo_hit(document.uri.as_str());
+                (
+                    workspace_occurrence_memo_value(
+                        document,
+                        entry,
+                        shadow_mismatch_count.as_ref(),
+                        || {
+                            let read_set = source_selector_occurrence_read_set(
+                                state,
+                                document,
+                                definitions.as_slice(),
+                            );
+                            extract_shadow_source_selector_workspace_occurrences_for_document(
+                                state,
+                                document,
+                                read_set.definitions.as_slice(),
+                            )
+                        },
+                    ),
+                    entry.dependency_document_uris.clone(),
+                    entry.dependency_digest.clone(),
+                )
+            } else {
+                let read_set =
+                    source_selector_occurrence_read_set(state, document, definitions.as_slice());
+                let document_occurrences =
+                    cached_source_selector_workspace_occurrences_for_document(
+                        state,
+                        document,
+                        workspace_folder_uri,
+                        read_set.definitions.as_slice(),
+                        read_set.dependency_digest.as_deref(),
+                        shadow_mismatch_count.as_ref(),
+                    );
+                (
+                    document_occurrences,
+                    read_set.dependency_document_uris,
+                    read_set.dependency_digest,
+                )
+            };
         workspace_occurrences.extend(document_occurrences.clone());
         source_occurrences.extend(
             document_occurrences
@@ -132,8 +166,8 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
             *file_id,
             LspWorkspaceOccurrenceDocumentMemoEntry {
                 document_key,
-                dependency_document_uris: BTreeSet::new(),
-                dependency_digest: definitions_digest.clone(),
+                dependency_document_uris,
+                dependency_digest,
                 occurrences: document_occurrences,
             },
         );
@@ -152,30 +186,44 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
                     .dependency_document_uris
                     .is_disjoint(&changed_document_uris)
         });
-        let (document_occurrences, dependency_document_uris, dependency_digest) =
-            if let Some(entry) = reusable_entry {
-                #[cfg(test)]
-                record_workspace_occurrence_memo_hit(document.uri.as_str());
-                (
-                    entry.occurrences.clone(),
-                    entry.dependency_document_uris.clone(),
-                    entry.dependency_digest.clone(),
-                )
-            } else {
-                let read_set = style_symbol_occurrence_read_set(state, document);
-                let occurrences = style_symbol_workspace_occurrences_for_document(
-                    state,
+        let (document_occurrences, dependency_document_uris, dependency_digest) = if let Some(
+            entry,
+        ) =
+            reusable_entry
+        {
+            #[cfg(test)]
+            record_workspace_occurrence_memo_hit(document.uri.as_str());
+            (
+                workspace_occurrence_memo_value(
                     document,
-                    workspace_folder_uri,
-                    read_set.dependency_digest.as_deref(),
+                    entry,
                     shadow_mismatch_count.as_ref(),
-                );
-                (
-                    occurrences,
-                    read_set.dependency_document_uris,
-                    read_set.dependency_digest,
-                )
-            };
+                    || {
+                        crate::style_symbol_provider::extract_fresh_style_symbol_workspace_occurrences_for_document(
+                                state,
+                                document,
+                                workspace_folder_uri,
+                            )
+                    },
+                ),
+                entry.dependency_document_uris.clone(),
+                entry.dependency_digest.clone(),
+            )
+        } else {
+            let read_set = style_symbol_occurrence_read_set(state, document);
+            let occurrences = style_symbol_workspace_occurrences_for_document(
+                state,
+                document,
+                workspace_folder_uri,
+                read_set.dependency_digest.as_deref(),
+                shadow_mismatch_count.as_ref(),
+            );
+            (
+                occurrences,
+                read_set.dependency_document_uris,
+                read_set.dependency_digest,
+            )
+        };
         workspace_occurrences.extend(document_occurrences.clone());
         document_entries.insert(
             *file_id,
@@ -247,6 +295,148 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         source_selector_index: index,
         workspace_index,
     }
+}
+
+#[derive(Debug, Clone)]
+struct SourceSelectorOccurrenceReadSetV1 {
+    definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
+    dependency_document_uris: BTreeSet<String>,
+    dependency_digest: Option<String>,
+}
+
+fn source_selector_occurrence_read_set(
+    state: &dyn LspQueryReadView,
+    document: &LspTextDocumentState,
+    workspace_definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+) -> SourceSelectorOccurrenceReadSetV1 {
+    let mut target_uris = document
+        .source_syntax_index
+        .imported_style_bindings
+        .iter()
+        .map(|binding| binding.style_uri.clone())
+        .chain(
+            document
+                .source_selector_candidates
+                .iter()
+                .filter_map(|candidate| candidate.target_style_uri.clone()),
+        )
+        .collect::<BTreeSet<_>>();
+    let has_unscoped_prefix = document.source_selector_candidates.iter().any(|candidate| {
+        candidate.kind == "sourceSelectorPrefixReference" && candidate.target_style_uri.is_none()
+    });
+    let requires_workspace_fallback = has_unscoped_prefix && target_uris.is_empty();
+    let mut definitions = if requires_workspace_fallback {
+        target_uris.extend(
+            workspace_definitions
+                .iter()
+                .map(|definition| definition.uri.clone()),
+        );
+        workspace_definitions.to_vec()
+    } else {
+        workspace_definitions
+            .iter()
+            .filter(|definition| {
+                target_uris.iter().any(|target_uri| {
+                    file_uri_equivalent(target_uri.as_str(), definition.uri.as_str())
+                })
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    if !requires_workspace_fallback {
+        for target_uri in &target_uris {
+            if definitions
+                .iter()
+                .any(|definition| file_uri_equivalent(target_uri.as_str(), definition.uri.as_str()))
+            {
+                continue;
+            }
+            definitions.extend(
+                style_selector_definitions_from_uri(state, target_uri.as_str())
+                    .iter()
+                    .map(|(uri, definition)| {
+                        query_style_selector_definition_for_matching(uri, definition)
+                    }),
+            );
+        }
+    }
+    definitions.sort_by(|left, right| {
+        (
+            left.uri.as_str(),
+            left.range.start.line,
+            left.range.start.character,
+            left.name.as_str(),
+        )
+            .cmp(&(
+                right.uri.as_str(),
+                right.range.start.line,
+                right.range.start.character,
+                right.name.as_str(),
+            ))
+    });
+    definitions.dedup();
+    let dependency_digest = workspace_occurrence_dependency_digest(&definitions);
+    let dependency_document_uris = target_uris
+        .iter()
+        .map(|target_uri| {
+            state
+                .query_documents()
+                .values()
+                .find(|candidate| file_uri_equivalent(target_uri.as_str(), candidate.uri.as_str()))
+                .map(|candidate| candidate.uri.clone())
+                .unwrap_or_else(|| target_uri.clone())
+        })
+        .collect();
+    SourceSelectorOccurrenceReadSetV1 {
+        definitions,
+        dependency_document_uris,
+        dependency_digest,
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn source_selector_occurrence_read_set_digest_for_test(
+    state: &dyn LspQueryReadView,
+    document: &LspTextDocumentState,
+    workspace_definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+) -> Option<String> {
+    source_selector_occurrence_read_set(state, document, workspace_definitions).dependency_digest
+}
+
+fn workspace_occurrence_memo_value(
+    document: &LspTextDocumentState,
+    entry: &LspWorkspaceOccurrenceDocumentMemoEntry,
+    shadow_mismatch_count: &AtomicU64,
+    fresh: impl FnOnce() -> Vec<OmenaWorkspaceOccurrenceV0>,
+) -> Vec<OmenaWorkspaceOccurrenceV0> {
+    if !workspace_occurrence_memo_entry_should_shadow(entry) {
+        return entry.occurrences.clone();
+    }
+    let fresh = fresh();
+    let cached_bytes = serde_json::to_vec(&entry.occurrences).map_err(|error| error.to_string());
+    let fresh_bytes = serde_json::to_vec(&fresh).map_err(|error| error.to_string());
+    let matches = cached_bytes.is_ok() && fresh_bytes.is_ok() && cached_bytes == fresh_bytes;
+    if matches {
+        return entry.occurrences.clone();
+    }
+    record_workspace_occurrence_shadow_mismatch(shadow_mismatch_count, document.uri.as_str());
+    if workspace_occurrence_shadow_asserts_on_mismatch() {
+        assert!(
+            matches,
+            "workspace occurrence RAM memo mismatch: document_uri={} cached_bytes={:?} fresh_bytes={:?}",
+            document.uri,
+            cached_bytes.as_ref().map(Vec::len),
+            fresh_bytes.as_ref().map(Vec::len),
+        );
+    }
+    fresh
+}
+
+fn workspace_occurrence_memo_entry_should_shadow(
+    entry: &LspWorkspaceOccurrenceDocumentMemoEntry,
+) -> bool {
+    workspace_occurrence_dependency_digest(&(&entry.document_key, &entry.dependency_digest))
+        .is_some_and(|key| workspace_occurrence_shard_should_shadow(key.as_str()))
 }
 
 pub(crate) fn source_selector_occurrence_index_from_open_documents(

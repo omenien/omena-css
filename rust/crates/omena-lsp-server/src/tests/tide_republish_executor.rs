@@ -576,7 +576,7 @@ fn disown_collision_census_attributes_in_cone_and_out_of_cone_drivers()
     );
     assert_eq!((total, out_of_cone), (2, 1));
     println!(
-        "tide-disown-census total={total} out_of_cone={out_of_cone} ratio={:.2} threshold=0.20 disposition=step-1-remains",
+        "tide-disown-census total={total} out_of_cone={out_of_cone} ratio={:.2}",
         out_of_cone as f64 / total as f64
     );
 

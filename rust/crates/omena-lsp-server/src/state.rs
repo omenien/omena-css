@@ -516,8 +516,8 @@ pub(crate) struct LspWorkspaceOccurrenceIndexMemo {
     pub(crate) source_selector_index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
     pub(crate) workspace_index: Arc<OmenaWorkspaceOccurrenceIndexV0>,
     /// Session-owned production shadow telemetry. Keeping the counter on the
-    /// shared memo prevents process-global test leakage while query snapshots
-    /// and the loop observe the same repair count.
+    /// shared memo prevents process-global test leakage and preserves one count
+    /// across query-snapshot rebuilds. No current product wire reads this value.
     pub(crate) shadow_mismatch_count: Arc<AtomicU64>,
 }
 

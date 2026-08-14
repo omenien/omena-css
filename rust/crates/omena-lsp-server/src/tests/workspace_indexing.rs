@@ -4886,6 +4886,177 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
 }
 
 #[test]
+fn workspace_occurrence_source_entries_follow_imported_style_read_set() -> TestResult {
+    let WorkspaceOccurrenceReadSetFixtureV0 {
+        mut state,
+        workspace_root,
+        workspace_uri,
+        app_uri,
+        usage_uri,
+        unrelated_uri,
+        ..
+    } = workspace_occurrence_read_set_fixture("source-read-set")?;
+    crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+        &state,
+        Some(workspace_uri.as_str()),
+    );
+
+    change_occurrence_style_document(
+        &mut state,
+        unrelated_uri.as_str(),
+        2,
+        ".other { color: green; }\n",
+    );
+    crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+    crate::workspace_occurrence_cache::reset_workspace_occurrence_shard_read_counts_for_test();
+    crate::workspace_occurrences::reset_workspace_occurrence_memo_hit_counts_for_test();
+    crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+        &state,
+        Some(workspace_uri.as_str()),
+    );
+    assert_eq!(
+        crate::workspace_occurrences::workspace_occurrence_memo_hit_count_for_test(
+            usage_uri.as_str(),
+        ),
+        1,
+        "an unrelated style rename must keep the importing source entry in the RAM memo",
+    );
+    assert_eq!(
+        crate::style_symbol_provider::workspace_occurrence_extractor_rebuild_count_for_test(
+            usage_uri.as_str(),
+        ),
+        0,
+        "an unrelated style rename must not re-extract the source document",
+    );
+    assert_eq!(
+        crate::workspace_occurrence_cache::workspace_occurrence_shard_read_count_for_test(
+            usage_uri.as_str(),
+        ),
+        0,
+        "an unrelated style rename must not consult the source document's disk shard",
+    );
+
+    *state.workspace_occurrence_index_memo_lock() = None;
+    crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+    crate::workspace_occurrence_cache::reset_workspace_occurrence_shard_read_counts_for_test();
+    crate::workspace_occurrences::reset_workspace_occurrence_memo_hit_counts_for_test();
+    crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+        &state,
+        Some(workspace_uri.as_str()),
+    );
+    assert_eq!(
+        crate::workspace_occurrence_cache::workspace_occurrence_shard_read_count_for_test(
+            usage_uri.as_str(),
+        ),
+        1,
+        "the narrowed source read-set key must rehydrate the same disk shard after an unrelated rename",
+    );
+    assert_eq!(
+        crate::style_symbol_provider::workspace_occurrence_extractor_rebuild_count_for_test(
+            usage_uri.as_str(),
+        ),
+        0,
+        "the narrowed source shard key must avoid re-extraction after an unrelated rename",
+    );
+
+    change_occurrence_style_document(
+        &mut state,
+        app_uri.as_str(),
+        2,
+        ".renamed { color: red; }\n",
+    );
+    crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+    crate::workspace_occurrence_cache::reset_workspace_occurrence_shard_read_counts_for_test();
+    crate::workspace_occurrences::reset_workspace_occurrence_memo_hit_counts_for_test();
+    crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+        &state,
+        Some(workspace_uri.as_str()),
+    );
+    assert_eq!(
+        crate::workspace_occurrences::workspace_occurrence_memo_hit_count_for_test(
+            usage_uri.as_str(),
+        ),
+        0,
+        "renaming a selector in the imported style must invalidate the source memo entry",
+    );
+    assert_eq!(
+        crate::style_symbol_provider::workspace_occurrence_extractor_rebuild_count_for_test(
+            usage_uri.as_str(),
+        ),
+        1,
+        "an imported-style edit must re-extract exactly the affected source document",
+    );
+    eprintln!(
+        "workspace-occurrence-source-read-set unrelated_style_rename_source_memo_hits=1 unrelated_style_rename_source_rebuilds=0 unrelated_style_rename_source_shard_reads=0 cold_memo_rehydrate_source_shard_reads=1 cold_memo_rehydrate_source_rebuilds=0 imported_style_rename_source_memo_hits=0 imported_style_rename_source_rebuilds=1",
+    );
+
+    let _ = std::fs::remove_dir_all(workspace_root);
+    Ok(())
+}
+
+#[test]
+fn workspace_occurrence_ram_memo_shadow_repairs_content_divergence() -> TestResult {
+    let WorkspaceOccurrenceReadSetFixtureV0 {
+        state,
+        workspace_root,
+        workspace_uri,
+        usage_uri,
+        ..
+    } = workspace_occurrence_read_set_fixture("memo-value-shadow")?;
+    let cold = crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+        &state,
+        Some(workspace_uri.as_str()),
+    );
+    assert!(
+        cold.source_selector_index
+            .occurrences
+            .iter()
+            .any(|occurrence| occurrence.uri == usage_uri),
+        "the source fixture must produce an occurrence before corrupting the memo value",
+    );
+    let usage_file_id = state
+        .document_file_id(usage_uri.as_str())
+        .ok_or("missing source fixture file id")?;
+    let shadow_mismatch_count = {
+        let mut memo = state.workspace_occurrence_index_memo_lock();
+        let memo = memo.as_mut().ok_or("missing workspace occurrence memo")?;
+        memo.document_entries
+            .get_mut(&usage_file_id)
+            .ok_or("missing source memo entry")?
+            .occurrences
+            .clear();
+        std::sync::Arc::clone(&memo.shadow_mismatch_count)
+    };
+    let repaired =
+        crate::workspace_occurrence_cache::with_workspace_occurrence_shadow_all_for_test(|| {
+            crate::workspace_occurrence_cache::with_workspace_occurrence_shadow_recovery_for_test(
+                || {
+                    crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                        &state,
+                        Some(workspace_uri.as_str()),
+                    )
+                },
+            )
+        });
+    assert!(
+        repaired
+            .source_selector_index
+            .occurrences
+            .iter()
+            .any(|occurrence| occurrence.uri == usage_uri),
+        "the RAM memo value oracle must replace a content-divergent cached value",
+    );
+    assert_eq!(
+        shadow_mismatch_count.load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "the RAM memo value oracle must account the repaired mismatch",
+    );
+
+    let _ = std::fs::remove_dir_all(workspace_root);
+    Ok(())
+}
+
+#[test]
 fn workspace_occurrence_shadow_samples_both_production_serve_arms() -> TestResult {
     for arm in [
         WorkspaceOccurrenceServeArmV0::Style,
@@ -5094,6 +5265,7 @@ fn workspace_occurrence_release_timing_uses_comparable_corpus() -> TestResult {
     let mut cold_ms = Vec::with_capacity(SAMPLE_COUNT);
     let mut production_shadow_ms = Vec::with_capacity(SAMPLE_COUNT);
     let mut unrelated_edit_ms = Vec::with_capacity(SAMPLE_COUNT);
+    let mut unrelated_edit_source_rebuilds = Vec::with_capacity(SAMPLE_COUNT);
     let mut full_shadow_ms = Vec::with_capacity(SAMPLE_COUNT);
     let mut production_verified_hits = Vec::with_capacity(SAMPLE_COUNT);
     let mut full_verified_hits = Vec::with_capacity(SAMPLE_COUNT);
@@ -5129,7 +5301,7 @@ fn workspace_occurrence_release_timing_uses_comparable_corpus() -> TestResult {
             &mut state,
             unrelated_uri.as_str(),
             2,
-            ".unrelated { color: blue; }\n",
+            ".renamed-unrelated { color: blue; }\n",
         );
         crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
         let started = std::time::Instant::now();
@@ -5138,6 +5310,21 @@ fn workspace_occurrence_release_timing_uses_comparable_corpus() -> TestResult {
             Some(workspace_uri.as_str()),
         );
         unrelated_edit_ms.push(started.elapsed().as_secs_f64() * 1_000.0);
+        unrelated_edit_source_rebuilds.push(
+            (0..SOURCE_DOCUMENT_COUNT)
+                .map(|ordinal| {
+                    let uri = path_to_file_uri(
+                        workspace_root
+                            .join("src")
+                            .join(format!("Usage{ordinal:03}.tsx"))
+                            .as_path(),
+                    );
+                    crate::style_symbol_provider::workspace_occurrence_extractor_rebuild_count_for_test(
+                        uri.as_str(),
+                    )
+                })
+                .sum::<u64>(),
+        );
 
         *state.workspace_occurrence_index_memo_lock() = None;
         crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
@@ -5159,24 +5346,34 @@ fn workspace_occurrence_release_timing_uses_comparable_corpus() -> TestResult {
     cold_ms.sort_by(f64::total_cmp);
     production_shadow_ms.sort_by(f64::total_cmp);
     unrelated_edit_ms.sort_by(f64::total_cmp);
+    unrelated_edit_source_rebuilds.sort_unstable();
     full_shadow_ms.sort_by(f64::total_cmp);
     production_verified_hits.sort_unstable();
     full_verified_hits.sort_unstable();
     let middle = SAMPLE_COUNT / 2;
     eprintln!(
-        "workspace-occurrence-release-timing documents={} style_documents={} source_documents={} samples={} production_shadow_rate=1/16 cold_ms_p50={:.3} production_shadow_ms_p50={:.3} unrelated_edit_ms_p50={:.3} full_shadow_ms_p50={:.3} production_verified_hits_p50={} full_verified_hits_p50={}",
+        "workspace-occurrence-release-timing documents={} style_documents={} source_documents={} samples={} production_shadow_rate=1/16 cold_ms_min={:.3} cold_ms_p50={:.3} cold_ms_max={:.3} production_shadow_ms_p50={:.3} unrelated_style_rename_ms_min={:.3} unrelated_style_rename_ms_p50={:.3} unrelated_style_rename_ms_max={:.3} unrelated_style_rename_source_rebuilds_p50={} full_shadow_ms_p50={:.3} production_verified_hits_p50={} full_verified_hits_p50={}",
         STYLE_DOCUMENT_COUNT + SOURCE_DOCUMENT_COUNT,
         STYLE_DOCUMENT_COUNT,
         SOURCE_DOCUMENT_COUNT,
         SAMPLE_COUNT,
+        cold_ms[0],
         cold_ms[middle],
+        cold_ms[SAMPLE_COUNT - 1],
         production_shadow_ms[middle],
+        unrelated_edit_ms[0],
         unrelated_edit_ms[middle],
+        unrelated_edit_ms[SAMPLE_COUNT - 1],
+        unrelated_edit_source_rebuilds[middle],
         full_shadow_ms[middle],
         production_verified_hits[middle],
         full_verified_hits[middle],
     );
     assert!(production_verified_hits[middle] > 0);
+    assert_eq!(
+        unrelated_edit_source_rebuilds[middle], 0,
+        "renaming an unrelated style must not rebuild any source occurrence entry",
+    );
     assert_eq!(
         full_verified_hits[middle],
         (STYLE_DOCUMENT_COUNT + SOURCE_DOCUMENT_COUNT) as u64,
@@ -5233,7 +5430,9 @@ fn workspace_occurrence_sampled_read_set_fixture(
                     query_style_selector_definition_for_matching(uri, definition)
                 })
                 .collect::<Vec<_>>();
-                crate::workspace_occurrence_cache::workspace_occurrence_dependency_digest(
+                crate::workspace_occurrences::source_selector_occurrence_read_set_digest_for_test(
+                    &fixture.state,
+                    document,
                     &definitions,
                 )
             }

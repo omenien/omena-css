@@ -525,6 +525,33 @@ mod tests {
         assert!(scoped.is_some());
         assert!(all_workspaces.is_some());
         assert_ne!(scoped, all_workspaces);
+        let dropped_scoped =
+            with_workspace_occurrence_key_workspace_folder_uri_drop_for_test(|| {
+                workspace_occurrence_shard_key(
+                    Some("file:///workspace"),
+                    Some("file:///workspace"),
+                    "file:///workspace/src/App.module.scss",
+                    "scss",
+                    "blake3:text",
+                    Some("blake3:read-set"),
+                    &resolution_inputs,
+                )
+            });
+        let dropped_all = with_workspace_occurrence_key_workspace_folder_uri_drop_for_test(|| {
+            workspace_occurrence_shard_key(
+                Some("file:///workspace"),
+                None,
+                "file:///workspace/src/App.module.scss",
+                "scss",
+                "blake3:text",
+                Some("blake3:read-set"),
+                &resolution_inputs,
+            )
+        });
+        assert_eq!(
+            dropped_scoped, dropped_all,
+            "the seeded drop must collapse exactly the workspace-scope key distinction",
+        );
     }
 
     #[test]
