@@ -139,6 +139,52 @@ describe("createServer transport discriminated union", () => {
       rmSync(workspacePath, { recursive: true, force: true });
     }
   });
+
+  it("downgrades source-corpus completeness when the client cannot register dynamic watchers", async () => {
+    vi.stubEnv("OMENA_SELECTED_QUERY_BACKEND", "rust-selected-query");
+    const workspacePath = mkdtempSync(path.join(tmpdir(), "omena-no-watcher-channel-"));
+    try {
+      mkdirSync(path.join(workspacePath, "src"));
+      const sourcePath = path.join(workspacePath, "src/App.tsx");
+      writeFileSync(sourcePath, "export const value = 1;\n");
+      client = createInProcessServer({
+        workspacePath,
+        sourceFileSupplier: () => supplierFor([sourcePath]),
+        readStyleFile: () => ".button { color: red; }\n",
+        typeResolver: new FakeTypeResolver(),
+      });
+      await client.initialize({
+        capabilities: {
+          workspace: {
+            workspaceFolders: true,
+          },
+        },
+      });
+      client.initialized();
+      const styleUri = "file:///fake/workspace/src/Button.module.scss";
+      client.didOpen({
+        textDocument: {
+          uri: styleUri,
+          languageId: "scss",
+          version: 1,
+          text: ".button { color: red; }\n",
+        },
+      });
+      await client.waitForDiagnostics(styleUri);
+
+      const selectorUsageCall = selectedQueryRunner.mock.calls.find(
+        ([command]) => command === "style-diagnostics-for-file",
+      );
+      expect(selectorUsageCall?.[1]).toMatchObject({
+        sourceCorpusComplete: false,
+        sourceDocuments: [],
+      });
+    } finally {
+      client?.dispose();
+      client = null;
+      rmSync(workspacePath, { recursive: true, force: true });
+    }
+  });
 });
 
 function supplierFor(paths: readonly string[]): AsyncIterable<FileTask> {

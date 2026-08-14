@@ -53,6 +53,10 @@ describe("workspace source-path inventory", () => {
     inventory.applyFileChange("/fake/ws/src/App.tsx", "changed");
     expect(inventory.readSourceFile("/fake/ws/src/App.tsx")?.cacheHit).toBe(false);
     expect(readSourceFile).toHaveBeenCalledTimes(2);
+
+    inventory.setDynamicWatcherCoverage(false);
+    expect(inventory.readSourceFile("/fake/ws/src/App.tsx")?.cacheHit).toBe(false);
+    expect(readSourceFile).toHaveBeenCalledTimes(3);
   });
 
   it("bounds watcher-backed source bytes with least-recently-used eviction", async () => {
