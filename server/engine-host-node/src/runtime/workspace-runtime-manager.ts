@@ -30,6 +30,7 @@ export interface WorkspaceRuntimeManager {
   getDepsForFilePath(filePath: string): WorkspaceProviderDeps | null;
   hasFolder(folderUri: string): boolean;
   getFolders(): readonly WorkspaceFolderInfo[];
+  setSourcePathInventoryWatcherCoverage(available: boolean): void;
   registerInitialFolders(folders: readonly WorkspaceFolderInfo[]): void;
   applyWorkspaceFolderChange(
     event: {
@@ -48,6 +49,7 @@ export function createWorkspaceRuntimeManager(
 ): WorkspaceRuntimeManager {
   const registry = new WorkspaceRegistry();
   const runtimes = new Map<string, WorkspaceRuntime>();
+  let sourcePathInventoryWatcherCoverage = false;
 
   return {
     getRegistry(): WorkspaceRegistry {
@@ -65,9 +67,15 @@ export function createWorkspaceRuntimeManager(
     getFolders(): readonly WorkspaceFolderInfo[] {
       return registry.getFolders();
     },
+    setSourcePathInventoryWatcherCoverage(available): void {
+      sourcePathInventoryWatcherCoverage = available;
+      for (const runtime of runtimes.values()) {
+        runtime.deps.setSourcePathInventoryWatcherCoverage(available);
+      }
+    },
     registerInitialFolders(folders: readonly WorkspaceFolderInfo[]): void {
       for (const folder of folders) {
-        registerWorkspaceRuntime({
+        const runtime = registerWorkspaceRuntime({
           registry,
           runtimes,
           folder,
@@ -81,6 +89,7 @@ export function createWorkspaceRuntimeManager(
           serverName: args.serverName,
           getModeForStylePath: args.getModeForStylePath,
         });
+        runtime.deps.setSourcePathInventoryWatcherCoverage(sourcePathInventoryWatcherCoverage);
       }
     },
     applyWorkspaceFolderChange(event, documents): void {
@@ -94,7 +103,7 @@ export function createWorkspaceRuntimeManager(
     },
     addFolder(folder: WorkspaceFolderInfo): void {
       if (registry.getFolder(folder.uri)) return;
-      registerWorkspaceRuntime({
+      const runtime = registerWorkspaceRuntime({
         registry,
         runtimes,
         folder,
@@ -108,6 +117,7 @@ export function createWorkspaceRuntimeManager(
         serverName: args.serverName,
         getModeForStylePath: args.getModeForStylePath,
       });
+      runtime.deps.setSourcePathInventoryWatcherCoverage(sourcePathInventoryWatcherCoverage);
     },
     removeFolder(folderUri: string, documents: RuntimeDocumentsLike): boolean {
       return unregisterWorkspaceRuntime({

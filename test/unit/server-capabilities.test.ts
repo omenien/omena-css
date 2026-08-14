@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import type { Connection } from "vscode-languageserver/node";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildServerCapabilities,
+  registerDynamicFileWatchers,
   resolveClientRuntimeCapabilities,
 } from "../../server/lsp-server/src/server-capabilities";
 
@@ -32,5 +34,27 @@ describe("server capabilities", () => {
       codeLensRefresh: true,
       workspaceFolders: true,
     });
+  });
+
+  it("reports watcher registration success instead of assuming capability support", async () => {
+    const dispose = vi.fn();
+    const register = vi.fn().mockResolvedValue({ dispose });
+    const connection = { client: { register } } as unknown as Connection;
+
+    const result = await registerDynamicFileWatchers(connection, true);
+    expect(result?.registered).toBe(true);
+    result?.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it("reports registration failure and unsupported clients as incomplete coverage", async () => {
+    const connection = {
+      client: { register: vi.fn().mockRejectedValue(new Error("client rejected registration")) },
+    } as unknown as Connection;
+
+    await expect(registerDynamicFileWatchers(connection, true)).resolves.toMatchObject({
+      registered: false,
+    });
+    expect(registerDynamicFileWatchers(connection, false)).toBeNull();
   });
 });

@@ -56,7 +56,7 @@ export function buildServerCapabilities(): InitializeResult["capabilities"] {
 export function registerDynamicFileWatchers(
   connection: Connection,
   dynamicWatchers: boolean,
-): Promise<{ dispose(): void }> | null {
+): Promise<DynamicFileWatcherRegistration> | null {
   if (!dynamicWatchers) return null;
   return connection.client
     .register(DidChangeWatchedFilesNotification.type, {
@@ -70,5 +70,19 @@ export function registerDynamicFileWatchers(
         { globPattern: "**/webpack.config.{ts,mts,cts,js,mjs,cjs}" },
       ],
     })
-    .catch(() => ({ dispose: () => {} }));
+    .then(
+      (registration) => ({
+        registered: true,
+        dispose: () => registration.dispose(),
+      }),
+      () => ({
+        registered: false,
+        dispose: () => {},
+      }),
+    );
+}
+
+export interface DynamicFileWatcherRegistration {
+  readonly registered: boolean;
+  dispose(): void;
 }

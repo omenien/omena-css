@@ -62,6 +62,42 @@ describe("buildSharedRuntimeCaches", () => {
     runtimeManager.disposeAll({ all: () => [] });
   });
 
+  it("propagates proved watcher coverage into existing and later workspace inventories", async () => {
+    const { runtimeManager } = createServerRuntimeManager({
+      options: {
+        fileSupplier: async function* () {},
+        sourceFileSupplier: async function* () {
+          yield { path: "/fake/ws/src/App.tsx" };
+          yield { path: "/fake/later/src/Later.ts" };
+        },
+        fileExists: () => false,
+      },
+      readStyleFile: () => null,
+      readOpenDocumentText: () => null,
+      sink: makeSink(),
+      serverName: "test",
+    });
+    runtimeManager.registerInitialFolders([
+      { uri: "file:///fake/ws", rootPath: "/fake/ws", name: "fake" },
+    ]);
+    const firstDeps = runtimeManager.getDepsForFilePath("/fake/ws/src/App.tsx");
+    await firstDeps?.indexerReady;
+    expect(firstDeps?.completeSourcePathEnumeration?.()).toBeNull();
+
+    runtimeManager.setSourcePathInventoryWatcherCoverage(true);
+    expect(firstDeps?.completeSourcePathEnumeration?.()).toContain("/fake/ws/src/App.tsx");
+
+    runtimeManager.addFolder({
+      uri: "file:///fake/later",
+      rootPath: "/fake/later",
+      name: "later",
+    });
+    const laterDeps = runtimeManager.getDepsForFilePath("/fake/later/src/Later.ts");
+    await laterDeps?.indexerReady;
+    expect(laterDeps?.completeSourcePathEnumeration?.()).toContain("/fake/later/src/Later.ts");
+    runtimeManager.disposeAll({ all: () => [] });
+  });
+
   it("caches package manifest reads without caching normal style files", () => {
     const caches = buildSharedRuntimeCaches();
     const reads = new Map<string, number>();

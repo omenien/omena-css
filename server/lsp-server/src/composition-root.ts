@@ -10,7 +10,11 @@ import { TextDocument } from "vscode-languageserver-textdocument";
 import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
 import type { FileTask } from "../../engine-core-ts/src/core/indexing/indexer-worker";
 import { registerHandlers } from "./handler-registration";
-import { buildServerCapabilities, registerDynamicFileWatchers } from "./server-capabilities";
+import {
+  buildServerCapabilities,
+  registerDynamicFileWatchers,
+  type DynamicFileWatcherRegistration,
+} from "./server-capabilities";
 import { createServerRuntimeSession, type ServerRuntimeSession } from "./server-runtime-session";
 import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/workspace-registry";
 import { defaultReadStyleFile } from "../../engine-host-node/src/runtime";
@@ -90,7 +94,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
 
   let registry: WorkspaceRegistry | null = null;
   let session: ServerRuntimeSession | null = null;
-  let watchedFilesDisposable: Promise<{ dispose(): void }> | null = null;
+  let watchedFilesDisposable: Promise<DynamicFileWatcherRegistration> | null = null;
 
   // ── Lifecycle ──────────────────────────────────────────────
 
@@ -135,12 +139,21 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         handlers.refreshSettings();
       });
     }
-    watchedFilesDisposable = registerDynamicFileWatchers(
+    const initializedSession = session;
+    const watcherRegistration = registerDynamicFileWatchers(
       connection,
-      session.clientCapabilities.dynamicWatchers,
+      initializedSession.clientCapabilities.dynamicWatchers,
     );
-    if (!watchedFilesDisposable) {
+    if (!watcherRegistration) {
+      initializedSession.setSourcePathInventoryWatcherCoverage(false);
       watchedFilesDisposable = null;
+    } else {
+      watchedFilesDisposable = watcherRegistration.then((registration) => {
+        if (session === initializedSession) {
+          initializedSession.setSourcePathInventoryWatcherCoverage(registration.registered);
+        }
+        return registration;
+      });
     }
     handlers.refreshSettings();
   });

@@ -16,14 +16,23 @@ import type {
   StyleSemanticGraphBatchOutputCache,
   StyleSemanticGraphCache,
 } from "../../engine-host-node/src/style-semantic-graph-query-backend";
-import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../engine-host-node/src/selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  type RustSelectedQueryBackendJsonRunnerAsync,
+} from "../../engine-host-node/src/selected-query-backend";
 import { loadExternalSifsForWorkspace } from "../../engine-host-node/src/external-sif-loader";
+import type {
+  SourceCorpusFileRead,
+  SourceCorpusReadCounters,
+} from "../../engine-host-node/src/runtime/workspace-source-path-inventory";
 
 type RuntimeProviderDeps = ProviderDeps & {
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
   readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
   readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
+  readonly readSourceFileForCorpus?: (filePath: string) => SourceCorpusFileRead | null;
+  readonly sourceCorpusReadCounters?: () => SourceCorpusReadCounters;
 };
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;
@@ -44,6 +53,29 @@ export interface DiagnosticsScheduler {
   ensureReadySubscribed(): void;
   /** Cancel pending timers for a closed document and clear its diagnostics. */
   handleDocumentClose(uri: string): void;
+  sourceCorpusSupplyCounters(): SourceCorpusSupplyCounters;
+}
+
+export interface SourceCorpusSupplyCounters {
+  readonly collections: number;
+  readonly skippedForBackend: number;
+  readonly incompleteCollections: number;
+  readonly suppliedFiles: number;
+  readonly suppliedBytes: number;
+  readonly diskReadFiles: number;
+  readonly diskReadBytes: number;
+  readonly cacheHitFiles: number;
+}
+
+interface MutableSourceCorpusSupplyCounters {
+  collections: number;
+  skippedForBackend: number;
+  incompleteCollections: number;
+  suppliedFiles: number;
+  suppliedBytes: number;
+  diskReadFiles: number;
+  diskReadBytes: number;
+  cacheHitFiles: number;
 }
 
 const SEVERITY_MAP: Record<string, DiagnosticSeverity> = {
@@ -79,6 +111,16 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
   private indexReady = false;
   private stopped = false;
   private readonly readySubscribed = new Set<string>();
+  private readonly sourceCorpusCounters: MutableSourceCorpusSupplyCounters = {
+    collections: 0,
+    skippedForBackend: 0,
+    incompleteCollections: 0,
+    suppliedFiles: 0,
+    suppliedBytes: 0,
+    diskReadFiles: 0,
+    diskReadBytes: 0,
+    cacheHitFiles: 0,
+  };
 
   constructor(
     private readonly deps: DiagnosticsSchedulerDeps,
@@ -106,6 +148,10 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
 
   refreshSettings(s: WindowSettings): void {
     this.currentSettings = s;
+  }
+
+  sourceCorpusSupplyCounters(): SourceCorpusSupplyCounters {
+    return { ...this.sourceCorpusCounters };
   }
 
   ensureReadySubscribed(): void {
@@ -174,7 +220,14 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     const filePath = fileUrlToPath(uri);
     const styleDocument = providerDeps.styleDocumentForPath(filePath);
     if (!styleDocument) return;
-    const sourceCorpus = this.collectSourceCorpus(providerDeps, filePath);
+    const sourceCorpus = this.shouldCollectSourceCorpus(runtimeProviderDeps)
+      ? this.collectSourceCorpus(runtimeProviderDeps, filePath)
+      : null;
+    if (sourceCorpus === null) {
+      this.sourceCorpusCounters.skippedForBackend += 1;
+    } else {
+      this.recordSourceCorpusSupply(sourceCorpus);
+    }
     const diagnostics = computeScssUnusedDiagnostics(
       filePath,
       styleDocument,
@@ -212,8 +265,8 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
                 runtimeProviderDeps.runRustSelectedQueryBackendJsonAsync,
             }
           : {}),
-        sourceDocuments: sourceCorpus.documents,
-        ...(sourceCorpus.completeSourcePathEnumeration !== null
+        ...(sourceCorpus ? { sourceDocuments: sourceCorpus.documents } : {}),
+        ...(sourceCorpus !== null && sourceCorpus.completeSourcePathEnumeration !== null
           ? {
               completeSourcePathEnumeration: sourceCorpus.completeSourcePathEnumeration,
             }
@@ -228,6 +281,25 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     this.safeSendDiagnostics(uri, diagnostics);
   }
 
+  private shouldCollectSourceCorpus(providerDeps: RuntimeProviderDeps): boolean {
+    return (
+      providerDeps.runRustSelectedQueryBackendJsonAsync !== undefined &&
+      resolveSelectedQueryBackendKind(process.env) === "rust-selected-query"
+    );
+  }
+
+  private recordSourceCorpusSupply(sourceCorpus: SourceCorpusCollection): void {
+    this.sourceCorpusCounters.collections += 1;
+    if (sourceCorpus.completeSourcePathEnumeration === null) {
+      this.sourceCorpusCounters.incompleteCollections += 1;
+    }
+    this.sourceCorpusCounters.suppliedFiles += sourceCorpus.documents.length;
+    this.sourceCorpusCounters.suppliedBytes += sourceCorpus.suppliedBytes;
+    this.sourceCorpusCounters.diskReadFiles += sourceCorpus.diskReadFiles;
+    this.sourceCorpusCounters.diskReadBytes += sourceCorpus.diskReadBytes;
+    this.sourceCorpusCounters.cacheHitFiles += sourceCorpus.cacheHitFiles;
+  }
+
   private resolveExternalSifDeps(workspaceRoot: string | undefined):
     | {
         readonly externalMode: "sif";
@@ -240,50 +312,52 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
   }
 
   private collectReferencingSourceDocuments(
-    providerDeps: ProviderDeps,
+    providerDeps: RuntimeProviderDeps,
     stylePath: string,
-  ): readonly { readonly sourcePath: string; readonly sourceSource: string }[] {
+  ): SourceCorpusCollection {
     const referencingUris = providerDeps.semanticReferenceIndex.findReferencingUris(stylePath);
-    return referencingUris.flatMap((uri) => {
+    const documents: SourceCorpusDocument[] = [];
+    let suppliedBytes = 0;
+    let diskReadFiles = 0;
+    let diskReadBytes = 0;
+    let cacheHitFiles = 0;
+    for (const uri of referencingUris) {
       const filePath = fileUrlToPath(uri);
       const openDocument = this.deps.documents.get(uri);
       if (openDocument) {
-        return [
-          {
-            sourcePath: filePath,
-            sourceSource: openDocument.getText(),
-          },
-        ];
+        const sourceSource = openDocument.getText();
+        suppliedBytes += Buffer.byteLength(sourceSource, "utf8");
+        documents.push({ sourcePath: filePath, sourceSource });
+        continue;
       }
-      try {
-        return [
-          {
-            sourcePath: filePath,
-            sourceSource: readFileSync(filePath, "utf8"),
-          },
-        ];
-      } catch {
-        return [];
+      const read = this.readSourceFileForCorpus(providerDeps, filePath);
+      if (!read) continue;
+      suppliedBytes += read.utf8Bytes;
+      if (read.cacheHit) {
+        cacheHitFiles += 1;
+      } else {
+        diskReadFiles += 1;
+        diskReadBytes += read.utf8Bytes;
       }
-    });
+      documents.push({ sourcePath: filePath, sourceSource: read.source });
+    }
+    return {
+      documents,
+      completeSourcePathEnumeration: null,
+      suppliedBytes,
+      diskReadFiles,
+      diskReadBytes,
+      cacheHitFiles,
+    };
   }
 
   private collectSourceCorpus(
-    providerDeps: ProviderDeps,
+    providerDeps: RuntimeProviderDeps,
     stylePath: string,
-  ): {
-    readonly documents: readonly {
-      readonly sourcePath: string;
-      readonly sourceSource: string;
-    }[];
-    readonly completeSourcePathEnumeration: readonly string[] | null;
-  } {
+  ): SourceCorpusCollection {
     const diskEnumeration = providerDeps.completeSourcePathEnumeration?.() ?? null;
     if (diskEnumeration === null) {
-      return {
-        documents: this.collectReferencingSourceDocuments(providerDeps, stylePath),
-        completeSourcePathEnumeration: null,
-      };
+      return this.collectReferencingSourceDocuments(providerDeps, stylePath);
     }
 
     const openSources = new Map<string, string>();
@@ -302,18 +376,56 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     }
 
     const completeSourcePathEnumeration = [...sourcePaths].toSorted(compareCodeUnits);
-    const documents = completeSourcePathEnumeration.flatMap((sourcePath) => {
+    const documents: SourceCorpusDocument[] = [];
+    let suppliedBytes = 0;
+    let diskReadFiles = 0;
+    let diskReadBytes = 0;
+    let cacheHitFiles = 0;
+    for (const sourcePath of completeSourcePathEnumeration) {
       const openSource = openSources.get(sourcePath);
       if (openSource !== undefined) {
-        return [{ sourcePath, sourceSource: openSource }];
+        suppliedBytes += Buffer.byteLength(openSource, "utf8");
+        documents.push({ sourcePath, sourceSource: openSource });
+        continue;
       }
-      try {
-        return [{ sourcePath, sourceSource: readFileSync(sourcePath, "utf8") }];
-      } catch {
-        return [];
+      const read = this.readSourceFileForCorpus(providerDeps, sourcePath);
+      if (!read) continue;
+      suppliedBytes += read.utf8Bytes;
+      if (read.cacheHit) {
+        cacheHitFiles += 1;
+      } else {
+        diskReadFiles += 1;
+        diskReadBytes += read.utf8Bytes;
       }
-    });
-    return { documents, completeSourcePathEnumeration };
+      documents.push({ sourcePath, sourceSource: read.source });
+    }
+    return {
+      documents,
+      completeSourcePathEnumeration,
+      suppliedBytes,
+      diskReadFiles,
+      diskReadBytes,
+      cacheHitFiles,
+    };
+  }
+
+  private readSourceFileForCorpus(
+    providerDeps: RuntimeProviderDeps,
+    sourcePath: string,
+  ): SourceCorpusFileRead | null {
+    if (providerDeps.readSourceFileForCorpus) {
+      return providerDeps.readSourceFileForCorpus(sourcePath);
+    }
+    try {
+      const source = readFileSync(sourcePath, "utf8");
+      return {
+        source,
+        utf8Bytes: Buffer.byteLength(source, "utf8"),
+        cacheHit: false,
+      };
+    } catch {
+      return null;
+    }
   }
 
   private safeSendDiagnostics(uri: string, diagnostics: MaybePromise<readonly Diagnostic[]>): void {
@@ -334,6 +446,20 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       this.stopped = true;
     }
   }
+}
+
+interface SourceCorpusDocument {
+  readonly sourcePath: string;
+  readonly sourceSource: string;
+}
+
+interface SourceCorpusCollection {
+  readonly documents: readonly SourceCorpusDocument[];
+  readonly completeSourcePathEnumeration: readonly string[] | null;
+  readonly suppliedBytes: number;
+  readonly diskReadFiles: number;
+  readonly diskReadBytes: number;
+  readonly cacheHitFiles: number;
 }
 
 function isWithinWorkspace(filePath: string, workspaceRoot: string): boolean {

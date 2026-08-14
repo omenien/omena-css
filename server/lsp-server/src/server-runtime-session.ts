@@ -27,6 +27,7 @@ export interface ServerRuntimeSession {
   readonly registry: WorkspaceRegistry;
   readonly runtimeManager: WorkspaceRuntimeManager;
   readonly clientCapabilities: ClientRuntimeCapabilities;
+  setSourcePathInventoryWatcherCoverage(available: boolean): void;
   handleWorkspaceFolderChange(
     event: {
       readonly removed: readonly { readonly uri: string; readonly name: string }[];
@@ -71,6 +72,9 @@ export function createServerRuntimeSession(
     registry: bundle.registry,
     runtimeManager,
     clientCapabilities,
+    setSourcePathInventoryWatcherCoverage(available): void {
+      runtimeManager.setSourcePathInventoryWatcherCoverage(available);
+    },
     handleWorkspaceFolderChange(event, documents): void {
       runtimeManager.applyWorkspaceFolderChange(event, documents);
     },
