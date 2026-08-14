@@ -1368,6 +1368,19 @@ pub struct omena_query::OmenaQueryExplainSourceSpanV0
 pub struct omena_query::OmenaQueryExternalSifInputV0
 pub omena_query::OmenaQueryExternalSifInputV0::canonical_url: alloc::string::String
 pub omena_query::OmenaQueryExternalSifInputV0::sif: omena_sif::OmenaSifV1
+pub struct omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::baseline_winner_declaration_id: alloc::string::String
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::calibration_stage: &'static str
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::claim_level: &'static str
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::diagnostic_kind: &'static str
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::false_alarm_boundary: &'static str
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::fragile_threshold: u32
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::message: alloc::string::String
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::product: &'static str
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::public_safety_claim_ready: bool
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::robustness_radius: u32
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::schema_version: &'static str
+pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::witness: alloc::vec::Vec<omena_cascade::robustness_radius::GuardedCascadePerturbationV0>
 pub struct omena_query::OmenaQueryIcssExportEdgeFactV0
 pub omena_query::OmenaQueryIcssExportEdgeFactV0::export_name: alloc::string::String
 pub omena_query::OmenaQueryIcssExportEdgeFactV0::reference_names: alloc::vec::Vec<alloc::string::String>
@@ -1593,6 +1606,8 @@ pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::cascade_layer_topolog
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::confidence_tier: &'static str
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::confidence_tier_within_modeled_environment: &'static str
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::driver_summaries: alloc::vec::Vec<omena_query::OmenaQueryRuntimeStateDriverSummaryV0>
+pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::fragile_guarded_winner_diagnostics: alloc::vec::Vec<omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0>
+pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::guarded_winner_authority: core::option::Option<omena_cascade::first_witness::GuardedCascadeWinnerAuthorityV0>
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::inline_style_overrides: alloc::vec::Vec<omena_query::OmenaQueryInlineStyleRuntimeOverrideV0>
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::product: &'static str
 pub omena_query::OmenaQueryRuntimeStateScenarioEvidenceV0::property_name: alloc::string::String
@@ -2508,6 +2523,7 @@ pub omena_query::StyleEditDistanceSummaryV0::tier: &'static str
 pub omena_query::StyleEditDistanceSummaryV0::total_distance: usize
 pub const omena_query::OMENA_BUNDLER_HOST_PROTOCOL_VERSION_V0: &str
 pub const omena_query::OMENA_QUERY_CASCADE_SECTION_AGGREGATION_COMPATIBILITY_MESSAGE_V0: &str
+pub const omena_query::OMENA_QUERY_FRAGILE_GUARDED_WINNER_THRESHOLD_V0: u32
 pub const omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_DIAGNOSTIC_CODE_V0: &str
 pub const omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_MESSAGE_V0: &str
 pub const omena_query::OMENA_QUERY_MULTISCALE_COMPLEXITY_HEURISTIC_COMPATIBILITY_PROVENANCE_V0: [&str; 2]
@@ -2636,6 +2652,7 @@ pub fn omena_query::summarize_omena_query_design_system_minimum_description(impl
 pub fn omena_query::summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth(&omena_query::OmenaQueryDynamicClassnameMTierInputV0) -> omena_query::OmenaQuerySourceDiagnosticsForFileV0
 pub fn omena_query::summarize_omena_query_evaluation_runtime(&engine_input_producers::EngineInputV2, &mut omena_query_core::OmenaQueryExpressionDomainFlowRuntimeV0) -> omena_query::OmenaQueryEvaluationRuntimeSummaryV0
 pub fn omena_query::summarize_omena_query_fast_facts(&str, &str) -> omena_query::FastFactsV0
+pub fn omena_query::summarize_omena_query_fragile_guarded_winner_v0(&omena_cascade::robustness_radius::GuardedCascadeRobustnessRadiusV0, impl core::convert::Into<alloc::string::String>, u32) -> core::option::Option<omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0>
 pub fn omena_query::summarize_omena_query_global_class_fallthrough_diagnostic(&str, &str, &str, &str, omena_parser::spans::ParserRangeV0) -> omena_query::OmenaQuerySourceDiagnosticV0
 pub fn omena_query::summarize_omena_query_linear_provenance(&[&'static str]) -> omena_query::OmenaQueryLinearProvenanceV0
 pub fn omena_query::summarize_omena_query_linear_provenance_semiring_laws() -> omena_abstract_value::semiring::ProvenanceSemiringLawReportV0
