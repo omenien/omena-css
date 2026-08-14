@@ -290,6 +290,11 @@ pub(crate) fn workspace_occurrence_shadow_verification_count_for_test(document_u
 }
 
 #[cfg(test)]
+pub(crate) fn workspace_occurrence_shadow_verification_total_for_test() -> u64 {
+    WORKSPACE_OCCURRENCE_SHADOW_VERIFICATIONS.with(|counts| counts.borrow().values().sum())
+}
+
+#[cfg(test)]
 pub(crate) fn workspace_occurrence_read_set_recomputation_count_for_test(
     document_uri: &str,
 ) -> u64 {

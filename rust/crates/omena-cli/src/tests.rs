@@ -3563,7 +3563,7 @@ fn workspace_style_diagnostics_build_one_identity_index_for_miss_bearing_compose
         );
         assert_eq!(
             build_count, 1,
-            "one immutable lint workspace must construct one resolver identity index; work={work_count}"
+            "this miss-bearing composes fixture must construct one resolver identity index; work={work_count}"
         );
         eprintln!(
             "resolver-identity-index baseline_builds={baseline_build_count} baseline_work={baseline_work_count} baseline_ms={} threaded_builds={build_count} threaded_work={work_count} threaded_ms={}",

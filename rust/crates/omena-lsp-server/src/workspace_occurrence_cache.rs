@@ -296,6 +296,10 @@ fn workspace_occurrence_shard_key_dependency_digest(
 }
 
 pub(crate) fn workspace_occurrence_shard_should_shadow(key: &str) -> bool {
+    #[cfg(test)]
+    if WORKSPACE_OCCURRENCE_SHADOW_ALL_FOR_TEST.with(std::cell::Cell::get) {
+        return true;
+    }
     workspace_occurrence_shadow_sample_nibble(key).is_some_and(|nibble| nibble == 0)
 }
 
@@ -332,6 +336,7 @@ thread_local! {
     static WORKSPACE_OCCURRENCE_KEY_DROP_WORKSPACE_FOLDER_URI: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static WORKSPACE_OCCURRENCE_SHARD_READS: std::cell::RefCell<BTreeMap<String, u64>> = const { std::cell::RefCell::new(BTreeMap::new()) };
     static WORKSPACE_OCCURRENCE_SHADOW_RECOVERY_FOR_TEST: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static WORKSPACE_OCCURRENCE_SHADOW_ALL_FOR_TEST: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[cfg(test)]
@@ -366,6 +371,19 @@ pub(crate) fn with_workspace_occurrence_shadow_recovery_for_test<R>(body: impl F
         let previous = recovery.replace(true);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
         recovery.set(previous);
+        match result {
+            Ok(result) => result,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn with_workspace_occurrence_shadow_all_for_test<R>(body: impl FnOnce() -> R) -> R {
+    WORKSPACE_OCCURRENCE_SHADOW_ALL_FOR_TEST.with(|shadow_all| {
+        let previous = shadow_all.replace(true);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
+        shadow_all.set(previous);
         match result {
             Ok(result) => result,
             Err(payload) => std::panic::resume_unwind(payload),

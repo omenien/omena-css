@@ -26,6 +26,7 @@ pub(crate) use workspace_occurrence_read_set::{
     workspace_occurrence_extractor_rebuild_count_for_test,
     workspace_occurrence_read_set_recomputation_count_for_test,
     workspace_occurrence_shadow_verification_count_for_test,
+    workspace_occurrence_shadow_verification_total_for_test,
 };
 pub(crate) use workspace_occurrence_read_set::{
     style_symbol_occurrence_read_set, style_symbol_workspace_occurrences_for_document,

@@ -2051,8 +2051,32 @@
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/workspace_occurrence_cache.rs",
               "needles": [
-                "const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = \"1\";",
+                "const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = \"2\";",
                 "const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = \"workspace-occurrence-shards-v2\";"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "lsp-tide-republish-cone-file-identity",
+          "kind": "wire-value-order-preserving",
+          "surface": "TideRepublishDemandV0::Cone and TideRepublishDemandV0::cone",
+          "reason": "The public republish cone now carries opaque session-stable file identities instead of URI strings while preserving the same reverse-dependency target set and avoiding per-hop alias derivation.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/tide/demand.rs",
+              "needles": [
+                "Cone(TideRepublishConeV0)",
+                "pub members: BTreeSet<LspFileId>",
+                "pub fn cone(seeds: impl IntoIterator<Item = LspFileId>) -> Self"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/tests/tide_republish_executor.rs",
+              "needles": [
+                "fn file_id_cone_matches_alias_heavy_path_closure_without_per_hop_derivation()",
+                "the interned cone must preserve the alias-heavy target set byte-for-byte",
+                "the file-id closure must not derive URI aliases at each graph hop"
               ]
             }
           ]

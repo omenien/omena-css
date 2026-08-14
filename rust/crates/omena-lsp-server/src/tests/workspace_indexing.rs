@@ -5080,6 +5080,105 @@ fn workspace_occurrence_shadow_mismatch_recovers_and_increments_the_production_c
     Ok(())
 }
 
+#[test]
+#[ignore = "release-only timing receipt; run explicitly with --release --ignored"]
+fn workspace_occurrence_release_timing_uses_comparable_corpus() -> TestResult {
+    const SAMPLE_COUNT: usize = 7;
+    const STYLE_DOCUMENT_COUNT: usize = 140;
+    const SOURCE_DOCUMENT_COUNT: usize = 10;
+    let mut cold_ms = Vec::with_capacity(SAMPLE_COUNT);
+    let mut production_shadow_ms = Vec::with_capacity(SAMPLE_COUNT);
+    let mut unrelated_edit_ms = Vec::with_capacity(SAMPLE_COUNT);
+    let mut full_shadow_ms = Vec::with_capacity(SAMPLE_COUNT);
+    let mut production_verified_hits = Vec::with_capacity(SAMPLE_COUNT);
+    let mut full_verified_hits = Vec::with_capacity(SAMPLE_COUNT);
+
+    for sample in 0..SAMPLE_COUNT {
+        let (mut state, workspace_root, workspace_uri, unrelated_uri) =
+            workspace_occurrence_timing_fixture(
+                format!("release-timing-{sample}").as_str(),
+                STYLE_DOCUMENT_COUNT,
+                SOURCE_DOCUMENT_COUNT,
+            )?;
+
+        let started = std::time::Instant::now();
+        crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+            &state,
+            Some(workspace_uri.as_str()),
+        );
+        cold_ms.push(started.elapsed().as_secs_f64() * 1_000.0);
+
+        *state.workspace_occurrence_index_memo_lock() = None;
+        crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+        let started = std::time::Instant::now();
+        crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+            &state,
+            Some(workspace_uri.as_str()),
+        );
+        production_shadow_ms.push(started.elapsed().as_secs_f64() * 1_000.0);
+        production_verified_hits.push(
+            crate::style_symbol_provider::workspace_occurrence_shadow_verification_total_for_test(),
+        );
+
+        change_occurrence_style_document(
+            &mut state,
+            unrelated_uri.as_str(),
+            2,
+            ".unrelated { color: blue; }\n",
+        );
+        crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+        let started = std::time::Instant::now();
+        crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+            &state,
+            Some(workspace_uri.as_str()),
+        );
+        unrelated_edit_ms.push(started.elapsed().as_secs_f64() * 1_000.0);
+
+        *state.workspace_occurrence_index_memo_lock() = None;
+        crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+        let started = std::time::Instant::now();
+        crate::workspace_occurrence_cache::with_workspace_occurrence_shadow_all_for_test(|| {
+            crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                &state,
+                Some(workspace_uri.as_str()),
+            );
+        });
+        full_shadow_ms.push(started.elapsed().as_secs_f64() * 1_000.0);
+        full_verified_hits.push(
+            crate::style_symbol_provider::workspace_occurrence_shadow_verification_total_for_test(),
+        );
+
+        let _ = std::fs::remove_dir_all(workspace_root);
+    }
+
+    cold_ms.sort_by(f64::total_cmp);
+    production_shadow_ms.sort_by(f64::total_cmp);
+    unrelated_edit_ms.sort_by(f64::total_cmp);
+    full_shadow_ms.sort_by(f64::total_cmp);
+    production_verified_hits.sort_unstable();
+    full_verified_hits.sort_unstable();
+    let middle = SAMPLE_COUNT / 2;
+    eprintln!(
+        "workspace-occurrence-release-timing documents={} style_documents={} source_documents={} samples={} production_shadow_rate=1/16 cold_ms_p50={:.3} production_shadow_ms_p50={:.3} unrelated_edit_ms_p50={:.3} full_shadow_ms_p50={:.3} production_verified_hits_p50={} full_verified_hits_p50={}",
+        STYLE_DOCUMENT_COUNT + SOURCE_DOCUMENT_COUNT,
+        STYLE_DOCUMENT_COUNT,
+        SOURCE_DOCUMENT_COUNT,
+        SAMPLE_COUNT,
+        cold_ms[middle],
+        production_shadow_ms[middle],
+        unrelated_edit_ms[middle],
+        full_shadow_ms[middle],
+        production_verified_hits[middle],
+        full_verified_hits[middle],
+    );
+    assert!(production_verified_hits[middle] > 0);
+    assert_eq!(
+        full_verified_hits[middle],
+        (STYLE_DOCUMENT_COUNT + SOURCE_DOCUMENT_COUNT) as u64,
+    );
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy)]
 enum WorkspaceOccurrenceServeArmV0 {
     Style,
@@ -5230,6 +5329,65 @@ fn workspace_occurrence_read_set_fixture(
         tokens_uri,
         unrelated_uri,
     })
+}
+
+fn workspace_occurrence_timing_fixture(
+    suffix: &str,
+    style_document_count: usize,
+    source_document_count: usize,
+) -> Result<(LspShellState, PathBuf, String, String), Box<dyn std::error::Error>> {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-workspace-occurrence-{suffix}-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(workspace_root.join("src"))?;
+    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{"uri": workspace_uri, "name": "occurrence-timing"}],
+            },
+        }),
+    );
+
+    let unrelated_path = workspace_root
+        .join("src")
+        .join(format!("Style{:03}.module.scss", style_document_count - 1));
+    let unrelated_uri = path_to_file_uri(unrelated_path.as_path());
+    for ordinal in 0..style_document_count {
+        let path = workspace_root
+            .join("src")
+            .join(format!("Style{ordinal:03}.module.scss"));
+        let uri = path_to_file_uri(path.as_path());
+        let text = if ordinal == 0 {
+            "$tone: rgb(1, 3, 7);\n.item000 { color: $tone; }\n".to_string()
+        } else {
+            format!(
+                "@use \"./Style000.module.scss\" as base;\n.item{ordinal:03} {{ color: base.$tone; }}\n",
+            )
+        };
+        std::fs::write(&path, &text)?;
+        open_occurrence_style_document(&mut state, uri.as_str(), text.as_str());
+    }
+    for ordinal in 0..source_document_count {
+        let path = workspace_root
+            .join("src")
+            .join(format!("Usage{ordinal:03}.tsx"));
+        let uri = path_to_file_uri(path.as_path());
+        let style_ordinal = ordinal % style_document_count;
+        let text = format!(
+            "import styles from './Style{style_ordinal:03}.module.scss';\nvoid styles.item{style_ordinal:03};\n",
+        );
+        std::fs::write(&path, &text)?;
+        open_occurrence_source_document(&mut state, uri.as_str(), text.as_str());
+    }
+    Ok((state, workspace_root, workspace_uri, unrelated_uri))
 }
 
 fn open_occurrence_source_document(state: &mut LspShellState, uri: &str, text: &str) {
