@@ -10,7 +10,7 @@
     {
       "path": "rust/crates/omena-lsp-server/src/tests/tide_republish_executor.rs",
       "testCount": 10,
-      "sha256": "25e8976f3f6eae6909db95667eb6658362ada5e64768ca7f14c6eff6f25b4438"
+      "sha256": "435cd0a6ae3f0379a81fcf1cdc3843adc70e3105210e50b41ba479d159e828fa"
     }
   ],
   "futureHandoffRequirements": [
