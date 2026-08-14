@@ -9,18 +9,20 @@ use omena_sif::{compute_omena_sif_leaf_hash_v1, write_omena_canonical_json_bytes
 use serde::Serialize;
 use serde_json::{Value, json};
 #[cfg(test)]
-use std::fs;
+use std::{collections::BTreeMap, fs};
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
-const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = "1";
+const WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION: &str = "2";
 const WORKSPACE_OCCURRENCE_SHARD_PRODUCT: &str = "omena-lsp-server.workspace-occurrence-shard";
 const WORKSPACE_OCCURRENCE_SHARD_KEY_PRODUCT: &str =
     "omena-lsp-server.workspace-occurrence-shard-key";
 const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = "workspace-occurrence-shards-v2";
 const WORKSPACE_OCCURRENCE_SHARD_LIMITS: PersistentCacheLimitsV0 = DEFAULT_PERSISTENT_CACHE_LIMITS;
+static WORKSPACE_OCCURRENCE_SHADOW_MISMATCHES: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,6 +30,7 @@ struct WorkspaceOccurrenceShardKeyInputV0<'a> {
     schema_version: &'a str,
     crate_version: &'a str,
     product: &'a str,
+    document_workspace_folder_uri: Option<&'a str>,
     workspace_folder_uri: Option<&'a str>,
     document_uri: &'a str,
     language_id: &'a str,
@@ -42,8 +45,10 @@ pub(crate) struct LspWorkspaceOccurrenceShardLoadV0 {
     pub(crate) occurrences: Vec<OmenaWorkspaceOccurrenceV0>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn load_workspace_occurrence_shard(
     cache_storage: &LspCacheStorageConfigV0,
+    document_workspace_folder_uri: Option<&str>,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -51,7 +56,12 @@ pub(crate) fn load_workspace_occurrence_shard(
     dependency_digest: Option<&str>,
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<LspWorkspaceOccurrenceShardLoadV0> {
+    #[cfg(test)]
+    record_workspace_occurrence_shard_read(document_uri);
+    let shard_workspace_folder_uri =
+        workspace_occurrence_shard_key_workspace_folder_uri(workspace_folder_uri);
     let key = workspace_occurrence_shard_key(
+        document_workspace_folder_uri,
         workspace_folder_uri,
         document_uri,
         language_id,
@@ -61,7 +71,7 @@ pub(crate) fn load_workspace_occurrence_shard(
     )?;
     let path = workspace_occurrence_shard_path(
         cache_storage,
-        workspace_folder_uri,
+        document_workspace_folder_uri,
         document_uri,
         language_id,
     )?;
@@ -74,7 +84,12 @@ pub(crate) fn load_workspace_occurrence_shard(
             != Some(WORKSPACE_OCCURRENCE_SHARD_PRODUCT)
         || shard.pointer("/key").and_then(Value::as_str) != Some(key.as_str())
         || shard.pointer("/documentUri").and_then(Value::as_str) != Some(document_uri)
-        || shard.pointer("/workspaceFolderUri").and_then(Value::as_str) != workspace_folder_uri
+        || shard
+            .pointer("/documentWorkspaceFolderUri")
+            .and_then(Value::as_str)
+            != document_workspace_folder_uri
+        || shard.pointer("/workspaceFolderUri").and_then(Value::as_str)
+            != shard_workspace_folder_uri
         || shard.pointer("/languageId").and_then(Value::as_str) != Some(language_id)
         || shard.pointer("/textHash").and_then(Value::as_str) != Some(text_hash)
         || shard.pointer("/containsText").and_then(Value::as_bool) != Some(false)
@@ -110,6 +125,7 @@ pub(crate) fn load_workspace_occurrence_shard(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn store_workspace_occurrence_shard(
     cache_storage: &LspCacheStorageConfigV0,
+    document_workspace_folder_uri: Option<&str>,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -118,7 +134,10 @@ pub(crate) fn store_workspace_occurrence_shard(
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     occurrences: &[OmenaWorkspaceOccurrenceV0],
 ) {
+    let shard_workspace_folder_uri =
+        workspace_occurrence_shard_key_workspace_folder_uri(workspace_folder_uri);
     let Some(key) = workspace_occurrence_shard_key(
+        document_workspace_folder_uri,
         workspace_folder_uri,
         document_uri,
         language_id,
@@ -130,7 +149,7 @@ pub(crate) fn store_workspace_occurrence_shard(
     };
     let Some(path) = workspace_occurrence_shard_path(
         cache_storage,
-        workspace_folder_uri,
+        document_workspace_folder_uri,
         document_uri,
         language_id,
     ) else {
@@ -153,7 +172,8 @@ pub(crate) fn store_workspace_occurrence_shard(
         "product": WORKSPACE_OCCURRENCE_SHARD_PRODUCT,
         "key": key,
         "documentUri": document_uri,
-        "workspaceFolderUri": workspace_folder_uri,
+        "documentWorkspaceFolderUri": document_workspace_folder_uri,
+        "workspaceFolderUri": shard_workspace_folder_uri,
         "languageId": language_id,
         "textHash": text_hash,
         "containsText": false,
@@ -170,7 +190,7 @@ pub(crate) fn store_workspace_occurrence_shard(
         return;
     }
     crate::disk_cache::ensure_omena_cache_root_markers(dir);
-    ensure_cache_root_attribution(dir, workspace_folder_uri.unwrap_or(document_uri));
+    ensure_cache_root_attribution(dir, document_workspace_folder_uri.unwrap_or(document_uri));
     let _ = write_workspace_occurrence_shard(
         path.as_path(),
         bytes.as_slice(),
@@ -203,6 +223,7 @@ pub(crate) fn workspace_occurrence_dependency_digest<T: Serialize>(value: &T) ->
 }
 
 fn workspace_occurrence_shard_key(
+    document_workspace_folder_uri: Option<&str>,
     workspace_folder_uri: Option<&str>,
     document_uri: &str,
     language_id: &str,
@@ -211,10 +232,13 @@ fn workspace_occurrence_shard_key(
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<String> {
     let dependency_digest = workspace_occurrence_shard_key_dependency_digest(dependency_digest);
+    let workspace_folder_uri =
+        workspace_occurrence_shard_key_workspace_folder_uri(workspace_folder_uri);
     let input = WorkspaceOccurrenceShardKeyInputV0 {
         schema_version: WORKSPACE_OCCURRENCE_SHARD_SCHEMA_VERSION,
         crate_version: env!("CARGO_PKG_VERSION"),
         product: WORKSPACE_OCCURRENCE_SHARD_KEY_PRODUCT,
+        document_workspace_folder_uri,
         workspace_folder_uri,
         document_uri,
         language_id,
@@ -230,6 +254,37 @@ fn workspace_occurrence_shard_key(
     )
 }
 
+#[cfg(test)]
+pub(crate) fn workspace_occurrence_shard_key_for_test(
+    document_workspace_folder_uri: Option<&str>,
+    workspace_folder_uri: Option<&str>,
+    document_uri: &str,
+    language_id: &str,
+    text_hash: &str,
+    dependency_digest: Option<&str>,
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> Option<String> {
+    workspace_occurrence_shard_key(
+        document_workspace_folder_uri,
+        workspace_folder_uri,
+        document_uri,
+        language_id,
+        text_hash,
+        dependency_digest,
+        resolution_inputs,
+    )
+}
+
+fn workspace_occurrence_shard_key_workspace_folder_uri(
+    workspace_folder_uri: Option<&str>,
+) -> Option<&str> {
+    #[cfg(test)]
+    if WORKSPACE_OCCURRENCE_KEY_DROP_WORKSPACE_FOLDER_URI.with(std::cell::Cell::get) {
+        return None;
+    }
+    workspace_folder_uri
+}
+
 fn workspace_occurrence_shard_key_dependency_digest(
     dependency_digest: Option<&str>,
 ) -> Option<&str> {
@@ -241,23 +296,81 @@ fn workspace_occurrence_shard_key_dependency_digest(
 }
 
 pub(crate) fn workspace_occurrence_shard_should_shadow(key: &str) -> bool {
+    workspace_occurrence_shadow_sample_nibble(key).is_some_and(|nibble| nibble == 0)
+}
+
+pub(crate) fn workspace_occurrence_shadow_sample_nibble(key: &str) -> Option<u32> {
+    key.as_bytes()
+        .last()
+        .and_then(|byte| (*byte as char).to_digit(16))
+}
+
+pub(crate) fn workspace_occurrence_shadow_asserts_on_mismatch() -> bool {
     #[cfg(test)]
     {
-        let _ = key;
-        true
+        !WORKSPACE_OCCURRENCE_SHADOW_RECOVERY_FOR_TEST.with(std::cell::Cell::get)
     }
     #[cfg(not(test))]
     {
-        key.as_bytes()
-            .last()
-            .and_then(|byte| (*byte as char).to_digit(16))
-            .is_some_and(|nibble| nibble == 0)
+        false
     }
+}
+
+pub(crate) fn record_workspace_occurrence_shadow_mismatch(document_uri: &str) {
+    WORKSPACE_OCCURRENCE_SHADOW_MISMATCHES.fetch_add(1, Ordering::Relaxed);
+    crate::loop_trace!("workspace-occurrence-shadow MISMATCH target={document_uri}");
+}
+
+#[cfg(test)]
+pub(crate) fn workspace_occurrence_shadow_mismatch_count_for_test() -> u64 {
+    WORKSPACE_OCCURRENCE_SHADOW_MISMATCHES.load(Ordering::Relaxed)
 }
 
 #[cfg(test)]
 thread_local! {
     static WORKSPACE_OCCURRENCE_KEY_DROP_DEPENDENCY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static WORKSPACE_OCCURRENCE_KEY_DROP_WORKSPACE_FOLDER_URI: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static WORKSPACE_OCCURRENCE_SHARD_READS: std::cell::RefCell<BTreeMap<String, u64>> = const { std::cell::RefCell::new(BTreeMap::new()) };
+    static WORKSPACE_OCCURRENCE_SHADOW_RECOVERY_FOR_TEST: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+fn record_workspace_occurrence_shard_read(document_uri: &str) {
+    WORKSPACE_OCCURRENCE_SHARD_READS.with(|reads| {
+        *reads
+            .borrow_mut()
+            .entry(document_uri.to_string())
+            .or_default() += 1;
+    });
+}
+
+#[cfg(test)]
+pub(crate) fn reset_workspace_occurrence_shard_read_counts_for_test() {
+    WORKSPACE_OCCURRENCE_SHARD_READS.with(|reads| reads.borrow_mut().clear());
+}
+
+#[cfg(test)]
+pub(crate) fn workspace_occurrence_shard_read_count_for_test(document_uri: &str) -> u64 {
+    WORKSPACE_OCCURRENCE_SHARD_READS.with(|reads| {
+        reads
+            .borrow()
+            .get(document_uri)
+            .copied()
+            .unwrap_or_default()
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn with_workspace_occurrence_shadow_recovery_for_test<R>(body: impl FnOnce() -> R) -> R {
+    WORKSPACE_OCCURRENCE_SHADOW_RECOVERY_FOR_TEST.with(|recovery| {
+        let previous = recovery.replace(true);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
+        recovery.set(previous);
+        match result {
+            Ok(result) => result,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    })
 }
 
 #[cfg(test)]
@@ -273,6 +386,38 @@ pub(crate) fn with_workspace_occurrence_key_dependency_drop_for_test<R>(
             Err(payload) => std::panic::resume_unwind(payload),
         }
     })
+}
+
+#[cfg(test)]
+pub(crate) fn with_workspace_occurrence_key_workspace_folder_uri_drop_for_test<R>(
+    body: impl FnOnce() -> R,
+) -> R {
+    WORKSPACE_OCCURRENCE_KEY_DROP_WORKSPACE_FOLDER_URI.with(|drop_workspace_folder_uri| {
+        let previous = drop_workspace_folder_uri.replace(true);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
+        drop_workspace_folder_uri.set(previous);
+        match result {
+            Ok(result) => result,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    })
+}
+
+pub(crate) fn evict_workspace_occurrence_shard(
+    cache_storage: &LspCacheStorageConfigV0,
+    document_workspace_folder_uri: Option<&str>,
+    document_uri: &str,
+    language_id: &str,
+) {
+    let Some(path) = workspace_occurrence_shard_path(
+        cache_storage,
+        document_workspace_folder_uri,
+        document_uri,
+        language_id,
+    ) else {
+        return;
+    };
+    let _ = std::fs::remove_file(path);
 }
 
 fn workspace_occurrence_shard_path(
@@ -327,6 +472,47 @@ mod tests {
     };
 
     #[test]
+    fn workspace_occurrence_shadow_sampler_pins_one_of_sixteen_nibbles() {
+        let sampled = "0123456789abcdef"
+            .chars()
+            .filter(|nibble| {
+                workspace_occurrence_shard_should_shadow(format!("blake3:key{nibble}").as_str())
+            })
+            .collect::<String>();
+        assert_eq!(
+            sampled, "0",
+            "the production sampler must stay exactly 1/16"
+        );
+        assert_eq!(workspace_occurrence_shadow_sample_nibble("not-a-key"), None);
+    }
+
+    #[test]
+    fn workspace_occurrence_key_binds_the_extractor_workspace_scope() {
+        let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
+        let scoped = workspace_occurrence_shard_key(
+            Some("file:///workspace"),
+            Some("file:///workspace"),
+            "file:///workspace/src/App.module.scss",
+            "scss",
+            "blake3:text",
+            Some("blake3:read-set"),
+            &resolution_inputs,
+        );
+        let all_workspaces = workspace_occurrence_shard_key(
+            Some("file:///workspace"),
+            None,
+            "file:///workspace/src/App.module.scss",
+            "scss",
+            "blake3:text",
+            Some("blake3:read-set"),
+            &resolution_inputs,
+        );
+        assert!(scoped.is_some());
+        assert!(all_workspaces.is_some());
+        assert_ne!(scoped, all_workspaces);
+    }
+
+    #[test]
     fn workspace_occurrence_store_enforces_reachable_count_byte_and_shard_limits() {
         let root = unique_temp_root("omena_workspace_occurrence_store_limits")
             .unwrap_or_else(|_| std::env::temp_dir().join("omena-workspace-occurrence-limits"));
@@ -365,6 +551,7 @@ mod tests {
         store_workspace_occurrence_shard(
             &cache_storage,
             Some(workspace_uri.as_str()),
+            Some(workspace_uri.as_str()),
             default_document_uri.as_str(),
             "typescriptreact",
             oversized_text_hash.as_str(),
@@ -389,6 +576,7 @@ mod tests {
                 || {
                     store_workspace_occurrence_shard(
                         &cache_storage,
+                        Some(workspace_uri.as_str()),
                         Some(workspace_uri.as_str()),
                         default_document_uri.as_str(),
                         "typescriptreact",
@@ -430,6 +618,7 @@ mod tests {
         store_workspace_occurrence_shard(
             &cache_storage,
             Some(workspace_uri.as_str()),
+            Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
             text_hash.as_str(),
@@ -438,6 +627,7 @@ mod tests {
             occurrences.as_slice(),
         );
         let key = workspace_occurrence_shard_key(
+            Some(workspace_uri.as_str()),
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
@@ -481,6 +671,7 @@ mod tests {
         let loaded = load_workspace_occurrence_shard(
             &cache_storage,
             Some(workspace_uri.as_str()),
+            Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
             text_hash.as_str(),
@@ -492,6 +683,7 @@ mod tests {
 
         store_workspace_occurrence_shard(
             &cache_storage,
+            Some(workspace_uri.as_str()),
             Some(workspace_uri.as_str()),
             document_uri.as_str(),
             "typescriptreact",
@@ -537,6 +729,7 @@ mod tests {
         assert!(
             load_workspace_occurrence_shard(
                 &cache_storage,
+                Some(workspace_uri.as_str()),
                 Some(workspace_uri.as_str()),
                 document_uri.as_str(),
                 "scss",

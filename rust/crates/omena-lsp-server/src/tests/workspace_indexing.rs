@@ -4729,6 +4729,7 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
                 app_uri,
                 tokens_uri,
                 unrelated_uri,
+                ..
             } = workspace_occurrence_read_set_fixture("read-set")?;
 
             let cold_started = std::time::Instant::now();
@@ -4738,7 +4739,6 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
             );
             let cold_elapsed = cold_started.elapsed();
 
-            *state.workspace_occurrence_index_memo_lock() = None;
             crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
             let warm_started = std::time::Instant::now();
             crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
@@ -4751,14 +4751,7 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
                     app_uri.as_str(),
                 ),
                 0,
-                "warm A must reload its shard without rebuilding"
-            );
-            assert_eq!(
-                crate::style_symbol_provider::workspace_occurrence_shadow_verification_count_for_test(
-                    app_uri.as_str(),
-                ),
-                1,
-                "the test lane samples every cache hit through the fresh shadow oracle"
+                "an unchanged aggregate memo hit must not rebuild A"
             );
 
             change_occurrence_style_document(
@@ -4767,8 +4760,9 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
                 2,
                 ".unrelated { color: green; }\n",
             );
-            *state.workspace_occurrence_index_memo_lock() = None;
             crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+            crate::workspace_occurrence_cache::reset_workspace_occurrence_shard_read_counts_for_test();
+            crate::workspace_occurrences::reset_workspace_occurrence_memo_hit_counts_for_test();
             let unrelated_started = std::time::Instant::now();
             crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
                 &state,
@@ -4782,6 +4776,27 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
                 0,
                 "editing unrelated B must not rebuild A"
             );
+            assert_eq!(
+                crate::workspace_occurrences::workspace_occurrence_memo_hit_count_for_test(
+                    app_uri.as_str(),
+                ),
+                1,
+                "editing unrelated B must serve A from the narrowed RAM memo"
+            );
+            assert_eq!(
+                crate::workspace_occurrence_cache::workspace_occurrence_shard_read_count_for_test(
+                    app_uri.as_str(),
+                ),
+                0,
+                "an unrelated edit must not read A's disk shard"
+            );
+            assert_eq!(
+                crate::style_symbol_provider::workspace_occurrence_read_set_recomputation_count_for_test(
+                    app_uri.as_str(),
+                ),
+                0,
+                "an unrelated edit must not recompute A's read set"
+            );
 
             let later_uri =
                 path_to_file_uri(workspace_root.join("src/Later.module.scss").as_path());
@@ -4794,8 +4809,9 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
                 later_uri.as_str(),
                 ".later { color: purple; }\n",
             );
-            *state.workspace_occurrence_index_memo_lock() = None;
             crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+            crate::workspace_occurrence_cache::reset_workspace_occurrence_shard_read_counts_for_test();
+            crate::workspace_occurrences::reset_workspace_occurrence_memo_hit_counts_for_test();
             crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
                 &state,
                 Some(workspace_uri.as_str()),
@@ -4807,10 +4823,23 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
                 0,
                 "opening unrelated B must not rebuild A"
             );
+            assert_eq!(
+                crate::workspace_occurrences::workspace_occurrence_memo_hit_count_for_test(
+                    app_uri.as_str(),
+                ),
+                1,
+            );
+            assert_eq!(
+                crate::workspace_occurrence_cache::workspace_occurrence_shard_read_count_for_test(
+                    app_uri.as_str(),
+                ),
+                0,
+            );
 
             change_occurrence_style_document(&mut state, tokens_uri.as_str(), 2, "$brand: blue;\n");
-            *state.workspace_occurrence_index_memo_lock() = None;
             crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+            crate::workspace_occurrence_cache::reset_workspace_occurrence_shard_read_counts_for_test();
+            crate::workspace_occurrences::reset_workspace_occurrence_memo_hit_counts_for_test();
             crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
                 &state,
                 Some(workspace_uri.as_str()),
@@ -4822,8 +4851,29 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
                 1,
                 "editing a document in A's read set must rebuild A exactly once"
             );
+            assert_eq!(
+                crate::workspace_occurrences::workspace_occurrence_memo_hit_count_for_test(
+                    app_uri.as_str(),
+                ),
+                0,
+                "an in-read-set edit must invalidate A's memo entry"
+            );
+            assert_eq!(
+                crate::workspace_occurrence_cache::workspace_occurrence_shard_read_count_for_test(
+                    app_uri.as_str(),
+                ),
+                1,
+                "the affected entry alone may consult its self-validating disk shard"
+            );
+            assert_eq!(
+                crate::style_symbol_provider::workspace_occurrence_read_set_recomputation_count_for_test(
+                    app_uri.as_str(),
+                ),
+                1,
+                "an in-read-set edit must recompute A's read set exactly once"
+            );
             eprintln!(
-                "workspace-occurrence-read-set cold_ms={} warm_ms={} unrelated_edit_ms={} shadow_rate_test=1/1 app_rebuild_after_unrelated_edit=0 app_rebuild_after_unrelated_open=0 app_rebuild_after_dependency=1",
+                "workspace-occurrence-read-set cold_ms={} warm_memo_ms={} unrelated_edit_ms={} unrelated_edit_app_memo_hits=1 unrelated_edit_app_shard_reads=0 unrelated_edit_app_read_set_recomputes=0 dependency_edit_app_rebuilds=1 dependency_edit_app_read_set_recomputes=1",
                 cold_elapsed.as_millis(),
                 warm_elapsed.as_millis(),
                 unrelated_elapsed.as_millis(),
@@ -4833,6 +4883,50 @@ fn workspace_occurrence_shards_follow_each_document_read_set() -> TestResult {
             Ok(())
         },
     )
+}
+
+#[test]
+fn workspace_occurrence_shadow_samples_both_production_serve_arms() -> TestResult {
+    for arm in [
+        WorkspaceOccurrenceServeArmV0::Style,
+        WorkspaceOccurrenceServeArmV0::Source,
+    ] {
+        let WorkspaceOccurrenceReadSetFixtureV0 {
+            state,
+            workspace_root,
+            workspace_uri,
+            app_uri,
+            usage_uri,
+            ..
+        } = workspace_occurrence_sampled_read_set_fixture(
+            "shadow-coverage",
+            arm,
+            WorkspaceOccurrenceSampleKeyV0::Actual,
+        )?;
+        crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+            &state,
+            Some(workspace_uri.as_str()),
+        );
+        *state.workspace_occurrence_index_memo_lock() = None;
+        crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+        crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+            &state,
+            Some(workspace_uri.as_str()),
+        );
+        let target_uri = match arm {
+            WorkspaceOccurrenceServeArmV0::Style => app_uri.as_str(),
+            WorkspaceOccurrenceServeArmV0::Source => usage_uri.as_str(),
+        };
+        assert_eq!(
+            crate::style_symbol_provider::workspace_occurrence_shadow_verification_count_for_test(
+                target_uri,
+            ),
+            1,
+            "the production 1/16 sampler must verify the selected {arm:?} serve arm",
+        );
+        let _ = std::fs::remove_dir_all(workspace_root);
+    }
+    Ok(())
 }
 
 #[test]
@@ -4846,7 +4940,11 @@ fn workspace_occurrence_shadow_rejects_a_dropped_read_set_key_field() -> TestRes
                 workspace_uri,
                 tokens_uri,
                 ..
-            } = workspace_occurrence_read_set_fixture("shadow-drop")?;
+            } = workspace_occurrence_sampled_read_set_fixture(
+                "shadow-drop",
+                WorkspaceOccurrenceServeArmV0::Style,
+                WorkspaceOccurrenceSampleKeyV0::DependencyDropped,
+            )?;
             let mutation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 crate::workspace_occurrence_cache::with_workspace_occurrence_key_dependency_drop_for_test(
                     || {
@@ -4878,11 +4976,205 @@ fn workspace_occurrence_shadow_rejects_a_dropped_read_set_key_field() -> TestRes
     )
 }
 
+#[test]
+fn workspace_occurrence_shadow_rejects_a_dropped_extractor_workspace_scope() -> TestResult {
+    omena_testkit::with_instrumentation_session(
+        omena_testkit::InstrumentationSessionV0::default(),
+        || {
+            let WorkspaceOccurrenceReadSetFixtureV0 {
+                state,
+                workspace_root,
+                workspace_uri,
+                app_uri,
+                ..
+            } = workspace_occurrence_sampled_read_set_fixture(
+                "workspace-scope-drop",
+                WorkspaceOccurrenceServeArmV0::Style,
+                WorkspaceOccurrenceSampleKeyV0::WorkspaceScopeDropped,
+            )?;
+            let app_document = state
+                .document(app_uri.as_str())
+                .ok_or("missing workspace-scope fixture document")?;
+            let scoped = crate::style_symbol_provider::extract_fresh_style_symbol_workspace_occurrences_for_document(
+                &state,
+                app_document,
+                Some(workspace_uri.as_str()),
+            );
+            let unscoped = crate::style_symbol_provider::extract_fresh_style_symbol_workspace_occurrences_for_document(
+                &state,
+                app_document,
+                None,
+            );
+            assert_ne!(
+                scoped, unscoped,
+                "the fixture must make the extractor workspace scope observable before exercising the seeded key drop",
+            );
+            let mutation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                crate::workspace_occurrence_cache::with_workspace_occurrence_key_workspace_folder_uri_drop_for_test(
+                    || {
+                        crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                            &state,
+                            Some(workspace_uri.as_str()),
+                        );
+                        *state.workspace_occurrence_index_memo_lock() = None;
+                        crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                            &state,
+                            None,
+                        );
+                    },
+                );
+            }));
+            let _ = std::fs::remove_dir_all(workspace_root);
+            assert!(
+                mutation.is_err(),
+                "dropping the extractor workspace scope must stale-serve and make the shadow oracle RED",
+            );
+            Ok(())
+        },
+    )
+}
+
+#[test]
+fn workspace_occurrence_shadow_mismatch_recovers_and_increments_the_production_counter()
+-> TestResult {
+    let WorkspaceOccurrenceReadSetFixtureV0 {
+        mut state,
+        workspace_root,
+        workspace_uri,
+        tokens_uri,
+        ..
+    } = workspace_occurrence_sampled_read_set_fixture(
+        "shadow-recovery",
+        WorkspaceOccurrenceServeArmV0::Style,
+        WorkspaceOccurrenceSampleKeyV0::DependencyDropped,
+    )?;
+    crate::workspace_occurrence_cache::with_workspace_occurrence_shadow_recovery_for_test(|| {
+        crate::workspace_occurrence_cache::with_workspace_occurrence_key_dependency_drop_for_test(
+            || {
+                crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                    &state,
+                    Some(workspace_uri.as_str()),
+                );
+                change_occurrence_style_document(
+                    &mut state,
+                    tokens_uri.as_str(),
+                    2,
+                    "$other: blue;\n",
+                );
+                *state.workspace_occurrence_index_memo_lock() = None;
+                let mismatches_before = crate::workspace_occurrence_cache::workspace_occurrence_shadow_mismatch_count_for_test();
+                crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                    &state,
+                    Some(workspace_uri.as_str()),
+                );
+                assert_eq!(
+                    crate::workspace_occurrence_cache::workspace_occurrence_shadow_mismatch_count_for_test()
+                        - mismatches_before,
+                    1,
+                    "production mismatch policy must count the repaired stale shard",
+                );
+            },
+        );
+    });
+    let _ = std::fs::remove_dir_all(workspace_root);
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+enum WorkspaceOccurrenceServeArmV0 {
+    Style,
+    Source,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum WorkspaceOccurrenceSampleKeyV0 {
+    Actual,
+    DependencyDropped,
+    WorkspaceScopeDropped,
+}
+
+fn workspace_occurrence_sampled_read_set_fixture(
+    suffix: &str,
+    arm: WorkspaceOccurrenceServeArmV0,
+    sample_key: WorkspaceOccurrenceSampleKeyV0,
+) -> Result<WorkspaceOccurrenceReadSetFixtureV0, Box<dyn std::error::Error>> {
+    for attempt in 0..512 {
+        let fixture = workspace_occurrence_read_set_fixture(
+            format!("{suffix}-{}-{attempt}", std::process::id()).as_str(),
+        )?;
+        let target_uri = match arm {
+            WorkspaceOccurrenceServeArmV0::Style => fixture.app_uri.as_str(),
+            WorkspaceOccurrenceServeArmV0::Source => fixture.usage_uri.as_str(),
+        };
+        let document = fixture
+            .state
+            .document(target_uri)
+            .ok_or("missing sampled occurrence document")?;
+        let dependency_digest = match arm {
+            WorkspaceOccurrenceServeArmV0::Style => {
+                crate::style_symbol_provider::style_symbol_occurrence_read_set(
+                    &fixture.state,
+                    document,
+                )
+                .dependency_digest
+            }
+            WorkspaceOccurrenceServeArmV0::Source => {
+                let definitions = style_selector_definitions_from_open_documents(
+                    &fixture.state,
+                    "",
+                    Some(fixture.workspace_uri.as_str()),
+                )
+                .iter()
+                .map(|(uri, definition)| {
+                    query_style_selector_definition_for_matching(uri, definition)
+                })
+                .collect::<Vec<_>>();
+                crate::workspace_occurrence_cache::workspace_occurrence_dependency_digest(
+                    &definitions,
+                )
+            }
+        };
+        let resolution_inputs = resolution_inputs_for_workspace_uri(
+            &fixture.state,
+            document.workspace_folder_uri.as_deref(),
+        );
+        let key = crate::workspace_occurrence_cache::workspace_occurrence_shard_key_for_test(
+            document.workspace_folder_uri.as_deref(),
+            match sample_key {
+                WorkspaceOccurrenceSampleKeyV0::WorkspaceScopeDropped => None,
+                WorkspaceOccurrenceSampleKeyV0::Actual
+                | WorkspaceOccurrenceSampleKeyV0::DependencyDropped => {
+                    Some(fixture.workspace_uri.as_str())
+                }
+            },
+            document.uri.as_str(),
+            document.language_id.as_str(),
+            document.text_hash.as_str(),
+            match sample_key {
+                WorkspaceOccurrenceSampleKeyV0::DependencyDropped => None,
+                WorkspaceOccurrenceSampleKeyV0::Actual
+                | WorkspaceOccurrenceSampleKeyV0::WorkspaceScopeDropped => {
+                    dependency_digest.as_deref()
+                }
+            },
+            &resolution_inputs,
+        );
+        if key.as_deref().is_some_and(
+            crate::workspace_occurrence_cache::workspace_occurrence_shard_should_shadow,
+        ) {
+            return Ok(fixture);
+        }
+        let _ = std::fs::remove_dir_all(fixture.workspace_root);
+    }
+    Err("failed to derive a production-sampled workspace occurrence fixture".into())
+}
+
 struct WorkspaceOccurrenceReadSetFixtureV0 {
     state: LspShellState,
     workspace_root: PathBuf,
     workspace_uri: String,
     app_uri: String,
+    usage_uri: String,
     tokens_uri: String,
     unrelated_uri: String,
 }
@@ -4898,13 +5190,16 @@ fn workspace_occurrence_read_set_fixture(
     std::fs::create_dir_all(workspace_root.join("src"))?;
     let workspace_uri = path_to_file_uri(workspace_root.as_path());
     let app_uri = path_to_file_uri(workspace_root.join("src/App.module.scss").as_path());
+    let usage_uri = path_to_file_uri(workspace_root.join("src/Usage.tsx").as_path());
     let tokens_uri = path_to_file_uri(workspace_root.join("src/_tokens.scss").as_path());
     let unrelated_uri =
         path_to_file_uri(workspace_root.join("src/Unrelated.module.scss").as_path());
-    let app_text = "@use \"./tokens\" as tokens;\n.root { color: tokens.$brand; }\n";
+    let app_text = "@use \"./tokens\" as tokens;\n@use \"./missing\" as missing;\n:root { --theme: red; }\n.root { color: tokens.$brand; border-color: missing.$tone; background: var(--theme); }\n";
+    let usage_text = "import styles from './App.module.scss';\nvoid styles.root;\n";
     let tokens_text = "$brand: red;\n";
     let unrelated_text = ".unrelated { color: red; }\n";
     std::fs::write(workspace_root.join("src/App.module.scss"), app_text)?;
+    std::fs::write(workspace_root.join("src/Usage.tsx"), usage_text)?;
     std::fs::write(workspace_root.join("src/_tokens.scss"), tokens_text)?;
     std::fs::write(
         workspace_root.join("src/Unrelated.module.scss"),
@@ -4923,6 +5218,7 @@ fn workspace_occurrence_read_set_fixture(
         }),
     );
     open_occurrence_style_document(&mut state, app_uri.as_str(), app_text);
+    open_occurrence_source_document(&mut state, usage_uri.as_str(), usage_text);
     open_occurrence_style_document(&mut state, tokens_uri.as_str(), tokens_text);
     open_occurrence_style_document(&mut state, unrelated_uri.as_str(), unrelated_text);
     Ok(WorkspaceOccurrenceReadSetFixtureV0 {
@@ -4930,9 +5226,28 @@ fn workspace_occurrence_read_set_fixture(
         workspace_root,
         workspace_uri,
         app_uri,
+        usage_uri,
         tokens_uri,
         unrelated_uri,
     })
+}
+
+fn open_occurrence_source_document(state: &mut LspShellState, uri: &str, text: &str) {
+    handle_lsp_message(
+        state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": text,
+                },
+            },
+        }),
+    );
 }
 
 fn open_occurrence_style_document(state: &mut LspShellState, uri: &str, text: &str) {

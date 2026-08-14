@@ -13,7 +13,7 @@ use omena_query::{
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSelectorDefinitionV0,
     OmenaQueryStyleSourceInputV0, OmenaWorkspaceOccurrenceFamilyV0,
     OmenaWorkspaceOccurrenceIndexV0, OmenaWorkspaceOccurrenceKindV0,
-    OmenaWorkspaceOccurrenceRoleV0, ParserPositionV0, ParserRangeV0,
+    OmenaWorkspaceOccurrenceRoleV0, OmenaWorkspaceOccurrenceV0, ParserPositionV0, ParserRangeV0,
 };
 #[cfg(feature = "parallel-style-diagnostics")]
 use omena_query::{
@@ -511,9 +511,18 @@ pub(crate) struct LspWorkspaceOccurrenceIndexMemo {
     pub(crate) environment_digest: Option<String>,
     pub(crate) source_document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
     pub(crate) style_document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
+    pub(crate) document_entries: BTreeMap<LspFileId, LspWorkspaceOccurrenceDocumentMemoEntry>,
     pub(crate) definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
     pub(crate) source_selector_index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
     pub(crate) workspace_index: Arc<OmenaWorkspaceOccurrenceIndexV0>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct LspWorkspaceOccurrenceDocumentMemoEntry {
+    pub(crate) document_key: LspSourceSelectorOccurrenceDocumentKey,
+    pub(crate) dependency_document_uris: BTreeSet<String>,
+    pub(crate) dependency_digest: Option<String>,
+    pub(crate) occurrences: Vec<OmenaWorkspaceOccurrenceV0>,
 }
 
 /// documentColor cache rows: uri -> (freshness key, rendered informations).

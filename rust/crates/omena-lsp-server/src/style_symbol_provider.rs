@@ -20,12 +20,15 @@ use omena_query::{StyleLanguage, summarize_omena_query_sass_module_sources};
 use std::collections::BTreeMap;
 #[cfg(test)]
 pub(crate) use workspace_occurrence_read_set::{
+    extract_fresh_style_symbol_workspace_occurrences_for_document,
+    record_workspace_occurrence_extractor_rebuild, record_workspace_occurrence_shadow_verification,
     reset_workspace_occurrence_extractor_counters_for_test,
     workspace_occurrence_extractor_rebuild_count_for_test,
+    workspace_occurrence_read_set_recomputation_count_for_test,
     workspace_occurrence_shadow_verification_count_for_test,
 };
 pub(crate) use workspace_occurrence_read_set::{
-    style_symbol_occurrence_read_set_digest, style_symbol_workspace_occurrences_for_document,
+    style_symbol_occurrence_read_set, style_symbol_workspace_occurrences_for_document,
 };
 
 pub(crate) fn selector_reference_locations_from_open_documents(
