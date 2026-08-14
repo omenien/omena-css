@@ -14,6 +14,16 @@ export function App() {
 }
 `;
 
+function emptyWorkspaceFileSupplier(): AsyncIterable<FileTask> {
+  return {
+    [Symbol.asyncIterator](): AsyncIterator<FileTask> {
+      return {
+        next: () => Promise.resolve({ done: true, value: undefined as never }),
+      };
+    },
+  };
+}
+
 describe("document close forgets semantic reference contributions", () => {
   let client: LspTestClient | null = null;
 
@@ -23,22 +33,22 @@ describe("document close forgets semantic reference contributions", () => {
   });
 
   it("closing a TSX file drops its semantic reference sites so SCSS unused-check re-flags the selector", async () => {
-    function supplier(): AsyncIterable<FileTask> {
-      return {
-        [Symbol.asyncIterator](): AsyncIterator<FileTask> {
-          return {
-            next: () => Promise.resolve({ done: true, value: undefined as never }),
-          };
-        },
-      };
-    }
     client = createInProcessServer({
       readStyleFile: () => BUTTON_SCSS,
       typeResolver: new FakeTypeResolver(),
-      fileSupplier: supplier,
+      fileSupplier: emptyWorkspaceFileSupplier,
     });
-    await client.initialize();
+    await client.initialize({
+      capabilities: {
+        workspace: {
+          codeLens: { refreshSupport: true },
+          didChangeWatchedFiles: { dynamicRegistration: true },
+          workspaceFolders: true,
+        },
+      },
+    });
     client.initialized();
+    await client.waitForDynamicWatcherRegistration();
 
     const SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
     const TSX_URI = "file:///fake/workspace/src/App.tsx";

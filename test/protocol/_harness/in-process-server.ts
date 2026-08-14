@@ -124,6 +124,7 @@ export interface LspTestClient {
    */
   waitForDiagnostics(uri: string, timeoutMs?: number): Promise<Diagnostic[]>;
   waitForCodeLensRefresh(timeoutMs?: number): Promise<void>;
+  waitForDynamicWatcherRegistration(timeoutMs?: number): Promise<void>;
   prepareRename(
     params: PrepareRenameParams,
   ): Promise<{ range: LspRange; placeholder: string } | null>;
@@ -208,6 +209,8 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
   >();
   let pendingCodeLensRefreshes = 0;
   const codeLensRefreshWaiters: Array<{ resolve: () => void; reject: (e: unknown) => void }> = [];
+  let dynamicWatcherRegistrationCount = 0;
+  const dynamicWatcherRegistrationWaiters: Array<() => void> = [];
   // Handle workspace/configuration requests from the server. The
   // server's `fetchSettings` asks for two sections
   // (`omena` + `cssModules`) in separate requests, so
@@ -251,6 +254,22 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     }
     return undefined;
   });
+  client.onRequest(
+    "client/registerCapability",
+    (params: { registrations?: Array<{ method: string }> }) => {
+      if (
+        !params.registrations?.some(
+          (registration) => registration.method === "workspace/didChangeWatchedFiles",
+        )
+      ) {
+        return undefined;
+      }
+      dynamicWatcherRegistrationCount += 1;
+      const resolve = dynamicWatcherRegistrationWaiters.shift();
+      if (resolve) setTimeout(resolve, 0);
+      return undefined;
+    },
+  );
   client.listen();
 
   return {
@@ -348,6 +367,24 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
             reject(e);
           },
         });
+      });
+    },
+    async waitForDynamicWatcherRegistration(timeoutMs = 5000) {
+      if (dynamicWatcherRegistrationCount > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        return;
+      }
+      return new Promise<void>((resolve, reject) => {
+        const wrappedResolve = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        const timer = setTimeout(() => {
+          const index = dynamicWatcherRegistrationWaiters.indexOf(wrappedResolve);
+          if (index >= 0) dynamicWatcherRegistrationWaiters.splice(index, 1);
+          reject(new Error(`dynamic watcher registration timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        dynamicWatcherRegistrationWaiters.push(wrappedResolve);
       });
     },
     async prepareRename(params) {
