@@ -1,9 +1,9 @@
 use omena_cascade::{
-    FirstWitnessManagerConfigV0, FirstWitnessManagerV0, GuardedCascadeCandidateV0,
-    GuardedCascadeConditionAtomV0, GuardedCascadeFragmentRefusalV0, GuardedCascadeFragmentV0,
-    GuardedCascadeSpecificityExactnessV0, VariableOrderRegistrationV0,
-    build_guarded_cascade_winner_v0, evaluate_guarded_cascade_winner_v0,
-    same_canonical_winner_function_v0,
+    CascadeKey, CascadeLevel, FirstWitnessManagerConfigV0, FirstWitnessManagerV0,
+    GuardedCascadeCandidateV0, GuardedCascadeConditionAtomV0, GuardedCascadeFragmentRefusalV0,
+    GuardedCascadeFragmentV0, GuardedCascadeSpecificityExactnessV0, LayerOrdinal, Specificity,
+    VariableOrderRegistrationV0, build_guarded_cascade_winner_v0,
+    evaluate_guarded_cascade_winner_v0, normalized_layer_rank, same_canonical_winner_function_v0,
 };
 use serde::Serialize;
 
@@ -149,6 +149,73 @@ fn guarded_winner_matches_the_first_applicable_declaration_at_every_assignment()
     let rebuilt = build_guarded_cascade_winner_v0(&mut manager, &fragment)?;
     assert!(same_canonical_winner_function_v0(root, rebuilt));
     assert_eq!(root.node_id(), rebuilt.node_id());
+    Ok(())
+}
+
+#[test]
+fn cascade_key_input_orders_build_one_canonical_winner_root()
+-> Result<(), Box<dyn std::error::Error>> {
+    let candidate = |declaration_id, source_order, condition: &str| {
+        GuardedCascadeCandidateV0::new(
+            declaration_id,
+            "button.primary",
+            "color",
+            CascadeKey::new(
+                CascadeLevel::AuthorNormal,
+                normalized_layer_rank(false, LayerOrdinal::new(0)),
+                0,
+                Specificity::new(0, 1, 0),
+                source_order,
+            ),
+            GuardedCascadeSpecificityExactnessV0::Exact,
+            0,
+            vec![GuardedCascadeConditionAtomV0::media(
+                condition,
+                [source_order],
+                false,
+            )],
+        )
+    };
+    let first = candidate(10, 1, "condition-a");
+    let second = candidate(20, 2, "condition-b");
+    assert_ne!(first.cascade_key(), second.cascade_key());
+    assert_ne!(
+        first.cascade_key().cmp(second.cascade_key()),
+        std::cmp::Ordering::Equal
+    );
+
+    let forward = GuardedCascadeFragmentV0::admit(
+        ["condition-a", "condition-b"],
+        [first.clone(), second.clone()],
+    )?;
+    let reverse = GuardedCascadeFragmentV0::admit(["condition-a", "condition-b"], [second, first])?;
+    assert_eq!(forward.candidates(), reverse.candidates());
+
+    let build = |fragment: &GuardedCascadeFragmentV0<CascadeKey>| {
+        let mut manager = FirstWitnessManagerV0::new(
+            VariableOrderRegistrationV0::site_first_appearance(["condition-a", "condition-b"])?,
+            FirstWitnessManagerConfigV0 {
+                shortcuts: false,
+                ..FirstWitnessManagerConfigV0::default()
+            },
+        );
+        let root = build_guarded_cascade_winner_v0(&mut manager, fragment)?;
+        Ok::<_, omena_cascade::FirstWitnessErrorV0>((root, manager))
+    };
+    let (forward_root, forward_manager) = build(&forward)?;
+    let (reverse_root, reverse_manager) = build(&reverse)?;
+    assert_eq!(forward_root.node_id(), reverse_root.node_id());
+    for assignment in [[false, false], [true, false], [false, true], [true, true]] {
+        assert_eq!(
+            evaluate_guarded_cascade_winner_v0(&forward_manager, forward_root, &assignment,)?,
+            evaluate_guarded_cascade_winner_v0(&reverse_manager, reverse_root, &assignment,)?,
+        );
+    }
+    eprintln!(
+        "CASCADE_KEY_INPUT_ORDER={{\"forwardRoot\":{},\"reverseRoot\":{},\"assignmentCount\":4}}",
+        forward_root.node_id(),
+        reverse_root.node_id(),
+    );
     Ok(())
 }
 
@@ -359,13 +426,20 @@ fn synthetic_refusal_corpus_reports_each_attempted_boundary()
             ),
             "equal cascade keys must be a typed ambiguity",
         )?,
+        refusal(
+            GuardedCascadeFragmentV0::<u32>::admit(
+                (0..=usize::from(u16::MAX) + 1).map(|index| format!("atom-{index}")),
+                [exact(14, "button", "color", 10, Vec::new())],
+            ),
+            "an oversized condition alphabet must be refused before diagram construction",
+        )?,
     ];
 
     let mut counts = std::collections::BTreeMap::new();
     for refusal in refusals {
         *counts.entry(refusal.name()).or_insert(0_usize) += 1;
     }
-    assert_eq!(counts.len(), 11);
+    assert_eq!(counts.len(), 12);
     assert!(counts.values().all(|count| *count == 1));
     let serialized = serde_json::to_string(&counts)?;
     eprintln!("REFUSAL_CENSUS={serialized}");

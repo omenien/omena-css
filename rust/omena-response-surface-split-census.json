@@ -2485,7 +2485,7 @@
       "crate": "omena-cascade",
       "typeName": "CacheBudgetMeasurementV0",
       "sourcePath": "rust/crates/omena-cascade/src/first_witness.rs",
-      "line": 2773
+      "line": 2792
     },
     {
       "crate": "omena-cascade",
@@ -3379,7 +3379,7 @@
       "crate": "omena-cascade",
       "typeName": "ReclamationMeasurementV0",
       "sourcePath": "rust/crates/omena-cascade/src/first_witness.rs",
-      "line": 2629
+      "line": 2648
     },
     {
       "crate": "omena-cascade",

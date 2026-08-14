@@ -2368,6 +2368,25 @@ mod tests {
             product_root, different_root,
             "different terminal functions must not share a NodeId"
         );
+        let source = include_str!("first_witness.rs");
+        let oracle_start = source
+            .find("fn exhaustive_first_applicable_oracle_and_canonicality_both_directions()")
+            .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
+        let oracle_end = source[oracle_start..]
+            .find("fn broken_recursion_masking_table_pins_each_law_cell()")
+            .map(|offset| oracle_start + offset)
+            .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
+        let oracle_source = &source[oracle_start..oracle_end];
+        for forbidden in [
+            ["cascade", "_property("].concat(),
+            ["rank_cascade", "_items("].concat(),
+            ["select_open_world", "_cascade_winner("].concat(),
+        ] {
+            assert!(
+                !oracle_source.contains(forbidden.as_str()),
+                "the A2 oracle must remain independent of cascade ranking entry point {forbidden}"
+            );
+        }
         eprintln!(
             "{{\"variableCount\":{VARIABLE_COUNT},\"checkedPointCount\":{table_size},\"mismatchCount\":{mismatch_count},\"productNodeId\":{product_root},\"independentNodeId\":{independent_root},\"differentNodeId\":{different_root}}}"
         );
@@ -2776,10 +2795,13 @@ mod tests {
         tree_elapsed_nanos: u128,
         linear_elapsed_nanos: u128,
         winner: &'static str,
+        restoration_protocol: bool,
+        choice_counters: FirstWitnessChoiceOperationCountersV0,
     }
 
     fn measure_incremental_winner_cache_budget(
         capacity: usize,
+        restoration_protocol: bool,
     ) -> Result<CacheBudgetMeasurementV0, FirstWitnessErrorV0> {
         const VARIABLE_COUNT: usize = 12;
         const ENTRY_COUNT: usize = 512;
@@ -2815,7 +2837,9 @@ mod tests {
                 1 << (declaration % VARIABLE_COUNT) | 1 << ((declaration * 5 + 1) % VARIABLE_COUNT),
                 VARIABLE_COUNT,
             )?;
-            entries.insert(key, root);
+            let previous_root = entries
+                .insert(key, root)
+                .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
             let batch = if edit % 2 == 0 {
                 let started = Instant::now();
                 let batch = batch_winner_from_entries(&mut manager, &entries)?;
@@ -2834,6 +2858,10 @@ mod tests {
                 batch
             };
             assert_eq!(tree.root().node_id(), batch.node_id());
+            if restoration_protocol {
+                entries.insert(key, previous_root);
+                tree.insert(&mut manager, key, previous_root)?;
+            }
         }
         Ok(CacheBudgetMeasurementV0 {
             capacity,
@@ -2845,19 +2873,29 @@ mod tests {
             } else {
                 "warmLinearRefold"
             },
+            restoration_protocol,
+            choice_counters: manager.first_witness_counters(),
         })
     }
 
     #[test]
     fn apply_cache_budget_condition_is_measured_at_three_points() -> Result<(), FirstWitnessErrorV0>
     {
-        let unbounded_probe = measure_incremental_winner_cache_budget(1_000_000)?;
+        let unbounded_probe = measure_incremental_winner_cache_budget(1_000_000, false)?;
         let working_set = unbounded_probe.cache_occupancy.max(3);
         let rows = [
-            measure_incremental_winner_cache_budget((working_set / 16).max(1))?,
-            measure_incremental_winner_cache_budget(working_set)?,
-            measure_incremental_winner_cache_budget(working_set.saturating_mul(2))?,
+            measure_incremental_winner_cache_budget((working_set / 16).max(1), false)?,
+            measure_incremental_winner_cache_budget(working_set, false)?,
+            measure_incremental_winner_cache_budget(working_set.saturating_mul(2), false)?,
         ];
+        let restoration_rows = [
+            measure_incremental_winner_cache_budget((working_set / 16).max(1), true)?,
+            measure_incremental_winner_cache_budget(working_set, true)?,
+            measure_incremental_winner_cache_budget(working_set.saturating_mul(2), true)?,
+        ];
+        eprintln!(
+            "{{\"declaredSynthetic\":true,\"terminalAlphabet\":\"declarationIdPlusBot\",\"alternatedMeasurementOrder\":true,\"streamingNoRestoration\":true,\"workingSetEntries\":{working_set},\"unboundedProbe\":{unbounded_probe:?},\"budgetRows\":{rows:?},\"restorationBiasRows\":{restoration_rows:?},\"claim\":\"wall-clock benefit is conditional on the apply-cache budget\"}}"
+        );
         assert!(rows[0].capacity < working_set);
         assert!(rows[1].capacity >= working_set);
         assert!(rows[2].capacity > working_set);
@@ -2872,28 +2910,37 @@ mod tests {
                         "warmLinearRefold"
                     }
         }));
-        eprintln!(
-            "{{\"declaredSynthetic\":true,\"terminalAlphabet\":\"declarationIdPlusBot\",\"alternatedMeasurementOrder\":true,\"workingSetEntries\":{working_set},\"unboundedProbe\":{unbounded_probe:?},\"budgetRows\":{rows:?},\"claim\":\"wall-clock benefit is conditional on the apply-cache budget\"}}"
-        );
+        assert!(rows.iter().all(|row| !row.restoration_protocol));
+        for (streaming, restoration) in rows.iter().zip(restoration_rows.iter()) {
+            assert!(restoration.restoration_protocol);
+            assert_eq!(streaming.capacity, restoration.capacity);
+            assert_ne!(
+                restoration.choice_counters, streaming.choice_counters,
+                "restoring every edit must move the product-operation counters at every cache point"
+            );
+            assert_ne!(
+                (
+                    restoration.choice_counters.apply_cache_lookups,
+                    restoration.choice_counters.apply_cache_hits,
+                    restoration.cache_occupancy,
+                ),
+                (
+                    streaming.choice_counters.apply_cache_lookups,
+                    streaming.choice_counters.apply_cache_hits,
+                    streaming.cache_occupancy,
+                ),
+                "the restoration protocol must move the measured cache table at every cache point"
+            );
+        }
         Ok(())
     }
 
     fn blocked_pair_node_count(
-        interleaved: bool,
+        order: VariableOrderRegistrationV0,
         pair_count: usize,
     ) -> Result<usize, FirstWitnessErrorV0> {
-        let atoms = if interleaved {
-            (0..pair_count)
-                .flat_map(|index| [format!("a-{index}"), format!("b-{index}")])
-                .collect::<Vec<_>>()
-        } else {
-            (0..pair_count)
-                .map(|index| format!("a-{index}"))
-                .chain((0..pair_count).map(|index| format!("b-{index}")))
-                .collect::<Vec<_>>()
-        };
         let mut manager = FirstWitnessManagerV0::new(
-            VariableOrderRegistrationV0::site_first_appearance(atoms)?,
+            order,
             FirstWitnessManagerConfigV0 {
                 shortcuts: false,
                 apply_cache_capacity: 65_536,
@@ -2956,14 +3003,24 @@ mod tests {
             }),
         )?;
         let order = at_rule_nesting_order_for_fragment_v0(&fragment)?;
-        assert_eq!(order.domain(), VariableOrderDomainV0::AtRuleNestingDfs);
-        let interleaved_nodes = blocked_pair_node_count(true, PAIR_COUNT)?;
-        let blocked_nodes = blocked_pair_node_count(false, PAIR_COUNT)?;
-        assert!(interleaved_nodes <= INTERLEAVED_CEILING);
-        assert!(blocked_nodes > interleaved_nodes.saturating_mul(100));
+        let observed_domain = order.domain();
+        let observed_nodes = blocked_pair_node_count(order, PAIR_COUNT)?;
+        let blocked_order = VariableOrderRegistrationV0::site_first_appearance(
+            (0..PAIR_COUNT)
+                .map(|index| format!("a-{index}"))
+                .chain((0..PAIR_COUNT).map(|index| format!("b-{index}"))),
+        )?;
+        let blocked_nodes = blocked_pair_node_count(blocked_order, PAIR_COUNT)?;
+        assert!(
+            observed_nodes <= INTERLEAVED_CEILING,
+            "A5 order-policy ceiling exceeded: domain={} observedNodes={observed_nodes} ceiling={INTERLEAVED_CEILING}",
+            observed_domain.name(),
+        );
+        assert_eq!(observed_domain, VariableOrderDomainV0::AtRuleNestingDfs);
+        assert!(blocked_nodes > observed_nodes.saturating_mul(100));
         eprintln!(
-            "{{\"declaredSynthetic\":true,\"domain\":\"{}\",\"pairCount\":{PAIR_COUNT},\"interleavedNodes\":{interleaved_nodes},\"blockedNodes\":{blocked_nodes},\"interleavedCeiling\":{INTERLEAVED_CEILING},\"a1ThroughA4OrderIndependent\":true}}",
-            order.domain().name(),
+            "{{\"declaredSynthetic\":true,\"domain\":\"{}\",\"pairCount\":{PAIR_COUNT},\"interleavedNodes\":{observed_nodes},\"blockedNodes\":{blocked_nodes},\"interleavedCeiling\":{INTERLEAVED_CEILING},\"a1ThroughA4OrderIndependent\":true}}",
+            observed_domain.name(),
         );
         Ok(())
     }
