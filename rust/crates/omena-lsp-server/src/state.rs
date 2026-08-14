@@ -512,6 +512,11 @@ pub(crate) struct LspWorkspaceOccurrenceIndexMemo {
     pub(crate) source_document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
     pub(crate) style_document_keys: Vec<LspSourceSelectorOccurrenceDocumentKey>,
     pub(crate) document_entries: BTreeMap<LspFileId, LspWorkspaceOccurrenceDocumentMemoEntry>,
+    /// The aggregate input revision whose reusable entries were already
+    /// byte-checked by the RAM value oracle. Sampling one revision in sixteen
+    /// keeps the exact-hit fast path intact instead of walking every entry on
+    /// every serve.
+    pub(crate) shadow_verified_revision_digest: Option<String>,
     pub(crate) definitions: Vec<OmenaQueryStyleSelectorDefinitionV0>,
     pub(crate) source_selector_index: Arc<OmenaQuerySourceSelectorOccurrenceIndexV0>,
     pub(crate) workspace_index: Arc<OmenaWorkspaceOccurrenceIndexV0>,

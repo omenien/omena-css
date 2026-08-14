@@ -4995,6 +4995,150 @@ fn workspace_occurrence_source_entries_follow_imported_style_read_set() -> TestR
 }
 
 #[test]
+fn workspace_occurrence_unscoped_prefix_unions_imported_and_workspace_definitions() -> TestResult {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-workspace-occurrence-mixed-prefix-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    std::fs::create_dir_all(workspace_root.join("src"))?;
+    let workspace_uri = path_to_file_uri(workspace_root.as_path());
+    let app_uri = path_to_file_uri(workspace_root.join("src/App.module.scss").as_path());
+    let other_uri = path_to_file_uri(workspace_root.join("src/Other.module.scss").as_path());
+    let latent_uri = path_to_file_uri(workspace_root.join("src/Latent.module.scss").as_path());
+    let usage_uri = path_to_file_uri(workspace_root.join("src/Usage.tsx").as_path());
+    let app_text = ".root { color: red; }\n";
+    let other_text = ".btn-primary { color: blue; }\n.btn-ghost { color: gray; }\n";
+    let latent_text = "/* no selectors yet */\n";
+    let usage_text = concat!(
+        "import styles from './App.module.scss';\n",
+        "declare const kind: string;\n",
+        "void styles.root;\n",
+        "export const view = <div className={`btn-${kind}`} />;\n",
+    );
+    std::fs::write(workspace_root.join("src/App.module.scss"), app_text)?;
+    std::fs::write(workspace_root.join("src/Other.module.scss"), other_text)?;
+    std::fs::write(workspace_root.join("src/Latent.module.scss"), latent_text)?;
+    std::fs::write(workspace_root.join("src/Usage.tsx"), usage_text)?;
+
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{"uri": workspace_uri, "name": "mixed-prefix"}],
+            },
+        }),
+    );
+    open_occurrence_style_document(&mut state, app_uri.as_str(), app_text);
+    open_occurrence_style_document(&mut state, other_uri.as_str(), other_text);
+    open_occurrence_style_document(&mut state, latent_uri.as_str(), latent_text);
+    open_occurrence_source_document(&mut state, usage_uri.as_str(), usage_text);
+    let source_document = state
+        .document(usage_uri.as_str())
+        .ok_or("mixed-prefix source document should be indexed")?;
+    assert!(
+        source_document
+            .source_selector_candidates
+            .iter()
+            .any(|candidate| {
+                candidate.kind == "sourceSelectorPrefixReference"
+                    && candidate.target_style_uri.is_none()
+            }),
+        "the mixed fixture must contain an unscoped prefix candidate: {:?}",
+        source_document.source_selector_candidates,
+    );
+
+    let cold = crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+        &state,
+        Some(workspace_uri.as_str()),
+    );
+    let mut cold_names = cold
+        .source_selector_index
+        .occurrences
+        .iter()
+        .filter(|occurrence| occurrence.uri == usage_uri)
+        .map(|occurrence| occurrence.selector_name.clone())
+        .collect::<Vec<_>>();
+    cold_names.sort();
+    assert_eq!(
+        cold_names,
+        vec!["btn-ghost", "btn-primary", "root"],
+        "an unscoped prefix must union workspace definitions with imported-style definitions",
+    );
+
+    change_occurrence_style_document(
+        &mut state,
+        latent_uri.as_str(),
+        2,
+        ".btn-solid { color: black; }\n",
+    );
+    crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
+    crate::workspace_occurrences::reset_workspace_occurrence_memo_hit_counts_for_test();
+    let refreshed = crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+        &state,
+        Some(workspace_uri.as_str()),
+    );
+    let mut refreshed_names = refreshed
+        .source_selector_index
+        .occurrences
+        .iter()
+        .filter(|occurrence| occurrence.uri == usage_uri)
+        .map(|occurrence| occurrence.selector_name.clone())
+        .collect::<Vec<_>>();
+    refreshed_names.sort();
+    assert_eq!(
+        refreshed_names,
+        vec!["btn-ghost", "btn-primary", "btn-solid", "root"],
+        "editing any workspace definition read by an unscoped prefix must refresh the source entry",
+    );
+    assert_eq!(
+        crate::workspace_occurrences::workspace_occurrence_memo_hit_count_for_test(
+            usage_uri.as_str(),
+        ),
+        0,
+        "an unscoped prefix has a workspace-wide dependency and must not stale-serve its RAM entry",
+    );
+    assert_eq!(
+        crate::style_symbol_provider::workspace_occurrence_extractor_rebuild_count_for_test(
+            usage_uri.as_str(),
+        ),
+        1,
+        "an unscoped-prefix dependency edit must rebuild the affected source entry once",
+    );
+
+    let fresh_checked =
+        crate::workspace_occurrence_cache::with_workspace_occurrence_shadow_all_for_test(|| {
+            crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                &state,
+                Some(workspace_uri.as_str()),
+            )
+        });
+    assert_eq!(
+        serde_json::to_vec(refreshed.source_selector_index.as_ref())?,
+        serde_json::to_vec(fresh_checked.source_selector_index.as_ref())?,
+        "the mixed-prefix memo value must equal a forced fresh extraction byte-for-byte",
+    );
+
+    *state.workspace_occurrence_index_memo_lock() = None;
+    let rehydrated = crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+        &state,
+        Some(workspace_uri.as_str()),
+    );
+    assert_eq!(
+        serde_json::to_vec(refreshed.source_selector_index.as_ref())?,
+        serde_json::to_vec(rehydrated.source_selector_index.as_ref())?,
+        "the workspace-wide prefix read set must rehydrate byte-identically",
+    );
+
+    let _ = std::fs::remove_dir_all(workspace_root);
+    Ok(())
+}
+
+#[test]
 fn workspace_occurrence_ram_memo_shadow_repairs_content_divergence() -> TestResult {
     let WorkspaceOccurrenceReadSetFixtureV0 {
         state,
@@ -5027,6 +5171,7 @@ fn workspace_occurrence_ram_memo_shadow_repairs_content_divergence() -> TestResu
             .clear();
         std::sync::Arc::clone(&memo.shadow_mismatch_count)
     };
+    crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
     let repaired =
         crate::workspace_occurrence_cache::with_workspace_occurrence_shadow_all_for_test(|| {
             crate::workspace_occurrence_cache::with_workspace_occurrence_shadow_recovery_for_test(
@@ -5045,6 +5190,29 @@ fn workspace_occurrence_ram_memo_shadow_repairs_content_divergence() -> TestResu
             .iter()
             .any(|occurrence| occurrence.uri == usage_uri),
         "the RAM memo value oracle must replace a content-divergent cached value",
+    );
+    let verified_after_repair =
+        crate::style_symbol_provider::workspace_occurrence_shadow_verification_total_for_test();
+    assert!(
+        verified_after_repair > 0,
+        "a sampled memo revision must byte-check its reusable entries",
+    );
+    let repeated =
+        crate::workspace_occurrence_cache::with_workspace_occurrence_shadow_all_for_test(|| {
+            crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
+                &state,
+                Some(workspace_uri.as_str()),
+            )
+        });
+    assert_eq!(
+        serde_json::to_vec(repaired.workspace_index.as_ref())?,
+        serde_json::to_vec(repeated.workspace_index.as_ref())?,
+        "a verified revision must serve byte-identically",
+    );
+    assert_eq!(
+        crate::style_symbol_provider::workspace_occurrence_shadow_verification_total_for_test(),
+        verified_after_repair,
+        "a sampled revision must be byte-checked once, then keep the aggregate fast path",
     );
     assert_eq!(
         shadow_mismatch_count.load(std::sync::atomic::Ordering::Relaxed),
