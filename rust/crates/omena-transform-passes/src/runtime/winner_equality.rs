@@ -687,19 +687,18 @@ fn guarded_conditions_from_context(context: &str) -> Option<Vec<GuardedCascadeCo
         .map(|(index, component)| {
             let component = component.trim();
             let path = [u32::try_from(index).ok()?];
-            let keyword = css_keyword(component);
             let numeric = component
                 .chars()
                 .any(|character| character.is_ascii_digit());
-            if keyword.strip_prefix("@media").is_some() {
+            if css_keyword(component).strip_prefix("@media").is_some() {
                 Some(GuardedCascadeConditionAtomV0::media(
                     component, path, numeric,
                 ))
-            } else if keyword.strip_prefix("@supports").is_some() {
+            } else if css_keyword(component).strip_prefix("@supports").is_some() {
                 Some(GuardedCascadeConditionAtomV0::supports(
                     component, path, numeric,
                 ))
-            } else if keyword.strip_prefix("@container").is_some() {
+            } else if css_keyword(component).strip_prefix("@container").is_some() {
                 Some(GuardedCascadeConditionAtomV0::container(component, path))
             } else {
                 Some(GuardedCascadeConditionAtomV0::structural_pseudo(component))
@@ -1093,6 +1092,28 @@ mod tests {
         assert!(!result.unresolved_reasons.iter().any(|absence| {
             absence.reason == TransformWinnerEqualityAbsenceReasonV0::SpecificityInexact
         }));
+    }
+
+    #[test]
+    fn guarded_conditions_classify_mixed_case_at_rules_through_keyword_authority()
+    -> Result<(), &'static str> {
+        let conditions = guarded_conditions_from_context(
+            "@MeDiA (min-width: 1px)|@SuPpOrTs (display: grid)|@CoNtAiNeR card (min-width: 1px)",
+        )
+        .ok_or("mixed-case guarded conditions")?;
+
+        assert_eq!(
+            conditions
+                .iter()
+                .map(|condition| condition.kind())
+                .collect::<Vec<_>>(),
+            [
+                omena_cascade::GuardedCascadeConditionKindV0::Media,
+                omena_cascade::GuardedCascadeConditionKindV0::Supports,
+                omena_cascade::GuardedCascadeConditionKindV0::Container,
+            ]
+        );
+        Ok(())
     }
 
     #[test]

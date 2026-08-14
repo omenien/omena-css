@@ -163,7 +163,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
-        "line": 683,
+        "line": 854,
         "function": "query_selector_class_names",
         "operation": "ClassNameV0::into_raw",
         "evidence": "names.insert(entry.name.into_raw());",
@@ -171,7 +171,7 @@
         "reason": "Cascade diagnostics preserve authored selector spelling after shared lexical extraction."
       }
     ],
-    "siteDigest": "sha256:56748841afa6c93c63d927a51d27d222098e2850e2d2630cf7bcebb7832d5fd1"
+    "siteDigest": "sha256:ced898dbde54c9c83bc80d1e3df5a72e2264f0da19231ab313903754231ad4c9"
   },
   "idiom": {
     "granularity": "line",

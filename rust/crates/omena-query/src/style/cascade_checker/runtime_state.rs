@@ -19,7 +19,7 @@ use omena_query_core::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0,
     narrow_abstract_property_value_for_cascade_branch, prefix_suffix_class_value,
 };
-use omena_syntax::ident::class_selector_names;
+use omena_syntax::{css_keyword, ident::class_selector_names};
 
 #[cfg(test)]
 use crate::types::runtime_state_result_certainty_labels;
@@ -362,16 +362,15 @@ fn query_runtime_guarded_conditions(
             let numeric = component
                 .chars()
                 .any(|character| character.is_ascii_digit());
-            let lower = component.to_ascii_lowercase();
-            if lower.starts_with("@media") {
+            if css_keyword(component).strip_prefix("@media").is_some() {
                 Some(GuardedCascadeConditionAtomV0::media(
                     component, path, numeric,
                 ))
-            } else if lower.starts_with("@supports") {
+            } else if css_keyword(component).strip_prefix("@supports").is_some() {
                 Some(GuardedCascadeConditionAtomV0::supports(
                     component, path, numeric,
                 ))
-            } else if lower.starts_with("@container") {
+            } else if css_keyword(component).strip_prefix("@container").is_some() {
                 Some(GuardedCascadeConditionAtomV0::container(component, path))
             } else {
                 Some(GuardedCascadeConditionAtomV0::structural_pseudo(component))
@@ -918,6 +917,33 @@ mod tests {
             query_selector_class_names(".card .title"),
             ["card", "title"]
         );
+    }
+
+    #[test]
+    fn guarded_conditions_classify_mixed_case_at_rules_through_keyword_authority()
+    -> Result<(), &'static str> {
+        let context = [
+            "@MeDiA (min-width: 1px)".to_string(),
+            "@SuPpOrTs (display: grid)".to_string(),
+            "@CoNtAiNeR card (min-width: 1px)".to_string(),
+        ];
+        let mut alphabet = BTreeSet::new();
+        let conditions = query_runtime_guarded_conditions(&context, &mut alphabet)
+            .ok_or("mixed-case guarded conditions")?;
+
+        assert_eq!(
+            conditions
+                .iter()
+                .map(|condition| condition.kind())
+                .collect::<Vec<_>>(),
+            [
+                omena_cascade::GuardedCascadeConditionKindV0::Media,
+                omena_cascade::GuardedCascadeConditionKindV0::Supports,
+                omena_cascade::GuardedCascadeConditionKindV0::Container,
+            ]
+        );
+        assert_eq!(alphabet, context.into_iter().collect());
+        Ok(())
     }
 
     #[test]

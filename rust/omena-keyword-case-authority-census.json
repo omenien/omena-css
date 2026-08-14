@@ -25,14 +25,14 @@
   "currentDefectReachableCount": 0,
   "classificationCounts": {
     "DEFECT-REACHABLE": 0,
-    "PROTECTED-BY-PARSER": 159,
+    "PROTECTED-BY-PARSER": 161,
     "TEST-ONLY": 25,
     "ORACLE-DEMOTED": 1
   },
   "sites": [
     {
       "path": "rust/crates/omena-cascade/src/lib.rs",
-      "line": 90,
+      "line": 92,
       "function": "prove_scope_flatten_candidate",
       "idiom": "equals",
       "keyword": ":root",
@@ -700,6 +700,17 @@
       "disposition": "retain-case-insensitive-witness",
       "classificationReason": "The comparison is performed on the function-local lowercase compact value.",
       "evidence": "if !compact.ends_with(\"!important\") {"
+    },
+    {
+      "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+      "line": 369,
+      "function": "query_runtime_guarded_conditions",
+      "idiom": "strip-prefix",
+      "keyword": "@supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "} else if css_keyword(component).strip_prefix(\"@supports\").is_some() {"
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
@@ -2001,7 +2012,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 298,
+      "line": 367,
       "function": "winner_for_pair",
       "idiom": "contains",
       "keyword": "@scope",
@@ -2012,7 +2023,18 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 619,
+      "line": 697,
+      "function": "guarded_conditions_from_context",
+      "idiom": "strip-prefix",
+      "keyword": "@supports",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "} else if css_keyword(component).strip_prefix(\"@supports\").is_some() {"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+      "line": 931,
       "function": "conditional_context_is_open",
       "idiom": "contains",
       "keyword": "@supports",
@@ -2066,7 +2088,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:9bd471d02206d3523f1268b54316561d4509b85779ed0ec59612da34e21b5880",
+  "siteDigest": "sha256:a85f62d3c1d17e023234c10142503bd7e101828b51e2e357f1a7650d8dff7ab9",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
@@ -2088,6 +2110,7 @@
       "rust/crates/omena-parser/src/public_product.rs#sass_module_forward_prefix_from_statement",
       "rust/crates/omena-parser/src/syntax_helpers.rs#matches_ignore_ascii_case",
       "rust/crates/omena-query/src/style.rs#hover_layer_name_from_prelude",
+      "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs#query_runtime_guarded_conditions",
       "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs#query_at_root_selector_from_prelude",
       "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs#query_layer_name_from_prelude",
       "rust/crates/omena-query/src/style/code_actions.rs#selector_inline_declarations",
@@ -2108,9 +2131,12 @@
       "rust/crates/omena-transform-passes/src/domains/rule_cleanup.rs#collect_overridden_same_property_declaration_replacements_from_ir",
       "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs#keyframe_name_from_at_rule_prelude",
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#conditional_context_is_open",
+      "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#guarded_candidate_seeds_for_pair",
+      "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#guarded_conditions_from_context",
+      "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#guarded_environment_candidate_seeds_for_pair",
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair"
     ],
-    "functionKeyDigest": "sha256:ec9807900136339922c3cc57c2d240d52917819514f7cc054fdad9c83b3d03ea",
+    "functionKeyDigest": "sha256:a05a3be4877a055b8850f3a83848ecdc643bc953923eb702cb4b63e933c1947d",
     "adHocCaseOperationCount": 0,
     "adHocCaseOperations": []
   }
