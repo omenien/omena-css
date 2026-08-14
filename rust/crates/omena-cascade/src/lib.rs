@@ -22,6 +22,7 @@ mod property_metadata_idl_generated;
 mod ranked_set_loss_census;
 mod ranking;
 mod refinement;
+mod robustness_radius;
 mod selector;
 mod shorthand_authority;
 mod statistics;
@@ -54,6 +55,7 @@ pub use ranking::{
     select_open_world_cascade_winner, summarize_cascade_margin_schema_v0,
 };
 pub use refinement::*;
+pub use robustness_radius::*;
 pub use selector::*;
 pub use shorthand_authority::*;
 pub use statistics::*;

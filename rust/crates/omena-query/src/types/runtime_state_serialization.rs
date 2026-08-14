@@ -137,7 +137,8 @@ impl Serialize for OmenaQueryRuntimeStateScenarioEvidenceV0 {
             + usize::from(!self.static_condition_pruning.is_empty())
             + usize::from(!self.inline_style_overrides.is_empty())
             + usize::from(cascade_layer_topology_incomplete.is_some())
-            + usize::from(self.guarded_winner_authority.is_some());
+            + usize::from(self.guarded_winner_authority.is_some())
+            + usize::from(!self.fragile_guarded_winner_diagnostics.is_empty());
         let mut state =
             serializer.serialize_struct("OmenaQueryRuntimeStateScenarioEvidenceV0", field_count)?;
         state.serialize_field("schemaVersion", self.schema_version)?;
@@ -170,6 +171,12 @@ impl Serialize for OmenaQueryRuntimeStateScenarioEvidenceV0 {
         }
         if let Some(authority) = &self.guarded_winner_authority {
             state.serialize_field("guardedWinnerAuthority", authority)?;
+        }
+        if !self.fragile_guarded_winner_diagnostics.is_empty() {
+            state.serialize_field(
+                "fragileGuardedWinnerDiagnostics",
+                &self.fragile_guarded_winner_diagnostics,
+            )?;
         }
         state.end()
     }

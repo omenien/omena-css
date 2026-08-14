@@ -7,7 +7,8 @@ use omena_cascade::{
     GuardedCascadeWinnerAuthorityV0, LayerOrdinal, OpenWorldTieEvidence, SelectorMatchVerdict,
     Specificity, SpecificityExactnessV0, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
     at_rule_nesting_order_for_fragment_v0, build_guarded_cascade_winner_v0,
-    cascade_level_for_origin, cascade_property, evaluate_static_supports_condition,
+    cascade_level_for_origin, cascade_property, compute_guarded_cascade_robustness_radius_v0,
+    evaluate_static_supports_condition, guarded_cascade_perturbation_cost_model_v0,
     guarded_cascade_winner_authority_v0, guarded_cascade_winner_is_total_v0, normalized_layer_rank,
     parse_simple_selector_signature, selector_co_match_verdict,
 };
@@ -22,7 +23,11 @@ use omena_syntax::ident::class_selector_names;
 
 #[cfg(test)]
 use crate::types::runtime_state_result_certainty_labels;
-use crate::types::runtime_state_unknown_activation_declaration_id;
+use crate::{
+    OMENA_QUERY_FRAGILE_GUARDED_WINNER_THRESHOLD_V0,
+    style::substrate::summarize_omena_query_fragile_guarded_winner_v0,
+    types::runtime_state_unknown_activation_declaration_id,
+};
 
 use super::super::{
     OmenaQueryCascadeLayerTopologyIncompleteV0, OmenaQueryInlineStyleRuntimeOverrideV0,
@@ -108,11 +113,16 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
             &[],
             static_boundary.boundary_kind,
         );
-    let guarded_winner_authority = query_runtime_guarded_winner_authority(
+    let guarded_winner_analysis = query_runtime_guarded_winner_analysis(
         anchor.selector.as_str(),
         anchor.property.as_str(),
         candidate_declarations.as_slice(),
+        scenarios.as_slice(),
     );
+    let (guarded_winner_authority, fragile_guarded_winner_diagnostics) = guarded_winner_analysis
+        .map_or((None, Vec::new()), |(authority, diagnostics)| {
+            (Some(authority), diagnostics)
+        });
     let mut driver_summaries = vec![
         OmenaQueryRuntimeStateDriverSummaryV0 {
             driver: "pseudoStateScenarioSweep",
@@ -188,6 +198,7 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
             |unresolved_count| OmenaQueryCascadeLayerTopologyIncompleteV0 { unresolved_count },
         ),
         guarded_winner_authority,
+        fragile_guarded_winner_diagnostics,
     })
 }
 
@@ -218,11 +229,70 @@ pub(crate) fn query_runtime_state_confidence_tier(
     (tier, tier_within_modeled_environment)
 }
 
+#[cfg(test)]
 fn query_runtime_guarded_winner_authority(
     anchor_selector: &str,
     property_name: &str,
     declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
 ) -> Option<GuardedCascadeWinnerAuthorityV0> {
+    let fragment =
+        query_runtime_guarded_winner_fragment(anchor_selector, property_name, declarations)?;
+    query_runtime_guarded_winner_authority_for_fragment(&fragment)
+}
+
+fn query_runtime_guarded_winner_analysis(
+    anchor_selector: &str,
+    property_name: &str,
+    declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
+    scenarios: &[OmenaQueryRuntimeStateScenarioV0],
+) -> Option<(
+    GuardedCascadeWinnerAuthorityV0,
+    Vec<super::super::OmenaQueryFragileGuardedWinnerDiagnosticV0>,
+)> {
+    let fragment =
+        query_runtime_guarded_winner_fragment(anchor_selector, property_name, declarations)?;
+    let authority = query_runtime_guarded_winner_authority_for_fragment(&fragment)?;
+    let order = at_rule_nesting_order_for_fragment_v0(&fragment).ok()?;
+    let cost_model = guarded_cascade_perturbation_cost_model_v0();
+    let mut observed_assignments = BTreeSet::new();
+    let diagnostics = scenarios
+        .iter()
+        .filter_map(|scenario| {
+            let assignment = order
+                .atoms()
+                .iter()
+                .map(|atom| scenario.condition_context.contains(atom))
+                .collect::<Vec<_>>();
+            if !observed_assignments.insert(assignment.clone()) {
+                return None;
+            }
+            let robustness = compute_guarded_cascade_robustness_radius_v0(
+                &fragment,
+                assignment.as_slice(),
+                &cost_model,
+            )
+            .ok()?;
+            let declaration_id = declarations
+                .iter()
+                .map(|declaration| declaration.declaration_id.as_str())
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .nth(usize::try_from(robustness.baseline_winner_declaration_id).ok()?)?;
+            summarize_omena_query_fragile_guarded_winner_v0(
+                &robustness,
+                declaration_id,
+                OMENA_QUERY_FRAGILE_GUARDED_WINNER_THRESHOLD_V0,
+            )
+        })
+        .collect();
+    Some((authority, diagnostics))
+}
+
+fn query_runtime_guarded_winner_fragment(
+    anchor_selector: &str,
+    property_name: &str,
+    declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
+) -> Option<GuardedCascadeFragmentV0<CascadeKey>> {
     let declaration_ids = declarations
         .iter()
         .map(|declaration| declaration.declaration_id.clone())
@@ -261,10 +331,15 @@ fn query_runtime_guarded_winner_authority(
             ))
         })
         .collect::<Option<Vec<_>>>()?;
-    let fragment = GuardedCascadeFragmentV0::admit(alphabet, candidates).ok()?;
-    let order = at_rule_nesting_order_for_fragment_v0(&fragment).ok()?;
+    GuardedCascadeFragmentV0::admit(alphabet, candidates).ok()
+}
+
+fn query_runtime_guarded_winner_authority_for_fragment(
+    fragment: &GuardedCascadeFragmentV0<CascadeKey>,
+) -> Option<GuardedCascadeWinnerAuthorityV0> {
+    let order = at_rule_nesting_order_for_fragment_v0(fragment).ok()?;
     let mut manager = FirstWitnessManagerV0::new(order, FirstWitnessManagerConfigV0::default());
-    let root = build_guarded_cascade_winner_v0(&mut manager, &fragment).ok()?;
+    let root = build_guarded_cascade_winner_v0(&mut manager, fragment).ok()?;
     let total = guarded_cascade_winner_is_total_v0(&manager, root).ok()?;
     Some(guarded_cascade_winner_authority_v0(
         fragment.predicate(),
@@ -1185,6 +1260,15 @@ mod tests {
                 "conditionalDefiniteWithinModeledEnvironment",
             )
         );
+        let (_, fragile_guarded_winner_diagnostics) = query_runtime_guarded_winner_analysis(
+            ".target",
+            "color",
+            declarations.as_slice(),
+            std::slice::from_ref(&scenario),
+        )
+        .ok_or("declared fragment robustness missing")?;
+        assert_eq!(fragile_guarded_winner_diagnostics.len(), 1);
+        assert_eq!(fragile_guarded_winner_diagnostics[0].robustness_radius, 1);
         let evidence = OmenaQueryRuntimeStateScenarioEvidenceV0 {
             schema_version: "0",
             product: "omena-query.runtime-state-scenario-evidence",
@@ -1206,6 +1290,7 @@ mod tests {
             inline_style_overrides: Vec::new(),
             cascade_layer_topology_incomplete: None,
             guarded_winner_authority: Some(authority),
+            fragile_guarded_winner_diagnostics,
         };
         let serialized = serde_json::to_value(&evidence)
             .map_err(|_| "guarded authority serialization failed")?;
@@ -1214,6 +1299,22 @@ mod tests {
         assert_eq!(
             serialized["guardedWinnerAuthority"]["rule"]["kind"],
             "canonicalMtbddInsideFragment"
+        );
+        assert_eq!(
+            serialized["fragileGuardedWinnerDiagnostics"][0]["robustnessRadius"],
+            1
+        );
+        assert_eq!(
+            serialized["fragileGuardedWinnerDiagnostics"][0]["baselineWinnerDeclarationId"],
+            "guarded"
+        );
+        assert_eq!(
+            serialized["fragileGuardedWinnerDiagnostics"][0]["calibrationStage"],
+            "schemaOnlyUncalibrated"
+        );
+        assert_eq!(
+            serialized["fragileGuardedWinnerDiagnostics"][0]["publicSafetyClaimReady"],
+            false
         );
         Ok(())
     }

@@ -130,7 +130,7 @@
     {
       "crate": "omena-cascade",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor seals layer-rank construction, adds explicit cascade and computed-value states, extends proof carriers, retires the old corpus entry points, orders specificity before scope proximity, separates open-world tie evidence from the specification key, adds typed cascade-axis reach disclosure, and exposes additive guarded-winner MTBDD authority and equality-refusal carriers.",
+      "reason": "The next pre-1.0 minor seals layer-rank construction, adds explicit cascade and computed-value states, extends proof carriers, retires the old corpus entry points, orders specificity before scope proximity, separates open-world tie evidence from the specification key, adds typed cascade-axis reach disclosure, and exposes additive guarded-winner MTBDD authority, equality-refusal carriers, and computed robustness-radius surfaces.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -406,7 +406,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "Runtime cascade evidence carriers expose typed topology, source-text importance, and guarded-winner authority, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses, class sites expose typed token support and guarded-token explanations, and measured legacy declarations remain deprecated beside additive accurate APIs.",
+      "reason": "Runtime cascade evidence carriers expose typed topology, source-text importance, guarded-winner authority, and an additive uncalibrated fragile-winner diagnostic backed by a computed robustness radius, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses, class sites expose typed token support and guarded-token explanations, and measured legacy declarations remain deprecated beside additive accurate APIs.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -415,6 +415,7 @@
             "field OmenaQueryInlineStyleRuntimeOverrideV0.important",
             "field OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete",
             "field OmenaQueryRuntimeStateScenarioEvidenceV0.guarded_winner_authority",
+            "field OmenaQueryRuntimeStateScenarioEvidenceV0.fragile_guarded_winner_diagnostics",
             "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_widened_to_top_count",
             "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_converged",
             "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_converged",
@@ -428,6 +429,7 @@
             "OmenaQueryInlineStyleRuntimeOverrideV0.important",
             "OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete",
             "OmenaQueryRuntimeStateScenarioEvidenceV0.guarded_winner_authority",
+            "OmenaQueryRuntimeStateScenarioEvidenceV0.fragile_guarded_winner_diagnostics",
             "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_widened_to_top_count",
             "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_converged",
             "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_converged",
@@ -704,6 +706,29 @@
                 "Some(&authority),",
                 "\"conditionalIndeterminateWithinModeledEnvironment\"",
                 "\"conditionalDefiniteWithinModeledEnvironment\""
+              ]
+            }
+          ]
+        },
+        {
+          "id": "fragile-guarded-winner-radius-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryRuntimeStateScenarioEvidenceV0.fragileGuardedWinnerDiagnostics",
+          "reason": "Admitted guarded fragments now expose a fragile-winner diagnostic only when the computed minimum realisable perturbation cost is within the declared uncalibrated threshold; infinite and above-threshold radii remain absent.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+              "needles": [
+                "compute_guarded_cascade_robustness_radius_v0(",
+                "OMENA_QUERY_FRAGILE_GUARDED_WINNER_THRESHOLD_V0",
+                "serialized[\"fragileGuardedWinnerDiagnostics\"][0][\"robustnessRadius\"]"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/types/runtime_state_serialization.rs",
+              "needles": [
+                "state.serialize_field(\n                \"fragileGuardedWinnerDiagnostics\"",
+                "&self.fragile_guarded_winner_diagnostics"
               ]
             }
           ]

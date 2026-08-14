@@ -571,6 +571,23 @@ pub struct StyleEditDistanceCascadeMarginBridgeV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryFragileGuardedWinnerDiagnosticV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub diagnostic_kind: &'static str,
+    pub claim_level: &'static str,
+    pub baseline_winner_declaration_id: String,
+    pub robustness_radius: u32,
+    pub fragile_threshold: u32,
+    pub witness: Vec<omena_cascade::GuardedCascadePerturbationV0>,
+    pub calibration_stage: &'static str,
+    pub public_safety_claim_ready: bool,
+    pub false_alarm_boundary: &'static str,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeConfidenceV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -2031,6 +2048,7 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub inline_style_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
     pub cascade_layer_topology_incomplete: Option<OmenaQueryCascadeLayerTopologyIncompleteV0>,
     pub guarded_winner_authority: Option<omena_cascade::GuardedCascadeWinnerAuthorityV0>,
+    pub fragile_guarded_winner_diagnostics: Vec<OmenaQueryFragileGuardedWinnerDiagnosticV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

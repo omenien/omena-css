@@ -2,6 +2,8 @@ use super::*;
 use omena_parser::ParsedStyleFacts;
 use std::collections::{BTreeMap, BTreeSet};
 
+pub const OMENA_QUERY_FRAGILE_GUARDED_WINNER_THRESHOLD_V0: u32 = 1;
+
 pub fn summarize_omena_query_fast_facts(style_path: &str, style_source: &str) -> FastFactsV0 {
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
@@ -206,6 +208,44 @@ pub fn summarize_omena_query_style_edit_distance_cascade_margin_bridge(
     }
 }
 
+pub fn summarize_omena_query_fragile_guarded_winner_v0(
+    robustness: &omena_cascade::GuardedCascadeRobustnessRadiusV0,
+    baseline_winner_declaration_id: impl Into<String>,
+    fragile_threshold: u32,
+) -> Option<OmenaQueryFragileGuardedWinnerDiagnosticV0> {
+    let omena_cascade::GuardedCascadeRobustnessRadiusValueV0::Finite(radius) = robustness.radius
+    else {
+        return None;
+    };
+    if radius > fragile_threshold {
+        return None;
+    }
+
+    let witness_name = robustness
+        .witness
+        .first()
+        .map(|perturbation| format!("{:?}", perturbation.kind()))
+        .unwrap_or_else(|| "unknownPerturbation".to_string());
+    let baseline_winner_declaration_id = baseline_winner_declaration_id.into();
+    Some(OmenaQueryFragileGuardedWinnerDiagnosticV0 {
+        schema_version: "0",
+        product: "omena-query.fragile-guarded-winner-diagnostic",
+        diagnostic_kind: "fragileGuardedCascadeWinner",
+        claim_level: "declaredAlphabetUncalibrated",
+        baseline_winner_declaration_id: baseline_winner_declaration_id.clone(),
+        robustness_radius: radius,
+        fragile_threshold,
+        witness: robustness.witness.clone(),
+        calibration_stage: robustness.calibration_stage,
+        public_safety_claim_ready: robustness.public_safety_claim_ready,
+        false_alarm_boundary: "realisabilityIsCheckedOnlyForSameUnitWidthBoundsInsideTheDeclaredGuardedCascadeFragment",
+        message: format!(
+            "guarded cascade winner declaration {} is fragile at declared cost {radius} via {witness_name}",
+            baseline_winner_declaration_id
+        ),
+    })
+}
+
 pub fn summarize_omena_query_custom_property_annotations(
     style_path: &str,
     style_source: &str,
@@ -263,4 +303,69 @@ pub fn summarize_omena_query_custom_property_annotations(
 
 fn absolute_count_delta(left: usize, right: usize) -> usize {
     left.abs_diff(right)
+}
+
+#[cfg(test)]
+mod fragile_guarded_winner_tests {
+    use omena_cascade::{
+        CascadeKey, CascadeLevel, GuardedCascadeCandidateV0, GuardedCascadeConditionAtomV0,
+        GuardedCascadeFragmentV0, GuardedCascadeSpecificityExactnessV0, LayerOrdinal, Specificity,
+        compute_guarded_cascade_robustness_radius_v0, guarded_cascade_perturbation_cost_model_v0,
+        normalized_layer_rank,
+    };
+
+    use super::summarize_omena_query_fragile_guarded_winner_v0;
+
+    fn candidate(
+        declaration_id: u32,
+        source_order: u32,
+        condition: Option<&str>,
+    ) -> GuardedCascadeCandidateV0<CascadeKey> {
+        GuardedCascadeCandidateV0::new(
+            declaration_id,
+            ".a",
+            "color",
+            CascadeKey::new(
+                CascadeLevel::AuthorNormal,
+                normalized_layer_rank(false, LayerOrdinal::new(0)),
+                0,
+                Specificity::new(0, 1, 0),
+                source_order,
+            ),
+            GuardedCascadeSpecificityExactnessV0::Exact,
+            0,
+            condition
+                .map(|condition| vec![GuardedCascadeConditionAtomV0::media(condition, [0], true)])
+                .unwrap_or_default(),
+        )
+    }
+
+    #[test]
+    fn fragile_diagnostic_consumes_computed_radius_without_promoting_calibration()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let condition = "@media (min-width: 1px)";
+        let fragment = GuardedCascadeFragmentV0::admit(
+            [condition],
+            [candidate(0, 0, None), candidate(1, 1, Some(condition))],
+        )?;
+        let radius = compute_guarded_cascade_robustness_radius_v0(
+            &fragment,
+            &[false],
+            &guarded_cascade_perturbation_cost_model_v0(),
+        )?;
+        let diagnostic = summarize_omena_query_fragile_guarded_winner_v0(&radius, "base", 1)
+            .ok_or("expected finite radius to produce a fragile-winner diagnostic")?;
+
+        assert_eq!(diagnostic.robustness_radius, 1);
+        assert_eq!(diagnostic.baseline_winner_declaration_id, "base");
+        assert_eq!(diagnostic.witness, radius.witness);
+        assert_eq!(diagnostic.calibration_stage, "schemaOnlyUncalibrated");
+        assert!(!diagnostic.public_safety_claim_ready);
+        assert!(
+            diagnostic
+                .false_alarm_boundary
+                .contains("SameUnitWidthBounds")
+        );
+        Ok(())
+    }
 }
