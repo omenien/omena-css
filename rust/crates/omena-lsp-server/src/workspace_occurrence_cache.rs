@@ -22,7 +22,6 @@ const WORKSPACE_OCCURRENCE_SHARD_KEY_PRODUCT: &str =
     "omena-lsp-server.workspace-occurrence-shard-key";
 const WORKSPACE_OCCURRENCE_SHARD_DIR: &str = "workspace-occurrence-shards-v2";
 const WORKSPACE_OCCURRENCE_SHARD_LIMITS: PersistentCacheLimitsV0 = DEFAULT_PERSISTENT_CACHE_LIMITS;
-static WORKSPACE_OCCURRENCE_SHADOW_MISMATCHES: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -320,14 +319,12 @@ pub(crate) fn workspace_occurrence_shadow_asserts_on_mismatch() -> bool {
     }
 }
 
-pub(crate) fn record_workspace_occurrence_shadow_mismatch(document_uri: &str) {
-    WORKSPACE_OCCURRENCE_SHADOW_MISMATCHES.fetch_add(1, Ordering::Relaxed);
+pub(crate) fn record_workspace_occurrence_shadow_mismatch(
+    mismatch_count: &AtomicU64,
+    document_uri: &str,
+) {
+    mismatch_count.fetch_add(1, Ordering::Relaxed);
     crate::loop_trace!("workspace-occurrence-shadow MISMATCH target={document_uri}");
-}
-
-#[cfg(test)]
-pub(crate) fn workspace_occurrence_shadow_mismatch_count_for_test() -> u64 {
-    WORKSPACE_OCCURRENCE_SHADOW_MISMATCHES.load(Ordering::Relaxed)
 }
 
 #[cfg(test)]

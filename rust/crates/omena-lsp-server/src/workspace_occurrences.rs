@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{Arc, atomic::AtomicU64},
 };
 
 use omena_query::{
@@ -79,6 +79,10 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         memo.workspace_folder_uri == memo_workspace_folder_uri
             && memo.environment_digest == environment_digest
     });
+    let shadow_mismatch_count = prior_memo
+        .as_ref()
+        .map(|memo| Arc::clone(&memo.shadow_mismatch_count))
+        .unwrap_or_else(|| Arc::new(AtomicU64::new(0)));
     let changed_document_uris = changed_occurrence_document_uris(
         prior_memo.as_ref(),
         source_document_keys.as_slice(),
@@ -108,12 +112,13 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
             record_workspace_occurrence_memo_hit(document.uri.as_str());
             entry.occurrences.clone()
         } else {
-            source_selector_workspace_occurrences_for_document(
+            cached_source_selector_workspace_occurrences_for_document(
                 state,
                 document,
                 workspace_folder_uri,
                 definitions.as_slice(),
                 definitions_digest.as_deref(),
+                shadow_mismatch_count.as_ref(),
             )
         };
         workspace_occurrences.extend(document_occurrences.clone());
@@ -163,6 +168,7 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
                     document,
                     workspace_folder_uri,
                     read_set.dependency_digest.as_deref(),
+                    shadow_mismatch_count.as_ref(),
                 );
                 (
                     occurrences,
@@ -227,6 +233,7 @@ pub(crate) fn workspace_occurrence_indexes_from_documents(
         definitions: definitions.clone(),
         source_selector_index: Arc::clone(&index),
         workspace_index: Arc::clone(&workspace_index),
+        shadow_mismatch_count,
     });
     crate::loop_trace!(
         "occ-index-rebuild source_ms={} style_ms={} aggregate_ms={} total_ms={}",
@@ -308,12 +315,13 @@ fn changed_occurrence_document_uris(
         .collect()
 }
 
-fn source_selector_workspace_occurrences_for_document(
+fn cached_source_selector_workspace_occurrences_for_document(
     state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     workspace_folder_uri: Option<&str>,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
     dependency_digest: Option<&str>,
+    shadow_mismatch_count: &AtomicU64,
 ) -> Vec<OmenaWorkspaceOccurrenceV0> {
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
@@ -343,7 +351,10 @@ fn source_selector_workspace_occurrences_for_document(
             let matches =
                 cached_bytes.is_ok() && fresh_bytes.is_ok() && cached_bytes == fresh_bytes;
             if !matches {
-                record_workspace_occurrence_shadow_mismatch(document.uri.as_str());
+                record_workspace_occurrence_shadow_mismatch(
+                    shadow_mismatch_count,
+                    document.uri.as_str(),
+                );
                 if workspace_occurrence_shadow_asserts_on_mismatch() {
                     assert!(
                         matches,
@@ -408,7 +419,7 @@ fn extract_fresh_source_selector_workspace_occurrences_for_document(
     document: &LspTextDocumentState,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],
 ) -> Vec<OmenaWorkspaceOccurrenceV0> {
-    extract_source_selector_workspace_occurrences_for_document(state, document, definitions)
+    source_selector_workspace_occurrences_for_document(state, document, definitions)
 }
 
 fn extract_shadow_source_selector_workspace_occurrences_for_document(
@@ -422,10 +433,10 @@ fn extract_shadow_source_selector_workspace_occurrences_for_document(
             &fresh_document,
             &document.source_syntax_index,
         );
-    extract_source_selector_workspace_occurrences_for_document(state, &fresh_document, definitions)
+    source_selector_workspace_occurrences_for_document(state, &fresh_document, definitions)
 }
 
-fn extract_source_selector_workspace_occurrences_for_document(
+fn source_selector_workspace_occurrences_for_document(
     state: &dyn LspQueryReadView,
     document: &LspTextDocumentState,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],

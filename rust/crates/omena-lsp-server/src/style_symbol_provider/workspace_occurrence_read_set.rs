@@ -9,6 +9,7 @@ use serde::Serialize;
 #[cfg(test)]
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::sync::atomic::AtomicU64;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +30,7 @@ pub(crate) fn style_symbol_workspace_occurrences_for_document(
     document: &LspTextDocumentState,
     workspace_folder_uri: Option<&str>,
     dependency_digest: Option<&str>,
+    shadow_mismatch_count: &AtomicU64,
 ) -> Vec<OmenaWorkspaceOccurrenceV0> {
     let resolution_inputs =
         resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
@@ -56,7 +58,10 @@ pub(crate) fn style_symbol_workspace_occurrences_for_document(
             let matches =
                 cached_bytes.is_ok() && fresh_bytes.is_ok() && cached_bytes == fresh_bytes;
             if !matches {
-                record_workspace_occurrence_shadow_mismatch(document.uri.as_str());
+                record_workspace_occurrence_shadow_mismatch(
+                    shadow_mismatch_count,
+                    document.uri.as_str(),
+                );
                 if workspace_occurrence_shadow_asserts_on_mismatch() {
                     assert!(
                         matches,

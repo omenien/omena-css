@@ -5062,14 +5062,19 @@ fn workspace_occurrence_shadow_mismatch_recovers_and_increments_the_production_c
                     "$other: blue;\n",
                 );
                 *state.workspace_occurrence_index_memo_lock() = None;
-                let mismatches_before = crate::workspace_occurrence_cache::workspace_occurrence_shadow_mismatch_count_for_test();
                 crate::workspace_occurrences::workspace_occurrence_indexes_from_documents(
                     &state,
                     Some(workspace_uri.as_str()),
                 );
                 assert_eq!(
-                    crate::workspace_occurrence_cache::workspace_occurrence_shadow_mismatch_count_for_test()
-                        - mismatches_before,
+                    state
+                        .workspace_occurrence_index_memo_lock()
+                        .as_ref()
+                        .map(|memo| {
+                            memo.shadow_mismatch_count
+                                .load(std::sync::atomic::Ordering::Relaxed)
+                        })
+                        .unwrap_or(0),
                     1,
                     "production mismatch policy must count the repaired stale shard",
                 );
