@@ -14,7 +14,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspFileIdentityInterner.ids_by_storage_uri",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:179",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:185",
     "owner": "LspFileIdentityInterner",
     "name": "ids_by_storage_uri",
     "collectionType": "BTreeMap<String, LspFileId>",
@@ -24,21 +24,33 @@
     "justification": "String key is a canonical style path, URI, URL, or content hash in the scanned persistent store."
   },
   {
+    "id": "rust/crates/omena-lsp-server/src/state.rs#LspFileIdentityInterner.ids_by_uri_alias",
+    "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:184",
+    "owner": "LspFileIdentityInterner",
+    "name": "ids_by_uri_alias",
+    "collectionType": "BTreeMap<String, LspFileId>",
+    "keyType": "String",
+    "identityTier": "session-stable",
+    "persistentIdentityKey": true,
+    "justification": "String key is a canonical style path, URI, URL, or content hash in the scanned persistent store."
+  },
+  {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspFileIdentityInterner.storage_uris_by_id",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:180",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:186",
     "owner": "LspFileIdentityInterner",
     "name": "storage_uris_by_id",
     "collectionType": "BTreeMap<LspFileId, String>",
     "keyType": "LspFileId",
     "identityTier": "session-stable",
     "persistentIdentityKey": true,
-    "justification": "LspFileId is assigned by the session file-identity interner and is stable across revisions."
+    "justification": "LspFileId is assigned by the session file-identity interner and is stable across revisions in memory; cross-session disk stores are separately forbidden from naming it."
   },
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.bridge_external_sif_urls",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:430",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:465",
     "owner": "LspResolutionSettings",
     "name": "bridge_external_sif_urls",
     "collectionType": "BTreeSet<String>",
@@ -50,7 +62,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.workspace_style_resolution_inputs",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:423",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:458",
     "owner": "LspResolutionSettings",
     "name": "workspace_style_resolution_inputs",
     "collectionType": "BTreeMap<String, OmenaQueryStyleResolutionInputsV0>",
@@ -60,33 +72,45 @@
     "justification": "String key is a canonical style path, URI, URL, or content hash in the scanned persistent store."
   },
   {
+    "id": "rust/crates/omena-lsp-server/src/state.rs#LspReverseDependencyIndexMemo.file_id_rev",
+    "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:535",
+    "owner": "LspReverseDependencyIndexMemo",
+    "name": "file_id_rev",
+    "collectionType": "BTreeMap<LspFileId, BTreeSet<LspFileId>>",
+    "keyType": "LspFileId",
+    "identityTier": "session-stable",
+    "persistentIdentityKey": true,
+    "justification": "LspFileId is assigned by the session file-identity interner and is stable across revisions in memory; cross-session disk stores are separately forbidden from naming it."
+  },
+  {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.documents",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:659",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:700",
     "owner": "LspShellState",
     "name": "documents",
     "collectionType": "BTreeMap<LspFileId, Arc<LspTextDocumentState>>",
     "keyType": "LspFileId",
     "identityTier": "session-stable",
     "persistentIdentityKey": true,
-    "justification": "LspFileId is assigned by the session file-identity interner and is stable across revisions."
+    "justification": "LspFileId is assigned by the session file-identity interner and is stable across revisions in memory; cross-session disk stores are separately forbidden from naming it."
   },
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.open_document_uris",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:660",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:701",
     "owner": "LspShellState",
     "name": "open_document_uris",
     "collectionType": "BTreeSet<LspFileId>",
     "keyType": "LspFileId",
     "identityTier": "session-stable",
     "persistentIdentityKey": true,
-    "justification": "LspFileId is assigned by the session file-identity interner and is stable across revisions."
+    "justification": "LspFileId is assigned by the session file-identity interner and is stable across revisions in memory; cross-session disk stores are separately forbidden from naming it."
   },
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.pending_server_progress_request_tokens",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:667",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:708",
     "owner": "LspShellState",
     "name": "pending_server_progress_request_tokens",
     "collectionType": "BTreeMap<String, String>",
@@ -98,7 +122,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.source_type_fact_cache",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:700",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:741",
     "owner": "LspShellState",
     "name": "source_type_fact_cache",
     "collectionType": "BTreeMap<String, LspSourceTypeFactCacheEntryV0>",
@@ -110,7 +134,7 @@
   {
     "id": "rust/crates/omena-lsp-server/src/state.rs#LspShellState.swept_legacy_cache_roots",
     "sourcePath": "rust/crates/omena-lsp-server/src/state.rs",
-    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:664",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/state.rs:705",
     "owner": "LspShellState",
     "name": "swept_legacy_cache_roots",
     "collectionType": "BTreeSet<PathBuf>",
@@ -118,6 +142,18 @@
     "identityTier": "session-stable",
     "persistentIdentityKey": true,
     "justification": "PathBuf is a workspace cache root retained only to deduplicate legacy-cache maintenance within one LSP session."
+  },
+  {
+    "id": "rust/crates/omena-lsp-server/src/tide/demand.rs#TideRepublishConeV0.members",
+    "sourcePath": "rust/crates/omena-lsp-server/src/tide/demand.rs",
+    "sourceAnchor": "rust/crates/omena-lsp-server/src/tide/demand.rs:85",
+    "owner": "TideRepublishConeV0",
+    "name": "members",
+    "collectionType": "BTreeSet<LspFileId>",
+    "keyType": "LspFileId",
+    "identityTier": "session-stable",
+    "persistentIdentityKey": true,
+    "justification": "LspFileId is assigned by the session file-identity interner and is stable across revisions in memory; cross-session disk stores are separately forbidden from naming it."
   },
   {
     "id": "rust/crates/omena-parser/src/closed_world/authority.rs#compute_reachability.by_instance",
@@ -146,7 +182,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.committed_module_interface_changed_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2030",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2057",
     "owner": "OmenaQueryStyleMemoHostV0",
     "name": "committed_module_interface_changed_paths",
     "collectionType": "BTreeSet<String>",
@@ -158,7 +194,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.files_by_path",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2024",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2051",
     "owner": "OmenaQueryStyleMemoHostV0",
     "name": "files_by_path",
     "collectionType": "BTreeMap<String, OmenaQueryStyleFileInputV0>",
@@ -170,7 +206,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.registered_style_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2026",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2053",
     "owner": "OmenaQueryStyleMemoHostV0",
     "name": "registered_style_paths",
     "collectionType": "BTreeSet<String>",
@@ -182,7 +218,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleMemoHostV0.source_files_by_path",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2025",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:2052",
     "owner": "OmenaQueryStyleMemoHostV0",
     "name": "source_files_by_path",
     "collectionType": "BTreeMap<String, OmenaQuerySourceFileInputV0>",
@@ -218,7 +254,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCommitV0.changed_module_interface_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:669",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:672",
     "owner": "OmenaQueryStyleWorkspaceTransactionCommitV0",
     "name": "changed_module_interface_paths",
     "collectionType": "BTreeSet<String>",
@@ -230,7 +266,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCommitV0.changed_style_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:668",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:671",
     "owner": "OmenaQueryStyleWorkspaceTransactionCommitV0",
     "name": "changed_style_paths",
     "collectionType": "BTreeSet<String>",
@@ -242,7 +278,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCoreCommitV0.changed_module_interface_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:678",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:681",
     "owner": "OmenaQueryStyleWorkspaceTransactionCoreCommitV0",
     "name": "changed_module_interface_paths",
     "collectionType": "BTreeSet<String>",
@@ -254,7 +290,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionCoreCommitV0.changed_style_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:677",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:680",
     "owner": "OmenaQueryStyleWorkspaceTransactionCoreCommitV0",
     "name": "changed_style_paths",
     "collectionType": "BTreeSet<String>",
@@ -266,7 +302,7 @@
   {
     "id": "rust/crates/omena-query/src/style/salsa_memo.rs#OmenaQueryStyleWorkspaceTransactionV0.registered_style_paths",
     "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:715",
+    "sourceAnchor": "rust/crates/omena-query/src/style/salsa_memo.rs:720",
     "owner": "OmenaQueryStyleWorkspaceTransactionV0",
     "name": "registered_style_paths",
     "collectionType": "BTreeSet<String>",
