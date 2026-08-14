@@ -406,7 +406,7 @@
       },
       {
         "path": "rust/crates/omena-lsp-server/src/workspace_occurrences.rs",
-        "line": 243,
+        "line": 473,
         "function": "source_selector_workspace_occurrences_for_document",
         "operation": "str-eq",
         "evidence": "&& reference.name == selector_name,",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:178411dc98362cedd8e35bf5062a33d593d70a63d10bb64ce04fb2894b4da778"
+    "siteDigest": "sha256:a86886fc1c22ce7ea7d8bd49942046c7b3ea3554b8314e7dee7f425b83f78fd3"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
