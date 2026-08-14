@@ -2136,7 +2136,9 @@ mod tests {
     #[cfg(feature = "parallel-style-diagnostics")]
     #[test]
     fn watched_change_wave_matches_forced_serial_for_open_importers() -> Result<(), String> {
-        let workspace_path = std::env::temp_dir().join(format!(
+        let canonical_temp_dir = fs::canonicalize(std::env::temp_dir())
+            .map_err(|error| format!("temporary directory should canonicalize: {error}"))?;
+        let workspace_path = canonical_temp_dir.join(format!(
             "omena-lsp-parallel-wave-watched-{}-{}",
             std::process::id(),
             crate::current_time_millis(),
