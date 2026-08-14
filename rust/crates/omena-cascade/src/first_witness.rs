@@ -4,6 +4,7 @@
 //! terminal core is extended in place by the later cascade-winner terminal
 //! alphabet without coupling either plane to the surrounding cascade model.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use serde::Serialize;
@@ -637,6 +638,23 @@ impl FirstWitnessManagerV0 {
         self.apply_cache.len()
     }
 
+    pub fn reachable_winner_node_count(
+        &self,
+        root: GuardedCascadeWinnerRootV0,
+    ) -> Result<usize, FirstWitnessErrorV0> {
+        let mut seen = BTreeSet::new();
+        let mut pending = vec![root.0];
+        while let Some(node_id) = pending.pop() {
+            if !seen.insert(node_id) {
+                continue;
+            }
+            if let Node::Int { lo, hi, .. } = self.require_node(node_id)? {
+                pending.extend([lo, hi]);
+            }
+        }
+        Ok(seen.len())
+    }
+
     pub fn register_declaration_terminals(
         &mut self,
         declaration_ids: impl IntoIterator<Item = u32>,
@@ -1014,6 +1032,424 @@ impl FirstWitnessManagerV0 {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IncrementalGuardedCascadeWinnerEditReportV0 {
+    pub replaced_existing_key: bool,
+    pub entry_count: usize,
+    pub root: GuardedCascadeWinnerRootV0,
+    pub aggregate_updates: u64,
+}
+
+#[derive(Debug)]
+struct IncrementalGuardedCascadeWinnerNodeV0<K> {
+    key: K,
+    guarded_root: NodeId,
+    aggregate: NodeId,
+    height: u16,
+    size: usize,
+    left: Option<Box<Self>>,
+    right: Option<Box<Self>>,
+}
+
+type IncrementalWinnerLinkV0<K> = Option<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>>;
+type IncrementalWinnerMutationV0<K> = (IncrementalWinnerLinkV0<K>, bool);
+
+impl<K> IncrementalGuardedCascadeWinnerNodeV0<K> {
+    fn leaf(key: K, guarded_root: NodeId) -> Self {
+        Self {
+            key,
+            guarded_root,
+            aggregate: guarded_root,
+            height: 1,
+            size: 1,
+            left: None,
+            right: None,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct IncrementalGuardedCascadeWinnerV0<K> {
+    root: Option<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>>,
+    aggregate_updates: u64,
+}
+
+impl<K: Ord> IncrementalGuardedCascadeWinnerV0<K> {
+    pub const fn new() -> Self {
+        Self {
+            root: None,
+            aggregate_updates: 0,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        incremental_winner_size(&self.root)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.root.is_none()
+    }
+
+    pub fn root(&self) -> GuardedCascadeWinnerRootV0 {
+        GuardedCascadeWinnerRootV0(incremental_winner_fold(&self.root))
+    }
+
+    pub const fn aggregate_updates(&self) -> u64 {
+        self.aggregate_updates
+    }
+
+    pub fn insert(
+        &mut self,
+        manager: &mut FirstWitnessManagerV0,
+        cascade_key: K,
+        guarded_root: GuardedCascadeWinnerRootV0,
+    ) -> Result<IncrementalGuardedCascadeWinnerEditReportV0, FirstWitnessErrorV0> {
+        manager.require_node(guarded_root.0)?;
+        let (root, replaced_existing_key) = incremental_winner_insert(
+            self.root.take(),
+            cascade_key,
+            guarded_root.0,
+            manager,
+            &mut self.aggregate_updates,
+        )?;
+        self.root = root;
+        Ok(self.edit_report(replaced_existing_key))
+    }
+
+    pub fn remove(
+        &mut self,
+        manager: &mut FirstWitnessManagerV0,
+        cascade_key: &K,
+    ) -> Result<IncrementalGuardedCascadeWinnerEditReportV0, FirstWitnessErrorV0> {
+        let (root, removed) = incremental_winner_remove(
+            self.root.take(),
+            cascade_key,
+            manager,
+            &mut self.aggregate_updates,
+        )?;
+        self.root = root;
+        Ok(self.edit_report(removed))
+    }
+
+    pub fn reclaim_manager_if_due(
+        &mut self,
+        manager: &mut FirstWitnessManagerV0,
+    ) -> Result<Option<FirstWitnessRebuildReportV0>, FirstWitnessErrorV0> {
+        #[cfg(test)]
+        if std::env::var_os("OMENA_G122_INJECT_DISABLE_WINNER_RECLAMATION").is_some() {
+            return Ok(None);
+        }
+        let mut live_roots = Vec::with_capacity(self.len().saturating_mul(2));
+        collect_incremental_winner_roots(&self.root, &mut live_roots);
+        let report = manager.reclaim_if_due(&mut live_roots)?;
+        if report.is_some() {
+            let mut remapped = live_roots.into_iter();
+            rewrite_incremental_winner_roots(&mut self.root, &mut remapped);
+            debug_assert!(remapped.next().is_none());
+        }
+        Ok(report)
+    }
+
+    fn edit_report(
+        &self,
+        replaced_existing_key: bool,
+    ) -> IncrementalGuardedCascadeWinnerEditReportV0 {
+        IncrementalGuardedCascadeWinnerEditReportV0 {
+            replaced_existing_key,
+            entry_count: self.len(),
+            root: self.root(),
+            aggregate_updates: self.aggregate_updates,
+        }
+    }
+}
+
+fn incremental_winner_height<K>(
+    node: &Option<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>>,
+) -> u16 {
+    node.as_ref().map_or(0, |node| node.height)
+}
+
+fn incremental_winner_size<K>(
+    node: &Option<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>>,
+) -> usize {
+    node.as_ref().map_or(0, |node| node.size)
+}
+
+fn incremental_winner_fold<K>(
+    node: &Option<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>>,
+) -> NodeId {
+    node.as_ref()
+        .map_or(GUARDED_CASCADE_BOT_NODE_ID_V0, |node| node.aggregate)
+}
+
+fn refresh_incremental_winner<K>(
+    node: &mut IncrementalGuardedCascadeWinnerNodeV0<K>,
+    manager: &mut FirstWitnessManagerV0,
+    aggregate_updates: &mut u64,
+) -> Result<(), FirstWitnessErrorV0> {
+    node.height =
+        1 + incremental_winner_height(&node.left).max(incremental_winner_height(&node.right));
+    node.size = 1 + incremental_winner_size(&node.left) + incremental_winner_size(&node.right);
+    #[cfg(test)]
+    if std::env::var_os("OMENA_G122_INJECT_STALE_WINNER_AGGREGATE").is_some() {
+        return Ok(());
+    }
+    let left_and_self =
+        manager.choose_first_witness(incremental_winner_fold(&node.left), node.guarded_root)?;
+    node.aggregate =
+        manager.choose_first_witness(left_and_self, incremental_winner_fold(&node.right))?;
+    *aggregate_updates += 2;
+    Ok(())
+}
+
+fn incremental_winner_balance_factor<K>(node: &IncrementalGuardedCascadeWinnerNodeV0<K>) -> i32 {
+    i32::from(incremental_winner_height(&node.left))
+        - i32::from(incremental_winner_height(&node.right))
+}
+
+fn rotate_incremental_winner_left<K>(
+    mut root: Box<IncrementalGuardedCascadeWinnerNodeV0<K>>,
+    manager: &mut FirstWitnessManagerV0,
+    aggregate_updates: &mut u64,
+) -> Result<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>, FirstWitnessErrorV0> {
+    let mut pivot = root
+        .right
+        .take()
+        .ok_or(FirstWitnessErrorV0::InvalidNode(root.aggregate))?;
+    root.right = pivot.left.take();
+    refresh_incremental_winner(&mut root, manager, aggregate_updates)?;
+    pivot.left = Some(root);
+    refresh_incremental_winner(&mut pivot, manager, aggregate_updates)?;
+    Ok(pivot)
+}
+
+fn rotate_incremental_winner_right<K>(
+    mut root: Box<IncrementalGuardedCascadeWinnerNodeV0<K>>,
+    manager: &mut FirstWitnessManagerV0,
+    aggregate_updates: &mut u64,
+) -> Result<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>, FirstWitnessErrorV0> {
+    let mut pivot = root
+        .left
+        .take()
+        .ok_or(FirstWitnessErrorV0::InvalidNode(root.aggregate))?;
+    root.left = pivot.right.take();
+    refresh_incremental_winner(&mut root, manager, aggregate_updates)?;
+    pivot.right = Some(root);
+    refresh_incremental_winner(&mut pivot, manager, aggregate_updates)?;
+    Ok(pivot)
+}
+
+fn balance_incremental_winner<K>(
+    mut node: Box<IncrementalGuardedCascadeWinnerNodeV0<K>>,
+    manager: &mut FirstWitnessManagerV0,
+    aggregate_updates: &mut u64,
+) -> Result<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>, FirstWitnessErrorV0> {
+    refresh_incremental_winner(&mut node, manager, aggregate_updates)?;
+    let balance = incremental_winner_balance_factor(&node);
+    if balance > 1 {
+        let left_balance = node
+            .left
+            .as_deref()
+            .map_or(0, incremental_winner_balance_factor);
+        if left_balance < 0 {
+            let left = node
+                .left
+                .take()
+                .ok_or(FirstWitnessErrorV0::InvalidNode(node.aggregate))?;
+            node.left = Some(rotate_incremental_winner_left(
+                left,
+                manager,
+                aggregate_updates,
+            )?);
+        }
+        return rotate_incremental_winner_right(node, manager, aggregate_updates);
+    }
+    if balance < -1 {
+        let right_balance = node
+            .right
+            .as_deref()
+            .map_or(0, incremental_winner_balance_factor);
+        if right_balance > 0 {
+            let right = node
+                .right
+                .take()
+                .ok_or(FirstWitnessErrorV0::InvalidNode(node.aggregate))?;
+            node.right = Some(rotate_incremental_winner_right(
+                right,
+                manager,
+                aggregate_updates,
+            )?);
+        }
+        return rotate_incremental_winner_left(node, manager, aggregate_updates);
+    }
+    Ok(node)
+}
+
+fn incremental_winner_insert<K: Ord>(
+    node: IncrementalWinnerLinkV0<K>,
+    cascade_key: K,
+    guarded_root: NodeId,
+    manager: &mut FirstWitnessManagerV0,
+    aggregate_updates: &mut u64,
+) -> Result<IncrementalWinnerMutationV0<K>, FirstWitnessErrorV0> {
+    let Some(mut node) = node else {
+        return Ok((
+            Some(Box::new(IncrementalGuardedCascadeWinnerNodeV0::leaf(
+                cascade_key,
+                guarded_root,
+            ))),
+            false,
+        ));
+    };
+    let replaced = match cascade_key.cmp(&node.key) {
+        Ordering::Greater => {
+            let (left, replaced) = incremental_winner_insert(
+                node.left.take(),
+                cascade_key,
+                guarded_root,
+                manager,
+                aggregate_updates,
+            )?;
+            node.left = left;
+            replaced
+        }
+        Ordering::Less => {
+            let (right, replaced) = incremental_winner_insert(
+                node.right.take(),
+                cascade_key,
+                guarded_root,
+                manager,
+                aggregate_updates,
+            )?;
+            node.right = right;
+            replaced
+        }
+        Ordering::Equal => {
+            node.guarded_root = guarded_root;
+            true
+        }
+    };
+    Ok((
+        Some(balance_incremental_winner(
+            node,
+            manager,
+            aggregate_updates,
+        )?),
+        replaced,
+    ))
+}
+
+fn incremental_winner_remove<K: Ord>(
+    node: IncrementalWinnerLinkV0<K>,
+    cascade_key: &K,
+    manager: &mut FirstWitnessManagerV0,
+    aggregate_updates: &mut u64,
+) -> Result<IncrementalWinnerMutationV0<K>, FirstWitnessErrorV0> {
+    let Some(mut node) = node else {
+        return Ok((None, false));
+    };
+    let removed = match cascade_key.cmp(&node.key) {
+        Ordering::Greater => {
+            let (left, removed) = incremental_winner_remove(
+                node.left.take(),
+                cascade_key,
+                manager,
+                aggregate_updates,
+            )?;
+            node.left = left;
+            removed
+        }
+        Ordering::Less => {
+            let (right, removed) = incremental_winner_remove(
+                node.right.take(),
+                cascade_key,
+                manager,
+                aggregate_updates,
+            )?;
+            node.right = right;
+            removed
+        }
+        Ordering::Equal => {
+            if node.left.is_none() {
+                return Ok((node.right.take(), true));
+            }
+            if node.right.is_none() {
+                return Ok((node.left.take(), true));
+            }
+            let right = node
+                .right
+                .take()
+                .ok_or(FirstWitnessErrorV0::InvalidNode(node.aggregate))?;
+            let (successor, right) =
+                extract_incremental_winner_leftmost(right, manager, aggregate_updates)?;
+            node.key = successor.key;
+            node.guarded_root = successor.guarded_root;
+            node.right = right;
+            true
+        }
+    };
+    if !removed {
+        return Ok((Some(node), false));
+    }
+    Ok((
+        Some(balance_incremental_winner(
+            node,
+            manager,
+            aggregate_updates,
+        )?),
+        true,
+    ))
+}
+
+type IncrementalWinnerExtractV0<K> = (
+    Box<IncrementalGuardedCascadeWinnerNodeV0<K>>,
+    IncrementalWinnerLinkV0<K>,
+);
+
+fn extract_incremental_winner_leftmost<K>(
+    mut node: Box<IncrementalGuardedCascadeWinnerNodeV0<K>>,
+    manager: &mut FirstWitnessManagerV0,
+    aggregate_updates: &mut u64,
+) -> Result<IncrementalWinnerExtractV0<K>, FirstWitnessErrorV0> {
+    let Some(left) = node.left.take() else {
+        let right = node.right.take();
+        return Ok((node, right));
+    };
+    let (leftmost, left) = extract_incremental_winner_leftmost(left, manager, aggregate_updates)?;
+    node.left = left;
+    Ok((
+        leftmost,
+        Some(balance_incremental_winner(
+            node,
+            manager,
+            aggregate_updates,
+        )?),
+    ))
+}
+
+fn collect_incremental_winner_roots<K>(
+    node: &Option<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>>,
+    roots: &mut Vec<NodeId>,
+) {
+    if let Some(node) = node {
+        roots.extend([node.guarded_root, node.aggregate]);
+        collect_incremental_winner_roots(&node.left, roots);
+        collect_incremental_winner_roots(&node.right, roots);
+    }
+}
+
+fn rewrite_incremental_winner_roots<K>(
+    node: &mut Option<Box<IncrementalGuardedCascadeWinnerNodeV0<K>>>,
+    roots: &mut impl Iterator<Item = NodeId>,
+) {
+    if let Some(node) = node {
+        node.guarded_root = roots.next().unwrap_or(node.guarded_root);
+        node.aggregate = roots.next().unwrap_or(node.aggregate);
+        rewrite_incremental_winner_roots(&mut node.left, roots);
+        rewrite_incremental_winner_roots(&mut node.right, roots);
+    }
+}
+
 pub fn merge_first_witness_by_key_v0<T: Clone, K: Ord>(
     left: &[T],
     right: &[T],
@@ -1264,6 +1700,68 @@ mod tests {
         );
         manager.register_declaration_terminals([0, 1, 2])?;
         Ok(manager)
+    }
+
+    fn streaming_winner_manager(
+        variable_count: usize,
+        declaration_count: usize,
+        apply_cache_capacity: usize,
+        rebuild_interval_operations: u64,
+    ) -> Result<FirstWitnessManagerV0, FirstWitnessErrorV0> {
+        let atoms = (0..variable_count)
+            .map(|index| format!("guard-{index}"))
+            .collect::<Vec<_>>();
+        let mut manager = FirstWitnessManagerV0::new(
+            VariableOrderRegistrationV0::site_first_appearance(atoms)?,
+            FirstWitnessManagerConfigV0 {
+                shortcuts: false,
+                apply_cache_capacity,
+                rebuild_interval_operations,
+            },
+        );
+        manager.register_declaration_terminals(
+            (0..declaration_count).filter_map(|id| u32::try_from(id).ok()),
+        )?;
+        Ok(manager)
+    }
+
+    fn guarded_root_from_mask(
+        manager: &mut FirstWitnessManagerV0,
+        declaration_id: u32,
+        mask: u64,
+        variable_count: usize,
+    ) -> Result<GuardedCascadeWinnerRootV0, FirstWitnessErrorV0> {
+        let mut root = manager.declaration_terminal(declaration_id)?;
+        for variable in (0..variable_count).rev() {
+            if mask & (1 << variable) != 0 {
+                root = manager.choose(
+                    u16::try_from(variable)
+                        .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?,
+                    GUARDED_CASCADE_BOT_NODE_ID_V0,
+                    root,
+                )?;
+            }
+        }
+        Ok(GuardedCascadeWinnerRootV0(root))
+    }
+
+    fn batch_winner_from_entries(
+        manager: &mut FirstWitnessManagerV0,
+        entries: &BTreeMap<u64, GuardedCascadeWinnerRootV0>,
+    ) -> Result<GuardedCascadeWinnerRootV0, FirstWitnessErrorV0> {
+        let mut root = GUARDED_CASCADE_BOT_NODE_ID_V0;
+        for guarded in entries.values().rev() {
+            root = manager.choose_first_witness(root, guarded.0)?;
+        }
+        Ok(GuardedCascadeWinnerRootV0(root))
+    }
+
+    fn next_stream_seed(state: &mut u64) -> u64 {
+        *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut mixed = *state;
+        mixed = (mixed ^ (mixed >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        mixed = (mixed ^ (mixed >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        mixed ^ (mixed >> 31)
     }
 
     fn intern_terminal_table(
@@ -1610,6 +2108,466 @@ mod tests {
         assert_eq!(shortcuts_off, [false, false, false, false]);
         eprintln!(
             "{{\"brokenRecursion\":true,\"shortcutsOn\":{{\"associativity\":false,\"idempotence\":true,\"absorption\":true,\"a2\":false}},\"shortcutsOff\":{{\"associativity\":false,\"idempotence\":false,\"absorption\":false,\"a2\":false}}}}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn incremental_winner_matches_batch_and_pointwise_spec_after_every_streaming_edit()
+    -> Result<(), FirstWitnessErrorV0> {
+        const SEED_COUNT: usize = 60;
+        const EDIT_COUNT: usize = 200;
+        const VARIABLE_COUNT: usize = 6;
+        const DECLARATION_COUNT: usize = 512;
+        let mut checked_trials = 0usize;
+        let mut checked_points = 0usize;
+        for seed_index in 0..SEED_COUNT {
+            let mut manager =
+                streaming_winner_manager(VARIABLE_COUNT, DECLARATION_COUNT, 16_384, u64::MAX)?;
+            let guarded = (0..DECLARATION_COUNT)
+                .map(|index| {
+                    let mask = 1_u64 << (index % VARIABLE_COUNT)
+                        | 1_u64 << ((index * 5 + 1) % VARIABLE_COUNT);
+                    guarded_root_from_mask(
+                        &mut manager,
+                        u32::try_from(index)
+                            .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+                        mask,
+                        VARIABLE_COUNT,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut tree = IncrementalGuardedCascadeWinnerV0::new();
+            let mut entries = BTreeMap::new();
+            for (index, guarded_root) in guarded.iter().copied().take(24).enumerate() {
+                let key = u64::try_from(index)
+                    .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+                entries.insert(key, guarded_root);
+                tree.insert(&mut manager, key, guarded_root)?;
+            }
+            let mut state = 0xa400_0000_1220_0000_u64
+                ^ u64::try_from(seed_index)
+                    .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+            for edit_index in 0..EDIT_COUNT {
+                let insert = entries.len() < 8 || next_stream_seed(&mut state) & 1 == 0;
+                if insert {
+                    let declaration_index = next_stream_seed(&mut state) as usize % guarded.len();
+                    let mut key = next_stream_seed(&mut state) % 100_000;
+                    while entries.contains_key(&key) {
+                        key = key.wrapping_add(1);
+                    }
+                    entries.insert(key, guarded[declaration_index]);
+                    tree.insert(&mut manager, key, guarded[declaration_index])?;
+                } else {
+                    let target = next_stream_seed(&mut state) as usize % entries.len();
+                    let key = entries
+                        .keys()
+                        .nth(target)
+                        .copied()
+                        .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
+                    entries.remove(&key);
+                    tree.remove(&mut manager, &key)?;
+                }
+                let batch = batch_winner_from_entries(&mut manager, &entries)?;
+                assert_eq!(
+                    tree.root().node_id(),
+                    batch.node_id(),
+                    "A4 mismatch at seed {seed_index}, edit {edit_index}: incremental={} batch={}",
+                    tree.root().node_id(),
+                    batch.node_id(),
+                );
+                for assignment_index in 0..(1 << VARIABLE_COUNT) {
+                    let assignment = assignment_for_index(assignment_index, VARIABLE_COUNT);
+                    let expected = entries.values().rev().find_map(|guarded_root| {
+                        evaluate_guarded_cascade_winner_v0(&manager, *guarded_root, &assignment)
+                            .ok()
+                            .flatten()
+                    });
+                    let actual =
+                        evaluate_guarded_cascade_winner_v0(&manager, tree.root(), &assignment)?;
+                    assert_eq!(
+                        actual, expected,
+                        "pointwise A4 mismatch at seed {seed_index}, edit {edit_index}, assignment {assignment_index}"
+                    );
+                    checked_points += 1;
+                }
+                checked_trials += 1;
+            }
+        }
+        eprintln!(
+            "{{\"seedCount\":{SEED_COUNT},\"editsPerSeed\":{EDIT_COUNT},\"checkedTrials\":{checked_trials},\"checkedPoints\":{checked_points},\"mismatchCount\":0,\"streamingNoRestoration\":true}}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn incremental_winner_reports_logarithmic_aggregate_updates_and_compression()
+    -> Result<(), FirstWitnessErrorV0> {
+        const VARIABLE_COUNT: usize = 12;
+        const EDIT_COUNT: usize = 128;
+        let mut scale_rows = Vec::new();
+        for entry_count in [128_usize, 512, 2_048] {
+            let declaration_count = entry_count + EDIT_COUNT;
+            let mut manager =
+                streaming_winner_manager(VARIABLE_COUNT, declaration_count, 16_384, u64::MAX)?;
+            let guarded = (0..declaration_count)
+                .map(|index| {
+                    guarded_root_from_mask(
+                        &mut manager,
+                        u32::try_from(index)
+                            .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+                        1 << (index % VARIABLE_COUNT),
+                        VARIABLE_COUNT,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut entries = BTreeMap::new();
+            let mut tree = IncrementalGuardedCascadeWinnerV0::new();
+            for (key, root) in guarded.iter().copied().take(entry_count).enumerate() {
+                let key = u64::try_from(key)
+                    .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+                entries.insert(key, root);
+                tree.insert(&mut manager, key, root)?;
+            }
+            let initial_updates = tree.aggregate_updates();
+            let mut linear_refold_updates = 0_u64;
+            let mut state = 0x3a00_0000_u64
+                ^ u64::try_from(entry_count)
+                    .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+            for edit_index in 0..EDIT_COUNT {
+                let batch = if edit_index % 2 == 0 {
+                    let target = next_stream_seed(&mut state) as usize % entries.len();
+                    let key = entries
+                        .keys()
+                        .nth(target)
+                        .copied()
+                        .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
+                    entries.remove(&key);
+                    if edit_index % 4 < 2 {
+                        let batch = batch_winner_from_entries(&mut manager, &entries)?;
+                        tree.remove(&mut manager, &key)?;
+                        batch
+                    } else {
+                        tree.remove(&mut manager, &key)?;
+                        batch_winner_from_entries(&mut manager, &entries)?
+                    }
+                } else {
+                    let declaration_index = entry_count + edit_index / 2;
+                    let key = 1_000_000_u64
+                        + u64::try_from(declaration_index)
+                            .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+                    entries.insert(key, guarded[declaration_index]);
+                    if edit_index % 4 < 2 {
+                        let batch = batch_winner_from_entries(&mut manager, &entries)?;
+                        tree.insert(&mut manager, key, guarded[declaration_index])?;
+                        batch
+                    } else {
+                        tree.insert(&mut manager, key, guarded[declaration_index])?;
+                        batch_winner_from_entries(&mut manager, &entries)?
+                    }
+                };
+                linear_refold_updates += u64::try_from(entries.len())
+                    .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+                assert_eq!(tree.root().node_id(), batch.node_id());
+            }
+            let aggregate_updates = tree.aggregate_updates() - initial_updates;
+            let updates_per_edit = aggregate_updates as f64 / EDIT_COUNT as f64;
+            let ratio = updates_per_edit / (entry_count as f64).log2();
+            scale_rows.push((
+                entry_count,
+                aggregate_updates,
+                updates_per_edit,
+                ratio,
+                linear_refold_updates,
+            ));
+        }
+
+        let mut compression_rows = Vec::new();
+        for entry_count in [8_usize, 32, 128] {
+            const COMPRESSION_VARIABLE_COUNT: usize = 24;
+            let mut manager = streaming_winner_manager(
+                COMPRESSION_VARIABLE_COUNT,
+                entry_count,
+                16_384,
+                u64::MAX,
+            )?;
+            let mut tree = IncrementalGuardedCascadeWinnerV0::new();
+            for index in 0..entry_count {
+                let root = guarded_root_from_mask(
+                    &mut manager,
+                    u32::try_from(index)
+                        .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+                    1 << (index % COMPRESSION_VARIABLE_COUNT),
+                    COMPRESSION_VARIABLE_COUNT,
+                )?;
+                tree.insert(
+                    &mut manager,
+                    u64::try_from(index)
+                        .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?,
+                    root,
+                )?;
+            }
+            let node_count = manager.reachable_winner_node_count(tree.root())?;
+            let compression = (1_u64 << COMPRESSION_VARIABLE_COUNT) as f64 / node_count as f64;
+            compression_rows.push((entry_count, node_count, compression));
+        }
+        eprintln!(
+            "{{\"declaredSynthetic\":true,\"streamingNoRestoration\":true,\"alternatedMeasurementOrder\":true,\"scaleRows\":{scale_rows:?},\"compressionRows\":{compression_rows:?},\"pilotAggregateUpdateRatios\":[6.07,6.29,6.46],\"pilotCompressionBand\":[20998,453438]}}"
+        );
+        assert!(scale_rows.iter().all(|row| row.2 < row.0 as f64));
+        assert!(compression_rows.iter().all(|row| row.2 > 1.0));
+        Ok(())
+    }
+
+    #[derive(Debug)]
+    struct ReclamationMeasurementV0 {
+        interval_operations: u64,
+        rebuild_count: usize,
+        maximum_nodes_before: usize,
+        minimum_nodes_after: usize,
+        final_total_nodes: usize,
+        final_live_nodes: usize,
+        rebuild_elapsed_nanos: u128,
+    }
+
+    fn measure_incremental_winner_reclamation(
+        interval_operations: u64,
+    ) -> Result<ReclamationMeasurementV0, FirstWitnessErrorV0> {
+        const VARIABLE_COUNT: usize = 10;
+        const ENTRY_COUNT: usize = 128;
+        const EDIT_COUNT: usize = 1_000;
+        const DECLARATION_COUNT: usize = ENTRY_COUNT + EDIT_COUNT;
+        let mut manager = streaming_winner_manager(
+            VARIABLE_COUNT,
+            DECLARATION_COUNT,
+            4_096,
+            interval_operations,
+        )?;
+        let mut tree = IncrementalGuardedCascadeWinnerV0::new();
+        let mut keys = BTreeMap::new();
+        for index in 0..ENTRY_COUNT {
+            let root = guarded_root_from_mask(
+                &mut manager,
+                u32::try_from(index)
+                    .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+                1 << (index % VARIABLE_COUNT),
+                VARIABLE_COUNT,
+            )?;
+            let key =
+                u64::try_from(index).map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+            keys.insert(
+                key,
+                u32::try_from(index)
+                    .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+            );
+            tree.insert(&mut manager, key, root)?;
+        }
+        let mut state = 0x3c00_1220_5eed_u64 ^ interval_operations;
+        let mut rebuild_count = 0usize;
+        let mut maximum_nodes_before = 0usize;
+        let mut minimum_nodes_after = usize::MAX;
+        let mut rebuild_elapsed_nanos = 0u128;
+        for edit in 0..EDIT_COUNT {
+            if edit % 2 == 0 {
+                let target = next_stream_seed(&mut state) as usize % keys.len();
+                let key = keys
+                    .keys()
+                    .nth(target)
+                    .copied()
+                    .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
+                keys.remove(&key);
+                tree.remove(&mut manager, &key)?;
+            } else {
+                let declaration = ENTRY_COUNT + edit;
+                let mut key = next_stream_seed(&mut state) % 1_000_000;
+                while keys.contains_key(&key) {
+                    key = key.wrapping_add(1);
+                }
+                let root = guarded_root_from_mask(
+                    &mut manager,
+                    u32::try_from(declaration)
+                        .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+                    1 << (declaration % VARIABLE_COUNT)
+                        | 1 << ((declaration * 7 + 1) % VARIABLE_COUNT),
+                    VARIABLE_COUNT,
+                )?;
+                keys.insert(
+                    key,
+                    u32::try_from(declaration)
+                        .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+                );
+                tree.insert(&mut manager, key, root)?;
+            }
+            let started = Instant::now();
+            if let Some(report) = tree.reclaim_manager_if_due(&mut manager)? {
+                rebuild_elapsed_nanos += started.elapsed().as_nanos();
+                rebuild_count += 1;
+                maximum_nodes_before = maximum_nodes_before.max(report.nodes_before);
+                minimum_nodes_after = minimum_nodes_after.min(report.nodes_after);
+            }
+            let expected = keys.last_key_value().map(|(_, declaration)| *declaration);
+            assert_eq!(
+                evaluate_guarded_cascade_winner_v0(&manager, tree.root(), &[true; VARIABLE_COUNT],)?,
+                expected,
+                "reclamation must remap every cached aggregate and guarded leaf"
+            );
+        }
+        let final_live_nodes = manager.reachable_winner_node_count(tree.root())?;
+        Ok(ReclamationMeasurementV0 {
+            interval_operations,
+            rebuild_count,
+            maximum_nodes_before,
+            minimum_nodes_after: if rebuild_count == 0 {
+                manager.node_count()
+            } else {
+                minimum_nodes_after
+            },
+            final_total_nodes: manager.node_count(),
+            final_live_nodes,
+            rebuild_elapsed_nanos,
+        })
+    }
+
+    #[test]
+    fn manager_reclamation_is_remeasured_with_declaration_terminals()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let candidates = [4_096_u64, 16_384, 65_536]
+            .into_iter()
+            .map(measure_incremental_winner_reclamation)
+            .collect::<Result<Vec<_>, _>>()?;
+        let disabled = measure_incremental_winner_reclamation(u64::MAX)?;
+        let selected = candidates.iter().rev().find(|row| {
+            row.rebuild_count > 0
+                && row.maximum_nodes_before <= row.minimum_nodes_after.saturating_mul(64)
+        });
+        let selected = selected.ok_or_else(|| {
+            std::io::Error::other(format!(
+                "no reclamation interval rebuilt the MTBDD-terminal manager within the retained-to-live ceiling: {candidates:?}"
+            ))
+        })?;
+        assert!(selected.rebuild_count > 0);
+        assert!(
+            selected
+                .final_total_nodes
+                .saturating_mul(disabled.final_live_nodes)
+                < disabled
+                    .final_total_nodes
+                    .saturating_mul(selected.final_live_nodes),
+            "reclamation must lower the retained-to-live node ratio"
+        );
+        eprintln!(
+            "{{\"declaredSynthetic\":true,\"terminalAlphabet\":\"declarationIdPlusBot\",\"candidateRows\":{candidates:?},\"selectedIntervalOperations\":{},\"disabledRow\":{disabled:?},\"amortizedSelectedRebuildNanosPerEdit\":{}}}",
+            selected.interval_operations,
+            selected.rebuild_elapsed_nanos / 1_000,
+        );
+        Ok(())
+    }
+
+    #[derive(Debug)]
+    struct CacheBudgetMeasurementV0 {
+        capacity: usize,
+        cache_occupancy: usize,
+        tree_elapsed_nanos: u128,
+        linear_elapsed_nanos: u128,
+        winner: &'static str,
+    }
+
+    fn measure_incremental_winner_cache_budget(
+        capacity: usize,
+    ) -> Result<CacheBudgetMeasurementV0, FirstWitnessErrorV0> {
+        const VARIABLE_COUNT: usize = 12;
+        const ENTRY_COUNT: usize = 512;
+        const EDIT_COUNT: usize = 192;
+        const DECLARATION_COUNT: usize = ENTRY_COUNT + EDIT_COUNT;
+        let mut manager =
+            streaming_winner_manager(VARIABLE_COUNT, DECLARATION_COUNT, capacity, u64::MAX)?;
+        let mut entries = BTreeMap::new();
+        let mut tree = IncrementalGuardedCascadeWinnerV0::new();
+        for index in 0..ENTRY_COUNT {
+            let root = guarded_root_from_mask(
+                &mut manager,
+                u32::try_from(index)
+                    .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+                1 << (index % VARIABLE_COUNT),
+                VARIABLE_COUNT,
+            )?;
+            let key =
+                u64::try_from(index).map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+            entries.insert(key, root);
+            tree.insert(&mut manager, key, root)?;
+        }
+        let mut tree_elapsed_nanos = 0_u128;
+        let mut linear_elapsed_nanos = 0_u128;
+        for edit in 0..EDIT_COUNT {
+            let declaration = ENTRY_COUNT + edit;
+            let key = u64::try_from(edit % ENTRY_COUNT)
+                .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+            let root = guarded_root_from_mask(
+                &mut manager,
+                u32::try_from(declaration)
+                    .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
+                1 << (declaration % VARIABLE_COUNT) | 1 << ((declaration * 5 + 1) % VARIABLE_COUNT),
+                VARIABLE_COUNT,
+            )?;
+            entries.insert(key, root);
+            let batch = if edit % 2 == 0 {
+                let started = Instant::now();
+                let batch = batch_winner_from_entries(&mut manager, &entries)?;
+                linear_elapsed_nanos += started.elapsed().as_nanos();
+                let started = Instant::now();
+                tree.insert(&mut manager, key, root)?;
+                tree_elapsed_nanos += started.elapsed().as_nanos();
+                batch
+            } else {
+                let started = Instant::now();
+                tree.insert(&mut manager, key, root)?;
+                tree_elapsed_nanos += started.elapsed().as_nanos();
+                let started = Instant::now();
+                let batch = batch_winner_from_entries(&mut manager, &entries)?;
+                linear_elapsed_nanos += started.elapsed().as_nanos();
+                batch
+            };
+            assert_eq!(tree.root().node_id(), batch.node_id());
+        }
+        Ok(CacheBudgetMeasurementV0 {
+            capacity,
+            cache_occupancy: manager.apply_cache_len(),
+            tree_elapsed_nanos,
+            linear_elapsed_nanos,
+            winner: if tree_elapsed_nanos < linear_elapsed_nanos {
+                "incrementalTree"
+            } else {
+                "warmLinearRefold"
+            },
+        })
+    }
+
+    #[test]
+    fn apply_cache_budget_condition_is_measured_at_three_points() -> Result<(), FirstWitnessErrorV0>
+    {
+        let unbounded_probe = measure_incremental_winner_cache_budget(1_000_000)?;
+        let working_set = unbounded_probe.cache_occupancy.max(3);
+        let rows = [
+            measure_incremental_winner_cache_budget((working_set / 16).max(1))?,
+            measure_incremental_winner_cache_budget(working_set)?,
+            measure_incremental_winner_cache_budget(working_set.saturating_mul(2))?,
+        ];
+        assert!(rows[0].capacity < working_set);
+        assert!(rows[1].capacity >= working_set);
+        assert!(rows[2].capacity > working_set);
+        assert!(rows.iter().all(|row| row.cache_occupancy <= row.capacity));
+        assert!(rows.iter().all(|row| {
+            row.tree_elapsed_nanos > 0
+                && row.linear_elapsed_nanos > 0
+                && row.winner
+                    == if row.tree_elapsed_nanos < row.linear_elapsed_nanos {
+                        "incrementalTree"
+                    } else {
+                        "warmLinearRefold"
+                    }
+        }));
+        eprintln!(
+            "{{\"declaredSynthetic\":true,\"terminalAlphabet\":\"declarationIdPlusBot\",\"alternatedMeasurementOrder\":true,\"workingSetEntries\":{working_set},\"unboundedProbe\":{unbounded_probe:?},\"budgetRows\":{rows:?},\"claim\":\"wall-clock benefit is conditional on the apply-cache budget\"}}"
         );
         Ok(())
     }
