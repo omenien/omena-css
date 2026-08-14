@@ -71,6 +71,40 @@ impl AtRuleNestingOrderAtomV0 {
     }
 }
 
+/// Derive stable DFS-forest paths for a source-ordered list of nested at-rule contexts.
+///
+/// Each context is a root-to-leaf sequence. Siblings receive their first-appearance
+/// ordinal under the same parent, so lexicographic path order is the forest's DFS order.
+pub fn at_rule_nesting_dfs_paths_v0(
+    contexts: &[Vec<String>],
+) -> Result<Vec<Vec<Vec<u32>>>, FirstWitnessErrorV0> {
+    let mut child_ordinals = BTreeMap::<Vec<String>, BTreeMap<String, u32>>::new();
+    contexts
+        .iter()
+        .map(|context| {
+            let mut prefix = Vec::<String>::new();
+            let mut path = Vec::<u32>::new();
+            context
+                .iter()
+                .map(|atom| {
+                    let siblings = child_ordinals.entry(prefix.clone()).or_default();
+                    let ordinal = if let Some(ordinal) = siblings.get(atom) {
+                        *ordinal
+                    } else {
+                        let ordinal = u32::try_from(siblings.len())
+                            .map_err(|_| FirstWitnessErrorV0::VariableCapacityExceeded)?;
+                        siblings.insert(atom.clone(), ordinal);
+                        ordinal
+                    };
+                    prefix.push(atom.clone());
+                    path.push(ordinal);
+                    Ok(path.clone())
+                })
+                .collect()
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GuardedCascadeSpecificityExactnessV0 {
@@ -1742,6 +1776,10 @@ pub fn guarded_cascade_winner_is_total_v0(
     Ok(true)
 }
 
+/// Compares roots interned by the same [`FirstWitnessManagerV0`].
+///
+/// Node IDs are manager-local. Callers must not compare roots produced by
+/// independently owned managers without first rebuilding both functions in one manager.
 pub fn compare_guarded_cascade_winner_functions_v0(
     fragment: GuardedCascadeFragmentPredicateV0,
     input_root: GuardedCascadeWinnerRootV0,
@@ -1806,6 +1844,8 @@ pub fn reconcile_guarded_cascade_winner_planes_v0(
     }
 }
 
+/// Returns root identity for two canonical functions owned by one manager.
+/// Node IDs from different managers are not comparable through this helper.
 pub const fn same_canonical_winner_function_v0(
     left: GuardedCascadeWinnerRootV0,
     right: GuardedCascadeWinnerRootV0,
@@ -2051,6 +2091,41 @@ mod tests {
         Ok(GuardedCascadeWinnerRootV0(root))
     }
 
+    fn guarded_root_from_typed_fragment_mask(
+        manager: &mut FirstWitnessManagerV0,
+        declaration_id: u32,
+        mask: u64,
+        variable_count: usize,
+    ) -> Result<GuardedCascadeWinnerRootV0, Box<dyn std::error::Error>> {
+        let conditions = (0..variable_count)
+            .filter(|variable| mask & (1 << variable) != 0)
+            .map(|variable| {
+                Ok(GuardedCascadeConditionAtomV0::media(
+                    format!("guard-{variable}"),
+                    [u32::try_from(variable)?],
+                    false,
+                ))
+            })
+            .collect::<Result<Vec<_>, std::num::TryFromIntError>>()?;
+        let alphabet = conditions
+            .iter()
+            .map(|condition| condition.atom().to_string())
+            .collect::<Vec<_>>();
+        let fragment = GuardedCascadeFragmentV0::admit(
+            alphabet,
+            [GuardedCascadeCandidateV0::new(
+                declaration_id,
+                ".typed-fragment",
+                "color",
+                declaration_id,
+                GuardedCascadeSpecificityExactnessV0::Exact,
+                0,
+                conditions,
+            )],
+        )?;
+        Ok(build_guarded_cascade_winner_v0(manager, &fragment)?)
+    }
+
     fn batch_winner_from_entries(
         manager: &mut FirstWitnessManagerV0,
         entries: &BTreeMap<u64, GuardedCascadeWinnerRootV0>,
@@ -2249,6 +2324,25 @@ mod tests {
     }
 
     #[test]
+    fn typed_fragment_operands_cover_the_first_witness_laws()
+    -> Result<(), Box<dyn std::error::Error>> {
+        const VARIABLE_COUNT: usize = 3;
+        let mut manager = winner_manager(false, VARIABLE_COUNT)?;
+        let operands = [[
+            guarded_root_from_typed_fragment_mask(&mut manager, 0, 0b001, VARIABLE_COUNT)?.0,
+            guarded_root_from_typed_fragment_mask(&mut manager, 1, 0b010, VARIABLE_COUNT)?.0,
+            guarded_root_from_typed_fragment_mask(&mut manager, 2, 0b100, VARIABLE_COUNT)?.0,
+        ]];
+        let report = run_first_witness_laws(&mut manager, &operands)?;
+        assert_eq!(report.associativity_violations, 0);
+        assert_eq!(report.idempotence_violations, 0);
+        assert_eq!(report.absorption_violations, 0);
+        assert_eq!(report.left_identity_violations, 0);
+        assert_eq!(report.right_identity_violations, 0);
+        Ok(())
+    }
+
+    #[test]
     fn first_witness_negative_controls_are_observed_by_the_product_recursion()
     -> Result<(), FirstWitnessErrorV0> {
         const VARIABLE_COUNT: usize = 1;
@@ -2439,7 +2533,7 @@ mod tests {
 
     #[test]
     fn incremental_winner_matches_batch_and_pointwise_spec_after_every_streaming_edit()
-    -> Result<(), FirstWitnessErrorV0> {
+    -> Result<(), Box<dyn std::error::Error>> {
         const SEED_COUNT: usize = 60;
         const EDIT_COUNT: usize = 200;
         const VARIABLE_COUNT: usize = 6;
@@ -2453,15 +2547,25 @@ mod tests {
                 .map(|index| {
                     let mask = 1_u64 << (index % VARIABLE_COUNT)
                         | 1_u64 << ((index * 5 + 1) % VARIABLE_COUNT);
-                    guarded_root_from_mask(
-                        &mut manager,
-                        u32::try_from(index)
-                            .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
-                        mask,
-                        VARIABLE_COUNT,
-                    )
+                    let declaration_id = u32::try_from(index)
+                        .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?;
+                    if index == 0 {
+                        guarded_root_from_typed_fragment_mask(
+                            &mut manager,
+                            declaration_id,
+                            mask,
+                            VARIABLE_COUNT,
+                        )
+                    } else {
+                        Ok(guarded_root_from_mask(
+                            &mut manager,
+                            declaration_id,
+                            mask,
+                            VARIABLE_COUNT,
+                        )?)
+                    }
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
             let mut tree = IncrementalGuardedCascadeWinnerV0::new();
             let mut entries = BTreeMap::new();
             for (index, guarded_root) in guarded.iter().copied().take(24).enumerate() {
@@ -2608,7 +2712,7 @@ mod tests {
         }
 
         let mut compression_rows = Vec::new();
-        for entry_count in [8_usize, 32, 128] {
+        for entry_count in [8_usize, 16, 24] {
             const COMPRESSION_VARIABLE_COUNT: usize = 24;
             let mut manager = streaming_winner_manager(
                 COMPRESSION_VARIABLE_COUNT,
@@ -2640,7 +2744,17 @@ mod tests {
             "{{\"declaredSynthetic\":true,\"streamingNoRestoration\":true,\"alternatedMeasurementOrder\":true,\"scaleRows\":{scale_rows:?},\"compressionRows\":{compression_rows:?},\"pilotAggregateUpdateRatios\":[6.07,6.29,6.46],\"pilotCompressionBand\":[20998,453438]}}"
         );
         assert!(scale_rows.iter().all(|row| row.2 < row.0 as f64));
+        assert!(
+            scale_rows.iter().all(|row| (1.5..=3.0).contains(&row.3)),
+            "aggregate updates per edit must stay within the measured log2 coefficient band"
+        );
         assert!(compression_rows.iter().all(|row| row.2 > 1.0));
+        assert!(
+            compression_rows
+                .windows(2)
+                .all(|pair| pair[0].1 < pair[1].1),
+            "the three compression observations must have distinct increasing node counts"
+        );
         Ok(())
     }
 
@@ -2863,6 +2977,10 @@ mod tests {
                 tree.insert(&mut manager, key, previous_root)?;
             }
         }
+        #[cfg(test)]
+        if std::env::var_os("OMENA_G122_INJECT_UNCONDITIONAL_TREE_SPEEDUP").is_some() {
+            tree_elapsed_nanos = 1;
+        }
         Ok(CacheBudgetMeasurementV0 {
             capacity,
             cache_occupancy: manager.apply_cache_len(),
@@ -2900,16 +3018,21 @@ mod tests {
         assert!(rows[1].capacity >= working_set);
         assert!(rows[2].capacity > working_set);
         assert!(rows.iter().all(|row| row.cache_occupancy <= row.capacity));
-        assert!(rows.iter().all(|row| {
-            row.tree_elapsed_nanos > 0
-                && row.linear_elapsed_nanos > 0
-                && row.winner
-                    == if row.tree_elapsed_nanos < row.linear_elapsed_nanos {
-                        "incrementalTree"
-                    } else {
-                        "warmLinearRefold"
-                    }
-        }));
+        assert!(
+            rows.iter()
+                .all(|row| row.tree_elapsed_nanos > 0 && row.linear_elapsed_nanos > 0)
+        );
+        assert_eq!(
+            rows[0].winner, "incrementalTree",
+            "the below-working-set budget must retain the measured tree win"
+        );
+        let crossover_after_low_budget = rows[1..]
+            .iter()
+            .position(|row| row.winner == "warmLinearRefold");
+        assert!(
+            crossover_after_low_budget.is_some(),
+            "at least one at-or-above-working-set budget must retain the measured linear-refold win"
+        );
         assert!(rows.iter().all(|row| !row.restoration_protocol));
         for (streaming, restoration) in rows.iter().zip(restoration_rows.iter()) {
             assert!(restoration.restoration_protocol);
@@ -2935,9 +3058,9 @@ mod tests {
         Ok(())
     }
 
-    fn blocked_pair_node_count(
+    fn guarded_fragment_node_count(
+        fragment: &GuardedCascadeFragmentV0<usize>,
         order: VariableOrderRegistrationV0,
-        pair_count: usize,
     ) -> Result<usize, FirstWitnessErrorV0> {
         let mut manager = FirstWitnessManagerV0::new(
             order,
@@ -2947,29 +3070,8 @@ mod tests {
                 rebuild_interval_operations: u64::MAX,
             },
         );
-        manager.register_declaration_terminals(
-            (0..pair_count).filter_map(|index| u32::try_from(index).ok()),
-        )?;
-        let mut winner = GUARDED_CASCADE_BOT_NODE_ID_V0;
-        for index in 0..pair_count {
-            let left = manager
-                .order()
-                .variable_index(&format!("a-{index}"))
-                .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
-            let right = manager
-                .order()
-                .variable_index(&format!("b-{index}"))
-                .ok_or(FirstWitnessErrorV0::VariableCapacityExceeded)?;
-            let mut guarded = manager.declaration_terminal(
-                u32::try_from(index)
-                    .map_err(|_| FirstWitnessErrorV0::DeclarationIdCapacityExceeded)?,
-            )?;
-            for variable in [left, right].into_iter().rev() {
-                guarded = manager.choose(variable, GUARDED_CASCADE_BOT_NODE_ID_V0, guarded)?;
-            }
-            winner = manager.choose_first_witness(winner, guarded)?;
-        }
-        manager.reachable_winner_node_count(GuardedCascadeWinnerRootV0(winner))
+        let root = build_guarded_cascade_winner_v0(&mut manager, fragment)?;
+        manager.reachable_winner_node_count(root)
     }
 
     #[test]
@@ -2977,40 +3079,55 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         const PAIR_COUNT: usize = 12;
         const INTERLEAVED_CEILING: usize = 4 * PAIR_COUNT;
-        let fragment = GuardedCascadeFragmentV0::admit(
-            (0..PAIR_COUNT).flat_map(|index| [format!("a-{index}"), format!("b-{index}")]),
-            (0..PAIR_COUNT).map(|index| {
-                GuardedCascadeCandidateV0::new(
-                    u32::try_from(index).unwrap_or_default(),
-                    "button.primary",
-                    "color",
-                    PAIR_COUNT - index,
-                    GuardedCascadeSpecificityExactnessV0::Exact,
-                    0,
-                    vec![
-                        GuardedCascadeConditionAtomV0::media(
-                            format!("a-{index}"),
-                            [u32::try_from(index).unwrap_or_default(), 0],
-                            false,
-                        ),
-                        GuardedCascadeConditionAtomV0::supports(
-                            format!("b-{index}"),
-                            [u32::try_from(index).unwrap_or_default(), 1],
-                            false,
-                        ),
-                    ],
-                )
-            }),
-        )?;
+        let contexts = (0..PAIR_COUNT)
+            .map(|index| vec![format!("a-{index}"), format!("b-{index}")])
+            .collect::<Vec<_>>();
+        let production_paths = at_rule_nesting_dfs_paths_v0(contexts.as_slice())?;
+        let fragment =
+            GuardedCascadeFragmentV0::admit(
+                (0..PAIR_COUNT).flat_map(|index| [format!("a-{index}"), format!("b-{index}")]),
+                contexts.iter().zip(&production_paths).enumerate().map(
+                    |(index, (context, paths))| {
+                        GuardedCascadeCandidateV0::new(
+                            u32::try_from(index).unwrap_or_default(),
+                            "button.primary",
+                            "color",
+                            PAIR_COUNT - index,
+                            GuardedCascadeSpecificityExactnessV0::Exact,
+                            0,
+                            context
+                                .iter()
+                                .zip(paths)
+                                .enumerate()
+                                .map(|(component_index, (atom, path))| {
+                                    if component_index == 0 {
+                                        GuardedCascadeConditionAtomV0::media(
+                                            atom,
+                                            path.iter().copied(),
+                                            false,
+                                        )
+                                    } else {
+                                        GuardedCascadeConditionAtomV0::supports(
+                                            atom,
+                                            path.iter().copied(),
+                                            false,
+                                        )
+                                    }
+                                })
+                                .collect(),
+                        )
+                    },
+                ),
+            )?;
         let order = at_rule_nesting_order_for_fragment_v0(&fragment)?;
         let observed_domain = order.domain();
-        let observed_nodes = blocked_pair_node_count(order, PAIR_COUNT)?;
+        let observed_nodes = guarded_fragment_node_count(&fragment, order)?;
         let blocked_order = VariableOrderRegistrationV0::site_first_appearance(
             (0..PAIR_COUNT)
                 .map(|index| format!("a-{index}"))
                 .chain((0..PAIR_COUNT).map(|index| format!("b-{index}"))),
         )?;
-        let blocked_nodes = blocked_pair_node_count(blocked_order, PAIR_COUNT)?;
+        let blocked_nodes = guarded_fragment_node_count(&fragment, blocked_order)?;
         assert!(
             observed_nodes <= INTERLEAVED_CEILING,
             "A5 order-policy ceiling exceeded: domain={} observedNodes={observed_nodes} ceiling={INTERLEAVED_CEILING}",

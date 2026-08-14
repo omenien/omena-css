@@ -368,6 +368,7 @@ pub fn omena_cascade::VariableOrderRegistrationV0::site_first_appearance(impl co
 pub fn omena_cascade::VariableOrderRegistrationV0::site_first_appearance(impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> core::result::Result<Self, omena_cascade::FirstWitnessErrorV0>
 pub fn omena_cascade::VariableOrderRegistrationV0::variable_index(&self, &str) -> core::option::Option<u16>
 pub fn omena_cascade::VariableOrderRegistrationV0::variable_index(&self, &str) -> core::option::Option<u16>
+pub fn omena_cascade::at_rule_nesting_dfs_paths_v0(&[alloc::vec::Vec<alloc::string::String>]) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<alloc::vec::Vec<u32>>>, omena_cascade::FirstWitnessErrorV0>
 pub fn omena_cascade::at_rule_nesting_order_for_fragment_v0<K>(&omena_cascade::GuardedCascadeFragmentV0<K>) -> core::result::Result<omena_cascade::VariableOrderRegistrationV0, omena_cascade::FirstWitnessErrorV0>
 pub fn omena_cascade::box_shorthand_longhands_v0(&str) -> core::option::Option<[&'static str; 4]>
 pub fn omena_cascade::build_guarded_cascade_winner_v0<K: core::clone::Clone + core::cmp::Ord>(&mut omena_cascade::FirstWitnessManagerV0, &omena_cascade::GuardedCascadeFragmentV0<K>) -> core::result::Result<omena_cascade::GuardedCascadeWinnerRootV0, omena_cascade::FirstWitnessErrorV0>
@@ -397,6 +398,7 @@ pub fn omena_cascade::derive_frames_for_diagnostic_set(alloc::vec::Vec<(alloc::s
 pub fn omena_cascade::enumerate_explicit_grn_attractor_v0(usize) -> omena_cascade::GrnExplicitAttractorEnumerationV0
 pub fn omena_cascade::evaluate_guarded_cascade_winner_v0(&omena_cascade::FirstWitnessManagerV0, omena_cascade::GuardedCascadeWinnerRootV0, &[bool]) -> core::result::Result<core::option::Option<u32>, omena_cascade::FirstWitnessErrorV0>
 pub fn omena_cascade::evaluate_static_supports_condition(&str, omena_cascade::StaticSupportsAssumptionV0) -> omena_cascade::StaticSupportsEvalWitnessV0
+pub fn omena_cascade::first_witness::at_rule_nesting_dfs_paths_v0(&[alloc::vec::Vec<alloc::string::String>]) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<alloc::vec::Vec<u32>>>, omena_cascade::FirstWitnessErrorV0>
 pub fn omena_cascade::first_witness::at_rule_nesting_order_for_fragment_v0<K>(&omena_cascade::GuardedCascadeFragmentV0<K>) -> core::result::Result<omena_cascade::VariableOrderRegistrationV0, omena_cascade::FirstWitnessErrorV0>
 pub fn omena_cascade::first_witness::build_guarded_cascade_winner_v0<K: core::clone::Clone + core::cmp::Ord>(&mut omena_cascade::FirstWitnessManagerV0, &omena_cascade::GuardedCascadeFragmentV0<K>) -> core::result::Result<omena_cascade::GuardedCascadeWinnerRootV0, omena_cascade::FirstWitnessErrorV0>
 pub fn omena_cascade::first_witness::compare_guarded_cascade_winner_functions_v0(omena_cascade::GuardedCascadeFragmentPredicateV0, omena_cascade::GuardedCascadeWinnerRootV0, omena_cascade::GuardedCascadeWinnerRootV0, bool) -> omena_cascade::GuardedCascadeWinnerFunctionEqualityDecisionV0

@@ -251,7 +251,7 @@ pub fn compute_guarded_cascade_robustness_radius_v0(
 
     let mut best: Option<(u32, Vec<GuardedCascadePerturbationV0>)> = None;
     let mut evaluated_perturbation_set_count = 0usize;
-    let mut verified_below_radius_perturbation_set_count = 0usize;
+    let mut preserving_costs = Vec::new();
     let mut excluded_unrealisable_assignment_count = 0usize;
     let upper = 1u64 << perturbations.len();
     for mask in 1..upper {
@@ -287,8 +287,8 @@ pub fn compute_guarded_cascade_robustness_radius_v0(
             if best.as_ref().is_none_or(|(best, _)| cost < *best) {
                 best = Some((cost, witness));
             }
-        } else if best.as_ref().is_none_or(|(best, _)| cost < *best) {
-            verified_below_radius_perturbation_set_count += 1;
+        } else {
+            preserving_costs.push(cost);
         }
     }
 
@@ -296,6 +296,13 @@ pub fn compute_guarded_cascade_robustness_radius_v0(
         (GuardedCascadeRobustnessRadiusValueV0::Infinity, Vec::new()),
         |(cost, witness)| (GuardedCascadeRobustnessRadiusValueV0::Finite(cost), witness),
     );
+    let verified_below_radius_perturbation_set_count = preserving_costs
+        .into_iter()
+        .filter(|cost| match radius {
+            GuardedCascadeRobustnessRadiusValueV0::Finite(radius) => *cost < radius,
+            GuardedCascadeRobustnessRadiusValueV0::Infinity => true,
+        })
+        .count();
     Ok(GuardedCascadeRobustnessRadiusV0 {
         schema_version: "0",
         product: GUARDED_CASCADE_ROBUSTNESS_PRODUCT_V0,
@@ -447,6 +454,10 @@ fn apply_perturbation_set(
 }
 
 fn apply_key_perturbation(key: &mut CascadeKey, perturbation: &GuardedCascadePerturbationV0) {
+    #[cfg(test)]
+    if std::env::var_os("OMENA_G122_INJECT_DISABLE_KEY_PERTURBATIONS").is_some() {
+        return;
+    }
     match perturbation {
         GuardedCascadePerturbationV0::AddClass { .. }
         | GuardedCascadePerturbationV0::IncreaseSpecificity { .. } => {
@@ -475,9 +486,9 @@ fn apply_key_perturbation(key: &mut CascadeKey, perturbation: &GuardedCascadePer
         }
         GuardedCascadePerturbationV0::MoveSourceOrder { .. } => {
             key.source_order = if key.source_order == u32::MAX {
-                key.source_order.saturating_sub(1)
+                0
             } else {
-                key.source_order + 1
+                u32::MAX
             };
         }
         GuardedCascadePerturbationV0::ToggleCondition { .. } => {}
@@ -691,6 +702,95 @@ mod tests {
         )
     }
 
+    fn candidate_with_key(
+        declaration_id: u32,
+        key: CascadeKey,
+    ) -> GuardedCascadeCandidateV0<CascadeKey> {
+        GuardedCascadeCandidateV0::new(
+            declaration_id,
+            ".a",
+            "color",
+            key,
+            GuardedCascadeSpecificityExactnessV0::Exact,
+            0,
+            Vec::new(),
+        )
+    }
+
+    fn key(
+        level: CascadeLevel,
+        layer_ordinal: Option<i32>,
+        classes: u32,
+        source_order: u32,
+    ) -> CascadeKey {
+        CascadeKey::new(
+            level,
+            normalized_layer_rank(false, layer_ordinal.and_then(LayerOrdinal::new)),
+            0,
+            Specificity::new(0, classes, 0),
+            source_order,
+        )
+    }
+
+    fn isolated_cost_model(
+        kind: GuardedCascadePerturbationKindV0,
+    ) -> GuardedCascadePerturbationCostModelV0 {
+        let mut model = GuardedCascadePerturbationCostModelV0 {
+            add_class: 11,
+            remove_class: 11,
+            toggle_important: 11,
+            increase_specificity: 11,
+            move_layer: 11,
+            move_source_order: 11,
+            toggle_condition: 11,
+            calibration_stage: GUARDED_CASCADE_ROBUSTNESS_CALIBRATION_STAGE_V0,
+            public_safety_claim_ready: false,
+        };
+        match kind {
+            GuardedCascadePerturbationKindV0::AddClass => model.add_class = 1,
+            GuardedCascadePerturbationKindV0::RemoveClass => model.remove_class = 1,
+            GuardedCascadePerturbationKindV0::ToggleImportant => model.toggle_important = 1,
+            GuardedCascadePerturbationKindV0::IncreaseSpecificity => {
+                model.increase_specificity = 1;
+            }
+            GuardedCascadePerturbationKindV0::MoveLayer => model.move_layer = 1,
+            GuardedCascadePerturbationKindV0::MoveSourceOrder => model.move_source_order = 1,
+            GuardedCascadePerturbationKindV0::ToggleCondition => model.toggle_condition = 1,
+        }
+        model
+    }
+
+    fn perturbation(
+        kind: GuardedCascadePerturbationKindV0,
+        declaration_id: u32,
+    ) -> GuardedCascadePerturbationV0 {
+        match kind {
+            GuardedCascadePerturbationKindV0::AddClass => {
+                GuardedCascadePerturbationV0::AddClass { declaration_id }
+            }
+            GuardedCascadePerturbationKindV0::RemoveClass => {
+                GuardedCascadePerturbationV0::RemoveClass { declaration_id }
+            }
+            GuardedCascadePerturbationKindV0::ToggleImportant => {
+                GuardedCascadePerturbationV0::ToggleImportant { declaration_id }
+            }
+            GuardedCascadePerturbationKindV0::IncreaseSpecificity => {
+                GuardedCascadePerturbationV0::IncreaseSpecificity { declaration_id }
+            }
+            GuardedCascadePerturbationKindV0::MoveLayer => {
+                GuardedCascadePerturbationV0::MoveLayer { declaration_id }
+            }
+            GuardedCascadePerturbationKindV0::MoveSourceOrder => {
+                GuardedCascadePerturbationV0::MoveSourceOrder { declaration_id }
+            }
+            GuardedCascadePerturbationKindV0::ToggleCondition => {
+                GuardedCascadePerturbationV0::ToggleCondition {
+                    atom: String::new(),
+                }
+            }
+        }
+    }
+
     fn fragment(
         condition: &str,
     ) -> Result<GuardedCascadeFragmentV0<CascadeKey>, crate::GuardedCascadeFragmentRefusalV0> {
@@ -735,6 +835,79 @@ mod tests {
     }
 
     #[test]
+    fn every_key_perturbation_kind_has_a_cheapest_winner_flip()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let ordinary_winner = key(CascadeLevel::AuthorNormal, Some(0), 2, 0);
+        let ordinary_challenger = key(CascadeLevel::AuthorNormal, Some(0), 1, 1);
+        let cases = [
+            (
+                GuardedCascadePerturbationKindV0::AddClass,
+                ordinary_winner,
+                ordinary_challenger,
+                1,
+            ),
+            (
+                GuardedCascadePerturbationKindV0::RemoveClass,
+                ordinary_winner,
+                ordinary_challenger,
+                0,
+            ),
+            (
+                GuardedCascadePerturbationKindV0::ToggleImportant,
+                ordinary_winner,
+                ordinary_challenger,
+                1,
+            ),
+            (
+                GuardedCascadePerturbationKindV0::IncreaseSpecificity,
+                ordinary_winner,
+                ordinary_challenger,
+                1,
+            ),
+            (
+                GuardedCascadePerturbationKindV0::MoveLayer,
+                key(CascadeLevel::AuthorNormal, None, 1, 0),
+                key(CascadeLevel::AuthorNormal, Some(0), 1, 1),
+                0,
+            ),
+            (
+                GuardedCascadePerturbationKindV0::MoveSourceOrder,
+                key(CascadeLevel::AuthorNormal, Some(0), 1, 1),
+                key(CascadeLevel::AuthorNormal, Some(0), 1, 0),
+                1,
+            ),
+        ];
+        let mut observations = Vec::new();
+        for (kind, winner, challenger, target_declaration_id) in cases {
+            let fragment = GuardedCascadeFragmentV0::admit(
+                std::iter::empty::<&str>(),
+                [
+                    candidate_with_key(0, winner),
+                    candidate_with_key(1, challenger),
+                ],
+            )?;
+            let result = compute_guarded_cascade_robustness_radius_v0(
+                &fragment,
+                &[],
+                &isolated_cost_model(kind),
+            )?;
+            assert_eq!(
+                result.radius,
+                GuardedCascadeRobustnessRadiusValueV0::Finite(1),
+                "{kind:?} must provide a real cheapest winner flip"
+            );
+            assert_eq!(
+                result.witness,
+                vec![perturbation(kind, target_declaration_id)],
+                "{kind:?} must name the declaration whose key crosses the winner boundary"
+            );
+            observations.push((kind, result.baseline_winner_declaration_id, result.witness));
+        }
+        eprintln!("S6_KEY_PERTURBATION_OBSERVATIONS={observations:?}");
+        Ok(())
+    }
+
+    #[test]
     fn unrealisable_only_flip_has_infinite_radius() -> Result<(), Box<dyn std::error::Error>> {
         let contradictory = "@media (min-width: 1200px) and (max-width: 768px)";
         let fragment = fragment(contradictory)?;
@@ -749,6 +922,12 @@ mod tests {
         );
         assert!(radius.witness.is_empty());
         assert!(radius.excluded_unrealisable_assignment_count > 0);
+        assert!(radius.verified_below_radius_perturbation_set_count > 0);
+        assert_eq!(
+            radius.verified_below_radius_perturbation_set_count,
+            radius.evaluated_perturbation_set_count,
+            "every evaluated finite perturbation is below an infinite radius"
+        );
         assert_eq!(
             radius.realisability.always_false_atoms,
             vec![contradictory.to_string()]
@@ -768,7 +947,63 @@ mod tests {
             radius.radius,
             GuardedCascadeRobustnessRadiusValueV0::Finite(3)
         );
-        assert!(radius.verified_below_radius_perturbation_set_count > 0);
+        let order = at_rule_nesting_order_for_fragment_v0(&fragment)?;
+        let perturbations = enumerate_perturbations(&fragment, &order, &costs)?;
+        let baseline = independently_rederive_winner(&fragment, order.atoms(), &[false]);
+        let mut independently_verified = 0usize;
+        for mask in 1..(1u64 << perturbations.len()) {
+            let cost = perturbations
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| mask & (1u64 << index) != 0)
+                .map(|(_, perturbation)| perturbation.cost)
+                .sum::<u32>();
+            if cost >= 3 {
+                continue;
+            }
+            let (keys, assignment, _) =
+                apply_perturbation_set(&fragment, &[false], &perturbations, mask);
+            if !assignment_is_realisable(order.atoms(), &assignment, &radius.realisability) {
+                continue;
+            }
+            let Some(candidate_fragment) = fragment_with_keys(&fragment, keys) else {
+                continue;
+            };
+            assert_eq!(
+                independently_rederive_winner(&candidate_fragment, order.atoms(), &assignment),
+                baseline,
+                "an independently rederived sub-radius path changed the winner"
+            );
+            independently_verified += 1;
+        }
+        assert!(independently_verified > 0);
+        assert_eq!(
+            radius.verified_below_radius_perturbation_set_count, independently_verified,
+            "the theorem-7 receipt must equal the independent sub-radius rederivation"
+        );
         Ok(())
+    }
+
+    fn independently_rederive_winner(
+        fragment: &GuardedCascadeFragmentV0<CascadeKey>,
+        atoms: &[String],
+        assignment: &[bool],
+    ) -> Option<u32> {
+        let values = atoms
+            .iter()
+            .map(String::as_str)
+            .zip(assignment.iter().copied())
+            .collect::<BTreeMap<_, _>>();
+        fragment
+            .candidates()
+            .iter()
+            .filter(|candidate| {
+                candidate
+                    .conditions()
+                    .iter()
+                    .all(|condition| values.get(condition.atom()).copied().unwrap_or(false))
+            })
+            .max_by_key(|candidate| *candidate.cascade_key())
+            .map(GuardedCascadeCandidateV0::declaration_id)
     }
 }

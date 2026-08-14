@@ -755,6 +755,7 @@
             "TransformStrictPolicyReasonV0:LivenessNotClosed",
             "TransformStrictPolicyReasonV0:OwnershipNotSeparable",
             "TransformWinnerEqualityAbsenceReasonV0:GuardedWinnerFunctionsDiffer",
+            "TransformWinnerEqualityAbsenceReasonV0:GuardedWinnerPlaneDisagreement",
             "TransformWinnerEqualityObservationV0:ObservedGuardedEqual"
           ]
         },
@@ -846,15 +847,18 @@
         {
           "id": "guarded-winner-equality-observation-values",
           "kind": "selection-outcome-changing",
-          "surface": "TransformExecutionSummaryV0.winnerEqualityObligations conditional-context observations",
-          "reason": "An admitted conditional fragment with equal canonical winner roots now emits an observed guarded-equality carrier instead of WinnerNotDefinite, while unequal roots remain an absence with a typed refusal.",
+          "surface": "TransformExecutionSummaryV0.winnerEqualityObligations conditional-context observations, stylesheet source-order base, and canonical/scenario plane reconciliation",
+          "reason": "An admitted conditional fragment emits guarded equality only after base-adjusted canonical roots, the scenario witness, and both winner planes agree; unequal roots or plane disagreement remain named absences.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
               "needles": [
                 "TransformWinnerEqualityObservationV0::ObservedGuardedEqual {",
                 "TransformWinnerEqualityAbsenceReasonV0::GuardedWinnerFunctionsDiffer {",
-                "fn correlated_numeric_root_inequality_is_a_typed_refusal()"
+                "TransformWinnerEqualityAbsenceReasonV0::GuardedWinnerPlaneDisagreement {",
+                "stylesheet_source_order_base.checked_add(u32::try_from(matched_ordinal).ok()?)?",
+                "reconcile_guarded_cascade_winner_planes_v0(",
+                "fn guarded_rule_merging_respects_the_stylesheet_source_order_base()"
               ]
             }
           ]

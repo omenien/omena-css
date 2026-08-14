@@ -6,11 +6,12 @@ use omena_cascade::{
     GuardedCascadeConditionAtomV0, GuardedCascadeFragmentV0, GuardedCascadeSpecificityExactnessV0,
     GuardedCascadeWinnerAuthorityV0, LayerOrdinal, OpenWorldTieEvidence, SelectorMatchVerdict,
     Specificity, SpecificityExactnessV0, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
-    at_rule_nesting_order_for_fragment_v0, build_guarded_cascade_winner_v0,
-    cascade_level_for_origin, cascade_property, compute_guarded_cascade_robustness_radius_v0,
-    evaluate_static_supports_condition, guarded_cascade_perturbation_cost_model_v0,
-    guarded_cascade_winner_authority_v0, guarded_cascade_winner_is_total_v0, normalized_layer_rank,
-    parse_simple_selector_signature, selector_co_match_verdict,
+    at_rule_nesting_dfs_paths_v0, at_rule_nesting_order_for_fragment_v0,
+    build_guarded_cascade_winner_v0, cascade_level_for_origin, cascade_property,
+    compute_guarded_cascade_robustness_radius_v0, evaluate_static_supports_condition,
+    guarded_cascade_perturbation_cost_model_v0, guarded_cascade_winner_authority_v0,
+    guarded_cascade_winner_is_total_v0, normalized_layer_rank, parse_simple_selector_signature,
+    selector_co_match_verdict,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeEvaluationV0,
@@ -305,10 +306,16 @@ fn query_runtime_guarded_winner_fragment(
                 .map(|index| (declaration_id, index))
         })
         .collect::<Option<std::collections::BTreeMap<_, _>>>()?;
+    let contexts = declarations
+        .iter()
+        .map(|declaration| declaration.condition_context.clone())
+        .collect::<Vec<_>>();
+    let paths = at_rule_nesting_dfs_paths_v0(contexts.as_slice()).ok()?;
     let mut alphabet = BTreeSet::new();
     let candidates = declarations
         .iter()
-        .map(|declaration| {
+        .zip(paths)
+        .map(|(declaration, paths)| {
             let signature = parse_simple_selector_signature(declaration.selector.as_str())?;
             if signature.specificity_exactness != SpecificityExactnessV0::Exact
                 || !signature.required_pseudo_states.is_empty()
@@ -318,6 +325,7 @@ fn query_runtime_guarded_winner_fragment(
             let ranked = query_runtime_cascade_declaration_from_input(declaration);
             let conditions = query_runtime_guarded_conditions(
                 declaration.condition_context.as_slice(),
+                paths.as_slice(),
                 &mut alphabet,
             )?;
             Some(GuardedCascadeCandidateV0::new(
@@ -350,28 +358,36 @@ fn query_runtime_guarded_winner_authority_for_fragment(
 
 fn query_runtime_guarded_conditions(
     context: &[String],
+    paths: &[Vec<u32>],
     alphabet: &mut BTreeSet<String>,
 ) -> Option<Vec<GuardedCascadeConditionAtomV0>> {
+    (context.len() == paths.len()).then_some(())?;
     context
         .iter()
-        .enumerate()
-        .map(|(index, component)| {
+        .zip(paths)
+        .map(|(component, path)| {
             let component = component.trim();
             alphabet.insert(component.to_string());
-            let path = [u32::try_from(index).ok()?];
             let numeric = component
                 .chars()
                 .any(|character| character.is_ascii_digit());
             if css_keyword(component).strip_prefix("@media").is_some() {
                 Some(GuardedCascadeConditionAtomV0::media(
-                    component, path, numeric,
+                    component,
+                    path.iter().copied(),
+                    numeric,
                 ))
             } else if css_keyword(component).strip_prefix("@supports").is_some() {
                 Some(GuardedCascadeConditionAtomV0::supports(
-                    component, path, numeric,
+                    component,
+                    path.iter().copied(),
+                    numeric,
                 ))
             } else if css_keyword(component).strip_prefix("@container").is_some() {
-                Some(GuardedCascadeConditionAtomV0::container(component, path))
+                Some(GuardedCascadeConditionAtomV0::container(
+                    component,
+                    path.iter().copied(),
+                ))
             } else {
                 Some(GuardedCascadeConditionAtomV0::structural_pseudo(component))
             }
@@ -927,8 +943,10 @@ mod tests {
             "@SuPpOrTs (display: grid)".to_string(),
             "@CoNtAiNeR card (min-width: 1px)".to_string(),
         ];
+        let paths = at_rule_nesting_dfs_paths_v0(&[context.to_vec()])
+            .map_err(|_| "mixed-case guarded paths")?;
         let mut alphabet = BTreeSet::new();
-        let conditions = query_runtime_guarded_conditions(&context, &mut alphabet)
+        let conditions = query_runtime_guarded_conditions(&context, &paths[0], &mut alphabet)
             .ok_or("mixed-case guarded conditions")?;
 
         assert_eq!(

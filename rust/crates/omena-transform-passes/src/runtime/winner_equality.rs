@@ -6,12 +6,15 @@ use omena_cascade::{
     CascadeDeclaration, CascadeLevel, CascadeValue, CascadeWinnerAxisV0, ElementSignature,
     FirstWitnessManagerConfigV0, FirstWitnessManagerV0, GuardedCascadeCandidateV0,
     GuardedCascadeConditionAtomV0, GuardedCascadeFragmentV0, GuardedCascadeSpecificityExactnessV0,
+    GuardedCascadeWinnerAuthorityErrorV0, GuardedCascadeWinnerAuthorityV0,
     GuardedCascadeWinnerFunctionEqualityDecisionV0, GuardedCascadeWinnerFunctionEqualityRefusalV0,
-    LayerOrdinal, LayerRank, OpenWorldTieEvidence, SelectorMatchVerdict, SpecificityExactnessV0,
+    GuardedCascadeWinnerPlaneAnswerV0, LayerOrdinal, LayerRank, OpenWorldTieEvidence,
+    SelectorMatchVerdict, SpecificityExactnessV0, at_rule_nesting_dfs_paths_v0,
     at_rule_nesting_order_for_fragment_v0, build_guarded_cascade_winner_v0,
     cascade_driven_levels_v0, cascade_driven_winner_axes_v0, cascade_level_for_origin,
     cascade_property, compare_guarded_cascade_winner_functions_v0,
-    guarded_cascade_winner_is_total_v0, normalized_layer_rank, parse_simple_selector_signature,
+    evaluate_guarded_cascade_winner_v0, guarded_cascade_winner_is_total_v0, normalized_layer_rank,
+    parse_simple_selector_signature, reconcile_guarded_cascade_winner_planes_v0,
     selector_match_witness,
 };
 use omena_parser::{StyleDialect, css_keyword};
@@ -50,10 +53,29 @@ struct WinnerForPairV0 {
 #[derive(Debug, Clone)]
 struct GuardedCandidateSeedV0 {
     stable_identity: String,
+    scenario_witness_id: String,
     element_signature: String,
     property: String,
     cascade_key: omena_cascade::CascadeKey,
     conditions: Vec<GuardedCascadeConditionAtomV0>,
+}
+
+#[derive(Debug)]
+struct GuardedWinnerFunctionEvaluationV0 {
+    decision: GuardedCascadeWinnerFunctionEqualityDecisionV0,
+    input_canonical_answer: GuardedCascadeWinnerPlaneAnswerV0,
+    output_canonical_answer: GuardedCascadeWinnerPlaneAnswerV0,
+    input_scenario_ids: BTreeMap<(String, omena_cascade::CascadeKey), u32>,
+    output_scenario_ids: BTreeMap<(String, omena_cascade::CascadeKey), u32>,
+}
+
+#[derive(Debug)]
+struct GuardedEqualPlanesV0 {
+    authority: GuardedCascadeWinnerAuthorityV0,
+    input_canonical_answer: GuardedCascadeWinnerPlaneAnswerV0,
+    output_canonical_answer: GuardedCascadeWinnerPlaneAnswerV0,
+    input_scenario_ids: BTreeMap<(String, omena_cascade::CascadeKey), u32>,
+    output_scenario_ids: BTreeMap<(String, omena_cascade::CascadeKey), u32>,
 }
 
 #[derive(Clone, Copy)]
@@ -171,28 +193,42 @@ pub(crate) fn evaluate_transform_winner_equality(
             &mut reasons,
             context.cascade_environment,
         );
-        let guarded_decision = if input.conditional_context_open || output.conditional_context_open
-        {
-            guarded_winner_function_equality_for_pair(
-                &pair,
-                input_candidates.as_slice(),
-                output_candidates.as_slice(),
-                &input_layers,
-                &output_layers,
-                context.cascade_environment,
-            )
-        } else {
-            None
-        };
-        let guarded_authority = match guarded_decision {
-            Some(GuardedCascadeWinnerFunctionEqualityDecisionV0::Equal { authority }) => {
-                Some(authority)
-            }
-            Some(GuardedCascadeWinnerFunctionEqualityDecisionV0::Refused {
-                refusal:
-                    GuardedCascadeWinnerFunctionEqualityRefusalV0::CanonicalRootsDiffer {
-                        input_root,
-                        output_root,
+        let guarded_evaluation =
+            if input.conditional_context_open || output.conditional_context_open {
+                guarded_winner_function_equality_for_pair(
+                    &pair,
+                    input_candidates.as_slice(),
+                    output_candidates.as_slice(),
+                    &input_layers,
+                    &output_layers,
+                    context.cascade_environment,
+                )
+            } else {
+                None
+            };
+        let guarded_equal = match guarded_evaluation {
+            Some(GuardedWinnerFunctionEvaluationV0 {
+                decision: GuardedCascadeWinnerFunctionEqualityDecisionV0::Equal { authority },
+                input_canonical_answer,
+                output_canonical_answer,
+                input_scenario_ids,
+                output_scenario_ids,
+            }) => Some(GuardedEqualPlanesV0 {
+                authority,
+                input_canonical_answer,
+                output_canonical_answer,
+                input_scenario_ids,
+                output_scenario_ids,
+            }),
+            Some(GuardedWinnerFunctionEvaluationV0 {
+                decision:
+                    GuardedCascadeWinnerFunctionEqualityDecisionV0::Refused {
+                        refusal:
+                            GuardedCascadeWinnerFunctionEqualityRefusalV0::CanonicalRootsDiffer {
+                                input_root,
+                                output_root,
+                            },
+                        ..
                     },
                 ..
             }) => {
@@ -219,13 +255,13 @@ pub(crate) fn evaluate_transform_winner_equality(
         let observation = if !reasons.is_empty() {
             TransformWinnerEqualityObservationV0::Absent { reasons }
         } else if let (Some(input), Some(output)) = (input.witness, output.witness) {
-            if let Some(authority) = guarded_authority {
-                TransformWinnerEqualityObservationV0::ObservedGuardedEqual {
-                    axes: axes.clone(),
+            if let Some(guarded) = guarded_equal {
+                guarded_winner_observation_from_reconciled_planes(
+                    axes.clone(),
                     input,
                     output,
-                    authority,
-                }
+                    guarded,
+                )
             } else if winner_witnesses_are_observationally_equal(&input, &output) {
                 TransformWinnerEqualityObservationV0::ObservedEqual {
                     axes: axes.clone(),
@@ -286,6 +322,94 @@ fn winner_witnesses_are_observationally_equal(
         && input.proof.scope_proximity == output.proof.scope_proximity
         && input.proof.specificity == output.proof.specificity
         && input.proof.module_rank == output.proof.module_rank
+}
+
+fn guarded_winner_observation_from_reconciled_planes(
+    axes: Vec<TransformWinnerEqualityAxisV0>,
+    input: TransformWinnerEqualityWitnessV0,
+    output: TransformWinnerEqualityWitnessV0,
+    guarded: GuardedEqualPlanesV0,
+) -> TransformWinnerEqualityObservationV0 {
+    let Some(input_scenario_answer) = scenario_plane_answer(&input, &guarded.input_scenario_ids)
+    else {
+        return guarded_winner_mapping_absence();
+    };
+    let Some(output_scenario_answer) = scenario_plane_answer(&output, &guarded.output_scenario_ids)
+    else {
+        return guarded_winner_mapping_absence();
+    };
+    let mut reasons = Vec::new();
+    if let Err(error) = reconcile_guarded_cascade_winner_planes_v0(
+        &guarded.authority,
+        guarded.input_canonical_answer,
+        input_scenario_answer,
+    ) {
+        reasons.push(guarded_plane_disagreement_absence("input", error));
+    }
+    if let Err(error) = reconcile_guarded_cascade_winner_planes_v0(
+        &guarded.authority,
+        guarded.output_canonical_answer,
+        output_scenario_answer,
+    ) {
+        reasons.push(guarded_plane_disagreement_absence("output", error));
+    }
+    if !reasons.is_empty() {
+        return TransformWinnerEqualityObservationV0::Absent { reasons };
+    }
+    if winner_witnesses_are_observationally_equal(&input, &output) {
+        TransformWinnerEqualityObservationV0::ObservedGuardedEqual {
+            axes,
+            input,
+            output,
+            authority: guarded.authority,
+        }
+    } else {
+        TransformWinnerEqualityObservationV0::ObservedDifferent {
+            axes,
+            input,
+            output,
+        }
+    }
+}
+
+fn scenario_plane_answer(
+    witness: &TransformWinnerEqualityWitnessV0,
+    declaration_ids: &BTreeMap<(String, omena_cascade::CascadeKey), u32>,
+) -> Option<GuardedCascadeWinnerPlaneAnswerV0> {
+    declaration_ids
+        .get(&(witness.winner.id.clone(), witness.winner.key))
+        .copied()
+        .map(|declaration_id| GuardedCascadeWinnerPlaneAnswerV0::Declaration { declaration_id })
+}
+
+fn guarded_winner_mapping_absence() -> TransformWinnerEqualityObservationV0 {
+    TransformWinnerEqualityObservationV0::Absent {
+        reasons: vec![TransformWinnerEqualityAbsenceV0 {
+            axis: TransformWinnerEqualityAxisV0::CascadeLevel,
+            reason: TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite,
+        }],
+    }
+}
+
+fn guarded_plane_disagreement_absence(
+    side: &'static str,
+    error: GuardedCascadeWinnerAuthorityErrorV0,
+) -> TransformWinnerEqualityAbsenceV0 {
+    let reason = match error {
+        GuardedCascadeWinnerAuthorityErrorV0::InFragmentPlaneDisagreement {
+            canonical_mtbdd,
+            scenario_sweep,
+        } => TransformWinnerEqualityAbsenceReasonV0::GuardedWinnerPlaneDisagreement {
+            side,
+            canonical_mtbdd,
+            scenario_sweep,
+        },
+        _ => TransformWinnerEqualityAbsenceReasonV0::WinnerNotDefinite,
+    };
+    TransformWinnerEqualityAbsenceV0 {
+        axis: TransformWinnerEqualityAxisV0::CascadeLevel,
+        reason,
+    }
 }
 
 pub fn compare_transform_winner_equality_for_conformance_v0(
@@ -506,19 +630,24 @@ fn guarded_winner_function_equality_for_pair(
     input_layers: &omena_semantic::StyleLayerIndexV0,
     output_layers: &omena_semantic::StyleLayerIndexV0,
     cascade_environment: Option<&TransformCascadeEnvironmentV0>,
-) -> Option<GuardedCascadeWinnerFunctionEqualityDecisionV0> {
+) -> Option<GuardedWinnerFunctionEvaluationV0> {
     let element_signature = format!("{:?}", pair.element_signature);
+    let stylesheet_source_order_base = cascade_environment
+        .map(|environment| environment.stylesheet_source_order_base)
+        .unwrap_or_default();
     let mut input = guarded_candidate_seeds_for_pair(
         pair,
         input_candidates,
         input_layers,
         element_signature.as_str(),
+        stylesheet_source_order_base,
     )?;
     let mut output = guarded_candidate_seeds_for_pair(
         pair,
         output_candidates,
         output_layers,
         element_signature.as_str(),
+        stylesheet_source_order_base,
     )?;
     if let Some(environment) = cascade_environment {
         let environment_seeds = guarded_environment_candidate_seeds_for_pair(
@@ -544,6 +673,8 @@ fn guarded_winner_function_equality_for_pair(
         .enumerate()
         .map(|(index, identity)| u32::try_from(index).ok().map(|index| (identity, index)))
         .collect::<Option<BTreeMap<_, _>>>()?;
+    let input_scenario_ids = guarded_scenario_declaration_ids(&input, &declaration_ids)?;
+    let output_scenario_ids = guarded_scenario_declaration_ids(&output, &declaration_ids)?;
     let input_fragment =
         guarded_fragment_from_seeds(input_alphabet.iter().cloned(), input, &declaration_ids)?;
     let output_fragment =
@@ -555,24 +686,81 @@ fn guarded_winner_function_equality_for_pair(
         .ok()?;
     let input_root = build_guarded_cascade_winner_v0(&mut manager, &input_fragment).ok()?;
     let output_root = build_guarded_cascade_winner_v0(&mut manager, &output_fragment).ok()?;
+    let all_conditions_active = vec![true; input_alphabet.len()];
+    let input_canonical_answer = guarded_plane_answer(
+        evaluate_guarded_cascade_winner_v0(&manager, input_root, &all_conditions_active).ok()?,
+    );
+    let output_canonical_answer = guarded_plane_answer(
+        evaluate_guarded_cascade_winner_v0(&manager, output_root, &all_conditions_active).ok()?,
+    );
+    #[cfg(test)]
+    let output_canonical_answer =
+        if std::env::var_os("OMENA_G122_INJECT_GUARDED_PLANE_DISAGREEMENT").is_some() {
+            GuardedCascadeWinnerPlaneAnswerV0::NoWinner
+        } else {
+            output_canonical_answer
+        };
     let winner_defined_for_all_assignments =
         guarded_cascade_winner_is_total_v0(&manager, input_root).ok()?
             && guarded_cascade_winner_is_total_v0(&manager, output_root).ok()?;
     #[cfg(test)]
-    if std::env::var_os("OMENA_G122_INJECT_ACCEPT_DIFFERENT_WINNER_ROOTS").is_some() {
-        return Some(compare_guarded_cascade_winner_functions_v0(
+    let decision = if std::env::var_os("OMENA_G122_INJECT_ACCEPT_DIFFERENT_WINNER_ROOTS").is_some()
+    {
+        compare_guarded_cascade_winner_functions_v0(
             input_fragment.predicate(),
             input_root,
             input_root,
             guarded_cascade_winner_is_total_v0(&manager, input_root).ok()?,
-        ));
-    }
-    Some(compare_guarded_cascade_winner_functions_v0(
+        )
+    } else {
+        compare_guarded_cascade_winner_functions_v0(
+            input_fragment.predicate(),
+            input_root,
+            output_root,
+            winner_defined_for_all_assignments,
+        )
+    };
+    #[cfg(not(test))]
+    let decision = compare_guarded_cascade_winner_functions_v0(
         input_fragment.predicate(),
         input_root,
         output_root,
         winner_defined_for_all_assignments,
-    ))
+    );
+    Some(GuardedWinnerFunctionEvaluationV0 {
+        decision,
+        input_canonical_answer,
+        output_canonical_answer,
+        input_scenario_ids,
+        output_scenario_ids,
+    })
+}
+
+fn guarded_scenario_declaration_ids(
+    seeds: &[GuardedCandidateSeedV0],
+    declaration_ids: &BTreeMap<String, u32>,
+) -> Option<BTreeMap<(String, omena_cascade::CascadeKey), u32>> {
+    seeds
+        .iter()
+        .map(|seed| {
+            declaration_ids
+                .get(seed.stable_identity.as_str())
+                .copied()
+                .map(|declaration_id| {
+                    (
+                        (seed.scenario_witness_id.clone(), seed.cascade_key),
+                        declaration_id,
+                    )
+                })
+        })
+        .collect()
+}
+
+fn guarded_plane_answer(winner: Option<u32>) -> GuardedCascadeWinnerPlaneAnswerV0 {
+    winner.map_or(
+        GuardedCascadeWinnerPlaneAnswerV0::NoWinner,
+        |declaration_id| GuardedCascadeWinnerPlaneAnswerV0::Declaration { declaration_id },
+    )
 }
 
 fn guarded_candidate_seeds_for_pair(
@@ -580,9 +768,9 @@ fn guarded_candidate_seeds_for_pair(
     candidates: &[SemanticCascadeCandidateV0],
     layer_index: &omena_semantic::StyleLayerIndexV0,
     element_signature: &str,
+    stylesheet_source_order_base: u32,
 ) -> Option<Vec<GuardedCandidateSeedV0>> {
-    let mut seeds = Vec::new();
-    let mut occurrence_by_identity = BTreeMap::<String, usize>::new();
+    let mut prepared = Vec::new();
     let mut matched_ordinal = 0usize;
     for candidate in candidates
         .iter()
@@ -603,12 +791,44 @@ fn guarded_candidate_seeds_for_pair(
         if !layer_reasons.is_empty() {
             return None;
         }
-        let source_order = u32::try_from(matched_ordinal).ok()?;
+        let source_order =
+            stylesheet_source_order_base.checked_add(u32::try_from(matched_ordinal).ok()?)?;
         matched_ordinal += 1;
-        let base_identity = format!(
-            "source|{}|{}|{}|{}",
+        let context = if candidate.context_key.trim().is_empty() {
+            Vec::new()
+        } else {
+            candidate
+                .context_key
+                .split('|')
+                .map(|component| component.trim().to_string())
+                .collect()
+        };
+        prepared.push((
+            candidate,
+            signature.specificity,
+            layer_rank,
+            source_order,
+            context,
+        ));
+    }
+    if prepared.is_empty() {
+        return None;
+    }
+    let contexts = prepared
+        .iter()
+        .map(|(_, _, _, _, context)| context.clone())
+        .collect::<Vec<_>>();
+    let paths = at_rule_nesting_dfs_paths_v0(contexts.as_slice()).ok()?;
+    let mut seeds = Vec::new();
+    let mut occurrence_by_identity = BTreeMap::<String, usize>::new();
+    for ((candidate, specificity, layer_rank, source_order, context), paths) in
+        prepared.into_iter().zip(paths)
+    {
+        let scenario_witness_id = format!(
+            "{}|{}|{}|{}",
             candidate.selector, candidate.property, candidate.value, candidate.important
         );
+        let base_identity = format!("source|{scenario_witness_id}");
         let occurrence = occurrence_by_identity
             .entry(base_identity.clone())
             .or_default();
@@ -616,6 +836,7 @@ fn guarded_candidate_seeds_for_pair(
         *occurrence += 1;
         seeds.push(GuardedCandidateSeedV0 {
             stable_identity,
+            scenario_witness_id,
             element_signature: element_signature.to_string(),
             property: candidate.property.clone(),
             cascade_key: omena_cascade::CascadeKey::new(
@@ -625,13 +846,13 @@ fn guarded_candidate_seeds_for_pair(
                 ),
                 layer_rank,
                 0,
-                signature.specificity,
+                specificity,
                 source_order,
             ),
-            conditions: guarded_conditions_from_context(candidate.context_key.as_str())?,
+            conditions: guarded_conditions_from_context(context.as_slice(), paths.as_slice())?,
         });
     }
-    (!seeds.is_empty()).then_some(seeds)
+    Some(seeds)
 }
 
 fn guarded_environment_candidate_seeds_for_pair(
@@ -662,6 +883,7 @@ fn guarded_environment_candidate_seeds_for_pair(
         };
         seeds.push(GuardedCandidateSeedV0 {
             stable_identity: format!("environment|{}", declaration.declaration_id),
+            scenario_witness_id: declaration.declaration_id.clone(),
             element_signature: element_signature.to_string(),
             property: declaration.property.clone(),
             cascade_key: omena_cascade::CascadeKey::new(
@@ -677,29 +899,36 @@ fn guarded_environment_candidate_seeds_for_pair(
     Some(seeds)
 }
 
-fn guarded_conditions_from_context(context: &str) -> Option<Vec<GuardedCascadeConditionAtomV0>> {
-    if context.is_empty() {
-        return Some(Vec::new());
-    }
+fn guarded_conditions_from_context(
+    context: &[String],
+    paths: &[Vec<u32>],
+) -> Option<Vec<GuardedCascadeConditionAtomV0>> {
+    (context.len() == paths.len()).then_some(())?;
     context
-        .split('|')
-        .enumerate()
-        .map(|(index, component)| {
+        .iter()
+        .zip(paths)
+        .map(|(component, path)| {
             let component = component.trim();
-            let path = [u32::try_from(index).ok()?];
             let numeric = component
                 .chars()
                 .any(|character| character.is_ascii_digit());
             if css_keyword(component).strip_prefix("@media").is_some() {
                 Some(GuardedCascadeConditionAtomV0::media(
-                    component, path, numeric,
+                    component,
+                    path.iter().copied(),
+                    numeric,
                 ))
             } else if css_keyword(component).strip_prefix("@supports").is_some() {
                 Some(GuardedCascadeConditionAtomV0::supports(
-                    component, path, numeric,
+                    component,
+                    path.iter().copied(),
+                    numeric,
                 ))
             } else if css_keyword(component).strip_prefix("@container").is_some() {
-                Some(GuardedCascadeConditionAtomV0::container(component, path))
+                Some(GuardedCascadeConditionAtomV0::container(
+                    component,
+                    path.iter().copied(),
+                ))
             } else {
                 Some(GuardedCascadeConditionAtomV0::structural_pseudo(component))
             }
@@ -972,7 +1201,6 @@ mod tests {
                 cascade_environment: Some(&TransformCascadeEnvironmentV0::default()),
             },
         );
-
         assert!(result.obligations.iter().any(|obligation| matches!(
             obligation.observation,
             TransformWinnerEqualityObservationV0::ObservedDifferent { .. }
@@ -1097,10 +1325,15 @@ mod tests {
     #[test]
     fn guarded_conditions_classify_mixed_case_at_rules_through_keyword_authority()
     -> Result<(), &'static str> {
-        let conditions = guarded_conditions_from_context(
-            "@MeDiA (min-width: 1px)|@SuPpOrTs (display: grid)|@CoNtAiNeR card (min-width: 1px)",
-        )
-        .ok_or("mixed-case guarded conditions")?;
+        let context = [
+            "@MeDiA (min-width: 1px)".to_string(),
+            "@SuPpOrTs (display: grid)".to_string(),
+            "@CoNtAiNeR card (min-width: 1px)".to_string(),
+        ];
+        let paths = at_rule_nesting_dfs_paths_v0(&[context.to_vec()])
+            .map_err(|_| "mixed-case guarded paths")?;
+        let conditions = guarded_conditions_from_context(&context, &paths[0])
+            .ok_or("mixed-case guarded conditions")?;
 
         assert_eq!(
             conditions
@@ -1119,16 +1352,21 @@ mod tests {
     #[test]
     fn equal_guarded_winner_roots_replace_the_conditional_absence_with_authority()
     -> Result<(), &'static str> {
-        let source = "@media (min-width: 1px) { .a { color: red; } }";
+        let input = "@media (min-width: 1px) { .a { color: red; } } @media (min-width: 1px) { .b { color: blue; } }";
+        let output = "@media (min-width: 1px) { .a { color: red; } .b { color: blue; } }";
+        assert_ne!(
+            input, output,
+            "the GREEN arm must exercise a real rule merge"
+        );
         let input_ir =
-            lower_transform_ir_from_source(source, StyleDialect::Css, "conditional-input");
+            lower_transform_ir_from_source(input, StyleDialect::Css, "conditional-input");
         let output_ir =
-            lower_transform_ir_from_source(source, StyleDialect::Css, "conditional-output");
+            lower_transform_ir_from_source(output, StyleDialect::Css, "conditional-output");
         let result = evaluate_transform_winner_equality(
             TransformPassKind::RuleMerging,
             &input_ir,
             &output_ir,
-            &[mutation_span(source, source)],
+            &[mutation_span(input, output)],
             StyleDialect::Css,
             TransformWinnerEqualityContextV0 {
                 input_scope: SemanticObservationScopeV0::default(),
@@ -1136,6 +1374,12 @@ mod tests {
                 cascade_environment: Some(&TransformCascadeEnvironmentV0::default()),
             },
         );
+        let color_observation = result
+            .obligations
+            .iter()
+            .find(|obligation| obligation.affected_pair.property == "color")
+            .map(|obligation| &obligation.observation);
+        eprintln!("GUARDED_RECONCILED_OBSERVATION={color_observation:?}");
 
         assert!(result.unresolved_reasons.is_empty());
         let (obligation, authority) = result
@@ -1595,6 +1839,72 @@ mod tests {
             TransformWinnerEqualityObservationV0::ObservedEqual { input, output, .. }
                 if input.winner.id == "later-author-rule"
                     && output.winner.id == "later-author-rule"
+        )));
+    }
+
+    #[test]
+    fn guarded_rule_merging_respects_the_stylesheet_source_order_base() {
+        let input = "@media (min-width: 1px) { .a { color: red; } }";
+        let output = "@media (min-width: 1px) { .a { color: blue; } }";
+        let input_ir =
+            lower_transform_ir_from_source(input, StyleDialect::Css, "guarded-base-input");
+        let output_ir =
+            lower_transform_ir_from_source(output, StyleDialect::Css, "guarded-base-output");
+        let environment = TransformCascadeEnvironmentV0 {
+            stylesheet_source_order_base: 10,
+            declarations: vec![TransformCascadeEnvironmentDeclarationV0 {
+                declaration_id: "earlier-environment-rule".to_string(),
+                selector: ".a".to_string(),
+                property: "color".to_string(),
+                value: "green".to_string(),
+                origin: omena_cascade::CascadeOriginV0::Author,
+                important: false,
+                layer_rank: None,
+                scope_proximity: None,
+                source_order: 5,
+            }],
+        };
+        let result = evaluate_transform_winner_equality(
+            TransformPassKind::RuleMerging,
+            &input_ir,
+            &output_ir,
+            &[mutation_span(input, output)],
+            StyleDialect::Css,
+            TransformWinnerEqualityContextV0 {
+                input_scope: SemanticObservationScopeV0::default(),
+                output_scope: SemanticObservationScopeV0::default(),
+                cascade_environment: Some(&environment),
+            },
+        );
+        let color_observation = result
+            .obligations
+            .iter()
+            .find(|obligation| obligation.affected_pair.property == "color")
+            .map(|obligation| &obligation.observation);
+        eprintln!("GUARDED_BASE_OBSERVATION={color_observation:?}");
+
+        assert!(result.obligations.iter().any(|obligation| matches!(
+            &obligation.observation,
+            TransformWinnerEqualityObservationV0::Absent { reasons }
+                if reasons.iter().any(|absence| matches!(
+                    absence.reason,
+                    TransformWinnerEqualityAbsenceReasonV0::GuardedWinnerFunctionsDiffer { .. }
+                ))
+        )));
+        assert!(result.obligations.iter().all(|obligation| !matches!(
+            obligation.observation,
+            TransformWinnerEqualityObservationV0::ObservedGuardedEqual { .. }
+        )));
+
+        let unguarded = compare_transform_winner_equality_for_conformance_v0(
+            ".a { color: red; }",
+            ".a { color: blue; }",
+            StyleDialect::Css,
+            TransformPassKind::RuleMerging,
+        );
+        assert!(unguarded.iter().any(|obligation| matches!(
+            obligation.observation,
+            TransformWinnerEqualityObservationV0::ObservedDifferent { .. }
         )));
     }
 }

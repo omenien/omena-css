@@ -9,8 +9,8 @@
 use omena_abstract_value::{AbstractCssValueV0, FactPrecision};
 use omena_cascade::{
     CascadeDeclaration, CascadeLevel, CascadeOriginV0, CascadeOutcome, CascadeProof,
-    ElementSignature, GuardedCascadeWinnerAuthorityV0, GuardedCascadeWinnerRootV0,
-    SupportsTargetCapabilityV0,
+    ElementSignature, GuardedCascadeWinnerAuthorityV0, GuardedCascadeWinnerPlaneAnswerV0,
+    GuardedCascadeWinnerRootV0, SupportsTargetCapabilityV0,
 };
 use omena_cascade_proof::{
     CanonicalSmtInputV0, DischargeLedgerLookupStatusV0, DischargeLedgerLookupV0,
@@ -516,6 +516,11 @@ pub enum TransformWinnerEqualityAbsenceReasonV0 {
     GuardedWinnerFunctionsDiffer {
         input_root: GuardedCascadeWinnerRootV0,
         output_root: GuardedCascadeWinnerRootV0,
+    },
+    GuardedWinnerPlaneDisagreement {
+        side: &'static str,
+        canonical_mtbdd: GuardedCascadeWinnerPlaneAnswerV0,
+        scenario_sweep: GuardedCascadeWinnerPlaneAnswerV0,
     },
 }
 

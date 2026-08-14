@@ -16,34 +16,52 @@ assert.ok(
 
 const firstWitnessPath = "rust/crates/omena-cascade/src/first_witness.rs";
 let firstWitness = fs.readFileSync(path.join(repoRoot, firstWitnessPath), "utf8");
-if (injectSecondOrderSite) {
-  const testModuleMarker = "\n#[cfg(test)]\nmod tests";
-  firstWitness = firstWitness.replace(
-    testModuleMarker,
-    `\nVariableOrderRegistrationV0::${["at", "rule", "nesting", "dfs"].join("_")}([]);${testModuleMarker}`,
-  );
-}
-
-const production = firstWitness.split("\n#[cfg(test)]\nmod tests")[0] ?? firstWitness;
 const atRuleCall = ["VariableOrderRegistrationV0::at_rule_", "nesting_dfs("].join("");
 const siteCall = ["VariableOrderRegistrationV0::site_", "first_appearance("].join("");
-const atRuleDerivationCount = countOccurrences(production, atRuleCall);
-const siteSiblingCount = countOccurrences(production, siteCall);
+const trackedRustSources = execFileSync("git", ["ls-files", "-z", "--", "*.rs"], {
+  cwd: repoRoot,
+  encoding: "utf8",
+})
+  .split("\0")
+  .filter(Boolean)
+  .filter(isProductionRustSource);
+const rivalPath = "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs";
+const atRuleSites: string[] = [];
+let siteSiblingCount = 0;
+for (const sourcePath of trackedRustSources) {
+  let source = fs.readFileSync(path.join(repoRoot, sourcePath), "utf8");
+  if (injectSecondOrderSite && sourcePath === rivalPath) {
+    const injection = `\nfn injected_guarded_order_rival() { let _ = omena_cascade::${atRuleCall}[]); }\n`;
+    const testModule = source.search(/\n#\[cfg\(test\)\]\s*\nmod\s+/u);
+    source =
+      testModule < 0
+        ? source + injection
+        : source.slice(0, testModule) + injection + source.slice(testModule);
+  }
+  const production = productionRustPrefix(source);
+  siteSiblingCount += countOccurrences(production, siteCall);
+  for (const [lineIndex, line] of production.split(/\r?\n/u).entries()) {
+    if (line.includes(atRuleCall)) {
+      atRuleSites.push(`${sourcePath}:${lineIndex + 1}`);
+    }
+  }
+}
+const atRuleDerivationCount = atRuleSites.length;
 assert.equal(
   atRuleDerivationCount,
   1,
-  `atRuleNestingDfs must have exactly one production derivation site; observed ${atRuleDerivationCount}`,
+  `atRuleNestingDfs must have exactly one git-ls-files Rust production derivation site; observed ${atRuleDerivationCount}: ${atRuleSites.join(", ")}`,
 );
 assert.ok(
   siteSiblingCount > 0,
   "siteFirstAppearance must remain registered as a sibling domain and is not an at-rule violation",
 );
 assert.ok(
-  production.includes('AT_RULE_NESTING_DFS_ORDERING_DOMAIN_V0: &str = "atRuleNestingDfs"'),
+  firstWitness.includes('AT_RULE_NESTING_DFS_ORDERING_DOMAIN_V0: &str = "atRuleNestingDfs"'),
   "at-rule ordering domain must remain explicitly named",
 );
 assert.ok(
-  production.includes('SITE_FIRST_APPEARANCE_ORDERING_DOMAIN_V0: &str = "siteFirstAppearance"'),
+  firstWitness.includes('SITE_FIRST_APPEARANCE_ORDERING_DOMAIN_V0: &str = "siteFirstAppearance"'),
   "site ordering sibling domain must remain explicitly named",
 );
 
@@ -104,10 +122,10 @@ execFileSync(
 );
 
 // FALSIFIER: id=guarded-cascade-unqualified-speed-claim class=accounting via=--inject-unqualified-speed-claim producer=can-fail owner=guarded-cascade-winner-closure entry=apply-cache-conditioned-claim
-// FALSIFIER: id=guarded-cascade-second-at-rule-order-site class=structuralEntailment via=--inject-second-order-site producer=can-fail owner=guarded-cascade-winner-closure entry=single-at-rule-order-authority
+// FALSIFIER: id=guarded-cascade-second-at-rule-order-site class=structuralEntailment via=--inject-second-order-site producer=can-fail owner=guarded-cascade-winner-closure entry=git-ls-files-rust-production-order-authority
 // FALSIFIER: id=guarded-cascade-response-surface-leak class=accounting via=--inject-response-leak producer=can-fail owner=guarded-cascade-winner-closure entry=public-response-split
 process.stdout.write(
-  `guarded cascade winner closure OK: scope=atRuleNestingDfs derivationSites=${atRuleDerivationCount} siblingSiteFirstAppearance=${siteSiblingCount} honestClaimFiles=${trackedSources.length} responseSplit=checked\n`,
+  `guarded cascade winner closure OK: scope=gitLsFilesRustProduction orderDomain=atRuleNestingDfs derivationSites=${atRuleDerivationCount} siblingSiteFirstAppearance=${siteSiblingCount} honestClaimFiles=${trackedSources.length} responseSplit=checked\n`,
 );
 
 function countOccurrences(source: string, needle: string): number {
@@ -117,4 +135,16 @@ function countOccurrences(source: string, needle: string): number {
 function isHonestClaimSurface(sourcePath: string): boolean {
   if (sourcePath.startsWith(".personal_docs/") || sourcePath.startsWith("vendor/")) return false;
   return /(?:^|\/)(?:[^/]+\.)?(?:rs|ts|tsx|js|mjs|md|json|toml|ya?ml)$/u.test(sourcePath);
+}
+
+function isProductionRustSource(sourcePath: string): boolean {
+  return (
+    sourcePath.endsWith(".rs") &&
+    !/(?:^|\/)tests?(?:\/|\.rs$)/u.test(sourcePath) &&
+    !sourcePath.endsWith("_test.rs")
+  );
+}
+
+function productionRustPrefix(source: string): string {
+  return source.split(/\n#\[cfg\(test\)\]\s*\nmod\s+/u)[0] ?? source;
 }
