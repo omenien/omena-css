@@ -88,7 +88,8 @@ fn record_obligations(
     report.obligation_count += obligations.len();
     for obligation in obligations {
         match &obligation.observation {
-            TransformWinnerEqualityObservationV0::ObservedEqual { .. } => {
+            TransformWinnerEqualityObservationV0::ObservedEqual { .. }
+            | TransformWinnerEqualityObservationV0::ObservedGuardedEqual { .. } => {
                 report.observed_equal_count += 1;
             }
             TransformWinnerEqualityObservationV0::ObservedDifferent { input, output, .. } => {
@@ -152,5 +153,40 @@ mod tests {
 
         assert!(report.observed_different_count > 0);
         assert!(!report.findings.is_empty());
+    }
+
+    #[test]
+    fn audit_classifier_counts_guarded_authority_as_observed_equality() {
+        let source = "@media (min-width: 1px) { .a { color: red; } }";
+        let obligations = compare_transform_winner_equality_for_conformance_v0(
+            source,
+            source,
+            StyleDialect::Css,
+            TransformPassKind::RuleMerging,
+        );
+        let expected_equal_count = obligations
+            .iter()
+            .filter(|obligation| {
+                matches!(
+                    &obligation.observation,
+                    TransformWinnerEqualityObservationV0::ObservedEqual { .. }
+                        | TransformWinnerEqualityObservationV0::ObservedGuardedEqual { .. }
+                )
+            })
+            .count();
+        assert!(obligations.iter().any(|obligation| matches!(
+            &obligation.observation,
+            TransformWinnerEqualityObservationV0::ObservedGuardedEqual { .. }
+        )));
+
+        let mut report = empty_report(
+            "omena-diff-test.transform-winner-equality-audit-guarded-calibration",
+            1,
+        );
+        record_obligations(&mut report, "guarded-equality", obligations.as_slice());
+
+        assert_eq!(report.observed_equal_count, expected_equal_count);
+        assert_eq!(report.observed_different_count, 0);
+        assert!(report.findings.is_empty());
     }
 }
