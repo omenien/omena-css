@@ -63,6 +63,7 @@ assert.deepEqual(
     "style_diagnostics_snapshot.rs",
     "style_symbol_monikers.rs",
     "style_symbol_provider.rs",
+    "style_symbol_provider/workspace_occurrence_read_set.rs",
     "workspace_occurrences.rs",
     "workspace_resolution.rs",
     "workspace_symbols.rs",
