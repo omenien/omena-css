@@ -34,8 +34,16 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const contractPath = "rust/omena-two-tier-identity-contract.md";
 const inventoryPath = "rust/omena-two-tier-identity-inventory.json";
 
+const crossSessionPersistentStoreTargets = [
+  "rust/crates/omena-lsp-server/src/disk_cache.rs",
+  "rust/crates/omena-lsp-server/src/source_document_cache.rs",
+  "rust/crates/omena-lsp-server/src/source_type_fact_cache.rs",
+  "rust/crates/omena-lsp-server/src/workspace_occurrence_cache.rs",
+] as const;
+
 const sessionStableStringKeyCollections = new Set([
   "rust/crates/omena-lsp-server/src/state.rs#LspFileIdentityInterner.ids_by_storage_uri",
+  "rust/crates/omena-lsp-server/src/state.rs#LspFileIdentityInterner.ids_by_uri_alias",
   "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.bridge_external_sif_urls",
   "rust/crates/omena-lsp-server/src/state.rs#LspResolutionSettings.workspace_style_resolution_inputs",
   "rust/crates/omena-lsp-server/src/state.rs#LspShellState.source_type_fact_cache",
@@ -69,7 +77,16 @@ const scanTargets: readonly ScanTarget[] = [
   },
   {
     sourcePath: "rust/crates/omena-lsp-server/src/state.rs",
-    structOwners: ["LspFileIdentityInterner", "LspResolutionSettings", "LspShellState"],
+    structOwners: [
+      "LspFileIdentityInterner",
+      "LspResolutionSettings",
+      "LspReverseDependencyIndexMemo",
+      "LspShellState",
+    ],
+  },
+  {
+    sourcePath: "rust/crates/omena-lsp-server/src/tide/demand.rs",
+    structOwners: ["TideRepublishConeV0"],
   },
   {
     sourcePath: "rust/crates/omena-parser/src/closed_world/authority.rs",
@@ -88,6 +105,7 @@ const scanTargets: readonly ScanTarget[] = [
 
 function main(): void {
   assertStringKeyClassificationPolicy();
+  assertNoSessionScopedIdsInCrossSessionStores();
   const expected = buildExpectedInventory();
   const inventoryFullPath = path.join(repoRoot, inventoryPath);
   if (process.argv.includes("--write")) {
@@ -98,7 +116,13 @@ function main(): void {
 
   assertContractText();
   assert.ok(existsSync(inventoryFullPath), `${inventoryPath} must exist`);
-  const actual = JSON.parse(readFileSync(inventoryFullPath, "utf8")) as readonly InventoryEntry[];
+  let actual = JSON.parse(readFileSync(inventoryFullPath, "utf8")) as readonly InventoryEntry[];
+  if (process.argv.includes("--inject-missing-file-id-collection")) {
+    actual = actual.filter(
+      (entry) =>
+        entry.id !== "rust/crates/omena-lsp-server/src/tide/demand.rs#TideRepublishConeV0.members",
+    );
+  }
   assert.deepEqual(
     actual,
     expected,
@@ -352,7 +376,7 @@ function classifyCollection(entry: ScannedCollection): InventoryEntry {
       identityTier: "session-stable",
       persistentIdentityKey: true,
       justification:
-        "LspFileId is assigned by the session file-identity interner and is stable across revisions.",
+        "LspFileId is assigned by the session file-identity interner and is stable across revisions in memory; cross-session disk stores are separately forbidden from naming it.",
     };
   }
 
@@ -367,6 +391,27 @@ function classifyCollection(entry: ScannedCollection): InventoryEntry {
   }
 
   throw new Error(`unclassified scanned identity key ${entry.id}: ${entry.keyType}`);
+}
+
+function assertNoSessionScopedIdsInCrossSessionStores(): void {
+  const injected = process.argv.includes("--inject-persistent-lsp-file-id")
+    ? "\nstruct InjectedShard { by_file: BTreeMap<LspFileId, Vec<u8>> }\n"
+    : "";
+  const violations = crossSessionPersistentStoreTargets.flatMap((sourcePath, index) => {
+    const source = `${readFileSync(path.join(repoRoot, sourcePath), "utf8")}${
+      index === 0 ? injected : ""
+    }`;
+    return source
+      .split(/\r?\n/u)
+      .flatMap((line, lineIndex) =>
+        line.includes("LspFileId") ? [`${sourcePath}:${lineIndex + 1}`] : [],
+      );
+  });
+  assert.deepEqual(
+    violations,
+    [],
+    "session-scoped LspFileId must not reach a cross-session persistent cache store",
+  );
 }
 
 function assertStringKeyClassificationPolicy(): void {

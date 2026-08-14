@@ -829,6 +829,65 @@ pub(crate) fn scoped_source_republish_uris_for_style_change(
     broad_source_uris
 }
 
+/// File-id form of the same source fan-out filter, used by the republish
+/// tide after its demand has already been interned. This path deliberately
+/// never re-derives URI aliases while walking the reverse graph.
+pub(crate) fn scoped_source_republish_uris_for_style_file_ids(
+    state: &LspShellState,
+    style_file_ids: &BTreeSet<crate::LspFileId>,
+    broad_source_uris: Vec<String>,
+) -> Vec<String> {
+    let memo_filtered = with_reverse_dependency_file_id_index(state, |index| {
+        let mut relevant = reverse_dependency_closure_for_lsp_file_ids(index, style_file_ids);
+        relevant.extend(style_file_ids.iter().copied());
+        let memo_knows_source = |file_id: crate::LspFileId| {
+            index
+                .values()
+                .any(|dependents| dependents.contains(&file_id))
+        };
+        broad_source_uris
+            .iter()
+            .filter(|uri| {
+                let Some(source_id) = state.document_file_id(uri) else {
+                    return true;
+                };
+                if relevant.contains(&source_id) {
+                    return true;
+                }
+                state
+                    .document_for_file_id(source_id)
+                    .is_some_and(|document| {
+                        (document.has_unresolved_style_import && !memo_knows_source(source_id))
+                            || document
+                                .source_syntax_index
+                                .imported_style_bindings
+                                .iter()
+                                .filter_map(|binding| state.document_file_id(&binding.style_uri))
+                                .any(|style_id| relevant.contains(&style_id))
+                    })
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    });
+    if let Some(filtered) = memo_filtered {
+        return filtered;
+    }
+    broad_source_uris
+        .into_iter()
+        .filter(|uri| {
+            state.document(uri).is_some_and(|document| {
+                document.has_unresolved_style_import
+                    || document
+                        .source_syntax_index
+                        .imported_style_bindings
+                        .iter()
+                        .filter_map(|binding| state.document_file_id(&binding.style_uri))
+                        .any(|style_id| style_file_ids.contains(&style_id))
+            })
+        })
+        .collect()
+}
+
 /// The memo-less arm of the fan-out filter: keep a source iff its OWN
 /// import bindings name the changed style module (or its imports are
 /// unresolved, which makes its dependency set unknowable).
@@ -884,7 +943,49 @@ pub(crate) fn reverse_dependency_closure_for_lsp_paths(
     closure
 }
 
+pub(crate) fn reverse_dependency_closure_for_lsp_file_ids(
+    index: &BTreeMap<crate::LspFileId, BTreeSet<crate::LspFileId>>,
+    seeds: &BTreeSet<crate::LspFileId>,
+) -> BTreeSet<crate::LspFileId> {
+    let mut closure = BTreeSet::new();
+    let mut queue = VecDeque::from_iter(seeds.iter().copied());
+    while let Some(file_id) = queue.pop_front() {
+        let Some(dependents) = index.get(&file_id) else {
+            continue;
+        };
+        for dependent in dependents {
+            if closure.insert(*dependent) {
+                queue.push_back(*dependent);
+            }
+        }
+    }
+    closure
+}
+
+#[cfg(test)]
+pub(crate) mod republish_alias_derivation_probe {
+    use std::cell::Cell;
+
+    thread_local! {
+        static COUNT: Cell<u64> = const { Cell::new(0) };
+    }
+
+    pub(crate) fn record() {
+        COUNT.with(|count| count.set(count.get().saturating_add(1)));
+    }
+
+    pub(crate) fn reset() {
+        COUNT.with(|count| count.set(0));
+    }
+
+    pub(crate) fn read() -> u64 {
+        COUNT.with(Cell::get)
+    }
+}
+
 fn file_uri_identity_aliases(uri: &str) -> BTreeSet<String> {
+    #[cfg(test)]
+    republish_alias_derivation_probe::record();
     let mut aliases = BTreeSet::from([uri.to_string()]);
     if let Some(canonical) = canonical_file_uri(uri) {
         aliases.insert(canonical);
@@ -923,6 +1024,15 @@ pub(crate) fn with_reverse_dependency_index<R>(
     memo_slot.as_ref().map(|memo| f(&memo.index))
 }
 
+#[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) fn with_reverse_dependency_file_id_index<R>(
+    state: &LspShellState,
+    f: impl FnOnce(&BTreeMap<crate::LspFileId, BTreeSet<crate::LspFileId>>) -> R,
+) -> Option<R> {
+    let memo_slot = state.reverse_dependency_index_memo.borrow();
+    memo_slot.as_ref().map(|memo| f(&memo.file_id_rev))
+}
+
 /// Off-loop selector builds feed the loop's reverse-dependency memo through
 /// this: the caller passes the summary its compute already produced plus
 /// the ledger epoch CAPTURED AT DISPATCH TIME (edits racing the compute
@@ -942,26 +1052,57 @@ pub(crate) fn refresh_reverse_dependency_index_memo(
         Some(memo) => {
             if memo.revision != revision || memo.summary_hash != summary.summary_hash {
                 apply_reverse_dependency_delta_v0(&mut memo.index, summary.edges.as_slice());
+                memo.file_id_rev = reverse_dependency_file_id_mirror(state, &memo.index);
                 memo.revision = revision;
                 memo.summary_hash = summary.summary_hash.clone();
             }
             memo.ledger_epoch = memo.ledger_epoch.max(dispatch_ledger_epoch);
         }
         None => {
+            let index = reverse_dependency_index_from_edges_v0(summary.edges.as_slice());
+            let file_id_rev = reverse_dependency_file_id_mirror(state, &index);
             *memo_slot = Some(crate::state::LspReverseDependencyIndexMemo {
                 revision,
                 summary_hash: summary.summary_hash.clone(),
                 ledger_epoch: dispatch_ledger_epoch,
-                index: reverse_dependency_index_from_edges_v0(summary.edges.as_slice()),
+                index,
+                file_id_rev,
             });
         }
     }
+}
+
+#[cfg(feature = "salsa-style-diagnostics")]
+pub(crate) fn reverse_dependency_file_id_mirror(
+    state: &LspShellState,
+    index: &omena_query::ReverseDependencyIndexV0,
+) -> BTreeMap<crate::LspFileId, BTreeSet<crate::LspFileId>> {
+    index
+        .rev
+        .iter()
+        .filter_map(|(target_uri, dependent_uris)| {
+            let target_id = state.document_file_id(target_uri)?;
+            let dependents = dependent_uris
+                .iter()
+                .filter_map(|uri| state.document_file_id(uri))
+                .collect::<BTreeSet<_>>();
+            (!dependents.is_empty()).then_some((target_id, dependents))
+        })
+        .collect()
 }
 
 #[cfg(not(feature = "salsa-style-diagnostics"))]
 pub(crate) fn with_reverse_dependency_index<R>(
     _state: &LspShellState,
     _f: impl FnOnce(&omena_query::ReverseDependencyIndexV0) -> R,
+) -> Option<R> {
+    None
+}
+
+#[cfg(not(feature = "salsa-style-diagnostics"))]
+pub(crate) fn with_reverse_dependency_file_id_index<R>(
+    _state: &LspShellState,
+    _f: impl FnOnce(&BTreeMap<crate::LspFileId, BTreeSet<crate::LspFileId>>) -> R,
 ) -> Option<R> {
     None
 }

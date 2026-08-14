@@ -25,6 +25,8 @@
 
 use std::collections::BTreeSet;
 
+use crate::LspFileId;
+
 /// One lane's demand vocabulary: a join-semilattice with a bottom element.
 /// `join` must be idempotent, commutative, and associative; `deposit` and
 /// the window carry-over both go through it.
@@ -70,9 +72,27 @@ pub enum TideRepublishDemandV0 {
     /// ⊥ — nothing owed.
     None,
     /// Republish the reverse-dependency cones of these seed paths.
-    Cone(BTreeSet<String>),
+    Cone(TideRepublishConeV0),
     /// ⊤ — the whole workspace.
     All,
+}
+
+/// Session-stable members of one republish cone. The IDs are never written
+/// to disk: the persistent occurrence shards continue to key on canonical
+/// storage URIs, while this collection lives only for the LSP session.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TideRepublishConeV0 {
+    pub members: BTreeSet<LspFileId>,
+}
+
+impl TideRepublishConeV0 {
+    pub fn len(&self) -> usize {
+        self.members.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.members.is_empty()
+    }
 }
 
 /// The semantic input that reopened a republish settle window and the
@@ -93,13 +113,13 @@ impl TideDisownCauseV0 {
         }
     }
 
-    pub(crate) fn for_uris(
+    pub(crate) fn for_file_ids(
         kind: crate::tide::TideInputKindV0,
-        uris: impl IntoIterator<Item = String>,
+        file_ids: impl IntoIterator<Item = LspFileId>,
     ) -> Self {
         Self {
             kind,
-            affected: TideRepublishDemandV0::cone(uris),
+            affected: TideRepublishDemandV0::cone(file_ids),
         }
     }
 
@@ -118,12 +138,12 @@ pub(crate) struct TideReopenV0 {
 }
 
 impl TideRepublishDemandV0 {
-    pub fn cone(seeds: impl IntoIterator<Item = String>) -> Self {
-        let seeds: BTreeSet<String> = seeds.into_iter().collect();
+    pub fn cone(seeds: impl IntoIterator<Item = LspFileId>) -> Self {
+        let seeds: BTreeSet<LspFileId> = seeds.into_iter().collect();
         if seeds.is_empty() {
             Self::None
         } else {
-            Self::Cone(seeds)
+            Self::Cone(TideRepublishConeV0 { members: seeds })
         }
     }
 }
@@ -143,7 +163,7 @@ impl TideDemandJoinV0 for TideRepublishDemandV0 {
             (Self::None, other) => other,
             (current, Self::None) => current,
             (Self::Cone(mut seeds), Self::Cone(more)) => {
-                seeds.extend(more);
+                seeds.members.extend(more.members);
                 Self::Cone(seeds)
             }
         };

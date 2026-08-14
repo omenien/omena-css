@@ -187,10 +187,12 @@ fn cone_flush_targets_only_the_seed_closure() -> Result<(), &'static str> {
         "file:///workspace/src/Tokens.module.scss",
     );
 
-    state.tide_republish_lane.deposit(
-        TideRepublishDemandV0::cone([String::from("file:///workspace/src/Tokens.module.scss")]),
-        1,
-    );
+    let token_id = state
+        .document_file_id("file:///workspace/src/Tokens.module.scss")
+        .ok_or("token document must be interned")?;
+    state
+        .tide_republish_lane
+        .deposit(TideRepublishDemandV0::cone([token_id]), 1);
     let job = prepare_tide_workspace_republish_job(&mut state, true).ok_or("cone must flush")?;
     let uris = job.target_uris_for_test();
     assert!(
@@ -226,6 +228,112 @@ fn cone_flush_targets_only_the_seed_closure() -> Result<(), &'static str> {
         touches("file:///workspace/src/App.tsx"),
         "a cone completion refreshes the cone's dependent sources"
     );
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn file_id_cone_matches_alias_heavy_path_closure_without_per_hop_derivation()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let workspace_path = std::env::temp_dir().join(format!(
+        "omena-tide-file-id-alias-{}-{}",
+        std::process::id(),
+        crate::current_time_millis()
+    ));
+    let real_src = workspace_path.join("real-src");
+    let alias_src = workspace_path.join("alias-src");
+    std::fs::create_dir_all(real_src.as_path())?;
+    std::os::unix::fs::symlink(real_src.as_path(), alias_src.as_path())?;
+    let token_path = real_src.join("Tokens.module.scss");
+    let importer_path = real_src.join("Importer.module.scss");
+    let bystander_path = real_src.join("Bystander.module.scss");
+    for (path, text) in [
+        (&token_path, ".token { color: red; }"),
+        (&importer_path, ".importer { color: blue; }"),
+        (&bystander_path, ".bystander { color: green; }"),
+    ] {
+        std::fs::write(path, text)?;
+    }
+
+    let token_uri = crate::protocol::path_to_file_uri(token_path.as_path());
+    let token_alias_uri =
+        crate::protocol::path_to_file_uri(alias_src.join("Tokens.module.scss").as_path());
+    let importer_uri = crate::protocol::path_to_file_uri(importer_path.as_path());
+    let bystander_uri = crate::protocol::path_to_file_uri(bystander_path.as_path());
+    let mut state = LspShellState::default();
+    for (uri, text) in [
+        (token_uri.as_str(), ".token { color: red; }"),
+        (importer_uri.as_str(), ".importer { color: blue; }"),
+        (bystander_uri.as_str(), ".bystander { color: green; }"),
+    ] {
+        open_document(&mut state, uri, "scss", text);
+    }
+    let token_id = state
+        .document_file_id(token_alias_uri.as_str())
+        .ok_or("symlink alias must resolve to the admitted token id")?;
+    let importer_id = state
+        .document_file_id(importer_uri.as_str())
+        .ok_or("importer id")?;
+    let raw_index = omena_query::ReverseDependencyIndexV0 {
+        rev: BTreeMap::from([(
+            token_alias_uri.clone(),
+            BTreeSet::from([importer_uri.clone()]),
+        )]),
+        edges_by_from: BTreeMap::new(),
+    };
+    let file_id_rev =
+        crate::diagnostics_scheduler::reverse_dependency_file_id_mirror(&state, &raw_index);
+    assert_eq!(
+        file_id_rev,
+        BTreeMap::from([(token_id, BTreeSet::from([importer_id]))]),
+        "the production mirror builder must collapse the symlink alias onto the admitted ids"
+    );
+    *state.reverse_dependency_index_memo.borrow_mut() =
+        Some(crate::state::LspReverseDependencyIndexMemo {
+            revision: 1,
+            summary_hash: "alias-heavy-fixture".to_string(),
+            ledger_epoch: 0,
+            index: raw_index.clone(),
+            file_id_rev,
+        });
+
+    let raw_seeds = BTreeSet::from([token_alias_uri]);
+    let mut previous_paths = crate::diagnostics_scheduler::reverse_dependency_closure_for_lsp_paths(
+        &raw_index, &raw_seeds,
+    );
+    previous_paths.extend(raw_seeds);
+    let mut previous = previous_paths
+        .iter()
+        .filter_map(|uri| state.document_file_id(uri))
+        .filter_map(|file_id| state.document_for_file_id(file_id))
+        .map(|document| document.uri.clone())
+        .collect::<Vec<_>>();
+    previous.sort();
+    previous.dedup();
+
+    crate::diagnostics_scheduler::republish_alias_derivation_probe::reset();
+    let mut interned = crate::diagnostics_follow_up::tide_republish_target_uris(
+        &state,
+        &TideRepublishDemandV0::cone([token_id]),
+    );
+    interned.sort();
+    assert_eq!(
+        interned, previous,
+        "the interned cone must preserve the alias-heavy target set byte-for-byte"
+    );
+    assert_eq!(
+        crate::diagnostics_scheduler::republish_alias_derivation_probe::read(),
+        0,
+        "the file-id closure must not derive URI aliases at each graph hop"
+    );
+    assert!(
+        !interned.iter().any(|uri| uri == &bystander_uri),
+        "the unrelated document stays outside both closures"
+    );
+
+    let _ = std::fs::remove_dir_all(workspace_path);
     Ok(())
 }
 
@@ -352,10 +460,12 @@ fn disown_collision_census_attributes_in_cone_and_out_of_cone_drivers()
     // flush. Without it the conservative fallback is All, and Bystander is
     // correctly not classifiable as out-of-cone.
     let _ = crate::resolve_style_diagnostics_for_uri(&state, alpha_uri.as_str());
-    state.tide_republish_lane.deposit(
-        TideRepublishDemandV0::cone([alpha_uri.clone()]),
-        state.tide_tick,
-    );
+    let alpha_id = state
+        .document_file_id(alpha_uri.as_str())
+        .ok_or("alpha document must be interned")?;
+    state
+        .tide_republish_lane
+        .deposit(TideRepublishDemandV0::cone([alpha_id]), state.tide_tick);
     let first = prepare_tide_workspace_republish_job(&mut state, true)
         .ok_or("the alpha cone must enter flight")?;
     assert!(
@@ -518,12 +628,20 @@ mod sif_delta_seeding {
 
     fn state_with_reverse_index(edges: &[(&str, &str)]) -> LspShellState {
         let mut rev: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut state = LspShellState::default();
+        let mut file_id_rev: BTreeMap<crate::LspFileId, BTreeSet<crate::LspFileId>> =
+            BTreeMap::new();
         for (target, dependent) in edges {
             rev.entry(target.to_string())
                 .or_default()
                 .insert(dependent.to_string());
+            let target_id = state.intern_file_uri(target);
+            let dependent_id = state.intern_file_uri(dependent);
+            file_id_rev
+                .entry(target_id)
+                .or_default()
+                .insert(dependent_id);
         }
-        let state = LspShellState::default();
         *state.reverse_dependency_index_memo.borrow_mut() = Some(LspReverseDependencyIndexMemo {
             revision: 1,
             summary_hash: "fixture".to_string(),
@@ -532,6 +650,7 @@ mod sif_delta_seeding {
                 rev,
                 edges_by_from: BTreeMap::new(),
             },
+            file_id_rev,
         });
         state
     }
@@ -541,11 +660,14 @@ mod sif_delta_seeding {
         let url = "https://cdn.example/tokens.scss";
         let importer = "file:///workspace/src/User.module.scss";
         let mut state = state_with_reverse_index(&[(url, importer)]);
+        let importer_id = state
+            .document_file_id(importer)
+            .ok_or("importer must be interned")?;
         state.resolution.external_sifs = vec![external_sif(url, b"$brand: red;").ok_or("old sif")?];
         let next = vec![external_sif(url, b"$brand: blue;").ok_or("new sif")?];
         assert_eq!(
             republish_demand_for_external_sif_delta(&state, next.as_slice()),
-            TideRepublishDemandV0::cone([importer.to_string()]),
+            TideRepublishDemandV0::cone([importer_id]),
         );
         Ok(())
     }

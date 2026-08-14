@@ -1000,12 +1000,22 @@ fn watched_style_change_republishes_source_across_symlinked_path_identity() -> T
         )]),
         edges_by_from: std::collections::BTreeMap::new(),
     };
+    let style_id = state
+        .document_file_id(canonical_style_uri.as_str())
+        .ok_or("style file id")?;
+    let source_id = state
+        .document_file_id(source_uri.as_str())
+        .ok_or("source file id")?;
     *state.reverse_dependency_index_memo.borrow_mut() =
         Some(crate::state::LspReverseDependencyIndexMemo {
             revision: 1,
             summary_hash: "watched-style-identity".to_string(),
             ledger_epoch: 0,
             index,
+            file_id_rev: std::collections::BTreeMap::from([(
+                style_id,
+                std::collections::BTreeSet::from([source_id]),
+            )]),
         });
 
     crate::diagnostics_scheduler::reset_source_change_republish_fanout_for_test();

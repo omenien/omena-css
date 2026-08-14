@@ -140,9 +140,13 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         // stales any in-flight SIF job (footprint member) and deposits the
         // demand whose tide will re-resolve against the new topology.
         state.tide_ledger.advance(&[TideInputKindV0::DocumentSet]);
-        state.tide_reopen_republish_window(TideDisownCauseV0::for_uris(
+        let affected_file_ids = affected_document_uris
+            .iter()
+            .filter_map(|uri| state.document_file_id(uri))
+            .collect::<Vec<_>>();
+        state.tide_reopen_republish_window(TideDisownCauseV0::for_file_ids(
             TideInputKindV0::DocumentSet,
-            affected_document_uris.iter().cloned(),
+            affected_file_ids,
         ));
         let tick = state.tide_tick;
         state
@@ -491,7 +495,7 @@ pub(crate) fn republish_demand_for_external_sif_delta(
         );
         return TideRepublishDemandV0::All;
     }
-    let mut seeds: BTreeSet<String> = BTreeSet::new();
+    let mut seeds: BTreeSet<crate::LspFileId> = BTreeSet::new();
     for url in &changed_urls {
         // A fact can appear as an edge target under its alias key or its
         // resolved canonical url; consult both, from whichever side of the
@@ -509,7 +513,15 @@ pub(crate) fn republish_demand_for_external_sif_delta(
             crate::loop_trace!("republish-demand all: unattributed sif url {url}");
             return TideRepublishDemandV0::All;
         };
-        seeds.extend(dependents.iter().cloned());
+        for dependent in dependents {
+            let Some(file_id) = state.document_file_id(dependent) else {
+                crate::loop_trace!(
+                    "republish-demand all: dependent has no admitted file id {dependent}"
+                );
+                return TideRepublishDemandV0::All;
+            };
+            seeds.insert(file_id);
+        }
     }
     crate::loop_trace!(
         "republish-demand cone seeds={} changed_urls={}",

@@ -10,6 +10,17 @@ use crate::tide::{
 };
 use std::collections::BTreeSet;
 
+fn fixture_file_id(label: &str) -> crate::LspFileId {
+    let value = match label {
+        "a" => 1,
+        "b" => 2,
+        "c" => 3,
+        "d" => 4,
+        _ => 5,
+    };
+    crate::LspFileId::fixture(value)
+}
+
 /// Deterministic xorshift64 — no new dependencies, reproducible failures.
 struct XorShift64(u64);
 
@@ -89,7 +100,7 @@ fn random_republish_demand(rng: &mut XorShift64) -> TideRepublishDemandV0 {
             let mut set = BTreeSet::new();
             for seed in seeds {
                 if rng.below(2) == 0 {
-                    set.insert(seed.to_string());
+                    set.insert(fixture_file_id(seed));
                 }
             }
             TideRepublishDemandV0::cone(set)
@@ -304,14 +315,14 @@ fn disowned_demand_carries_over_into_the_new_window() -> Result<(), &'static str
     };
     let mut lane = TideLaneV0::<TideRepublishDemandV0>::default();
     lane.deposit(
-        TideRepublishDemandV0::cone([String::from("a"), String::from("b")]),
+        TideRepublishDemandV0::cone([fixture_file_id("a"), fixture_file_id("b")]),
         0,
     );
     let flush = lane.try_flush(open_idle, 1, &config).ok_or("first flush")?;
 
     // The window reopens mid-tide; a new smaller cone arrives.
     lane.reopen_window();
-    lane.deposit(TideRepublishDemandV0::cone([String::from("c")]), 2);
+    lane.deposit(TideRepublishDemandV0::cone([fixture_file_id("c")]), 2);
     // The stale completion must not discharge the carried demand.
     lane.tide_completed(flush.generation);
 
@@ -320,7 +331,11 @@ fn disowned_demand_carries_over_into_the_new_window() -> Result<(), &'static str
         .ok_or("carry-over flush")?;
     assert_eq!(
         carried.demand,
-        TideRepublishDemandV0::cone([String::from("a"), String::from("b"), String::from("c")]),
+        TideRepublishDemandV0::cone([
+            fixture_file_id("a"),
+            fixture_file_id("b"),
+            fixture_file_id("c"),
+        ]),
         "the disowned tide's coverage must be owed again, joined with new deposits"
     );
     Ok(())
@@ -411,7 +426,7 @@ fn one_flush_per_window_and_deposit_idempotence() -> Result<(), &'static str> {
         idle: true,
     };
     let mut lane = TideLaneV0::<TideRepublishDemandV0>::default();
-    let cone = TideRepublishDemandV0::cone([String::from("a")]);
+    let cone = TideRepublishDemandV0::cone([fixture_file_id("a")]);
     assert!(lane.deposit(cone.clone(), 0));
     assert!(
         !lane.deposit(cone.clone(), 1),

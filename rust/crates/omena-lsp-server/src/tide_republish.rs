@@ -267,17 +267,11 @@ pub fn complete_tide_workspace_republish(
     // that every earlier source render predates the corpus.
     let open_source_uris = match source_scope_seeds {
         Some(seeds) => {
-            let mut scoped = std::collections::BTreeSet::new();
-            for seed in seeds {
-                scoped.extend(
-                    crate::diagnostics_scheduler::scoped_source_republish_uris_for_style_change(
-                        state,
-                        seed.as_str(),
-                        open_source_uris.clone(),
-                    ),
-                );
-            }
-            scoped.into_iter().collect::<Vec<_>>()
+            crate::diagnostics_scheduler::scoped_source_republish_uris_for_style_file_ids(
+                state,
+                &seeds.members,
+                open_source_uris,
+            )
         }
         None => open_source_uris,
     };

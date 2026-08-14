@@ -3,7 +3,6 @@ use crate::lsp_output::{LspDeferredDiagnosticsDispatchV0, ScheduledLspOutput};
 use crate::protocol::is_style_document_uri;
 use crate::tide::{TideGateInputsV0, TideLaneConfigV0, TideRepublishDemandV0};
 use crate::{LspDocumentOrigin, LspExternalSifRefreshResultV0, LspShellState};
-use std::collections::BTreeSet;
 
 /// The workspace-republish lane: the M3 executor passes real idleness for
 /// the courtesy layer; aging (~10s at the 5ms tick) overrides courtesy so a
@@ -94,10 +93,24 @@ pub(crate) fn tide_republish_target_uris(
     state: &LspShellState,
     demand: &TideRepublishDemandV0,
 ) -> Vec<String> {
+    tide_republish_target_file_ids(state, demand)
+        .into_iter()
+        .filter_map(|file_id| {
+            state
+                .document_for_file_id(file_id)
+                .map(|document| document.uri.clone())
+        })
+        .collect()
+}
+
+pub(crate) fn tide_republish_target_file_ids(
+    state: &LspShellState,
+    demand: &TideRepublishDemandV0,
+) -> Vec<crate::LspFileId> {
     let cone = match demand {
         TideRepublishDemandV0::None => return Vec::new(),
         TideRepublishDemandV0::All => None,
-        TideRepublishDemandV0::Cone(seeds) => match republish_cone_paths(state, seeds) {
+        TideRepublishDemandV0::Cone(seeds) => match republish_cone_file_ids(state, seeds) {
             Some(cone) => Some(cone),
             None => {
                 crate::loop_trace!(
@@ -110,21 +123,21 @@ pub(crate) fn tide_republish_target_uris(
     };
     let mut open = Vec::new();
     let mut unopened = Vec::new();
-    for document in state.documents.values() {
+    for (file_id, document) in &state.documents {
         if document.origin != LspDocumentOrigin::Local
             || !is_style_document_uri(document.uri.as_str())
         {
             continue;
         }
         if let Some(cone) = cone.as_ref()
-            && !diagnostics_scheduler::file_uri_set_contains_equivalent(cone, document.uri.as_str())
+            && !cone.contains(file_id)
         {
             continue;
         }
         if state.has_open_document_uri(document.uri.as_str()) {
-            open.push(document.uri.clone());
+            open.push(*file_id);
         } else {
-            unopened.push(document.uri.clone());
+            unopened.push(*file_id);
         }
     }
     open.extend(unopened);
@@ -133,14 +146,16 @@ pub(crate) fn tide_republish_target_uris(
 
 /// The seeds' reverse-dependency closure (seeds included) over the
 /// committed cross-file summary, or `None` when no committed scope exists.
-fn republish_cone_paths(
+fn republish_cone_file_ids(
     state: &LspShellState,
-    seeds: &BTreeSet<String>,
-) -> Option<BTreeSet<String>> {
-    diagnostics_scheduler::with_reverse_dependency_index(state, |index| {
-        let mut cone =
-            diagnostics_scheduler::reverse_dependency_closure_for_lsp_paths(index, seeds);
-        cone.extend(seeds.iter().cloned());
+    seeds: &crate::tide::TideRepublishConeV0,
+) -> Option<std::collections::BTreeSet<crate::LspFileId>> {
+    diagnostics_scheduler::with_reverse_dependency_file_id_index(state, |index| {
+        let mut cone = diagnostics_scheduler::reverse_dependency_closure_for_lsp_file_ids(
+            index,
+            &seeds.members,
+        );
+        cone.extend(seeds.members.iter().copied());
         cone
     })
 }

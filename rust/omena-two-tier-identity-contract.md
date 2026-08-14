@@ -10,6 +10,13 @@ Session-stable keys may be compared across revisions inside one language-server
 or command session. Persistent maps, memos, and evidence stores that outlive one
 snapshot must key on this tier.
 
+"Persistent" in this clause means cross-revision state inside one process.
+`LspFileId` is therefore legal for the session's document, demand, and
+reverse-dependency collections, but its sequential value is not reproducible
+in a later process. The contract gate separately scans every LSP disk-cache
+store and rejects any `LspFileId` occurrence there; cross-session artifacts
+must keep their canonical URI/content identity keys.
+
 Current session-stable members include:
 
 - `ModuleIdV0`, a path newtype for linked style modules.
@@ -65,6 +72,8 @@ the scan, or when a persistent identity key is classified as snapshot-local.
 The designated files, struct owners, and function parameters form a
 hand-curated scan allowlist. Adding a persistent store outside that allowlist
 requires extending the scan target before its identity tier can be approved.
+The LSP disk-cache target list is a second allowlist: it enforces the narrower
+cross-session ban even though an `LspFileId` is valid in cross-revision memory.
 
 ## Decision: Fact-Key Interning
 

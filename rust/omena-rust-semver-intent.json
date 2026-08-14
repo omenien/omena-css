@@ -1971,7 +1971,7 @@
     {
       "crate": "omena-lsp-server",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects and includes the already-landed language-server state additions, including driver-attributed republish disown counters.",
+      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects, includes the already-landed language-server state additions, including driver-attributed republish disown counters, and re-keys the public tide republish cone from URI strings to an opaque session-stable LspFileId collection. Cargo-semver-checks reports no additional lint for that enum payload and generic constructor change; the cargo-public-api receipt records the nominal change explicitly.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",

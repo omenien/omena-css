@@ -201,9 +201,13 @@ pub fn apply_background_workspace_index_result(
         state
             .tide_ledger
             .advance(&[crate::tide::TideInputKindV0::DocumentSet]);
-        state.tide_reopen_republish_window(crate::tide::TideDisownCauseV0::for_uris(
+        let affected_file_ids = bridge_source_uris
+            .iter()
+            .filter_map(|uri| state.document_file_id(uri))
+            .collect::<Vec<_>>();
+        state.tide_reopen_republish_window(crate::tide::TideDisownCauseV0::for_file_ids(
             crate::tide::TideInputKindV0::DocumentSet,
-            bridge_source_uris.iter().cloned(),
+            affected_file_ids,
         ));
         crate::loop_trace!(
             "index-admit deposits sif demand (admitted={})",

@@ -164,36 +164,56 @@ pub struct LspSourceTypeFactCacheTelemetryV0 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct LspFileId(u32);
+pub struct LspFileId(u32);
 
 impl LspFileId {
     #[cfg(test)]
     pub(crate) fn incremental_key(self) -> u32 {
         self.0
     }
+
+    #[cfg(test)]
+    pub(crate) const fn fixture(value: u32) -> Self {
+        Self(value)
+    }
 }
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct LspFileIdentityInterner {
     next_id: u32,
+    ids_by_uri_alias: BTreeMap<String, LspFileId>,
     ids_by_storage_uri: BTreeMap<String, LspFileId>,
     storage_uris_by_id: BTreeMap<LspFileId, String>,
 }
 
 impl LspFileIdentityInterner {
     fn intern_uri(&mut self, uri: &str) -> (LspFileId, String) {
+        if let Some(file_id) = self.ids_by_uri_alias.get(uri) {
+            let storage_uri = self
+                .storage_uris_by_id
+                .get(file_id)
+                .cloned()
+                .unwrap_or_else(|| uri.to_string());
+            return (*file_id, storage_uri);
+        }
         let storage_uri = Self::storage_uri(uri);
         if let Some(file_id) = self.ids_by_storage_uri.get(storage_uri.as_str()) {
+            self.ids_by_uri_alias.insert(uri.to_string(), *file_id);
             return (*file_id, storage_uri);
         }
         let file_id = LspFileId(self.next_id);
         self.next_id = self.next_id.saturating_add(1);
+        self.ids_by_uri_alias.insert(uri.to_string(), file_id);
+        self.ids_by_uri_alias.insert(storage_uri.clone(), file_id);
         self.ids_by_storage_uri.insert(storage_uri.clone(), file_id);
         self.storage_uris_by_id.insert(file_id, storage_uri.clone());
         (file_id, storage_uri)
     }
 
     fn file_id_for_uri(&self, uri: &str) -> Option<LspFileId> {
+        if let Some(file_id) = self.ids_by_uri_alias.get(uri) {
+            return Some(*file_id);
+        }
         let storage_uri = Self::storage_uri(uri);
         self.ids_by_storage_uri.get(storage_uri.as_str()).copied()
     }
@@ -509,6 +529,10 @@ pub(crate) struct LspReverseDependencyIndexMemo {
     /// input marks and widen instead.
     pub(crate) ledger_epoch: u64,
     pub(crate) index: ReverseDependencyIndexV0,
+    /// Session-id mirror of local document edges. It is rebuilt when the
+    /// committed string graph changes, so republish closure walks compact
+    /// identities without deriving URI aliases at every hop.
+    pub(crate) file_id_rev: BTreeMap<LspFileId, BTreeSet<LspFileId>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -800,9 +824,13 @@ impl LspShellState {
         LspFileIdentityInterner::storage_uri(uri)
     }
 
-    #[cfg(test)]
     pub(crate) fn document_file_id(&self, uri: &str) -> Option<LspFileId> {
         self.file_identity.file_id_for_uri(uri)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn intern_file_uri(&mut self, uri: &str) -> LspFileId {
+        self.file_identity.intern_uri(uri).0
     }
 
     pub(crate) fn document_storage_uri_for_file_id(&self, file_id: LspFileId) -> Option<&str> {
@@ -981,12 +1009,10 @@ impl LspShellState {
             (TideRepublishDemandV0::None, TideRepublishDemandV0::Cone(_)) => true,
             (TideRepublishDemandV0::Cone(affected), TideRepublishDemandV0::Cone(_)) => {
                 let targets =
-                    crate::diagnostics_follow_up::tide_republish_target_uris(self, in_flight);
-                !affected.iter().any(|affected_uri| {
-                    targets.iter().any(|target_uri| {
-                        crate::protocol::file_uri_equivalent(affected_uri, target_uri)
-                    })
-                })
+                    crate::diagnostics_follow_up::tide_republish_target_file_ids(self, in_flight);
+                !targets
+                    .iter()
+                    .any(|target| affected.members.contains(target))
             }
         }
     }
