@@ -167,6 +167,20 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+      "symbol": "guarded_candidate_seeds_for_pair",
+      "occurrence": 1,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+      "symbol": "guarded_environment_candidate_seeds_for_pair",
+      "occurrence": 1,
+      "disposition": "automaticProductDerived",
+      "scopeProximitySource": "constantZero"
+    },
+    {
+      "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
       "symbol": "winner_for_pair",
       "occurrence": 1,
       "disposition": "automaticProductDerived",
