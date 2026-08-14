@@ -8,7 +8,8 @@ use crate::{
     diagnostics::{
         dynamic_classname_diagnostics_summary, resolve_in_process_external_sifs,
         source_diagnostics_summary, summarize_cross_file_streaming_reachability_diagnostics,
-        workspace_source_diagnostics_summaries,
+        workspace_source_diagnostics_summaries, workspace_style_diagnostics_summaries,
+        workspace_style_diagnostics_summaries_unthreaded_for_test,
     },
     dispatch::{run, run_with_exit},
     io::read_source,
@@ -28,6 +29,8 @@ use omena_query::{
     OmenaQueryStyleSourceInputV0,
 };
 use omena_sif::{OmenaSifAttestationSubjectDigestV1, read_omena_lock_json_v1};
+#[cfg(unix)]
+use omena_testkit::{InstrumentationSessionV0, with_instrumentation_session};
 #[cfg(feature = "zk-audit")]
 use omena_zk_audit::{
     ZK_AUDIT_DEFAULT_PROOF_BACKEND_ENABLED_V0, ZK_AUDIT_MECHANISM_SCOPE_V0, cascade_zk_audit_v0,
@@ -3497,6 +3500,78 @@ export function Component() {
     cleanup(&second_source_path);
     cleanup(&style_path);
     Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn workspace_style_diagnostics_build_one_identity_index_for_miss_bearing_composes_corpus()
+-> Result<(), String> {
+    with_instrumentation_session(InstrumentationSessionV0::default(), || {
+        let root = temp_dir("identity-index-once");
+        let real_targets = root.join("real-targets");
+        let linked_targets = root.join("linked-targets");
+        fs::create_dir_all(&real_targets)
+            .map_err(|error| format!("identity-index fixture should be writable: {error}"))?;
+        unix_fs::symlink(&real_targets, &linked_targets).map_err(|error| {
+            format!("identity-index fixture symlink should be writable: {error}")
+        })?;
+
+        let target_path = real_targets.join("Shared.module.scss");
+        fs::write(&target_path, ".shared { color: red; }\n")
+            .map_err(|error| format!("identity-index target should be writable: {error}"))?;
+        let mut style_paths = vec![target_path];
+        for index in 0..8 {
+            let consumer_path = root.join(format!("Consumer{index}.module.scss"));
+            fs::write(
+                &consumer_path,
+                format!(
+                    ".consumer{index} {{ composes: shared from \"./linked-targets/Shared.module.scss\"; }}\n"
+                ),
+            )
+            .map_err(|error| format!("identity-index consumer should be writable: {error}"))?;
+            style_paths.push(consumer_path);
+        }
+
+        omena_query::reset_omena_resolver_style_identity_cache_for_test();
+        let baseline_started = std::time::Instant::now();
+        let baseline =
+            workspace_style_diagnostics_summaries_unthreaded_for_test(&style_paths, &[], &[])?;
+        let baseline_elapsed = baseline_started.elapsed();
+        let baseline_build_count =
+            omena_query::omena_resolver_style_identity_index_build_count_for_test();
+        let baseline_work_count =
+            omena_query::omena_resolver_style_identity_index_build_work_count_for_test();
+
+        omena_query::reset_omena_resolver_style_identity_cache_for_test();
+        let threaded_started = std::time::Instant::now();
+        let summaries = workspace_style_diagnostics_summaries(&style_paths, &[], &[])?;
+        let threaded_elapsed = threaded_started.elapsed();
+        let build_count = omena_query::omena_resolver_style_identity_index_build_count_for_test();
+        let work_count =
+            omena_query::omena_resolver_style_identity_index_build_work_count_for_test();
+        cleanup_dir(&root);
+
+        assert_eq!(summaries.len(), style_paths.len());
+        assert_eq!(
+            serde_json::to_value(&summaries).map_err(|error| error.to_string())?,
+            serde_json::to_value(&baseline).map_err(|error| error.to_string())?,
+            "threading the index must preserve diagnostics bytes"
+        );
+        assert!(
+            baseline_build_count > 1,
+            "the miss-bearing perturbation arm must rebuild more than once"
+        );
+        assert_eq!(
+            build_count, 1,
+            "one immutable lint workspace must construct one resolver identity index; work={work_count}"
+        );
+        eprintln!(
+            "resolver-identity-index baseline_builds={baseline_build_count} baseline_work={baseline_work_count} baseline_ms={} threaded_builds={build_count} threaded_work={work_count} threaded_ms={}",
+            baseline_elapsed.as_millis(),
+            threaded_elapsed.as_millis(),
+        );
+        Ok(())
+    })
 }
 
 #[test]

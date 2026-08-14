@@ -2151,6 +2151,7 @@ fn summarize_sass_module_cross_file_resolution(
 }
 
 #[cfg_attr(not(feature = "salsa-memo"), allow(dead_code))]
+#[allow(clippy::too_many_arguments)]
 fn summarize_sass_module_edge_resolutions_for_module_interface(
     projection: &OmenaQueryModuleInterfaceProjectionV0,
     available_style_paths: &BTreeSet<&str>,
@@ -2158,6 +2159,7 @@ fn summarize_sass_module_edge_resolutions_for_module_interface(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     mut configurable_names_for_target: impl FnMut(&str) -> BTreeSet<String>,
 ) -> Vec<OmenaQuerySassModuleEdgeResolutionV0> {
     let load_path_roots = collect_load_path_roots(resolver_available_style_path_refs);
@@ -2189,14 +2191,19 @@ fn summarize_sass_module_edge_resolutions_for_module_interface(
             }
             _ => 0,
         };
-        let resolution = summarize_omena_resolver_style_module_resolution_with_load_path_roots(
+        let resolution = summarize_omena_resolver_style_module_resolution_with_confirmation_inputs(
             resolver_style_path(projection.style_path.as_str()).as_str(),
             edge.source.as_str(),
             resolver_available_style_path_refs,
+            &[],
             &resolver_package_manifests,
             bundler_path_mappings,
             tsconfig_path_mappings,
             &load_path_root_refs,
+            OmenaResolverStyleModuleConfirmationOptionsV0 {
+                identity_index: resolver_identity_index,
+                ..OmenaResolverStyleModuleConfirmationOptionsV0::default()
+            },
         );
         let status = if resolution.resolution_kind == "externalIgnored" {
             "external"
@@ -2651,10 +2658,55 @@ fn summarize_css_modules_cross_file_resolution_from_module_interfaces_and_import
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     edges: Vec<OmenaQueryCssModulesImportEdgeResolutionV0>,
 ) -> OmenaQueryCssModulesCrossFileResolutionV0 {
-    let semantic_facts = module_interfaces
+    let mut semantic_facts = module_interfaces
         .iter()
         .map(|projection| projection.css_modules_style_facts.clone())
         .collect::<Vec<_>>();
+    let resolved_sources = edges
+        .iter()
+        .filter_map(|edge| {
+            edge.resolved_style_path.as_ref().map(|resolved| {
+                (
+                    (
+                        edge.from_style_path.as_str(),
+                        edge.import_kind,
+                        edge.source.as_str(),
+                    ),
+                    resolved.as_str(),
+                )
+            })
+        })
+        .collect::<BTreeMap<_, _>>();
+    for facts in &mut semantic_facts {
+        for edge in &mut facts.css_module_composes_edges {
+            let Some(source) = edge.import_source.as_deref() else {
+                continue;
+            };
+            if let Some(resolved) =
+                resolved_sources.get(&(facts.style_path.as_str(), "composes", source))
+            {
+                edge.import_source = Some((*resolved).to_string());
+            }
+        }
+        for edge in &mut facts.css_module_value_import_edges {
+            if let Some(resolved) = resolved_sources.get(&(
+                facts.style_path.as_str(),
+                "value",
+                edge.import_source.as_str(),
+            )) {
+                edge.import_source = (*resolved).to_string();
+            }
+        }
+        for edge in &mut facts.icss_import_edges {
+            if let Some(resolved) = resolved_sources.get(&(
+                facts.style_path.as_str(),
+                "icss",
+                edge.import_source.as_str(),
+            )) {
+                edge.import_source = (*resolved).to_string();
+            }
+        }
+    }
     let semantic_package_manifests = semantic_package_manifests_for_query(package_manifests);
     let closure_summary = omena_semantic::summarize_css_modules_cross_file_closure(
         semantic_facts.as_slice(),
@@ -2731,6 +2783,7 @@ fn summarize_css_modules_import_edge_resolutions_for_module_interface(
     style_import_edges: &[omena_semantic::StyleImportReachabilityEdgeFactV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<OmenaQueryCssModulesImportEdgeResolutionV0> {
     let mut facts_by_path = target_interfaces
         .iter()
@@ -2760,6 +2813,7 @@ fn summarize_css_modules_import_edge_resolutions_for_module_interface(
             &reachable,
             package_manifests,
             resolution_inputs,
+            resolver_identity_index,
             |target| target.class_selector_names.as_slice(),
         ));
     }
@@ -2775,6 +2829,7 @@ fn summarize_css_modules_import_edge_resolutions_for_module_interface(
             &reachable,
             package_manifests,
             resolution_inputs,
+            resolver_identity_index,
             |target| target.css_module_value_definition_names.as_slice(),
         ));
     }
@@ -2790,6 +2845,7 @@ fn summarize_css_modules_import_edge_resolutions_for_module_interface(
             &reachable,
             package_manifests,
             resolution_inputs,
+            resolver_identity_index,
             |target| target.icss_export_names.as_slice(),
         ));
     }
@@ -3025,14 +3081,16 @@ fn resolve_css_modules_import_edge_for_query(
     reachable: &BTreeMap<String, CssModulesImportReachabilityForQuery>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     exported_names_for_kind: fn(&omena_semantic::CssModulesCrossFileStyleFactsV0) -> &[String],
 ) -> OmenaQueryCssModulesImportEdgeResolutionV0 {
-    let resolved_style_path = resolve_style_module_source_with_resolution_inputs(
+    let resolved_style_path = resolve_style_module_source_with_resolution_inputs_and_identity_index(
         from_style_path,
         source,
         available_style_paths,
         package_manifests,
         resolution_inputs,
+        resolver_identity_index,
     );
     let reachability = resolved_style_path
         .as_ref()
@@ -3459,7 +3517,25 @@ fn resolve_style_module_source_with_resolution_inputs(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> Option<String> {
-    resolve_style_module_source_with_path_mappings(
+    resolve_style_module_source_with_resolution_inputs_and_identity_index(
+        from_style_path,
+        source,
+        available_style_paths,
+        package_manifests,
+        resolution_inputs,
+        None,
+    )
+}
+
+fn resolve_style_module_source_with_resolution_inputs_and_identity_index(
+    from_style_path: &str,
+    source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
+) -> Option<String> {
+    resolve_style_module_source_with_path_mappings_and_identity_index(
         from_style_path,
         source,
         available_style_paths,
@@ -3467,6 +3543,7 @@ fn resolve_style_module_source_with_resolution_inputs(
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
         resolution_inputs.disk_style_path_identities.as_slice(),
+        identity_index,
     )
 }
 

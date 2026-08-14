@@ -450,6 +450,7 @@ pub struct OmenaQueryStyleRevisionSelectorV0 {
     files_by_path: BTreeMap<String, OmenaQueryStyleFileInputV0>,
     changed_module_interface_paths: BTreeSet<String>,
     committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
+    resolver_identity_index: Option<OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     source_corpus_complete: bool,
     unused_selector_shared: std::sync::OnceLock<Option<OmenaQueryUnusedSelectorSharedV0>>,
 }
@@ -516,17 +517,19 @@ impl OmenaQueryStyleRevisionSelectorV0 {
                 resolution_inputs.bundler_path_mappings.as_slice(),
                 resolution_inputs.tsconfig_path_mappings.as_slice(),
                 resolution_inputs.disk_style_path_identities.as_slice(),
-                None,
+                self.resolver_identity_index.as_ref(),
                 self.source_corpus_complete,
             )
         });
-        resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector(
+        resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector_and_identity_index(
             &self.db,
             self.workspace,
             target,
             &self.committed_graph,
             external_mode,
             suppression_mode,
+            None,
+            self.resolver_identity_index.as_ref(),
             Some(unused_selector_shared),
             self.source_corpus_complete,
         )
@@ -681,6 +684,7 @@ struct OmenaQueryStyleWorkspaceTransactionCoreCommitV0 {
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     source_corpus_complete: bool,
     committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
 }
@@ -692,6 +696,7 @@ struct OmenaQueryStyleRevisionSelectorBuildInputV0<'a> {
     package_manifests: &'a [OmenaQueryStylePackageManifestV0],
     external_sifs: &'a [OmenaQueryExternalSifInputV0],
     resolution_inputs: &'a OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: &'a Option<OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     source_corpus_complete: bool,
     committed_graph: OmenaQueryCommittedStyleSemanticGraphV0,
     changed_module_interface_paths: BTreeSet<String>,
@@ -718,6 +723,7 @@ pub struct OmenaQueryStyleWorkspaceTransactionV0 {
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     resolution_inputs: OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     source_corpus_complete: bool,
 }
 
@@ -765,6 +771,14 @@ impl OmenaQueryStyleWorkspaceTransactionV0 {
         self.package_manifests = package_manifests.to_vec();
         self.external_sifs = external_sifs.to_vec();
         self.resolution_inputs = resolution_inputs.clone();
+        self
+    }
+
+    fn set_resolver_identity_index(
+        &mut self,
+        resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+    ) -> &mut Self {
+        self.resolver_identity_index = Some(resolver_identity_index.clone());
         self
     }
 
@@ -988,6 +1002,7 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
     )
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_and_suppression_mode_and_precomputed_unused_selector(
     db: &OmenaQueryStyleMemoDatabaseV0,
@@ -1050,12 +1065,10 @@ fn resolve_committed_workspace_style_diagnostics_from_view_with_external_mode_an
     // The default committed path freezes source-selector attribution with the
     // workspace revision. Non-default naming or identity semantics retain the
     // direct collector because either axis changes the shared result.
-    let precomputed_unused_selector =
-        (classname_transform.is_none() && resolver_identity_index.is_none()).then(|| {
-            precomputed_unused_selector.unwrap_or_else(|| {
-                memo_workspace_unused_selector_shared(db, workspace, source_corpus_complete)
-            })
-        });
+    let precomputed_unused_selector = precomputed_unused_selector.or_else(|| {
+        (classname_transform.is_none() && resolver_identity_index.is_none())
+            .then(|| memo_workspace_unused_selector_shared(db, workspace, source_corpus_complete))
+    });
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs_and_resolution_inputs_and_suppression_mode_with_substrate_and_shared(
         target_style_path.as_str(),
         corpus.as_slice(),
@@ -1302,12 +1315,13 @@ fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
         .style_dependency_sources
         .iter()
         .filter_map(|source| {
-            resolve_style_module_source_with_resolution_inputs(
+            resolve_style_module_source_with_resolution_inputs_and_identity_index(
                 origin.style_path.as_str(),
                 source,
                 &available_style_path_refs,
                 package_manifests.as_slice(),
                 resolution_inputs,
+                None,
             )
         })
         .collect::<BTreeSet<_>>()
@@ -1322,6 +1336,7 @@ fn memo_css_modules_import_edge_resolutions_for_origin_from_module_interfaces(
         style_import_edges.as_slice(),
         package_manifests.as_slice(),
         resolution_inputs,
+        None,
     )
 }
 
@@ -1372,6 +1387,7 @@ fn memo_sass_configurable_variable_names_from_module_interface(
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
         resolution_inputs.disk_style_path_identities.as_slice(),
+        None,
         &mut visiting,
     )
 }
@@ -1398,6 +1414,7 @@ fn memo_sass_configurable_variable_names_without_manifests_from_module_interface
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
         resolution_inputs.disk_style_path_identities.as_slice(),
+        None,
         &mut visiting,
     )
 }
@@ -1424,6 +1441,7 @@ fn memo_sass_configurable_variable_names_without_path_mappings_from_module_inter
         &[],
         &[],
         &[],
+        None,
         &mut visiting,
     )
 }
@@ -1459,6 +1477,7 @@ fn memo_sass_module_edge_resolutions_for_origin_from_module_interfaces(
         package_manifests.as_slice(),
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
+        None,
         |target_style_path| {
             memo_sass_configurable_variable_names_from_module_interface(
                 db,
@@ -1499,6 +1518,7 @@ fn memo_sass_module_edge_resolutions_without_manifests_for_origin_from_module_in
         &[],
         resolution_inputs.bundler_path_mappings.as_slice(),
         resolution_inputs.tsconfig_path_mappings.as_slice(),
+        None,
         |target_style_path| {
             memo_sass_configurable_variable_names_without_manifests_from_module_interface(
                 db,
@@ -1539,6 +1559,7 @@ fn memo_sass_module_edge_resolutions_without_path_mappings_for_origin_from_modul
         package_manifests.as_slice(),
         &[],
         &[],
+        None,
         |target_style_path| {
             memo_sass_configurable_variable_names_without_path_mappings_from_module_interface(
                 db,
@@ -1791,6 +1812,7 @@ fn memo_style_import_reachability_edges(
         &available_style_paths,
         workspace.package_manifests(db).as_slice(),
         workspace.resolution_inputs(db),
+        None,
     )
 }
 
@@ -1836,6 +1858,7 @@ fn style_import_reachability_edges_from_dependency_surfaces(
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
 ) -> Vec<omena_semantic::StyleImportReachabilityEdgeFactV0> {
     let mut edges = Vec::new();
     for surface in dependency_surfaces {
@@ -1843,12 +1866,13 @@ fn style_import_reachability_edges_from_dependency_surfaces(
             .style_dependency_sources
             .iter()
             .filter_map(|source| {
-                resolve_style_module_source_with_resolution_inputs(
+                resolve_style_module_source_with_resolution_inputs_and_identity_index(
                     surface.style_path.as_str(),
                     source,
                     available_style_paths,
                     package_manifests,
                     resolution_inputs,
+                    resolver_identity_index,
                 )
             })
             .collect::<BTreeSet<_>>();
@@ -1925,6 +1949,7 @@ fn sass_configurable_variable_names_for_module_interface_tracked(
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
     disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     visiting: &mut BTreeSet<String>,
 ) -> BTreeSet<String> {
     if !visiting.insert(style_path.to_string()) {
@@ -1945,7 +1970,7 @@ fn sass_configurable_variable_names_for_module_interface_tracked(
         .enumerate()
         .collect::<Vec<_>>();
     for (forward_rule_ordinal, edge) in forward_edges {
-        let Some(resolved) = resolve_style_module_source_with_path_mappings(
+        let Some(resolved) = resolve_style_module_source_with_path_mappings_and_identity_index(
             projection_style_path.as_str(),
             edge.source.as_str(),
             available_style_paths,
@@ -1953,6 +1978,7 @@ fn sass_configurable_variable_names_for_module_interface_tracked(
             bundler_path_mappings,
             tsconfig_path_mappings,
             disk_style_path_identities,
+            resolver_identity_index,
         ) else {
             continue;
         };
@@ -1970,6 +1996,7 @@ fn sass_configurable_variable_names_for_module_interface_tracked(
             bundler_path_mappings,
             tsconfig_path_mappings,
             disk_style_path_identities,
+            resolver_identity_index,
             visiting,
         );
         let non_default_forward_overrides = sass_module_forward_variable_overrides_from_interface(
@@ -2028,6 +2055,7 @@ pub struct OmenaQueryStyleMemoHostV0 {
     committed_revision: IncrementalRevisionV0,
     committed_graph: Option<OmenaQueryCommittedStyleSemanticGraphV0>,
     committed_module_interface_changed_paths: BTreeSet<String>,
+    resolver_identity_index: Option<OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
     source_corpus_complete: bool,
 }
 
@@ -2068,6 +2096,7 @@ impl OmenaQueryStyleMemoHostV0 {
             committed_revision: IncrementalRevisionV0 { value: 0 },
             committed_graph: None,
             committed_module_interface_changed_paths: BTreeSet::new(),
+            resolver_identity_index: None,
             source_corpus_complete: false,
         }
     }
@@ -2195,6 +2224,28 @@ impl OmenaQueryStyleMemoHostV0 {
             package_manifests,
             external_sifs,
             resolution_inputs,
+            None,
+            false,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn workspace_revision_selector_with_identity_index(
+        &mut self,
+        style_sources: &[OmenaQueryStyleSourceInputV0],
+        source_documents: &[OmenaQuerySourceDocumentInputV0],
+        package_manifests: &[OmenaQueryStylePackageManifestV0],
+        external_sifs: &[OmenaQueryExternalSifInputV0],
+        resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+        resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+    ) -> Option<OmenaQueryStyleRevisionSelectorV0> {
+        self.workspace_revision_selector_with_source_corpus_completeness(
+            style_sources,
+            source_documents,
+            package_manifests,
+            external_sifs,
+            resolution_inputs,
+            Some(resolver_identity_index),
             false,
         )
     }
@@ -2214,6 +2265,7 @@ impl OmenaQueryStyleMemoHostV0 {
             package_manifests,
             external_sifs,
             resolution_inputs,
+            None,
             true,
         )
     }
@@ -2226,6 +2278,7 @@ impl OmenaQueryStyleMemoHostV0 {
         package_manifests: &[OmenaQueryStylePackageManifestV0],
         external_sifs: &[OmenaQueryExternalSifInputV0],
         resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+        resolver_identity_index: Option<&OmenaResolverStyleModuleConfirmationIdentityIndexV0>,
         source_corpus_complete: bool,
     ) -> Option<OmenaQueryStyleRevisionSelectorV0> {
         let mut seen_paths = std::collections::BTreeSet::new();
@@ -2246,6 +2299,9 @@ impl OmenaQueryStyleMemoHostV0 {
                 external_sifs,
                 resolution_inputs,
             );
+        if let Some(resolver_identity_index) = resolver_identity_index {
+            transaction.set_resolver_identity_index(resolver_identity_index);
+        }
         if source_corpus_complete {
             transaction.mark_source_corpus_complete();
         }
@@ -2329,6 +2385,7 @@ impl OmenaQueryStyleMemoHostV0 {
             package_manifests: commit.package_manifests.as_slice(),
             external_sifs: commit.external_sifs.as_slice(),
             resolution_inputs: &commit.resolution_inputs,
+            resolver_identity_index: &commit.resolver_identity_index,
             source_corpus_complete: commit.source_corpus_complete,
             committed_graph: commit.committed_graph,
             changed_module_interface_paths: commit.changed_module_interface_paths.clone(),
@@ -2380,6 +2437,7 @@ impl OmenaQueryStyleMemoHostV0 {
                 package_manifests: transaction.package_manifests,
                 external_sifs: transaction.external_sifs,
                 resolution_inputs: transaction.resolution_inputs,
+                resolver_identity_index: transaction.resolver_identity_index,
                 source_corpus_complete: transaction.source_corpus_complete,
                 committed_graph,
             });
@@ -2422,16 +2480,30 @@ impl OmenaQueryStyleMemoHostV0 {
         self.committed_revision = IncrementalRevisionV0 {
             value: self.committed_revision.value + 1,
         };
-        let committed_graph = build_committed_style_semantic_graph(
-            &self.db,
-            workspace,
-            transaction.source_documents.as_slice(),
-            transaction.package_manifests.as_slice(),
-            transaction.external_sifs.as_slice(),
-            &transaction.resolution_inputs,
-        );
+        let committed_graph = match transaction.resolver_identity_index.as_ref() {
+            Some(resolver_identity_index) => {
+                build_committed_style_semantic_graph_with_identity_index(
+                    &self.db,
+                    workspace,
+                    transaction.source_documents.as_slice(),
+                    transaction.package_manifests.as_slice(),
+                    transaction.external_sifs.as_slice(),
+                    &transaction.resolution_inputs,
+                    resolver_identity_index,
+                )
+            }
+            None => build_committed_style_semantic_graph(
+                &self.db,
+                workspace,
+                transaction.source_documents.as_slice(),
+                transaction.package_manifests.as_slice(),
+                transaction.external_sifs.as_slice(),
+                &transaction.resolution_inputs,
+            ),
+        };
         self.committed_graph = Some(committed_graph.clone());
         self.committed_module_interface_changed_paths = changed_module_interface_paths.clone();
+        self.resolver_identity_index = transaction.resolver_identity_index.clone();
         self.source_corpus_complete = transaction.source_corpus_complete;
         Ok(OmenaQueryStyleWorkspaceTransactionCoreCommitV0 {
             revision: self.committed_revision,
@@ -2444,6 +2516,7 @@ impl OmenaQueryStyleMemoHostV0 {
             package_manifests: transaction.package_manifests,
             external_sifs: transaction.external_sifs,
             resolution_inputs: transaction.resolution_inputs,
+            resolver_identity_index: transaction.resolver_identity_index,
             source_corpus_complete: transaction.source_corpus_complete,
             committed_graph,
         })
@@ -2499,6 +2572,7 @@ impl OmenaQueryStyleMemoHostV0 {
                 != transaction.package_manifests.as_slice()
             || workspace.external_sifs(&self.db).as_slice() != transaction.external_sifs.as_slice()
             || workspace.resolution_inputs(&self.db) != &transaction.resolution_inputs
+            || self.resolver_identity_index != transaction.resolver_identity_index
             || self.source_corpus_complete != transaction.source_corpus_complete
     }
 
@@ -2697,6 +2771,7 @@ fn build_revision_selector(
         committed_revision: _,
         committed_graph: _,
         committed_module_interface_changed_paths: _,
+        resolver_identity_index: _,
         source_corpus_complete: _,
     } = host;
     let files = input
@@ -2716,6 +2791,7 @@ fn build_revision_selector(
         files_by_path,
         changed_module_interface_paths: input.changed_module_interface_paths,
         committed_graph: input.committed_graph,
+        resolver_identity_index: input.resolver_identity_index.clone(),
         source_corpus_complete: input.source_corpus_complete,
         unused_selector_shared: std::sync::OnceLock::new(),
     }
@@ -3132,6 +3208,241 @@ fn build_committed_style_semantic_graph(
     record_committed_style_semantic_graph_compute_for_test();
 
     memo_committed_style_semantic_graph_from_module_interfaces(db, workspace)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_committed_style_semantic_graph_with_identity_index(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    _source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+) -> OmenaQueryCommittedStyleSemanticGraphV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_committed_style_semantic_graph_compute_for_test();
+
+    let style_fact_entries = style_fact_entries_for_workspace(db, workspace);
+    let module_interfaces = module_interfaces_for_workspace(db, workspace);
+    let cascade_declarations_by_style = workspace
+        .files(db)
+        .iter()
+        .map(|file| {
+            (
+                file.style_path(db).clone(),
+                memo_style_cascade_declarations(db, *file),
+            )
+        })
+        .collect();
+    let css_modules_resolution = css_modules_resolution_with_identity_index_from_module_interfaces(
+        db,
+        workspace,
+        module_interfaces.as_slice(),
+        package_manifests,
+        resolution_inputs,
+        resolver_identity_index,
+    );
+    let sass_module_resolution = sass_module_resolution_with_identity_index_from_module_interfaces(
+        db,
+        workspace,
+        module_interfaces.as_slice(),
+        package_manifests,
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
+        resolution_inputs.disk_style_path_identities.as_slice(),
+        resolver_identity_index,
+    );
+    let sass_module_resolution_without_manifests =
+        sass_module_resolution_with_identity_index_from_module_interfaces(
+            db,
+            workspace,
+            module_interfaces.as_slice(),
+            &[],
+            resolution_inputs.bundler_path_mappings.as_slice(),
+            resolution_inputs.tsconfig_path_mappings.as_slice(),
+            resolution_inputs.disk_style_path_identities.as_slice(),
+            resolver_identity_index,
+        );
+    let sass_module_resolution_without_path_mappings =
+        sass_module_resolution_with_identity_index_from_module_interfaces(
+            db,
+            workspace,
+            module_interfaces.as_slice(),
+            package_manifests,
+            &[],
+            &[],
+            &[],
+            resolver_identity_index,
+        );
+    let mut sass_module_resolution_with_external_sifs = sass_module_resolution.clone();
+    promote_sif_backed_external_edges(
+        &mut sass_module_resolution_with_external_sifs,
+        OmenaQueryExternalSifResolutionContext {
+            package_manifests,
+            bundler_path_mappings: resolution_inputs.bundler_path_mappings.as_slice(),
+            tsconfig_path_mappings: resolution_inputs.tsconfig_path_mappings.as_slice(),
+            external_sifs,
+        },
+    );
+    let style_cross_file_summary = summarize_omena_query_cross_file_summary_from_module_interfaces(
+        module_interfaces.as_slice(),
+        &css_modules_resolution,
+        &sass_module_resolution,
+    );
+    let cross_file_summary =
+        summarize_omena_query_workspace_cross_file_summary_from_module_interfaces(
+            module_interfaces.as_slice(),
+            source_workspace_projections(db, workspace).as_slice(),
+            package_manifests,
+            style_cross_file_summary.clone(),
+            resolution_inputs,
+        );
+    OmenaQueryCommittedStyleSemanticGraphV0 {
+        style_fact_entries,
+        cascade_declarations_by_style,
+        style_cross_file_summary,
+        cross_file_summary,
+        css_modules_resolution,
+        sass_module_resolution,
+        sass_module_resolution_without_manifests,
+        sass_module_resolution_without_path_mappings,
+        sass_module_resolution_with_external_sifs,
+    }
+}
+
+fn css_modules_resolution_with_identity_index_from_module_interfaces(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+) -> OmenaQueryCssModulesCrossFileResolutionV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_css_modules_cross_file_resolution_compute_for_test();
+    let available_style_paths = style_paths_for_workspace(db, workspace);
+    let available_style_path_refs = available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let style_import_edges = style_import_reachability_edges_from_dependency_surfaces(
+        module_dependency_surfaces_for_workspace(db, workspace).as_slice(),
+        &available_style_path_refs,
+        package_manifests,
+        resolution_inputs,
+        Some(resolver_identity_index),
+    );
+    let interfaces_by_path = module_interfaces
+        .iter()
+        .map(|projection| (projection.style_path.as_str(), projection))
+        .collect::<BTreeMap<_, _>>();
+    let edges = module_interfaces
+        .iter()
+        .flat_map(|origin| {
+            let target_interfaces = origin
+                .style_dependency_sources
+                .iter()
+                .filter_map(|source| {
+                    resolve_style_module_source_with_resolution_inputs_and_identity_index(
+                        origin.style_path.as_str(),
+                        source,
+                        &available_style_path_refs,
+                        package_manifests,
+                        resolution_inputs,
+                        Some(resolver_identity_index),
+                    )
+                })
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .filter_map(|style_path| interfaces_by_path.get(style_path.as_str()).copied())
+                .cloned()
+                .collect::<Vec<_>>();
+            summarize_css_modules_import_edge_resolutions_for_module_interface(
+                origin,
+                target_interfaces.as_slice(),
+                &available_style_path_refs,
+                style_import_edges.as_slice(),
+                package_manifests,
+                resolution_inputs,
+                Some(resolver_identity_index),
+            )
+        })
+        .collect::<Vec<_>>();
+    summarize_css_modules_cross_file_resolution_from_module_interfaces_and_import_edges(
+        module_interfaces,
+        package_manifests,
+        edges,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn sass_module_resolution_with_identity_index_from_module_interfaces(
+    db: &OmenaQueryStyleMemoDatabaseV0,
+    workspace: OmenaQueryStyleWorkspaceInputV0,
+    module_interfaces: &[OmenaQueryModuleInterfaceProjectionV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    disk_style_path_identities: &[OmenaResolverStyleModuleDiskCandidateIdentityV0],
+    resolver_identity_index: &OmenaResolverStyleModuleConfirmationIdentityIndexV0,
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    #[cfg(any(test, feature = "test-support"))]
+    record_sass_module_resolution_internal_compute_for_test();
+    let available_style_paths = style_paths_for_workspace(db, workspace);
+    let available_style_path_refs = available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let resolver_available_style_paths = resolver_style_paths_for_workspace(db, workspace);
+    let resolver_available_style_path_refs = resolver_available_style_paths
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let configurable_names_by_path = available_style_paths
+        .iter()
+        .map(|style_path| {
+            let mut visiting = BTreeSet::new();
+            let names = sass_configurable_variable_names_for_module_interface_tracked(
+                db,
+                workspace,
+                style_path.as_str(),
+                &available_style_path_refs,
+                package_manifests,
+                bundler_path_mappings,
+                tsconfig_path_mappings,
+                disk_style_path_identities,
+                Some(resolver_identity_index),
+                &mut visiting,
+            );
+            (style_path.clone(), names)
+        })
+        .collect::<BTreeMap<_, _>>();
+    let edges = module_interfaces
+        .iter()
+        .flat_map(|origin| {
+            summarize_sass_module_edge_resolutions_for_module_interface(
+                origin,
+                &available_style_path_refs,
+                &resolver_available_style_path_refs,
+                package_manifests,
+                bundler_path_mappings,
+                tsconfig_path_mappings,
+                Some(resolver_identity_index),
+                |target_style_path| {
+                    configurable_names_by_path
+                        .get(target_style_path)
+                        .cloned()
+                        .unwrap_or_default()
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    summarize_sass_module_cross_file_resolution_from_module_interfaces_and_edges(
+        module_interfaces,
+        edges,
+        &configurable_names_by_path,
+    )
 }
 
 #[allow(dead_code)]

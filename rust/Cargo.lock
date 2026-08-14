@@ -2581,6 +2581,7 @@ dependencies = [
  "omena-sif",
  "omena-streaming-ifds",
  "omena-syntax",
+ "omena-testkit",
  "omena-variational",
  "omena-zk-audit",
  "serde",

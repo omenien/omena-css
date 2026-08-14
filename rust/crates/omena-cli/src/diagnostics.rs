@@ -12,6 +12,7 @@ use omena_query::{
     OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
     OmenaQueryStyleDiagnosticV0, OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0,
     OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0, ParserRangeV0,
+    build_omena_resolver_style_module_confirmation_identity_index,
     load_omena_query_workspace_style_resolution_inputs,
     resolve_omena_query_bridge_external_sifs_for_style_sources,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
@@ -29,6 +30,7 @@ use omena_query::{
 use omena_sif::{read_omena_lock_json_v1, read_omena_sif_json_v1};
 use omena_streaming_ifds::summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0;
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -179,6 +181,34 @@ pub(crate) fn workspace_style_diagnostics_summaries(
     source_document_paths: &[PathBuf],
     package_manifest_paths: &[PathBuf],
 ) -> Result<Vec<OmenaQueryStyleDiagnosticsForFileV0>, String> {
+    workspace_style_diagnostics_summaries_with_identity_index_mode(
+        style_paths,
+        source_document_paths,
+        package_manifest_paths,
+        true,
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn workspace_style_diagnostics_summaries_unthreaded_for_test(
+    style_paths: &[PathBuf],
+    source_document_paths: &[PathBuf],
+    package_manifest_paths: &[PathBuf],
+) -> Result<Vec<OmenaQueryStyleDiagnosticsForFileV0>, String> {
+    workspace_style_diagnostics_summaries_with_identity_index_mode(
+        style_paths,
+        source_document_paths,
+        package_manifest_paths,
+        false,
+    )
+}
+
+fn workspace_style_diagnostics_summaries_with_identity_index_mode(
+    style_paths: &[PathBuf],
+    source_document_paths: &[PathBuf],
+    package_manifest_paths: &[PathBuf],
+    thread_identity_index: bool,
+) -> Result<Vec<OmenaQueryStyleDiagnosticsForFileV0>, String> {
     let Some(first_style_path) = style_paths.first() else {
         return Ok(Vec::new());
     };
@@ -210,16 +240,37 @@ pub(crate) fn workspace_style_diagnostics_summaries(
         &resolution_inputs,
     ));
 
+    let resolver_identity_index = thread_identity_index.then(|| {
+        let available_style_paths = workspace_sources
+            .iter()
+            .map(|source| source.style_path.as_str())
+            .collect::<BTreeSet<_>>();
+        build_omena_resolver_style_module_confirmation_identity_index(
+            &available_style_paths,
+            resolution_inputs.disk_style_path_identities.as_slice(),
+        )
+    });
+
     let mut host = OmenaQueryStyleMemoHostV0::new();
-    let selector = host
-        .workspace_revision_selector(
+    let selector = if let Some(resolver_identity_index) = resolver_identity_index.as_ref() {
+        host.workspace_revision_selector_with_identity_index(
+            workspace_sources.as_slice(),
+            source_documents.as_slice(),
+            package_manifests.as_slice(),
+            external_sifs.as_slice(),
+            &resolution_inputs,
+            resolver_identity_index,
+        )
+    } else {
+        host.workspace_revision_selector(
             workspace_sources.as_slice(),
             source_documents.as_slice(),
             package_manifests.as_slice(),
             external_sifs.as_slice(),
             &resolution_inputs,
         )
-        .ok_or_else(|| "failed to commit workspace lint diagnostics".to_string())?;
+    }
+    .ok_or_else(|| "failed to commit workspace lint diagnostics".to_string())?;
     let cross_file_summary = selector.workspace_cross_file_summary();
     let mut summaries = Vec::with_capacity(style_paths.len());
     for style_path in style_paths {

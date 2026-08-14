@@ -66,3 +66,4 @@ lightningcss = { workspace = true, optional = true }
 
 [dev-dependencies]
 omena-query = { path = "../omena-query", features = ["test-support"] }
+omena-testkit = { path = "../omena-testkit" }
