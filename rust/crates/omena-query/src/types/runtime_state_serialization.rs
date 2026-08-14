@@ -4,6 +4,7 @@ use super::{
     OmenaQueryCascadeLayerTopologyIncompleteV0, OmenaQueryRuntimeStateScenarioEvidenceV0,
     OmenaQueryRuntimeStateScenarioV0,
 };
+use omena_cascade::GuardedCascadeWinnerAuthorityV0;
 
 const UNKNOWN_ACTIVATION_ID_PREFIX: &str = "\0omena-query:unknown-activation:";
 
@@ -44,6 +45,7 @@ pub(crate) fn runtime_state_result_certainty_labels(
     scenarios: &[OmenaQueryRuntimeStateScenarioV0],
     confidence_tier: &str,
     cascade_layer_topology_incomplete: bool,
+    guarded_winner_authority: Option<&GuardedCascadeWinnerAuthorityV0>,
 ) -> (&'static str, &'static str) {
     // The legacy confidence tier remains the 0.x environment-coverage field.
     // Re-keying or deprecating it is a major-version API decision; result
@@ -51,6 +53,10 @@ pub(crate) fn runtime_state_result_certainty_labels(
     let conditional_environment = confidence_tier == "conditionalDefinite";
     let certainty = if cascade_layer_topology_incomplete {
         ResultCertainty::Indeterminate
+    } else if guarded_winner_authority
+        .is_some_and(|authority| authority.winner_defined_for_all_assignments)
+    {
+        ResultCertainty::Definite
     } else if scenarios
         .iter()
         .any(|scenario| !scenario.unknown_activation_declaration_ids().is_empty())
@@ -105,6 +111,7 @@ impl OmenaQueryRuntimeStateScenarioEvidenceV0 {
             self.scenarios.as_slice(),
             self.confidence_tier,
             self.cascade_layer_topology_incomplete().is_some(),
+            self.guarded_winner_authority.as_ref(),
         )
         .0
     }
@@ -114,6 +121,7 @@ impl OmenaQueryRuntimeStateScenarioEvidenceV0 {
             self.scenarios.as_slice(),
             self.confidence_tier,
             self.cascade_layer_topology_incomplete().is_some(),
+            self.guarded_winner_authority.as_ref(),
         )
         .1
     }
@@ -128,7 +136,8 @@ impl Serialize for OmenaQueryRuntimeStateScenarioEvidenceV0 {
         let field_count = 13
             + usize::from(!self.static_condition_pruning.is_empty())
             + usize::from(!self.inline_style_overrides.is_empty())
-            + usize::from(cascade_layer_topology_incomplete.is_some());
+            + usize::from(cascade_layer_topology_incomplete.is_some())
+            + usize::from(self.guarded_winner_authority.is_some());
         let mut state =
             serializer.serialize_struct("OmenaQueryRuntimeStateScenarioEvidenceV0", field_count)?;
         state.serialize_field("schemaVersion", self.schema_version)?;
@@ -158,6 +167,9 @@ impl Serialize for OmenaQueryRuntimeStateScenarioEvidenceV0 {
         }
         if let Some(topology_incomplete) = &cascade_layer_topology_incomplete {
             state.serialize_field("cascadeLayerTopologyIncomplete", topology_incomplete)?;
+        }
+        if let Some(authority) = &self.guarded_winner_authority {
+            state.serialize_field("guardedWinnerAuthority", authority)?;
         }
         state.end()
     }

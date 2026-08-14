@@ -1,10 +1,14 @@
 use std::collections::BTreeSet;
 
 use omena_cascade::{
-    CascadeDeclaration, CascadeKey, CascadeOriginV0, CascadeOutcome, CascadeValue, LayerOrdinal,
-    OpenWorldTieEvidence, SelectorMatchVerdict, Specificity, SpecificityExactnessV0,
-    StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, cascade_level_for_origin,
-    cascade_property, evaluate_static_supports_condition, normalized_layer_rank,
+    CascadeDeclaration, CascadeKey, CascadeOriginV0, CascadeOutcome, CascadeValue,
+    FirstWitnessManagerConfigV0, FirstWitnessManagerV0, GuardedCascadeCandidateV0,
+    GuardedCascadeConditionAtomV0, GuardedCascadeFragmentV0, GuardedCascadeSpecificityExactnessV0,
+    GuardedCascadeWinnerAuthorityV0, LayerOrdinal, OpenWorldTieEvidence, SelectorMatchVerdict,
+    Specificity, SpecificityExactnessV0, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
+    at_rule_nesting_order_for_fragment_v0, build_guarded_cascade_winner_v0,
+    cascade_level_for_origin, cascade_property, evaluate_static_supports_condition,
+    guarded_cascade_winner_authority_v0, guarded_cascade_winner_is_total_v0, normalized_layer_rank,
     parse_simple_selector_signature, selector_co_match_verdict,
 };
 use omena_query_checker_orchestrator::{
@@ -104,6 +108,11 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
             &[],
             static_boundary.boundary_kind,
         );
+    let guarded_winner_authority = query_runtime_guarded_winner_authority(
+        anchor.selector.as_str(),
+        anchor.property.as_str(),
+        candidate_declarations.as_slice(),
+    );
     let mut driver_summaries = vec![
         OmenaQueryRuntimeStateDriverSummaryV0 {
             driver: "pseudoStateScenarioSweep",
@@ -178,6 +187,7 @@ pub(super) fn summarize_query_runtime_state_for_evaluation(
         cascade_layer_topology_incomplete: topology_incomplete_unresolved_count.map(
             |unresolved_count| OmenaQueryCascadeLayerTopologyIncompleteV0 { unresolved_count },
         ),
+        guarded_winner_authority,
     })
 }
 
@@ -206,6 +216,93 @@ pub(crate) fn query_runtime_state_confidence_tier(
     };
 
     (tier, tier_within_modeled_environment)
+}
+
+fn query_runtime_guarded_winner_authority(
+    anchor_selector: &str,
+    property_name: &str,
+    declarations: &[&OmenaCheckerCascadeDeclarationInputV0],
+) -> Option<GuardedCascadeWinnerAuthorityV0> {
+    let declaration_ids = declarations
+        .iter()
+        .map(|declaration| declaration.declaration_id.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .enumerate()
+        .map(|(index, declaration_id)| {
+            u32::try_from(index)
+                .ok()
+                .map(|index| (declaration_id, index))
+        })
+        .collect::<Option<std::collections::BTreeMap<_, _>>>()?;
+    let mut alphabet = BTreeSet::new();
+    let candidates = declarations
+        .iter()
+        .map(|declaration| {
+            let signature = parse_simple_selector_signature(declaration.selector.as_str())?;
+            if signature.specificity_exactness != SpecificityExactnessV0::Exact
+                || !signature.required_pseudo_states.is_empty()
+            {
+                return None;
+            }
+            let ranked = query_runtime_cascade_declaration_from_input(declaration);
+            let conditions = query_runtime_guarded_conditions(
+                declaration.condition_context.as_slice(),
+                &mut alphabet,
+            )?;
+            Some(GuardedCascadeCandidateV0::new(
+                *declaration_ids.get(declaration.declaration_id.as_str())?,
+                anchor_selector,
+                property_name,
+                ranked.key,
+                GuardedCascadeSpecificityExactnessV0::Exact,
+                0,
+                conditions,
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let fragment = GuardedCascadeFragmentV0::admit(alphabet, candidates).ok()?;
+    let order = at_rule_nesting_order_for_fragment_v0(&fragment).ok()?;
+    let mut manager = FirstWitnessManagerV0::new(order, FirstWitnessManagerConfigV0::default());
+    let root = build_guarded_cascade_winner_v0(&mut manager, &fragment).ok()?;
+    let total = guarded_cascade_winner_is_total_v0(&manager, root).ok()?;
+    Some(guarded_cascade_winner_authority_v0(
+        fragment.predicate(),
+        root,
+        total,
+    ))
+}
+
+fn query_runtime_guarded_conditions(
+    context: &[String],
+    alphabet: &mut BTreeSet<String>,
+) -> Option<Vec<GuardedCascadeConditionAtomV0>> {
+    context
+        .iter()
+        .enumerate()
+        .map(|(index, component)| {
+            let component = component.trim();
+            alphabet.insert(component.to_string());
+            let path = [u32::try_from(index).ok()?];
+            let numeric = component
+                .chars()
+                .any(|character| character.is_ascii_digit());
+            let lower = component.to_ascii_lowercase();
+            if lower.starts_with("@media") {
+                Some(GuardedCascadeConditionAtomV0::media(
+                    component, path, numeric,
+                ))
+            } else if lower.starts_with("@supports") {
+                Some(GuardedCascadeConditionAtomV0::supports(
+                    component, path, numeric,
+                ))
+            } else if lower.starts_with("@container") {
+                Some(GuardedCascadeConditionAtomV0::container(component, path))
+            } else {
+                Some(GuardedCascadeConditionAtomV0::structural_pseudo(component))
+            }
+        })
+        .collect()
 }
 
 pub(super) fn query_runtime_selector_matches_anchor_classes(
@@ -959,31 +1056,37 @@ mod tests {
                 std::slice::from_ref(&definite_scenario),
                 static_tier,
                 false,
+                None,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&indeterminate_scenario),
                 static_tier,
                 false,
+                None,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&unknown_scenario),
                 static_tier,
                 false,
+                None,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&definite_scenario),
                 conditional_tier,
                 false,
+                None,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&indeterminate_scenario),
                 conditional_tier,
                 false,
+                None,
             ),
             runtime_state_result_certainty_labels(
                 std::slice::from_ref(&unknown_scenario),
                 conditional_tier,
                 false,
+                None,
             ),
         ];
         assert_eq!(
@@ -1027,6 +1130,92 @@ mod tests {
                     .any(|claim| qualified_tier.to_ascii_lowercase().contains(claim))
             );
         }
+    }
+
+    #[test]
+    fn guarded_winner_authority_upgrades_result_certainty_without_rekeying_confidence()
+    -> Result<(), &'static str> {
+        let base = selector_declaration("base", ".target", "black", 0);
+        let mut guarded = selector_declaration("guarded", ".target", "red", 1);
+        guarded.condition_context = vec!["@media (min-width: 40rem)".to_string()];
+        let declarations = [&base, &guarded];
+        let authority =
+            query_runtime_guarded_winner_authority(".target", "color", declarations.as_slice())
+                .ok_or("declared fragment authority missing")?;
+        assert!(authority.winner_defined_for_all_assignments);
+
+        let scenario = OmenaQueryRuntimeStateScenarioV0 {
+            scenario_kind: "mediaEnvironment",
+            pseudo_state: None,
+            condition_context: guarded.condition_context.clone(),
+            declaration_ids: vec![guarded.declaration_id.clone()],
+            winner_declaration_id: None,
+            winner_value: None,
+            property_value_narrowing: query_runtime_state_scenario(
+                "color",
+                None,
+                guarded.condition_context.as_slice(),
+                &[&guarded],
+            )
+            .property_value_narrowing,
+        };
+        let without_authority = runtime_state_result_certainty_labels(
+            std::slice::from_ref(&scenario),
+            "conditionalDefinite",
+            false,
+            None,
+        );
+        let with_authority = runtime_state_result_certainty_labels(
+            std::slice::from_ref(&scenario),
+            "conditionalDefinite",
+            false,
+            Some(&authority),
+        );
+        assert_eq!(
+            without_authority,
+            (
+                "conditionalIndeterminate",
+                "conditionalIndeterminateWithinModeledEnvironment",
+            )
+        );
+        assert_eq!(
+            with_authority,
+            (
+                "conditionalDefinite",
+                "conditionalDefiniteWithinModeledEnvironment",
+            )
+        );
+        let evidence = OmenaQueryRuntimeStateScenarioEvidenceV0 {
+            schema_version: "0",
+            product: "omena-query.runtime-state-scenario-evidence",
+            selector: ".target".to_string(),
+            selector_class_names: vec!["target".to_string()],
+            property_name: "color".to_string(),
+            scenario_join_kind: "fixtureWitnessedScenarioJoin",
+            confidence_tier: "conditionalDefinite",
+            confidence_tier_within_modeled_environment: "conditionalDefiniteWithinModeledEnvironment",
+            static_boundary: OmenaQueryRuntimeStateStaticBoundaryV0 {
+                boundary_kind: RUNTIME_STATE_STATIC_BOUNDARY_KIND,
+                static_value_assuming_no_runtime_override: true,
+                tracks_dom_mutation: false,
+                tracks_class_list_mutation: false,
+            },
+            driver_summaries: Vec::new(),
+            scenarios: vec![scenario],
+            static_condition_pruning: Vec::new(),
+            inline_style_overrides: Vec::new(),
+            cascade_layer_topology_incomplete: None,
+            guarded_winner_authority: Some(authority),
+        };
+        let serialized = serde_json::to_value(&evidence)
+            .map_err(|_| "guarded authority serialization failed")?;
+        assert_eq!(serialized["confidenceTier"], "conditionalDefinite");
+        assert_eq!(serialized["resultCertainty"], "conditionalDefinite");
+        assert_eq!(
+            serialized["guardedWinnerAuthority"]["rule"]["kind"],
+            "canonicalMtbddInsideFragment"
+        );
+        Ok(())
     }
 
     #[test]

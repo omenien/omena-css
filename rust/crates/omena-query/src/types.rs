@@ -2030,6 +2030,7 @@ pub struct OmenaQueryRuntimeStateScenarioEvidenceV0 {
     pub static_condition_pruning: Vec<OmenaQueryStaticConditionPruningEvidenceV0>,
     pub inline_style_overrides: Vec<OmenaQueryInlineStyleRuntimeOverrideV0>,
     pub cascade_layer_topology_incomplete: Option<OmenaQueryCascadeLayerTopologyIncompleteV0>,
+    pub guarded_winner_authority: Option<omena_cascade::GuardedCascadeWinnerAuthorityV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

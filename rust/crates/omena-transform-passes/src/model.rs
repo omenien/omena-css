@@ -9,7 +9,8 @@
 use omena_abstract_value::{AbstractCssValueV0, FactPrecision};
 use omena_cascade::{
     CascadeDeclaration, CascadeLevel, CascadeOriginV0, CascadeOutcome, CascadeProof,
-    ElementSignature, SupportsTargetCapabilityV0,
+    ElementSignature, GuardedCascadeWinnerAuthorityV0, GuardedCascadeWinnerRootV0,
+    SupportsTargetCapabilityV0,
 };
 use omena_cascade_proof::{
     CanonicalSmtInputV0, DischargeLedgerLookupStatusV0, DischargeLedgerLookupV0,
@@ -505,11 +506,17 @@ pub enum TransformWinnerEqualityAxisV0 {
     rename_all_fields = "camelCase"
 )]
 pub enum TransformWinnerEqualityAbsenceReasonV0 {
-    DriverUnavailable { level: Option<CascadeLevel> },
+    DriverUnavailable {
+        level: Option<CascadeLevel>,
+    },
     AffectedPairUnavailable,
     SpecificityInexact,
     WinnerNotDefinite,
     WinnerChanged,
+    GuardedWinnerFunctionsDiffer {
+        input_root: GuardedCascadeWinnerRootV0,
+        output_root: GuardedCascadeWinnerRootV0,
+    },
 }
 
 /// A typed precision boundary for a missing winner-equality observation.
@@ -571,6 +578,12 @@ pub enum TransformWinnerEqualityObservationV0 {
     },
     Absent {
         reasons: Vec<TransformWinnerEqualityAbsenceV0>,
+    },
+    ObservedGuardedEqual {
+        axes: Vec<TransformWinnerEqualityAxisV0>,
+        input: TransformWinnerEqualityWitnessV0,
+        output: TransformWinnerEqualityWitnessV0,
+        authority: GuardedCascadeWinnerAuthorityV0,
     },
 }
 

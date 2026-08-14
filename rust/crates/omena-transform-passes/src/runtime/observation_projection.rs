@@ -98,6 +98,7 @@ pub fn compare_transform_cascade_winner_observation_v0(
             matches!(
                 obligation.observation,
                 TransformWinnerEqualityObservationV0::ObservedEqual { .. }
+                    | TransformWinnerEqualityObservationV0::ObservedGuardedEqual { .. }
             )
         });
     TransformExecutableCascadeWinnerEquivalenceV0 {

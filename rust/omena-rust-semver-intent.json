@@ -130,7 +130,7 @@
     {
       "crate": "omena-cascade",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor seals layer-rank construction, adds explicit cascade and computed-value states, extends proof carriers, retires the old corpus entry points, orders specificity before scope proximity, separates open-world tie evidence from the specification key, and adds typed cascade-axis reach disclosure.",
+      "reason": "The next pre-1.0 minor seals layer-rank construction, adds explicit cascade and computed-value states, extends proof carriers, retires the old corpus entry points, orders specificity before scope proximity, separates open-world tie evidence from the specification key, adds typed cascade-axis reach disclosure, and exposes additive guarded-winner MTBDD authority and equality-refusal carriers.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -406,7 +406,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "Runtime cascade evidence carriers expose typed topology and source-text importance, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses, class sites expose typed token support and guarded-token explanations, and measured legacy declarations remain deprecated beside additive accurate APIs.",
+      "reason": "Runtime cascade evidence carriers expose typed topology, source-text importance, and guarded-winner authority, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses, class sites expose typed token support and guarded-token explanations, and measured legacy declarations remain deprecated beside additive accurate APIs.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -414,6 +414,7 @@
             "field OmenaBundlerHostResolveModuleRequestV0.workspace_root",
             "field OmenaQueryInlineStyleRuntimeOverrideV0.important",
             "field OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete",
+            "field OmenaQueryRuntimeStateScenarioEvidenceV0.guarded_winner_authority",
             "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_widened_to_top_count",
             "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_converged",
             "field OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_converged",
@@ -426,6 +427,7 @@
             "OmenaBundlerHostResolveModuleRequestV0.workspace_root",
             "OmenaQueryInlineStyleRuntimeOverrideV0.important",
             "OmenaQueryRuntimeStateScenarioEvidenceV0.cascade_layer_topology_incomplete",
+            "OmenaQueryRuntimeStateScenarioEvidenceV0.guarded_winner_authority",
             "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_widened_to_top_count",
             "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.propagation_depth_witness_converged",
             "OmenaQueryScssEvaluatorControlFlowOracleCorpusSummaryV0.ascending_chain_witness_converged",
@@ -681,13 +683,37 @@
               ]
             }
           ]
+        },
+        {
+          "id": "guarded-winner-result-certainty-values",
+          "kind": "selection-outcome-changing",
+          "surface": "OmenaQueryRuntimeStateScenarioEvidenceV0 guardedWinnerAuthority, resultCertainty, and resultCertaintyWithinModeledEnvironment",
+          "reason": "An admitted guarded fragment whose canonical winner root is total can replace an indeterminate scenario result on the result-certainty axis while the legacy environment-coverage confidence tier remains unchanged.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/types/runtime_state_serialization.rs",
+              "needles": [
+                "authority.winner_defined_for_all_assignments",
+                "state.serialize_field(\"guardedWinnerAuthority\", authority)?;"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
+              "needles": [
+                "fn guarded_winner_authority_upgrades_result_certainty_without_rekeying_confidence()",
+                "Some(&authority),",
+                "\"conditionalIndeterminateWithinModeledEnvironment\"",
+                "\"conditionalDefiniteWithinModeledEnvironment\""
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-transform-passes",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor aligns static keyframe-name admission, adds the closed-world admission reason and summary wire, and retains measured legacy declarations as deprecated compatibility surfaces beside additive accurate APIs.",
+      "reason": "The next pre-1.0 minor aligns static keyframe-name admission, adds the closed-world admission reason and summary wire, adds guarded winner-function equality and typed inequality refusal observations, and retains measured legacy declarations as deprecated compatibility surfaces beside additive accurate APIs.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -702,7 +728,9 @@
             "TransformStrictPolicyReasonV0:ClosedWorldEvidenceIncomplete",
             "TransformStrictPolicyReasonV0:EvidenceUnavailable",
             "TransformStrictPolicyReasonV0:LivenessNotClosed",
-            "TransformStrictPolicyReasonV0:OwnershipNotSeparable"
+            "TransformStrictPolicyReasonV0:OwnershipNotSeparable",
+            "TransformWinnerEqualityAbsenceReasonV0:GuardedWinnerFunctionsDiffer",
+            "TransformWinnerEqualityObservationV0:ObservedGuardedEqual"
           ]
         },
         {
@@ -786,6 +814,22 @@
               "needles": [
                 "fn proof_kernel_token_closes_favourable_ownership_count_bypass()",
                 "proofKernelToken:tree-shake-class"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "guarded-winner-equality-observation-values",
+          "kind": "selection-outcome-changing",
+          "surface": "TransformExecutionSummaryV0.winnerEqualityObligations conditional-context observations",
+          "reason": "An admitted conditional fragment with equal canonical winner roots now emits an observed guarded-equality carrier instead of WinnerNotDefinite, while unequal roots remain an absence with a typed refusal.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
+              "needles": [
+                "TransformWinnerEqualityObservationV0::ObservedGuardedEqual {",
+                "TransformWinnerEqualityAbsenceReasonV0::GuardedWinnerFunctionsDiffer {",
+                "fn correlated_numeric_root_inequality_is_a_typed_refusal()"
               ]
             }
           ]

@@ -458,6 +458,129 @@ impl GuardedCascadeWinnerRootV0 {
     }
 }
 
+/// The exact fragment predicate attached to an MTBDD-owned answer.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GuardedCascadeFragmentPredicateV0 {
+    pub element_signature: String,
+    pub property: String,
+    pub condition_alphabet: Vec<String>,
+}
+
+impl<K> GuardedCascadeFragmentV0<K> {
+    pub fn predicate(&self) -> GuardedCascadeFragmentPredicateV0 {
+        GuardedCascadeFragmentPredicateV0 {
+            element_signature: self.element_signature.clone(),
+            property: self.property.clone(),
+            condition_alphabet: self.condition_alphabet.clone(),
+        }
+    }
+}
+
+/// Which authority answered one guarded-winner question.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuardedCascadeWinnerAuthorityRuleV0 {
+    ScenarioSweepOutsideFragment,
+    CanonicalMtbddInsideFragment {
+        fragment: GuardedCascadeFragmentPredicateV0,
+    },
+}
+
+/// A canonical answer produced inside the declared guarded fragment.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GuardedCascadeWinnerAuthorityV0 {
+    pub rule: GuardedCascadeWinnerAuthorityRuleV0,
+    pub root: GuardedCascadeWinnerRootV0,
+    pub winner_defined_for_all_assignments: bool,
+}
+
+/// Why canonical winner-root equality cannot discharge an obligation.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "reason",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuardedCascadeWinnerFunctionEqualityRefusalV0 {
+    CanonicalRootsDiffer {
+        input_root: GuardedCascadeWinnerRootV0,
+        output_root: GuardedCascadeWinnerRootV0,
+    },
+}
+
+/// Equality is actionable; inequality is a typed refusal because the free
+/// boolean alphabet contains assignments that no browser can realise.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuardedCascadeWinnerFunctionEqualityDecisionV0 {
+    Equal {
+        authority: GuardedCascadeWinnerAuthorityV0,
+    },
+    Refused {
+        rule: GuardedCascadeWinnerAuthorityRuleV0,
+        refusal: GuardedCascadeWinnerFunctionEqualityRefusalV0,
+    },
+}
+
+/// One plane's answer for a concrete assignment.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuardedCascadeWinnerPlaneAnswerV0 {
+    NoWinner,
+    Declaration { declaration_id: u32 },
+}
+
+/// An in-fragment disagreement is an integrity error, never a confidence tie.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "reason",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuardedCascadeWinnerAuthorityErrorV0 {
+    InFragmentPlaneDisagreement {
+        canonical_mtbdd: GuardedCascadeWinnerPlaneAnswerV0,
+        scenario_sweep: GuardedCascadeWinnerPlaneAnswerV0,
+    },
+}
+
+impl std::fmt::Display for GuardedCascadeWinnerAuthorityErrorV0 {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InFragmentPlaneDisagreement {
+                canonical_mtbdd,
+                scenario_sweep,
+            } => write!(
+                formatter,
+                "in-fragment guarded winner disagreement: canonicalMtbdd={canonical_mtbdd:?}, scenarioSweep={scenario_sweep:?}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for GuardedCascadeWinnerAuthorityErrorV0 {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariableOrderRegistrationV0 {
     domain: VariableOrderDomainV0,
@@ -1600,6 +1723,89 @@ pub fn evaluate_guarded_cascade_winner_v0(
     }
 }
 
+pub fn guarded_cascade_winner_is_total_v0(
+    manager: &FirstWitnessManagerV0,
+    root: GuardedCascadeWinnerRootV0,
+) -> Result<bool, FirstWitnessErrorV0> {
+    let mut seen = BTreeSet::new();
+    let mut pending = vec![root.0];
+    while let Some(node_id) = pending.pop() {
+        if !seen.insert(node_id) {
+            continue;
+        }
+        match manager.require_node(node_id)? {
+            Node::Term(0) => return Ok(false),
+            Node::Term(_) => {}
+            Node::Int { lo, hi, .. } => pending.extend([lo, hi]),
+        }
+    }
+    Ok(true)
+}
+
+pub fn compare_guarded_cascade_winner_functions_v0(
+    fragment: GuardedCascadeFragmentPredicateV0,
+    input_root: GuardedCascadeWinnerRootV0,
+    output_root: GuardedCascadeWinnerRootV0,
+    winner_defined_for_all_assignments: bool,
+) -> GuardedCascadeWinnerFunctionEqualityDecisionV0 {
+    let rule = GuardedCascadeWinnerAuthorityRuleV0::CanonicalMtbddInsideFragment { fragment };
+    if same_canonical_winner_function_v0(input_root, output_root) {
+        GuardedCascadeWinnerFunctionEqualityDecisionV0::Equal {
+            authority: GuardedCascadeWinnerAuthorityV0 {
+                rule,
+                root: input_root,
+                winner_defined_for_all_assignments,
+            },
+        }
+    } else {
+        GuardedCascadeWinnerFunctionEqualityDecisionV0::Refused {
+            rule,
+            refusal: GuardedCascadeWinnerFunctionEqualityRefusalV0::CanonicalRootsDiffer {
+                input_root,
+                output_root,
+            },
+        }
+    }
+}
+
+pub fn guarded_cascade_winner_authority_v0(
+    fragment: GuardedCascadeFragmentPredicateV0,
+    root: GuardedCascadeWinnerRootV0,
+    winner_defined_for_all_assignments: bool,
+) -> GuardedCascadeWinnerAuthorityV0 {
+    GuardedCascadeWinnerAuthorityV0 {
+        rule: GuardedCascadeWinnerAuthorityRuleV0::CanonicalMtbddInsideFragment { fragment },
+        root,
+        winner_defined_for_all_assignments,
+    }
+}
+
+pub fn reconcile_guarded_cascade_winner_planes_v0(
+    authority: &GuardedCascadeWinnerAuthorityV0,
+    canonical_mtbdd: GuardedCascadeWinnerPlaneAnswerV0,
+    scenario_sweep: GuardedCascadeWinnerPlaneAnswerV0,
+) -> Result<GuardedCascadeWinnerPlaneAnswerV0, GuardedCascadeWinnerAuthorityErrorV0> {
+    #[cfg(test)]
+    if std::env::var_os("OMENA_G122_INJECT_PREFER_SCENARIO_SWEEP").is_some() {
+        return Ok(scenario_sweep);
+    }
+    match &authority.rule {
+        GuardedCascadeWinnerAuthorityRuleV0::CanonicalMtbddInsideFragment { .. } => {
+            if canonical_mtbdd == scenario_sweep {
+                Ok(canonical_mtbdd)
+            } else {
+                Err(
+                    GuardedCascadeWinnerAuthorityErrorV0::InFragmentPlaneDisagreement {
+                        canonical_mtbdd,
+                        scenario_sweep,
+                    },
+                )
+            }
+        }
+        GuardedCascadeWinnerAuthorityRuleV0::ScenarioSweepOutsideFragment => Ok(scenario_sweep),
+    }
+}
+
 pub const fn same_canonical_winner_function_v0(
     left: GuardedCascadeWinnerRootV0,
     right: GuardedCascadeWinnerRootV0,
@@ -1797,6 +2003,32 @@ mod tests {
             (0..declaration_count).filter_map(|id| u32::try_from(id).ok()),
         )?;
         Ok(manager)
+    }
+
+    #[test]
+    fn inside_fragment_plane_disagreement_names_both_answers() -> Result<(), String> {
+        let authority = GuardedCascadeWinnerAuthorityV0 {
+            rule: GuardedCascadeWinnerAuthorityRuleV0::CanonicalMtbddInsideFragment {
+                fragment: GuardedCascadeFragmentPredicateV0 {
+                    element_signature: ".a".to_string(),
+                    property: "color".to_string(),
+                    condition_alphabet: vec!["@media (min-width: 1px)".to_string()],
+                },
+            },
+            root: GuardedCascadeWinnerRootV0(2),
+            winner_defined_for_all_assignments: true,
+        };
+        let error = reconcile_guarded_cascade_winner_planes_v0(
+            &authority,
+            GuardedCascadeWinnerPlaneAnswerV0::Declaration { declaration_id: 7 },
+            GuardedCascadeWinnerPlaneAnswerV0::Declaration { declaration_id: 9 },
+        )
+        .err()
+        .ok_or_else(|| "an in-fragment disagreement must be rejected".to_string())?;
+        let message = error.to_string();
+        assert!(message.contains("canonicalMtbdd=Declaration { declaration_id: 7 }"));
+        assert!(message.contains("scenarioSweep=Declaration { declaration_id: 9 }"));
+        Ok(())
     }
 
     fn guarded_root_from_mask(

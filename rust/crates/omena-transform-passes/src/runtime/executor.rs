@@ -3372,7 +3372,8 @@ fn strict_rollback_reasons(
     let mut absences = Vec::new();
     for obligation in &evaluation.obligations {
         match &obligation.observation {
-            TransformWinnerEqualityObservationV0::ObservedEqual { .. } => {}
+            TransformWinnerEqualityObservationV0::ObservedEqual { .. }
+            | TransformWinnerEqualityObservationV0::ObservedGuardedEqual { .. } => {}
             TransformWinnerEqualityObservationV0::ObservedDifferent { axes, .. } => {
                 changed_axes.extend(axes.iter().copied());
             }
