@@ -703,7 +703,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
-      "line": 369,
+      "line": 380,
       "function": "query_runtime_guarded_conditions",
       "idiom": "strip-prefix",
       "keyword": "@supports",
@@ -2012,7 +2012,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 367,
+      "line": 491,
       "function": "winner_for_pair",
       "idiom": "contains",
       "keyword": "@scope",
@@ -2023,7 +2023,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 697,
+      "line": 921,
       "function": "guarded_conditions_from_context",
       "idiom": "strip-prefix",
       "keyword": "@supports",
@@ -2034,7 +2034,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs",
-      "line": 931,
+      "line": 1160,
       "function": "conditional_context_is_open",
       "idiom": "contains",
       "keyword": "@supports",
@@ -2088,7 +2088,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:a85f62d3c1d17e023234c10142503bd7e101828b51e2e357f1a7650d8dff7ab9",
+  "siteDigest": "sha256:dc3301ccbcba43ca657991ee08f27b995a3d3a1666ae372dcd87e974a7727345",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
