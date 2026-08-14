@@ -104,6 +104,7 @@ export interface InProcessServerOptions extends Omit<
   "transport"
 > {
   readonly workspacePath?: string;
+  readonly rejectDynamicWatcherRegistration?: boolean;
 }
 
 export interface LspTestClient {
@@ -161,7 +162,11 @@ export interface LspTestClient {
  * Tests MUST call it in afterEach to avoid resource leaks.
  */
 export function createInProcessServer(options: InProcessServerOptions = {}): LspTestClient {
-  const { workspacePath: customWorkspacePath, ...serverOptions } = options;
+  const {
+    workspacePath: customWorkspacePath,
+    rejectDynamicWatcherRegistration = false,
+    ...serverOptions
+  } = options;
   const workspacePath = customWorkspacePath ?? path.resolve(process.cwd(), ".lsp-test-workspace");
   const workspaceUri = pathToFileURL(workspacePath).toString();
   const serverToClient = new PassThrough();
@@ -267,6 +272,9 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
       dynamicWatcherRegistrationCount += 1;
       const resolve = dynamicWatcherRegistrationWaiters.shift();
       if (resolve) setTimeout(resolve, 0);
+      if (rejectDynamicWatcherRegistration) {
+        throw new Error("client rejected dynamic watcher registration");
+      }
       return undefined;
     },
   );

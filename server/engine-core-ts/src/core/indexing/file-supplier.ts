@@ -2,7 +2,19 @@ import fastGlob from "fast-glob";
 import { buildStyleFileWatcherGlob } from "../scss/lang-registry";
 import type { FileTask } from "./indexer-worker";
 
-export const SOURCE_FILE_WATCHER_GLOB = "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}";
+export const SOURCE_FILE_EXTENSIONS = [
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "mts",
+  "cts",
+  "mjs",
+  "cjs",
+  "d.ts",
+] as const;
+
+export const SOURCE_FILE_WATCHER_GLOB = `**/*.{${SOURCE_FILE_EXTENSIONS.join(",")}}`;
 
 const WORKSPACE_FILE_IGNORES = ["**/node_modules/**", "**/dist/**", "**/.git/**"] as const;
 
@@ -59,5 +71,5 @@ export function sourceFileSupplier(workspaceRoot: string): AsyncIterable<FileTas
 }
 
 export function isSourceFilePath(filePath: string): boolean {
-  return /\.(?:[cm]?[jt]sx?)$/u.test(filePath);
+  return SOURCE_FILE_EXTENSIONS.some((extension) => filePath.endsWith(`.${extension}`));
 }

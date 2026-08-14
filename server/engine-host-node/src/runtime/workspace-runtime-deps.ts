@@ -78,7 +78,6 @@ export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): Wor
     pushStyleFile: (stylePath) => args.styleRuntime.pushStyleFile(stylePath),
     completeSourcePathEnumeration: () => args.sourcePathInventory.completePaths(),
     readSourceFileForCorpus: (filePath) => args.sourcePathInventory.readSourceFile(filePath),
-    sourceCorpusReadCounters: () => args.sourcePathInventory.sourceCorpusReadCounters(),
     setSourcePathInventoryWatcherCoverage: (available) =>
       args.sourcePathInventory.setDynamicWatcherCoverage(available),
     applySourceFileChange: (filePath, changeType) =>

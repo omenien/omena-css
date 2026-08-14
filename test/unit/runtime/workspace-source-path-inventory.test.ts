@@ -31,7 +31,7 @@ describe("workspace source-path inventory", () => {
     expect(inventory.completePaths()).toBeNull();
   });
 
-  it("invalidates only a changed source read while accounting files and bytes", async () => {
+  it("invalidates only a changed source read", async () => {
     const readSourceFile = vi.fn(() => "const value = '핀';\n");
     const inventory = createWorkspaceSourcePathInventory({
       workspaceRoot: "/fake/ws",
@@ -43,18 +43,68 @@ describe("workspace source-path inventory", () => {
 
     await inventory.ready;
     inventory.setDynamicWatcherCoverage(true);
-    expect(inventory.readSourceFile("/fake/ws/src/App.tsx")?.cacheHit).toBe(false);
-    expect(inventory.readSourceFile("/fake/ws/src/App.tsx")?.cacheHit).toBe(true);
+    expect(inventory.readSourceFile("/fake/ws/src/App.tsx")).toMatchObject({
+      cacheHit: false,
+      utf8Bytes: Buffer.byteLength("const value = '핀';\n", "utf8"),
+    });
+    expect(inventory.readSourceFile("/fake/ws/src/App.tsx")).toMatchObject({ cacheHit: true });
     expect(readSourceFile).toHaveBeenCalledTimes(1);
 
     inventory.applyFileChange("/fake/ws/src/App.tsx", "changed");
     expect(inventory.readSourceFile("/fake/ws/src/App.tsx")?.cacheHit).toBe(false);
-    const utf8Bytes = Buffer.byteLength("const value = '핀';\n", "utf8");
-    expect(inventory.sourceCorpusReadCounters()).toEqual({
-      diskReadFiles: 2,
-      diskReadBytes: utf8Bytes * 2,
-      cacheHitFiles: 1,
+    expect(readSourceFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds watcher-backed source bytes with least-recently-used eviction", async () => {
+    const sources = new Map([
+      [path.resolve("/fake/ws/src/A.tsx"), "aaaa"],
+      [path.resolve("/fake/ws/src/B.tsx"), "bbbb"],
+    ]);
+    const readSourceFile = vi.fn((filePath: string) => sources.get(filePath) ?? null);
+    const inventory = createWorkspaceSourcePathInventory({
+      workspaceRoot: "/fake/ws",
+      supplier: () => tasks([...sources.keys()]),
+      readSourceFile,
+      sink: makeSink(),
+      serverName: "test",
+      maxCachedUtf8Bytes: 4,
+      maxCachedFiles: 1,
     });
+
+    await inventory.ready;
+    inventory.setDynamicWatcherCoverage(true);
+    expect(inventory.readSourceFile("/fake/ws/src/A.tsx")?.cacheHit).toBe(false);
+    expect(inventory.readSourceFile("/fake/ws/src/B.tsx")?.cacheHit).toBe(false);
+    expect(inventory.readSourceFile("/fake/ws/src/A.tsx")?.cacheHit).toBe(false);
+    expect(readSourceFile).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not serve a stale cached source when dynamic watcher coverage is absent", async () => {
+    const workspaceRoot = mkdtempSync(path.join(tmpdir(), "omena-source-cache-stale-"));
+    try {
+      mkdirSync(path.join(workspaceRoot, "src"));
+      const sourcePath = path.join(workspaceRoot, "src/App.tsx");
+      writeFileSync(sourcePath, "export const version = 'before';\n");
+      const inventory = createWorkspaceSourcePathInventory({
+        workspaceRoot,
+        supplier: () => tasks([sourcePath]),
+        sink: makeSink(),
+        serverName: "test",
+      });
+
+      await inventory.ready;
+      expect(inventory.readSourceFile(sourcePath)).toMatchObject({
+        source: "export const version = 'before';\n",
+        cacheHit: false,
+      });
+      writeFileSync(sourcePath, "export const version = 'after';\n");
+      expect(inventory.readSourceFile(sourcePath)).toMatchObject({
+        source: "export const version = 'after';\n",
+        cacheHit: false,
+      });
+    } finally {
+      rmSync(workspaceRoot, { recursive: true, force: true });
+    }
   });
 
   it("runs the production supplier and proves a non-empty complete enumeration", async () => {

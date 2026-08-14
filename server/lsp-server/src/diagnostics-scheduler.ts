@@ -21,10 +21,7 @@ import {
   type RustSelectedQueryBackendJsonRunnerAsync,
 } from "../../engine-host-node/src/selected-query-backend";
 import { loadExternalSifsForWorkspace } from "../../engine-host-node/src/external-sif-loader";
-import type {
-  SourceCorpusFileRead,
-  SourceCorpusReadCounters,
-} from "../../engine-host-node/src/runtime/workspace-source-path-inventory";
+import type { SourceCorpusFileRead } from "../../engine-host-node/src/runtime/workspace-source-path-inventory";
 
 type RuntimeProviderDeps = ProviderDeps & {
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
@@ -32,7 +29,6 @@ type RuntimeProviderDeps = ProviderDeps & {
   readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
   readonly readSourceFileForCorpus?: (filePath: string) => SourceCorpusFileRead | null;
-  readonly sourceCorpusReadCounters?: () => SourceCorpusReadCounters;
 };
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;

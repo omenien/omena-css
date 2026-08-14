@@ -7,10 +7,7 @@ import type {
   StyleSemanticGraphBatchOutputCache,
   StyleSemanticGraphCache,
 } from "../style-semantic-graph-query-backend";
-import type {
-  SourceCorpusFileRead,
-  SourceCorpusReadCounters,
-} from "../runtime/workspace-source-path-inventory";
+import type { SourceCorpusFileRead } from "../runtime/workspace-source-path-inventory";
 
 export interface WorkspaceFolderInfo {
   readonly uri: string;
@@ -25,7 +22,6 @@ export interface WorkspaceProviderDeps extends ProviderDeps {
   readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
   readSourceFileForCorpus(filePath: string): SourceCorpusFileRead | null;
-  sourceCorpusReadCounters(): SourceCorpusReadCounters;
   setSourcePathInventoryWatcherCoverage(available: boolean): void;
   clearStyleSemanticGraphCache?(): void;
   invalidatePackageManifestCache?(filePath: string): void;
