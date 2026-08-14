@@ -590,6 +590,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/precision-floor",
       "rust/proof-kernel",
       "rust/proof-kernel-self-produced-census",
+      "rust/guarded-cascade-winner-closure",
       "rust/omena-plugin-consumption-law",
       "rust/omena-plugin-abi-stability",
       "rust/omena-tsgo-type-flags-abi",
@@ -910,6 +911,7 @@ export const DECLARED_CHECK_GATES = [
   declaredClosurePackageGate("rust/omena-value-grammar-differential", "gate", "rust"),
   declaredClosurePackageGate("rust/proof-kernel", "gate", "rust"),
   declaredClosurePackageGate("rust/proof-kernel-self-produced-census", "gate", "rust"),
+  declaredClosurePackageGate("rust/guarded-cascade-winner-closure", "gate", "rust"),
   {
     id: "rust/omena-value-grammar-corpus:update",
     kind: "command",

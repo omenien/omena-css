@@ -153,6 +153,7 @@
     "check:rust-m4-beta-transform-catalog": "cargo test --manifest-path rust/Cargo.toml -p omena-lawvere -- --nocapture && cargo test --manifest-path rust/Cargo.toml -p omena-transform-passes --features transform-catalog-trace transform_catalog -- --nocapture && cargo test --manifest-path rust/Cargo.toml -p omena-transform-egg --features transform-catalog-saturation transform_catalog_analysis -- --nocapture",
     "check:rust-proof-kernel": "node --import tsx ./scripts/check-rust-proof-kernel.ts",
     "check:rust-proof-kernel-self-produced-census": "node --import tsx ./scripts/check-rust-proof-kernel-self-produced-census.ts",
+    "check:rust-guarded-cascade-winner-closure": "node --import tsx ./scripts/check-rust-guarded-cascade-winner-closure.ts",
     "check:rust-m4-beta-multiscale-complexity-heuristic": "cargo test --manifest-path rust/Cargo.toml -p omena-rg-flow -- --nocapture",
     "check:rust-m4-beta-ensemble": "cargo test --manifest-path rust/Cargo.toml -p omena-ensemble --features replica-ensemble -- --nocapture",
     "check:rust-design-system-universality-class": "cargo test --manifest-path rust/Cargo.toml -p omena-rg-flow classifier_exercises_three_unknown_fallbacks -- --nocapture",

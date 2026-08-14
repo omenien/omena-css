@@ -31,6 +31,7 @@ export const BUNDLE_SHARDS: { readonly [bundleId: string]: BundleShardTable } = 
       "rust/ranked-set-loss-census",
       "rust/proof-kernel",
       "rust/proof-kernel-self-produced-census",
+      "rust/guarded-cascade-winner-closure",
     ],
   },
   "rust/product-test-contracts": {
