@@ -30,4 +30,31 @@ describe("applyWatchedFileChanges", () => {
       "/fake/ws/node_modules/@design/tokens/package.json",
     );
   });
+
+  it("keeps the complete source inventory coherent with watched source changes", () => {
+    const registry = new WorkspaceRegistry();
+    const applySourceFileChange = vi.fn();
+    const deps = {
+      ...makeBaseDeps({
+        workspaceRoot: "/fake/ws",
+        workspaceFolderUri: "file:///fake/ws",
+        applySourceFileChange,
+      }),
+    } satisfies WorkspaceProviderDeps;
+    registry.register({ uri: "file:///fake/ws", rootPath: "/fake/ws", name: "fake" }, deps);
+
+    applyWatchedFileChanges({
+      registry,
+      documents: { all: () => [], get: () => undefined },
+      events: [
+        { uri: "file:///fake/ws/src/New.tsx", type: "created" },
+        { uri: "file:///fake/ws/src/Old.ts", type: "deleted" },
+      ],
+    });
+
+    expect(applySourceFileChange.mock.calls).toEqual([
+      ["/fake/ws/src/New.tsx", "created"],
+      ["/fake/ws/src/Old.ts", "deleted"],
+    ]);
+  });
 });

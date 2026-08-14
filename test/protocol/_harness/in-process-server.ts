@@ -179,6 +179,10 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     // via didOpen + in-memory readStyleFile; the background walk
     // is not wanted because it would hit the real filesystem.
     fileSupplier: () => emptySupplier(),
+    // The source-corpus inventory is independent from the style indexer.
+    // Protocol fixtures use in-memory/open source documents unless a test
+    // explicitly supplies a disk inventory.
+    sourceFileSupplier: () => emptySupplier(),
     readStyleFileAsync: async () => null,
     // Default fileExists to always-true for protocol tests: their
     // fixtures use fake absolute paths that would fail a real

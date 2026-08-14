@@ -5,6 +5,7 @@ import {
   type InitializeResult,
 } from "vscode-languageserver/node";
 import { buildStyleFileWatcherGlob } from "../../engine-core-ts/src/core/scss/lang-registry";
+import { SOURCE_FILE_WATCHER_GLOB } from "../../engine-core-ts/src/core/indexing/file-supplier";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 
 export interface ClientRuntimeCapabilities {
@@ -61,7 +62,7 @@ export function registerDynamicFileWatchers(
     .register(DidChangeWatchedFilesNotification.type, {
       watchers: [
         { globPattern: buildStyleFileWatcherGlob() },
-        { globPattern: "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}" },
+        { globPattern: SOURCE_FILE_WATCHER_GLOB },
         { globPattern: "**/tsconfig*.json" },
         { globPattern: "**/jsconfig*.json" },
         { globPattern: "**/package.json" },

@@ -86,6 +86,17 @@ export interface ProviderDeps {
    */
   readonly pushStyleFile: (path: string) => void;
   /**
+   * Complete initial disk enumeration for source files in this workspace, or
+   * null when the walk could not prove completeness. The LSP scheduler merges
+   * open unsaved source documents before issuing selected-query requests.
+   */
+  readonly completeSourcePathEnumeration?: () => readonly string[] | null;
+  /** Keep the complete source-path inventory coherent with watched changes. */
+  readonly applySourceFileChange?: (
+    path: string,
+    changeType: "created" | "changed" | "deleted",
+  ) => void;
+  /**
    * Resolves when the initial indexer walk completes. Diagnostics
    * subscribers await this before running SCSS diagnostics that
    * depend on workspace-level reference data.

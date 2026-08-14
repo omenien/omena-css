@@ -187,7 +187,7 @@ pub fn query_product_diagnostic_checker_rule_code_name_v0(
     product_diagnostic_code: &str,
 ) -> Option<&'static str> {
     match product_diagnostic_code {
-        "missingModule" => Some(OmenaCheckerRuleCodeV0::MissingModule.as_str()),
+        "missing-module" | "missingModule" => Some(OmenaCheckerRuleCodeV0::MissingModule.as_str()),
         "missingSelector" | "missingStaticClass" => {
             Some(OmenaCheckerRuleCodeV0::MissingStaticClass.as_str())
         }
@@ -1130,7 +1130,7 @@ mod tests {
     #[allow(deprecated)]
     fn product_diagnostic_gate_maps_query_diagnostics_to_registered_checker_rules() {
         let product_codes = [
-            "missingModule",
+            "missing-module",
             "missingSelector",
             "missingStaticClass",
             "missingTemplatePrefix",

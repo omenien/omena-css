@@ -57,6 +57,7 @@ export function collectWatchedFileChangeInputs(
       kind: "source",
       workspaceRoot: deps.workspaceRoot,
       filePath,
+      changeType: event.type,
       projectConfigChange: isProjectConfigPath(filePath),
       dependentSourceUris: snapshot.findSourceDependencyUris(deps.workspaceRoot, filePath),
     });

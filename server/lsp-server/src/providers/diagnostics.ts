@@ -175,7 +175,7 @@ function sourceRangeMatchesAny(
   candidates: readonly SourceCheckerFinding["range"][],
 ): boolean {
   return candidates.some((candidate) =>
-    code === "missingModule"
+    code === "missing-module" || code === "missingModule"
       ? sourceRangesOverlap(candidate, range)
       : sourceRangeContains(candidate, range),
   );
@@ -241,7 +241,9 @@ function findMissingModuleCreateFileData(
   params: DocumentParams,
   deps: ProviderDeps,
 ): { readonly uri: string } | undefined {
-  if (diagnostic.code !== "missingModule") return undefined;
+  if (diagnostic.code !== "missing-module" && diagnostic.code !== "missingModule") {
+    return undefined;
+  }
   const entry = deps.analysisCache.get(
     params.documentUri,
     params.content,

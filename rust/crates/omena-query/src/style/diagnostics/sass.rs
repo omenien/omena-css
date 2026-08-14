@@ -708,7 +708,7 @@ fn unresolved_sass_import_diagnostics_from_edges<'a>(
             continue;
         }
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
-            code: "missingModule",
+            code: "missing-module",
             severity: "error",
             provenance: omena_query_evidence_graph_provenance![
                 "omena-query.sass-module-cross-file-resolution",

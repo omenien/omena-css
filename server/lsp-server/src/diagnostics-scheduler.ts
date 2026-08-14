@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { Connection } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
@@ -8,6 +9,7 @@ import { computeScssUnusedDiagnostics } from "./providers/scss-diagnostics";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { fileUrlToPath } from "../../engine-core-ts/src/core/util/text-utils";
 import { findLangForPath } from "../../engine-core-ts/src/core/scss/lang-registry";
+import { isSourceFilePath } from "../../engine-core-ts/src/core/indexing/file-supplier";
 import type { WindowSettings } from "../../engine-core-ts/src/settings";
 import type { SelectorUsagePayloadCache } from "../../engine-host-node/src/selector-usage-query-backend";
 import type {
@@ -172,6 +174,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     const filePath = fileUrlToPath(uri);
     const styleDocument = providerDeps.styleDocumentForPath(filePath);
     if (!styleDocument) return;
+    const sourceCorpus = this.collectSourceCorpus(providerDeps, filePath);
     const diagnostics = computeScssUnusedDiagnostics(
       filePath,
       styleDocument,
@@ -209,7 +212,12 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
                 runtimeProviderDeps.runRustSelectedQueryBackendJsonAsync,
             }
           : {}),
-        sourceDocuments: this.collectReferencingSourceDocuments(providerDeps, filePath),
+        sourceDocuments: sourceCorpus.documents,
+        ...(sourceCorpus.completeSourcePathEnumeration !== null
+          ? {
+              completeSourcePathEnumeration: sourceCorpus.completeSourcePathEnumeration,
+            }
+          : {}),
         // Source external SIFs from the workspace `omena.lock` so the engine
         // wire leaves `Ignored` mode (#32). Empty set => identical behaviour
         // to before (no externalMode/externalSifs forwarded).
@@ -260,6 +268,54 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     });
   }
 
+  private collectSourceCorpus(
+    providerDeps: ProviderDeps,
+    stylePath: string,
+  ): {
+    readonly documents: readonly {
+      readonly sourcePath: string;
+      readonly sourceSource: string;
+    }[];
+    readonly completeSourcePathEnumeration: readonly string[] | null;
+  } {
+    const diskEnumeration = providerDeps.completeSourcePathEnumeration?.() ?? null;
+    if (diskEnumeration === null) {
+      return {
+        documents: this.collectReferencingSourceDocuments(providerDeps, stylePath),
+        completeSourcePathEnumeration: null,
+      };
+    }
+
+    const openSources = new Map<string, string>();
+    const sourcePaths = new Set(diskEnumeration.map((filePath) => path.resolve(filePath)));
+    for (const document of this.deps.documents.all()) {
+      let filePath: string;
+      try {
+        filePath = path.resolve(fileUrlToPath(document.uri));
+      } catch {
+        continue;
+      }
+      if (!isWithinWorkspace(filePath, providerDeps.workspaceRoot)) continue;
+      if (!isSourceFilePath(filePath) || findLangForPath(filePath)) continue;
+      sourcePaths.add(filePath);
+      openSources.set(filePath, document.getText());
+    }
+
+    const completeSourcePathEnumeration = [...sourcePaths].toSorted(compareCodeUnits);
+    const documents = completeSourcePathEnumeration.flatMap((sourcePath) => {
+      const openSource = openSources.get(sourcePath);
+      if (openSource !== undefined) {
+        return [{ sourcePath, sourceSource: openSource }];
+      }
+      try {
+        return [{ sourcePath, sourceSource: readFileSync(sourcePath, "utf8") }];
+      } catch {
+        return [];
+      }
+    });
+    return { documents, completeSourcePathEnumeration };
+  }
+
   private safeSendDiagnostics(uri: string, diagnostics: MaybePromise<readonly Diagnostic[]>): void {
     if (isPromiseLike(diagnostics)) {
       Promise.resolve(diagnostics)
@@ -278,6 +334,15 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       this.stopped = true;
     }
   }
+}
+
+function isWithinWorkspace(filePath: string, workspaceRoot: string): boolean {
+  const relative = path.relative(workspaceRoot, filePath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 type MaybePromise<T> = T | PromiseLike<T>;

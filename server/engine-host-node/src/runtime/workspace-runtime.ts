@@ -16,12 +16,14 @@ import {
   type RuntimeDocumentsLike,
 } from "./workspace-runtime-support";
 import { createWorkspaceStyleRuntime } from "./workspace-style-runtime";
+import { createWorkspaceSourcePathInventory } from "./workspace-source-path-inventory";
 
 export interface WorkspaceRuntimeIO {
   readonly readStyleFile: (path: string) => string | null;
   readonly readOpenDocumentText?: (path: string) => string | null;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
+  readonly sourceFileSupplier?: () => AsyncIterable<FileTask>;
 }
 
 export interface WorkspaceRuntimeFactoryArgs {
@@ -57,6 +59,12 @@ export function createWorkspaceRuntime(args: WorkspaceRuntimeFactoryArgs): Works
     getModeForStylePath: args.getModeForStylePath,
     isOwnedStylePath: createOwnedStylePathMatcher(args.workspaceFolders, args.folder.uri),
   });
+  const sourcePathInventory = createWorkspaceSourcePathInventory({
+    workspaceRoot: args.folder.rootPath,
+    ...(args.io.sourceFileSupplier ? { supplier: args.io.sourceFileSupplier } : {}),
+    sink: args.sink,
+    serverName: args.serverName,
+  });
   const deps: WorkspaceProviderDeps = createWorkspaceProviderDeps({
     folder: args.folder,
     caches: args.caches,
@@ -69,6 +77,7 @@ export function createWorkspaceRuntime(args: WorkspaceRuntimeFactoryArgs): Works
     serverName: args.serverName,
     settingsState,
     styleRuntime,
+    sourcePathInventory,
   });
 
   return {

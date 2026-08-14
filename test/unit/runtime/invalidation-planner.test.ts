@@ -121,6 +121,7 @@ describe("planWatchedFileInvalidation", () => {
           kind: "source",
           workspaceRoot: root,
           filePath: "/ws/tsconfig.json",
+          changeType: "changed",
           projectConfigChange: true,
           dependentSourceUris: [],
         },

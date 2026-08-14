@@ -185,7 +185,7 @@ export function App({ suffix }) {
         .collect::<Vec<_>>();
     assert_eq!(diagnostics.product, "omena-query.diagnostics-for-file");
     assert_eq!(diagnostics.file_kind, "source");
-    assert!(codes.contains(&"missingModule"));
+    assert!(codes.contains(&"missing-module"));
     assert!(codes.contains(&"missingStaticClass"));
     assert!(codes.contains(&"missingResolvedClassValues"));
     assert!(codes.contains(&"missingResolvedClassDomain"));
@@ -221,7 +221,7 @@ export function App({ suffix }) {
         diagnostics
             .diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.code == "missingModule")
+            .find(|diagnostic| diagnostic.code == "missing-module")
             .map(|diagnostic| diagnostic.provenance.as_slice()),
         Some(
             [
@@ -281,7 +281,7 @@ export const app = <div className={styles.ghost} />;"#;
     let missing_modules = summary
         .diagnostics
         .iter()
-        .filter(|diagnostic| diagnostic.code == "missingModule")
+        .filter(|diagnostic| diagnostic.code == "missing-module")
         .collect::<Vec<_>>();
 
     assert_eq!(missing_modules.len(), 1, "{summary:?}");
@@ -321,7 +321,7 @@ fn workspace_source_diagnostics_do_not_claim_nonexistence_without_disk_evidence(
     let diagnostic = summary
         .diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.code == "missingModule")
+        .find(|diagnostic| diagnostic.code == "missing-module")
         .ok_or("the unresolved module must remain diagnostic")?;
 
     assert!(diagnostic.message.contains("provided workspace inputs"));
@@ -457,7 +457,7 @@ fn source_diagnostics_consume_precomputed_source_syntax_index() {
         diagnostics
             .diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code != "missingModule"),
+            .all(|diagnostic| diagnostic.code != "missing-module"),
         "the precomputed-index path should not synthesize import-resolution diagnostics"
     );
 }

@@ -64,14 +64,14 @@ const SOURCE_QUERY_PROVENANCE = [
 
 function sourceQueryDiagnosticMessage(
   code:
-    | "missingModule"
+    | "missing-module"
     | "missingStaticClass"
     | "missingTemplatePrefix"
     | "missingResolvedClassValues"
     | "missingResolvedClassDomain",
 ): string {
   switch (code) {
-    case "missingModule":
+    case "missing-module":
       return "Cannot resolve CSS Module './Missing.module.scss'. The file does not exist.";
     case "missingStaticClass":
       return "Class '.unknonw' not found in target CSS Module. Did you mean 'unknown'?";
@@ -86,7 +86,7 @@ function sourceQueryDiagnosticMessage(
 
 function sourceQueryDiagnosticPrecision(
   code:
-    | "missingModule"
+    | "missing-module"
     | "missingStaticClass"
     | "missingTemplatePrefix"
     | "missingResolvedClassValues"
@@ -94,13 +94,13 @@ function sourceQueryDiagnosticPrecision(
 ) {
   return {
     product: "omena-query.analysis-precision",
-    valueDomain: code === "missingModule" ? "styleModuleResolution" : "classValueResolution",
+    valueDomain: code === "missing-module" ? "styleModuleResolution" : "classValueResolution",
     flowSensitivity:
-      code === "missingModule" ? "sourceImportResolution" : "sourceSelectorReference",
+      code === "missing-module" ? "sourceImportResolution" : "sourceSelectorReference",
     contextSensitivity:
       code === "missingResolvedClassValues" || code === "missingResolvedClassDomain"
         ? "resolvedClassValueDomain"
-        : code === "missingModule"
+        : code === "missing-module"
           ? "perImportSpecifier"
           : "perSourceReference",
     revisionAxis: "OmenaQuerySourceDiagnosticsForFileV0.input",
@@ -109,7 +109,7 @@ function sourceQueryDiagnosticPrecision(
 
 function selectedQuerySourceMergedOutputReferenceDiagnostics(
   codes: readonly (
-    | "missingModule"
+    | "missing-module"
     | "missingStaticClass"
     | "missingTemplatePrefix"
     | "missingResolvedClassValues"
@@ -423,7 +423,7 @@ describe("computeDiagnostics", () => {
     const previousBackend = process.env.OMENA_SELECTED_QUERY_BACKEND;
     process.env.OMENA_SELECTED_QUERY_BACKEND = "rust-selected-query";
     const queryCodes = [
-      "missingModule",
+      "missing-module",
       "missingStaticClass",
       "missingTemplatePrefix",
       "missingResolvedClassValues",
@@ -484,7 +484,7 @@ describe("computeDiagnostics", () => {
       expect(stableDiagnosticSnapshot(diagnostics)).toMatchInlineSnapshot(`
         "[
           {
-            "code": "missingModule",
+            "code": "missing-module",
             "severity": 2,
             "source": "omena-css",
             "message": "Cannot resolve CSS Module './Missing.module.scss'. The file does not exist.",
@@ -987,7 +987,7 @@ describe("missing-module diagnostics", () => {
         fileKind: "source",
         diagnostics: [
           {
-            code: "missingModule",
+            code: "missing-module",
             severity: "warning",
             provenance: [
               "omena-query.source-import-declarations",
@@ -1010,7 +1010,7 @@ describe("missing-module diagnostics", () => {
       expect(commands).toEqual([SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile]);
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
-        code: "missingModule",
+        code: "missing-module",
         message: "Cannot resolve CSS Module './typo.module.scss'. The file does not exist.",
         data: {
           querySeverity: "warning",
@@ -1028,7 +1028,7 @@ describe("missing-module diagnostics", () => {
       expect(stableDiagnosticSnapshot(result)).toMatchInlineSnapshot(`
         "[
           {
-            "code": "missingModule",
+            "code": "missing-module",
             "severity": 2,
             "source": "omena-css",
             "message": "Cannot resolve CSS Module './typo.module.scss'. The file does not exist.",

@@ -6,6 +6,7 @@ import type { RuntimeSink } from "./runtime-sink";
 import { createWorkspaceAnalysisCache } from "./workspace-analysis-runtime";
 import type { WorkspaceRuntimeSettingsState } from "./workspace-runtime-settings";
 import type { WorkspaceStyleRuntime } from "./workspace-style-runtime";
+import type { WorkspaceSourcePathInventory } from "./workspace-source-path-inventory";
 import { getEngineShadowRunnerDaemonJsonRunner } from "../selected-query-backend";
 
 export interface WorkspaceRuntimeDepsArgs {
@@ -20,6 +21,7 @@ export interface WorkspaceRuntimeDepsArgs {
   readonly serverName: string;
   readonly settingsState: WorkspaceRuntimeSettingsState;
   readonly styleRuntime: WorkspaceStyleRuntime;
+  readonly sourcePathInventory: WorkspaceSourcePathInventory;
 }
 
 export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): WorkspaceProviderDeps {
@@ -74,8 +76,17 @@ export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): Wor
     readStyleFile: args.readStyleFile,
     fileExists: args.fileExists,
     pushStyleFile: (stylePath) => args.styleRuntime.pushStyleFile(stylePath),
-    indexerReady: args.styleRuntime.indexerReady,
-    stopIndexer: () => args.styleRuntime.stop(),
+    completeSourcePathEnumeration: () => args.sourcePathInventory.completePaths(),
+    applySourceFileChange: (filePath, changeType) =>
+      args.sourcePathInventory.applyFileChange(filePath, changeType),
+    indexerReady: Promise.all([
+      args.styleRuntime.indexerReady,
+      args.sourcePathInventory.ready,
+    ]).then(() => undefined),
+    stopIndexer: () => {
+      args.styleRuntime.stop();
+      args.sourcePathInventory.stop();
+    },
     get settings() {
       return args.settingsState.get();
     },

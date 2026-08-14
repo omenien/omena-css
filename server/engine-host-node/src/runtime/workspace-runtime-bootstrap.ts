@@ -40,6 +40,7 @@ export interface WorkspaceRuntimeIOOptions {
   readonly readOpenDocumentText?: (path: string) => string | null;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
+  readonly sourceFileSupplier?: () => AsyncIterable<FileTask>;
 }
 
 export function createRuntimeTypeResolver(options: RuntimeTypeResolverOptions): TypeResolver {
@@ -169,6 +170,7 @@ export function createWorkspaceRuntimeIO(options: WorkspaceRuntimeIOOptions): Wo
     ...(options.readOpenDocumentText ? { readOpenDocumentText: options.readOpenDocumentText } : {}),
     ...(options.readStyleFileAsync ? { readStyleFileAsync: options.readStyleFileAsync } : {}),
     ...(options.fileSupplier ? { fileSupplier: options.fileSupplier } : {}),
+    ...(options.sourceFileSupplier ? { sourceFileSupplier: options.sourceFileSupplier } : {}),
   };
 }
 

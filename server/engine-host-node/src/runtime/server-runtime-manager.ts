@@ -23,6 +23,7 @@ import { resolveRuntimeStyleDocumentBuilder } from "../omena-parser-style-docume
 export interface ServerRuntimeManagerOptions {
   readonly typeResolver?: TypeResolver;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
+  readonly sourceFileSupplier?: () => AsyncIterable<FileTask>;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   readonly fileExists?: (path: string) => boolean;
   readonly buildStyleDocument?: StyleDocumentBuilder;
@@ -59,6 +60,9 @@ export function createServerRuntimeManager(
       ? { readStyleFileAsync: args.options.readStyleFileAsync }
       : {}),
     ...(args.options.fileSupplier ? { fileSupplier: args.options.fileSupplier } : {}),
+    ...(args.options.sourceFileSupplier
+      ? { sourceFileSupplier: args.options.sourceFileSupplier }
+      : {}),
   });
 
   let runtimeManager: WorkspaceRuntimeManager | null = null;

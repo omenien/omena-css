@@ -42,6 +42,7 @@ export interface WatchedSourceChangeInput {
   readonly kind: "source";
   readonly workspaceRoot: string;
   readonly filePath: string;
+  readonly changeType: RuntimeFileChangeType;
   readonly projectConfigChange: boolean;
   readonly dependentSourceUris: readonly string[];
 }

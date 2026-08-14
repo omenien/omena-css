@@ -18,6 +18,7 @@ import {
 export interface ServerRuntimeSessionOptions {
   readonly typeResolver?: TypeResolver;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
+  readonly sourceFileSupplier?: () => AsyncIterable<FileTask>;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   readonly fileExists?: (path: string) => boolean;
 }

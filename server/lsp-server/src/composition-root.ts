@@ -40,6 +40,7 @@ export interface CreateServerAutoOptions {
   readonly typeResolver?: TypeResolver;
   readonly readStyleFile?: (path: string) => string | null;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
+  readonly sourceFileSupplier?: () => AsyncIterable<FileTask>;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   /**
    * Filesystem existence check used by the analysis cache to tag

@@ -51,6 +51,10 @@ export function applyWatchedFileChanges(
     );
 
   for (const change of changes) {
+    if (change.kind === "source") {
+      const deps = args.registry.getDepsForFilePath(change.filePath);
+      deps?.applySourceFileChange?.(change.filePath, change.changeType);
+    }
     if (change.kind === "source" && isPackageManifestPath(change.filePath)) {
       const deps = args.registry.getDepsForFilePath(change.filePath);
       deps?.invalidatePackageManifestCache?.(change.filePath);

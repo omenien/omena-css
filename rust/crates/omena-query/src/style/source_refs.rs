@@ -650,7 +650,7 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
                 })
             }
             None => diagnostics.push(OmenaQuerySourceDiagnosticV0 {
-                code: "missingModule",
+                code: "missing-module",
                 severity: "warning",
                 provenance: omena_query_evidence_graph_provenance![
                     "omena-query.source-import-declarations",

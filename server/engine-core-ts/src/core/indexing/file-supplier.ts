@@ -2,6 +2,10 @@ import fastGlob from "fast-glob";
 import { buildStyleFileWatcherGlob } from "../scss/lang-registry";
 import type { FileTask } from "./indexer-worker";
 
+export const SOURCE_FILE_WATCHER_GLOB = "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}";
+
+const WORKSPACE_FILE_IGNORES = ["**/node_modules/**", "**/dist/**", "**/.git/**"] as const;
+
 /** Yields one FileTask per style module file in the workspace. */
 export function scssFileSupplier(
   workspaceRoot: string,
@@ -15,7 +19,7 @@ export function scssFileSupplier(
         absolute: true,
         onlyFiles: true,
         followSymbolicLinks: false,
-        ignore: ["**/node_modules/**", "**/dist/**", "**/.git/**"],
+        ignore: [...WORKSPACE_FILE_IGNORES],
       });
       try {
         for await (const entry of stream) {
@@ -29,4 +33,31 @@ export function scssFileSupplier(
       }
     },
   };
+}
+
+/**
+ * Yields every source file whose contents contribute to workspace-wide
+ * selected-query negative facts. Unlike the style indexer supplier, errors
+ * intentionally propagate: a partial walk must never be presented as a
+ * complete source-corpus enumeration.
+ */
+export function sourceFileSupplier(workspaceRoot: string): AsyncIterable<FileTask> {
+  return {
+    async *[Symbol.asyncIterator](): AsyncGenerator<FileTask> {
+      const stream = fastGlob.stream(SOURCE_FILE_WATCHER_GLOB, {
+        cwd: workspaceRoot,
+        absolute: true,
+        onlyFiles: true,
+        followSymbolicLinks: false,
+        ignore: [...WORKSPACE_FILE_IGNORES],
+      });
+      for await (const entry of stream) {
+        yield { path: String(entry) };
+      }
+    },
+  };
+}
+
+export function isSourceFilePath(filePath: string): boolean {
+  return /\.(?:[cm]?[jt]sx?)$/u.test(filePath);
 }

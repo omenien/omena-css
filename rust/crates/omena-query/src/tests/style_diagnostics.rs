@@ -3350,7 +3350,7 @@ fn style_diagnostics_external_sif_mode_resolves_symbols_from_file_uri_sif()
 // #33/#34 over-correction guard: a `file://` `@use` edge with NO SIF in scope is genuinely
 // external-unresolved. It must stay in the external lane and surface `missingExternalSif` (the #34
 // boundary state) — never silently dropped, and never demoted to a workspace-local
-// `missingModule`. This proves the classification routes through the external branch rather than
+// `missing-module`. This proves the classification routes through the external branch rather than
 // just suppressing everything.
 #[test]
 fn style_diagnostics_external_sif_mode_file_uri_without_sif_flags_missing_boundary()
@@ -3378,8 +3378,8 @@ fn style_diagnostics_external_sif_mode_file_uri_without_sif_flags_missing_bounda
         diagnostics
             .diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code != "missingModule"),
-        "file:// @use must not be flagged as a workspace-local missingModule",
+            .all(|diagnostic| diagnostic.code != "missing-module"),
+        "file:// @use must not be flagged as a workspace-local missing-module",
     );
     let boundary_messages = diagnostics
         .diagnostics
@@ -3528,12 +3528,12 @@ fn style_diagnostics_external_sif_mode_classifies_unresolved_boundary() -> Resul
             .collect::<Vec<_>>()
     );
     // A bare unresolved reference is NOT a workspace-local file, so it is never the hard
-    // `missingModule` error — only the boundary state surfaces.
+    // `missing-module` error — only the boundary state surfaces.
     assert!(
         diagnostics
             .diagnostics
             .iter()
-            .all(|diagnostic| diagnostic.code != "missingModule")
+            .all(|diagnostic| diagnostic.code != "missing-module")
     );
     Ok(())
 }
@@ -3542,7 +3542,7 @@ fn style_diagnostics_external_sif_mode_classifies_unresolved_boundary() -> Resul
 fn style_diagnostics_external_sif_mode_does_not_double_flag_local_unresolved_boundary()
 -> Result<(), &'static str> {
     // Over-correction guard for the Unresolved widening (#34): a workspace-local unresolved
-    // specifier (`./missing`) is already a hard `missingModule` error, so it must NOT also
+    // specifier (`./missing`) is already a hard `missing-module` error, so it must NOT also
     // surface as an `unresolvedExternalReference` boundary state.
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "/tmp/App.module.scss".to_string(),
@@ -3564,8 +3564,8 @@ fn style_diagnostics_external_sif_mode_does_not_double_flag_local_unresolved_bou
         diagnostics
             .diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "missingModule"),
-        "workspace-local unresolved must still be a hard missingModule error: {:?}",
+            .any(|diagnostic| diagnostic.code == "missing-module"),
+        "workspace-local unresolved must still be a hard missing-module error: {:?}",
         diagnostics
             .diagnostics
             .iter()
@@ -5171,7 +5171,7 @@ fn unresolved_sass_import_fires_on_local_path_but_not_external_or_bare() -> Resu
     let module_messages = diagnostics
         .diagnostics
         .iter()
-        .filter(|diagnostic| diagnostic.code == "missingModule")
+        .filter(|diagnostic| diagnostic.code == "missing-module")
         .map(|diagnostic| {
             assert_eq!(diagnostic.severity, "error");
             diagnostic.message.as_str()
