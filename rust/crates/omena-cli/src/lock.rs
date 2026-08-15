@@ -7,20 +7,27 @@ use crate::{
 use omena_query::summarize_omena_query_sass_module_sources;
 use omena_sif::{
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1,
-    OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1, OmenaLockV1,
+    OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1,
+    OMENA_SIF_SHARD_RECORDED_VERDICT_PRODUCT_V1,
+    OMENA_SIF_SHARD_RECORDED_VERDICT_SCHEMA_VERSION_V1,
+    OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1, OMENA_SIF_SHARD_VERDICT_DIR_V1,
+    OMENA_SIF_SHARD_VERIFICATION_OWNER_V1, OmenaLockSifEntryV1, OmenaLockV1,
     OmenaLockVerificationIssueV1, OmenaSifAttestationStatementV1,
     OmenaSifAttestationSubjectDigestV1, OmenaSifAttestationVerificationReportV1,
-    OmenaSifSigstoreVerificationPolicyV1,
-    apply_omena_sif_attestation_verification_report_to_lock_entry_v1,
+    OmenaSifShardRecordedVerdictV1, OmenaSifShardSignatureV1, OmenaSifSigstoreVerificationPolicyV1,
+    OmenaSifTrustTierV1, apply_omena_sif_attestation_verification_report_to_lock_entry_v1,
     apply_omena_sif_npm_provenance_references_to_lock_entry_v1, build_omena_lock_sif_entry_v1,
     collect_omena_sif_npm_provenance_attestation_references_v1, compute_omena_sif_artifact_hash_v1,
+    compute_omena_sif_leaf_hash_v1, compute_omena_sif_shard_recorded_verdict_address_v1,
     read_omena_lock_json_v1, read_omena_sif_attestation_verification_report_json_v1,
     read_omena_sif_json_v1, verify_omena_lock_frozen_v1, write_omena_lock_json_v1,
+    write_omena_sif_json_v1, write_omena_sif_shard_recorded_verdict_json_v1,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -274,6 +281,7 @@ fn lock_record_verification(
 
     let mut matched_count = 0usize;
     let mut applied_count = 0usize;
+    let mut shard_verdicts = Vec::new();
     for entry in &mut lock.entries {
         if !lock_entry_matches_package_selector(entry, &package) {
             continue;
@@ -292,6 +300,7 @@ fn lock_record_verification(
             )
         })?;
         if applied {
+            let mut shard_binding = None;
             if report.verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3 {
                 let artifact = artifact.as_ref().ok_or_else(|| {
                     "lock record-verification with verifiedTrustTier t3 requires --artifact to be the matching SIF JSON".to_string()
@@ -309,6 +318,22 @@ fn lock_record_verification(
                     &binding,
                     report.attestation_statement.as_ref(),
                 )?;
+                shard_binding = Some(binding);
+            } else if let Some(artifact) = artifact.as_ref() {
+                let artifact_bytes = fs::read(artifact).map_err(|error| {
+                    format!("failed to read {}: {error}", path_string(artifact))
+                })?;
+                shard_binding =
+                    try_read_verified_shard_artifact_binding(artifact_bytes.as_slice())?;
+            }
+            if let Some(binding) = shard_binding.as_ref() {
+                validate_verified_t3_attestation_artifact_binding(entry, binding)?;
+                shard_verdicts.push(build_recorded_shard_verdict(
+                    entry,
+                    report.verified_trust_tier,
+                    report.reference.as_str(),
+                    binding,
+                )?);
             }
             *entry = updated_entry;
             applied_count += 1;
@@ -328,6 +353,9 @@ fn lock_record_verification(
 
     let lock_json = write_omena_lock_json_v1(&lock)
         .map_err(|error| format!("failed to serialize {}: {error}", path_string(&lockfile)))?;
+    // Publish the bridge/LSP trust authority before the lockfile mutation
+    // wakes consumers, so a refresh cannot race ahead of its verdict.
+    write_recorded_shard_verdicts(&lockfile, shard_verdicts.as_slice())?;
     fs::write(&lockfile, &lock_json)
         .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
 
@@ -469,6 +497,10 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
     } else {
         None
     };
+    let shard_artifact_binding = match t3_artifact_binding.clone() {
+        Some(binding) => Some(binding),
+        None => try_read_verified_shard_artifact_binding(artifact_bytes.as_slice())?,
+    };
     let attestation_statement = extract_verified_attestation_statement(
         &sigstore_bundle,
         &statement_policy,
@@ -477,6 +509,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
 
     let mut matched_count = 0usize;
     let mut applied_count = 0usize;
+    let mut shard_verdicts = Vec::new();
     for entry in &mut lock.entries {
         if !lock_entry_matches_package_selector(entry, &package) {
             continue;
@@ -522,6 +555,15 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
                     )
                 })?;
         if applied {
+            if let Some(binding) = shard_artifact_binding.as_ref() {
+                validate_verified_t3_attestation_artifact_binding(entry, binding)?;
+                shard_verdicts.push(build_recorded_shard_verdict(
+                    entry,
+                    verified_trust_tier,
+                    reference.as_str(),
+                    binding,
+                )?);
+            }
             applied_count += 1;
         }
     }
@@ -539,6 +581,9 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
 
     let lock_json = write_omena_lock_json_v1(&lock)
         .map_err(|error| format!("failed to serialize {}: {error}", path_string(&lockfile)))?;
+    // Publish the bridge/LSP trust authority before the lockfile mutation
+    // wakes consumers, so a refresh cannot race ahead of its verdict.
+    write_recorded_shard_verdicts(&lockfile, shard_verdicts.as_slice())?;
     fs::write(&lockfile, &lock_json)
         .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
 
@@ -881,39 +926,202 @@ fn github_repository_url(repository: &str) -> String {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct VerifiedT3AttestationArtifactBinding {
     pub(crate) canonical_url: String,
     pub(crate) sif_hash: omena_sif::OmenaSifDigestV1,
     pub(crate) artifact_sha256: String,
+    pub(crate) payload_digest: omena_sif::OmenaSifDigestV1,
 }
 
 fn read_verified_t3_attestation_artifact_binding(
     artifact: &Path,
     artifact_bytes: &[u8],
 ) -> Result<VerifiedT3AttestationArtifactBinding, String> {
-    let artifact_source = std::str::from_utf8(artifact_bytes).map_err(|error| {
+    try_read_verified_shard_artifact_binding(artifact_bytes)?.ok_or_else(|| {
         format!(
-            "lock verify-attestation --verified-tier t3 requires --artifact to be the SIF JSON for the selected lock entry; {} is not UTF-8 JSON: {error}",
+            "lock verify-attestation --verified-tier t3 requires --artifact to be canonical SIF JSON for the selected lock entry: {}",
             path_string(artifact)
         )
-    })?;
-    let sif = read_omena_sif_json_v1(artifact_source).map_err(|error| {
-        format!(
-            "lock verify-attestation --verified-tier t3 requires --artifact to be the SIF JSON for the selected lock entry; failed to parse {}: {error}",
-            path_string(artifact)
-        )
-    })?;
-    let sif_hash = compute_omena_sif_artifact_hash_v1(&sif).map_err(|error| {
-        format!(
-            "lock verify-attestation --verified-tier t3 failed to hash SIF artifact {}: {error}",
-            path_string(artifact)
-        )
-    })?;
-    Ok(VerifiedT3AttestationArtifactBinding {
+    })
+}
+
+pub(crate) fn try_read_verified_shard_artifact_binding(
+    artifact_bytes: &[u8],
+) -> Result<Option<VerifiedT3AttestationArtifactBinding>, String> {
+    let Ok(artifact_source) = std::str::from_utf8(artifact_bytes) else {
+        return Ok(None);
+    };
+    let Ok(sif) = read_omena_sif_json_v1(artifact_source) else {
+        return Ok(None);
+    };
+    let canonical = write_omena_sif_json_v1(&sif)
+        .map_err(|error| format!("failed to canonicalize verified SIF artifact: {error}"))?;
+    if canonical.as_bytes() != artifact_bytes {
+        return Ok(None);
+    }
+    let sif_hash = compute_omena_sif_artifact_hash_v1(&sif)
+        .map_err(|error| format!("failed to hash verified SIF artifact: {error}"))?;
+    Ok(Some(VerifiedT3AttestationArtifactBinding {
         canonical_url: sif.canonical_url,
         sif_hash,
         artifact_sha256: sha256_hex(artifact_bytes),
-    })
+        payload_digest: compute_omena_sif_leaf_hash_v1(artifact_bytes),
+    }))
+}
+
+pub(crate) fn build_recorded_shard_verdict(
+    entry: &OmenaLockSifEntryV1,
+    trust_tier: OmenaSifTrustTierV1,
+    signature_reference: &str,
+    binding: &VerifiedT3AttestationArtifactBinding,
+) -> Result<OmenaSifShardRecordedVerdictV1, String> {
+    if binding.payload_digest != entry.sif_hash {
+        return Err(format!(
+            "verified canonical SIF payload digest {} does not match lock entry {}",
+            binding.payload_digest.as_str(),
+            entry.sif_hash.as_str()
+        ));
+    }
+    let verdict = OmenaSifShardRecordedVerdictV1 {
+        schema_version: OMENA_SIF_SHARD_RECORDED_VERDICT_SCHEMA_VERSION_V1.to_string(),
+        product: OMENA_SIF_SHARD_RECORDED_VERDICT_PRODUCT_V1.to_string(),
+        verification_owner: OMENA_SIF_SHARD_VERIFICATION_OWNER_V1.to_string(),
+        canonical_url: entry.canonical_url.clone(),
+        sif_hash: entry.sif_hash.clone(),
+        trust_tier,
+        signature: OmenaSifShardSignatureV1 {
+            algorithm_version: OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1.to_string(),
+            reference: signature_reference.to_string(),
+            signed_payload_digest: binding.payload_digest.clone(),
+        },
+    };
+    omena_sif::validate_omena_sif_shard_recorded_verdict_v1(&verdict)
+        .map_err(|error| format!("invalid recorded shard verdict: {error}"))?;
+    Ok(verdict)
+}
+
+pub(crate) fn write_recorded_shard_verdicts(
+    lockfile: &Path,
+    verdicts: &[OmenaSifShardRecordedVerdictV1],
+) -> Result<(), String> {
+    if verdicts.is_empty() {
+        return Ok(());
+    }
+    let lock_parent = lockfile.parent().unwrap_or_else(|| Path::new("."));
+    let verdict_dir = lock_parent
+        .join(".cache")
+        .join("omena")
+        .join(OMENA_SIF_SHARD_VERDICT_DIR_V1);
+    fs::create_dir_all(verdict_dir.as_path()).map_err(|error| {
+        format!(
+            "failed to create recorded shard verdict directory {}: {error}",
+            verdict_dir.display()
+        )
+    })?;
+    for verdict in verdicts {
+        let address = compute_omena_sif_shard_recorded_verdict_address_v1(
+            verdict.canonical_url.as_str(),
+            &verdict.sif_hash,
+        )
+        .map_err(|error| format!("failed to address recorded shard verdict: {error}"))?;
+        let hex = address
+            .as_str()
+            .strip_prefix("blake3:")
+            .ok_or_else(|| "recorded shard verdict address is not a blake3 digest".to_string())?;
+        let verdict_path = verdict_dir.join(format!("{hex}.json"));
+        let source = write_omena_sif_shard_recorded_verdict_json_v1(verdict)
+            .map_err(|error| format!("failed to serialize recorded shard verdict: {error}"))?;
+        publish_immutable_recorded_shard_verdict(verdict_path.as_path(), source.as_bytes())?;
+    }
+    Ok(())
+}
+
+fn publish_immutable_recorded_shard_verdict(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    match fs::read(path) {
+        Ok(existing) if existing == bytes => return Ok(()),
+        Ok(_) => {
+            return Err(format!(
+                "immutable recorded shard verdict {} already exists with different bytes",
+                path.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "failed to read immutable recorded shard verdict {}: {error}",
+                path.display()
+            ));
+        }
+    }
+
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("recorded shard verdict {} has no parent", path.display()))?;
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("recorded shard verdict {} has no file name", path.display()))?;
+    for attempt in 0..16_u8 {
+        let temporary = parent.join(format!(
+            ".{file_name}.{}.{}.tmp",
+            std::process::id(),
+            attempt
+        ));
+        let mut file = match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(temporary.as_path())
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!(
+                    "failed to create recorded shard verdict temporary {}: {error}",
+                    temporary.display()
+                ));
+            }
+        };
+        if let Err(error) = file.write_all(bytes).and_then(|()| file.sync_all()) {
+            let _ = fs::remove_file(temporary.as_path());
+            return Err(format!(
+                "failed to write recorded shard verdict temporary {}: {error}",
+                temporary.display()
+            ));
+        }
+        drop(file);
+        match fs::hard_link(temporary.as_path(), path) {
+            Ok(()) => {
+                let _ = fs::remove_file(temporary.as_path());
+                return Ok(());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let _ = fs::remove_file(temporary.as_path());
+                return match fs::read(path) {
+                    Ok(existing) if existing == bytes => Ok(()),
+                    Ok(_) => Err(format!(
+                        "immutable recorded shard verdict {} already exists with different bytes",
+                        path.display()
+                    )),
+                    Err(read_error) => Err(format!(
+                        "failed to read immutable recorded shard verdict {} after publish race: {read_error}",
+                        path.display()
+                    )),
+                };
+            }
+            Err(error) => {
+                let _ = fs::remove_file(temporary.as_path());
+                return Err(format!(
+                    "failed to publish immutable recorded shard verdict {}: {error}",
+                    path.display()
+                ));
+            }
+        }
+    }
+    Err(format!(
+        "failed to allocate recorded shard verdict temporary for {}",
+        path.display()
+    ))
 }
 
 pub(crate) fn validate_verified_t3_attestation_artifact_binding(

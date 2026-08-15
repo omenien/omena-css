@@ -148,6 +148,34 @@ fn cache_files_below(root: &Path) -> Vec<PathBuf> {
 }
 
 #[test]
+fn bridge_storage_consumes_only_the_workspace_recorded_verdict_directory() -> TestResult {
+    let workspace_root = disk_cache_workspace_root("recorded-shard-verdict-directory");
+    std::fs::create_dir_all(workspace_root.as_path())?;
+    let canonical_workspace_root = std::fs::canonicalize(workspace_root.as_path())?;
+    let workspace_uri = format!("file://{}", canonical_workspace_root.display());
+    let document_uri = format!("{workspace_uri}/src/App.tsx");
+    let state = LspShellState::default();
+    let storage = crate::external_sif_loader::bridge_cache_storage_for_document(
+        &state,
+        Some(workspace_uri.as_str()),
+        document_uri.as_str(),
+    )
+    .ok_or_else(|| std::io::Error::other("bridge cache storage"))?;
+
+    assert_eq!(
+        storage.recorded_verdict_dir(),
+        Some(
+            canonical_workspace_root
+                .join(".cache/omena")
+                .join(omena_sif::OMENA_SIF_SHARD_VERDICT_DIR_V1)
+                .as_path()
+        )
+    );
+    let _ = std::fs::remove_dir_all(workspace_root);
+    Ok(())
+}
+
+#[test]
 fn observed_cache_writes_are_contained_by_the_declared_surface() -> TestResult {
     let fixture_root = disk_cache_workspace_root("declared-write-containment");
     let (workspace_uri, style_uri) =

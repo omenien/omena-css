@@ -1556,6 +1556,7 @@ mod tests {
             external_sifs,
             lock_read_count: 0,
             bridge_generation_count: 0,
+            trust_records: Vec::new(),
         }
     }
 

@@ -1,10 +1,15 @@
 use omena_sif::{
+    OMENA_SIF_SHARD_RECORDED_VERDICT_PRODUCT_V1,
+    OMENA_SIF_SHARD_RECORDED_VERDICT_SCHEMA_VERSION_V1,
     OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1, OMENA_SIF_SHARD_TRUST_ENVELOPE_PRODUCT_V1,
     OMENA_SIF_SHARD_TRUST_ENVELOPE_SCHEMA_VERSION_V1,
-    OMENA_SIF_SHARD_TRUST_ENVELOPE_V1_SCHEMA_JSON, OmenaSifShardLockBindingV1,
-    OmenaSifShardSignatureV1, OmenaSifShardTrustEnvelopeErrorV1, OmenaSifShardTrustEnvelopeV1,
-    OmenaSifTrustTierV1, compute_omena_sif_leaf_hash_v1,
-    read_omena_sif_shard_trust_envelope_json_v1, validate_omena_sif_shard_trust_envelope_v1,
+    OMENA_SIF_SHARD_TRUST_ENVELOPE_V1_SCHEMA_JSON, OMENA_SIF_SHARD_VERIFICATION_OWNER_V1,
+    OmenaSifShardLockBindingV1, OmenaSifShardRecordedVerdictErrorV1,
+    OmenaSifShardRecordedVerdictV1, OmenaSifShardSignatureV1, OmenaSifShardTrustEnvelopeErrorV1,
+    OmenaSifShardTrustEnvelopeV1, OmenaSifTrustTierV1, compute_omena_sif_leaf_hash_v1,
+    compute_omena_sif_shard_recorded_verdict_address_v1,
+    read_omena_sif_shard_recorded_verdict_json_v1, read_omena_sif_shard_trust_envelope_json_v1,
+    validate_omena_sif_shard_trust_envelope_v1, write_omena_sif_shard_recorded_verdict_json_v1,
     write_omena_sif_shard_trust_envelope_json_v1,
 };
 use serde_json::{Value, json};
@@ -27,6 +32,53 @@ fn committed_shard_trust_envelope_remains_cross_fixture_compatible()
     assert_eq!(
         serde_json::from_str::<Value>(&canonical)?,
         serde_json::from_str::<Value>(COMMITTED_ENVELOPE)?
+    );
+    Ok(())
+}
+
+#[test]
+fn recorded_verdict_is_addressed_by_canonical_url_and_sif_hash()
+-> Result<(), Box<dyn std::error::Error>> {
+    let sif_hash = compute_omena_sif_leaf_hash_v1(b"canonical SIF bytes");
+    let verdict = OmenaSifShardRecordedVerdictV1 {
+        schema_version: OMENA_SIF_SHARD_RECORDED_VERDICT_SCHEMA_VERSION_V1.to_string(),
+        product: OMENA_SIF_SHARD_RECORDED_VERDICT_PRODUCT_V1.to_string(),
+        verification_owner: OMENA_SIF_SHARD_VERIFICATION_OWNER_V1.to_string(),
+        canonical_url: "pkg:design-system/_tokens.scss".to_string(),
+        sif_hash: sif_hash.clone(),
+        trust_tier: OmenaSifTrustTierV1::T3,
+        signature: OmenaSifShardSignatureV1 {
+            algorithm_version: OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1.to_string(),
+            reference: "sif-shards/design-system.batch.sigstore.json".to_string(),
+            signed_payload_digest: sif_hash.clone(),
+        },
+    };
+    let source = write_omena_sif_shard_recorded_verdict_json_v1(&verdict)?;
+    assert_eq!(
+        read_omena_sif_shard_recorded_verdict_json_v1(source.as_str())?,
+        verdict
+    );
+    let address = compute_omena_sif_shard_recorded_verdict_address_v1(
+        verdict.canonical_url.as_str(),
+        &verdict.sif_hash,
+    )?;
+    let other_url = compute_omena_sif_shard_recorded_verdict_address_v1(
+        "pkg:other/_tokens.scss",
+        &verdict.sif_hash,
+    )?;
+    let other_hash = compute_omena_sif_shard_recorded_verdict_address_v1(
+        verdict.canonical_url.as_str(),
+        &compute_omena_sif_leaf_hash_v1(b"changed canonical SIF bytes"),
+    )?;
+    assert_ne!(address, other_url);
+    assert_ne!(address, other_hash);
+
+    let mut mismatched = verdict;
+    mismatched.signature.signed_payload_digest =
+        compute_omena_sif_leaf_hash_v1(b"different signed bytes");
+    assert_eq!(
+        omena_sif::validate_omena_sif_shard_recorded_verdict_v1(&mismatched),
+        Err(OmenaSifShardRecordedVerdictErrorV1::SignedSifDigestMismatch)
     );
     Ok(())
 }

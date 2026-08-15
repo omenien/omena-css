@@ -15,9 +15,10 @@ use crate::{
     io::read_source,
     lock::{
         AttestationStatementPolicy, VerifiedT3AttestationArtifactBinding,
-        collect_lock_source_coverage_issues, collect_lock_trust_tier_issues,
-        require_statement_policy_matches, sha256_hex, summarize_verified_attestation_statement,
-        validate_verified_t3_attestation_statement_binding,
+        build_recorded_shard_verdict, collect_lock_source_coverage_issues,
+        collect_lock_trust_tier_issues, require_statement_policy_matches, sha256_hex,
+        summarize_verified_attestation_statement, try_read_verified_shard_artifact_binding,
+        validate_verified_t3_attestation_statement_binding, write_recorded_shard_verdicts,
     },
     paths::path_string,
     perceptual::perceptual_check_summary,
@@ -1014,6 +1015,7 @@ fn lock_verify_attestation_t3_requires_signed_statement_artifact_digest_binding(
         sif_hash: omena_sif::compute_omena_sif_artifact_hash_v1(&sif)
             .map_err(|error| format!("fixture SIF should hash: {error}"))?,
         artifact_sha256: sha256_hex(sif_source.as_bytes()),
+        payload_digest: omena_sif::compute_omena_sif_leaf_hash_v1(sif_source.as_bytes()),
     };
     let mut statement = cli_fixture_provenance_statement();
     statement.subject_names = vec![entry.sif_path.clone()];
@@ -1066,6 +1068,57 @@ fn lock_verify_attestation_t3_requires_signed_statement_artifact_digest_binding(
         "{missing_statement:?}"
     );
 
+    Ok(())
+}
+
+#[test]
+fn lock_verification_records_an_immutable_hash_keyed_shard_verdict() -> Result<(), String> {
+    let workspace_path = temp_dir("lock-shard-verdict");
+    let lockfile_path = workspace_path.join("omena.lock");
+    let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+    let sif_source = omena_sif::write_omena_sif_json_v1(&sif)
+        .map_err(|error| format!("fixture SIF should serialize: {error}"))?;
+    let entry = omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+        .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+    let binding = try_read_verified_shard_artifact_binding(sif_source.as_bytes())?
+        .ok_or_else(|| "canonical fixture SIF must produce a shard binding".to_string())?;
+    let verdict = build_recorded_shard_verdict(
+        &entry,
+        omena_sif::OmenaSifTrustTierV1::T3,
+        "sif-shards/design-system.batch.sigstore.json",
+        &binding,
+    )?;
+
+    write_recorded_shard_verdicts(&lockfile_path, std::slice::from_ref(&verdict))?;
+    write_recorded_shard_verdicts(&lockfile_path, std::slice::from_ref(&verdict))?;
+
+    let verdict_dir = workspace_path
+        .join(".cache")
+        .join("omena")
+        .join(omena_sif::OMENA_SIF_SHARD_VERDICT_DIR_V1);
+    let verdict_paths = fs::read_dir(verdict_dir.as_path())
+        .map_err(|error| format!("fixture verdict directory should be readable: {error}"))?
+        .flatten()
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    assert_eq!(verdict_paths.len(), 1, "{verdict_paths:?}");
+    let recorded_source = read_source(&verdict_paths[0])?;
+    assert_eq!(
+        omena_sif::read_omena_sif_shard_recorded_verdict_json_v1(recorded_source.as_str())
+            .map_err(|error| format!("recorded verdict should parse: {error}"))?,
+        verdict
+    );
+
+    let mut conflicting = verdict;
+    conflicting.signature.reference = "sif-shards/conflicting.sigstore.json".to_string();
+    let conflict = write_recorded_shard_verdicts(&lockfile_path, &[conflicting]);
+    assert!(
+        conflict
+            .as_ref()
+            .is_err_and(|error| error.contains("immutable recorded shard verdict")),
+        "{conflict:?}"
+    );
+    let _ = fs::remove_dir_all(workspace_path);
     Ok(())
 }
 
@@ -5236,7 +5289,7 @@ fn lock_verify_attestation_t3_rejects_non_sif_artifact() -> Result<(), String> {
         .err()
         .unwrap_or_else(|| "verify-attestation unexpectedly succeeded".to_string());
     assert!(
-        error.contains("requires --artifact to be the SIF JSON"),
+        error.contains("requires --artifact to be canonical SIF JSON"),
         "{error}"
     );
 

@@ -5,7 +5,20 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflowPath = path.join(repoRoot, ".github/workflows/sif-keyless-attestation.yml");
-const workflow = readFileSync(workflowPath, "utf8");
+const args = new Set(process.argv.slice(2).filter((arg) => arg !== "--"));
+const injectRemoveShardBatch = args.has("--inject-remove-shard-batch");
+assert.deepEqual(
+  [...args].filter((arg) => arg.startsWith("--") && arg !== "--inject-remove-shard-batch"),
+  [],
+  "unknown T3 keyless workflow gate option",
+);
+let workflow = readFileSync(workflowPath, "utf8");
+if (injectRemoveShardBatch) {
+  workflow = workflow.replaceAll(
+    "dist/sif/omena-sif-shard-batch.json",
+    "dist/sif/injected-missing-shard-batch.json",
+  );
+}
 const packageJson = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
   readonly scripts: Record<string, string>;
 };
@@ -69,6 +82,18 @@ assert.ok(
   workflow.includes('.entries | length >= 1 and all(.[]; .trustTier == "t1"'),
   "SIF attestation workflow must validate every generated lock entry trust tier",
 );
+assert.ok(
+  workflow.includes('product:"omena-sif.shard-attestation-batch"'),
+  "SIF attestation workflow must derive a shard batch from the generated lock",
+);
+assert.ok(
+  workflow.includes('signatureAlgorithmVersion:"sigstore-bundle-v1"'),
+  "SIF shard batches must pin the versioned keyless signature algorithm",
+);
+assert.ok(
+  workflow.includes("dist/sif/omena-sif-shard-batch.json"),
+  "SIF attestation workflow must materialize the shard batch artifact",
+);
 assert.match(
   workflow,
   /actions\/attest-build-provenance@[0-9a-f]{40}\b/,
@@ -76,7 +101,7 @@ assert.match(
 );
 assert.match(
   workflow,
-  /subject-path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/omena\.lock/,
+  /subject-path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/omena\.lock\s*\n\s+dist\/sif\/omena-sif-shard-batch\.json/,
 );
 assert.match(
   workflow,
@@ -85,7 +110,7 @@ assert.match(
 );
 assert.match(
   workflow,
-  /path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/omena\.lock\s*\n\s+dist\/sif\/omena\.lock\.report\.json/,
+  /path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/omena\.lock\s*\n\s+dist\/sif\/omena\.lock\.report\.json\s*\n\s+dist\/sif\/omena-sif-shard-batch\.json/,
 );
 assert.match(workflow, /if-no-files-found:\s*error/);
 
@@ -123,9 +148,12 @@ process.stdout.write(
       longLivedSecrets: false,
       generationSurface: "omena sif generate",
       lockSurface: "omena lock update",
-      attestationSubject: "dist/sif/*.sif.json + dist/sif/omena.lock",
+      attestationSubject:
+        "dist/sif/*.sif.json + dist/sif/omena.lock + dist/sif/omena-sif-shard-batch.json",
     },
     null,
     2,
   )}\n`,
 );
+
+// FALSIFIER: id=sif-t3-keyless-shard-batch-removal class=workflowMutation via=--inject-remove-shard-batch expected=RED owner=omena-sif-keyless-workflow

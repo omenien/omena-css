@@ -23,7 +23,7 @@ type CensusRow = {
 };
 
 const repoRoot = process.cwd();
-const args = new Set(process.argv.slice(2));
+const args = new Set(process.argv.slice(2).filter((arg) => arg !== "--"));
 const injectNewStoreCall = args.has("--inject-new-store-call");
 assert.deepEqual(
   [...args].filter((arg) => arg.startsWith("--") && arg !== "--inject-new-store-call"),
@@ -45,48 +45,56 @@ const rules: readonly CensusRule[] = [
     lockKnowledge: "lock-entry+default-tier; no-attestation-verdict",
   },
   {
+    id: "cli-recorded-verdict-writer",
+    role: "producer",
+    call: "write_recorded_shard_verdicts(",
+    lockKnowledge: "verified-lock-entry+canonical-sif-hash+attestation-reference",
+  },
+  {
     id: "bridge-shard-store",
     role: "producer",
     call: "store_external_sif_cache_shard(",
-    lockKnowledge: "freshness-fingerprint-only; no-lock-or-verdict",
+    lockKnowledge: "recorded-verdict-sidecar-or-local-t1; no-lock-reader",
   },
   {
     id: "bridge-shard-load",
     role: "consumer",
     call: "load_external_sif_cache_shard(",
-    lockKnowledge: "payload-digest+self-identity-only; no-recorded-verdict",
+    lockKnowledge: "payload-digest+lock-binding+recorded-verdict-sidecar",
   },
   {
     id: "query-resolved-style-shard-consumer",
     role: "consumer",
-    call: "generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(",
-    lockKnowledge: "freshness-fingerprint+partitioned-cache; no-recorded-verdict",
+    call: "generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(",
+    lockKnowledge: "validated-tier-record+partitioned-cache; no-lock-reader",
   },
   {
     id: "lsp-in-process-style-shard-consumer",
     role: "consumer",
-    call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(",
-    lockKnowledge: "lock-sif-inputs+partitioned-cache; no-verified-verdict",
+    call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(",
+    lockKnowledge: "recorded-verdict-tier+partitioned-cache; no-verifier",
   },
   {
     id: "lsp-refresh-style-shard-consumer",
     role: "consumer",
-    call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(",
-    lockKnowledge: "lock-sif-inputs+partitioned-cache; no-verified-verdict",
+    call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(",
+    lockKnowledge: "recorded-verdict-tier+partitioned-cache; no-verifier",
   },
   {
     id: "lsp-seed-pair-shard-consumer",
     role: "consumer",
-    call: "resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage(",
-    lockKnowledge: "workspace-owner+partitioned-cache; no-verified-verdict",
+    call: "resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(",
+    lockKnowledge: "recorded-verdict-tier+workspace-owner; no-verifier",
   },
 ];
 
 const expectedKeys = [
   "cli-sif-artifact-writer|rust/crates/omena-cli/src/sif.rs|generate_sif",
   "cli-lock-update-writer|rust/crates/omena-cli/src/lock.rs|lock_update",
-  "bridge-shard-store|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage",
-  "bridge-shard-load|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage",
+  "cli-recorded-verdict-writer|rust/crates/omena-cli/src/lock.rs|lock_record_verification",
+  "cli-recorded-verdict-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
+  "bridge-shard-store|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust",
+  "bridge-shard-load|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust",
   "query-resolved-style-shard-consumer|rust/crates/omena-query/src/source.rs|enqueue_alias",
   "lsp-in-process-style-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_in_process_external_sifs_for_lsp",
   "lsp-refresh-style-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_external_sifs_for_refresh_documents",
@@ -117,6 +125,11 @@ const bridgeCargo = fs.readFileSync(
   path.join(repoRoot, "rust/crates/omena-bridge/Cargo.toml"),
   "utf8",
 );
+const lspBoundarySource = fs.readFileSync(
+  path.join(repoRoot, "rust/crates/omena-lsp-server/src/boundary.rs"),
+  "utf8",
+);
+const sassCompatibilitySource = fs.readFileSync(path.join(repoRoot, "docs/sass-compat.md"), "utf8");
 assert.ok(
   !/(?:omena\.lock|lock_entry|lockfile|sigstore[_-]verify)/iu.test(bridgeProduction),
   "omena-bridge production code must consume recorded verdicts rather than lock or Sigstore authority",
@@ -124,6 +137,16 @@ assert.ok(
 assert.ok(
   !/sigstore[_-]verify/iu.test(bridgeCargo),
   "omena-bridge must not acquire a Sigstore verification dependency",
+);
+assert.ok(
+  lspBoundarySource.includes("recordedShardVerdictsConsumedWithoutLockOrNetworkAuthority"),
+  "the LSP boundary must name verdict-only shard trust consumption",
+);
+assert.ok(
+  sassCompatibilitySource.includes(
+    "Bridge and LSP\nconsumers read that local verdict sidecar; they do not treat a lockfile as\nshard-verification authority",
+  ),
+  "the Sass compatibility contract must document verdict-only shard trust consumption",
 );
 
 if (!injectNewStoreCall) {
@@ -191,6 +214,12 @@ function ruleAppliesToSite(ruleId: string, sourcePath: string, symbol: string): 
   }
   if (ruleId === "lsp-refresh-style-shard-consumer") {
     return symbol === "resolve_external_sifs_for_refresh_documents";
+  }
+  if (ruleId === "lsp-seed-pair-shard-consumer") {
+    return (
+      sourcePath === "rust/crates/omena-lsp-server/src/external_sif_loader.rs" &&
+      symbol === "resolve_bridge_external_sifs_for_sources"
+    );
   }
   return true;
 }

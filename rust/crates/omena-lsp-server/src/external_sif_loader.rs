@@ -5,14 +5,15 @@ use crate::tide::{
 };
 use crate::{LspShellState, LspTextDocumentState};
 use omena_query::{
-    OmenaQueryBridgeExternalSifResolutionV0, OmenaQueryExternalSifInputV0,
-    OmenaQueryExternalSifStorageV0, OmenaQueryStyleResolutionInputsV0,
-    OmenaQueryStyleSourceInputV0, resolve_omena_query_bridge_external_sifs_for_seed_pairs,
-    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage,
-    resolve_omena_query_bridge_external_sifs_for_style_sources,
-    resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage,
+    OmenaQueryBridgeExternalSifTrustedResolutionV1, OmenaQueryExternalSifInputV0,
+    OmenaQueryExternalSifStorageV0, OmenaQueryExternalSifTrustV1,
+    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0,
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust,
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_trust,
+    resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust,
+    resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust,
 };
-use omena_sif::{read_omena_lock_json_v1, read_omena_sif_json_v1};
+use omena_sif::{OMENA_SIF_SHARD_VERDICT_DIR_V1, read_omena_lock_json_v1, read_omena_sif_json_v1};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -51,6 +52,7 @@ pub struct LspExternalSifRefreshResultV0 {
     pub bridge_external_sif_urls: BTreeSet<String>,
     pub lock_read_count: usize,
     pub bridge_generation_count: usize,
+    pub trust_records: Vec<OmenaQueryExternalSifTrustV1>,
 }
 
 /// The SIF job's declared input footprint (rfcs#111 §4.1). DocumentText is
@@ -97,18 +99,23 @@ fn refresh_external_sifs_for_state_immediate(state: &mut LspShellState) {
     let bridge_result = resolve_in_process_external_sifs_for_lsp(state, &covered);
     state.external_sif_bridge_generation_count = state
         .external_sif_bridge_generation_count
-        .saturating_add(bridge_result.generation_count);
+        .saturating_add(bridge_result.resolution.generation_count);
     extend_unique_external_sifs(
         &mut external_sifs,
         &mut covered,
-        bridge_result.external_sifs,
+        bridge_result.resolution.external_sifs,
     );
 
-    if state.resolution.external_sifs != external_sifs {
+    let trust_records = external_sif_trust_record_map(bridge_result.trust_records);
+    if state.resolution.external_sifs != external_sifs
+        || state.resolution.external_sif_trust_records != trust_records
+    {
         state.resolution.external_sifs = external_sifs;
+        state.resolution.external_sif_trust_records = trust_records;
         invalidate_external_sif_dependents(state);
     }
-    state.resolution.bridge_external_sif_urls = bridge_result.bridge_urls.into_iter().collect();
+    state.resolution.bridge_external_sif_urls =
+        bridge_result.resolution.bridge_urls.into_iter().collect();
 }
 
 pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
@@ -200,6 +207,18 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
             .bridge_external_sif_urls
             .retain(|url| !remove_urls.contains(url.as_str()));
         changed |= before_len != state.resolution.external_sifs.len();
+        let live_canonical_urls = state
+            .resolution
+            .external_sifs
+            .iter()
+            .map(|input| input.sif.canonical_url.clone())
+            .collect::<BTreeSet<_>>();
+        let before_trust_len = state.resolution.external_sif_trust_records.len();
+        state
+            .resolution
+            .external_sif_trust_records
+            .retain(|url, _| live_canonical_urls.contains(url));
+        changed |= before_trust_len != state.resolution.external_sif_trust_records.len();
     }
 
     let mut covered = covered_external_sif_urls(state.resolution.external_sifs.as_slice());
@@ -220,16 +239,24 @@ pub(crate) fn refresh_external_sifs_for_bridge_source_delta(
         extend_unique_external_sifs(
             &mut state.resolution.external_sifs,
             &mut covered,
-            bridge_result.external_sifs,
+            bridge_result.resolution.external_sifs,
         );
         state
             .resolution
             .bridge_external_sif_urls
-            .extend(bridge_result.bridge_urls);
+            .extend(bridge_result.resolution.bridge_urls);
         changed |= before_len != state.resolution.external_sifs.len();
+        for trust_record in bridge_result.trust_records {
+            changed |= state
+                .resolution
+                .external_sif_trust_records
+                .insert(trust_record.canonical_url.clone(), trust_record.clone())
+                .as_ref()
+                != Some(&trust_record);
+        }
         state.external_sif_bridge_generation_count = state
             .external_sif_bridge_generation_count
-            .saturating_add(bridge_result.generation_count);
+            .saturating_add(bridge_result.resolution.generation_count);
     }
 
     if changed {
@@ -371,16 +398,17 @@ pub fn collect_deferred_external_sif_refresh_with_cache_storage(
     extend_unique_external_sifs(
         &mut external_sifs,
         &mut covered,
-        bridge_result.external_sifs,
+        bridge_result.resolution.external_sifs,
     );
 
     LspExternalSifRefreshResultV0 {
         stamp: job.stamp,
         generation: job.generation,
         external_sifs,
-        bridge_external_sif_urls: bridge_result.bridge_urls.into_iter().collect(),
+        bridge_external_sif_urls: bridge_result.resolution.bridge_urls.into_iter().collect(),
         lock_read_count,
-        bridge_generation_count: bridge_result.generation_count,
+        bridge_generation_count: bridge_result.resolution.generation_count,
+        trust_records: bridge_result.trust_records,
     }
 }
 
@@ -406,7 +434,9 @@ pub fn apply_deferred_external_sif_refresh_result(
     state.external_sif_bridge_generation_count = state
         .external_sif_bridge_generation_count
         .saturating_add(result.bridge_generation_count);
-    let changed = state.resolution.external_sifs != result.external_sifs;
+    let trust_records = external_sif_trust_record_map(result.trust_records);
+    let changed = state.resolution.external_sifs != result.external_sifs
+        || state.resolution.external_sif_trust_records != trust_records;
     crate::loop_trace!(
         "sif-apply gen={} changed={} sifs {}->{}",
         result.generation,
@@ -421,6 +451,7 @@ pub fn apply_deferred_external_sif_refresh_result(
         let demand =
             republish_demand_for_external_sif_delta(state, result.external_sifs.as_slice());
         state.resolution.external_sifs = result.external_sifs;
+        state.resolution.external_sif_trust_records = trust_records;
         invalidate_external_sif_dependents(state);
         // Output cutoff (rfcs#111 §4.1): only a CHANGED SIF set owes the
         // workspace republish; an Eq result blocks downstream entirely.
@@ -619,10 +650,25 @@ fn extend_unique_external_sifs(
     }
 }
 
+fn external_sif_trust_record_map(
+    records: Vec<OmenaQueryExternalSifTrustV1>,
+) -> BTreeMap<String, OmenaQueryExternalSifTrustV1> {
+    records
+        .into_iter()
+        .map(|record| (record.canonical_url.clone(), record))
+        .collect()
+}
+
+fn deduplicate_external_sif_trust_records(records: &mut Vec<OmenaQueryExternalSifTrustV1>) {
+    *records = external_sif_trust_record_map(std::mem::take(records))
+        .into_values()
+        .collect();
+}
+
 fn resolve_in_process_external_sifs_for_lsp(
     state: &LspShellState,
     existing_covered: &BTreeSet<String>,
-) -> OmenaQueryBridgeExternalSifResolutionV0 {
+) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
     let mut existing_inputs = state
         .resolution
         .external_sifs
@@ -633,7 +679,7 @@ fn resolve_in_process_external_sifs_for_lsp(
         })
         .cloned()
         .collect::<Vec<_>>();
-    let mut combined = OmenaQueryBridgeExternalSifResolutionV0::default();
+    let mut combined = OmenaQueryBridgeExternalSifTrustedResolutionV1::default();
     let mut bridge_urls = BTreeSet::new();
 
     for document in state.documents.values().map(AsRef::as_ref) {
@@ -652,30 +698,33 @@ fn resolve_in_process_external_sifs_for_lsp(
             document.uri.as_str(),
         );
         let result = if let Some(cache_storage) = cache_storage.as_ref() {
-            resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(
+            resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(
                 std::slice::from_ref(&source),
                 existing_inputs.as_slice(),
                 &resolution_inputs,
                 cache_storage,
             )
         } else {
-            resolve_omena_query_bridge_external_sifs_for_style_sources(
+            resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust(
                 std::slice::from_ref(&source),
                 existing_inputs.as_slice(),
                 &resolution_inputs,
             )
         };
-        combined.generation_count = combined
+        combined.resolution.generation_count = combined
+            .resolution
             .generation_count
-            .saturating_add(result.generation_count);
-        bridge_urls.extend(result.bridge_urls);
-        for external_sif in result.external_sifs {
+            .saturating_add(result.resolution.generation_count);
+        bridge_urls.extend(result.resolution.bridge_urls);
+        combined.trust_records.extend(result.trust_records);
+        for external_sif in result.resolution.external_sifs {
             existing_inputs.push(external_sif.clone());
-            combined.external_sifs.push(external_sif);
+            combined.resolution.external_sifs.push(external_sif);
         }
     }
 
-    combined.bridge_urls = bridge_urls.into_iter().collect();
+    combined.resolution.bridge_urls = bridge_urls.into_iter().collect();
+    deduplicate_external_sif_trust_records(&mut combined.trust_records);
     combined
 }
 
@@ -688,9 +737,9 @@ fn resolve_external_sifs_for_refresh_documents(
         OmenaQueryStyleResolutionInputsV0,
     >,
     cache_storage: Option<&LspExternalSifRefreshCacheStorageV0>,
-) -> OmenaQueryBridgeExternalSifResolutionV0 {
+) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
     let mut existing_inputs = existing_external_sifs.to_vec();
-    let mut combined = OmenaQueryBridgeExternalSifResolutionV0::default();
+    let mut combined = OmenaQueryBridgeExternalSifTrustedResolutionV1::default();
     let mut bridge_urls = BTreeSet::new();
 
     for document in documents {
@@ -715,30 +764,33 @@ fn resolve_external_sifs_for_refresh_documents(
             }
         });
         let result = if let Some(document_cache_storage) = document_cache_storage {
-            resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(
+            resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(
                 std::slice::from_ref(&source),
                 existing_inputs.as_slice(),
                 &resolution_inputs,
                 document_cache_storage,
             )
         } else {
-            resolve_omena_query_bridge_external_sifs_for_style_sources(
+            resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust(
                 std::slice::from_ref(&source),
                 existing_inputs.as_slice(),
                 &resolution_inputs,
             )
         };
-        combined.generation_count = combined
+        combined.resolution.generation_count = combined
+            .resolution
             .generation_count
-            .saturating_add(result.generation_count);
-        bridge_urls.extend(result.bridge_urls);
-        for external_sif in result.external_sifs {
+            .saturating_add(result.resolution.generation_count);
+        bridge_urls.extend(result.resolution.bridge_urls);
+        combined.trust_records.extend(result.trust_records);
+        for external_sif in result.resolution.external_sifs {
             existing_inputs.push(external_sif.clone());
-            combined.external_sifs.push(external_sif);
+            combined.resolution.external_sifs.push(external_sif);
         }
     }
 
-    combined.bridge_urls = bridge_urls.into_iter().collect();
+    combined.resolution.bridge_urls = bridge_urls.into_iter().collect();
+    deduplicate_external_sif_trust_records(&mut combined.trust_records);
     combined
 }
 
@@ -746,8 +798,8 @@ fn resolve_bridge_external_sifs_for_sources<'a>(
     state: &LspShellState,
     sources: impl Iterator<Item = &'a str>,
     existing_covered: &BTreeSet<String>,
-) -> OmenaQueryBridgeExternalSifResolutionV0 {
-    let mut combined = OmenaQueryBridgeExternalSifResolutionV0::default();
+) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
+    let mut combined = OmenaQueryBridgeExternalSifTrustedResolutionV1::default();
     let mut covered = existing_covered.clone();
     let mut bridge_urls = BTreeSet::new();
     for source in sources
@@ -756,30 +808,33 @@ fn resolve_bridge_external_sifs_for_sources<'a>(
         let owner = state.workspace_runtime_registry.resolve_owner_uri(source);
         let cache_storage = bridge_cache_storage_for_document(state, owner.as_deref(), source);
         let result = if let Some(cache_storage) = cache_storage.as_ref() {
-            resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage(
+            resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(
                 std::iter::once((source.to_string(), source.to_string())),
                 &[],
                 &OmenaQueryStyleResolutionInputsV0::default(),
                 cache_storage,
             )
         } else {
-            resolve_omena_query_bridge_external_sifs_for_seed_pairs(
+            resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_trust(
                 std::iter::once((source.to_string(), source.to_string())),
                 &[],
                 &OmenaQueryStyleResolutionInputsV0::default(),
             )
         };
-        combined.generation_count = combined
+        combined.resolution.generation_count = combined
+            .resolution
             .generation_count
-            .saturating_add(result.generation_count);
-        bridge_urls.extend(result.bridge_urls);
+            .saturating_add(result.resolution.generation_count);
+        bridge_urls.extend(result.resolution.bridge_urls);
+        combined.trust_records.extend(result.trust_records);
         extend_unique_external_sifs(
-            &mut combined.external_sifs,
+            &mut combined.resolution.external_sifs,
             &mut covered,
-            result.external_sifs,
+            result.resolution.external_sifs,
         );
     }
-    combined.bridge_urls = bridge_urls.into_iter().collect();
+    combined.resolution.bridge_urls = bridge_urls.into_iter().collect();
+    deduplicate_external_sif_trust_records(&mut combined.trust_records);
     combined
 }
 
@@ -789,6 +844,7 @@ fn collect_bridge_sif_urls_for_sources<'a>(
     existing_covered: &BTreeSet<String>,
 ) -> BTreeSet<String> {
     resolve_bridge_external_sifs_for_sources(state, sources, existing_covered)
+        .resolution
         .bridge_urls
         .into_iter()
         .collect()
@@ -809,6 +865,12 @@ fn bridge_cache_storage_for_workspace_uri(
         OmenaQueryExternalSifStorageV0::from_workspace_cache_root_and_identity(
             workspace_cache_root,
             workspace_folder_uri,
+        )
+        .with_recorded_verdict_dir(
+            workspace_root
+                .join(".cache")
+                .join("omena")
+                .join(OMENA_SIF_SHARD_VERDICT_DIR_V1),
         ),
     )
 }
@@ -833,6 +895,12 @@ pub(crate) fn bridge_cache_storage_for_document(
         OmenaQueryExternalSifStorageV0::from_workspace_cache_root_and_identity(
             workspace_cache_root,
             workspace_identity,
+        )
+        .with_recorded_verdict_dir(
+            document_root
+                .join(".cache")
+                .join("omena")
+                .join(OMENA_SIF_SHARD_VERDICT_DIR_V1),
         ),
     )
 }

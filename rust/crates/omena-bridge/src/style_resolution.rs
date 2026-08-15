@@ -17,16 +17,23 @@ use omena_resolver::{
     normalize_omena_resolver_style_module_source_for_routing,
 };
 use omena_sif::{
-    OmenaLifExportsV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, OmenaSifV1,
-    compute_omena_sif_leaf_hash_v1, generate_static_omena_lif_exports_v1,
-    generate_static_omena_sif_v1, read_omena_sif_json_v1, write_omena_canonical_json_bytes_v1,
-    write_omena_sif_json_v1,
+    OMENA_SIF_SHARD_TRUST_ENVELOPE_PRODUCT_V1, OMENA_SIF_SHARD_TRUST_ENVELOPE_SCHEMA_VERSION_V1,
+    OMENA_SIF_SHARD_VERDICT_DIR_V1, OmenaLifExportsV1, OmenaSifShardLockBindingV1,
+    OmenaSifShardRecordedVerdictV1, OmenaSifShardTrustEnvelopeV1, OmenaSifSourceSyntaxV1,
+    OmenaSifStaticGeneratorInputV1, OmenaSifTrustTierV1, OmenaSifV1,
+    compute_omena_sif_artifact_hash_v1, compute_omena_sif_leaf_hash_v1,
+    compute_omena_sif_shard_recorded_verdict_address_v1, generate_static_omena_lif_exports_v1,
+    generate_static_omena_sif_v1, read_omena_sif_json_v1,
+    read_omena_sif_shard_recorded_verdict_json_v1, read_omena_sif_shard_trust_envelope_json_v1,
+    write_omena_canonical_json_bytes_v1, write_omena_sif_json_v1,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
 
 const WORKSPACE_PACKAGE_MANIFEST_SCAN_LIMIT: usize = 1024;
-const EXTERNAL_SIF_CACHE_SCHEMA_VERSION: &str = "0";
+const EXTERNAL_SIF_CACHE_SCHEMA_VERSION: &str = "1";
+const EXTERNAL_SIF_CACHE_LEGACY_SCHEMA_VERSION: &str = "0";
+const EXTERNAL_SIF_CACHE_KEY_SCHEMA_VERSION: &str = "0";
 const EXTERNAL_SIF_CACHE_PRODUCT: &str = "omena-bridge.external-sif-cache-shard";
 const EXTERNAL_SIF_CACHE_DIR: &str = "external-sif-v0";
 const EXTERNAL_SIF_CACHE_ENV_KILL_SWITCH: &str = "OMENA_BRIDGE_EXTERNAL_SIF_CACHE";
@@ -37,7 +44,9 @@ const EXTERNAL_SIF_CACHE_MAX_SHARD_BYTES: u64 = 8 * 1024 * 1024;
 const WORKSPACE_STYLE_PATH_IDENTITY_SCAN_LIMIT: usize = 4096;
 const WORKSPACE_STYLE_PATH_IDENTITY_MAX_DEPTH: usize = 8;
 
-static EXTERNAL_SIF_MEMORY_CACHE: OnceLock<Mutex<BTreeMap<String, OmenaSifV1>>> = OnceLock::new();
+static EXTERNAL_SIF_MEMORY_CACHE: OnceLock<
+    Mutex<BTreeMap<String, OmenaBridgeExternalSifWithTrustV1>>,
+> = OnceLock::new();
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,11 +81,13 @@ pub struct OmenaBridgeExternalSifCacheContextV0 {
 pub struct OmenaBridgeExternalSifStorageV0 {
     workspace_cache_root: PathBuf,
     workspace_identity: Option<String>,
+    recorded_verdict_dir: Option<PathBuf>,
 }
 
 impl OmenaBridgeExternalSifStorageV0 {
     pub fn from_workspace_cache_root(workspace_cache_root: PathBuf) -> Self {
         Self {
+            recorded_verdict_dir: Some(workspace_cache_root.join(OMENA_SIF_SHARD_VERDICT_DIR_V1)),
             workspace_cache_root,
             workspace_identity: None,
         }
@@ -87,6 +98,7 @@ impl OmenaBridgeExternalSifStorageV0 {
         workspace_identity: impl Into<String>,
     ) -> Self {
         Self {
+            recorded_verdict_dir: Some(workspace_cache_root.join(OMENA_SIF_SHARD_VERDICT_DIR_V1)),
             workspace_cache_root,
             workspace_identity: Some(workspace_identity.into()),
         }
@@ -94,6 +106,59 @@ impl OmenaBridgeExternalSifStorageV0 {
 
     pub fn workspace_cache_root(&self) -> &Path {
         self.workspace_cache_root.as_path()
+    }
+
+    pub fn with_recorded_verdict_dir(mut self, recorded_verdict_dir: PathBuf) -> Self {
+        self.recorded_verdict_dir = Some(recorded_verdict_dir);
+        self
+    }
+
+    pub fn recorded_verdict_dir(&self) -> Option<&Path> {
+        self.recorded_verdict_dir.as_deref()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaBridgeExternalSifTrustSourceV1 {
+    RecordedVerdict,
+    UnsignedLegacy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaBridgeExternalSifWithTrustV1 {
+    pub sif: OmenaSifV1,
+    pub trust_envelope: OmenaSifShardTrustEnvelopeV1,
+    pub trust_source: OmenaBridgeExternalSifTrustSourceV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OmenaBridgeExternalSifShardRefusalV1 {
+    ShardIdentityMismatch,
+    PayloadDigestMismatch,
+    MalformedSif,
+    MissingTrustEnvelope,
+    InvalidTrustEnvelope,
+    LockBindingMismatch,
+    MissingRecordedVerdict,
+    RecordedVerdictMismatch,
+    TierAboveRecordedVerdict,
+}
+
+impl OmenaBridgeExternalSifShardRefusalV1 {
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::ShardIdentityMismatch => "shardIdentityMismatch",
+            Self::PayloadDigestMismatch => "payloadDigestMismatch",
+            Self::MalformedSif => "malformedSif",
+            Self::MissingTrustEnvelope => "missingTrustEnvelope",
+            Self::InvalidTrustEnvelope => "invalidTrustEnvelope",
+            Self::LockBindingMismatch => "lockBindingMismatch",
+            Self::MissingRecordedVerdict => "missingRecordedVerdict",
+            Self::RecordedVerdictMismatch => "recordedVerdictMismatch",
+            Self::TierAboveRecordedVerdict => "tierAboveRecordedVerdict",
+        }
     }
 }
 
@@ -271,6 +336,19 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_
     cache_context: &OmenaBridgeExternalSifCacheContextV0,
     cache_storage: Option<&OmenaBridgeExternalSifStorageV0>,
 ) -> Result<OmenaSifV1, String> {
+    generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
+        resolved_path,
+        cache_context,
+        cache_storage,
+    )
+    .map(|result| result.sif)
+}
+
+pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
+    resolved_path: &str,
+    cache_context: &OmenaBridgeExternalSifCacheContextV0,
+    cache_storage: Option<&OmenaBridgeExternalSifStorageV0>,
+) -> Result<OmenaBridgeExternalSifWithTrustV1, String> {
     let raw_path = raw_resolved_style_entry_path(resolved_path)
         .ok_or_else(|| format!("unresolvable style module entry path: {resolved_path}"))?;
     let path = normalize_path(raw_path.clone());
@@ -304,22 +382,30 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_
             crate::cache_root::external_sif_workspace_root(raw_path.as_path())
                 .map(|root| root.to_string_lossy().into_owned())
         });
+    let recorded_verdict_dir =
+        external_sif_recorded_verdict_dir_for_path(raw_path.as_path(), cache_storage);
     let memory_cache_key = external_sif_memory_cache_key(cache_key.as_str(), cache_dir.as_deref());
     if cache_enabled {
-        if let Some(sif) = load_external_sif_from_memory_cache(memory_cache_key.as_str()) {
-            return Ok(sif);
+        if let Some(result) = load_external_sif_from_memory_cache(memory_cache_key.as_str()) {
+            let result = external_sif_result_with_recorded_verdict(
+                result.sif,
+                recorded_verdict_dir.as_deref(),
+            )?;
+            store_external_sif_in_memory_cache(memory_cache_key.clone(), result.clone());
+            return Ok(result);
         }
         if let Some(cache_dir) = cache_dir.as_deref()
-            && let Some(sif) = load_external_sif_cache_shard(
+            && let Some(result) = load_external_sif_cache_shard(
                 cache_dir,
                 cache_key.as_str(),
                 canonical_url.as_str(),
                 source_hash.as_str(),
                 resolved_base_dir.as_str(),
+                recorded_verdict_dir.as_deref(),
             )
         {
-            store_external_sif_in_memory_cache(memory_cache_key.clone(), sif.clone());
-            return Ok(sif);
+            store_external_sif_in_memory_cache(memory_cache_key.clone(), result.clone());
+            return Ok(result);
         }
     }
     let source = String::from_utf8(source_bytes).map_err(|error| {
@@ -335,8 +421,9 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_
         syntax,
     })
     .map_err(|error| format!("failed to generate SIF for {canonical_url}: {error}"))?;
+    let result = external_sif_result_with_recorded_verdict(sif, recorded_verdict_dir.as_deref())?;
     if cache_enabled {
-        store_external_sif_in_memory_cache(memory_cache_key, sif.clone());
+        store_external_sif_in_memory_cache(memory_cache_key, result.clone());
         if let Some(cache_dir) = cache_dir.as_deref() {
             store_external_sif_cache_shard(
                 cache_dir,
@@ -344,12 +431,12 @@ pub fn generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_
                 canonical_url.as_str(),
                 source_hash.as_str(),
                 resolved_base_dir.as_str(),
-                &sif,
+                &result,
                 cache_workspace_identity.as_deref(),
             );
         }
     }
-    Ok(sif)
+    Ok(result)
 }
 
 fn raw_resolved_style_entry_path(resolved_path: &str) -> Option<PathBuf> {
@@ -386,7 +473,7 @@ fn external_sif_cache_key_with_crate_version(
     crate_version: &str,
 ) -> String {
     let input = json!({
-        "schemaVersion": EXTERNAL_SIF_CACHE_SCHEMA_VERSION,
+        "schemaVersion": EXTERNAL_SIF_CACHE_KEY_SCHEMA_VERSION,
         "product": "omena-bridge.external-sif-cache-key",
         "crateVersion": crate_version,
         "sourceHash": source_hash,
@@ -413,7 +500,7 @@ fn external_sif_cache_key_with_crate_version(
         })
 }
 
-fn load_external_sif_from_memory_cache(key: &str) -> Option<OmenaSifV1> {
+fn load_external_sif_from_memory_cache(key: &str) -> Option<OmenaBridgeExternalSifWithTrustV1> {
     EXTERNAL_SIF_MEMORY_CACHE
         .get_or_init(|| Mutex::new(BTreeMap::new()))
         .lock()
@@ -422,14 +509,14 @@ fn load_external_sif_from_memory_cache(key: &str) -> Option<OmenaSifV1> {
         .cloned()
 }
 
-fn store_external_sif_in_memory_cache(key: String, sif: OmenaSifV1) {
+fn store_external_sif_in_memory_cache(key: String, result: OmenaBridgeExternalSifWithTrustV1) {
     let Ok(mut cache) = EXTERNAL_SIF_MEMORY_CACHE
         .get_or_init(|| Mutex::new(BTreeMap::new()))
         .lock()
     else {
         return;
     };
-    cache.insert(key, sif);
+    cache.insert(key, result);
     while cache.len() > EXTERNAL_SIF_CACHE_MAX_MEMORY_ENTRIES {
         let Some(first_key) = cache.keys().next().cloned() else {
             break;
@@ -460,6 +547,20 @@ fn external_sif_cache_dir_for_path(
         .map(|root| root.join(EXTERNAL_SIF_CACHE_DIR))
 }
 
+fn external_sif_recorded_verdict_dir_for_path(
+    path: &Path,
+    cache_storage: Option<&OmenaBridgeExternalSifStorageV0>,
+) -> Option<PathBuf> {
+    if let Some(dir) = cache_storage.and_then(|storage| storage.recorded_verdict_dir()) {
+        return Some(dir.to_path_buf());
+    }
+    crate::cache_root::external_sif_workspace_root(path).map(|root| {
+        root.join(".cache")
+            .join("omena")
+            .join(OMENA_SIF_SHARD_VERDICT_DIR_V1)
+    })
+}
+
 fn external_sif_cache_shard_file_path(dir: &Path, key: &str) -> Option<PathBuf> {
     let hex = key.strip_prefix("blake3:")?;
     if hex.is_empty() || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
@@ -474,7 +575,8 @@ fn load_external_sif_cache_shard(
     canonical_url: &str,
     source_hash: &str,
     resolved_base_dir: &str,
-) -> Option<OmenaSifV1> {
+    recorded_verdict_dir: Option<&Path>,
+) -> Option<OmenaBridgeExternalSifWithTrustV1> {
     let shard_path = external_sif_cache_shard_file_path(dir, key)?;
     let metadata = fs::metadata(shard_path.as_path()).ok()?;
     if !metadata.is_file() || metadata.len() > EXTERNAL_SIF_CACHE_MAX_SHARD_BYTES {
@@ -483,35 +585,95 @@ fn load_external_sif_cache_shard(
     }
     let bytes = fs::read(shard_path.as_path()).ok()?;
     let shard = serde_json::from_slice::<Value>(bytes.as_slice()).ok()?;
-    if !external_sif_cache_shard_matches(&shard, key, canonical_url, source_hash, resolved_base_dir)
-    {
-        let _ = fs::remove_file(shard_path.as_path());
-        return None;
+    match validate_external_sif_cache_shard(
+        &shard,
+        key,
+        canonical_url,
+        source_hash,
+        resolved_base_dir,
+        recorded_verdict_dir,
+    ) {
+        Ok(result) => Some(result),
+        Err(_) => {
+            let _ = fs::remove_file(shard_path.as_path());
+            None
+        }
     }
-    let sif_json = shard.get("sifJson")?.as_str()?;
-    read_omena_sif_json_v1(sif_json).ok()
 }
 
-fn external_sif_cache_shard_matches(
+fn validate_external_sif_cache_shard(
     shard: &Value,
     key: &str,
     canonical_url: &str,
     source_hash: &str,
     resolved_base_dir: &str,
-) -> bool {
-    shard.get("schemaVersion").and_then(Value::as_str) == Some(EXTERNAL_SIF_CACHE_SCHEMA_VERSION)
-        && shard.get("product").and_then(Value::as_str) == Some(EXTERNAL_SIF_CACHE_PRODUCT)
-        && shard.get("key").and_then(Value::as_str) == Some(key)
-        && shard.get("canonicalUrl").and_then(Value::as_str) == Some(canonical_url)
-        && shard.get("sourceHash").and_then(Value::as_str) == Some(source_hash)
-        && shard.get("resolvedBaseDir").and_then(Value::as_str) == Some(resolved_base_dir)
-        && shard.get("payloadDigest").and_then(Value::as_str)
-            == shard
-                .get("sifJson")
-                .and_then(Value::as_str)
-                .map(|sif_json| compute_omena_sif_leaf_hash_v1(sif_json.as_bytes()))
-                .as_ref()
-                .map(|digest| digest.as_str())
+    recorded_verdict_dir: Option<&Path>,
+) -> Result<OmenaBridgeExternalSifWithTrustV1, OmenaBridgeExternalSifShardRefusalV1> {
+    let schema_version = shard.get("schemaVersion").and_then(Value::as_str);
+    if !matches!(
+        schema_version,
+        Some(EXTERNAL_SIF_CACHE_SCHEMA_VERSION | EXTERNAL_SIF_CACHE_LEGACY_SCHEMA_VERSION)
+    ) || shard.get("product").and_then(Value::as_str) != Some(EXTERNAL_SIF_CACHE_PRODUCT)
+        || shard.get("key").and_then(Value::as_str) != Some(key)
+        || shard.get("canonicalUrl").and_then(Value::as_str) != Some(canonical_url)
+        || shard.get("sourceHash").and_then(Value::as_str) != Some(source_hash)
+        || shard.get("resolvedBaseDir").and_then(Value::as_str) != Some(resolved_base_dir)
+    {
+        return Err(OmenaBridgeExternalSifShardRefusalV1::ShardIdentityMismatch);
+    }
+    let sif_json = shard
+        .get("sifJson")
+        .and_then(Value::as_str)
+        .ok_or(OmenaBridgeExternalSifShardRefusalV1::MalformedSif)?;
+    let payload_digest = compute_omena_sif_leaf_hash_v1(sif_json.as_bytes());
+    if shard.get("payloadDigest").and_then(Value::as_str) != Some(payload_digest.as_str()) {
+        return Err(OmenaBridgeExternalSifShardRefusalV1::PayloadDigestMismatch);
+    }
+    let sif = read_omena_sif_json_v1(sif_json)
+        .map_err(|_| OmenaBridgeExternalSifShardRefusalV1::MalformedSif)?;
+    let sif_hash = compute_omena_sif_artifact_hash_v1(&sif)
+        .map_err(|_| OmenaBridgeExternalSifShardRefusalV1::MalformedSif)?;
+    if schema_version == Some(EXTERNAL_SIF_CACHE_LEGACY_SCHEMA_VERSION) {
+        return Ok(unsigned_external_sif_result(sif, payload_digest, sif_hash));
+    }
+    let envelope_value = shard
+        .get("trustEnvelope")
+        .ok_or(OmenaBridgeExternalSifShardRefusalV1::MissingTrustEnvelope)?;
+    let envelope_source = serde_json::to_string(envelope_value)
+        .map_err(|_| OmenaBridgeExternalSifShardRefusalV1::InvalidTrustEnvelope)?;
+    let envelope = read_omena_sif_shard_trust_envelope_json_v1(envelope_source.as_str())
+        .map_err(|_| OmenaBridgeExternalSifShardRefusalV1::InvalidTrustEnvelope)?;
+    if envelope.payload_digest != payload_digest {
+        return Err(OmenaBridgeExternalSifShardRefusalV1::PayloadDigestMismatch);
+    }
+    if envelope.lock_binding.canonical_url != canonical_url
+        || envelope.lock_binding.sif_hash != sif_hash
+    {
+        return Err(OmenaBridgeExternalSifShardRefusalV1::LockBindingMismatch);
+    }
+    if envelope.trust_tier < OmenaSifTrustTierV1::T2 {
+        return Ok(OmenaBridgeExternalSifWithTrustV1 {
+            sif,
+            trust_envelope: envelope,
+            trust_source: OmenaBridgeExternalSifTrustSourceV1::UnsignedLegacy,
+        });
+    }
+    let verdict = load_recorded_shard_verdict(recorded_verdict_dir, canonical_url, &sif_hash)
+        .ok_or(OmenaBridgeExternalSifShardRefusalV1::MissingRecordedVerdict)?;
+    if envelope.trust_tier > verdict.trust_tier {
+        return Err(OmenaBridgeExternalSifShardRefusalV1::TierAboveRecordedVerdict);
+    }
+    if envelope.lock_binding.canonical_url != verdict.canonical_url
+        || envelope.lock_binding.sif_hash != verdict.sif_hash
+        || envelope.signature.as_ref() != Some(&verdict.signature)
+    {
+        return Err(OmenaBridgeExternalSifShardRefusalV1::RecordedVerdictMismatch);
+    }
+    Ok(OmenaBridgeExternalSifWithTrustV1 {
+        sif,
+        trust_envelope: envelope,
+        trust_source: OmenaBridgeExternalSifTrustSourceV1::RecordedVerdict,
+    })
 }
 
 fn store_external_sif_cache_shard(
@@ -520,10 +682,10 @@ fn store_external_sif_cache_shard(
     canonical_url: &str,
     source_hash: &str,
     resolved_base_dir: &str,
-    sif: &OmenaSifV1,
+    result: &OmenaBridgeExternalSifWithTrustV1,
     workspace_identity: Option<&str>,
 ) {
-    let Ok(sif_json) = write_omena_sif_json_v1(sif) else {
+    let Ok(sif_json) = write_omena_sif_json_v1(&result.sif) else {
         return;
     };
     let payload_digest = compute_omena_sif_leaf_hash_v1(sif_json.as_bytes())
@@ -537,6 +699,7 @@ fn store_external_sif_cache_shard(
         "sourceHash": source_hash,
         "resolvedBaseDir": resolved_base_dir,
         "payloadDigest": payload_digest,
+        "trustEnvelope": result.trust_envelope,
         "sifJson": sif_json,
     });
     let Ok(bytes) = write_omena_canonical_json_bytes_v1(&shard) else {
@@ -551,6 +714,90 @@ fn store_external_sif_cache_shard(
         }
         enforce_external_sif_cache_caps(dir);
     }
+}
+
+fn external_sif_result_with_recorded_verdict(
+    sif: OmenaSifV1,
+    recorded_verdict_dir: Option<&Path>,
+) -> Result<OmenaBridgeExternalSifWithTrustV1, String> {
+    let sif_json = write_omena_sif_json_v1(&sif)
+        .map_err(|error| format!("failed to serialize generated SIF trust payload: {error}"))?;
+    let payload_digest = compute_omena_sif_leaf_hash_v1(sif_json.as_bytes());
+    let sif_hash = compute_omena_sif_artifact_hash_v1(&sif)
+        .map_err(|error| format!("failed to hash generated SIF trust payload: {error}"))?;
+    let verdict =
+        load_recorded_shard_verdict(recorded_verdict_dir, sif.canonical_url.as_str(), &sif_hash);
+    let (trust_tier, signature, trust_source) = match verdict {
+        Some(verdict) => (
+            verdict.trust_tier,
+            Some(verdict.signature),
+            OmenaBridgeExternalSifTrustSourceV1::RecordedVerdict,
+        ),
+        None => (
+            OmenaSifTrustTierV1::T1,
+            None,
+            OmenaBridgeExternalSifTrustSourceV1::UnsignedLegacy,
+        ),
+    };
+    let trust_envelope = OmenaSifShardTrustEnvelopeV1 {
+        schema_version: OMENA_SIF_SHARD_TRUST_ENVELOPE_SCHEMA_VERSION_V1.to_string(),
+        product: OMENA_SIF_SHARD_TRUST_ENVELOPE_PRODUCT_V1.to_string(),
+        trust_tier,
+        payload_digest,
+        signature,
+        lock_binding: OmenaSifShardLockBindingV1 {
+            canonical_url: sif.canonical_url.clone(),
+            sif_hash,
+        },
+    };
+    omena_sif::validate_omena_sif_shard_trust_envelope_v1(&trust_envelope)
+        .map_err(|error| format!("generated SIF trust envelope is invalid: {error}"))?;
+    Ok(OmenaBridgeExternalSifWithTrustV1 {
+        sif,
+        trust_envelope,
+        trust_source,
+    })
+}
+
+fn unsigned_external_sif_result(
+    sif: OmenaSifV1,
+    payload_digest: omena_sif::OmenaSifDigestV1,
+    sif_hash: omena_sif::OmenaSifDigestV1,
+) -> OmenaBridgeExternalSifWithTrustV1 {
+    OmenaBridgeExternalSifWithTrustV1 {
+        trust_envelope: OmenaSifShardTrustEnvelopeV1 {
+            schema_version: OMENA_SIF_SHARD_TRUST_ENVELOPE_SCHEMA_VERSION_V1.to_string(),
+            product: OMENA_SIF_SHARD_TRUST_ENVELOPE_PRODUCT_V1.to_string(),
+            trust_tier: OmenaSifTrustTierV1::T1,
+            payload_digest,
+            signature: None,
+            lock_binding: OmenaSifShardLockBindingV1 {
+                canonical_url: sif.canonical_url.clone(),
+                sif_hash,
+            },
+        },
+        sif,
+        trust_source: OmenaBridgeExternalSifTrustSourceV1::UnsignedLegacy,
+    }
+}
+
+fn load_recorded_shard_verdict(
+    recorded_verdict_dir: Option<&Path>,
+    canonical_url: &str,
+    sif_hash: &omena_sif::OmenaSifDigestV1,
+) -> Option<OmenaSifShardRecordedVerdictV1> {
+    let verdict_dir = recorded_verdict_dir?;
+    let address =
+        compute_omena_sif_shard_recorded_verdict_address_v1(canonical_url, sif_hash).ok()?;
+    let hex = address.as_str().strip_prefix("blake3:")?;
+    let verdict_path = verdict_dir.join(format!("{hex}.json"));
+    let metadata = fs::metadata(verdict_path.as_path()).ok()?;
+    if !metadata.is_file() || metadata.len() > 1024 * 1024 {
+        return None;
+    }
+    let source = fs::read_to_string(verdict_path.as_path()).ok()?;
+    let verdict = read_omena_sif_shard_recorded_verdict_json_v1(source.as_str()).ok()?;
+    (verdict.canonical_url == canonical_url && verdict.sif_hash == *sif_hash).then_some(verdict)
 }
 
 fn write_external_sif_cache_shard_atomically(
@@ -1621,7 +1868,8 @@ mod tests {
                 &cache_context,
                 Some(&storage_a),
             )?;
-        assert_eq!(poisoned_a, poisoned_sif);
+        assert_eq!(poisoned_a, sif_a);
+        assert_ne!(poisoned_a, poisoned_sif);
         let isolated_b =
             generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
                 style.to_string_lossy().as_ref(),
@@ -1629,7 +1877,8 @@ mod tests {
                 Some(&storage_b),
             )?;
         assert_eq!(isolated_b, sif_b);
-        assert_ne!(isolated_b, poisoned_a);
+        assert_eq!(isolated_b, poisoned_a);
+        assert_ne!(isolated_b, poisoned_sif);
         assert_eq!(shard_files(cache_dir_a.as_path()).len(), 1);
         assert_eq!(shard_files(cache_dir_b.as_path()).len(), 1);
         eprintln!(
@@ -1642,6 +1891,208 @@ mod tests {
             cache_dir_b.display(),
         );
 
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn recorded_verdict_refuses_recomputed_payload_binding_and_over_tier()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_recorded_shard_verdict")?;
+        fs::write(root.join("package.json"), r#"{"name":"workspace"}"#)?;
+        let style = root.join("tokens.scss");
+        fs::write(style.as_path(), "$brand: #0af;\n")?;
+        let resolved = path_to_file_uri(style.as_path());
+        let storage = fixture_cache_storage(style.as_path());
+        let cache_context = OmenaBridgeExternalSifCacheContextV0::default();
+
+        clear_external_sif_memory_cache_for_test();
+        let unsigned =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                resolved.as_str(),
+                &cache_context,
+                Some(&storage),
+            )?;
+        let cache_dir = external_sif_cache_dir_for_path(style.as_path(), Some(&storage))
+            .ok_or_else(|| std::io::Error::other("cache dir"))?;
+        fs::remove_dir_all(cache_dir.as_path())?;
+        write_fixture_recorded_shard_verdict(&storage, &unsigned, OmenaSifTrustTierV1::T2)?;
+        let verdict_dir = storage
+            .recorded_verdict_dir()
+            .ok_or_else(|| std::io::Error::other("verdict dir"))?;
+
+        let upgraded_memory_hit =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
+                resolved.as_str(),
+                &cache_context,
+                Some(&storage),
+            )?;
+        assert_eq!(
+            upgraded_memory_hit.trust_envelope.trust_tier,
+            OmenaSifTrustTierV1::T2
+        );
+        let held_verdict_dir = root.join("held-sif-verdicts-v1");
+        fs::rename(verdict_dir, held_verdict_dir.as_path())?;
+        let downgraded_memory_hit =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
+                resolved.as_str(),
+                &cache_context,
+                Some(&storage),
+            )?;
+        assert_eq!(
+            downgraded_memory_hit.trust_envelope.trust_tier,
+            OmenaSifTrustTierV1::T1
+        );
+        fs::rename(held_verdict_dir.as_path(), verdict_dir)?;
+        clear_external_sif_memory_cache_for_test();
+
+        let trusted =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
+                resolved.as_str(),
+                &cache_context,
+                Some(&storage),
+            )?;
+        assert_eq!(trusted.sif, unsigned);
+        assert_eq!(trusted.trust_envelope.trust_tier, OmenaSifTrustTierV1::T2);
+        assert_eq!(
+            trusted.trust_source,
+            OmenaBridgeExternalSifTrustSourceV1::RecordedVerdict
+        );
+
+        let shard_path = only_fixture_cache_shard_path(cache_dir.as_path())?;
+        let original_shard = serde_json::from_slice::<Value>(&fs::read(shard_path.as_path())?)?;
+        let key = original_shard
+            .get("key")
+            .and_then(Value::as_str)
+            .ok_or_else(|| std::io::Error::other("shard key"))?;
+        let source_hash = original_shard
+            .get("sourceHash")
+            .and_then(Value::as_str)
+            .ok_or_else(|| std::io::Error::other("shard source hash"))?;
+        let resolved_base_dir = original_shard
+            .get("resolvedBaseDir")
+            .and_then(Value::as_str)
+            .ok_or_else(|| std::io::Error::other("shard resolved base"))?;
+        let mut poisoned = original_shard.clone();
+        let mut poisoned_sif = trusted.sif.clone();
+        poisoned_sif.exports.variables.clear();
+        let poisoned_sif_json = write_omena_sif_json_v1(&poisoned_sif)?;
+        let poisoned_digest = compute_omena_sif_leaf_hash_v1(poisoned_sif_json.as_bytes());
+        poisoned["sifJson"] = Value::String(poisoned_sif_json);
+        poisoned["payloadDigest"] = Value::String(poisoned_digest.as_str().to_string());
+        poisoned["trustEnvelope"]["payloadDigest"] =
+            Value::String(poisoned_digest.as_str().to_string());
+        poisoned["trustEnvelope"]["signature"]["signedPayloadDigest"] =
+            Value::String(poisoned_digest.as_str().to_string());
+        poisoned["trustEnvelope"]["lockBinding"]["sifHash"] =
+            Value::String(poisoned_digest.as_str().to_string());
+        assert_eq!(
+            validate_external_sif_cache_shard(
+                &poisoned,
+                key,
+                resolved.as_str(),
+                source_hash,
+                resolved_base_dir,
+                Some(verdict_dir),
+            ),
+            Err(OmenaBridgeExternalSifShardRefusalV1::MissingRecordedVerdict)
+        );
+
+        let mut rebound = original_shard.clone();
+        rebound["trustEnvelope"]["lockBinding"]["canonicalUrl"] =
+            Value::String("pkg:other/_tokens.scss".to_string());
+        assert_eq!(
+            validate_external_sif_cache_shard(
+                &rebound,
+                key,
+                resolved.as_str(),
+                source_hash,
+                resolved_base_dir,
+                Some(verdict_dir),
+            ),
+            Err(OmenaBridgeExternalSifShardRefusalV1::LockBindingMismatch)
+        );
+
+        let mut over_tier = original_shard.clone();
+        over_tier["trustEnvelope"]["trustTier"] = Value::String("t3".to_string());
+        assert_eq!(
+            validate_external_sif_cache_shard(
+                &over_tier,
+                key,
+                resolved.as_str(),
+                source_hash,
+                resolved_base_dir,
+                Some(verdict_dir),
+            ),
+            Err(OmenaBridgeExternalSifShardRefusalV1::TierAboveRecordedVerdict)
+        );
+
+        fs::write(
+            shard_path.as_path(),
+            write_omena_canonical_json_bytes_v1(&poisoned)?,
+        )?;
+        clear_external_sif_memory_cache_for_test();
+        let regenerated =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
+                resolved.as_str(),
+                &cache_context,
+                Some(&storage),
+            )?;
+        assert_eq!(regenerated.sif, unsigned);
+        assert_eq!(
+            regenerated.trust_envelope.trust_tier,
+            OmenaSifTrustTierV1::T2
+        );
+        assert_ne!(regenerated.sif, poisoned_sif);
+
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn same_version_legacy_shard_without_trust_fields_remains_workspace_local()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_legacy_shard")?;
+        fs::write(root.join("package.json"), r#"{"name":"workspace"}"#)?;
+        let style = root.join("tokens.scss");
+        fs::write(style.as_path(), "$brand: #0af;\n")?;
+        let resolved = path_to_file_uri(style.as_path());
+        let storage = fixture_cache_storage(style.as_path());
+        let cache_context = OmenaBridgeExternalSifCacheContextV0::default();
+        clear_external_sif_memory_cache_for_test();
+        let fresh =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
+                resolved.as_str(),
+                &cache_context,
+                Some(&storage),
+            )?;
+        let cache_dir = external_sif_cache_dir_for_path(style.as_path(), Some(&storage))
+            .ok_or_else(|| std::io::Error::other("cache dir"))?;
+        let shard_path = only_fixture_cache_shard_path(cache_dir.as_path())?;
+        let mut legacy = serde_json::from_slice::<Value>(&fs::read(shard_path.as_path())?)?;
+        legacy["schemaVersion"] =
+            Value::String(EXTERNAL_SIF_CACHE_LEGACY_SCHEMA_VERSION.to_string());
+        legacy
+            .as_object_mut()
+            .ok_or_else(|| std::io::Error::other("legacy shard object"))?
+            .remove("trustEnvelope");
+        fs::write(
+            shard_path.as_path(),
+            write_omena_canonical_json_bytes_v1(&legacy)?,
+        )?;
+        clear_external_sif_memory_cache_for_test();
+        let loaded =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
+                resolved.as_str(),
+                &cache_context,
+                Some(&storage),
+            )?;
+        assert_eq!(loaded.sif, fresh.sif);
+        assert_eq!(loaded.trust_envelope.trust_tier, OmenaSifTrustTierV1::T1);
+        assert_eq!(
+            loaded.trust_source,
+            OmenaBridgeExternalSifTrustSourceV1::UnsignedLegacy
+        );
         let _ = fs::remove_dir_all(root);
         Ok(())
     }
@@ -2236,6 +2687,67 @@ mod tests {
                 .join(".cache")
                 .join("omena"),
         )
+    }
+
+    fn only_fixture_cache_shard_path(
+        cache_dir: &Path,
+    ) -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let mut shards = fs::read_dir(cache_dir)?
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "json")
+            })
+            .collect::<Vec<_>>();
+        shards.sort();
+        if shards.len() != 1 {
+            return Err(std::io::Error::other(format!(
+                "expected one fixture cache shard, found {}",
+                shards.len()
+            ))
+            .into());
+        }
+        Ok(shards.remove(0))
+    }
+
+    fn write_fixture_recorded_shard_verdict(
+        storage: &OmenaBridgeExternalSifStorageV0,
+        sif: &OmenaSifV1,
+        trust_tier: OmenaSifTrustTierV1,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let sif_hash = compute_omena_sif_artifact_hash_v1(sif)?;
+        let verdict = OmenaSifShardRecordedVerdictV1 {
+            schema_version: omena_sif::OMENA_SIF_SHARD_RECORDED_VERDICT_SCHEMA_VERSION_V1
+                .to_string(),
+            product: omena_sif::OMENA_SIF_SHARD_RECORDED_VERDICT_PRODUCT_V1.to_string(),
+            verification_owner: omena_sif::OMENA_SIF_SHARD_VERIFICATION_OWNER_V1.to_string(),
+            canonical_url: sif.canonical_url.clone(),
+            sif_hash: sif_hash.clone(),
+            trust_tier,
+            signature: omena_sif::OmenaSifShardSignatureV1 {
+                algorithm_version: omena_sif::OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1
+                    .to_string(),
+                reference: "fixture:keyless-attestation".to_string(),
+                signed_payload_digest: sif_hash.clone(),
+            },
+        };
+        omena_sif::validate_omena_sif_shard_recorded_verdict_v1(&verdict)?;
+        let verdict_dir = storage
+            .recorded_verdict_dir()
+            .ok_or_else(|| std::io::Error::other("verdict dir"))?;
+        fs::create_dir_all(verdict_dir)?;
+        let address = compute_omena_sif_shard_recorded_verdict_address_v1(
+            sif.canonical_url.as_str(),
+            &sif_hash,
+        )?;
+        let hex = address
+            .as_str()
+            .strip_prefix("blake3:")
+            .ok_or_else(|| std::io::Error::other("verdict address"))?;
+        let source = omena_sif::write_omena_sif_shard_recorded_verdict_json_v1(&verdict)?;
+        fs::write(verdict_dir.join(format!("{hex}.json")), source)?;
+        Ok(())
     }
 
     fn generate_fixture_sif_for_resolved_style_path(

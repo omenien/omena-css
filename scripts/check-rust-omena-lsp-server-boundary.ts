@@ -165,6 +165,7 @@ for (const requiredTrustPolicy of [
   "analysisTimeUsesLocalWorkspaceOnly",
   "lockAndSifEvidenceReadFromDisk",
   "attestationVerificationOwnedByCli",
+  "recordedShardVerdictsConsumedWithoutLockOrNetworkAuthority",
   "noRegistryFetchOnLspRequestPath",
   "noTransparencyLogLookupOnLspRequestPath",
   "cacheWritesConfinedToDeclaredOwnedRootsNeverNetwork",

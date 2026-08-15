@@ -148,11 +148,46 @@ pub struct OmenaQueryBridgeExternalSifResolutionV0 {
     pub generation_count: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaQueryExternalSifTrustSourceV1 {
+    RecordedVerdict,
+    UnsignedLegacy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryExternalSifTrustV1 {
+    pub canonical_url: String,
+    pub trust_tier: omena_sif::OmenaSifTrustTierV1,
+    pub trust_source: OmenaQueryExternalSifTrustSourceV1,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryBridgeExternalSifTrustedResolutionV1 {
+    pub resolution: OmenaQueryBridgeExternalSifResolutionV0,
+    pub trust_records: Vec<OmenaQueryExternalSifTrustV1>,
+}
+
 pub fn resolve_omena_query_bridge_external_sifs_for_style_sources(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust(
+        style_sources,
+        existing_external_sifs,
+        resolution_inputs,
+    )
+    .resolution
+}
+
+pub fn resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
     resolve_omena_query_bridge_external_sifs_for_style_sources_with_optional_cache_storage(
         style_sources,
         existing_external_sifs,
@@ -167,6 +202,21 @@ pub fn resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_sto
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     cache_storage: &omena_bridge::OmenaBridgeExternalSifStorageV0,
 ) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(
+        style_sources,
+        existing_external_sifs,
+        resolution_inputs,
+        cache_storage,
+    )
+    .resolution
+}
+
+pub fn resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    cache_storage: &omena_bridge::OmenaBridgeExternalSifStorageV0,
+) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
     resolve_omena_query_bridge_external_sifs_for_style_sources_with_optional_cache_storage(
         style_sources,
         existing_external_sifs,
@@ -180,7 +230,7 @@ fn resolve_omena_query_bridge_external_sifs_for_style_sources_with_optional_cach
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     cache_storage: Option<&omena_bridge::OmenaBridgeExternalSifStorageV0>,
-) -> OmenaQueryBridgeExternalSifResolutionV0 {
+) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
     let seeds = style_sources
         .iter()
         .flat_map(|source| bridge_external_sif_seeds_for_style_source(source, resolution_inputs))
@@ -198,6 +248,19 @@ pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs(
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_trust(
+        seeds,
+        existing_external_sifs,
+        resolution_inputs,
+    )
+    .resolution
+}
+
+pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_trust(
+    seeds: impl Iterator<Item = (String, String)>,
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
     resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_storage(
         seeds,
         existing_external_sifs,
@@ -212,6 +275,21 @@ pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storag
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     cache_storage: &omena_bridge::OmenaBridgeExternalSifStorageV0,
 ) -> OmenaQueryBridgeExternalSifResolutionV0 {
+    resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(
+        seeds,
+        existing_external_sifs,
+        resolution_inputs,
+        cache_storage,
+    )
+    .resolution
+}
+
+pub fn resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(
+    seeds: impl Iterator<Item = (String, String)>,
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
+    cache_storage: &omena_bridge::OmenaBridgeExternalSifStorageV0,
+) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
     resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_storage(
         seeds,
         existing_external_sifs,
@@ -225,7 +303,7 @@ fn resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_optional_cache_s
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     cache_storage: Option<&omena_bridge::OmenaBridgeExternalSifStorageV0>,
-) -> OmenaQueryBridgeExternalSifResolutionV0 {
+) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
     let mut state = BridgeExternalSifResolutionState::new(
         existing_external_sifs,
         resolution_inputs,
@@ -273,6 +351,7 @@ struct BridgeExternalSifResolutionState<'a> {
     generated_by_resolved_url: BTreeMap<String, omena_sif::OmenaSifV1>,
     bridge_urls: BTreeSet<String>,
     external_sifs: Vec<OmenaQueryExternalSifInputV0>,
+    trust_records: BTreeMap<String, OmenaQueryExternalSifTrustV1>,
     worklist: VecDeque<omena_sif::OmenaSifV1>,
     generation_count: usize,
 }
@@ -296,16 +375,20 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
                 .collect(),
             bridge_urls: BTreeSet::new(),
             external_sifs: Vec::new(),
+            trust_records: BTreeMap::new(),
             worklist: VecDeque::new(),
             generation_count: 0,
         }
     }
 
-    fn into_resolution(self) -> OmenaQueryBridgeExternalSifResolutionV0 {
-        OmenaQueryBridgeExternalSifResolutionV0 {
-            external_sifs: self.external_sifs,
-            bridge_urls: self.bridge_urls.into_iter().collect(),
-            generation_count: self.generation_count,
+    fn into_resolution(self) -> OmenaQueryBridgeExternalSifTrustedResolutionV1 {
+        OmenaQueryBridgeExternalSifTrustedResolutionV1 {
+            resolution: OmenaQueryBridgeExternalSifResolutionV0 {
+                external_sifs: self.external_sifs,
+                bridge_urls: self.bridge_urls.into_iter().collect(),
+                generation_count: self.generation_count,
+            },
+            trust_records: self.trust_records.into_values().collect(),
         }
     }
 
@@ -334,8 +417,8 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
                 .external_sif_cache_fingerprint
                 .clone(),
         };
-        let Ok(sif) =
-            omena_bridge::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+        let Ok(result) =
+            omena_bridge::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
                 resolved_url.as_str(),
                 &cache_context,
                 self.cache_storage,
@@ -343,6 +426,23 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
         else {
             return;
         };
+        let sif = result.sif;
+        let trust_source = match result.trust_source {
+            omena_bridge::OmenaBridgeExternalSifTrustSourceV1::RecordedVerdict => {
+                OmenaQueryExternalSifTrustSourceV1::RecordedVerdict
+            }
+            omena_bridge::OmenaBridgeExternalSifTrustSourceV1::UnsignedLegacy => {
+                OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
+            }
+        };
+        self.trust_records.insert(
+            sif.canonical_url.clone(),
+            OmenaQueryExternalSifTrustV1 {
+                canonical_url: sif.canonical_url.clone(),
+                trust_tier: result.trust_envelope.trust_tier,
+                trust_source,
+            },
+        );
         self.generation_count = self.generation_count.saturating_add(1);
         self.generated_by_resolved_url
             .insert(sif.canonical_url.clone(), sif.clone());

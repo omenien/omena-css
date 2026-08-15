@@ -462,6 +462,9 @@ pub struct LspResolutionSettings {
     #[serde(skip)]
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     #[serde(skip)]
+    pub(crate) external_sif_trust_records:
+        BTreeMap<String, omena_query::OmenaQueryExternalSifTrustV1>,
+    #[serde(skip)]
     pub(crate) bridge_external_sif_urls: BTreeSet<String>,
     #[serde(skip)]
     pub(crate) cache_storage: crate::cache_root::LspCacheStorageConfigV0,

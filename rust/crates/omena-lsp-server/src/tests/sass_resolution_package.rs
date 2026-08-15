@@ -1140,6 +1140,94 @@ fn bridges_file_external_sass_edges_for_lsp_style_diagnostics() -> TestResult {
 }
 
 #[test]
+fn lsp_bridge_consumes_the_cli_recorded_shard_verdict_without_verifying() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_recorded_shard_verdict_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let external = root.join("vendor/_tokens.scss");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(fixture_parent(external.as_path(), "external parent")?)?;
+    let external_source = "$brand: red !default;\n";
+    fs::write(external.as_path(), external_source)?;
+
+    let external_uri = path_to_file_uri(external.as_path());
+    let sif = omena_sif::generate_static_omena_sif_v1(omena_sif::OmenaSifStaticGeneratorInputV1 {
+        canonical_url: external_uri.as_str(),
+        source: external_source,
+        syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+    })?;
+    let sif_hash = omena_sif::compute_omena_sif_artifact_hash_v1(&sif)?;
+    let verdict = omena_sif::OmenaSifShardRecordedVerdictV1 {
+        schema_version: omena_sif::OMENA_SIF_SHARD_RECORDED_VERDICT_SCHEMA_VERSION_V1.to_string(),
+        product: omena_sif::OMENA_SIF_SHARD_RECORDED_VERDICT_PRODUCT_V1.to_string(),
+        verification_owner: omena_sif::OMENA_SIF_SHARD_VERIFICATION_OWNER_V1.to_string(),
+        canonical_url: external_uri.clone(),
+        sif_hash: sif_hash.clone(),
+        trust_tier: omena_sif::OmenaSifTrustTierV1::T2,
+        signature: omena_sif::OmenaSifShardSignatureV1 {
+            algorithm_version: omena_sif::OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1
+                .to_string(),
+            reference: "fixture:keyless-attestation".to_string(),
+            signed_payload_digest: sif_hash.clone(),
+        },
+    };
+    let verdict_dir = root
+        .join(".cache/omena")
+        .join(omena_sif::OMENA_SIF_SHARD_VERDICT_DIR_V1);
+    fs::create_dir_all(verdict_dir.as_path())?;
+    let address = omena_sif::compute_omena_sif_shard_recorded_verdict_address_v1(
+        external_uri.as_str(),
+        &sif_hash,
+    )?;
+    let verdict_file = address
+        .as_str()
+        .strip_prefix("blake3:")
+        .ok_or_else(|| std::io::Error::other("verdict address"))?;
+    fs::write(
+        verdict_dir.join(format!("{verdict_file}.json")),
+        omena_sif::write_omena_sif_shard_recorded_verdict_json_v1(&verdict)?,
+    )?;
+
+    let source_text = format!(
+        "@use \"{}\" as tokens;\n.button {{ color: tokens.$brand; }}",
+        external_uri
+    );
+    fs::write(source.as_path(), source_text.as_str())?;
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let source_uri = path_to_file_uri(source.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{ "uri": workspace_uri, "name": "workspace" }],
+            },
+        }),
+    );
+    open_style_document(&mut state, source_uri.as_str(), source_text.as_str());
+
+    let trust = state
+        .resolution
+        .external_sif_trust_records
+        .get(external_uri.as_str())
+        .ok_or_else(|| std::io::Error::other("recorded external SIF trust"))?;
+    assert_eq!(trust.trust_tier, omena_sif::OmenaSifTrustTierV1::T2);
+    assert_eq!(
+        trust.trust_source,
+        omena_query::OmenaQueryExternalSifTrustSourceV1::RecordedVerdict
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
 fn bridges_bare_package_forward_chain_for_lsp_style_diagnostics() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_bare_package_forward_sifs_{}_{}",

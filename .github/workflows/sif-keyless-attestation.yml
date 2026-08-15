@@ -151,12 +151,19 @@ jobs:
           jq -e \
             '.entries | length >= 1 and all(.[]; .trustTier == "t1" and (.sifPath | endswith(".sif.json")))' \
             dist/sif/omena.lock >/dev/null
+          jq -S \
+            '{schemaVersion:"1", product:"omena-sif.shard-attestation-batch", signatureAlgorithmVersion:"sigstore-bundle-v1", shards:[.entries[] | {canonicalUrl, sifHash, requestedTrustTier:"t3"}]}' \
+            dist/sif/omena.lock >dist/sif/omena-sif-shard-batch.json
+          jq -e \
+            '.schemaVersion == "1" and .product == "omena-sif.shard-attestation-batch" and .signatureAlgorithmVersion == "sigstore-bundle-v1" and (.shards | length >= 1) and all(.shards[]; .requestedTrustTier == "t3" and (.sifHash | startswith("blake3:")))' \
+            dist/sif/omena-sif-shard-batch.json >/dev/null
       - name: Attest SIF build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist/sif/*.sif.json
             dist/sif/omena.lock
+            dist/sif/omena-sif-shard-batch.json
       - name: Upload SIF artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -165,5 +172,6 @@ jobs:
             dist/sif/*.sif.json
             dist/sif/omena.lock
             dist/sif/omena.lock.report.json
+            dist/sif/omena-sif-shard-batch.json
           if-no-files-found: error
           retention-days: 30

@@ -577,6 +577,9 @@ pub enum omena_query::OmenaQueryExternalModuleModeV0
 pub omena_query::OmenaQueryExternalModuleModeV0::Auto
 pub omena_query::OmenaQueryExternalModuleModeV0::Ignored
 pub omena_query::OmenaQueryExternalModuleModeV0::Sif
+pub enum omena_query::OmenaQueryExternalSifTrustSourceV1
+pub omena_query::OmenaQueryExternalSifTrustSourceV1::RecordedVerdict
+pub omena_query::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
 #[non_exhaustive] pub enum omena_query::OmenaQueryLinkedSourceMapGranularityV0
 pub omena_query::OmenaQueryLinkedSourceMapGranularityV0::CstAnchors
 pub omena_query::OmenaQueryLinkedSourceMapGranularityV0::WholeModuleFallback
@@ -805,6 +808,9 @@ pub struct omena_query::OmenaQueryBridgeExternalSifResolutionV0
 pub omena_query::OmenaQueryBridgeExternalSifResolutionV0::bridge_urls: alloc::vec::Vec<alloc::string::String>
 pub omena_query::OmenaQueryBridgeExternalSifResolutionV0::external_sifs: alloc::vec::Vec<omena_query::OmenaQueryExternalSifInputV0>
 pub omena_query::OmenaQueryBridgeExternalSifResolutionV0::generation_count: usize
+pub struct omena_query::OmenaQueryBridgeExternalSifTrustedResolutionV1
+pub omena_query::OmenaQueryBridgeExternalSifTrustedResolutionV1::resolution: omena_query::OmenaQueryBridgeExternalSifResolutionV0
+pub omena_query::OmenaQueryBridgeExternalSifTrustedResolutionV1::trust_records: alloc::vec::Vec<omena_query::OmenaQueryExternalSifTrustV1>
 pub struct omena_query::OmenaQueryBuildAdmissionRequirementsV0
 pub omena_query::OmenaQueryBuildAdmissionRequirementsV0::refuse_unknown_pass_ids: bool
 pub omena_query::OmenaQueryBuildAdmissionRequirementsV0::require_closed_world_evidence: bool
@@ -1368,6 +1374,10 @@ pub struct omena_query::OmenaQueryExplainSourceSpanV0
 pub struct omena_query::OmenaQueryExternalSifInputV0
 pub omena_query::OmenaQueryExternalSifInputV0::canonical_url: alloc::string::String
 pub omena_query::OmenaQueryExternalSifInputV0::sif: omena_sif::OmenaSifV1
+pub struct omena_query::OmenaQueryExternalSifTrustV1
+pub omena_query::OmenaQueryExternalSifTrustV1::canonical_url: alloc::string::String
+pub omena_query::OmenaQueryExternalSifTrustV1::trust_source: omena_query::OmenaQueryExternalSifTrustSourceV1
+pub omena_query::OmenaQueryExternalSifTrustV1::trust_tier: omena_sif::OmenaSifTrustTierV1
 pub struct omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0
 pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::baseline_winner_declaration_id: alloc::string::String
 pub omena_query::OmenaQueryFragileGuardedWinnerDiagnosticV0::calibration_stage: &'static str
@@ -2592,8 +2602,12 @@ pub fn omena_query::render_omena_query_css_modules_interface_json(&omena_query::
 pub fn omena_query::resolve_omena_bundler_host_module_v0(omena_query::OmenaBundlerHostResolveModuleRequestV0) -> omena_query::OmenaBundlerHostResolveModuleResponseV0
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_seed_pairs(impl core::iter::traits::iterator::Iterator<Item = (alloc::string::String, alloc::string::String)>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage(impl core::iter::traits::iterator::Iterator<Item = (alloc::string::String, alloc::string::String)>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0, &omena_bridge::style_resolution::OmenaBridgeExternalSifStorageV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
+pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(impl core::iter::traits::iterator::Iterator<Item = (alloc::string::String, alloc::string::String)>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0, &omena_bridge::style_resolution::OmenaBridgeExternalSifStorageV0) -> omena_query::OmenaQueryBridgeExternalSifTrustedResolutionV1
+pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_trust(impl core::iter::traits::iterator::Iterator<Item = (alloc::string::String, alloc::string::String)>, &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifTrustedResolutionV1
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
 pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0, &omena_bridge::style_resolution::OmenaBridgeExternalSifStorageV0) -> omena_query::OmenaQueryBridgeExternalSifResolutionV0
+pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0, &omena_bridge::style_resolution::OmenaBridgeExternalSifStorageV0) -> omena_query::OmenaQueryBridgeExternalSifTrustedResolutionV1
+pub fn omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust(&[omena_query::OmenaQueryStyleSourceInputV0], &[omena_query::OmenaQueryExternalSifInputV0], &omena_query::OmenaQueryStyleResolutionInputsV0) -> omena_query::OmenaQueryBridgeExternalSifTrustedResolutionV1
 pub fn omena_query::resolve_omena_query_class_site_value_for_source(&str, &str, core::option::Option<&str>, omena_parser::spans::ParserByteSpanV0) -> core::option::Option<omena_query::OmenaQueryClassSiteValueV0>
 pub fn omena_query::resolve_omena_query_class_site_values_for_source(&str, &str, core::option::Option<&str>) -> alloc::vec::Vec<omena_query::OmenaQueryClassSiteValueV0>
 pub fn omena_query::resolve_omena_query_class_site_values_for_source_with_type_facts(&str, &str, core::option::Option<&str>, &[omena_query::OmenaQueryClassSiteTypeFactInputV0]) -> alloc::vec::Vec<omena_query::OmenaQueryClassSiteValueV0>

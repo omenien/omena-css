@@ -79,6 +79,12 @@ not fetch registry metadata or transparency logs while serving editor requests.
 | T2   | Verified package or third-party attestation; a recorded reference alone remains advisory. |
 | T3   | Verified omena-toolchain attestation whose signed subject is the selected SIF artifact.   |
 
+External-SIF cache shards are promoted above T1 only by an immutable verdict
+that the CLI recorded for the exact canonical URL and SIF hash. Bridge and LSP
+consumers read that local verdict sidecar; they do not treat a lockfile as
+shard-verification authority, fetch evidence, or invoke Sigstore verification.
+Missing or mismatched verdicts keep service local at T1.
+
 Record npm provenance metadata from a local JSON response:
 
 ```sh
