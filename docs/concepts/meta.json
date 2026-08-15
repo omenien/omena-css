@@ -1,5 +1,10 @@
 {
   "title": "Concepts",
   "pagesIndex": "README",
-  "pages": ["README", "semantic-analysis", "evidence-and-transform-safety"]
+  "pages": [
+    "README",
+    "semantic-analysis",
+    "evidence-and-transform-safety",
+    "custom-property-bounded-substitution"
+  ]
 }

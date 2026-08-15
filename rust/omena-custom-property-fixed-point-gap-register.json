@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "1",
+  "product": "omena-cascade.custom-property-fixed-point-gap-register",
+  "authority": {
+    "implementation": "rust/crates/omena-cascade/src/custom_property.rs",
+    "valueDomain": "rust/crates/omena-cascade/src/model.rs#CascadeValue",
+    "claimsUnderTest": "rfcs#10",
+    "upgradeOwner": "research-track"
+  },
+  "rows": [
+    {
+      "id": "cycle-decomposition",
+      "gapKind": "algorithmStructure",
+      "shippedState": "per-substitution DFS visiting set",
+      "claimsUnderTestState": "Tarjan SCC decomposition over a dependency graph",
+      "observableConsequence": "cycles collapse only while a substitution walk revisits a name; no component-level schedule or SCC certificate is produced",
+      "upgradeCost": "build and retain a dependency graph, add SCC scheduling and certificates, and differential-test the new cycle semantics"
+    },
+    {
+      "id": "conditional-value-domain",
+      "gapKind": "valueDomain",
+      "shippedState": "CascadeValue has no conditional if() variant",
+      "claimsUnderTestState": "conditional custom-property values participate in the transfer domain",
+      "observableConsequence": "the shipped resolver cannot represent or prove branch-sensitive conditional dependencies",
+      "upgradeCost": "extend parsing and CascadeValue, define branch joins, and update every substitution and computed-value consumer"
+    },
+    {
+      "id": "initial-approximation",
+      "gapKind": "iterationSemantics",
+      "shippedState": "iteration starts from a clone of the original environment",
+      "claimsUnderTestState": "Kleene iteration starts from all-bottom",
+      "observableConsequence": "fallback cycles can produce definite clone-start values or exhaust the bound while the frozen all-bottom evaluator remains unresolved and maps them to guaranteed-invalid",
+      "upgradeCost": "introduce an explicit status lattice and all-bottom environment, then revalidate fallback and computed-value behavior"
+    },
+    {
+      "id": "termination-claim",
+      "gapKind": "proofStrength",
+      "shippedState": "iteration stops on equality or max(1, env.len() + 1)",
+      "claimsUnderTestState": "a proven least solution is reached",
+      "observableConsequence": "reachedFixedPoint can be false, so the result is a bounded computation output rather than a least-solution theorem",
+      "upgradeCost": "define an ordered value domain, prove convergence under an explicit bound, and validate the result independently"
+    }
+  ],
+  "rfcDisposition": {
+    "tracker": "rfcs#10",
+    "status": "claims-under-test-not-shipped",
+    "decisionOwner": "independent-review",
+    "implementationUpgrade": "research-track-only"
+  }
+}
