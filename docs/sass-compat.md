@@ -68,9 +68,12 @@ data; current tools preserve `--external ignored` for explicit compatibility.
 
 ## Provenance Verification
 
-Provenance is verified by CLI/CI workflows, never by latency-sensitive LSP
-requests. The language server reads local source, SIF, and lockfile data but does
-not fetch registry metadata or transparency logs while serving editor requests.
+Provenance is acquired and recorded by CLI/CI workflows, never by
+latency-sensitive LSP requests. For an external-SIF cache shard above T1, the
+native bridge verifies the recorded Sigstore bundle offline at consumption time
+against the production Fulcio root, Rekor inclusion proof, OIDC issuer, and
+approved workflow identity. The language server does not fetch registry metadata
+or transparency logs while serving editor requests.
 
 | Tier | Required evidence                                                                         |
 | ---- | ----------------------------------------------------------------------------------------- |
@@ -80,10 +83,14 @@ not fetch registry metadata or transparency logs while serving editor requests.
 | T3   | Verified omena-toolchain attestation whose signed subject is the selected SIF artifact.   |
 
 External-SIF cache shards are promoted above T1 only by an immutable verdict
-that the CLI recorded for the exact canonical URL and SIF hash. Bridge and LSP
-consumers read that local verdict sidecar; they do not treat a lockfile as
-shard-verification authority, fetch evidence, or invoke Sigstore verification.
-Missing or mismatched verdicts keep service local at T1.
+that `lock verify-attestation` recorded for the exact canonical URL and SIF hash,
+plus its content-addressed Sigstore bundle. Bridge verifies that bundle offline
+at consumption time; LSP consumes the resulting tier without reading a lockfile
+or using the network. Missing, forged, or mismatched evidence keeps service local
+at T1. The only elevated capability is propagating an externally attested T2/T3
+trust tier with the resolved shard; it does not unlock a wider cache partition or
+cross-workspace serving. Wasm builds contain no verifier and therefore never
+elevate these shards.
 
 Acquire npm registry metadata through the platform npm CLI, outside the Omena
 binary, and record a deterministic present/absent receipt beside it:
@@ -127,7 +134,7 @@ omena lock verify-attestation design-system \
   --statement-predicate-type https://slsa.dev/provenance/v1
 ```
 
-Offline verifier reports can be recorded without network access:
+Local verifier reports may still be recorded as non-elevating T0/T1 metadata:
 
 ```sh
 omena lock record-verification design-system \
@@ -136,14 +143,20 @@ omena lock record-verification design-system \
   --json
 ```
 
-For T3 evidence, also pass the matching SIF artifact so omena can compare the
-signed `sha256` subject digest with the selected entry's `sifPath` bytes:
+Local report JSON cannot establish T2 or T3. For elevated SIF evidence, use
+`verify-attestation` with the matching canonical SIF and its keyless bundle so
+the CLI publishes both a content-addressed bundle and immutable verdict:
 
 ```sh
-omena lock record-verification design-system \
+omena lock verify-attestation design-system \
   --lockfile omena.lock \
-  --verification t3-attestation-verification.json \
   --artifact sif/design-system.sif.json \
+  --bundle sif/design-system.sigstore.json \
+  --reference github-attestation:RUN_ID \
+  --kind omena-toolchain.sigstore \
+  --verified-tier t3 \
+  --identity https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master \
+  --issuer https://token.actions.githubusercontent.com \
   --json
 ```
 

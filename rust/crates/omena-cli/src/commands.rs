@@ -804,17 +804,17 @@ pub(crate) enum LockCommand {
         #[arg(long)]
         json: bool,
     },
-    /// Record locally verified attestation evidence for an existing omena.lock entry.
+    /// Record non-elevating attestation metadata for an existing omena.lock entry.
     RecordVerification {
         /// Package or canonical URL selector whose lock entries should receive verified evidence.
         package: String,
         /// Lockfile path. Defaults to ./omena.lock.
         #[arg(long, default_value = "omena.lock")]
         lockfile: PathBuf,
-        /// Verification report JSON produced by an offline attestation verifier.
+        /// Verification report JSON. T2/T3 reports require verify-attestation instead.
         #[arg(long)]
         verification: PathBuf,
-        /// SIF artifact bytes covered by a T3 offline verification report.
+        /// Compatibility argument retained for older T0/T1 report producers.
         #[arg(long)]
         artifact: Option<PathBuf>,
         /// Print machine-readable JSON.

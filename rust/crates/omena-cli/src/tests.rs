@@ -1207,6 +1207,44 @@ fn lock_verify_attestation_t3_requires_identity() {
 }
 
 #[test]
+fn lock_verify_attestation_t3_requires_trusted_workflow_identity() {
+    let result = run(Cli {
+        command: Command::Lock {
+            lockfile: PathBuf::from("omena.lock"),
+            json: false,
+            command: Some(LockCommand::VerifyAttestation {
+                package: "pkg:design-system/_tokens.scss".to_string(),
+                lockfile: PathBuf::from("missing.lock"),
+                artifact: PathBuf::from("missing.sif.json"),
+                bundle: PathBuf::from("missing.sigstore.json"),
+                reference: "sif/design-system.sigstore.json".to_string(),
+                kind: "omena-toolchain.sigstore".to_string(),
+                verified_tier: "t3".to_string(),
+                identity: Some("https://github.com/example/untrusted-workflow.yml".to_string()),
+                issuer: "https://token.actions.githubusercontent.com".to_string(),
+                statement_type: None,
+                statement_predicate_type: None,
+                statement_source_repository: None,
+                statement_source_ref: None,
+                statement_source_commit: None,
+                statement_builder_id: None,
+                statement_build_type: None,
+                statement_subject_names: Vec::new(),
+                statement_subject_digests: Vec::new(),
+                json: true,
+            }),
+        },
+    });
+
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("requires the Omena keyless workflow identity")),
+        "{result:?}"
+    );
+}
+
+#[test]
 fn report_resolution_policy_outputs_resolver_contract() {
     let result = run(Cli {
         command: Command::Report {
@@ -4509,7 +4547,7 @@ fn lock_fetch_provenance_records_npm_attestations_without_t2_verification() -> R
 }
 
 #[test]
-fn lock_record_verification_enables_t2_trust_gate() -> Result<(), String> {
+fn lock_record_verification_rejects_elevated_local_report() -> Result<(), String> {
     let workspace_path = temp_dir("lock-record-verification");
     let sif_dir = workspace_path.join("sif");
     fs::create_dir_all(&sif_dir)
@@ -4727,7 +4765,7 @@ fn lock_record_verification_enables_t2_trust_gate() -> Result<(), String> {
     assert!(
         rejected_t3_record_result
             .as_ref()
-            .is_err_and(|error| error.contains("tier t3 requires kind omena-toolchain.*")),
+            .is_err_and(|error| error.contains("cannot establish elevated trust")),
         "{rejected_t3_record_result:?}"
     );
 
@@ -4744,40 +4782,24 @@ fn lock_record_verification_enables_t2_trust_gate() -> Result<(), String> {
             }),
         },
     });
-    assert!(record_result.is_ok(), "{record_result:?}");
+    assert!(
+        record_result.as_ref().is_err_and(
+            |error| error.contains("cannot establish elevated trust from a local report")
+        ),
+        "{record_result:?}"
+    );
 
     let refreshed_lock = read_omena_lock_json_v1(&read_source(&lockfile_path)?)
         .map_err(|error| format!("fixture lock should parse: {error}"))?;
     assert_eq!(
         refreshed_lock.entries[0].trust_tier,
-        omena_sif::OmenaSifTrustTierV1::T2
+        omena_sif::OmenaSifTrustTierV1::T1
     );
-    assert_eq!(refreshed_lock.entries[0].attestation_verifications.len(), 1);
-    assert_eq!(
-        refreshed_lock.entries[0].attestation_verifications[0]
-            .certificate_issuer
-            .as_deref(),
-        Some("https://token.actions.githubusercontent.com")
+    assert!(
+        refreshed_lock.entries[0]
+            .attestation_verifications
+            .is_empty()
     );
-    assert_eq!(
-        refreshed_lock.entries[0].attestation_verifications[0]
-            .certificate_identity
-            .as_deref(),
-        Some("https://github.com/omenien/omena-css/.github/workflows/release.yml@refs/tags/v1.0.0")
-    );
-    let statement = refreshed_lock.entries[0].attestation_verifications[0]
-        .attestation_statement
-        .as_ref()
-        .ok_or_else(|| "recorded verification should preserve statement claims".to_string())?;
-    assert_eq!(
-        statement.predicate_type.as_deref(),
-        Some("https://slsa.dev/provenance/v1")
-    );
-    assert_eq!(
-        statement.source_repository.as_deref(),
-        Some("https://github.com/omenien/omena-css")
-    );
-    assert_eq!(statement.source_ref.as_deref(), Some("refs/tags/v1.0.0"));
 
     let verify_t2_after = run(Cli {
         command: Command::Lock {
@@ -4792,14 +4814,14 @@ fn lock_record_verification_enables_t2_trust_gate() -> Result<(), String> {
             }),
         },
     });
-    assert!(verify_t2_after.is_ok(), "{verify_t2_after:?}");
+    assert!(verify_t2_after.is_err(), "{verify_t2_after:?}");
 
     cleanup_dir(&workspace_path);
     Ok(())
 }
 
 #[test]
-fn lock_record_verification_t3_requires_matching_sif_artifact_digest() -> Result<(), String> {
+fn lock_record_verification_t3_cannot_bypass_bundle_verification() -> Result<(), String> {
     let workspace_path = temp_dir("lock-record-verification-t3-artifact");
     let sif_dir = workspace_path.join("sif");
     fs::create_dir_all(&sif_dir)
@@ -4889,7 +4911,7 @@ fn lock_record_verification_t3_requires_matching_sif_artifact_digest() -> Result
     assert!(
         missing_artifact_result
             .as_ref()
-            .is_err_and(|error| error.contains("verifiedTrustTier t3 requires --artifact")),
+            .is_err_and(|error| error.contains("cannot establish elevated trust")),
         "{missing_artifact_result:?}"
     );
 
@@ -4906,7 +4928,12 @@ fn lock_record_verification_t3_requires_matching_sif_artifact_digest() -> Result
             }),
         },
     });
-    assert!(record_result.is_ok(), "{record_result:?}");
+    assert!(
+        record_result
+            .as_ref()
+            .is_err_and(|error| error.contains("cannot establish elevated trust")),
+        "{record_result:?}"
+    );
 
     let verify_t3_after = run(Cli {
         command: Command::Lock {
@@ -4921,7 +4948,7 @@ fn lock_record_verification_t3_requires_matching_sif_artifact_digest() -> Result
             }),
         },
     });
-    assert!(verify_t3_after.is_ok(), "{verify_t3_after:?}");
+    assert!(verify_t3_after.is_err(), "{verify_t3_after:?}");
 
     cleanup_dir(&workspace_path);
     Ok(())
@@ -5173,6 +5200,106 @@ fn lock_verify_attestation_records_verified_sigstore_bundle() -> Result<(), Stri
 }
 
 #[test]
+fn lock_verify_attestation_publishes_bundle_backed_shard_verdict() -> Result<(), String> {
+    let workspace_path = temp_dir("lock-verify-attestation-keyless-sif");
+    fs::create_dir_all(workspace_path.as_path())
+        .map_err(|error| format!("fixture workspace should be writable: {error}"))?;
+    let sif_path = workspace_path.join("keyless-attested-shard.sif.json");
+    let bundle_path = workspace_path.join("keyless-attested-shard.sigstore.json");
+    let lockfile_path = workspace_path.join("omena.lock");
+    let user_reference = "fixture:keyless-attested-shard";
+    let sif_source =
+        include_str!("../../omena-bridge/tests/fixtures/keyless-attested-shard.sif.json")
+            .trim_end();
+    let bundle_source =
+        include_bytes!("../../omena-bridge/tests/fixtures/keyless-attested-shard.sigstore.json");
+    fs::write(sif_path.as_path(), sif_source)
+        .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+    fs::write(bundle_path.as_path(), bundle_source)
+        .map_err(|error| format!("fixture bundle should be writable: {error}"))?;
+    let sif = omena_sif::read_omena_sif_json_v1(sif_source)
+        .map_err(|error| format!("fixture SIF should parse: {error}"))?;
+    let mut entry =
+        omena_sif::build_omena_lock_sif_entry_v1("keyless-attested-shard.sif.json", &sif)
+            .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+    entry
+        .attestation_references
+        .push(omena_sif::OmenaSifAttestationReferenceV1 {
+            kind: "sigstore-bundle".to_string(),
+            reference: user_reference.to_string(),
+        });
+    fs::write(
+        lockfile_path.as_path(),
+        omena_sif::write_omena_lock_json_v1(&omena_sif::OmenaLockV1::new(vec![entry]))
+            .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+    )
+    .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+    let result = run(Cli {
+        command: Command::Lock {
+            lockfile: PathBuf::from("omena.lock"),
+            json: false,
+            command: Some(LockCommand::VerifyAttestation {
+                package: sif.canonical_url.clone(),
+                lockfile: lockfile_path.clone(),
+                artifact: sif_path,
+                bundle: bundle_path,
+                reference: user_reference.to_string(),
+                kind: "omena-toolchain.sigstore".to_string(),
+                verified_tier: "t3".to_string(),
+                identity: Some(
+                    "https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master"
+                        .to_string(),
+                ),
+                issuer: "https://token.actions.githubusercontent.com".to_string(),
+                statement_type: None,
+                statement_predicate_type: None,
+                statement_source_repository: None,
+                statement_source_ref: None,
+                statement_source_commit: None,
+                statement_builder_id: None,
+                statement_build_type: None,
+                statement_subject_names: Vec::new(),
+                statement_subject_digests: Vec::new(),
+                json: true,
+            }),
+        },
+    });
+    assert!(result.is_ok(), "{result:?}");
+
+    let lock = read_omena_lock_json_v1(&read_source(lockfile_path.as_path())?)
+        .map_err(|error| format!("updated lock should parse: {error}"))?;
+    assert_eq!(
+        lock.entries[0].trust_tier,
+        omena_sif::OmenaSifTrustTierV1::T3
+    );
+    let verdict_address = omena_sif::compute_omena_sif_shard_recorded_verdict_address_v1(
+        lock.entries[0].canonical_url.as_str(),
+        &lock.entries[0].sif_hash,
+    )
+    .map_err(|error| format!("verdict address should compute: {error}"))?;
+    let verdict_hex = verdict_address
+        .as_str()
+        .strip_prefix("blake3:")
+        .ok_or_else(|| "fixture verdict address should be blake3".to_string())?;
+    let verdict_dir = workspace_path
+        .join(".cache")
+        .join("omena")
+        .join(omena_sif::OMENA_SIF_SHARD_VERDICT_DIR_V1);
+    let verdict_source = read_source(&verdict_dir.join(format!("{verdict_hex}.json")))?;
+    let verdict = omena_sif::read_omena_sif_shard_recorded_verdict_json_v1(verdict_source.as_str())
+        .map_err(|error| format!("recorded verdict should parse: {error}"))?;
+    assert_ne!(verdict.signature.reference, user_reference);
+    assert!(verdict.signature.reference.starts_with("bundles-v1/"));
+    let stored_bundle = fs::read(verdict_dir.join(verdict.signature.reference.as_str()))
+        .map_err(|error| format!("recorded bundle should be readable: {error}"))?;
+    assert_eq!(stored_bundle, bundle_source);
+
+    cleanup_dir(&workspace_path);
+    Ok(())
+}
+
+#[test]
 fn lock_verify_attestation_rejects_non_provenance_bundle_for_provenance_kind() -> Result<(), String>
 {
     let workspace_path = temp_dir("lock-verify-attestation-provenance-statement");
@@ -5268,7 +5395,8 @@ fn lock_verify_attestation_rejects_non_provenance_bundle_for_provenance_kind() -
 }
 
 #[test]
-fn lock_verify_attestation_t3_rejects_non_sif_artifact() -> Result<(), String> {
+fn lock_verify_attestation_t3_rejects_non_omena_oidc_root_before_artifact_use() -> Result<(), String>
+{
     let workspace_path = temp_dir("lock-verify-attestation-t3-artifact-binding");
     let sif_dir = workspace_path.join("sif");
     fs::create_dir_all(&sif_dir)
@@ -5366,7 +5494,7 @@ fn lock_verify_attestation_t3_rejects_non_sif_artifact() -> Result<(), String> {
         .err()
         .unwrap_or_else(|| "verify-attestation unexpectedly succeeded".to_string());
     assert!(
-        error.contains("requires --artifact to be canonical SIF JSON"),
+        error.contains("requires the Omena CI OIDC issuer"),
         "{error}"
     );
 

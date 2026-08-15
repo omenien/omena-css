@@ -246,10 +246,10 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
             "analysisTimeUsesLocalWorkspaceOnly",
             "lockAndSifEvidenceReadFromDisk",
             "attestationVerificationOwnedByCli",
-            // The CLI records immutable canonical-url + SIF-hash verdicts.
-            // Bridge and LSP consumers may read those verdicts, but never the
-            // lockfile as trust authority and never a verifier or network.
-            "recordedShardVerdictsConsumedWithoutLockOrNetworkAuthority",
+            // The CLI records immutable canonical-url + SIF-hash verdicts and
+            // content-addressed bundles. Bridge verifies them offline; LSP
+            // never reads the lockfile as trust authority or uses the network.
+            "recordedShardVerdictsVerifiedOfflineWithoutLockOrNetworkAuthority",
             "noRegistryFetchOnLspRequestPath",
             "noTransparencyLogLookupOnLspRequestPath",
             // Cache roots may be editor- or platform-owned after resolution;

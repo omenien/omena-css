@@ -14,6 +14,7 @@ use serde::Serialize;
 
 mod bundler_config_alias;
 mod cache_root;
+mod external_sif_signature;
 mod promotion_evidence;
 mod selector_references;
 mod source_cfg;

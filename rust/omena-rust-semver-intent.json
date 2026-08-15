@@ -888,7 +888,7 @@
     {
       "crate": "omena-bridge",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, class-site, flow-boundary, surface, and inline-importance observations, emits concatenated source-fact length bounds in the external UTF-16-code-unit contract, and authenticates workspace-local external-SIF cache shards through CLI-recorded verdicts.",
+      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, class-site, flow-boundary, surface, and inline-importance observations, emits concatenated source-fact length bounds in the external UTF-16-code-unit contract, and authenticates elevated workspace-local external-SIF cache shards by verifying CI-OIDC Sigstore bundles offline at consumption time.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -935,7 +935,7 @@
           "id": "bridge-external-sif-shard-trust-wire",
           "kind": "wire-value-order-preserving",
           "surface": "external-sif-v0 shard schemaVersion and trustEnvelope plus additive trusted resolution APIs",
-          "reason": "Workspace-local external-SIF cache shards now bind their existing payload digest to a canonical URL, SIF hash, tier, and CLI-recorded signature verdict; same-version legacy shards continue at T1.",
+          "reason": "Workspace-local external-SIF cache shards now bind their existing payload digest to a canonical URL, SIF hash, tier, and content-addressed CI-OIDC Sigstore bundle; native consumers verify Fulcio and Rekor evidence offline, while missing or forged evidence and downgrade attempts remain at T1.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
@@ -943,7 +943,10 @@
                 "const EXTERNAL_SIF_CACHE_SCHEMA_VERSION: &str = \"1\";",
                 "\"trustEnvelope\": result.trust_envelope",
                 "generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(",
-                "fn recorded_verdict_refuses_recomputed_payload_binding_and_over_tier()",
+                "fn ci_oidc_bundle_is_the_only_fixture_path_to_elevated_shard_capability()",
+                "fn forged_recorded_verdict_cannot_mint_elevated_trust_for_poisoned_payload()",
+                "fn recorded_verdict_blocks_legacy_schema_downgrade_for_canonical_url()",
+                "fn unverified_recorded_verdict_never_elevates_memory_or_disk_shards()",
                 "fn same_version_legacy_shard_without_trust_fields_remains_workspace_local()"
               ]
             }
@@ -2135,7 +2138,7 @@
           "id": "lsp-shard-trust-verdict-consumption",
           "kind": "wire-value-order-preserving",
           "surface": "LspExternalSifRefreshResultV0.trustRecords and LspTrustBoundaryV0.requestPathPolicy",
-          "reason": "The language server now carries bridge-validated shard tiers into refresh decisions while naming that only CLI-recorded verdict sidecars may be consumed without lock, network, or verification authority.",
+          "reason": "The language server now carries bridge-validated shard tiers into refresh decisions while naming that the native bridge verifies CLI-recorded verdict bundles offline without lock or network authority.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/external_sif_loader.rs",
@@ -2147,7 +2150,7 @@
             },
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
-              "needles": ["recordedShardVerdictsConsumedWithoutLockOrNetworkAuthority"]
+              "needles": ["recordedShardVerdictsVerifiedOfflineWithoutLockOrNetworkAuthority"]
             }
           ]
         }

@@ -32,6 +32,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const RECORDED_SIGSTORE_BUNDLE_DIR_V1: &str = "bundles-v1";
+const RECORDED_SIGSTORE_BUNDLE_SUFFIX_V1: &str = ".sigstore.json";
+const OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER_V1: &str = "https://token.actions.githubusercontent.com";
+const OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY_V1: &str = "https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master";
+
 pub(crate) fn lock_command(
     status_lockfile: PathBuf,
     status_json: bool,
@@ -276,17 +281,22 @@ fn lock_record_verification(
     lockfile: PathBuf,
     package: String,
     verification: PathBuf,
-    artifact: Option<PathBuf>,
+    _artifact: Option<PathBuf>,
     json: bool,
 ) -> Result<(), String> {
     let mut lock = read_lockfile_or_empty(&lockfile)?;
     let verification_source = read_source(&verification)?;
     let report = read_omena_sif_attestation_verification_report_json_v1(&verification_source)
         .map_err(|error| format!("failed to parse {}: {error}", path_string(&verification)))?;
+    if report.verified && report.verified_trust_tier >= OmenaSifTrustTierV1::T2 {
+        return Err(
+            "lock record-verification cannot establish elevated trust from a local report; use lock verify-attestation with the signed artifact and Sigstore bundle"
+                .to_string(),
+        );
+    }
 
     let mut matched_count = 0usize;
     let mut applied_count = 0usize;
-    let mut shard_verdicts = Vec::new();
     for entry in &mut lock.entries {
         if !lock_entry_matches_package_selector(entry, &package) {
             continue;
@@ -305,41 +315,6 @@ fn lock_record_verification(
             )
         })?;
         if applied {
-            let mut shard_binding = None;
-            if report.verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3 {
-                let artifact = artifact.as_ref().ok_or_else(|| {
-                    "lock record-verification with verifiedTrustTier t3 requires --artifact to be the matching SIF JSON".to_string()
-                })?;
-                let artifact_bytes = fs::read(artifact).map_err(|error| {
-                    format!("failed to read {}: {error}", path_string(artifact))
-                })?;
-                let binding = read_verified_t3_attestation_artifact_binding(
-                    artifact,
-                    artifact_bytes.as_slice(),
-                )?;
-                validate_verified_t3_attestation_artifact_binding(entry, &binding)?;
-                validate_verified_t3_attestation_statement_binding(
-                    entry,
-                    &binding,
-                    report.attestation_statement.as_ref(),
-                )?;
-                shard_binding = Some(binding);
-            } else if let Some(artifact) = artifact.as_ref() {
-                let artifact_bytes = fs::read(artifact).map_err(|error| {
-                    format!("failed to read {}: {error}", path_string(artifact))
-                })?;
-                shard_binding =
-                    try_read_verified_shard_artifact_binding(artifact_bytes.as_slice())?;
-            }
-            if let Some(binding) = shard_binding.as_ref() {
-                validate_verified_t3_attestation_artifact_binding(entry, binding)?;
-                shard_verdicts.push(build_recorded_shard_verdict(
-                    entry,
-                    report.verified_trust_tier,
-                    report.reference.as_str(),
-                    binding,
-                )?);
-            }
             *entry = updated_entry;
             applied_count += 1;
         }
@@ -358,9 +333,6 @@ fn lock_record_verification(
 
     let lock_json = write_omena_lock_json_v1(&lock)
         .map_err(|error| format!("failed to serialize {}: {error}", path_string(&lockfile)))?;
-    // Publish the bridge/LSP trust authority before the lockfile mutation
-    // wakes consumers, so a refresh cannot race ahead of its verdict.
-    write_recorded_shard_verdicts(&lockfile, shard_verdicts.as_slice())?;
     fs::write(&lockfile, &lock_json)
         .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
 
@@ -502,10 +474,17 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
     } else {
         None
     };
-    let shard_artifact_binding = match t3_artifact_binding.clone() {
+    let candidate_shard_artifact_binding = match t3_artifact_binding.clone() {
         Some(binding) => Some(binding),
         None => try_read_verified_shard_artifact_binding(artifact_bytes.as_slice())?,
     };
+    let shard_artifact_binding = (issuer == OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER_V1
+        && identity.as_deref() == Some(OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY_V1))
+    .then_some(candidate_shard_artifact_binding)
+    .flatten();
+    let recorded_bundle_reference = shard_artifact_binding
+        .as_ref()
+        .map(|_| recorded_sigstore_bundle_reference(bundle_source.as_bytes()));
     let attestation_statement = extract_verified_attestation_statement(
         &sigstore_bundle,
         &statement_policy,
@@ -565,7 +544,9 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
                 shard_verdicts.push(build_recorded_shard_verdict(
                     entry,
                     verified_trust_tier,
-                    reference.as_str(),
+                    recorded_bundle_reference
+                        .as_deref()
+                        .ok_or_else(|| "verified SIF bundle reference is missing".to_string())?,
                     binding,
                 )?);
             }
@@ -588,6 +569,11 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         .map_err(|error| format!("failed to serialize {}: {error}", path_string(&lockfile)))?;
     // Publish the bridge/LSP trust authority before the lockfile mutation
     // wakes consumers, so a refresh cannot race ahead of its verdict.
+    if let Some(bundle_reference) = recorded_bundle_reference.as_deref()
+        && !shard_verdicts.is_empty()
+    {
+        write_recorded_sigstore_bundle(&lockfile, bundle_reference, bundle_source.as_bytes())?;
+    }
     write_recorded_shard_verdicts(&lockfile, shard_verdicts.as_slice())?;
     fs::write(&lockfile, &lock_json)
         .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
@@ -1042,6 +1028,43 @@ pub(crate) fn write_recorded_shard_verdicts(
     Ok(())
 }
 
+fn recorded_sigstore_bundle_reference(bundle_bytes: &[u8]) -> String {
+    format!(
+        "{RECORDED_SIGSTORE_BUNDLE_DIR_V1}/{}{RECORDED_SIGSTORE_BUNDLE_SUFFIX_V1}",
+        sha256_hex(bundle_bytes)
+    )
+}
+
+fn write_recorded_sigstore_bundle(
+    lockfile: &Path,
+    reference: &str,
+    bundle_bytes: &[u8],
+) -> Result<(), String> {
+    let expected_reference = recorded_sigstore_bundle_reference(bundle_bytes);
+    if reference != expected_reference {
+        return Err(format!(
+            "recorded Sigstore bundle reference {reference} does not match content address {expected_reference}"
+        ));
+    }
+    let lock_parent = lockfile.parent().unwrap_or_else(|| Path::new("."));
+    let bundle_dir = lock_parent
+        .join(".cache")
+        .join("omena")
+        .join(OMENA_SIF_SHARD_VERDICT_DIR_V1)
+        .join(RECORDED_SIGSTORE_BUNDLE_DIR_V1);
+    fs::create_dir_all(bundle_dir.as_path()).map_err(|error| {
+        format!(
+            "failed to create recorded Sigstore bundle directory {}: {error}",
+            bundle_dir.display()
+        )
+    })?;
+    let bundle_path = bundle_dir.join(format!(
+        "{}{RECORDED_SIGSTORE_BUNDLE_SUFFIX_V1}",
+        sha256_hex(bundle_bytes)
+    ));
+    publish_immutable_recorded_shard_verdict(bundle_path.as_path(), bundle_bytes)
+}
+
 fn publish_immutable_recorded_shard_verdict(path: &Path, bytes: &[u8]) -> Result<(), String> {
     match fs::read(path) {
         Ok(existing) if existing == bytes => return Ok(()),
@@ -1205,6 +1228,18 @@ pub(crate) fn validate_attestation_policy_for_verified_tier(
             return Err(
                 "lock verify-attestation --verified-tier t3 requires --identity".to_string(),
             );
+        }
+        if certificate_issuer != Some(OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER_V1) {
+            return Err(format!(
+                "lock verify-attestation --verified-tier t3 requires the Omena CI OIDC issuer {}",
+                OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER_V1
+            ));
+        }
+        if certificate_identity != Some(OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY_V1) {
+            return Err(format!(
+                "lock verify-attestation --verified-tier t3 requires the Omena keyless workflow identity {}",
+                OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY_V1
+            ));
         }
     }
     Ok(())

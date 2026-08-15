@@ -3650,8 +3650,8 @@ fn derives_transform_context_from_package_manifest_style_exports() {
 }
 
 #[test]
-fn bridge_trusted_resolution_carries_the_cli_recorded_verdict()
--> Result<(), Box<dyn std::error::Error>> {
+fn bridge_resolution_refuses_unverified_recorded_verdict() -> Result<(), Box<dyn std::error::Error>>
+{
     let root = std::env::temp_dir().join(format!(
         "omena-query-recorded-sif-verdict-{}",
         std::process::id()
@@ -3713,11 +3713,11 @@ fn bridge_trusted_resolution_carries_the_cli_recorded_verdict()
     assert_eq!(trusted.trust_records[0].canonical_url, canonical_url);
     assert_eq!(
         trusted.trust_records[0].trust_tier,
-        omena_sif::OmenaSifTrustTierV1::T2
+        omena_sif::OmenaSifTrustTierV1::T1
     );
     assert_eq!(
         trusted.trust_records[0].trust_source,
-        crate::OmenaQueryExternalSifTrustSourceV1::RecordedVerdict
+        crate::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
     );
     let _ = std::fs::remove_dir_all(root);
     Ok(())

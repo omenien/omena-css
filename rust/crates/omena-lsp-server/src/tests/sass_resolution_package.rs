@@ -1140,7 +1140,7 @@ fn bridges_file_external_sass_edges_for_lsp_style_diagnostics() -> TestResult {
 }
 
 #[test]
-fn lsp_bridge_consumes_the_cli_recorded_shard_verdict_without_verifying() -> TestResult {
+fn lsp_bridge_refuses_unverified_recorded_shard_verdict() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_recorded_shard_verdict_{}_{}",
         std::process::id(),
@@ -1217,10 +1217,10 @@ fn lsp_bridge_consumes_the_cli_recorded_shard_verdict_without_verifying() -> Tes
         .external_sif_trust_records
         .get(external_uri.as_str())
         .ok_or_else(|| std::io::Error::other("recorded external SIF trust"))?;
-    assert_eq!(trust.trust_tier, omena_sif::OmenaSifTrustTierV1::T2);
+    assert_eq!(trust.trust_tier, omena_sif::OmenaSifTrustTierV1::T1);
     assert_eq!(
         trust.trust_source,
-        omena_query::OmenaQueryExternalSifTrustSourceV1::RecordedVerdict
+        omena_query::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
     );
 
     let _ = fs::remove_dir_all(root.as_path());
