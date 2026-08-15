@@ -1195,31 +1195,31 @@
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifCacheContextV0",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 83
+      "line": 87
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifShardRefusalV1",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 145
+      "line": 149
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifStorageV0",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 89
+      "line": 93
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifTrustSourceV1",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 131
+      "line": 135
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifWithTrustV1",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 138
+      "line": 142
     },
     {
       "crate": "omena-bridge",
@@ -1231,13 +1231,13 @@
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeStyleResolutionInputsV0",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 73
+      "line": 77
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeStyleResolutionSummaryV0",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 61
+      "line": 65
     },
     {
       "crate": "omena-bridge",
@@ -1249,7 +1249,7 @@
       "crate": "omena-bridge",
       "typeName": "RecordedVerdictAttackFixture",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 3274
+      "line": 3471
     },
     {
       "crate": "omena-bridge",

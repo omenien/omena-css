@@ -82,19 +82,30 @@ or transparency logs while serving editor requests.
 | T2   | An Omena CI identity signed the canonical URL, tier, and SIF hash in a published subject.        |
 | T3   | The same Omena-published subject binding under the stricter release-workflow provenance posture. |
 
-Every external-SIF cache hit is compared with SIF bytes regenerated from the
-current local source before it can be served. A cache entry is discarded and
-regenerated when that comparison is unavailable or differs, including when no
-recorded verdict exists or a local verdict file has been deleted. Consequently,
-pure external SIF bytes with no locally readable source are not a servable cache
-path.
+Every external-SIF lookup first reads and hashes the current local source. An
+in-process memory hit is source-hash-addressed and additionally checks the SIF's
+canonical URL and leaf hash, so it can skip repeated static generation without
+letting disk bytes choose semantics. Disk T0/T1 shards are still compared with
+SIF bytes regenerated from that source before serving. A mismatched or
+unverifiable disk entry is discarded and regenerated, including after a local
+verdict file has been deleted. Consequently, pure external SIF bytes with no
+locally readable source are not a servable cache path.
+
+The automatic LSP path treats workspace lock entries as digest-checked hints only.
+It verifies each referenced artifact against `sifHash`, but admits an interface
+only when the local-source bridge independently regenerates that canonical URL;
+the bridge result wins if lock bytes disagree. Lock-only remote bytes therefore
+cannot suppress a blocking editor diagnostic. Explicit CLI `--sif` and
+`--lockfile` inputs remain user-selected diagnostic inputs, with the same artifact
+hash check, and do not become automatic LSP trust authority.
 
 T2 and T3 are advisory provenance labels for Omena-published artifacts only.
 `lock verify-attestation` records a verdict for the exact canonical URL, tier,
 and SIF hash, plus a content-addressed Sigstore bundle whose signed subject binds
 all three values. Bridge reconstructs that subject and verifies the bundle
-offline at consumption time; LSP consumes the resulting label without reading a
-lockfile or using the network. Missing, forged, mismatched, or third-party
+offline at consumption time; LSP consumes the resulting bridge label without
+using the lock as trust authority or accessing the network. Missing, forged,
+mismatched, or third-party
 evidence remains at T0/T1. No tier widens a cache partition, permits
 cross-workspace serving, or enables a product capability. Wasm builds contain no
 verifier and therefore never attach Omena-published T2/T3 provenance.

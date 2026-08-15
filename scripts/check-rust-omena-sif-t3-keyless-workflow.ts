@@ -24,7 +24,7 @@ if (injectUnconsumedShardBatch) {
 }
 if (injectUnboundedPublicName) {
   workflow = workflow.replace(
-    'if [[ "${public_name}" =~ (^|[^A-Za-z0-9])[gGpP][0-9]+($|[^A-Za-z0-9]) ]]; then',
+    'if [[ "${normalized_name}" =~ g[0-9]+|goal[0-9]+|stage[0-9]+|redproof ]]; then',
     "if false; then",
   );
 }
@@ -146,9 +146,9 @@ assert.ok(
 );
 assert.ok(
   workflow.includes(
-    'if [[ "${public_name}" =~ (^|[^A-Za-z0-9])[gGpP][0-9]+($|[^A-Za-z0-9]) ]]; then',
+    'if [[ "${normalized_name}" =~ g[0-9]+|goal[0-9]+|stage[0-9]+|redproof ]]; then',
   ),
-  "SIF attestation workflow must reject internal program identifiers in public names",
+  "SIF attestation workflow must reject internal program identifiers anywhere in public names",
 );
 assert.ok(
   workflow.includes('validate_public_name output_name "${output_name}"'),
@@ -163,9 +163,24 @@ const staticPublicNames = [...workflow.matchAll(/^\s*(?:name|default):\s*(.+)$/g
   .join("\n");
 assert.doesNotMatch(
   staticPublicNames,
-  /(^|[^A-Za-z0-9])[gGpP][0-9]+(?=$|[^A-Za-z0-9])/mu,
+  /g[0-9]+|goal[0-9]+|stage[0-9]+|redproof/imu,
   "workflow and attestation subjects must not publish internal identifier-shaped names",
 );
+const forbiddenPublicName = /g[0-9]+|goal[0-9]+|stage[0-9]+|redproof/iu;
+for (const leakedName of ["g124shardverifier", "stage5-shard", "redproof-shard", "goal124-shard"]) {
+  assert.match(
+    leakedName,
+    forbiddenPublicName,
+    `workflow-specific public-name policy must reject ${leakedName}`,
+  );
+}
+for (const semanticName of ["sif-shard-verifier", "published-style-interface", "release-shard"]) {
+  assert.doesNotMatch(
+    semanticName,
+    forbiddenPublicName,
+    `workflow-specific public-name policy must permit ${semanticName}`,
+  );
+}
 
 const boundary = packageJson.scripts["check:rust-omena-sif-boundary"];
 assert.ok(boundary, "package.json must define check:rust-omena-sif-boundary");

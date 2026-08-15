@@ -71,6 +71,12 @@ const rules: readonly CensusRule[] = [
     lockKnowledge: "verified-sif+offline-sigstore-bundle",
   },
   {
+    id: "cli-explicit-lock-sif-reader",
+    role: "consumer",
+    call: "read_omena_lock_json_v1(",
+    lockKnowledge: "explicit-user-input+sifHash-check; not-automatic-lsp-authority",
+  },
+  {
     id: "bridge-shard-store",
     role: "shard-writer",
     call: "store_external_sif_cache_shard(",
@@ -118,6 +124,18 @@ const rules: readonly CensusRule[] = [
     call: "resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(",
     lockKnowledge: "bridge-verified-advisory-tier+workspace-owner; no-lock-reader",
   },
+  {
+    id: "lsp-lock-hint-reader",
+    role: "consumer",
+    call: "read_omena_lock_json_v1(",
+    lockKnowledge: "workspace-hint+sifHash-check; cannot-suppress-local-regeneration",
+  },
+  {
+    id: "lsp-lock-bridge-reconciliation",
+    role: "consumer",
+    call: "reconcile_lock_and_bridge_external_sifs(",
+    lockKnowledge: "lock-only-refused+locally-regenerated-bridge-precedence",
+  },
 ];
 
 const expectedKeys = [
@@ -125,6 +143,7 @@ const expectedKeys = [
   "cli-lock-update-writer|rust/crates/omena-cli/src/lock.rs|lock_update",
   "cli-recorded-verdict-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
   "cli-recorded-bundle-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
+  "cli-explicit-lock-sif-reader|rust/crates/omena-cli/src/diagnostics.rs|read_lock_external_sifs",
   "bridge-shard-store|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl",
   "bridge-shard-atomic-write|rust/crates/omena-bridge/src/style_resolution.rs|store_external_sif_cache_shard",
   "bridge-shard-load|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl",
@@ -133,6 +152,9 @@ const expectedKeys = [
   "lsp-in-process-style-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_in_process_external_sifs_for_lsp",
   "lsp-refresh-style-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_external_sifs_for_refresh_documents",
   "lsp-seed-pair-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_bridge_external_sifs_for_sources",
+  "lsp-lock-hint-reader|rust/crates/omena-lsp-server/src/external_sif_loader.rs|read_lock_external_sifs",
+  "lsp-lock-bridge-reconciliation|rust/crates/omena-lsp-server/src/external_sif_loader.rs|collect_deferred_external_sif_refresh_with_cache_storage",
+  "lsp-lock-bridge-reconciliation|rust/crates/omena-lsp-server/src/external_sif_loader.rs|refresh_external_sifs_for_state_immediate",
 ].toSorted();
 
 const trackedRustSources = execFileSync("git", ["ls-files", "-z", "--", "*.rs"], {
@@ -214,14 +236,14 @@ assert.match(
   "Sigstore verification must remain a native-only bridge dependency",
 );
 assert.ok(
-  lspBoundarySource.includes("recordedShardVerdictsVerifiedOfflineWithoutLockOrNetworkAuthority"),
-  "the LSP boundary must name offline-verified shard trust consumption",
+  lspBoundarySource.includes("workspaceLockSifHintsRequireDigestAndLocalBridgeRegeneration"),
+  "the LSP boundary must name digest-checked lock hints and local bridge authority",
 );
 assert.ok(
   sassCompatibilitySource.includes(
-    "Bridge reconstructs that subject and verifies the bundle\noffline at consumption time; LSP consumes the resulting label without reading a\nlockfile or using the network",
+    "The automatic LSP path treats workspace lock entries as digest-checked hints only",
   ),
-  "the Sass compatibility contract must document verdict-only shard trust consumption",
+  "the Sass compatibility contract must document the lock-hint and local-regeneration boundary",
 );
 assert.deepEqual(
   crossWorkspaceSharingSites,
@@ -463,6 +485,21 @@ function ruleAppliesToSite(ruleId: string, sourcePath: string, symbol: string): 
       sourcePath === "rust/crates/omena-lsp-server/src/external_sif_loader.rs" &&
       symbol === "resolve_bridge_external_sifs_for_sources"
     );
+  }
+  if (ruleId === "cli-explicit-lock-sif-reader") {
+    return (
+      sourcePath === "rust/crates/omena-cli/src/diagnostics.rs" &&
+      symbol === "read_lock_external_sifs"
+    );
+  }
+  if (ruleId === "lsp-lock-hint-reader") {
+    return (
+      sourcePath === "rust/crates/omena-lsp-server/src/external_sif_loader.rs" &&
+      symbol === "read_lock_external_sifs"
+    );
+  }
+  if (ruleId === "lsp-lock-bridge-reconciliation") {
+    return sourcePath === "rust/crates/omena-lsp-server/src/external_sif_loader.rs";
   }
   return true;
 }

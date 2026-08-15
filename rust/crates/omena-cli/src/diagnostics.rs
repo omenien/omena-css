@@ -27,7 +27,9 @@ use omena_query::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
     summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
 };
-use omena_sif::{read_omena_lock_json_v1, read_omena_sif_json_v1};
+use omena_sif::{
+    compute_omena_sif_artifact_hash_v1, read_omena_lock_json_v1, read_omena_sif_json_v1,
+};
 use omena_streaming_ifds::summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0;
 use std::{
     collections::BTreeSet,
@@ -427,6 +429,18 @@ pub(crate) fn read_lock_external_sifs(
                     entry.canonical_url,
                     path_string(&sif_path),
                     sif.canonical_url
+                ));
+            }
+            let actual_sif_hash = compute_omena_sif_artifact_hash_v1(&sif).map_err(|error| {
+                format!("failed to hash SIF {}: {error}", path_string(&sif_path))
+            })?;
+            if actual_sif_hash != entry.sif_hash {
+                return Err(format!(
+                    "lock entry {} expected sifHash {}, but SIF {} hashes to {}",
+                    entry.canonical_url,
+                    entry.sif_hash.as_str(),
+                    path_string(&sif_path),
+                    actual_sif_hash.as_str()
                 ));
             }
             Ok(OmenaQueryExternalSifInputV0 {

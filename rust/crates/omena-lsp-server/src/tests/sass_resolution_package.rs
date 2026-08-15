@@ -648,7 +648,7 @@ fn resolves_sass_definition_through_package_import_and_export_array_fallbacks() 
 }
 
 #[test]
-fn loads_workspace_lock_external_sifs_for_lsp_style_diagnostics() -> TestResult {
+fn workspace_lock_external_sifs_are_hints_not_automatic_lsp_authority() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_lock_external_sifs_{}_{}",
         std::process::id(),
@@ -697,21 +697,18 @@ fn loads_workspace_lock_external_sifs_for_lsp_style_diagnostics() -> TestResult 
         }),
     );
     assert!(
-        state.resolution.external_sifs.iter().any(|sif| {
-            sif.canonical_url == "https://cdn.example/tokens.scss"
-                && sif.sif.canonical_url == "https://cdn.example/tokens.scss"
-        }),
-        "initialize should load workspace omena.lock SIFs into the LSP diagnostics state"
+        state.resolution.external_sifs.is_empty(),
+        "a digest-consistent lock-only SIF must remain a hint when no local source can regenerate it"
     );
 
     open_style_document(&mut state, source_uri.as_str(), source_text);
     let diagnostics = lsp_style_diagnostics(&mut state, source_uri.as_str())?;
     assert!(
-        diagnostics.iter().all(|diagnostic| {
-            diagnostic.pointer("/code") != Some(&json!("missingSassSymbol"))
-                && diagnostic.pointer("/code") != Some(&json!("missingExternalSif"))
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.pointer("/code") == Some(&json!("missingSassSymbol"))
+                || diagnostic.pointer("/code") == Some(&json!("missingExternalSif"))
         }),
-        "lock-backed external SIF should satisfy the foreign Sass reference: {diagnostics:?}"
+        "unregenerable lock bytes must not suppress the blocking diagnostic: {diagnostics:?}"
     );
 
     let _ = fs::remove_dir_all(root.as_path());
@@ -719,7 +716,136 @@ fn loads_workspace_lock_external_sifs_for_lsp_style_diagnostics() -> TestResult 
 }
 
 #[test]
-fn source_absent_sif_exports_feed_hover_refs_and_completion_without_locations() -> TestResult {
+fn lsp_lock_digest_mismatch_is_refused_before_external_sif_admission() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_lock_digest_refusal_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let sif_path = root.join("sif/tokens.sif.json");
+    fs::create_dir_all(fixture_parent(sif_path.as_path(), "sif parent")?)?;
+
+    let canonical_url = "https://cdn.example/tokens.scss";
+    let expected_sif = fixture_external_sif(canonical_url)?;
+    let mut poisoned_sif = expected_sif.clone();
+    poisoned_sif.exports.variables[0].value_repr = Some("poisoned".to_string());
+    fs::write(
+        sif_path.as_path(),
+        omena_sif::write_omena_sif_json_v1(&poisoned_sif)?,
+    )?;
+    let lock = omena_sif::OmenaLockV1::new(vec![omena_sif::build_omena_lock_sif_entry_v1(
+        "sif/tokens.sif.json",
+        &expected_sif,
+    )?]);
+    fs::write(
+        root.join("omena.lock"),
+        omena_sif::write_omena_lock_json_v1(&lock)?,
+    )?;
+
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{ "uri": workspace_uri, "name": "workspace" }],
+            },
+        }),
+    );
+
+    assert!(
+        state
+            .resolution
+            .external_sifs
+            .iter()
+            .all(|input| input.canonical_url != canonical_url),
+        "a lock-referenced SIF whose artifact hash differs from sifHash must not enter the LSP product state"
+    );
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
+fn lsp_locally_regenerated_bridge_sif_explicitly_outranks_lock_bytes() -> TestResult {
+    let root = std::env::temp_dir().join(format!(
+        "omena_lsp_lock_bridge_precedence_{}_{}",
+        std::process::id(),
+        current_time_millis()
+    ));
+    let source = root.join("src/App.module.scss");
+    let external = root.join("vendor/_tokens.scss");
+    let sif_path = root.join("sif/tokens.sif.json");
+    fs::create_dir_all(fixture_parent(source.as_path(), "source parent")?)?;
+    fs::create_dir_all(fixture_parent(external.as_path(), "external parent")?)?;
+    fs::create_dir_all(fixture_parent(sif_path.as_path(), "sif parent")?)?;
+
+    let external_source = "$brand: red !default;\n";
+    fs::write(external.as_path(), external_source)?;
+    let external_uri = path_to_file_uri(external.as_path());
+    let expected_sif =
+        omena_sif::generate_static_omena_sif_v1(omena_sif::OmenaSifStaticGeneratorInputV1 {
+            canonical_url: external_uri.as_str(),
+            source: external_source,
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+        })?;
+    let mut poisoned_sif = expected_sif.clone();
+    poisoned_sif.exports.variables[0].value_repr = Some("poisoned".to_string());
+    fs::write(
+        sif_path.as_path(),
+        omena_sif::write_omena_sif_json_v1(&poisoned_sif)?,
+    )?;
+    let lock = omena_sif::OmenaLockV1::new(vec![omena_sif::build_omena_lock_sif_entry_v1(
+        "sif/tokens.sif.json",
+        &poisoned_sif,
+    )?]);
+    fs::write(
+        root.join("omena.lock"),
+        omena_sif::write_omena_lock_json_v1(&lock)?,
+    )?;
+
+    let source_text = format!(
+        "@use \"{}\" as tokens;\n.button {{ color: tokens.$brand; }}\n",
+        external_uri
+    );
+    fs::write(source.as_path(), source_text.as_str())?;
+    let workspace_uri = path_to_file_uri(root.as_path());
+    let source_uri = path_to_file_uri(source.as_path());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [{ "uri": workspace_uri, "name": "workspace" }],
+            },
+        }),
+    );
+    open_style_document(&mut state, source_uri.as_str(), source_text.as_str());
+
+    let admitted = state
+        .resolution
+        .external_sifs
+        .iter()
+        .find(|input| input.canonical_url == external_uri)
+        .ok_or_else(|| std::io::Error::other("locally regenerated bridge SIF"))?;
+    assert_eq!(
+        admitted.sif, expected_sif,
+        "the bridge's locally regenerated SIF must explicitly outrank self-consistent lock bytes"
+    );
+    assert_ne!(admitted.sif, poisoned_sif);
+
+    let _ = fs::remove_dir_all(root.as_path());
+    Ok(())
+}
+
+#[test]
+fn source_absent_lock_sif_exports_do_not_enter_lsp_language_features() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_source_absent_sif_exports_{}_{}",
         std::process::id(),
@@ -761,15 +887,6 @@ fn source_absent_sif_exports_feed_hover_refs_and_completion_without_locations() 
             "source fixture contains SIF-backed Sass variable reference",
         )? + 1,
     );
-    let completion_position = parser_position_for_byte_offset(
-        source_text,
-        fixture_find(
-            source_text,
-            "tokens.;",
-            "source fixture contains SIF-backed member completion point",
-        )? + "tokens.".len(),
-    );
-
     let mut state = LspShellState::default();
     handle_lsp_message(
         &mut state,
@@ -807,20 +924,12 @@ fn source_absent_sif_exports_feed_hover_refs_and_completion_without_locations() 
         .as_ref()
         .and_then(|response| response.pointer("/result/contents/value"))
         .and_then(Value::as_str)
-        .ok_or_else(|| std::io::Error::other("SIF-backed hover should render markdown"))?;
+        .ok_or_else(|| std::io::Error::other("ordinary source hover should render markdown"))?;
     assert!(
-        hover_text.contains("External Sass interface"),
+        !hover_text.contains("External Sass interface"),
         "{hover_text}"
     );
-    assert!(
-        hover_text.contains("https://cdn.example/tokens.scss"),
-        "{hover_text}"
-    );
-    assert!(
-        hover_text.contains("Source location is unavailable"),
-        "{hover_text}"
-    );
-    assert!(hover_text.contains("Value: `red`"), "{hover_text}");
+    assert!(!hover_text.contains("Value: `red`"), "{hover_text}");
 
     let definition = handle_lsp_message(
         &mut state,
@@ -841,7 +950,7 @@ fn source_absent_sif_exports_feed_hover_refs_and_completion_without_locations() 
             .as_ref()
             .and_then(|response| response.pointer("/result"))
             .is_some_and(Value::is_null),
-        "SIF-only symbols must not fabricate definition locations: {definition:?}"
+        "unregenerable lock-only symbols must not fabricate definition locations: {definition:?}"
     );
 
     let references = handle_lsp_message(
@@ -865,119 +974,26 @@ fn source_absent_sif_exports_feed_hover_refs_and_completion_without_locations() 
         .as_ref()
         .and_then(|response| response.pointer("/result"))
         .and_then(Value::as_array)
-        .ok_or_else(|| std::io::Error::other("SIF-backed references should return locations"))?;
+        .ok_or_else(|| std::io::Error::other("local references should return locations"))?;
     assert_eq!(
         reference_locations.len(),
         2,
-        "references should join local uses through the SIF external moniker without adding a fake declaration: {references:?}"
+        "references may join the two local uses, but must not add a lock-only declaration: {references:?}"
     );
     assert!(
         reference_locations.iter().all(|location| location
             .get("uri")
             .and_then(Value::as_str)
             .is_some_and(|uri| file_uri_equivalent(uri, source_uri.as_str()))),
-        "SIF-backed references should stay on source locations only: {references:?}"
+        "references should stay on source locations only: {references:?}"
     );
-    let sif_definition_json = serde_json::to_string(
-        definition
-            .as_ref()
-            .and_then(|response| response.pointer("/result"))
-            .ok_or_else(|| {
-                std::io::Error::other("SIF-backed definition should include a result")
-            })?,
-    )?;
-    let sif_references_json = serde_json::to_string(
-        references
-            .as_ref()
-            .and_then(|response| response.pointer("/result"))
-            .ok_or_else(|| {
-                std::io::Error::other("SIF-backed references should include a result")
-            })?,
-    )?;
-    *state.workspace_occurrence_index_memo_lock() = None;
-
-    let rebuilt_definition = handle_lsp_message(
-        &mut state,
-        json!({
-            "jsonrpc": "2.0",
-            "id": 40,
-            "method": "textDocument/definition",
-            "params": {
-                "textDocument": {
-                    "uri": source_uri,
-                },
-                "position": reference_position,
-            },
-        }),
-    );
-    assert_eq!(
-        sif_definition_json,
-        serde_json::to_string(
-            rebuilt_definition
-                .as_ref()
-                .and_then(|response| response.pointer("/result"))
-                .ok_or_else(|| std::io::Error::other(
-                    "rebuilt SIF definition should include a result"
-                ))?,
-        )?,
-        "SIF-only definitions should remain byte-identical without fabricating source locations"
-    );
-
-    let rebuilt_references = handle_lsp_message(
-        &mut state,
-        json!({
-            "jsonrpc": "2.0",
-            "id": 41,
-            "method": "textDocument/references",
-            "params": {
-                "textDocument": {
-                    "uri": source_uri,
-                },
-                "position": reference_position,
-                "context": {
-                    "includeDeclaration": true,
-                },
-            },
-        }),
-    );
-    assert_eq!(
-        sif_references_json,
-        serde_json::to_string(
-            rebuilt_references
-                .as_ref()
-                .and_then(|response| response.pointer("/result"))
-                .ok_or_else(|| std::io::Error::other(
-                    "rebuilt SIF references should include a result"
-                ))?,
-        )?,
-        "SIF-only references should remain byte-identical without adding a fake declaration"
-    );
-
-    let completion = handle_lsp_message(
-        &mut state,
-        json!({
-            "jsonrpc": "2.0",
-            "id": 5,
-            "method": "textDocument/completion",
-            "params": {
-                "textDocument": {
-                    "uri": source_uri,
-                },
-                "position": completion_position,
-            },
-        }),
-    );
-    let completion_items = completion
-        .as_ref()
-        .and_then(|response| response.pointer("/result/items"))
-        .and_then(Value::as_array)
-        .ok_or_else(|| std::io::Error::other("SIF-backed completion should return items"))?;
+    let diagnostics = lsp_style_diagnostics(&mut state, source_uri.as_str())?;
     assert!(
-        completion_items.iter().any(|item| item
-            .get("label")
-            .and_then(Value::as_str)
-            .is_some_and(|label| label == "tokens.$brand")),
-        "completion should expose SIF-backed visible Sass symbols: {completion:?}"
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.pointer("/code") == Some(&json!("missingSassSymbol"))
+                || diagnostic.pointer("/code") == Some(&json!("missingExternalSif"))
+        }),
+        "source-absent lock bytes must not suppress the blocking diagnostic: {diagnostics:?}"
     );
 
     let _ = fs::remove_dir_all(root.as_path());
@@ -985,7 +1001,7 @@ fn source_absent_sif_exports_feed_hover_refs_and_completion_without_locations() 
 }
 
 #[test]
-fn refreshes_workspace_lock_external_sifs_from_watched_files() -> TestResult {
+fn watched_lock_only_external_sifs_remain_unserved_without_local_regeneration() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_lock_watch_external_sifs_{}_{}",
         std::process::id(),
@@ -1057,20 +1073,16 @@ fn refreshes_workspace_lock_external_sifs_from_watched_files() -> TestResult {
     );
 
     assert!(
-        state
-            .resolution
-            .external_sifs
-            .iter()
-            .any(|sif| sif.canonical_url == "https://cdn.example/tokens.scss"),
-        "watched omena.lock changes should refresh external SIF state"
+        state.resolution.external_sifs.is_empty(),
+        "watching a new lock entry must not turn lock-only bytes into automatic LSP authority"
     );
     let diagnostics = lsp_style_diagnostics(&mut state, source_uri.as_str())?;
     assert!(
-        diagnostics.iter().all(|diagnostic| {
-            diagnostic.pointer("/code") != Some(&json!("missingSassSymbol"))
-                && diagnostic.pointer("/code") != Some(&json!("missingExternalSif"))
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.pointer("/code") == Some(&json!("missingSassSymbol"))
+                || diagnostic.pointer("/code") == Some(&json!("missingExternalSif"))
         }),
-        "watch-refreshed external SIF should satisfy the Sass reference: {diagnostics:?}"
+        "watched lock-only bytes must not suppress the blocking diagnostic: {diagnostics:?}"
     );
 
     let _ = fs::remove_dir_all(root.as_path());
@@ -1228,7 +1240,7 @@ fn lsp_bridge_refuses_unverified_recorded_shard_verdict() -> TestResult {
 }
 
 #[test]
-fn lsp_trust_map_rechecks_the_omena_published_subject() -> TestResult {
+fn trust_record_projection_rechecks_the_omena_published_subject() -> TestResult {
     const BUNDLE_SHA256: &str = "0c99e37ac1b1d3cbfd677416a74218c9a1ca8e28c3aac95c7614549f3b3b0ce1";
     const PUBLISHED_URL: &str = "pkg:omena-fixture/external-sif-trust.css";
     let root = std::env::temp_dir().join(format!(

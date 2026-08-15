@@ -56,6 +56,10 @@ static EXTERNAL_SIF_MEMORY_CACHE: OnceLock<
     Mutex<BTreeMap<String, OmenaBridgeExternalSifWithTrustV1>>,
 > = OnceLock::new();
 
+#[cfg(test)]
+static EXTERNAL_SIF_LOCAL_REGENERATION_COUNTS: OnceLock<Mutex<BTreeMap<String, usize>>> =
+    OnceLock::new();
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaBridgeStyleResolutionSummaryV0 {
@@ -436,6 +440,21 @@ fn generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl(
     let recorded_verdict_dir =
         external_sif_recorded_verdict_dir_for_path(raw_path.as_path(), cache_storage);
     let memory_cache_key = external_sif_memory_cache_key(cache_key.as_str(), cache_dir.as_deref());
+    if cache_enabled
+        && let Some(result) = load_external_sif_from_memory_cache(memory_cache_key.as_str())
+    {
+        if result.sif.canonical_url == canonical_url
+            && result.sif.fingerprints.leaf_hash.as_str() == source_hash
+        {
+            let result = external_sif_result_with_recorded_verdict(
+                result.sif,
+                recorded_verdict_dir.as_deref(),
+            )?;
+            store_external_sif_in_memory_cache(memory_cache_key.clone(), result.clone());
+            return Ok(result);
+        }
+        remove_external_sif_from_memory_cache(memory_cache_key.as_str());
+    }
     let source = String::from_utf8(source_bytes).map_err(|error| {
         format!(
             "failed to decode resolved style module {} as utf-8: {error}",
@@ -443,38 +462,22 @@ fn generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl(
         )
     })?;
     let syntax = infer_omena_bridge_sif_source_syntax(path.as_path());
-    let locally_regenerated_sif = generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
-        canonical_url: canonical_url.as_str(),
-        source: source.as_str(),
-        syntax,
-    })
-    .map_err(|error| format!("failed to generate SIF for {canonical_url}: {error}"))?;
-    if cache_enabled {
-        if let Some(result) = load_external_sif_from_memory_cache(memory_cache_key.as_str()) {
-            if result.sif == locally_regenerated_sif {
-                let result = external_sif_result_with_recorded_verdict(
-                    result.sif,
-                    recorded_verdict_dir.as_deref(),
-                )?;
-                store_external_sif_in_memory_cache(memory_cache_key.clone(), result.clone());
-                return Ok(result);
-            }
-            remove_external_sif_from_memory_cache(memory_cache_key.as_str());
-        }
-        if let Some(cache_dir) = cache_dir.as_deref()
-            && let Some(result) = load_external_sif_cache_shard(
-                cache_dir,
-                cache_key.as_str(),
-                canonical_url.as_str(),
-                source_hash.as_str(),
-                resolved_base_dir.as_str(),
-                recorded_verdict_dir.as_deref(),
-                &locally_regenerated_sif,
-            )
-        {
-            store_external_sif_in_memory_cache(memory_cache_key.clone(), result.clone());
-            return Ok(result);
-        }
+    let locally_regenerated_sif =
+        generate_local_external_sif(canonical_url.as_str(), source.as_str(), syntax)?;
+    if cache_enabled
+        && let Some(cache_dir) = cache_dir.as_deref()
+        && let Some(result) = load_external_sif_cache_shard(
+            cache_dir,
+            cache_key.as_str(),
+            canonical_url.as_str(),
+            source_hash.as_str(),
+            resolved_base_dir.as_str(),
+            recorded_verdict_dir.as_deref(),
+            &locally_regenerated_sif,
+        )
+    {
+        store_external_sif_in_memory_cache(memory_cache_key.clone(), result.clone());
+        return Ok(result);
     }
     let result = external_sif_result_with_recorded_verdict(
         locally_regenerated_sif,
@@ -495,6 +498,27 @@ fn generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl(
         }
     }
     Ok(result)
+}
+
+fn generate_local_external_sif(
+    canonical_url: &str,
+    source: &str,
+    syntax: OmenaSifSourceSyntaxV1,
+) -> Result<OmenaSifV1, String> {
+    #[cfg(test)]
+    if let Ok(mut counts) = EXTERNAL_SIF_LOCAL_REGENERATION_COUNTS
+        .get_or_init(|| Mutex::new(BTreeMap::new()))
+        .lock()
+    {
+        let count = counts.entry(canonical_url.to_string()).or_default();
+        *count = count.saturating_add(1);
+    }
+    generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
+        canonical_url,
+        source,
+        syntax,
+    })
+    .map_err(|error| format!("failed to generate SIF for {canonical_url}: {error}"))
 }
 
 fn raw_resolved_style_entry_path(resolved_path: &str) -> Option<PathBuf> {
@@ -1065,6 +1089,16 @@ fn clear_external_sif_memory_cache_for_storage_for_test(storage: &OmenaBridgeExt
     {
         cache.retain(|key, _| !key.starts_with(namespace.as_str()));
     }
+}
+
+#[cfg(test)]
+fn local_external_sif_regeneration_count_for_test(canonical_url: &str) -> usize {
+    EXTERNAL_SIF_LOCAL_REGENERATION_COUNTS
+        .get_or_init(|| Mutex::new(BTreeMap::new()))
+        .lock()
+        .ok()
+        .and_then(|counts| counts.get(canonical_url).copied())
+        .unwrap_or_default()
 }
 
 fn infer_omena_bridge_sif_source_syntax(path: &Path) -> OmenaSifSourceSyntaxV1 {
@@ -1947,6 +1981,124 @@ mod tests {
     }
 
     #[test]
+    fn memory_cache_hit_uses_fresh_source_hash_without_local_regeneration()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_external_sif_memory_fast_path")?;
+        fs::write(root.join("package.json"), r#"{"name":"workspace"}"#)?;
+        let style = root.join("tokens.scss");
+        fs::write(style.as_path(), "$brand: #0af;\n")?;
+        let resolved = path_to_file_uri(style.as_path());
+        let storage = fixture_cache_storage(style.as_path());
+        clear_external_sif_memory_cache_for_storage_for_test(&storage);
+
+        let before = local_external_sif_regeneration_count_for_test(resolved.as_str());
+        let first =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                resolved.as_str(),
+                &OmenaBridgeExternalSifCacheContextV0::default(),
+                Some(&storage),
+            )?;
+        let after_first = local_external_sif_regeneration_count_for_test(resolved.as_str());
+        assert_eq!(after_first, before + 1);
+
+        let second =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                resolved.as_str(),
+                &OmenaBridgeExternalSifCacheContextV0::default(),
+                Some(&storage),
+            )?;
+        assert_eq!(second, first);
+        assert_eq!(
+            local_external_sif_regeneration_count_for_test(resolved.as_str()),
+            after_first,
+            "a memory hit bound to the freshly read source hash must skip static SIF regeneration"
+        );
+
+        fs::write(style.as_path(), "$brand: #f50;\n")?;
+        let changed =
+            generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                resolved.as_str(),
+                &OmenaBridgeExternalSifCacheContextV0::default(),
+                Some(&storage),
+            )?;
+        assert_ne!(changed, first);
+        assert_eq!(
+            local_external_sif_regeneration_count_for_test(resolved.as_str()),
+            after_first + 1,
+            "changed source bytes must miss the source-hash-addressed memory entry"
+        );
+
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "release-only external SIF cache timing probe"]
+    fn release_external_sif_source_hash_cache_probe() -> Result<(), Box<dyn std::error::Error>> {
+        assert!(
+            !std::hint::black_box(cfg!(debug_assertions)),
+            "run this ignored probe with cargo test --release"
+        );
+        let root = temp_dir("omena_bridge_external_sif_release_probe")?;
+        fs::write(root.join("package.json"), r#"{"name":"workspace"}"#)?;
+        let style = root.join("tokens.scss");
+        let source = (0..400)
+            .map(|index| format!("$token-{index}: #{:06x};\n", index * 97))
+            .collect::<String>();
+        fs::write(style.as_path(), source.as_bytes())?;
+        let resolved = path_to_file_uri(style.as_path());
+        let storage = fixture_cache_storage(style.as_path());
+        clear_external_sif_memory_cache_for_storage_for_test(&storage);
+        let cache_context = OmenaBridgeExternalSifCacheContextV0::default();
+        let _ = generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+            resolved.as_str(),
+            &cache_context,
+            Some(&storage),
+        )?;
+
+        const ITERATIONS: usize = 200;
+        let cached_start = std::time::Instant::now();
+        for _ in 0..ITERATIONS {
+            std::hint::black_box(
+                generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage(
+                    resolved.as_str(),
+                    &cache_context,
+                    Some(&storage),
+                )?,
+            );
+        }
+        let cached_elapsed = cached_start.elapsed();
+
+        let regenerated_start = std::time::Instant::now();
+        for _ in 0..ITERATIONS {
+            let bytes = fs::read(style.as_path())?;
+            std::hint::black_box(compute_omena_sif_leaf_hash_v1(bytes.as_slice()));
+            let text = String::from_utf8(bytes)?;
+            std::hint::black_box(generate_static_omena_sif_v1(
+                OmenaSifStaticGeneratorInputV1 {
+                    canonical_url: resolved.as_str(),
+                    source: text.as_str(),
+                    syntax: OmenaSifSourceSyntaxV1::Scss,
+                },
+            )?);
+        }
+        let regenerated_elapsed = regenerated_start.elapsed();
+        eprintln!(
+            "externalSifCacheReleaseProbe rules=400 iterations={ITERATIONS} cachedNs={} regeneratedNs={} speedup={:.3}",
+            cached_elapsed.as_nanos(),
+            regenerated_elapsed.as_nanos(),
+            regenerated_elapsed.as_secs_f64() / cached_elapsed.as_secs_f64()
+        );
+        assert!(
+            cached_elapsed < regenerated_elapsed,
+            "source-hash memory validation must be cheaper than repeated local regeneration"
+        );
+
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
     fn global_external_sif_storage_never_cross_serves_workspace_partitions()
     -> Result<(), Box<dyn std::error::Error>> {
         let root = temp_dir("omena_bridge_workspace_partitioned_global_sif")?;
@@ -2168,9 +2320,10 @@ mod tests {
             None,
             &fixture.original_sif,
         );
-        assert!(
-            loaded.is_err(),
-            "a SIF for another canonical URL was accepted"
+        assert_eq!(
+            loaded,
+            Err(OmenaBridgeExternalSifShardRefusalV1::CanonicalUrlMismatch),
+            "a parsed SIF for another canonical URL must reach the named confused-deputy refusal"
         );
         fs::remove_dir_all(fixture.root)?;
         Ok(())
@@ -2497,6 +2650,50 @@ mod tests {
         );
         assert_eq!(
             downgraded.trust_source,
+            OmenaBridgeExternalSifTrustSourceV1::UnsignedLegacy
+        );
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn published_bundle_cannot_authorize_a_different_recorded_tier()
+    -> Result<(), Box<dyn std::error::Error>> {
+        const BUNDLE_SHA256: &str =
+            "0c99e37ac1b1d3cbfd677416a74218c9a1ca8e28c3aac95c7614549f3b3b0ce1";
+        let root = temp_dir("published-bundle-tier-binding")?;
+        let storage = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(root.clone());
+        let verdict_dir = storage
+            .recorded_verdict_dir()
+            .ok_or_else(|| std::io::Error::other("verdict dir"))?;
+        let bundle_reference = format!(
+            "{EXTERNAL_SIF_RECORDED_BUNDLE_DIR_V1}/{BUNDLE_SHA256}{EXTERNAL_SIF_RECORDED_BUNDLE_SUFFIX_V1}"
+        );
+        let bundle_path = verdict_dir.join(bundle_reference.as_str());
+        fs::create_dir_all(
+            bundle_path
+                .parent()
+                .ok_or_else(|| std::io::Error::other("bundle parent"))?,
+        )?;
+        fs::write(
+            bundle_path,
+            include_bytes!("../tests/fixtures/published-sif-attestation.sigstore.json"),
+        )?;
+        let sif = read_omena_sif_json_v1(
+            include_str!("../tests/fixtures/published-sif-attestation.sif.json").trim_end(),
+        )?;
+        write_fixture_recorded_shard_verdict_with_reference(
+            &storage,
+            &sif,
+            OmenaSifTrustTierV1::T2,
+            bundle_reference.as_str(),
+        )?;
+
+        let result = external_sif_result_with_recorded_verdict(sif, Some(verdict_dir))?;
+        assert_eq!(result.trust_envelope.trust_tier, OmenaSifTrustTierV1::T1);
+        assert_eq!(
+            result.trust_source,
             OmenaBridgeExternalSifTrustSourceV1::UnsignedLegacy
         );
 

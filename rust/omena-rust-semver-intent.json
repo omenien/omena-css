@@ -911,7 +911,7 @@
     {
       "crate": "omena-bridge",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, class-site, flow-boundary, surface, and inline-importance observations, emits concatenated source-fact length bounds in the external UTF-16-code-unit contract, treats every external-SIF cache shard as untrusted until it equals local regeneration, and attaches advisory T2/T3 provenance only to URL-tier-hash subjects signed by Omena CI and verified offline at consumption time.",
+      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, class-site, flow-boundary, surface, and inline-importance observations, emits concatenated source-fact length bounds in the external UTF-16-code-unit contract, binds in-process external-SIF hits to freshly read source hashes while retaining local regeneration for attacker-writable disk shards, and attaches advisory T2/T3 provenance only to URL-tier-hash subjects signed by Omena CI and verified offline at consumption time.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -958,7 +958,7 @@
           "id": "bridge-external-sif-shard-trust-wire",
           "kind": "wire-value-order-preserving",
           "surface": "external-sif-v0 shard schemaVersion and trustEnvelope plus additive trusted resolution APIs",
-          "reason": "Workspace-local external-SIF cache shards are served only after exact local regeneration equality; Omena-published advisory provenance binds canonical URL, SIF hash, and tier to a content-addressed CI-OIDC Sigstore bundle, while missing, forged, substituted, downgraded, or third-party evidence remains at T1.",
+          "reason": "In-process external-SIF hits are addressed by freshly read source hash and recheck canonical URL plus leaf hash before skipping static generation; attacker-writable disk shards still require exact local regeneration equality. Omena-published advisory provenance binds canonical URL, SIF hash, and tier to a content-addressed CI-OIDC Sigstore bundle, while missing, forged, substituted, downgraded, or third-party evidence remains at T1.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
@@ -966,12 +966,15 @@
                 "const EXTERNAL_SIF_CACHE_SCHEMA_VERSION: &str = \"1\";",
                 "\"trustEnvelope\": result.trust_envelope",
                 "generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(",
-                "if result.sif == locally_regenerated_sif {",
+                "result.sif.fingerprints.leaf_hash.as_str() == source_hash",
                 "if sif != *locally_regenerated_sif {",
+                "fn memory_cache_hit_uses_fresh_source_hash_without_local_regeneration()",
+                "fn release_external_sif_source_hash_cache_probe()",
                 "fn cache_payload_without_recorded_verdict_is_replaced_by_local_regeneration()",
                 "fn deleting_recorded_verdict_does_not_enable_cached_payload_substitution()",
                 "fn parsed_sif_canonical_url_must_match_requested_resource()",
                 "fn omena_published_bundle_is_the_only_fixture_path_to_elevated_advisory_tier()",
+                "fn published_bundle_cannot_authorize_a_different_recorded_tier()",
                 "fn published_bundle_cannot_elevate_a_different_sif_artifact()",
                 "fn forged_recorded_verdict_cannot_mint_elevated_trust_for_poisoned_payload()",
                 "fn recorded_verdict_blocks_legacy_schema_downgrade_for_canonical_url()",
@@ -2055,7 +2058,7 @@
     {
       "crate": "omena-lsp-server",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects, includes the already-landed language-server state additions, including driver-attributed republish disown counters, re-keys the public tide republish cone from URI strings to an opaque session-stable LspFileId collection, and propagates advisory Omena-published SIF provenance only after native URL-tier-hash subject verification. Cargo-semver-checks reports no additional lint for that enum payload and generic constructor change; the cargo-public-api receipt records the nominal change explicitly.",
+      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects, includes the already-landed language-server state additions, including driver-attributed republish disown counters, re-keys the public tide republish cone from URI strings to an opaque session-stable LspFileId collection, treats workspace lock SIFs as digest-checked hints behind local bridge regeneration, and propagates advisory Omena-published SIF provenance only after native URL-tier-hash subject verification. Cargo-semver-checks reports no additional lint for that enum payload and generic constructor change; the cargo-public-api receipt records the nominal change explicitly.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -2175,24 +2178,31 @@
           "id": "lsp-shard-trust-verdict-consumption",
           "kind": "wire-value-order-preserving",
           "surface": "LspExternalSifRefreshResultV0.trustRecords and LspTrustBoundaryV0.requestPathPolicy",
-          "reason": "The language server carries advisory Omena-published shard tiers into refresh decisions only after the native bridge verifies the URL-tier-hash subject offline; substituted artifacts remain T1 and LSP itself reads neither lock nor network authority.",
+          "reason": "The language server admits workspace lock SIFs only as digest-checked hints reconciled behind locally regenerated bridge output; lock-only bytes cannot establish editor semantics. Advisory Omena-published tiers enter trust-record projection only after the native bridge verifies the URL-tier-hash subject offline, and LSP uses neither lock nor network as trust authority.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/external_sif_loader.rs",
               "needles": [
                 "pub trust_records: Vec<OmenaQueryExternalSifTrustV1>",
                 "external_sif_trust_record_map(bridge_result.trust_records)",
+                "compute_omena_sif_artifact_hash_v1(&sif)",
+                "reconcile_lock_and_bridge_external_sifs(",
                 ".with_recorded_verdict_dir("
               ]
             },
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
-              "needles": ["recordedShardVerdictsVerifiedOfflineWithoutLockOrNetworkAuthority"]
+              "needles": [
+                "workspaceLockSifHintsRequireDigestAndLocalBridgeRegeneration",
+                "recordedShardVerdictsVerifiedOfflineWithoutNetworkAuthority"
+              ]
             },
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/tests/sass_resolution_package.rs",
               "needles": [
-                "fn lsp_trust_map_rechecks_the_omena_published_subject()",
+                "fn trust_record_projection_rechecks_the_omena_published_subject()",
+                "fn lsp_lock_digest_mismatch_is_refused_before_external_sif_admission()",
+                "fn lsp_locally_regenerated_bridge_sif_explicitly_outranks_lock_bytes()",
                 "let substituted = resolve();",
                 "OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy"
               ]

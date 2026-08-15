@@ -246,10 +246,14 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
             "analysisTimeUsesLocalWorkspaceOnly",
             "lockAndSifEvidenceReadFromDisk",
             "attestationVerificationOwnedByCli",
+            // Workspace locks are digest-checked hints only. They cannot
+            // suppress the locally regenerated bridge plane or establish
+            // editor-visible Sass semantics by themselves.
+            "workspaceLockSifHintsRequireDigestAndLocalBridgeRegeneration",
             // The CLI records immutable canonical-url + SIF-hash verdicts and
             // content-addressed bundles. Bridge verifies them offline; LSP
-            // never reads the lockfile as trust authority or uses the network.
-            "recordedShardVerdictsVerifiedOfflineWithoutLockOrNetworkAuthority",
+            // never treats a lock as trust authority or uses the network.
+            "recordedShardVerdictsVerifiedOfflineWithoutNetworkAuthority",
             "noRegistryFetchOnLspRequestPath",
             "noTransparencyLogLookupOnLspRequestPath",
             // Cache roots may be editor- or platform-owned after resolution;

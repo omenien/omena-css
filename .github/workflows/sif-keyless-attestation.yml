@@ -94,7 +94,8 @@ jobs:
           validate_public_name() {
             local label="$1"
             local public_name="$2"
-            if [[ "${public_name}" =~ (^|[^A-Za-z0-9])[gGpP][0-9]+($|[^A-Za-z0-9]) ]]; then
+            local normalized_name="${public_name,,}"
+            if [[ "${normalized_name}" =~ g[0-9]+|goal[0-9]+|stage[0-9]+|redproof ]]; then
               echo "::error::${label} must use descriptive semantic words rather than an internal program identifier: ${public_name}" >&2
               exit 1
             fi
