@@ -25,8 +25,14 @@ type CensusRow = {
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2).filter((arg) => arg !== "--"));
 const injectNewStoreCall = args.has("--inject-new-store-call");
+const injectCrossWorkspaceSharingPath = args.has("--inject-cross-workspace-sharing-path");
 assert.deepEqual(
-  [...args].filter((arg) => arg.startsWith("--") && arg !== "--inject-new-store-call"),
+  [...args].filter(
+    (arg) =>
+      arg.startsWith("--") &&
+      arg !== "--inject-new-store-call" &&
+      arg !== "--inject-cross-workspace-sharing-path",
+  ),
   [],
   "unknown SIF shard trust census option",
 );
@@ -130,6 +136,12 @@ const lspBoundarySource = fs.readFileSync(
   "utf8",
 );
 const sassCompatibilitySource = fs.readFileSync(path.join(repoRoot, "docs/sass-compat.md"), "utf8");
+const bridgeSource = fs.readFileSync(path.join(repoRoot, bridgeSourcePath), "utf8");
+const bridgeCacheRootSource = fs.readFileSync(
+  path.join(repoRoot, "rust/crates/omena-bridge/src/cache_root.rs"),
+  "utf8",
+);
+const crossWorkspaceSharingSites = scanCrossWorkspaceSharingSites(injectCrossWorkspaceSharingPath);
 assert.ok(
   !/(?:omena\.lock|lock_entry|lockfile|sigstore[_-]verify)/iu.test(bridgeProduction),
   "omena-bridge production code must consume recorded verdicts rather than lock or Sigstore authority",
@@ -148,6 +160,31 @@ assert.ok(
   ),
   "the Sass compatibility contract must document verdict-only shard trust consumption",
 );
+assert.deepEqual(
+  crossWorkspaceSharingSites,
+  [],
+  `cross-workspace external-SIF sharing path exists:\n${crossWorkspaceSharingSites.join("\n")}`,
+);
+assert.equal(
+  countOccurrences(bridgeCacheRootSource, "workspace: scoped_workspace_root("),
+  3,
+  "initialization, environment, and platform cache roots must all scope workspace storage",
+);
+assert.ok(
+  !bridgeCacheRootSource.includes("workspace: Some(global"),
+  "a global cache root must never become an unscoped external-SIF workspace root",
+);
+for (const standingInvariant of [
+  "fn global_external_sif_storage_never_cross_serves_workspace_partitions()",
+  "assert_ne!(workspace_cache_root_a, workspace_cache_root_b)",
+  "assert_ne!(shard_a, shard_b)",
+  "crossWorkspaceServe=false",
+]) {
+  assert.ok(
+    bridgeSource.includes(standingInvariant),
+    `the standing cross-workspace partition arm lost ${standingInvariant}`,
+  );
+}
 
 if (!injectNewStoreCall) {
   const injectedRows = scanCensus(true);
@@ -157,10 +194,18 @@ if (!injectNewStoreCall) {
     "the structural falsifier must expose an added production shard-store site",
   );
 }
+if (!injectCrossWorkspaceSharingPath) {
+  assert.equal(
+    scanCrossWorkspaceSharingSites(true).length,
+    1,
+    "the cross-workspace sharing falsifier must expose one identityless production storage path",
+  );
+}
 
 // FALSIFIER: id=sif-shard-trust-census-new-store-call class=structuralEntailment via=--inject-new-store-call producer=can-fail owner=sif-shard-trust-census entry=git-ls-files-rust-production-shard-callset
+// FALSIFIER: id=sif-shard-no-cross-workspace-sharing class=productionCallSiteMutation via=--inject-cross-workspace-sharing-path expected=RED owner=sif-shard-trust-census entry=git-ls-files-rust-production-sharing-callset
 process.stdout.write(
-  `SIF shard trust census OK: rows=${rows.length} producers=${rows.filter((row) => row.role === "producer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=0 bridgeSigstoreDependencies=0\n${formatRows(rows)}\n`,
+  `SIF shard trust census OK: rows=${rows.length} producers=${rows.filter((row) => row.role === "producer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=0 bridgeSigstoreDependencies=0 crossWorkspaceSharingPaths=0 workspaceScopedGlobalBranches=3 crossWorkspaceServe=false\n${formatRows(rows)}\n`,
 );
 
 function scanCensus(injectStore: boolean): CensusRow[] {
@@ -201,6 +246,38 @@ function scanCensus(injectStore: boolean): CensusRow[] {
     const rightKey = rowKey(right);
     return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
   });
+}
+
+function scanCrossWorkspaceSharingSites(injectSharingPath: boolean): string[] {
+  const sites: string[] = [];
+  for (const sourcePath of trackedRustSources) {
+    let source = fs.readFileSync(path.join(repoRoot, sourcePath), "utf8");
+    if (injectSharingPath && sourcePath === bridgeSourcePath) {
+      const injection =
+        "\nfn injected_cross_workspace_sharing_path() { let _ = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(PathBuf::new()); }\n";
+      const testModule = source.search(/\n#\[cfg\(test\)\]\s*\nmod\s+/u);
+      source =
+        testModule < 0
+          ? source + injection
+          : source.slice(0, testModule) + injection + source.slice(testModule);
+    }
+    const production = productionRustPrefix(source);
+    for (const [lineIndex, line] of production.split(/\r?\n/u).entries()) {
+      if (
+        line.includes("OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(") ||
+        line.includes("OmenaQueryExternalSifStorageV0::from_workspace_cache_root(") ||
+        /(?:allow|enable|serve|share)_cross_workspace_(?:external_)?sif/iu.test(line) ||
+        line.includes("crossWorkspaceServe=true")
+      ) {
+        sites.push(`${sourcePath}:${lineIndex + 1}:${line.trim()}`);
+      }
+    }
+  }
+  return sites.toSorted();
+}
+
+function countOccurrences(source: string, needle: string): number {
+  return source.split(needle).length - 1;
 }
 
 function ruleAppliesToSite(ruleId: string, sourcePath: string, symbol: string): boolean {
