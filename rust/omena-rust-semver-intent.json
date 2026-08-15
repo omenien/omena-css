@@ -2106,6 +2106,41 @@
           ]
         }
       ]
+    },
+    {
+      "crate": "omena-sif",
+      "releaseClass": "pre1MinorBreaking",
+      "reason": "The next pre-1.0 minor adds a versioned external-SIF shard trust envelope that reuses the lock-plane tier vocabulary and binds the existing payload digest to a Sigstore reference and lock entry identity.",
+      "expectedFailures": [],
+      "expectedRuntimeValueChanges": [
+        {
+          "id": "sif-shard-trust-envelope-wire",
+          "kind": "wire-value-order-preserving",
+          "surface": "OmenaSifShardTrustEnvelopeV1 trustTier, payloadDigest, signature, and lockBinding fields",
+          "reason": "External-SIF cache shards gain authenticated trust metadata while retaining the existing payload digest and the t0 through t3 lock-plane vocabulary.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
+              "needles": [
+                "pub struct OmenaSifShardTrustEnvelopeV1",
+                "pub trust_tier: OmenaSifTrustTierV1",
+                "pub payload_digest: OmenaSifDigestV1",
+                "pub signature: Option<OmenaSifShardSignatureV1>",
+                "pub lock_binding: OmenaSifShardLockBindingV1",
+                "OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-sif/tests/shard_trust_envelope.rs",
+              "needles": [
+                "fn committed_shard_trust_envelope_remains_cross_fixture_compatible()",
+                "fn shard_trust_envelope_fixture_mutations_have_typed_refusals()",
+                "fn shard_trust_envelope_reuses_the_lock_plane_tier_vocabulary()"
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

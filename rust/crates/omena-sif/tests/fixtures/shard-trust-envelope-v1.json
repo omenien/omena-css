@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1",
+  "product": "omena-sif.shard-trust-envelope",
+  "trustTier": "t3",
+  "payloadDigest": "blake3:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "signature": {
+    "algorithmVersion": "sigstore-bundle-v1",
+    "reference": "sif-shards/design-system.batch.sigstore.json",
+    "signedPayloadDigest": "blake3:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "lockBinding": {
+    "canonicalUrl": "pkg:design-system/_tokens.scss",
+    "sifHash": "blake3:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+  }
+}

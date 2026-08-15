@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omena.dev/schemas/shard-trust-envelope-v1.schema.json",
+  "title": "Omena SIF Shard Trust Envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "product", "trustTier", "payloadDigest", "lockBinding"],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
+    },
+    "product": {
+      "const": "omena-sif.shard-trust-envelope"
+    },
+    "trustTier": {
+      "enum": ["t0", "t1", "t2", "t3"]
+    },
+    "payloadDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "signature": {
+      "$ref": "#/$defs/signature"
+    },
+    "lockBinding": {
+      "$ref": "#/$defs/lockBinding"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "trustTier": {
+            "enum": ["t2", "t3"]
+          }
+        },
+        "required": ["trustTier"]
+      },
+      "then": {
+        "required": ["signature"]
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^blake3:[0-9a-f]{64}$"
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithmVersion", "reference", "signedPayloadDigest"],
+      "properties": {
+        "algorithmVersion": {
+          "const": "sigstore-bundle-v1"
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signedPayloadDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "lockBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalUrl", "sifHash"],
+      "properties": {
+        "canonicalUrl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sifHash": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  }
+}

@@ -11,9 +11,11 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 mod generator;
+mod shard_trust;
 mod structural_diff;
 
 pub use generator::*;
+pub use shard_trust::*;
 pub use structural_diff::*;
 
 pub const OMENA_SIF_VERSION_V1: &str = "1";
@@ -28,6 +30,8 @@ pub const OMENA_LIF_EXPORTS_V1_SCHEMA_JSON: &str =
 pub const OMENA_LOCK_V1_SCHEMA_JSON: &str = include_str!("../schema/lock-v1.schema.json");
 pub const OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_V1_SCHEMA_JSON: &str =
     include_str!("../schema/attestation-verification-report-v1.schema.json");
+pub const OMENA_SIF_SHARD_TRUST_ENVELOPE_V1_SCHEMA_JSON: &str =
+    include_str!("../schema/shard-trust-envelope-v1.schema.json");
 pub const OMENA_SIF_PROVENANCE_ADVISORY_REPORT_V0_SCHEMA_JSON: &str =
     include_str!("../schema/provenance-advisory-report-v0.schema.json");
 
