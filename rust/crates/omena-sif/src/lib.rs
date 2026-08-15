@@ -2517,10 +2517,11 @@ mod tests {
                 kind: "sigstore-bundle".to_string(),
                 reference: provenance_reference.to_string(),
             });
+        let expected_verified = true;
         let report = OmenaSifAttestationVerificationReportV1 {
             schema_version: "1".to_string(),
             product: "omena-sif.attestation-verification-report".to_string(),
-            verified: true,
+            verified: expected_verified,
             kind: "omena-toolchain.sigstore".to_string(),
             reference: provenance_reference.to_string(),
             verifier: "offline-sigstore-verifier".to_string(),
@@ -2570,10 +2571,11 @@ mod tests {
             .map_err(|error| error.to_string())?;
         let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
             .map_err(|error| error.to_string())?;
+        let expected_verified = true;
         let report = OmenaSifAttestationVerificationReportV1 {
             schema_version: "1".to_string(),
             product: "omena-sif.attestation-verification-report".to_string(),
-            verified: true,
+            verified: expected_verified,
             kind: "omena-toolchain.sigstore".to_string(),
             reference: "sif/unrecorded.sigstore.json".to_string(),
             verifier: "offline-sigstore-verifier".to_string(),
