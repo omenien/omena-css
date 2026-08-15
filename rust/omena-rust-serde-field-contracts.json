@@ -11,7 +11,7 @@
     "limitation": "A field insertion can move later declaration lines and make that census drift, but it cannot identify the changed field or its semver class; regeneration can therefore launder the contract change."
   },
   "crateCount": 2,
-  "sourceFileCount": 23,
+  "sourceFileCount": 24,
   "types": [
     {
       "crate": "omena-bridge",
