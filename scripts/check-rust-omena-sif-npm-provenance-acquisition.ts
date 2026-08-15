@@ -23,6 +23,16 @@ type AcquisitionReceipt = {
   readonly command: readonly string[] | null;
 };
 
+type CheckGateRecord = {
+  readonly id: string;
+  readonly scriptName: string;
+  readonly scope: string;
+  readonly kind: string;
+  readonly origin: string;
+  readonly ciTier?: string;
+  readonly ciGroup?: string;
+};
+
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2).filter((argument) => argument !== "--"));
 const injectDropAbsenceCase = args.has("--inject-drop-absence-case");
@@ -127,6 +137,41 @@ try {
       "check:rust-omena-sif-npm-provenance-acquisition",
     ),
     "the SIF boundary must run the offline npm provenance acquisition gate",
+  );
+  const inventory = spawnSync("pnpm", ["--silent", "omena-check", "list", "--json"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(
+    inventory.status,
+    0,
+    `check-orchestrator inventory failed\nstdout=${inventory.stdout}\nstderr=${inventory.stderr}`,
+  );
+  const listing = JSON.parse(inventory.stdout) as
+    | readonly CheckGateRecord[]
+    | { readonly gates: readonly CheckGateRecord[] };
+  const gates = Array.isArray(listing) ? listing : listing.gates;
+  const acquisitionGate = gates.find(
+    (gate) => gate.id === "rust/omena-sif/npm-provenance-acquisition:acquire",
+  );
+  assert.deepEqual(
+    acquisitionGate && {
+      scriptName: acquisitionGate.scriptName,
+      scope: acquisitionGate.scope,
+      kind: acquisitionGate.kind,
+      origin: acquisitionGate.origin,
+      ciTier: acquisitionGate.ciTier,
+      ciGroup: acquisitionGate.ciGroup,
+    },
+    {
+      scriptName: "acquire:sif-npm-provenance",
+      scope: "rust",
+      kind: "command",
+      origin: "package+declared",
+      ciTier: "manual",
+      ciGroup: "rust",
+    },
+    "the operator acquisition command must remain a governed manual SIF command",
   );
   const sassCompatibility = readFileSync(path.join(repoRoot, "docs/sass-compat.md"), "utf8");
   assert.ok(

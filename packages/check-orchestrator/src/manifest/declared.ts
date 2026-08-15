@@ -1320,6 +1320,17 @@ export const DECLARED_CHECK_GATES = [
     ciReason: "Caller-census regeneration changes committed governance data and requires review.",
   },
   {
+    id: "rust/omena-sif/npm-provenance-acquisition:acquire",
+    kind: "command",
+    scope: "rust",
+    packageTarget: "rust/omena-sif/npm-provenance-acquisition:acquire",
+    tags: ["rust", "omena-sif", "provenance", "acquisition"],
+    ciTier: "manual",
+    ciGroup: "rust",
+    ciReason:
+      "Network-owning npm metadata acquisition is invoked explicitly and writes caller-selected receipt paths.",
+  },
+  {
     id: "rust/omena-bundler/linked-emission-byte-differential",
     kind: "gate",
     scope: "rust",
