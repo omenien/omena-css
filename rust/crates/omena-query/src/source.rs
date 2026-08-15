@@ -417,13 +417,21 @@ impl<'a> BridgeExternalSifResolutionState<'a> {
                 .external_sif_cache_fingerprint
                 .clone(),
         };
-        let Ok(result) =
+        let result = if alias_key.starts_with("pkg:") {
+            omena_bridge::generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_cache_context_storage_and_trust(
+                resolved_url.as_str(),
+                alias_key.as_str(),
+                &cache_context,
+                self.cache_storage,
+            )
+        } else {
             omena_bridge::generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(
                 resolved_url.as_str(),
                 &cache_context,
                 self.cache_storage,
             )
-        else {
+        };
+        let Ok(result) = result else {
             return;
         };
         let sif = result.sif;

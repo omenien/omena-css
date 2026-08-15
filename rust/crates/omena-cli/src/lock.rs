@@ -8,7 +8,9 @@ use omena_query::summarize_omena_query_sass_module_sources;
 use omena_sif::{
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1,
     OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1,
-    OMENA_SIF_SHARD_RECORDED_VERDICT_PRODUCT_V1,
+    OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_IDENTITY_V1,
+    OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_ISSUER_V1,
+    OMENA_SIF_PUBLISHED_ATTESTATION_KIND_PREFIX_V1, OMENA_SIF_SHARD_RECORDED_VERDICT_PRODUCT_V1,
     OMENA_SIF_SHARD_RECORDED_VERDICT_SCHEMA_VERSION_V1,
     OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1, OMENA_SIF_SHARD_VERDICT_DIR_V1,
     OMENA_SIF_SHARD_VERIFICATION_OWNER_V1, OmenaLockSifEntryV1, OmenaLockV1,
@@ -17,11 +19,12 @@ use omena_sif::{
     OmenaSifShardRecordedVerdictV1, OmenaSifShardSignatureV1, OmenaSifSigstoreVerificationPolicyV1,
     OmenaSifTrustTierV1, apply_omena_sif_attestation_verification_report_to_lock_entry_v1,
     apply_omena_sif_npm_provenance_references_to_lock_entry_v1, build_omena_lock_sif_entry_v1,
-    compute_omena_sif_artifact_hash_v1, compute_omena_sif_leaf_hash_v1,
-    compute_omena_sif_shard_recorded_verdict_address_v1,
+    build_omena_sif_published_attestation_subject_v1, compute_omena_sif_artifact_hash_v1,
+    compute_omena_sif_leaf_hash_v1, compute_omena_sif_shard_recorded_verdict_address_v1,
     ingest_omena_sif_npm_provenance_metadata_v1, read_omena_lock_json_v1,
     read_omena_sif_attestation_verification_report_json_v1, read_omena_sif_json_v1,
     verify_omena_lock_frozen_v1, write_omena_lock_json_v1, write_omena_sif_json_v1,
+    write_omena_sif_published_attestation_subject_json_v1,
     write_omena_sif_shard_recorded_verdict_json_v1,
 };
 use serde::Serialize;
@@ -34,8 +37,6 @@ use std::{
 
 const RECORDED_SIGSTORE_BUNDLE_DIR_V1: &str = "bundles-v1";
 const RECORDED_SIGSTORE_BUNDLE_SUFFIX_V1: &str = ".sigstore.json";
-const OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER_V1: &str = "https://token.actions.githubusercontent.com";
-const OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY_V1: &str = "https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master";
 
 pub(crate) fn lock_command(
     status_lockfile: PathBuf,
@@ -433,6 +434,11 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
     let mut lock = read_lockfile_or_empty(&lockfile)?;
     let artifact_bytes = fs::read(&artifact)
         .map_err(|error| format!("failed to read {}: {error}", path_string(&artifact)))?;
+    let artifact_binding = read_verified_published_sif_attestation_binding(
+        &artifact,
+        artifact_bytes.as_slice(),
+        verified_trust_tier,
+    )?;
     let bundle_source = read_source(&bundle)?;
     let sigstore_bundle = sigstore_verify::types::Bundle::from_json(&bundle_source)
         .map_err(|error| format!("failed to parse {}: {error}", path_string(&bundle)))?;
@@ -447,7 +453,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
     }
     policy = policy.require_issuer(issuer.clone());
     let verification_outcome = sigstore_verify::verify(
-        artifact_bytes.as_slice(),
+        artifact_binding.attested_subject_json.as_bytes(),
         &sigstore_bundle,
         &policy,
         &trusted_root,
@@ -466,25 +472,7 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             sigstore_verify::CertificatePolicy::Skip => (false, false),
             sigstore_verify::CertificatePolicy::Verify { verify_sct } => (true, *verify_sct),
         };
-    let t3_artifact_binding = if verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3 {
-        Some(read_verified_t3_attestation_artifact_binding(
-            &artifact,
-            artifact_bytes.as_slice(),
-        )?)
-    } else {
-        None
-    };
-    let candidate_shard_artifact_binding = match t3_artifact_binding.clone() {
-        Some(binding) => Some(binding),
-        None => try_read_verified_shard_artifact_binding(artifact_bytes.as_slice())?,
-    };
-    let shard_artifact_binding = (issuer == OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER_V1
-        && identity.as_deref() == Some(OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY_V1))
-    .then_some(candidate_shard_artifact_binding)
-    .flatten();
-    let recorded_bundle_reference = shard_artifact_binding
-        .as_ref()
-        .map(|_| recorded_sigstore_bundle_reference(bundle_source.as_bytes()));
+    let recorded_bundle_reference = recorded_sigstore_bundle_reference(bundle_source.as_bytes());
     let attestation_statement = extract_verified_attestation_statement(
         &sigstore_bundle,
         &statement_policy,
@@ -499,14 +487,12 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
             continue;
         }
         matched_count += 1;
-        if let Some(binding) = t3_artifact_binding.as_ref() {
-            validate_verified_t3_attestation_artifact_binding(entry, binding)?;
-            validate_verified_t3_attestation_statement_binding(
-                entry,
-                binding,
-                attestation_statement.as_ref(),
-            )?;
-        }
+        validate_verified_published_sif_artifact_binding(entry, &artifact_binding)?;
+        validate_verified_published_sif_statement_binding(
+            entry,
+            &artifact_binding,
+            attestation_statement.as_ref(),
+        )?;
         let report = OmenaSifAttestationVerificationReportV1 {
             schema_version: OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_SCHEMA_VERSION_V1.to_string(),
             product: OMENA_SIF_ATTESTATION_VERIFICATION_REPORT_PRODUCT_V1.to_string(),
@@ -539,17 +525,12 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
                     )
                 })?;
         if applied {
-            if let Some(binding) = shard_artifact_binding.as_ref() {
-                validate_verified_t3_attestation_artifact_binding(entry, binding)?;
-                shard_verdicts.push(build_recorded_shard_verdict(
-                    entry,
-                    verified_trust_tier,
-                    recorded_bundle_reference
-                        .as_deref()
-                        .ok_or_else(|| "verified SIF bundle reference is missing".to_string())?,
-                    binding,
-                )?);
-            }
+            shard_verdicts.push(build_recorded_shard_verdict(
+                entry,
+                verified_trust_tier,
+                recorded_bundle_reference.as_str(),
+                &artifact_binding,
+            )?);
             applied_count += 1;
         }
     }
@@ -569,10 +550,12 @@ fn lock_verify_attestation(input: LockVerifyAttestationInput) -> Result<(), Stri
         .map_err(|error| format!("failed to serialize {}: {error}", path_string(&lockfile)))?;
     // Publish the bridge/LSP trust authority before the lockfile mutation
     // wakes consumers, so a refresh cannot race ahead of its verdict.
-    if let Some(bundle_reference) = recorded_bundle_reference.as_deref()
-        && !shard_verdicts.is_empty()
-    {
-        write_recorded_sigstore_bundle(&lockfile, bundle_reference, bundle_source.as_bytes())?;
+    if !shard_verdicts.is_empty() {
+        write_recorded_sigstore_bundle(
+            &lockfile,
+            recorded_bundle_reference.as_str(),
+            bundle_source.as_bytes(),
+        )?;
     }
     write_recorded_shard_verdicts(&lockfile, shard_verdicts.as_slice())?;
     fs::write(&lockfile, &lock_json)
@@ -918,20 +901,24 @@ fn github_repository_url(repository: &str) -> String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct VerifiedT3AttestationArtifactBinding {
+pub(crate) struct VerifiedPublishedSifAttestationBinding {
     pub(crate) canonical_url: String,
     pub(crate) sif_hash: omena_sif::OmenaSifDigestV1,
     pub(crate) artifact_sha256: String,
     pub(crate) payload_digest: omena_sif::OmenaSifDigestV1,
+    pub(crate) trust_tier: OmenaSifTrustTierV1,
+    pub(crate) attested_subject_json: String,
+    pub(crate) attested_subject_sha256: String,
 }
 
-fn read_verified_t3_attestation_artifact_binding(
+fn read_verified_published_sif_attestation_binding(
     artifact: &Path,
     artifact_bytes: &[u8],
-) -> Result<VerifiedT3AttestationArtifactBinding, String> {
-    try_read_verified_shard_artifact_binding(artifact_bytes)?.ok_or_else(|| {
+    trust_tier: OmenaSifTrustTierV1,
+) -> Result<VerifiedPublishedSifAttestationBinding, String> {
+    try_read_verified_shard_artifact_binding(artifact_bytes, trust_tier)?.ok_or_else(|| {
         format!(
-            "lock verify-attestation --verified-tier t3 requires --artifact to be canonical SIF JSON for the selected lock entry: {}",
+            "lock verify-attestation elevated provenance requires --artifact to be canonical SIF JSON for the selected lock entry: {}",
             path_string(artifact)
         )
     })
@@ -939,7 +926,8 @@ fn read_verified_t3_attestation_artifact_binding(
 
 pub(crate) fn try_read_verified_shard_artifact_binding(
     artifact_bytes: &[u8],
-) -> Result<Option<VerifiedT3AttestationArtifactBinding>, String> {
+    trust_tier: OmenaSifTrustTierV1,
+) -> Result<Option<VerifiedPublishedSifAttestationBinding>, String> {
     let Ok(artifact_source) = std::str::from_utf8(artifact_bytes) else {
         return Ok(None);
     };
@@ -953,11 +941,20 @@ pub(crate) fn try_read_verified_shard_artifact_binding(
     }
     let sif_hash = compute_omena_sif_artifact_hash_v1(&sif)
         .map_err(|error| format!("failed to hash verified SIF artifact: {error}"))?;
-    Ok(Some(VerifiedT3AttestationArtifactBinding {
+    let attested_subject = build_omena_sif_published_attestation_subject_v1(&sif, trust_tier)
+        .map_err(|error| format!("failed to build verified SIF attestation subject: {error}"))?;
+    let attested_subject_json = write_omena_sif_published_attestation_subject_json_v1(
+        &attested_subject,
+    )
+    .map_err(|error| format!("failed to serialize verified SIF attestation subject: {error}"))?;
+    Ok(Some(VerifiedPublishedSifAttestationBinding {
         canonical_url: sif.canonical_url,
         sif_hash,
         artifact_sha256: sha256_hex(artifact_bytes),
         payload_digest: compute_omena_sif_leaf_hash_v1(artifact_bytes),
+        trust_tier,
+        attested_subject_sha256: sha256_hex(attested_subject_json.as_bytes()),
+        attested_subject_json,
     }))
 }
 
@@ -965,8 +962,15 @@ pub(crate) fn build_recorded_shard_verdict(
     entry: &OmenaLockSifEntryV1,
     trust_tier: OmenaSifTrustTierV1,
     signature_reference: &str,
-    binding: &VerifiedT3AttestationArtifactBinding,
+    binding: &VerifiedPublishedSifAttestationBinding,
 ) -> Result<OmenaSifShardRecordedVerdictV1, String> {
+    if binding.trust_tier != trust_tier {
+        return Err(format!(
+            "verified SIF attestation subject tier {} does not match requested tier {}",
+            binding.trust_tier.as_str(),
+            trust_tier.as_str()
+        ));
+    }
     if binding.payload_digest != entry.sif_hash {
         return Err(format!(
             "verified canonical SIF payload digest {} does not match lock entry {}",
@@ -1152,19 +1156,19 @@ fn publish_immutable_recorded_shard_verdict(path: &Path, bytes: &[u8]) -> Result
     ))
 }
 
-pub(crate) fn validate_verified_t3_attestation_artifact_binding(
+pub(crate) fn validate_verified_published_sif_artifact_binding(
     entry: &omena_sif::OmenaLockSifEntryV1,
-    binding: &VerifiedT3AttestationArtifactBinding,
+    binding: &VerifiedPublishedSifAttestationBinding,
 ) -> Result<(), String> {
     if binding.canonical_url != entry.canonical_url {
         return Err(format!(
-            "lock verify-attestation --verified-tier t3 requires --artifact to match the selected SIF subject; artifact canonical URL {} does not match lock entry {}",
+            "lock verify-attestation elevated provenance requires --artifact to match the selected SIF subject; artifact canonical URL {} does not match lock entry {}",
             binding.canonical_url, entry.canonical_url
         ));
     }
     if binding.sif_hash != entry.sif_hash {
         return Err(format!(
-            "lock verify-attestation --verified-tier t3 requires --artifact to match the selected SIF subject; artifact hash {} does not match lock entry {}",
+            "lock verify-attestation elevated provenance requires --artifact to match the selected SIF subject; artifact hash {} does not match lock entry {}",
             binding.sif_hash.as_str(),
             entry.sif_hash.as_str()
         ));
@@ -1172,33 +1176,35 @@ pub(crate) fn validate_verified_t3_attestation_artifact_binding(
     Ok(())
 }
 
-pub(crate) fn validate_verified_t3_attestation_statement_binding(
+pub(crate) fn validate_verified_published_sif_statement_binding(
     entry: &omena_sif::OmenaLockSifEntryV1,
-    binding: &VerifiedT3AttestationArtifactBinding,
+    binding: &VerifiedPublishedSifAttestationBinding,
     statement: Option<&OmenaSifAttestationStatementV1>,
 ) -> Result<(), String> {
     let statement = statement.ok_or_else(|| {
-        "lock verify-attestation --verified-tier t3 requires a signed SIF provenance statement"
+        "lock verify-attestation elevated provenance requires a signed SIF provenance statement"
             .to_string()
     })?;
-    if !statement
-        .subject_names
-        .iter()
-        .any(|subject| subject == &entry.sif_path)
+    let Some(subject_digest) = statement.subject_digests.iter().find(|digest| {
+        digest.algorithm.eq_ignore_ascii_case("sha256")
+            && digest
+                .digest
+                .eq_ignore_ascii_case(&binding.attested_subject_sha256)
+    }) else {
+        return Err(format!(
+            "lock verify-attestation elevated provenance requires subjectDigests to bind the canonical published subject for {} to sha256:{}",
+            entry.canonical_url, binding.attested_subject_sha256
+        ));
+    };
+    if !subject_digest.name.ends_with(".attestation-subject.json")
+        || !statement
+            .subject_names
+            .iter()
+            .any(|name| name == &subject_digest.name)
     {
         return Err(format!(
-            "lock verify-attestation --verified-tier t3 requires the signed provenance statement subjectNames to include selected SIF path {}",
-            entry.sif_path
-        ));
-    }
-    if !statement.subject_digests.iter().any(|digest| {
-        digest.name == entry.sif_path
-            && digest.algorithm.eq_ignore_ascii_case("sha256")
-            && digest.digest.eq_ignore_ascii_case(&binding.artifact_sha256)
-    }) {
-        return Err(format!(
-            "lock verify-attestation --verified-tier t3 requires the signed provenance statement subjectDigests to bind {} to sha256:{}",
-            entry.sif_path, binding.artifact_sha256
+            "lock verify-attestation elevated provenance requires a named *.attestation-subject.json subject for {}",
+            entry.canonical_url
         ));
     }
     Ok(())
@@ -1215,32 +1221,31 @@ pub(crate) fn validate_attestation_policy_for_verified_tier(
     certificate_issuer: Option<&str>,
     certificate_identity: Option<&str>,
 ) -> Result<(), String> {
-    if verified_trust_tier == omena_sif::OmenaSifTrustTierV1::T3 {
-        if !kind.starts_with("omena-toolchain.") {
-            return Err(format!(
-                "lock verify-attestation --verified-tier t3 requires --kind omena-toolchain.*, got {kind}"
-            ));
-        }
-        if certificate_issuer.is_none_or(|issuer| issuer.trim().is_empty()) {
-            return Err("lock verify-attestation --verified-tier t3 requires --issuer".to_string());
-        }
-        if certificate_identity.is_none_or(|identity| identity.trim().is_empty()) {
-            return Err(
-                "lock verify-attestation --verified-tier t3 requires --identity".to_string(),
-            );
-        }
-        if certificate_issuer != Some(OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER_V1) {
-            return Err(format!(
-                "lock verify-attestation --verified-tier t3 requires the Omena CI OIDC issuer {}",
-                OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER_V1
-            ));
-        }
-        if certificate_identity != Some(OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY_V1) {
-            return Err(format!(
-                "lock verify-attestation --verified-tier t3 requires the Omena keyless workflow identity {}",
-                OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY_V1
-            ));
-        }
+    if verified_trust_tier < OmenaSifTrustTierV1::T2 {
+        return Ok(());
+    }
+    if !kind.starts_with(OMENA_SIF_PUBLISHED_ATTESTATION_KIND_PREFIX_V1) {
+        return Err(format!(
+            "lock verify-attestation elevated provenance requires --kind omena-toolchain.*, got {kind}"
+        ));
+    }
+    if certificate_issuer.is_none_or(|issuer| issuer.trim().is_empty()) {
+        return Err("lock verify-attestation elevated provenance requires --issuer".to_string());
+    }
+    if certificate_identity.is_none_or(|identity| identity.trim().is_empty()) {
+        return Err("lock verify-attestation elevated provenance requires --identity".to_string());
+    }
+    if certificate_issuer != Some(OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_ISSUER_V1) {
+        return Err(format!(
+            "lock verify-attestation elevated provenance requires the Omena CI OIDC issuer {}",
+            OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_ISSUER_V1
+        ));
+    }
+    if certificate_identity != Some(OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_IDENTITY_V1) {
+        return Err(format!(
+            "lock verify-attestation elevated provenance requires the Omena keyless workflow identity {}",
+            OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_IDENTITY_V1
+        ));
     }
     Ok(())
 }

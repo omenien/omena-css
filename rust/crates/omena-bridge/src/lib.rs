@@ -108,6 +108,7 @@ pub use style_resolution::{
     generate_omena_bridge_sif_for_resolved_style_path_with_cache_context,
     generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_and_storage,
     generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust,
+    generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_cache_context_storage_and_trust,
     load_omena_bridge_workspace_style_resolution_inputs,
     resolve_omena_bridge_style_uri_for_specifier,
     resolve_omena_bridge_style_uri_for_specifier_with_package_manifests,

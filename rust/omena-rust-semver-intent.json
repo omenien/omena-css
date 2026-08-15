@@ -406,7 +406,7 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "Runtime cascade evidence carriers expose typed topology, source-text importance, guarded-winner authority, and an additive uncalibrated fragile-winner diagnostic backed by a computed robustness radius, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses, class sites expose typed token support and guarded-token explanations, query-owned missing-module diagnostics use the established protocol spelling, and measured legacy declarations remain deprecated beside additive accurate APIs.",
+      "reason": "Runtime cascade evidence carriers expose typed topology, source-text importance, guarded-winner authority, and an additive uncalibrated fragile-winner diagnostic backed by a computed robustness radius, bundler-host requests make the caller workspace root explicit for relocation-stable CSS Module identity, cascade confidence weights follow the cascade-axis authority, selector projections demote certainty for non-converged flow, the SCSS control-flow oracle separates propagation-depth and ascending-chain witnesses, class sites expose typed token support and guarded-token explanations, query-owned missing-module diagnostics use the established protocol spelling, Omena-published SIF provenance labels propagate only after URL-tier-hash subject verification, and measured legacy declarations remain deprecated beside additive accurate APIs.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -752,6 +752,29 @@
               "needles": ["assert!(codes.contains(&\"missing-module\"));"]
             }
           ]
+        },
+        {
+          "id": "query-published-sif-provenance-values",
+          "kind": "wire-value-order-preserving",
+          "surface": "OmenaQueryExternalSifTrustV1 trustTier and trustSource for package aliases",
+          "reason": "A package-alias source receives an advisory T2/T3 label only when the locally regenerated SIF exactly matches an Omena-published URL-tier-hash subject whose offline Sigstore bundle verifies; a substituted artifact remains T1.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/source.rs",
+              "needles": [
+                "generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_cache_context_storage_and_trust(",
+                "OmenaBridgeExternalSifTrustSourceV1::RecordedVerdict"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/tests.rs",
+              "needles": [
+                "fn bridge_resolution_rechecks_the_published_subject_at_the_query_boundary()",
+                "assert_eq!(substituted.resolution.external_sifs[0].sif, poisoned_sif);",
+                "crate::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy"
+              ]
+            }
+          ]
         }
       ]
     },
@@ -888,7 +911,7 @@
     {
       "crate": "omena-bridge",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, class-site, flow-boundary, surface, and inline-importance observations, emits concatenated source-fact length bounds in the external UTF-16-code-unit contract, and authenticates elevated workspace-local external-SIF cache shards by verifying CI-OIDC Sigstore bundles offline at consumption time.",
+      "reason": "The next pre-1.0 minor exposes explicit source-fact attempt, class-site, flow-boundary, surface, and inline-importance observations, emits concatenated source-fact length bounds in the external UTF-16-code-unit contract, treats every external-SIF cache shard as untrusted until it equals local regeneration, and attaches advisory T2/T3 provenance only to URL-tier-hash subjects signed by Omena CI and verified offline at consumption time.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -935,7 +958,7 @@
           "id": "bridge-external-sif-shard-trust-wire",
           "kind": "wire-value-order-preserving",
           "surface": "external-sif-v0 shard schemaVersion and trustEnvelope plus additive trusted resolution APIs",
-          "reason": "Workspace-local external-SIF cache shards now bind their existing payload digest to a canonical URL, SIF hash, tier, and content-addressed CI-OIDC Sigstore bundle; native consumers verify Fulcio and Rekor evidence offline, while missing or forged evidence and downgrade attempts remain at T1.",
+          "reason": "Workspace-local external-SIF cache shards are served only after exact local regeneration equality; Omena-published advisory provenance binds canonical URL, SIF hash, and tier to a content-addressed CI-OIDC Sigstore bundle, while missing, forged, substituted, downgraded, or third-party evidence remains at T1.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
@@ -943,11 +966,25 @@
                 "const EXTERNAL_SIF_CACHE_SCHEMA_VERSION: &str = \"1\";",
                 "\"trustEnvelope\": result.trust_envelope",
                 "generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(",
-                "fn ci_oidc_bundle_is_the_only_fixture_path_to_elevated_shard_capability()",
+                "if result.sif == locally_regenerated_sif {",
+                "if sif != *locally_regenerated_sif {",
+                "fn cache_payload_without_recorded_verdict_is_replaced_by_local_regeneration()",
+                "fn deleting_recorded_verdict_does_not_enable_cached_payload_substitution()",
+                "fn parsed_sif_canonical_url_must_match_requested_resource()",
+                "fn omena_published_bundle_is_the_only_fixture_path_to_elevated_advisory_tier()",
+                "fn published_bundle_cannot_elevate_a_different_sif_artifact()",
                 "fn forged_recorded_verdict_cannot_mint_elevated_trust_for_poisoned_payload()",
                 "fn recorded_verdict_blocks_legacy_schema_downgrade_for_canonical_url()",
                 "fn unverified_recorded_verdict_never_elevates_memory_or_disk_shards()",
                 "fn same_version_legacy_shard_without_trust_fields_remains_workspace_local()"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-bridge/src/external_sif_signature.rs",
+              "needles": [
+                "sigstore_verify::verify(artifact_bytes, &bundle, &policy, &trusted_root)",
+                ".require_identity(omena_sif::OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_IDENTITY_V1)",
+                ".require_issuer(omena_sif::OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_ISSUER_V1)"
               ]
             }
           ]
@@ -2018,7 +2055,7 @@
     {
       "crate": "omena-lsp-server",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects, includes the already-landed language-server state additions, including driver-attributed republish disown counters, and re-keys the public tide republish cone from URI strings to an opaque session-stable LspFileId collection. Cargo-semver-checks reports no additional lint for that enum payload and generic constructor change; the cargo-public-api receipt records the nominal change explicitly.",
+      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects, includes the already-landed language-server state additions, including driver-attributed republish disown counters, re-keys the public tide republish cone from URI strings to an opaque session-stable LspFileId collection, and propagates advisory Omena-published SIF provenance only after native URL-tier-hash subject verification. Cargo-semver-checks reports no additional lint for that enum payload and generic constructor change; the cargo-public-api receipt records the nominal change explicitly.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -2138,7 +2175,7 @@
           "id": "lsp-shard-trust-verdict-consumption",
           "kind": "wire-value-order-preserving",
           "surface": "LspExternalSifRefreshResultV0.trustRecords and LspTrustBoundaryV0.requestPathPolicy",
-          "reason": "The language server now carries bridge-validated shard tiers into refresh decisions while naming that the native bridge verifies CLI-recorded verdict bundles offline without lock or network authority.",
+          "reason": "The language server carries advisory Omena-published shard tiers into refresh decisions only after the native bridge verifies the URL-tier-hash subject offline; substituted artifacts remain T1 and LSP itself reads neither lock nor network authority.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/external_sif_loader.rs",
@@ -2151,6 +2188,14 @@
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
               "needles": ["recordedShardVerdictsVerifiedOfflineWithoutLockOrNetworkAuthority"]
+            },
+            {
+              "sourcePath": "rust/crates/omena-lsp-server/src/tests/sass_resolution_package.rs",
+              "needles": [
+                "fn lsp_trust_map_rechecks_the_omena_published_subject()",
+                "let substituted = resolve();",
+                "OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy"
+              ]
             }
           ]
         }
@@ -2159,7 +2204,7 @@
     {
       "crate": "omena-sif",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor adds a versioned external-SIF shard trust envelope and immutable recorded-verdict sidecar that reuse the lock-plane tier vocabulary and bind the existing payload digest to a keyless Sigstore reference and lock entry identity.",
+      "reason": "The next pre-1.0 minor adds a versioned external-SIF shard trust envelope, a URL-tier-hash published subject, and an immutable recorded-verdict sidecar. T2/T3 are advisory provenance labels available only to Omena-published subjects verified against the external CI-OIDC trust root; third-party evidence remains T0/T1.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
         {
@@ -2193,7 +2238,7 @@
           "id": "sif-shard-recorded-verdict-wire",
           "kind": "wire-value-order-preserving",
           "surface": "OmenaSifShardRecordedVerdictV1 canonicalUrl, sifHash, trustTier, signature, and verificationOwner fields",
-          "reason": "A CLI-owned immutable sidecar records the verified canonical SIF subject for bridge and LSP consumers, while the keyless workflow publishes an attested shard batch without introducing long-lived keys.",
+          "reason": "A CLI-owned immutable sidecar records the verified canonical URL, advisory tier, and SIF hash for bridge and LSP consumers, while the keyless workflow signs that canonical published subject without introducing long-lived keys.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
@@ -2202,7 +2247,11 @@
                 "pub verification_owner: String",
                 "pub canonical_url: String",
                 "pub sif_hash: OmenaSifDigestV1",
-                "OMENA_SIF_SHARD_VERIFICATION_OWNER_V1"
+                "OMENA_SIF_SHARD_VERIFICATION_OWNER_V1",
+                "pub struct OmenaSifPublishedAttestationSubjectV1",
+                "pub trust_tier: OmenaSifTrustTierV1",
+                "OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_ISSUER_V1",
+                "OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_IDENTITY_V1"
               ]
             },
             {
@@ -2210,7 +2259,8 @@
               "needles": [
                 "pub(crate) fn write_recorded_shard_verdicts(",
                 ".create_new(true)",
-                "try_read_verified_shard_artifact_binding(artifact_bytes.as_slice())?"
+                "read_verified_published_sif_attestation_binding(",
+                "validate_verified_published_sif_statement_binding("
               ]
             }
           ]

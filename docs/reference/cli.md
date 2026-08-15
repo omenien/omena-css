@@ -78,3 +78,11 @@ metadata separately with `pnpm acquire:sif-npm-provenance <package@version>
 version, provenance shape, and attestation subject before updating the lock.
 Absent evidence leaves the existing trust tier unchanged. A native registry
 fetch path in Omena is intentionally deferred.
+
+`omena lock verify-attestation` accepts only Omena-published SIF provenance for
+T2/T3. `--artifact` is the canonical SIF JSON; the CLI reconstructs the signed
+`*.attestation-subject.json` from its canonical URL and hash plus
+`--verified-tier`, then verifies that exact descriptor against the supplied
+offline Sigstore bundle. Third-party attestation metadata remains advisory at
+T0/T1. These tiers report provenance only and do not enable additional product
+capabilities or broader cache reuse.

@@ -25,13 +25,21 @@ type CensusRow = {
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2).filter((arg) => arg !== "--"));
 const injectNewStoreCall = args.has("--inject-new-store-call");
+const injectDirectShardPrimitive = args.has("--inject-direct-shard-primitive");
 const injectCrossWorkspaceSharingPath = args.has("--inject-cross-workspace-sharing-path");
+const injectStructLiteralSharingPath = args.has("--inject-struct-literal-sharing-path");
+const injectConstantIdentitySharingPath = args.has("--inject-constant-identity-sharing-path");
+const injectDocCommentCfgDecoy = args.has("--inject-doc-comment-cfg-decoy");
 assert.deepEqual(
   [...args].filter(
     (arg) =>
       arg.startsWith("--") &&
       arg !== "--inject-new-store-call" &&
-      arg !== "--inject-cross-workspace-sharing-path",
+      arg !== "--inject-direct-shard-primitive" &&
+      arg !== "--inject-cross-workspace-sharing-path" &&
+      arg !== "--inject-struct-literal-sharing-path" &&
+      arg !== "--inject-constant-identity-sharing-path" &&
+      arg !== "--inject-doc-comment-cfg-decoy",
   ),
   [],
   "unknown SIF shard trust census option",
@@ -69,34 +77,46 @@ const rules: readonly CensusRule[] = [
     lockKnowledge: "recorded-verdict-sidecar-or-local-t1; no-lock-reader",
   },
   {
+    id: "bridge-shard-atomic-write",
+    role: "shard-writer",
+    call: "write_external_sif_cache_shard_atomically(",
+    lockKnowledge: "enumerated-disk-writer-under-validated-shard-store",
+  },
+  {
     id: "bridge-shard-load",
     role: "consumer",
     call: "load_external_sif_cache_shard(",
-    lockKnowledge: "payload-digest+lock-binding+offline-verified-sidecar",
+    lockKnowledge: "local-regeneration-equality+payload-digest+offline-published-subject",
   },
   {
     id: "query-resolved-style-shard-consumer",
     role: "consumer",
     call: "generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(",
-    lockKnowledge: "offline-verified-tier+partitioned-cache; no-lock-reader",
+    lockKnowledge: "offline-verified-advisory-tier+partitioned-cache; no-lock-reader",
+  },
+  {
+    id: "query-published-style-shard-consumer",
+    role: "consumer",
+    call: "generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_cache_context_storage_and_trust(",
+    lockKnowledge: "published-url+offline-verified-advisory-tier+partitioned-cache",
   },
   {
     id: "lsp-in-process-style-shard-consumer",
     role: "consumer",
     call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(",
-    lockKnowledge: "bridge-verified-tier+partitioned-cache; no-lock-reader",
+    lockKnowledge: "bridge-verified-advisory-tier+partitioned-cache; no-lock-reader",
   },
   {
     id: "lsp-refresh-style-shard-consumer",
     role: "consumer",
     call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(",
-    lockKnowledge: "bridge-verified-tier+partitioned-cache; no-lock-reader",
+    lockKnowledge: "bridge-verified-advisory-tier+partitioned-cache; no-lock-reader",
   },
   {
     id: "lsp-seed-pair-shard-consumer",
     role: "consumer",
     call: "resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(",
-    lockKnowledge: "bridge-verified-tier+workspace-owner; no-lock-reader",
+    lockKnowledge: "bridge-verified-advisory-tier+workspace-owner; no-lock-reader",
   },
 ];
 
@@ -105,9 +125,11 @@ const expectedKeys = [
   "cli-lock-update-writer|rust/crates/omena-cli/src/lock.rs|lock_update",
   "cli-recorded-verdict-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
   "cli-recorded-bundle-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
-  "bridge-shard-store|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust",
-  "bridge-shard-load|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust",
+  "bridge-shard-store|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl",
+  "bridge-shard-atomic-write|rust/crates/omena-bridge/src/style_resolution.rs|store_external_sif_cache_shard",
+  "bridge-shard-load|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl",
   "query-resolved-style-shard-consumer|rust/crates/omena-query/src/source.rs|enqueue_alias",
+  "query-published-style-shard-consumer|rust/crates/omena-query/src/source.rs|enqueue_alias",
   "lsp-in-process-style-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_in_process_external_sifs_for_lsp",
   "lsp-refresh-style-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_external_sifs_for_refresh_documents",
   "lsp-seed-pair-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_bridge_external_sifs_for_sources",
@@ -122,7 +144,11 @@ const trackedRustSources = execFileSync("git", ["ls-files", "-z", "--", "*.rs"],
   .filter(isProductionRustSource);
 
 const bridgeSourcePath = "rust/crates/omena-bridge/src/style_resolution.rs";
-const rows = scanCensus(injectNewStoreCall);
+const rows = scanCensus({
+  injectStore: injectNewStoreCall,
+  injectPrimitive: injectDirectShardPrimitive,
+  injectDocCommentDecoy: injectDocCommentCfgDecoy,
+});
 const observedKeys = rows.map(rowKey).toSorted();
 assert.deepEqual(
   observedKeys,
@@ -159,7 +185,18 @@ const bridgeSigstoreVerifierCalls = bridgeProductionSources.flatMap(({ sourcePat
       line.includes("sigstore_verify::verify(") ? [`${sourcePath}:${index + 1}`] : [],
     ),
 );
-const crossWorkspaceSharingSites = scanCrossWorkspaceSharingSites(injectCrossWorkspaceSharingPath);
+const crossWorkspaceSharingSites = scanCrossWorkspaceSharingSites({
+  injectUnscopedConstructor: injectCrossWorkspaceSharingPath,
+  injectStructLiteral: injectStructLiteralSharingPath,
+  injectDocCommentDecoy: injectDocCommentCfgDecoy,
+});
+const workspaceIdentityConstructorSites = scanWorkspaceIdentityConstructorSites(
+  injectConstantIdentitySharingPath,
+);
+const expectedWorkspaceIdentityConstructorKeys = [
+  "rust/crates/omena-lsp-server/src/external_sif_loader.rs|bridge_cache_storage_for_workspace_uri",
+  "rust/crates/omena-lsp-server/src/external_sif_loader.rs|bridge_cache_storage_for_document",
+].toSorted();
 assert.deepEqual(bridgeLockReaderSites, [], "omena-bridge must not read omena.lock");
 assert.deepEqual(
   bridgeNetworkSites,
@@ -182,7 +219,7 @@ assert.ok(
 );
 assert.ok(
   sassCompatibilitySource.includes(
-    "Bridge verifies that bundle offline\nat consumption time; LSP consumes the resulting tier without reading a lockfile\nor using the network",
+    "Bridge reconstructs that subject and verifies the bundle\noffline at consumption time; LSP consumes the resulting label without reading a\nlockfile or using the network",
   ),
   "the Sass compatibility contract must document verdict-only shard trust consumption",
 );
@@ -191,8 +228,19 @@ assert.deepEqual(
   [],
   `cross-workspace external-SIF sharing path exists:\n${crossWorkspaceSharingSites.join("\n")}`,
 );
+assert.deepEqual(
+  workspaceIdentityConstructorSites.map((site) => site.key).toSorted(),
+  expectedWorkspaceIdentityConstructorKeys,
+  `workspace-identity constructor call-set drifted:\n${workspaceIdentityConstructorSites
+    .map((site) => site.display)
+    .join("\n")}`,
+);
+const workspaceScopedGlobalBranches = countOccurrences(
+  bridgeCacheRootSource,
+  "workspace: scoped_workspace_root(",
+);
 assert.equal(
-  countOccurrences(bridgeCacheRootSource, "workspace: scoped_workspace_root("),
+  workspaceScopedGlobalBranches,
   3,
   "initialization, environment, and platform cache roots must all scope workspace storage",
 );
@@ -213,35 +261,88 @@ for (const standingInvariant of [
 }
 
 if (!injectNewStoreCall) {
-  const injectedRows = scanCensus(true);
+  const injectedRows = scanCensus({ injectStore: true });
   assert.equal(
     injectedRows.filter((row) => row.id === "bridge-shard-store").length,
     rows.filter((row) => row.id === "bridge-shard-store").length + 1,
     "the structural falsifier must expose an added production shard-store site",
   );
 }
+if (!injectDirectShardPrimitive) {
+  const injectedRows = scanCensus({ injectPrimitive: true });
+  assert.equal(
+    injectedRows.filter((row) => row.id === "bridge-shard-atomic-write").length,
+    rows.filter((row) => row.id === "bridge-shard-atomic-write").length + 1,
+    "the primitive-writer falsifier must expose a direct production disk writer",
+  );
+}
 if (!injectCrossWorkspaceSharingPath) {
   assert.equal(
-    scanCrossWorkspaceSharingSites(true).length,
+    scanCrossWorkspaceSharingSites({ injectUnscopedConstructor: true }).length,
     1,
     "the cross-workspace sharing falsifier must expose one identityless production storage path",
   );
 }
+if (!injectStructLiteralSharingPath) {
+  assert.equal(
+    scanCrossWorkspaceSharingSites({ injectStructLiteral: true }).length,
+    1,
+    "the struct-literal falsifier must expose one identityless production storage path",
+  );
+}
+if (!injectConstantIdentitySharingPath) {
+  assert.equal(
+    scanWorkspaceIdentityConstructorSites(true).length,
+    workspaceIdentityConstructorSites.length + 1,
+    "the constant-identity falsifier must expose one new identity constructor site",
+  );
+}
+if (!injectDocCommentCfgDecoy) {
+  const decoyRows = scanCensus({ injectDocCommentDecoy: true });
+  assert.equal(
+    decoyRows.filter((row) => row.id === "bridge-shard-store").length,
+    rows.filter((row) => row.id === "bridge-shard-store").length + 1,
+    "a doc-comment cfg(test) decoy must not hide a production shard writer",
+  );
+  assert.equal(
+    scanCrossWorkspaceSharingSites({ injectDocCommentDecoy: true }).length,
+    1,
+    "a doc-comment cfg(test) decoy must not hide an identityless storage constructor",
+  );
+}
 
 // FALSIFIER: id=sif-shard-trust-census-post-test-store-call class=structuralEntailment via=--inject-new-store-call producer=can-fail owner=sif-shard-trust-census entry=git-ls-files-rust-production-shard-callset
+// FALSIFIER: id=sif-shard-trust-census-direct-primitive-writer class=structuralEntailment via=--inject-direct-shard-primitive expected=RED owner=sif-shard-trust-census entry=enumerated-disk-writer-callset
 // FALSIFIER: id=sif-shard-no-cross-workspace-sharing class=productionCallSiteMutation via=--inject-cross-workspace-sharing-path expected=RED owner=sif-shard-trust-census entry=git-ls-files-rust-production-sharing-callset
+// FALSIFIER: id=sif-shard-no-struct-literal-sharing class=productionCallSiteMutation via=--inject-struct-literal-sharing-path expected=RED owner=sif-shard-trust-census entry=enumerated-storage-constructor-callset
+// FALSIFIER: id=sif-shard-workspace-identity-callset class=productionCallSiteMutation via=--inject-constant-identity-sharing-path expected=RED owner=sif-shard-trust-census entry=enumerated-storage-constructor-callset
+// FALSIFIER: id=sif-shard-cfg-comment-decoy class=lexicalMaskMutation via=--inject-doc-comment-cfg-decoy expected=RED owner=sif-shard-trust-census entry=comment-aware-cfg-test-mask
 process.stdout.write(
-  `SIF shard trust census OK: scope=git-ls-files-production-rust-minus-cfg-test-items rows=${rows.length} artifactInputs=${rows.filter((row) => row.role === "artifact-input").length} trustWriters=${rows.filter((row) => row.role === "trust-writer").length} shardWriters=${rows.filter((row) => row.role === "shard-writer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=${bridgeLockReaderSites.length} bridgeNetworkSites=${bridgeNetworkSites.length} bridgeSigstoreVerifierCalls=${bridgeSigstoreVerifierCalls.length} crossWorkspaceSharingPaths=0 workspaceScopedGlobalBranches=3 crossWorkspaceServe=false\n${formatRows(rows)}\n`,
+  `SIF shard trust census OK: scope=git-ls-files-comment-aware-production-rust coverage=enumerated-writer-consumer-and-storage-constructor-callsets rows=${rows.length} artifactInputs=${rows.filter((row) => row.role === "artifact-input").length} trustWriters=${rows.filter((row) => row.role === "trust-writer").length} shardWriters=${rows.filter((row) => row.role === "shard-writer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=${bridgeLockReaderSites.length} bridgeNetworkSites=${bridgeNetworkSites.length} bridgeSigstoreVerifierCalls=${bridgeSigstoreVerifierCalls.length} crossWorkspaceSharingPaths=0 workspaceIdentityConstructorSites=${workspaceIdentityConstructorSites.length} workspaceScopedGlobalBranches=${workspaceScopedGlobalBranches} crossWorkspaceServe=false\n${formatRows(rows)}\n`,
 );
 
-function scanCensus(injectStore: boolean): CensusRow[] {
+type CensusInjection = {
+  injectStore?: boolean;
+  injectPrimitive?: boolean;
+  injectDocCommentDecoy?: boolean;
+};
+
+function scanCensus(injection: CensusInjection = {}): CensusRow[] {
   const observed: CensusRow[] = [];
   for (const sourcePath of trackedRustSources) {
     let source = fs.readFileSync(path.join(repoRoot, sourcePath), "utf8");
-    if (injectStore && sourcePath === bridgeSourcePath) {
-      const injection =
+    if (injection.injectStore && sourcePath === bridgeSourcePath) {
+      const injectedSource =
         "\nfn injected_external_sif_shard_store_site() { store_external_sif_cache_shard(); }\n";
-      source += injection;
+      source += injectedSource;
+    }
+    if (injection.injectPrimitive && sourcePath === bridgeSourcePath) {
+      source +=
+        "\nfn injected_direct_shard_primitive() { write_external_sif_cache_shard_atomically(); }\n";
+    }
+    if (injection.injectDocCommentDecoy && sourcePath === bridgeSourcePath) {
+      source +=
+        "\n/// #[cfg(test)]\nfn injected_cfg_comment_decoy() { store_external_sif_cache_shard(); let _ = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(PathBuf::new()); }\n";
     }
     const production = maskCfgTestItems(source);
     let containingFunction = "<module>";
@@ -270,20 +371,35 @@ function scanCensus(injectStore: boolean): CensusRow[] {
   });
 }
 
-function scanCrossWorkspaceSharingSites(injectSharingPath: boolean): string[] {
+type SharingInjection = {
+  injectUnscopedConstructor?: boolean;
+  injectStructLiteral?: boolean;
+  injectDocCommentDecoy?: boolean;
+};
+
+function scanCrossWorkspaceSharingSites(injection: SharingInjection = {}): string[] {
   const sites: string[] = [];
   for (const sourcePath of trackedRustSources) {
     let source = fs.readFileSync(path.join(repoRoot, sourcePath), "utf8");
-    if (injectSharingPath && sourcePath === bridgeSourcePath) {
-      const injection =
+    if (injection.injectUnscopedConstructor && sourcePath === bridgeSourcePath) {
+      const injectedSource =
         "\nfn injected_cross_workspace_sharing_path() { let _ = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(PathBuf::new()); }\n";
-      source += injection;
+      source += injectedSource;
+    }
+    if (injection.injectStructLiteral && sourcePath === bridgeSourcePath) {
+      source +=
+        "\nfn injected_struct_literal_sharing_path() { let _storage = OmenaBridgeExternalSifStorageV0 { workspace_cache_root: PathBuf::new(), workspace_identity: None, recorded_verdict_dir: None }; }\n";
+    }
+    if (injection.injectDocCommentDecoy && sourcePath === bridgeSourcePath) {
+      source +=
+        "\n/// #[cfg(test)]\nfn injected_cfg_comment_decoy() { store_external_sif_cache_shard(); let _ = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(PathBuf::new()); }\n";
     }
     const production = maskCfgTestItems(source);
     for (const [lineIndex, line] of production.split(/\r?\n/u).entries()) {
       if (
         line.includes("OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(") ||
         line.includes("OmenaQueryExternalSifStorageV0::from_workspace_cache_root(") ||
+        /=\s*Omena(?:Bridge|Query)ExternalSifStorageV0\s*\{/u.test(line) ||
         /(?:allow|enable|serve|share)_cross_workspace_(?:external_)?sif/iu.test(line) ||
         line.includes("crossWorkspaceServe=true")
       ) {
@@ -292,6 +408,38 @@ function scanCrossWorkspaceSharingSites(injectSharingPath: boolean): string[] {
     }
   }
   return sites.toSorted();
+}
+
+type WorkspaceIdentityConstructorSite = { key: string; display: string };
+
+function scanWorkspaceIdentityConstructorSites(
+  injectConstantIdentity: boolean,
+): WorkspaceIdentityConstructorSite[] {
+  const sites: WorkspaceIdentityConstructorSite[] = [];
+  for (const sourcePath of trackedRustSources) {
+    let source = fs.readFileSync(path.join(repoRoot, sourcePath), "utf8");
+    if (injectConstantIdentity && sourcePath === bridgeSourcePath) {
+      source +=
+        '\nfn injected_constant_workspace_identity() { let _ = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root_and_identity(PathBuf::new(), "global"); }\n';
+    }
+    const production = maskCfgTestItems(source);
+    let containingFunction = "<module>";
+    for (const [lineIndex, line] of production.split(/\r?\n/u).entries()) {
+      const functionMatch = line.match(
+        /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)/u,
+      );
+      if (functionMatch?.[1]) containingFunction = functionMatch[1];
+      if (!line.includes("from_workspace_cache_root_and_identity(")) continue;
+      if (line.includes("fn from_workspace_cache_root_and_identity(")) continue;
+      sites.push({
+        key: `${sourcePath}|${containingFunction}`,
+        display: `${sourcePath}:${lineIndex + 1}:${containingFunction}:${line.trim()}`,
+      });
+    }
+  }
+  return sites.toSorted((left, right) =>
+    left.display < right.display ? -1 : left.display > right.display ? 1 : 0,
+  );
 }
 
 function countOccurrences(source: string, needle: string): number {
@@ -380,14 +528,36 @@ function scanBridgeNetworkSites(
 
 function maskCfgTestItems(source: string): string {
   const masked = [...source];
+  const lexicalSource = maskRustCommentsAndLiterals(source);
   const attribute = /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]/gu;
-  for (const match of source.matchAll(attribute)) {
+  for (const match of lexicalSource.matchAll(attribute)) {
     const start = match.index;
     const end = findAttributedRustItemEnd(source, start + match[0].length);
     assert.ok(end > start, "cfg(test) item must have a balanced item boundary");
     for (let index = start; index < end; index += 1) {
       if (masked[index] !== "\n" && masked[index] !== "\r") masked[index] = " ";
     }
+  }
+  return masked.join("");
+}
+
+function maskRustCommentsAndLiterals(source: string): string {
+  const masked = [...source];
+  let index = 0;
+  while (index < source.length) {
+    if (/\s/u.test(source[index] ?? "")) {
+      index += 1;
+      continue;
+    }
+    const end = skipRustTriviaOrLiteral(source, index);
+    if (end <= index) {
+      index += 1;
+      continue;
+    }
+    for (let cursor = index; cursor < end; cursor += 1) {
+      if (masked[cursor] !== "\n" && masked[cursor] !== "\r") masked[cursor] = " ";
+    }
+    index = end;
   }
   return masked.join("");
 }
@@ -488,10 +658,13 @@ function skipRustTriviaOrLiteral(source: string, index: number): number {
 
 const cfgMaskSelfTest = maskCfgTestItems(`
 fn before() { store_external_sif_cache_shard(); }
+/// #[cfg(test)]
+fn after_doc_decoy() { store_external_sif_cache_shard(); }
 #[cfg(test)]
 mod tests { fn nested() { let _ = "}"; store_external_sif_cache_shard(); } }
 fn after() { store_external_sif_cache_shard(); }
 `);
 assert.ok(cfgMaskSelfTest.includes("fn before()"));
+assert.ok(cfgMaskSelfTest.includes("fn after_doc_decoy()"));
 assert.ok(!cfgMaskSelfTest.includes("fn nested()"));
 assert.ok(cfgMaskSelfTest.includes("fn after()"));

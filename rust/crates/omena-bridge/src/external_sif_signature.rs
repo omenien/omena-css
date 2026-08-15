@@ -1,10 +1,4 @@
 #[cfg(not(target_family = "wasm"))]
-pub(crate) const OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER: &str =
-    "https://token.actions.githubusercontent.com";
-#[cfg(not(target_family = "wasm"))]
-pub(crate) const OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY: &str = "https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master";
-
-#[cfg(not(target_family = "wasm"))]
 pub(crate) fn verify_omena_external_sif_keyless_bundle(
     artifact_bytes: &[u8],
     bundle_bytes: &[u8],
@@ -35,8 +29,8 @@ pub(crate) fn verify_omena_external_sif_keyless_bundle(
     )
     .map_err(|error| format!("failed to load Sigstore production trust root: {error}"))?;
     let policy = sigstore_verify::VerificationPolicy::default()
-        .require_identity(OMENA_SIF_KEYLESS_CERTIFICATE_IDENTITY)
-        .require_issuer(OMENA_SIF_KEYLESS_CERTIFICATE_ISSUER);
+        .require_identity(omena_sif::OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_IDENTITY_V1)
+        .require_issuer(omena_sif::OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_ISSUER_V1);
     sigstore_verify::verify(artifact_bytes, &bundle, &policy, &trusted_root)
         .map(|_| ())
         .map_err(|error| format!("offline Sigstore verification failed: {error}"))
@@ -56,12 +50,12 @@ mod tests {
     use super::verify_omena_external_sif_keyless_bundle;
 
     const FIXTURE_BUNDLE_SHA256: &str =
-        "9b8793695c37482b03c41a72d188d7f815086ac1ad7c9df58013d507ba5af3ec";
+        "0c99e37ac1b1d3cbfd677416a74218c9a1ca8e28c3aac95c7614549f3b3b0ce1";
 
     #[test]
-    fn workflow_keyless_bundle_verifies_against_external_trust_root() {
-        let artifact = include_str!("../tests/fixtures/keyless-attested-shard.sif.json");
-        let bundle = include_bytes!("../tests/fixtures/keyless-attested-shard.sigstore.json");
+    fn published_subject_bundle_verifies_against_external_trust_root() {
+        let artifact = include_str!("../tests/fixtures/published-sif-attestation.subject.json");
+        let bundle = include_bytes!("../tests/fixtures/published-sif-attestation.sigstore.json");
         let result = verify_omena_external_sif_keyless_bundle(
             artifact.trim_end().as_bytes(),
             bundle,
@@ -71,9 +65,9 @@ mod tests {
     }
 
     #[test]
-    fn workflow_keyless_bundle_rejects_changed_sif_bytes() {
-        let artifact = include_str!("../tests/fixtures/keyless-attested-shard.sif.json");
-        let bundle = include_bytes!("../tests/fixtures/keyless-attested-shard.sigstore.json");
+    fn published_subject_bundle_rejects_changed_identity_or_tier_bytes() {
+        let artifact = include_str!("../tests/fixtures/published-sif-attestation.subject.json");
+        let bundle = include_bytes!("../tests/fixtures/published-sif-attestation.sigstore.json");
         let mut poisoned = artifact.trim_end().as_bytes().to_vec();
         poisoned.push(b' ');
         let result = verify_omena_external_sif_keyless_bundle(
@@ -81,6 +75,9 @@ mod tests {
             bundle,
             FIXTURE_BUNDLE_SHA256,
         );
-        assert!(result.is_err(), "changed SIF bytes unexpectedly verified");
+        assert!(
+            result.is_err(),
+            "changed subject bytes unexpectedly verified"
+        );
     }
 }

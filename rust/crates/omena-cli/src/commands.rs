@@ -821,26 +821,26 @@ pub(crate) enum LockCommand {
         #[arg(long)]
         json: bool,
     },
-    /// Verify a Sigstore bundle locally and record verified lock evidence.
+    /// Verify an Omena-published SIF subject and record advisory provenance.
     VerifyAttestation {
         /// Package or canonical URL selector whose lock entries should receive verified evidence.
         package: String,
         /// Lockfile path. Defaults to ./omena.lock.
         #[arg(long, default_value = "omena.lock")]
         lockfile: PathBuf,
-        /// Artifact bytes covered by the Sigstore bundle. T3 requires the matching SIF JSON.
+        /// Canonical SIF JSON used to reconstruct the URL, tier, and SIF-hash subject.
         #[arg(long)]
         artifact: PathBuf,
-        /// Sigstore bundle JSON to verify.
+        /// Sigstore bundle covering the reconstructed *.attestation-subject.json bytes.
         #[arg(long)]
         bundle: PathBuf,
         /// Recorded provenance reference that this verification satisfies.
         #[arg(long)]
         reference: String,
         /// Verification evidence kind stored in omena.lock.
-        #[arg(long, default_value = "npm-provenance.sigstore")]
+        #[arg(long, default_value = "omena-toolchain.sigstore")]
         kind: String,
-        /// Verified trust tier recorded after local Sigstore verification: t2 or t3.
+        /// Advisory provenance tier bound into the signed subject: t2 or t3.
         #[arg(long = "verified-tier", default_value = "t2")]
         verified_tier: String,
         /// Required certificate identity.

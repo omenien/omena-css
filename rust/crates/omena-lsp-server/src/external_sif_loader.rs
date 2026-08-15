@@ -650,7 +650,7 @@ fn extend_unique_external_sifs(
     }
 }
 
-fn external_sif_trust_record_map(
+pub(crate) fn external_sif_trust_record_map(
     records: Vec<OmenaQueryExternalSifTrustV1>,
 ) -> BTreeMap<String, OmenaQueryExternalSifTrustV1> {
     records

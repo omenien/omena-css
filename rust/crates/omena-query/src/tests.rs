@@ -3722,3 +3722,166 @@ fn bridge_resolution_refuses_unverified_recorded_verdict() -> Result<(), Box<dyn
     let _ = std::fs::remove_dir_all(root);
     Ok(())
 }
+
+#[test]
+fn bridge_resolution_rechecks_the_published_subject_at_the_query_boundary()
+-> Result<(), Box<dyn std::error::Error>> {
+    const BUNDLE_SHA256: &str = "0c99e37ac1b1d3cbfd677416a74218c9a1ca8e28c3aac95c7614549f3b3b0ce1";
+    const PUBLISHED_URL: &str = "pkg:omena-fixture/external-sif-trust.css";
+    let root = std::env::temp_dir().join(format!(
+        "omena-query-published-sif-subject-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(root.as_path());
+    std::fs::create_dir_all(root.as_path())?;
+    let style = root.join("CssOnly.module.css");
+    let source = include_str!("../../../../examples/src/scenarios/08-css-only/CssOnly.module.css");
+    std::fs::write(style.as_path(), source)?;
+    let resolved_url = format!(
+        "file://{}",
+        std::fs::canonicalize(style.as_path())?.display()
+    );
+    let published_sif = omena_sif::read_omena_sif_json_v1(
+        include_str!("../../omena-bridge/tests/fixtures/published-sif-attestation.sif.json")
+            .trim_end(),
+    )?;
+    let regenerated =
+        omena_sif::generate_static_omena_sif_v1(omena_sif::OmenaSifStaticGeneratorInputV1 {
+            canonical_url: PUBLISHED_URL,
+            source,
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Css,
+        })?;
+    assert_eq!(regenerated, published_sif);
+
+    let cache_root = root.join("cache");
+    let storage =
+        omena_bridge::OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(cache_root);
+    let verdict_dir = storage
+        .recorded_verdict_dir()
+        .ok_or_else(|| std::io::Error::other("recorded verdict directory"))?;
+    let bundle_reference = format!("bundles-v1/{BUNDLE_SHA256}.sigstore.json");
+    let bundle_path = verdict_dir.join(bundle_reference.as_str());
+    std::fs::create_dir_all(
+        bundle_path
+            .parent()
+            .ok_or_else(|| std::io::Error::other("bundle parent"))?,
+    )?;
+    std::fs::write(
+        bundle_path.as_path(),
+        include_bytes!("../../omena-bridge/tests/fixtures/published-sif-attestation.sigstore.json"),
+    )?;
+    let sif_hash = omena_sif::compute_omena_sif_artifact_hash_v1(&published_sif)?;
+    let verdict = omena_sif::OmenaSifShardRecordedVerdictV1 {
+        schema_version: omena_sif::OMENA_SIF_SHARD_RECORDED_VERDICT_SCHEMA_VERSION_V1.to_string(),
+        product: omena_sif::OMENA_SIF_SHARD_RECORDED_VERDICT_PRODUCT_V1.to_string(),
+        verification_owner: omena_sif::OMENA_SIF_SHARD_VERIFICATION_OWNER_V1.to_string(),
+        canonical_url: PUBLISHED_URL.to_string(),
+        sif_hash: sif_hash.clone(),
+        trust_tier: omena_sif::OmenaSifTrustTierV1::T3,
+        signature: omena_sif::OmenaSifShardSignatureV1 {
+            algorithm_version: omena_sif::OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1
+                .to_string(),
+            reference: bundle_reference,
+            signed_payload_digest: sif_hash.clone(),
+        },
+    };
+    let verdict_address =
+        omena_sif::compute_omena_sif_shard_recorded_verdict_address_v1(PUBLISHED_URL, &sif_hash)?;
+    let verdict_name = verdict_address
+        .as_str()
+        .strip_prefix("blake3:")
+        .ok_or_else(|| std::io::Error::other("recorded verdict address"))?;
+    std::fs::write(
+        verdict_dir.join(format!("{verdict_name}.json")),
+        omena_sif::write_omena_sif_shard_recorded_verdict_json_v1(&verdict)?,
+    )?;
+
+    let resolve = || {
+        crate::resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(
+            std::iter::once((PUBLISHED_URL.to_string(), resolved_url.clone())),
+            &[],
+            &crate::OmenaQueryStyleResolutionInputsV0::default(),
+            &storage,
+        )
+    };
+    let elevated = resolve();
+    assert_eq!(elevated.resolution.external_sifs.len(), 1);
+    assert_eq!(
+        elevated.resolution.external_sifs[0].canonical_url,
+        PUBLISHED_URL
+    );
+    assert_eq!(elevated.resolution.external_sifs[0].sif, published_sif);
+    assert_eq!(elevated.trust_records.len(), 1);
+    assert_eq!(
+        elevated.trust_records[0].trust_tier,
+        omena_sif::OmenaSifTrustTierV1::T3
+    );
+    assert_eq!(
+        elevated.trust_records[0].trust_source,
+        crate::OmenaQueryExternalSifTrustSourceV1::RecordedVerdict
+    );
+
+    let poisoned_source = format!("{source}\n/* substituted after publication */\n");
+    std::fs::write(style.as_path(), poisoned_source.as_str())?;
+    let poisoned_sif =
+        omena_sif::generate_static_omena_sif_v1(omena_sif::OmenaSifStaticGeneratorInputV1 {
+            canonical_url: PUBLISHED_URL,
+            source: poisoned_source.as_str(),
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Css,
+        })?;
+    let poisoned_hash = omena_sif::compute_omena_sif_artifact_hash_v1(&poisoned_sif)?;
+    let poisoned_verdict = omena_sif::OmenaSifShardRecordedVerdictV1 {
+        canonical_url: PUBLISHED_URL.to_string(),
+        sif_hash: poisoned_hash.clone(),
+        signature: omena_sif::OmenaSifShardSignatureV1 {
+            algorithm_version: omena_sif::OMENA_SIF_SHARD_SIGNATURE_ALGORITHM_VERSION_V1
+                .to_string(),
+            reference: verdict.signature.reference.clone(),
+            signed_payload_digest: poisoned_hash.clone(),
+        },
+        ..verdict.clone()
+    };
+    let poisoned_verdict_address = omena_sif::compute_omena_sif_shard_recorded_verdict_address_v1(
+        PUBLISHED_URL,
+        &poisoned_hash,
+    )?;
+    let poisoned_verdict_name = poisoned_verdict_address
+        .as_str()
+        .strip_prefix("blake3:")
+        .ok_or_else(|| std::io::Error::other("poisoned recorded verdict address"))?;
+    std::fs::write(
+        verdict_dir.join(format!("{poisoned_verdict_name}.json")),
+        omena_sif::write_omena_sif_shard_recorded_verdict_json_v1(&poisoned_verdict)?,
+    )?;
+    let substituted = resolve();
+    assert_eq!(substituted.resolution.external_sifs[0].sif, poisoned_sif);
+    assert_eq!(
+        substituted.trust_records[0].trust_tier,
+        omena_sif::OmenaSifTrustTierV1::T1
+    );
+    assert_eq!(
+        substituted.trust_records[0].trust_source,
+        crate::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
+    );
+
+    std::fs::write(style.as_path(), source)?;
+    std::fs::write(bundle_path, b"{}")?;
+    let downgraded = resolve();
+    assert_eq!(downgraded.resolution.external_sifs.len(), 1);
+    assert_eq!(
+        downgraded.resolution.external_sifs[0].canonical_url,
+        PUBLISHED_URL
+    );
+    assert_eq!(downgraded.resolution.external_sifs[0].sif, published_sif);
+    assert_eq!(downgraded.trust_records.len(), 1);
+    assert_eq!(
+        downgraded.trust_records[0].trust_tier,
+        omena_sif::OmenaSifTrustTierV1::T1
+    );
+    assert_eq!(
+        downgraded.trust_records[0].trust_source,
+        crate::OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy
+    );
+    let _ = std::fs::remove_dir_all(root);
+    Ok(())
+}

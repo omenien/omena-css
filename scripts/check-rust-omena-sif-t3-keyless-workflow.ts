@@ -7,14 +7,26 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const workflowPath = path.join(repoRoot, ".github/workflows/sif-keyless-attestation.yml");
 const args = new Set(process.argv.slice(2).filter((arg) => arg !== "--"));
 const injectUnconsumedShardBatch = args.has("--inject-unconsumed-shard-batch");
+const injectUnboundedPublicName = args.has("--inject-unbounded-public-name");
 assert.deepEqual(
-  [...args].filter((arg) => arg.startsWith("--") && arg !== "--inject-unconsumed-shard-batch"),
+  [...args].filter(
+    (arg) =>
+      arg.startsWith("--") &&
+      arg !== "--inject-unconsumed-shard-batch" &&
+      arg !== "--inject-unbounded-public-name",
+  ),
   [],
   "unknown T3 keyless workflow gate option",
 );
 let workflow = readFileSync(workflowPath, "utf8");
 if (injectUnconsumedShardBatch) {
   workflow += '\n# dist/sif/omena-sif-shard-batch.json requestedTrustTier:"t3"\n';
+}
+if (injectUnboundedPublicName) {
+  workflow = workflow.replace(
+    'if [[ "${public_name}" =~ (^|[^A-Za-z0-9])[gGpP][0-9]+($|[^A-Za-z0-9]) ]]; then',
+    "if false; then",
+  );
 }
 const packageJson = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
   readonly scripts: Record<string, string>;
@@ -132,6 +144,28 @@ assert.ok(
   workflow.includes("output_name must contain only letters"),
   "SIF attestation workflow must constrain artifact output names",
 );
+assert.ok(
+  workflow.includes(
+    'if [[ "${public_name}" =~ (^|[^A-Za-z0-9])[gGpP][0-9]+($|[^A-Za-z0-9]) ]]; then',
+  ),
+  "SIF attestation workflow must reject internal program identifiers in public names",
+);
+assert.ok(
+  workflow.includes('validate_public_name output_name "${output_name}"'),
+  "SIF attestation workflow must validate the public artifact name",
+);
+assert.ok(
+  workflow.includes('validate_public_name canonical_url "${canonical_url}"'),
+  "SIF attestation workflow must validate the signed canonical URL",
+);
+const staticPublicNames = [...workflow.matchAll(/^\s*(?:name|default):\s*(.+)$/gmu)]
+  .map((match) => match[1]?.trim() ?? "")
+  .join("\n");
+assert.doesNotMatch(
+  staticPublicNames,
+  /(^|[^A-Za-z0-9])[gGpP][0-9]+(?=$|[^A-Za-z0-9])/mu,
+  "workflow and attestation subjects must not publish internal identifier-shaped names",
+);
 
 const boundary = packageJson.scripts["check:rust-omena-sif-boundary"];
 assert.ok(boundary, "package.json must define check:rust-omena-sif-boundary");
@@ -159,3 +193,4 @@ process.stdout.write(
 );
 
 // FALSIFIER: id=sif-t3-keyless-unconsumed-batch-reintroduction class=workflowMutation via=--inject-unconsumed-shard-batch expected=RED owner=omena-sif-keyless-workflow
+// FALSIFIER: id=sif-keyless-public-name-policy class=workflowMutation via=--inject-unbounded-public-name expected=RED owner=omena-sif-keyless-workflow

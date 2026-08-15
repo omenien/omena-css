@@ -91,6 +91,15 @@ jobs:
             esac
           }
 
+          validate_public_name() {
+            local label="$1"
+            local public_name="$2"
+            if [[ "${public_name}" =~ (^|[^A-Za-z0-9])[gGpP][0-9]+($|[^A-Za-z0-9]) ]]; then
+              echo "::error::${label} must use descriptive semantic words rather than an internal program identifier: ${public_name}" >&2
+              exit 1
+            fi
+          }
+
           sif_args=()
           generate_sif_entry() {
             local source_path="$1"
@@ -103,6 +112,8 @@ jobs:
             fi
             validate_repo_file source_path "${source_path}"
             validate_output_name "${output_name}"
+            validate_public_name output_name "${output_name}"
+            validate_public_name canonical_url "${canonical_url}"
             local output_path="dist/sif/${output_name}.sif.json"
             if [ -e "${output_path}" ]; then
               echo "::error::duplicate SIF output path: ${output_path}" >&2

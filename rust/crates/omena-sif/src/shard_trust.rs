@@ -17,6 +17,10 @@ pub const OMENA_SIF_SHARD_VERIFICATION_OWNER_V1: &str = "omena-cli.lock-provenan
 pub const OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_SCHEMA_VERSION_V1: &str = "1";
 pub const OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_PRODUCT_V1: &str =
     "omena-sif.published-attestation-subject";
+pub const OMENA_SIF_PUBLISHED_ATTESTATION_KIND_PREFIX_V1: &str = "omena-toolchain.";
+pub const OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_ISSUER_V1: &str =
+    "https://token.actions.githubusercontent.com";
+pub const OMENA_SIF_PUBLISHED_ATTESTATION_CERTIFICATE_IDENTITY_V1: &str = "https://github.com/omenien/omena-css/.github/workflows/sif-keyless-attestation.yml@refs/heads/master";
 
 /// Canonical bytes signed by the Omena release workflow for elevated provenance.
 ///

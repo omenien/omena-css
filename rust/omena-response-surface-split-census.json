@@ -69,7 +69,7 @@
     "omena-resolver": 39,
     "omena-scss-eval": 180,
     "omena-semantic": 123,
-    "omena-sif": 48,
+    "omena-sif": 50,
     "omena-spec-audit": 25,
     "omena-syntax": 17,
     "omena-testkit": 32,
@@ -1069,7 +1069,7 @@
       "crate": "omena-bridge",
       "typeName": "BadgeProps",
       "sourcePath": "rust/crates/omena-bridge/src/lib.rs",
-      "line": 595
+      "line": 596
     },
     {
       "crate": "omena-bridge",
@@ -1081,13 +1081,13 @@
       "crate": "omena-bridge",
       "typeName": "BinderPluginBoundarySummaryV0",
       "sourcePath": "rust/crates/omena-bridge/src/lib.rs",
-      "line": 161
+      "line": 162
     },
     {
       "crate": "omena-bridge",
       "typeName": "BinderPluginSummaryV0",
       "sourcePath": "rust/crates/omena-bridge/src/lib.rs",
-      "line": 175
+      "line": 176
     },
     {
       "crate": "omena-bridge",
@@ -1171,7 +1171,7 @@
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeBoundarySummaryV0",
       "sourcePath": "rust/crates/omena-bridge/src/lib.rs",
-      "line": 145
+      "line": 146
     },
     {
       "crate": "omena-bridge",
@@ -1195,31 +1195,31 @@
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifCacheContextV0",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 80
+      "line": 83
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifShardRefusalV1",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 142
+      "line": 145
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifStorageV0",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 86
+      "line": 89
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifTrustSourceV1",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 128
+      "line": 131
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeExternalSifWithTrustV1",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 135
+      "line": 138
     },
     {
       "crate": "omena-bridge",
@@ -1231,13 +1231,13 @@
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeStyleResolutionInputsV0",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 70
+      "line": 73
     },
     {
       "crate": "omena-bridge",
       "typeName": "OmenaBridgeStyleResolutionSummaryV0",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 58
+      "line": 61
     },
     {
       "crate": "omena-bridge",
@@ -1249,7 +1249,7 @@
       "crate": "omena-bridge",
       "typeName": "RecordedVerdictAttackFixture",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
-      "line": 3048
+      "line": 3274
     },
     {
       "crate": "omena-bridge",
@@ -1711,7 +1711,7 @@
       "crate": "omena-bridge",
       "typeName": "StyleSemanticGraphSummaryV0",
       "sourcePath": "rust/crates/omena-bridge/src/lib.rs",
-      "line": 187
+      "line": 188
     },
     {
       "crate": "omena-bridge",
@@ -7069,7 +7069,7 @@
       "crate": "omena-query",
       "typeName": "ClassSitePlaneProjectionV0",
       "sourcePath": "rust/crates/omena-query/src/source.rs",
-      "line": 771
+      "line": 779
     },
     {
       "crate": "omena-query",
@@ -7405,7 +7405,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryCanonicalClassTokenV0",
       "sourcePath": "rust/crates/omena-query/src/source.rs",
-      "line": 725
+      "line": 733
     },
     {
       "crate": "omena-query",
@@ -7471,31 +7471,31 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryClassSitePlaneV0",
       "sourcePath": "rust/crates/omena-query/src/source.rs",
-      "line": 686
+      "line": 694
     },
     {
       "crate": "omena-query",
       "typeName": "OmenaQueryClassSiteTokenProvenanceV0",
       "sourcePath": "rust/crates/omena-query/src/source.rs",
-      "line": 714
+      "line": 722
     },
     {
       "crate": "omena-query",
       "typeName": "OmenaQueryClassSiteTypeFactInputV0",
       "sourcePath": "rust/crates/omena-query/src/source.rs",
-      "line": 704
+      "line": 712
     },
     {
       "crate": "omena-query",
       "typeName": "OmenaQueryClassSiteUnknownCauseV0",
       "sourcePath": "rust/crates/omena-query/src/source.rs",
-      "line": 694
+      "line": 702
     },
     {
       "crate": "omena-query",
       "typeName": "OmenaQueryClassSiteValueV0",
       "sourcePath": "rust/crates/omena-query/src/source.rs",
-      "line": 744
+      "line": 752
     },
     {
       "crate": "omena-query",
@@ -8311,7 +8311,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQuerySourcePrecisionReferenceV0",
       "sourcePath": "rust/crates/omena-query/src/source.rs",
-      "line": 617
+      "line": 625
     },
     {
       "crate": "omena-query",
@@ -8803,7 +8803,7 @@
       "crate": "omena-query",
       "typeName": "ResolvedSourcePrecisionFlowV0",
       "sourcePath": "rust/crates/omena-query/src/source.rs",
-      "line": 1138
+      "line": 1146
     },
     {
       "crate": "omena-query",
@@ -11161,13 +11161,13 @@
       "crate": "omena-sif",
       "typeName": "OmenaLockVerificationIssueV1",
       "sourcePath": "rust/crates/omena-sif/src/lib.rs",
-      "line": 943
+      "line": 966
     },
     {
       "crate": "omena-sif",
       "typeName": "OmenaLockVerificationReportV1",
       "sourcePath": "rust/crates/omena-sif/src/lib.rs",
-      "line": 933
+      "line": 956
     },
     {
       "crate": "omena-sif",
@@ -11191,7 +11191,7 @@
       "crate": "omena-sif",
       "typeName": "OmenaSifAttestationVerificationPolicyV1",
       "sourcePath": "rust/crates/omena-sif/src/lib.rs",
-      "line": 904
+      "line": 927
     },
     {
       "crate": "omena-sif",
@@ -11263,13 +11263,13 @@
       "crate": "omena-sif",
       "typeName": "OmenaSifInterfaceHashInputV1",
       "sourcePath": "rust/crates/omena-sif/src/lib.rs",
-      "line": 952
+      "line": 975
     },
     {
       "crate": "omena-sif",
       "typeName": "OmenaSifInvalidAttestationVerificationIssueV1",
       "sourcePath": "rust/crates/omena-sif/src/lib.rs",
-      "line": 923
+      "line": 946
     },
     {
       "crate": "omena-sif",
@@ -11293,49 +11293,61 @@
       "crate": "omena-sif",
       "typeName": "OmenaSifProvenanceAdvisoryEntryV1",
       "sourcePath": "rust/crates/omena-sif/src/lib.rs",
-      "line": 888
+      "line": 911
     },
     {
       "crate": "omena-sif",
       "typeName": "OmenaSifProvenanceAdvisoryReportV1",
       "sourcePath": "rust/crates/omena-sif/src/lib.rs",
-      "line": 878
+      "line": 901
+    },
+    {
+      "crate": "omena-sif",
+      "typeName": "OmenaSifPublishedAttestationSubjectErrorV1",
+      "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
+      "line": 41
+    },
+    {
+      "crate": "omena-sif",
+      "typeName": "OmenaSifPublishedAttestationSubjectV1",
+      "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
+      "line": 32
     },
     {
       "crate": "omena-sif",
       "typeName": "OmenaSifShardLockBindingV1",
       "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
-      "line": 37
+      "line": 95
     },
     {
       "crate": "omena-sif",
       "typeName": "OmenaSifShardRecordedVerdictErrorV1",
       "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
-      "line": 100
+      "line": 158
     },
     {
       "crate": "omena-sif",
       "typeName": "OmenaSifShardRecordedVerdictV1",
       "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
-      "line": 44
+      "line": 102
     },
     {
       "crate": "omena-sif",
       "typeName": "OmenaSifShardSignatureV1",
       "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
-      "line": 29
+      "line": 87
     },
     {
       "crate": "omena-sif",
       "typeName": "OmenaSifShardTrustEnvelopeErrorV1",
       "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
-      "line": 55
+      "line": 113
     },
     {
       "crate": "omena-sif",
       "typeName": "OmenaSifShardTrustEnvelopeV1",
       "sourcePath": "rust/crates/omena-sif/src/shard_trust.rs",
-      "line": 17
+      "line": 75
     },
     {
       "crate": "omena-sif",
@@ -11383,7 +11395,7 @@
       "crate": "omena-sif",
       "typeName": "OmenaSifTransitiveHashInputV1",
       "sourcePath": "rust/crates/omena-sif/src/lib.rs",
-      "line": 960
+      "line": 983
     },
     {
       "crate": "omena-sif",
