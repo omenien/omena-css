@@ -83,12 +83,12 @@
   "exit": {
     "sourceRef": null,
     "domain": {
-      "trackedFileCount": 2593,
-      "textualFileCount": 2593,
+      "trackedFileCount": 2598,
+      "textualFileCount": 2598,
       "nulExcludedCount": 0,
       "bootstrapUntrackedFileCount": 0,
       "deletedTrackedFileCount": 0,
-      "fileListSha256": "e7fac46aebc5c97ca1fce0447ea11c9109cf7f85b91c81f6bbae0fa3c227a0ec"
+      "fileListSha256": "4ad3631db2f6a28b574a685dd006702ce125cd46559a8afa79abef037edc9d47"
     },
     "occurrenceCount": 2119,
     "dispositionCounts": {
@@ -123,7 +123,7 @@
         "compatCount": 322,
         "identityEscalationCount": 212,
         "governanceDataCount": 143,
-        "siteSetSha256": "60ad3e3459fed28eff0f34527f8fdf7e829d2deaab438ba3027cc7f14441ed74"
+        "siteSetSha256": "95325a5e8c860d0873765fe308adac4cda330774cbfd9f06c7fd92916ae5ef79"
       },
       {
         "familyId": "f04",
@@ -132,7 +132,7 @@
         "compatCount": 318,
         "identityEscalationCount": 201,
         "governanceDataCount": 136,
-        "siteSetSha256": "e1bd361d712d882baafe90b752c7ae69e8da592078b1de31d06d46a65a231fa9"
+        "siteSetSha256": "802d380cbbd90e634ad97c55ba846460c693d9705cc001c1ec3a84c052677564"
       },
       {
         "familyId": "f05",
@@ -150,10 +150,10 @@
         "compatCount": 208,
         "identityEscalationCount": 120,
         "governanceDataCount": 72,
-        "siteSetSha256": "826c4ce564629f0fac5ad1d3b8f80a4b326063c9f9eb24ac83afd7a815eb4581"
+        "siteSetSha256": "25d83ea6b80784bd8faaa71e84bf3fbd398a6cf85a316c77d728a56784eb221e"
       }
     ],
-    "siteSetSha256": "901029255006a51a9063fdbae10091f32e0edfbd503faf8b7ed9c7406192292f",
+    "siteSetSha256": "4867aa240a6581f3f509b022e884cd0b6e8690878802879f5f10265fdd938183",
     "claimSiteSetSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "compatDeclarationSetSha256": "edf4f2844e0197cedd72578412faebc2f57960287d3b6a92eaae0d2fb6f44b8c",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",

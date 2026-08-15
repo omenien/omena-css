@@ -11,10 +11,12 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 mod generator;
+mod npm_provenance;
 mod shard_trust;
 mod structural_diff;
 
 pub use generator::*;
+pub use npm_provenance::*;
 pub use shard_trust::*;
 pub use structural_diff::*;
 

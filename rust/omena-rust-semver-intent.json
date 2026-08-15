@@ -2211,6 +2211,36 @@
               ]
             }
           ]
+        },
+        {
+          "id": "sif-npm-provenance-ingestion-validation",
+          "kind": "wire-value-order-preserving",
+          "surface": "ingest_omena_sif_npm_provenance_metadata_v1 typed errors and CLI disk ingestion",
+          "reason": "The additive strict ingestion surface validates package, version, provenance shape, and exact npm attestation subject before the CLI records advisory references; absent evidence leaves the lock tier unchanged.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-sif/src/npm_provenance.rs",
+              "needles": [
+                "pub enum OmenaSifNpmProvenanceMetadataErrorV1",
+                "pub fn ingest_omena_sif_npm_provenance_metadata_v1(",
+                "ProvenanceSubjectMismatch"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-sif/tests/npm_provenance_ingestion.rs",
+              "needles": [
+                "fn npm_provenance_fixture_registry_pins_typed_ingestion_and_absence()",
+                "assert_eq!((present, absent, refused), (2, 1, 10))"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-cli/src/lock.rs",
+              "needles": [
+                "ingest_omena_sif_npm_provenance_metadata_v1(&metadata_source, &package)",
+                "npm metadata {} does not contain dist.attestations.provenance"
+              ]
+            }
+          ]
         }
       ]
     }

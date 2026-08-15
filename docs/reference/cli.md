@@ -70,3 +70,11 @@ or CSS is unsupported.
 | `omena provenance`                    | Specialized command | Default build            | Inspect deferred/advisory SIF provenance metadata without network access.          |
 | `omena report`                        | Specialized command | Default build            | Report soundiness and diagnostic-noise visibility for a workspace slice.           |
 | `omena audit`                         | Specialized command | Cargo feature `zk-audit` | Run feature-gated audit surfaces.                                                  |
+
+`omena lock fetch-provenance` is a disk-only ingestion command. Acquire registry
+metadata separately with `pnpm acquire:sif-npm-provenance <package@version>
+--output <metadata.json>`; that script delegates network access to the platform
+`npm` CLI and records a present/absent receipt. The Omena CLI validates package,
+version, provenance shape, and attestation subject before updating the lock.
+Absent evidence leaves the existing trust tier unchanged. A native registry
+fetch path in Omena is intentionally deferred.

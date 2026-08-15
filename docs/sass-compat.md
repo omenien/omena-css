@@ -85,7 +85,25 @@ consumers read that local verdict sidecar; they do not treat a lockfile as
 shard-verification authority, fetch evidence, or invoke Sigstore verification.
 Missing or mismatched verdicts keep service local at T1.
 
-Record npm provenance metadata from a local JSON response:
+Acquire npm registry metadata through the platform npm CLI, outside the Omena
+binary, and record a deterministic present/absent receipt beside it:
+
+```sh
+pnpm acquire:sif-npm-provenance design-system@1.0.0 \
+  --output npm-metadata.json \
+  --receipt npm-metadata.receipt.json
+```
+
+The acquisition receipt names `platform-npm-cli` as the network owner. Omena
+does not fetch registry metadata: `lock fetch-provenance` only ingests the local
+JSON file after validating its package, version, provenance shape, and
+attestation subject. A receipt with `provenanceDisposition: "absent"` records
+the absence without upgrading the lock entry above T1. Native registry fetching
+inside Omena remains deferred.
+
+For deterministic or offline automation, `--metadata-file response.json`
+replaces `npm view` while preserving the same output and receipt shape. Feed the
+resulting local metadata into the lock command:
 
 ```sh
 omena lock fetch-provenance design-system \

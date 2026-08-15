@@ -4337,6 +4337,8 @@ fn lock_fetch_provenance_records_npm_attestations_without_t2_verification() -> R
         .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
     let sif_path = sif_dir.join("design-system.sif.json");
     let metadata_path = workspace_path.join("npm-metadata.json");
+    let absent_metadata_path = workspace_path.join("npm-metadata-absent.json");
+    let mismatched_metadata_path = workspace_path.join("npm-metadata-mismatched.json");
     let lockfile_path = workspace_path.join("omena.lock");
     let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
     fs::write(
@@ -4369,6 +4371,32 @@ fn lock_fetch_provenance_records_npm_attestations_without_t2_verification() -> R
         .to_string(),
     )
     .map_err(|error| format!("fixture metadata should be writable: {error}"))?;
+    fs::write(
+        &absent_metadata_path,
+        serde_json::json!({
+            "name": "design-system",
+            "version": "1.0.0",
+            "dist": {
+                "tarball": "https://registry.npmjs.org/design-system/-/design-system-1.0.0.tgz"
+            }
+        })
+        .to_string(),
+    )
+    .map_err(|error| format!("absent fixture metadata should be writable: {error}"))?;
+    fs::write(
+        &mismatched_metadata_path,
+        serde_json::json!({
+            "name": "design-system",
+            "version": "1.0.0",
+            "dist": {
+                "attestations": {
+                    "provenance": "https://registry.npmjs.org/-/npm/v1/attestations/lookalike@1.0.0/provenance"
+                }
+            }
+        })
+        .to_string(),
+    )
+    .map_err(|error| format!("mismatched fixture metadata should be writable: {error}"))?;
 
     let verify_t2_before = run(Cli {
         command: Command::Lock {
@@ -4384,6 +4412,55 @@ fn lock_fetch_provenance_records_npm_attestations_without_t2_verification() -> R
         },
     });
     assert!(verify_t2_before.is_err(), "{verify_t2_before:?}");
+
+    let absent_result = run(Cli {
+        command: Command::Lock {
+            lockfile: PathBuf::from("omena.lock"),
+            json: false,
+            command: Some(LockCommand::FetchProvenance {
+                package: "design-system".to_string(),
+                lockfile: lockfile_path.clone(),
+                npm_metadata: absent_metadata_path,
+                json: true,
+            }),
+        },
+    });
+    let absent_error = match absent_result {
+        Err(error) => error,
+        Ok(()) => return Err("absent provenance unexpectedly upgraded trust".to_string()),
+    };
+    assert!(
+        absent_error.contains("does not contain dist.attestations.provenance"),
+        "{absent_error}"
+    );
+    let unchanged_lock = read_omena_lock_json_v1(&read_source(&lockfile_path)?)
+        .map_err(|error| format!("unchanged fixture lock should parse: {error}"))?;
+    assert_eq!(
+        unchanged_lock.entries[0].trust_tier,
+        omena_sif::OmenaSifTrustTierV1::T1
+    );
+    assert!(unchanged_lock.entries[0].attestation_references.is_empty());
+
+    let mismatched_result = run(Cli {
+        command: Command::Lock {
+            lockfile: PathBuf::from("omena.lock"),
+            json: false,
+            command: Some(LockCommand::FetchProvenance {
+                package: "design-system".to_string(),
+                lockfile: lockfile_path.clone(),
+                npm_metadata: mismatched_metadata_path,
+                json: true,
+            }),
+        },
+    });
+    let mismatched_error = match mismatched_result {
+        Err(error) => error,
+        Ok(()) => return Err("mismatched provenance subject was accepted".to_string()),
+    };
+    assert!(
+        mismatched_error.contains("provenanceSubjectMismatch"),
+        "{mismatched_error}"
+    );
 
     let fetch_result = run(Cli {
         command: Command::Lock {

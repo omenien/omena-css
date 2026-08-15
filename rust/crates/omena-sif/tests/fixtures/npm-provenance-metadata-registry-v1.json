@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "1",
+  "product": "omena-sif.npm-provenance-ingestion-fixtures",
+  "cases": [
+    {
+      "id": "present-direct",
+      "packageSelector": "design-system",
+      "source": "{\"name\":\"design-system\",\"version\":\"1.0.0\",\"dist\":{\"attestations\":{\"provenance\":\"https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance\"}}}",
+      "expectedDisposition": "present",
+      "expectedReferenceCount": 1
+    },
+    {
+      "id": "absent-direct",
+      "packageSelector": "design-system",
+      "source": "{\"name\":\"design-system\",\"version\":\"1.0.0\",\"dist\":{\"tarball\":\"https://registry.npmjs.org/design-system/-/design-system-1.0.0.tgz\"}}",
+      "expectedDisposition": "absent",
+      "expectedReferenceCount": 0
+    },
+    {
+      "id": "present-scoped-packument",
+      "packageSelector": "@omena/design-system",
+      "source": "{\"name\":\"@omena/design-system\",\"versions\":{\"1.2.3\":{\"name\":\"@omena/design-system\",\"version\":\"1.2.3\",\"dist\":{\"attestations\":{\"provenance\":\"https://registry.npmjs.org/-/npm/v1/attestations/%40omena%2Fdesign-system%401.2.3/provenance\"}}}}}",
+      "expectedDisposition": "present",
+      "expectedReferenceCount": 1
+    },
+    {
+      "id": "malformed-json",
+      "packageSelector": "design-system",
+      "source": "{\"name\":",
+      "expectedErrorCode": "malformedJson"
+    },
+    {
+      "id": "malformed-metadata",
+      "packageSelector": "design-system",
+      "source": "[]",
+      "expectedErrorCode": "malformedMetadata"
+    },
+    {
+      "id": "missing-package-name",
+      "packageSelector": "design-system",
+      "source": "{\"version\":\"1.0.0\"}",
+      "expectedErrorCode": "missingPackageName"
+    },
+    {
+      "id": "package-subject-mismatch",
+      "packageSelector": "design-system",
+      "source": "{\"name\":\"lookalike\",\"version\":\"1.0.0\",\"dist\":{\"attestations\":{\"provenance\":\"https://registry.npmjs.org/-/npm/v1/attestations/lookalike@1.0.0/provenance\"}}}",
+      "expectedErrorCode": "packageSubjectMismatch"
+    },
+    {
+      "id": "missing-package-version",
+      "packageSelector": "design-system",
+      "source": "{\"name\":\"design-system\",\"dist\":{\"attestations\":{\"provenance\":\"https://registry.npmjs.org/-/npm/v1/attestations/design-system@1.0.0/provenance\"}}}",
+      "expectedErrorCode": "missingPackageVersion"
+    },
+    {
+      "id": "version-subject-mismatch",
+      "packageSelector": "design-system",
+      "source": "{\"name\":\"design-system\",\"versions\":{\"1.0.0\":{\"name\":\"design-system\",\"version\":\"2.0.0\",\"dist\":{\"attestations\":{\"provenance\":\"https://registry.npmjs.org/-/npm/v1/attestations/design-system@2.0.0/provenance\"}}}}}",
+      "expectedErrorCode": "versionSubjectMismatch"
+    },
+    {
+      "id": "invalid-provenance-shape",
+      "packageSelector": "design-system",
+      "source": "{\"name\":\"design-system\",\"version\":\"1.0.0\",\"dist\":{\"attestations\":{\"provenance\":42}}}",
+      "expectedErrorCode": "invalidProvenanceShape"
+    },
+    {
+      "id": "provenance-subject-mismatch",
+      "packageSelector": "design-system",
+      "source": "{\"name\":\"design-system\",\"version\":\"1.0.0\",\"dist\":{\"attestations\":{\"provenance\":\"https://registry.npmjs.org/-/npm/v1/attestations/lookalike@1.0.0/provenance\"}}}",
+      "expectedErrorCode": "provenanceSubjectMismatch"
+    },
+    {
+      "id": "provenance-subject-prefix-spoof",
+      "packageSelector": "design-system",
+      "source": "{\"name\":\"design-system\",\"version\":\"1.0.0\",\"dist\":{\"attestations\":{\"provenance\":\"https://registry.npmjs.org/-/npm/v1/attestations/evil-design-system@1.0.0/provenance\"}}}",
+      "expectedErrorCode": "provenanceSubjectMismatch"
+    },
+    {
+      "id": "provenance-remote-without-subject",
+      "packageSelector": "design-system",
+      "source": "{\"name\":\"design-system\",\"version\":\"1.0.0\",\"dist\":{\"attestations\":{\"provenance\":\"https://evidence.example/provenance.json\"}}}",
+      "expectedErrorCode": "provenanceSubjectMismatch"
+    }
+  ]
+}

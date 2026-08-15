@@ -17,11 +17,12 @@ use omena_sif::{
     OmenaSifShardRecordedVerdictV1, OmenaSifShardSignatureV1, OmenaSifSigstoreVerificationPolicyV1,
     OmenaSifTrustTierV1, apply_omena_sif_attestation_verification_report_to_lock_entry_v1,
     apply_omena_sif_npm_provenance_references_to_lock_entry_v1, build_omena_lock_sif_entry_v1,
-    collect_omena_sif_npm_provenance_attestation_references_v1, compute_omena_sif_artifact_hash_v1,
-    compute_omena_sif_leaf_hash_v1, compute_omena_sif_shard_recorded_verdict_address_v1,
-    read_omena_lock_json_v1, read_omena_sif_attestation_verification_report_json_v1,
-    read_omena_sif_json_v1, verify_omena_lock_frozen_v1, write_omena_lock_json_v1,
-    write_omena_sif_json_v1, write_omena_sif_shard_recorded_verdict_json_v1,
+    compute_omena_sif_artifact_hash_v1, compute_omena_sif_leaf_hash_v1,
+    compute_omena_sif_shard_recorded_verdict_address_v1,
+    ingest_omena_sif_npm_provenance_metadata_v1, read_omena_lock_json_v1,
+    read_omena_sif_attestation_verification_report_json_v1, read_omena_sif_json_v1,
+    verify_omena_lock_frozen_v1, write_omena_lock_json_v1, write_omena_sif_json_v1,
+    write_omena_sif_shard_recorded_verdict_json_v1,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -218,9 +219,13 @@ fn lock_fetch_provenance(
 ) -> Result<(), String> {
     let mut lock = read_lockfile_or_empty(&lockfile)?;
     let metadata_source = read_source(&npm_metadata)?;
-    let references =
-        collect_omena_sif_npm_provenance_attestation_references_v1(&metadata_source)
-            .map_err(|error| format!("failed to parse {}: {error}", path_string(&npm_metadata)))?;
+    let references = ingest_omena_sif_npm_provenance_metadata_v1(&metadata_source, &package)
+        .map_err(|error| {
+            format!(
+                "failed to ingest npm provenance metadata {}: {error}",
+                path_string(&npm_metadata)
+            )
+        })?;
     if references.is_empty() {
         return Err(format!(
             "npm metadata {} does not contain dist.attestations.provenance",
