@@ -100,6 +100,13 @@
     },
     {
       "path": "rust/crates/omena-cli/src/sif.rs",
+      "function": "generate_attestation_subject",
+      "writeCount": 1,
+      "classification": "artifact",
+      "owner": "published SIF attestation subject emission"
+    },
+    {
+      "path": "rust/crates/omena-cli/src/sif.rs",
       "function": "generate_lif_exports",
       "writeCount": 1,
       "classification": "artifact",
