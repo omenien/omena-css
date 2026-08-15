@@ -64,6 +64,13 @@
       "owner": "lock attestation state"
     },
     {
+      "path": "rust/crates/omena-cli/src/lock.rs",
+      "function": "publish_immutable_recorded_shard_verdict",
+      "writeCount": 2,
+      "classification": "bookkeeping",
+      "owner": "recorded SIF trust verdict sidecar"
+    },
+    {
       "path": "rust/crates/omena-cli/src/lint.rs",
       "function": "write_ranked_set_loss_capture",
       "writeCount": 1,

@@ -541,6 +541,86 @@
     },
     {
       "crate": "omena-bridge",
+      "typeName": "OmenaBridgeExternalSifTrustSourceV1",
+      "kind": "enum",
+      "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
+      "nonExhaustive": false,
+      "containerSerde": "rename_all = \"camelCase\"",
+      "members": [
+        {
+          "memberPath": "RecordedVerdict",
+          "memberKind": "variant",
+          "rustName": "RecordedVerdict",
+          "serializeKey": "recordedVerdict",
+          "deserializeKey": "recordedVerdict",
+          "typeExpression": "variant",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "UnsignedLegacy",
+          "memberKind": "variant",
+          "rustName": "UnsignedLegacy",
+          "serializeKey": "unsignedLegacy",
+          "deserializeKey": "unsignedLegacy",
+          "typeExpression": "variant",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        }
+      ]
+    },
+    {
+      "crate": "omena-bridge",
+      "typeName": "OmenaBridgeExternalSifWithTrustV1",
+      "kind": "struct",
+      "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
+      "nonExhaustive": false,
+      "containerSerde": "rename_all = \"camelCase\"",
+      "members": [
+        {
+          "memberPath": "sif",
+          "memberKind": "field",
+          "rustName": "sif",
+          "serializeKey": "sif",
+          "deserializeKey": "sif",
+          "typeExpression": "OmenaSifV1",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "trust_envelope",
+          "memberKind": "field",
+          "rustName": "trust_envelope",
+          "serializeKey": "trustEnvelope",
+          "deserializeKey": "trustEnvelope",
+          "typeExpression": "OmenaSifShardTrustEnvelopeV1",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "trust_source",
+          "memberKind": "field",
+          "rustName": "trust_source",
+          "serializeKey": "trustSource",
+          "deserializeKey": "trustSource",
+          "typeExpression": "OmenaBridgeExternalSifTrustSourceV1",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        }
+      ]
+    },
+    {
+      "crate": "omena-bridge",
       "typeName": "OmenaBridgeStyleResolutionInputsV0",
       "kind": "struct",
       "sourcePath": "rust/crates/omena-bridge/src/style_resolution.rs",
