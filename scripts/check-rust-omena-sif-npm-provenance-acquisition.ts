@@ -197,9 +197,10 @@ try {
       presentCount: receipts.filter((receipt) => receipt.provenanceDisposition === "present")
         .length,
       absentCount: receipts.filter((receipt) => receipt.provenanceDisposition === "absent").length,
-      liveNetworkRequests: 0,
-      acquisitionOwner: "platform-npm-cli",
-      nativeFetch: "deferred",
+      fixtureReceiptCommandCount: receipts.filter((receipt) => receipt.command !== null).length,
+      fixtureNetworkAccess: [
+        ...new Set(receipts.map((receipt) => receipt.networkAccess)),
+      ].toSorted(),
     })}\n`,
   );
 } finally {

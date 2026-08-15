@@ -83,12 +83,12 @@
   "exit": {
     "sourceRef": null,
     "domain": {
-      "trackedFileCount": 2603,
-      "textualFileCount": 2603,
+      "trackedFileCount": 2606,
+      "textualFileCount": 2606,
       "nulExcludedCount": 0,
       "bootstrapUntrackedFileCount": 0,
       "deletedTrackedFileCount": 0,
-      "fileListSha256": "52f3af2d94c5aae1131cb09a0b7fe4214f7f5b092f5ca440afe461e955b4339c"
+      "fileListSha256": "89f7c4cf5b092cd9365668eae6fbf97508b5912d1eaae045912e66b7112440b2"
     },
     "occurrenceCount": 2119,
     "dispositionCounts": {
@@ -114,7 +114,7 @@
         "compatCount": 68,
         "identityEscalationCount": 0,
         "governanceDataCount": 31,
-        "siteSetSha256": "29d6bfac0503c781b699d258f6aa0cd4f277d1e9d641ee42fc6c227c902d0f87"
+        "siteSetSha256": "d186fbe5bf8a440b141e2b9e6d31205cd5738fd9278432bb3d22fe1d1409a9a6"
       },
       {
         "familyId": "f03",
@@ -123,7 +123,7 @@
         "compatCount": 322,
         "identityEscalationCount": 212,
         "governanceDataCount": 143,
-        "siteSetSha256": "0e4bf1bd1ea433bb059d4a767a983901381bfd8afcb11d24c78820dd67dd73fd"
+        "siteSetSha256": "7dd89eeb9cf02e5acb6025f16449cbcc17a138ee45f4846b0f276b1f0b8660b6"
       },
       {
         "familyId": "f04",
@@ -132,7 +132,7 @@
         "compatCount": 318,
         "identityEscalationCount": 201,
         "governanceDataCount": 136,
-        "siteSetSha256": "802d380cbbd90e634ad97c55ba846460c693d9705cc001c1ec3a84c052677564"
+        "siteSetSha256": "0d8f5013dc6fe9aeb4d6fbf8ce969ef7bdfe75a6cfea3b7312f6b8eeb6f88366"
       },
       {
         "familyId": "f05",
@@ -141,7 +141,7 @@
         "compatCount": 224,
         "identityEscalationCount": 0,
         "governanceDataCount": 60,
-        "siteSetSha256": "81a52f00cbbb99de3148c3097d26a8a566ebfb1b267d1ae7056d96beea4c0d82"
+        "siteSetSha256": "776bd0c8a319b805fe5c2b361e130b72f7d33c22a4aed8eddd95f2db8d59c2bc"
       },
       {
         "familyId": "f06",
@@ -150,10 +150,10 @@
         "compatCount": 208,
         "identityEscalationCount": 120,
         "governanceDataCount": 72,
-        "siteSetSha256": "25d83ea6b80784bd8faaa71e84bf3fbd398a6cf85a316c77d728a56784eb221e"
+        "siteSetSha256": "ed8d8a039587eaa8fec118d58658447a45782d0b26c71a94ab0fb74e17c41f3c"
       }
     ],
-    "siteSetSha256": "0cf6ff2ac6e487676902a88778408b484360d64ab3fc8c87b821a1a7574c722e",
+    "siteSetSha256": "471fbfc7800b12ec24ad487805b1ddfbf2f9efe036b52333c560cc62808e9749",
     "claimSiteSetSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "compatDeclarationSetSha256": "edf4f2844e0197cedd72578412faebc2f57960287d3b6a92eaae0d2fb6f44b8c",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",

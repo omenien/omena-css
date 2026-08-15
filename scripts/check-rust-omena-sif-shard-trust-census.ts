@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-type CensusRole = "producer" | "consumer";
+type CensusRole = "artifact-input" | "trust-writer" | "shard-writer" | "consumer";
 
 type CensusRule = {
   id: string;
@@ -40,25 +40,31 @@ assert.deepEqual(
 const rules: readonly CensusRule[] = [
   {
     id: "cli-sif-artifact-writer",
-    role: "producer",
+    role: "artifact-input",
     call: "fs::write(&output_path, &sif_json)",
     lockKnowledge: "canonical-url+sif-hash-derivable; no-recorded-verdict",
   },
   {
     id: "cli-lock-update-writer",
-    role: "producer",
+    role: "artifact-input",
     call: "fs::write(&lockfile, &lock_json)",
     lockKnowledge: "lock-entry+default-tier; no-attestation-verdict",
   },
   {
     id: "cli-recorded-verdict-writer",
-    role: "producer",
+    role: "trust-writer",
     call: "write_recorded_shard_verdicts(",
-    lockKnowledge: "verified-lock-entry+canonical-sif-hash+attestation-reference",
+    lockKnowledge: "verified-lock-entry+canonical-sif-hash+content-addressed-bundle",
+  },
+  {
+    id: "cli-recorded-bundle-writer",
+    role: "trust-writer",
+    call: "write_recorded_sigstore_bundle(",
+    lockKnowledge: "verified-sif+offline-sigstore-bundle",
   },
   {
     id: "bridge-shard-store",
-    role: "producer",
+    role: "shard-writer",
     call: "store_external_sif_cache_shard(",
     lockKnowledge: "recorded-verdict-sidecar-or-local-t1; no-lock-reader",
   },
@@ -66,39 +72,39 @@ const rules: readonly CensusRule[] = [
     id: "bridge-shard-load",
     role: "consumer",
     call: "load_external_sif_cache_shard(",
-    lockKnowledge: "payload-digest+lock-binding+recorded-verdict-sidecar",
+    lockKnowledge: "payload-digest+lock-binding+offline-verified-sidecar",
   },
   {
     id: "query-resolved-style-shard-consumer",
     role: "consumer",
     call: "generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(",
-    lockKnowledge: "validated-tier-record+partitioned-cache; no-lock-reader",
+    lockKnowledge: "offline-verified-tier+partitioned-cache; no-lock-reader",
   },
   {
     id: "lsp-in-process-style-shard-consumer",
     role: "consumer",
     call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(",
-    lockKnowledge: "recorded-verdict-tier+partitioned-cache; no-verifier",
+    lockKnowledge: "bridge-verified-tier+partitioned-cache; no-lock-reader",
   },
   {
     id: "lsp-refresh-style-shard-consumer",
     role: "consumer",
     call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(",
-    lockKnowledge: "recorded-verdict-tier+partitioned-cache; no-verifier",
+    lockKnowledge: "bridge-verified-tier+partitioned-cache; no-lock-reader",
   },
   {
     id: "lsp-seed-pair-shard-consumer",
     role: "consumer",
     call: "resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(",
-    lockKnowledge: "recorded-verdict-tier+workspace-owner; no-verifier",
+    lockKnowledge: "bridge-verified-tier+workspace-owner; no-lock-reader",
   },
 ];
 
 const expectedKeys = [
   "cli-sif-artifact-writer|rust/crates/omena-cli/src/sif.rs|generate_sif",
   "cli-lock-update-writer|rust/crates/omena-cli/src/lock.rs|lock_update",
-  "cli-recorded-verdict-writer|rust/crates/omena-cli/src/lock.rs|lock_record_verification",
   "cli-recorded-verdict-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
+  "cli-recorded-bundle-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
   "bridge-shard-store|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust",
   "bridge-shard-load|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust",
   "query-resolved-style-shard-consumer|rust/crates/omena-query/src/source.rs|enqueue_alias",
@@ -124,9 +130,12 @@ assert.deepEqual(
   `SIF shard trust call-site census drifted:\n${formatRows(rows)}`,
 );
 
-const bridgeProduction = productionRustPrefix(
-  fs.readFileSync(path.join(repoRoot, bridgeSourcePath), "utf8"),
-);
+const bridgeProductionSources = trackedRustSources
+  .filter((sourcePath) => sourcePath.startsWith("rust/crates/omena-bridge/src/"))
+  .map((sourcePath) => ({
+    sourcePath,
+    source: maskCfgTestItems(fs.readFileSync(path.join(repoRoot, sourcePath), "utf8")),
+  }));
 const bridgeCargo = fs.readFileSync(
   path.join(repoRoot, "rust/crates/omena-bridge/Cargo.toml"),
   "utf8",
@@ -141,22 +150,39 @@ const bridgeCacheRootSource = fs.readFileSync(
   path.join(repoRoot, "rust/crates/omena-bridge/src/cache_root.rs"),
   "utf8",
 );
+const bridgeLockReaderSites = scanBridgeLockReaderSites(bridgeProductionSources);
+const bridgeNetworkSites = scanBridgeNetworkSites(bridgeProductionSources);
+const bridgeSigstoreVerifierCalls = bridgeProductionSources.flatMap(({ sourcePath, source }) =>
+  source
+    .split(/\r?\n/u)
+    .flatMap((line, index) =>
+      line.includes("sigstore_verify::verify(") ? [`${sourcePath}:${index + 1}`] : [],
+    ),
+);
 const crossWorkspaceSharingSites = scanCrossWorkspaceSharingSites(injectCrossWorkspaceSharingPath);
-assert.ok(
-  !/(?:omena\.lock|lock_entry|lockfile|sigstore[_-]verify)/iu.test(bridgeProduction),
-  "omena-bridge production code must consume recorded verdicts rather than lock or Sigstore authority",
+assert.deepEqual(bridgeLockReaderSites, [], "omena-bridge must not read omena.lock");
+assert.deepEqual(
+  bridgeNetworkSites,
+  [],
+  "omena-bridge offline verification must not use a network client",
+);
+assert.equal(
+  bridgeSigstoreVerifierCalls.length,
+  1,
+  "omena-bridge must have exactly one native offline Sigstore verification call",
+);
+assert.match(
+  bridgeCargo,
+  /\[target\.'cfg\(not\(target_family = "wasm"\)\)'\.dependencies\][\s\S]*sigstore-verify/u,
+  "Sigstore verification must remain a native-only bridge dependency",
 );
 assert.ok(
-  !/sigstore[_-]verify/iu.test(bridgeCargo),
-  "omena-bridge must not acquire a Sigstore verification dependency",
-);
-assert.ok(
-  lspBoundarySource.includes("recordedShardVerdictsConsumedWithoutLockOrNetworkAuthority"),
-  "the LSP boundary must name verdict-only shard trust consumption",
+  lspBoundarySource.includes("recordedShardVerdictsVerifiedOfflineWithoutLockOrNetworkAuthority"),
+  "the LSP boundary must name offline-verified shard trust consumption",
 );
 assert.ok(
   sassCompatibilitySource.includes(
-    "Bridge and LSP\nconsumers read that local verdict sidecar; they do not treat a lockfile as\nshard-verification authority",
+    "Bridge verifies that bundle offline\nat consumption time; LSP consumes the resulting tier without reading a lockfile\nor using the network",
   ),
   "the Sass compatibility contract must document verdict-only shard trust consumption",
 );
@@ -202,10 +228,10 @@ if (!injectCrossWorkspaceSharingPath) {
   );
 }
 
-// FALSIFIER: id=sif-shard-trust-census-new-store-call class=structuralEntailment via=--inject-new-store-call producer=can-fail owner=sif-shard-trust-census entry=git-ls-files-rust-production-shard-callset
+// FALSIFIER: id=sif-shard-trust-census-post-test-store-call class=structuralEntailment via=--inject-new-store-call producer=can-fail owner=sif-shard-trust-census entry=git-ls-files-rust-production-shard-callset
 // FALSIFIER: id=sif-shard-no-cross-workspace-sharing class=productionCallSiteMutation via=--inject-cross-workspace-sharing-path expected=RED owner=sif-shard-trust-census entry=git-ls-files-rust-production-sharing-callset
 process.stdout.write(
-  `SIF shard trust census OK: rows=${rows.length} producers=${rows.filter((row) => row.role === "producer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=0 bridgeSigstoreDependencies=0 crossWorkspaceSharingPaths=0 workspaceScopedGlobalBranches=3 crossWorkspaceServe=false\n${formatRows(rows)}\n`,
+  `SIF shard trust census OK: scope=git-ls-files-production-rust-minus-cfg-test-items rows=${rows.length} artifactInputs=${rows.filter((row) => row.role === "artifact-input").length} trustWriters=${rows.filter((row) => row.role === "trust-writer").length} shardWriters=${rows.filter((row) => row.role === "shard-writer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=${bridgeLockReaderSites.length} bridgeNetworkSites=${bridgeNetworkSites.length} bridgeSigstoreVerifierCalls=${bridgeSigstoreVerifierCalls.length} crossWorkspaceSharingPaths=0 workspaceScopedGlobalBranches=3 crossWorkspaceServe=false\n${formatRows(rows)}\n`,
 );
 
 function scanCensus(injectStore: boolean): CensusRow[] {
@@ -215,13 +241,9 @@ function scanCensus(injectStore: boolean): CensusRow[] {
     if (injectStore && sourcePath === bridgeSourcePath) {
       const injection =
         "\nfn injected_external_sif_shard_store_site() { store_external_sif_cache_shard(); }\n";
-      const testModule = source.search(/\n#\[cfg\(test\)\]\s*\nmod\s+/u);
-      source =
-        testModule < 0
-          ? source + injection
-          : source.slice(0, testModule) + injection + source.slice(testModule);
+      source += injection;
     }
-    const production = productionRustPrefix(source);
+    const production = maskCfgTestItems(source);
     let containingFunction = "<module>";
     for (const [lineIndex, line] of production.split(/\r?\n/u).entries()) {
       const functionMatch = line.match(
@@ -255,13 +277,9 @@ function scanCrossWorkspaceSharingSites(injectSharingPath: boolean): string[] {
     if (injectSharingPath && sourcePath === bridgeSourcePath) {
       const injection =
         "\nfn injected_cross_workspace_sharing_path() { let _ = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(PathBuf::new()); }\n";
-      const testModule = source.search(/\n#\[cfg\(test\)\]\s*\nmod\s+/u);
-      source =
-        testModule < 0
-          ? source + injection
-          : source.slice(0, testModule) + injection + source.slice(testModule);
+      source += injection;
     }
-    const production = productionRustPrefix(source);
+    const production = maskCfgTestItems(source);
     for (const [lineIndex, line] of production.split(/\r?\n/u).entries()) {
       if (
         line.includes("OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(") ||
@@ -322,6 +340,158 @@ function isProductionRustSource(sourcePath: string): boolean {
   );
 }
 
-function productionRustPrefix(source: string): string {
-  return source.split(/\n#\[cfg\(test\)\]\s*\nmod\s+/u)[0] ?? source;
+function scanBridgeLockReaderSites(
+  sources: readonly { sourcePath: string; source: string }[],
+): string[] {
+  const patterns = [
+    /read_omena_lock_json_v1\s*\(/u,
+    /verify_omena_lock_frozen_v1\s*\(/u,
+    /OmenaLock(?:SifEntry)?V1/u,
+    /(?:read|read_to_string|File::open)\s*\([^\n]*(?:lockfile|omena\.lock)/u,
+  ];
+  return sources
+    .flatMap(({ sourcePath, source }) =>
+      source
+        .split(/\r?\n/u)
+        .flatMap((line, index) =>
+          patterns.some((pattern) => pattern.test(line))
+            ? [`${sourcePath}:${index + 1}:${line.trim()}`]
+            : [],
+        ),
+    )
+    .toSorted();
 }
+
+function scanBridgeNetworkSites(
+  sources: readonly { sourcePath: string; source: string }[],
+): string[] {
+  const pattern =
+    /(?:std::net::|tokio::net::|reqwest::|ureq::|hyper::Client|TcpStream|UdpSocket|Command::new\("(?:cosign|gh|curl)")/u;
+  return sources
+    .flatMap(({ sourcePath, source }) =>
+      source
+        .split(/\r?\n/u)
+        .flatMap((line, index) =>
+          pattern.test(line) ? [`${sourcePath}:${index + 1}:${line.trim()}`] : [],
+        ),
+    )
+    .toSorted();
+}
+
+function maskCfgTestItems(source: string): string {
+  const masked = [...source];
+  const attribute = /#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]/gu;
+  for (const match of source.matchAll(attribute)) {
+    const start = match.index;
+    const end = findAttributedRustItemEnd(source, start + match[0].length);
+    assert.ok(end > start, "cfg(test) item must have a balanced item boundary");
+    for (let index = start; index < end; index += 1) {
+      if (masked[index] !== "\n" && masked[index] !== "\r") masked[index] = " ";
+    }
+  }
+  return masked.join("");
+}
+
+function findAttributedRustItemEnd(source: string, start: number): number {
+  let index = start;
+  while (index < source.length) {
+    const skipped = skipRustTriviaOrLiteral(source, index);
+    if (skipped > index) {
+      index = skipped;
+      continue;
+    }
+    const character = source[index];
+    if (character === ";") return index + 1;
+    if (character === "{") return findBalancedRustBraceEnd(source, index);
+    index += 1;
+  }
+  return source.length;
+}
+
+function findBalancedRustBraceEnd(source: string, openingBrace: number): number {
+  let depth = 0;
+  let index = openingBrace;
+  while (index < source.length) {
+    const skipped = skipRustTriviaOrLiteral(source, index);
+    if (skipped > index) {
+      index = skipped;
+      continue;
+    }
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return index + 1;
+    }
+    index += 1;
+  }
+  throw new Error(
+    `unbalanced cfg(test) Rust item near ${JSON.stringify(source.slice(Math.max(0, openingBrace - 80), openingBrace + 120))}`,
+  );
+}
+
+function skipRustTriviaOrLiteral(source: string, index: number): number {
+  if (/\s/u.test(source[index] ?? "")) {
+    let cursor = index + 1;
+    while (cursor < source.length && /\s/u.test(source[cursor] ?? "")) cursor += 1;
+    return cursor;
+  }
+  if (source.startsWith("//", index)) {
+    const newline = source.indexOf("\n", index + 2);
+    return newline < 0 ? source.length : newline + 1;
+  }
+  if (source.startsWith("/*", index)) {
+    let cursor = index + 2;
+    let depth = 1;
+    while (cursor < source.length && depth > 0) {
+      if (source.startsWith("/*", cursor)) {
+        depth += 1;
+        cursor += 2;
+      } else if (source.startsWith("*/", cursor)) {
+        depth -= 1;
+        cursor += 2;
+      } else {
+        cursor += 1;
+      }
+    }
+    return cursor;
+  }
+  const charQuoteOffset = source.startsWith("b'", index) ? 1 : 0;
+  if (source[index + charQuoteOffset] === "'") {
+    let cursor = index + charQuoteOffset + 1;
+    let escaped = false;
+    while (cursor < source.length && cursor - index <= 12 && source[cursor] !== "\n") {
+      if (!escaped && source[cursor] === "'") return cursor + 1;
+      if (!escaped && source[cursor] === "\\") escaped = true;
+      else escaped = false;
+      cursor += 1;
+    }
+  }
+  const raw = source.slice(index).match(/^(?:b?r)(#+)?"/u);
+  if (raw) {
+    const hashes = raw[1] ?? "";
+    const terminator = `"${hashes}`;
+    const end = source.indexOf(terminator, index + raw[0].length);
+    return end < 0 ? source.length : end + terminator.length;
+  }
+  const quoteOffset = source.startsWith('b"', index) ? 1 : 0;
+  if (source[index + quoteOffset] === '"') {
+    let cursor = index + quoteOffset + 1;
+    while (cursor < source.length) {
+      if (source[cursor] === "\\") cursor += 2;
+      else if (source[cursor] === '"') return cursor + 1;
+      else cursor += 1;
+    }
+    return source.length;
+  }
+  return index;
+}
+
+const cfgMaskSelfTest = maskCfgTestItems(`
+fn before() { store_external_sif_cache_shard(); }
+#[cfg(test)]
+mod tests { fn nested() { let _ = "}"; store_external_sif_cache_shard(); } }
+fn after() { store_external_sif_cache_shard(); }
+`);
+assert.ok(cfgMaskSelfTest.includes("fn before()"));
+assert.ok(!cfgMaskSelfTest.includes("fn nested()"));
+assert.ok(cfgMaskSelfTest.includes("fn after()"));
