@@ -115,6 +115,14 @@ jobs:
             jq -e --arg canonicalUrl "${canonical_url}" \
               '.sifVersion == "1" and .canonicalUrl == $canonicalUrl and .fingerprints.hashAlgorithm == "blake3"' \
               "${output_path}" >/dev/null
+            local subject_path="dist/sif/${output_name}.attestation-subject.json"
+            ./rust/target/release/omena sif generate-attestation-subject \
+              "${output_path}" \
+              --trust-tier t3 \
+              --output "${subject_path}"
+            jq -e --arg canonicalUrl "${canonical_url}" \
+              '.schemaVersion == "1" and .product == "omena-sif.published-attestation-subject" and .canonicalUrl == $canonicalUrl and .trustTier == "t3" and (.sifHash | startswith("blake3:"))' \
+              "${subject_path}" >/dev/null
             sif_args+=(--sif "${output_path}")
           }
 
@@ -155,14 +163,14 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
-            dist/sif/*.sif.json
-            dist/sif/omena.lock
+            dist/sif/*.attestation-subject.json
       - name: Upload SIF artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sif-keyless-attestation-${{ github.run_id }}
           path: |
             dist/sif/*.sif.json
+            dist/sif/*.attestation-subject.json
             dist/sif/omena.lock
             dist/sif/omena.lock.report.json
           if-no-files-found: error

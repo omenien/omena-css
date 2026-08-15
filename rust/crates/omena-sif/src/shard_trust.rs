@@ -1,4 +1,7 @@
-use crate::{OmenaSifDigestV1, OmenaSifTrustTierV1, write_omena_canonical_json_string_v1};
+use crate::{
+    OmenaSifDigestV1, OmenaSifTrustTierV1, OmenaSifV1, compute_omena_sif_artifact_hash_v1,
+    write_omena_canonical_json_string_v1,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -11,6 +14,57 @@ pub const OMENA_SIF_SHARD_RECORDED_VERDICT_ADDRESS_PRODUCT_V1: &str =
     "omena-sif.shard-recorded-verdict-address";
 pub const OMENA_SIF_SHARD_VERDICT_DIR_V1: &str = "sif-verdicts-v1";
 pub const OMENA_SIF_SHARD_VERIFICATION_OWNER_V1: &str = "omena-cli.lock-provenance";
+pub const OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_SCHEMA_VERSION_V1: &str = "1";
+pub const OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_PRODUCT_V1: &str =
+    "omena-sif.published-attestation-subject";
+
+/// Canonical bytes signed by the Omena release workflow for elevated provenance.
+///
+/// This descriptor binds the resource identity and advisory tier to the exact
+/// SIF artifact hash. The SIF itself remains a deterministic, verifier-free
+/// data format suitable for wasm consumers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifPublishedAttestationSubjectV1 {
+    pub schema_version: String,
+    pub product: String,
+    pub canonical_url: String,
+    pub trust_tier: OmenaSifTrustTierV1,
+    pub sif_hash: OmenaSifDigestV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OmenaSifPublishedAttestationSubjectErrorV1 {
+    MalformedJson,
+    MalformedSubject,
+    UnsupportedSchemaVersion,
+    UnsupportedProduct,
+    EmptyCanonicalUrl,
+    InsufficientTrustTier,
+    MalformedSifHash,
+}
+
+impl OmenaSifPublishedAttestationSubjectErrorV1 {
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::MalformedJson => "malformedJson",
+            Self::MalformedSubject => "malformedSubject",
+            Self::UnsupportedSchemaVersion => "unsupportedSchemaVersion",
+            Self::UnsupportedProduct => "unsupportedProduct",
+            Self::EmptyCanonicalUrl => "emptyCanonicalUrl",
+            Self::InsufficientTrustTier => "insufficientTrustTier",
+            Self::MalformedSifHash => "malformedSifHash",
+        }
+    }
+}
+
+impl std::fmt::Display for OmenaSifPublishedAttestationSubjectErrorV1 {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.code())
+    }
+}
+
+impl std::error::Error for OmenaSifPublishedAttestationSubjectErrorV1 {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -138,6 +192,63 @@ impl std::fmt::Display for OmenaSifShardRecordedVerdictErrorV1 {
 }
 
 impl std::error::Error for OmenaSifShardRecordedVerdictErrorV1 {}
+
+pub fn build_omena_sif_published_attestation_subject_v1(
+    sif: &OmenaSifV1,
+    trust_tier: OmenaSifTrustTierV1,
+) -> Result<OmenaSifPublishedAttestationSubjectV1, serde_json::Error> {
+    Ok(OmenaSifPublishedAttestationSubjectV1 {
+        schema_version: OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_SCHEMA_VERSION_V1.to_string(),
+        product: OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_PRODUCT_V1.to_string(),
+        canonical_url: sif.canonical_url.clone(),
+        trust_tier,
+        sif_hash: compute_omena_sif_artifact_hash_v1(sif)?,
+    })
+}
+
+pub fn read_omena_sif_published_attestation_subject_json_v1(
+    source: &str,
+) -> Result<OmenaSifPublishedAttestationSubjectV1, OmenaSifPublishedAttestationSubjectErrorV1> {
+    let value = serde_json::from_str::<Value>(source)
+        .map_err(|_| OmenaSifPublishedAttestationSubjectErrorV1::MalformedJson)?;
+    if !matches!(
+        value.get("trustTier").and_then(Value::as_str),
+        Some("t0" | "t1" | "t2" | "t3")
+    ) {
+        return Err(OmenaSifPublishedAttestationSubjectErrorV1::MalformedSubject);
+    }
+    let subject = serde_json::from_value::<OmenaSifPublishedAttestationSubjectV1>(value)
+        .map_err(|_| OmenaSifPublishedAttestationSubjectErrorV1::MalformedSubject)?;
+    validate_omena_sif_published_attestation_subject_v1(&subject)?;
+    Ok(subject)
+}
+
+pub fn write_omena_sif_published_attestation_subject_json_v1(
+    subject: &OmenaSifPublishedAttestationSubjectV1,
+) -> Result<String, serde_json::Error> {
+    write_omena_canonical_json_string_v1(subject)
+}
+
+pub fn validate_omena_sif_published_attestation_subject_v1(
+    subject: &OmenaSifPublishedAttestationSubjectV1,
+) -> Result<(), OmenaSifPublishedAttestationSubjectErrorV1> {
+    if subject.schema_version != OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_SCHEMA_VERSION_V1 {
+        return Err(OmenaSifPublishedAttestationSubjectErrorV1::UnsupportedSchemaVersion);
+    }
+    if subject.product != OMENA_SIF_PUBLISHED_ATTESTATION_SUBJECT_PRODUCT_V1 {
+        return Err(OmenaSifPublishedAttestationSubjectErrorV1::UnsupportedProduct);
+    }
+    if subject.canonical_url.trim().is_empty() {
+        return Err(OmenaSifPublishedAttestationSubjectErrorV1::EmptyCanonicalUrl);
+    }
+    if subject.trust_tier < OmenaSifTrustTierV1::T2 {
+        return Err(OmenaSifPublishedAttestationSubjectErrorV1::InsufficientTrustTier);
+    }
+    if !is_omena_sif_digest_v1(subject.sif_hash.as_str()) {
+        return Err(OmenaSifPublishedAttestationSubjectErrorV1::MalformedSifHash);
+    }
+    Ok(())
+}
 
 pub fn read_omena_sif_shard_trust_envelope_json_v1(
     source: &str,

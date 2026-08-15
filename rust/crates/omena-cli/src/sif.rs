@@ -1,7 +1,9 @@
 use crate::{commands::SifCommand, io::read_source, paths::path_string};
 use omena_sif::{
-    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, generate_static_omena_lif_exports_v1,
-    generate_static_omena_sif_v1, write_omena_lif_exports_json_v1, write_omena_sif_json_v1,
+    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, OmenaSifTrustTierV1,
+    build_omena_sif_published_attestation_subject_v1, generate_static_omena_lif_exports_v1,
+    generate_static_omena_sif_v1, read_omena_sif_json_v1, write_omena_lif_exports_json_v1,
+    write_omena_sif_json_v1, write_omena_sif_published_attestation_subject_json_v1,
 };
 use std::{
     fs,
@@ -17,6 +19,12 @@ pub(crate) fn sif_command(command: SifCommand) -> Result<(), String> {
             syntax,
             json,
         } => generate_sif(path, canonical_url, output, syntax, json),
+        SifCommand::GenerateAttestationSubject {
+            sif,
+            trust_tier,
+            output,
+            json,
+        } => generate_attestation_subject(sif, trust_tier, output, json),
         SifCommand::GenerateLifExports {
             path,
             output,
@@ -24,6 +32,53 @@ pub(crate) fn sif_command(command: SifCommand) -> Result<(), String> {
             json,
         } => generate_lif_exports(path, output, syntax, json),
     }
+}
+
+fn generate_attestation_subject(
+    sif_path: PathBuf,
+    trust_tier: String,
+    output: Option<PathBuf>,
+    json: bool,
+) -> Result<(), String> {
+    let source = read_source(&sif_path)?;
+    let sif = read_omena_sif_json_v1(source.as_str()).map_err(|error| {
+        format!(
+            "failed to parse canonical SIF {}: {error}",
+            path_string(&sif_path)
+        )
+    })?;
+    let trust_tier = match trust_tier.as_str() {
+        "t2" => OmenaSifTrustTierV1::T2,
+        "t3" => OmenaSifTrustTierV1::T3,
+        value => {
+            return Err(format!(
+                "unsupported published SIF trust tier '{value}'; expected t2 or t3"
+            ));
+        }
+    };
+    let subject = build_omena_sif_published_attestation_subject_v1(&sif, trust_tier)
+        .map_err(|error| format!("failed to build published SIF attestation subject: {error}"))?;
+    let subject_json = write_omena_sif_published_attestation_subject_json_v1(&subject)
+        .map_err(|error| format!("failed to serialize published SIF subject: {error}"))?;
+    let wrote_output = output.is_some();
+    if let Some(output_path) = output {
+        fs::write(&output_path, &subject_json).map_err(|error| {
+            format!(
+                "failed to write published SIF subject to {}: {error}",
+                path_string(&output_path)
+            )
+        })?;
+        if !json {
+            println!(
+                "generated SIF attestation subject: {}",
+                path_string(&output_path)
+            );
+        }
+    }
+    if !wrote_output || json {
+        println!("{subject_json}");
+    }
+    Ok(())
 }
 
 fn generate_sif(

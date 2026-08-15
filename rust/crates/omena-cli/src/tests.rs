@@ -5834,6 +5834,58 @@ fn sif_generate_command_accepts_less_source_syntax() -> Result<(), String> {
 }
 
 #[test]
+fn sif_generate_attestation_subject_binds_url_tier_and_artifact_hash() -> Result<(), String> {
+    let source_path = temp_path("published.scss");
+    let sif_path = temp_path("published.sif.json");
+    let subject_path = temp_path("published.attestation-subject.json");
+    fs::write(&source_path, "$brand: #0af;")
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+    run(Cli {
+        command: Command::Sif {
+            command: SifCommand::Generate {
+                path: source_path.clone(),
+                canonical_url: Some("pkg:omena-fixture/published.scss".to_string()),
+                output: Some(sif_path.clone()),
+                syntax: Some("scss".to_string()),
+                json: false,
+            },
+        },
+    })?;
+
+    run(Cli {
+        command: Command::Sif {
+            command: SifCommand::GenerateAttestationSubject {
+                sif: sif_path.clone(),
+                trust_tier: "t3".to_string(),
+                output: Some(subject_path.clone()),
+                json: false,
+            },
+        },
+    })?;
+
+    let subject_source = fs::read_to_string(&subject_path)
+        .map_err(|error| format!("generated subject should be readable: {error}"))?;
+    let subject =
+        omena_sif::read_omena_sif_published_attestation_subject_json_v1(subject_source.as_str())
+            .map_err(|error| format!("generated subject should parse: {error}"))?;
+    let sif_source = fs::read_to_string(&sif_path)
+        .map_err(|error| format!("generated SIF should be readable: {error}"))?;
+    let sif = omena_sif::read_omena_sif_json_v1(sif_source.as_str())
+        .map_err(|error| format!("generated SIF should parse: {error}"))?;
+    assert_eq!(subject.canonical_url, "pkg:omena-fixture/published.scss");
+    assert_eq!(subject.trust_tier, omena_sif::OmenaSifTrustTierV1::T3);
+    assert_eq!(
+        subject.sif_hash,
+        omena_sif::compute_omena_sif_artifact_hash_v1(&sif).map_err(|error| error.to_string())?
+    );
+
+    cleanup(&source_path);
+    cleanup(&sif_path);
+    cleanup(&subject_path);
+    Ok(())
+}
+
+#[test]
 fn sif_generate_lif_exports_command_writes_less_interface_facts() -> Result<(), String> {
     let source_path = temp_path("tokens.less");
     let output_path = temp_path("tokens.lif-exports.json");

@@ -919,6 +919,20 @@ pub(crate) enum SifCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Generate the canonical descriptor signed for an Omena-published SIF.
+    GenerateAttestationSubject {
+        /// Canonical SIF JSON whose resource identity and hash will be bound.
+        sif: PathBuf,
+        /// Advisory provenance tier bound into the signed descriptor: t2 or t3.
+        #[arg(long = "trust-tier", default_value = "t3")]
+        trust_tier: String,
+        /// Output path. Prints subject JSON to stdout when omitted.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Print generated subject JSON even when --output is provided.
+        #[arg(long)]
+        json: bool,
+    },
     /// Generate static LIF exports, including Less-specific interface facts.
     GenerateLifExports {
         /// CSS, SCSS, Sass, or Less source to scan.

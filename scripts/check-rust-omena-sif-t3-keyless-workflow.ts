@@ -52,6 +52,14 @@ assert.ok(
   "SIF attestation workflow must generate the SIF through the shipped CLI surface",
 );
 assert.ok(
+  workflow.includes("./rust/target/release/omena sif generate-attestation-subject"),
+  "SIF attestation workflow must generate the signed subject through the shipped CLI surface",
+);
+assert.ok(
+  workflow.includes("--trust-tier t3"),
+  "SIF attestation workflow must bind the published advisory tier into the signed subject",
+);
+assert.ok(
   workflow.includes("manifest_path is mutually exclusive with source_path and canonical_url"),
   "SIF attestation workflow must keep manifest and single-source modes mutually exclusive",
 );
@@ -92,9 +100,10 @@ assert.match(
   /actions\/attest-build-provenance@[0-9a-f]{40}\b/,
   "SIF attestation workflow must use the pinned keyless provenance action",
 );
-assert.match(
-  workflow,
-  /subject-path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/omena\.lock/,
+assert.match(workflow, /subject-path:\s*\|\s*\n\s+dist\/sif\/\*\.attestation-subject\.json/);
+assert.ok(
+  !workflow.includes("subject-path: |\n            dist/sif/*.sif.json"),
+  "raw SIF bytes must not be the elevated attestation subject",
 );
 assert.match(
   workflow,
@@ -103,7 +112,7 @@ assert.match(
 );
 assert.match(
   workflow,
-  /path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/omena\.lock\s*\n\s+dist\/sif\/omena\.lock\.report\.json/,
+  /path:\s*\|\s*\n\s+dist\/sif\/\*\.sif\.json\s*\n\s+dist\/sif\/\*\.attestation-subject\.json\s*\n\s+dist\/sif\/omena\.lock\s*\n\s+dist\/sif\/omena\.lock\.report\.json/,
 );
 assert.match(workflow, /if-no-files-found:\s*error/);
 
@@ -141,7 +150,7 @@ process.stdout.write(
       longLivedSecrets: false,
       generationSurface: "omena sif generate",
       lockSurface: "omena lock update",
-      attestationSubject: "dist/sif/*.sif.json + dist/sif/omena.lock",
+      attestationSubject: "dist/sif/*.attestation-subject.json",
       unconsumedShardBatch: "not-published",
     },
     null,
