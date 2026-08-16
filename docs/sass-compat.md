@@ -99,6 +99,8 @@ remote bytes therefore cannot suppress a blocking editor diagnostic. Explicit
 CLI `--sif` and `--lockfile` inputs remain user-selected diagnostic inputs;
 `--lockfile` artifacts are checked against `sifHash` and are fallback-only when
 no explicit SIF or readable local-source bridge covers the same canonical URL.
+The same authority order applies to `omena report soundiness`, so a selected
+lock cannot suppress boundary evidence regenerated from readable local source.
 
 T2 and T3 are advisory provenance labels for Omena-published artifacts only.
 `lock verify-attestation` records a verdict for the exact canonical URL, tier,

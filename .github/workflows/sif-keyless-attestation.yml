@@ -95,7 +95,7 @@ jobs:
             local label="$1"
             local public_name="$2"
             local normalized_name="${public_name,,}"
-            if [[ "${normalized_name}" =~ g[-_]?[0-9]+|goal[-_]?[0-9]+|stage[-_]?[0-9]+|redproof|pw[-_]?[0-9]+|cd[-_]?[0-9]+|wave[-_]?[0-9]+ ]]; then
+            if [[ "${normalized_name}" =~ g[^[:alnum:]]*[0-9]+|goal[^[:alnum:]]*[0-9]+|stage[^[:alnum:]]*[0-9]+|redproof|pw[^[:alnum:]]*[0-9]+|cd[^[:alnum:]]*[0-9]+|wave[^[:alnum:]]*[0-9]+ ]]; then
               echo "::error::${label} must use descriptive semantic words rather than an internal program identifier: ${public_name}" >&2
               exit 1
             fi

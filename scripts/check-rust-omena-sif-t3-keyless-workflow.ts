@@ -24,7 +24,7 @@ if (injectUnconsumedShardBatch) {
 }
 if (injectUnboundedPublicName) {
   workflow = workflow.replace(
-    'if [[ "${normalized_name}" =~ g[-_]?[0-9]+|goal[-_]?[0-9]+|stage[-_]?[0-9]+|redproof|pw[-_]?[0-9]+|cd[-_]?[0-9]+|wave[-_]?[0-9]+ ]]; then',
+    'if [[ "${normalized_name}" =~ g[^[:alnum:]]*[0-9]+|goal[^[:alnum:]]*[0-9]+|stage[^[:alnum:]]*[0-9]+|redproof|pw[^[:alnum:]]*[0-9]+|cd[^[:alnum:]]*[0-9]+|wave[^[:alnum:]]*[0-9]+ ]]; then',
     "if false; then",
   );
 }
@@ -146,7 +146,7 @@ assert.ok(
 );
 assert.ok(
   workflow.includes(
-    'if [[ "${normalized_name}" =~ g[-_]?[0-9]+|goal[-_]?[0-9]+|stage[-_]?[0-9]+|redproof|pw[-_]?[0-9]+|cd[-_]?[0-9]+|wave[-_]?[0-9]+ ]]; then',
+    'if [[ "${normalized_name}" =~ g[^[:alnum:]]*[0-9]+|goal[^[:alnum:]]*[0-9]+|stage[^[:alnum:]]*[0-9]+|redproof|pw[^[:alnum:]]*[0-9]+|cd[^[:alnum:]]*[0-9]+|wave[^[:alnum:]]*[0-9]+ ]]; then',
   ),
   "SIF attestation workflow must reject internal program identifiers anywhere in public names",
 );
@@ -163,11 +163,11 @@ const staticPublicNames = [...workflow.matchAll(/^\s*(?:name|default):\s*(.+)$/g
   .join("\n");
 assert.doesNotMatch(
   staticPublicNames,
-  /g[-_]?[0-9]+|goal[-_]?[0-9]+|stage[-_]?[0-9]+|redproof|pw[-_]?[0-9]+|cd[-_]?[0-9]+|wave[-_]?[0-9]+/imu,
+  /g[^a-z0-9]*[0-9]+|goal[^a-z0-9]*[0-9]+|stage[^a-z0-9]*[0-9]+|redproof|pw[^a-z0-9]*[0-9]+|cd[^a-z0-9]*[0-9]+|wave[^a-z0-9]*[0-9]+/imu,
   "workflow and attestation subjects must not publish internal identifier-shaped names",
 );
 const forbiddenPublicName =
-  /g[-_]?[0-9]+|goal[-_]?[0-9]+|stage[-_]?[0-9]+|redproof|pw[-_]?[0-9]+|cd[-_]?[0-9]+|wave[-_]?[0-9]+/iu;
+  /g[^a-z0-9]*[0-9]+|goal[^a-z0-9]*[0-9]+|stage[^a-z0-9]*[0-9]+|redproof|pw[^a-z0-9]*[0-9]+|cd[^a-z0-9]*[0-9]+|wave[^a-z0-9]*[0-9]+/iu;
 for (const leakedName of [
   "g124shardverifier",
   "stage5-shard",
@@ -178,6 +178,8 @@ for (const leakedName of [
   "wave12",
   "g-124-shard",
   "g_124",
+  "g.124-shard",
+  "g--124-shard",
 ]) {
   assert.match(
     leakedName,

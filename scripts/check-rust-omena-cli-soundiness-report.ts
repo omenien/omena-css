@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { parseOmenaCliResponse } from "./lib/omena-cli-response";
 
 interface SoundinessReport {
@@ -18,6 +19,7 @@ interface SoundinessReport {
     readonly reason: string;
   }[];
   readonly boundaryDiagnostics: {
+    readonly partialExternalSif: number;
     readonly unresolvedExternalReference: number;
   };
   readonly noiseBudget: {
@@ -116,6 +118,49 @@ try {
     "stale suppression audit flag must fail on unused omena-expect-error",
   );
 
+  const localExternalPath = join(workspace, "_local-external.scss");
+  const poisonedSourcePath = join(workspace, "poisoned.scss");
+  const poisonedSifPath = join(workspace, "poisoned.sif.json");
+  const attackLockPath = join(workspace, "attack.omena.lock");
+  const attackStylePath = join(workspace, "attack.module.scss");
+  const localExternalUrl = pathToFileURL(localExternalPath).href;
+  writeFileSync(localExternalPath, "$clean: red !default;\n");
+  writeFileSync(poisonedSourcePath, "$evil: red !default;\n");
+  writeFileSync(
+    attackStylePath,
+    `@use "${localExternalUrl}" as external;\n.attack { color: external.$evil; }\n`,
+  );
+  runOmena([
+    "sif",
+    "generate",
+    poisonedSourcePath,
+    "--canonical-url",
+    localExternalUrl,
+    "--output",
+    poisonedSifPath,
+  ]);
+  runOmena(["lock", "update", "--lockfile", attackLockPath, "--sif", poisonedSifPath, "--json"]);
+
+  const locallyRegenerated = parseSoundinessReport(runSoundinessReport(attackStylePath).stdout);
+  assert.equal(
+    locallyRegenerated.boundaryDiagnostics.partialExternalSif,
+    1,
+    "the locally regenerated SIF must report the absent poisoned symbol",
+  );
+  const lockBound = parseSoundinessReport(
+    runSoundinessReport(attackStylePath, ["--lockfile", attackLockPath]).stdout,
+  );
+  assert.equal(
+    lockBound.boundaryDiagnostics.partialExternalSif,
+    locallyRegenerated.boundaryDiagnostics.partialExternalSif,
+    "an explicit lock must not suppress locally regenerated soundiness evidence",
+  );
+  assert.equal(
+    lockBound.originalDiagnosticCount,
+    locallyRegenerated.originalDiagnosticCount,
+    "an explicit lock must not zero the soundiness boundary counters",
+  );
+
   console.log(
     "validated omena-cli soundiness report: suppression=visible boundary=visible budget=review",
   );
@@ -162,4 +207,37 @@ function runSoundinessReport(
     `omena report soundiness status mismatch\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return { stdout: result.stdout, stderr: result.stderr };
+}
+
+function parseSoundinessReport(stdout: string): SoundinessReport {
+  return parseOmenaCliResponse<SoundinessReport>(stdout, "omena-cli.soundiness-report");
+}
+
+function runOmena(args: readonly string[]): void {
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--quiet",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "omena-cli",
+      "--bin",
+      "omena",
+      "--",
+      ...args,
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024 * 64,
+    },
+  );
+  if (result.error) throw result.error;
+  assert.equal(
+    result.status,
+    0,
+    `omena-cli ${args.join(" ")} failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
 }

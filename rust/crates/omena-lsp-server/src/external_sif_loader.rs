@@ -49,6 +49,8 @@ pub struct LspExternalSifRefreshResultV0 {
     pub generation: u64,
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     pub bridge_external_sif_urls: BTreeSet<String>,
+    /// Compatibility field for the removed automatic workspace-lock reader.
+    /// Product refresh construction sets zero by design; this is not a sampled I/O counter.
     pub lock_read_count: usize,
     pub bridge_generation_count: usize,
     pub trust_records: Vec<OmenaQueryExternalSifTrustV1>,

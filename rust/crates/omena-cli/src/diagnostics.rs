@@ -474,7 +474,7 @@ pub(crate) fn resolve_in_process_external_sifs(
     .external_sifs
 }
 
-fn reconcile_cli_external_sifs(
+pub(crate) fn reconcile_cli_external_sifs(
     explicit_sifs: Vec<OmenaQueryExternalSifInputV0>,
     locally_regenerated_sifs: Vec<OmenaQueryExternalSifInputV0>,
     lock_sifs: Vec<OmenaQueryExternalSifInputV0>,

@@ -30,6 +30,7 @@ const injectCrossWorkspaceSharingPath = args.has("--inject-cross-workspace-shari
 const injectStructLiteralSharingPath = args.has("--inject-struct-literal-sharing-path");
 const injectConstantIdentitySharingPath = args.has("--inject-constant-identity-sharing-path");
 const injectDocCommentCfgDecoy = args.has("--inject-doc-comment-cfg-decoy");
+const injectCliLockConsumer = args.has("--inject-cli-lock-consumer");
 assert.deepEqual(
   [...args].filter(
     (arg) =>
@@ -39,7 +40,8 @@ assert.deepEqual(
       arg !== "--inject-cross-workspace-sharing-path" &&
       arg !== "--inject-struct-literal-sharing-path" &&
       arg !== "--inject-constant-identity-sharing-path" &&
-      arg !== "--inject-doc-comment-cfg-decoy",
+      arg !== "--inject-doc-comment-cfg-decoy" &&
+      arg !== "--inject-cli-lock-consumer",
   ),
   [],
   "unknown SIF shard trust census option",
@@ -75,6 +77,12 @@ const rules: readonly CensusRule[] = [
     role: "consumer",
     call: "read_omena_lock_json_v1(",
     lockKnowledge: "explicit-user-input+sifHash-check; fallback-behind-local-bridge",
+  },
+  {
+    id: "cli-lock-sif-consumer",
+    role: "consumer",
+    call: "read_lock_external_sifs(",
+    lockKnowledge: "explicit-user-input; all CLI lock-consuming call sites enumerated",
   },
   {
     id: "bridge-shard-store",
@@ -132,6 +140,9 @@ const expectedKeys = [
   "cli-recorded-verdict-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
   "cli-recorded-bundle-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
   "cli-explicit-lock-sif-reader|rust/crates/omena-cli/src/diagnostics.rs|read_lock_external_sifs",
+  "cli-lock-sif-consumer|rust/crates/omena-cli/src/bundle.rs|plan_bundle",
+  "cli-lock-sif-consumer|rust/crates/omena-cli/src/diagnostics.rs|style_diagnostics_summary",
+  "cli-lock-sif-consumer|rust/crates/omena-cli/src/reports.rs|summarize_soundiness_report",
   "bridge-shard-store|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl",
   "bridge-shard-atomic-write|rust/crates/omena-bridge/src/style_resolution.rs|store_external_sif_cache_shard",
   "bridge-shard-load|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl",
@@ -155,6 +166,7 @@ const rows = scanCensus({
   injectStore: injectNewStoreCall,
   injectPrimitive: injectDirectShardPrimitive,
   injectDocCommentDecoy: injectDocCommentCfgDecoy,
+  injectCliLockConsumer,
 });
 const observedKeys = rows.map(rowKey).toSorted();
 assert.deepEqual(
@@ -315,6 +327,14 @@ if (!injectDocCommentCfgDecoy) {
     "a doc-comment cfg(test) decoy must not hide an identityless storage constructor",
   );
 }
+if (!injectCliLockConsumer) {
+  const injectedRows = scanCensus({ injectCliLockConsumer: true });
+  assert.equal(
+    injectedRows.filter((row) => row.id === "cli-lock-sif-consumer").length,
+    rows.filter((row) => row.id === "cli-lock-sif-consumer").length + 1,
+    "the CLI lock-consumer falsifier must expose an added production lock reader",
+  );
+}
 
 // FALSIFIER: id=sif-shard-trust-census-post-test-store-call class=structuralEntailment via=--inject-new-store-call producer=can-fail owner=sif-shard-trust-census entry=git-ls-files-rust-production-shard-callset
 // FALSIFIER: id=sif-shard-trust-census-direct-primitive-writer class=structuralEntailment via=--inject-direct-shard-primitive expected=RED owner=sif-shard-trust-census entry=enumerated-disk-writer-callset
@@ -322,14 +342,16 @@ if (!injectDocCommentCfgDecoy) {
 // FALSIFIER: id=sif-shard-no-struct-literal-sharing class=productionCallSiteMutation via=--inject-struct-literal-sharing-path expected=RED owner=sif-shard-trust-census entry=enumerated-storage-constructor-callset
 // FALSIFIER: id=sif-shard-workspace-identity-callset class=productionCallSiteMutation via=--inject-constant-identity-sharing-path expected=RED owner=sif-shard-trust-census entry=enumerated-storage-constructor-callset
 // FALSIFIER: id=sif-shard-cfg-comment-decoy class=lexicalMaskMutation via=--inject-doc-comment-cfg-decoy expected=RED owner=sif-shard-trust-census entry=comment-aware-cfg-test-mask
+// FALSIFIER: id=sif-shard-cli-lock-consumer-callset class=productionCallSiteMutation via=--inject-cli-lock-consumer expected=RED owner=sif-shard-trust-census entry=all-cli-lock-consumers
 process.stdout.write(
-  `SIF shard trust census OK: scope=git-ls-files-comment-aware-production-rust coverage=enumerated-writer-consumer-and-storage-constructor-callsets rows=${rows.length} artifactInputs=${rows.filter((row) => row.role === "artifact-input").length} trustWriters=${rows.filter((row) => row.role === "trust-writer").length} shardWriters=${rows.filter((row) => row.role === "shard-writer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=${bridgeLockReaderSites.length} bridgeNetworkSites=${bridgeNetworkSites.length} bridgeSigstoreVerifierCalls=${bridgeSigstoreVerifierCalls.length} crossWorkspaceSharingPaths=0 workspaceIdentityConstructorSites=${workspaceIdentityConstructorSites.length} workspaceScopedGlobalBranches=${workspaceScopedGlobalBranches} crossWorkspaceServe=false\n${formatRows(rows)}\n`,
+  `SIF shard trust census OK: scope=git-ls-files-comment-aware-production-rust coverage=enumerated-writer-consumer-and-spelled-storage-constructor-callsets rows=${rows.length} artifactInputs=${rows.filter((row) => row.role === "artifact-input").length} trustWriters=${rows.filter((row) => row.role === "trust-writer").length} shardWriters=${rows.filter((row) => row.role === "shard-writer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=${bridgeLockReaderSites.length} bridgeNetworkSites=${bridgeNetworkSites.length} bridgeSigstoreVerifierCalls=${bridgeSigstoreVerifierCalls.length} crossWorkspaceSharingPaths=0 workspaceIdentityConstructorSites=${workspaceIdentityConstructorSites.length} workspaceScopedGlobalBranches=${workspaceScopedGlobalBranches} crossWorkspaceServe=false\n${formatRows(rows)}\n`,
 );
 
 type CensusInjection = {
   injectStore?: boolean;
   injectPrimitive?: boolean;
   injectDocCommentDecoy?: boolean;
+  injectCliLockConsumer?: boolean;
 };
 
 function scanCensus(injection: CensusInjection = {}): CensusRow[] {
@@ -348,6 +370,10 @@ function scanCensus(injection: CensusInjection = {}): CensusRow[] {
     if (injection.injectDocCommentDecoy && sourcePath === bridgeSourcePath) {
       source +=
         "\n/// #[cfg(test)]\nfn injected_cfg_comment_decoy() { store_external_sif_cache_shard(); let _ = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(PathBuf::new()); }\n";
+    }
+    if (injection.injectCliLockConsumer && sourcePath === "rust/crates/omena-cli/src/reports.rs") {
+      source +=
+        '\nfn injected_cli_lock_consumer() { let _ = read_lock_external_sifs(Path::new("omena.lock")); }\n';
     }
     const production = maskCfgTestItems(source);
     let containingFunction = "<module>";
@@ -383,6 +409,8 @@ type SharingInjection = {
 };
 
 function scanCrossWorkspaceSharingSites(injection: SharingInjection = {}): string[] {
+  // This is deliberately a spelled-type lexical call-set, not Rust type
+  // inference: `Self { ... }` and aliases remain outside this census arm.
   const sites: string[] = [];
   for (const sourcePath of trackedRustSources) {
     let source = fs.readFileSync(path.join(repoRoot, sourcePath), "utf8");
@@ -482,6 +510,11 @@ function ruleAppliesToSite(ruleId: string, sourcePath: string, symbol: string): 
     return (
       sourcePath === "rust/crates/omena-cli/src/diagnostics.rs" &&
       symbol === "read_lock_external_sifs"
+    );
+  }
+  if (ruleId === "cli-lock-sif-consumer") {
+    return (
+      sourcePath.startsWith("rust/crates/omena-cli/src/") && symbol !== "read_lock_external_sifs"
     );
   }
   if (ruleId === "lsp-lock-hint-reader") {
