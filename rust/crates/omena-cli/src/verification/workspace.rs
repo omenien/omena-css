@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use crate::{
     bundle::{BundleCommandOptions, plan_bundle},
     config::{OmenaTranslationValidationMode, find_omena_config_for_path, resolve_config_paths},
+    external_sif_authority::CliExternalSifSelectionV0,
     format::build_format_report,
     io::{read_package_manifests, read_source, read_source_documents, read_style_sources},
     lint::{discover_style_paths, discover_workspace_files},
@@ -392,8 +393,6 @@ fn verify_bundle_admission(
             "no [build].bundleEntries are configured for closed-world admission",
         ));
     }
-    let lockfile = context.root.join("omena.lock");
-    let lockfile = lockfile.is_file().then_some(lockfile);
     let mut open_entry_count = 0usize;
     let mut blocker_count = 0usize;
     let mut runtime_evidence = Vec::new();
@@ -410,8 +409,7 @@ fn verify_bundle_admission(
             evidence_path: None,
             source_paths,
             package_manifest_paths: context.bundle_package_manifests.clone(),
-            sif_paths: Vec::new(),
-            lockfile: lockfile.clone(),
+            external_sif_selection: CliExternalSifSelectionV0::none(),
         })?;
         if let OmenaQueryClosedWorldOutcomeV0::Open { blockers } = &plan.result.closed_world_outcome
         {
@@ -661,6 +659,110 @@ mod tests {
             .ok_or_else(|| "external execution witness is missing".to_string())?;
         assert_eq!(witness["earnedVia"], "externalTool");
         assert_eq!(witness["key"]["queryIdentity"], "omena-cli.sass.compile");
+
+        fs::remove_dir_all(root).map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    #[test]
+    fn workspace_root_lock_cannot_change_no_flag_external_sif_bundle_evidence() -> Result<(), String>
+    {
+        let root = fixture_root("bundle-lock-authority");
+        let sif_dir = root.join("sif");
+        let package_dir = root.join("node_modules/@fixture/tokens");
+        fs::create_dir_all(&sif_dir).map_err(|error| error.to_string())?;
+        fs::create_dir_all(&package_dir).map_err(|error| error.to_string())?;
+        let entry = root.join("app.module.scss");
+        let external = package_dir.join("index.scss");
+        let package_manifest = package_dir.join("package.json");
+        fs::write(&external, "$brand: local !default;\n").map_err(|error| error.to_string())?;
+        fs::write(
+            &package_manifest,
+            r#"{"exports":{".":{"sass":"./index.scss"}}}"#,
+        )
+        .map_err(|error| error.to_string())?;
+        let canonical_external = fs::canonicalize(&external).map_err(|error| error.to_string())?;
+        let canonical_url = crate::paths::cli_path_to_file_uri(canonical_external.as_path());
+        fs::write(
+            &entry,
+            "@use \"@fixture/tokens\" as tokens;\n.button { color: tokens.$brand; }\n",
+        )
+        .map_err(|error| error.to_string())?;
+        fs::write(
+            root.join("omena.toml"),
+            "[build]\nbundleEntries = [\"app.module.scss\"]\nsources = [\"node_modules/@fixture/tokens/index.scss\"]\npackageManifests = [\"node_modules/@fixture/tokens/package.json\"]\n",
+        )
+        .map_err(|error| error.to_string())?;
+
+        let before = verify_workspace(Some(root.clone()), false)?.report;
+        let before_bundle = before
+            .items
+            .iter()
+            .find(|item| item.id == "bundle-closed-world")
+            .ok_or_else(|| "bundle-closed-world verification item is missing".to_string())?;
+        assert_eq!(
+            before_bundle.outcome,
+            VerificationOutcomeV0::Passed,
+            "verification fixture must exercise a closed bundle: {before_bundle:?}"
+        );
+        assert!(
+            before_bundle
+                .runtime_evidence
+                .first()
+                .and_then(|value| value.get("interfaceHashes"))
+                .and_then(Value::as_array)
+                .is_some_and(|entries| !entries.is_empty()),
+            "verification fixture must expose interface evidence: {before_bundle:?}"
+        );
+        let before_evidence = before_bundle.runtime_evidence.clone();
+
+        let poisoned = omena_sif::OmenaSifV1::from_static_exports(
+            canonical_url.as_str(),
+            omena_sif::OmenaSifGeneratorV1 {
+                name: "omena-verification-attacker".to_string(),
+                version: "0.0.0".to_string(),
+                toolchain_id: "omena-verification-attacker@0.0.0".to_string(),
+            },
+            omena_sif::OmenaSifSourceV1 {
+                syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+            },
+            omena_sif::OmenaSifExportsV1 {
+                variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                    name: "$brand".to_string(),
+                    defaulted: true,
+                    value_repr: Some("poisoned".to_string()),
+                }],
+                ..omena_sif::OmenaSifExportsV1::default()
+            },
+            Vec::new(),
+            b"$brand: poisoned !default;",
+        )
+        .map_err(|error| error.to_string())?;
+        fs::write(
+            sif_dir.join("tokens.sif.json"),
+            omena_sif::write_omena_sif_json_v1(&poisoned).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+        let lock = omena_sif::OmenaLockV1::new(vec![
+            omena_sif::build_omena_lock_sif_entry_v1("sif/tokens.sif.json", &poisoned)
+                .map_err(|error| error.to_string())?,
+        ]);
+        fs::write(
+            root.join("omena.lock"),
+            omena_sif::write_omena_lock_json_v1(&lock).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+
+        let after = verify_workspace(Some(root.clone()), false)?.report;
+        let after_bundle = after
+            .items
+            .iter()
+            .find(|item| item.id == "bundle-closed-world")
+            .ok_or_else(|| "bundle-closed-world verification item is missing".to_string())?;
+        assert_eq!(
+            after_bundle.runtime_evidence, before_evidence,
+            "an auto-discovered workspace lock changed no-flag verify/ci evidence"
+        );
 
         fs::remove_dir_all(root).map_err(|error| error.to_string())?;
         Ok(())

@@ -1,20 +1,23 @@
 use crate::{
+    external_sif_authority::{
+        CliExternalSifLockFailureModeV0, CliExternalSifSelectionV0,
+        resolve_cli_external_sif_authority,
+    },
     io::{
         read_package_manifests, read_source, read_source_diagnostic_candidates_json,
         read_source_documents, read_style_sources, read_workspace_sources,
     },
-    lock::resolve_lock_relative_path,
     output::{CliOutputMetadataV0, print_json},
     paths::{path_string, style_resolution_workspace_uri_for_path},
 };
+#[cfg(test)]
+use omena_query::resolve_omena_query_bridge_external_sifs_for_style_sources;
 use omena_query::{
     OmenaQueryDynamicClassnameMTierInputV0, OmenaQueryExternalModuleModeV0,
-    OmenaQueryExternalSifInputV0, OmenaQuerySourceDiagnosticsForFileV0,
-    OmenaQueryStyleDiagnosticV0, OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0,
-    OmenaQueryStyleResolutionInputsV0, OmenaQueryStyleSourceInputV0, ParserRangeV0,
+    OmenaQuerySourceDiagnosticsForFileV0, OmenaQueryStyleDiagnosticV0,
+    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleMemoHostV0, ParserRangeV0,
     build_omena_resolver_style_module_confirmation_identity_index,
     load_omena_query_workspace_style_resolution_inputs,
-    resolve_omena_query_bridge_external_sifs_for_style_sources,
     summarize_omena_query_dynamic_classname_m_tier_diagnostics_with_context_depth,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
@@ -24,11 +27,10 @@ use omena_query::{
 };
 #[cfg(test)]
 use omena_query::{
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0,
+    OmenaQueryStyleSourceInputV0,
     summarize_omena_query_workspace_cross_file_summary_with_resolution_inputs,
-};
-use omena_sif::{
-    compute_omena_sif_artifact_hash_v1, read_omena_lock_json_v1, read_omena_sif_json_v1,
 };
 use omena_streaming_ifds::summarize_demand_sliced_monotone_fact_propagation_cross_file_reachability_v0;
 use std::{
@@ -54,8 +56,7 @@ pub(crate) fn style_diagnostics(
         source_paths,
         source_document_paths,
         package_manifest_paths,
-        sif_paths,
-        lockfile,
+        CliExternalSifSelectionV0::from_explicit_cli_arguments(sif_paths, lockfile),
         external,
         deep_analysis,
     )?;
@@ -82,8 +83,7 @@ pub(crate) fn style_diagnostics_summary(
     source_paths: Vec<PathBuf>,
     source_document_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
-    sif_paths: Vec<PathBuf>,
-    lockfile: Option<PathBuf>,
+    external_sif_selection: CliExternalSifSelectionV0,
     external: Option<String>,
     deep_analysis: bool,
 ) -> Result<OmenaQueryStyleDiagnosticsForFileV0, String> {
@@ -95,7 +95,7 @@ pub(crate) fn style_diagnostics_summary(
     if source_paths.is_empty()
         && source_document_paths.is_empty()
         && package_manifests.is_empty()
-        && sif_paths.is_empty()
+        && !external_sif_selection.has_explicit_sif_paths()
         && !uses_external_sif_path
     {
         let Some(candidates) = summarize_omena_query_style_hover_candidates(&style_path, &source)
@@ -116,16 +116,11 @@ pub(crate) fn style_diagnostics_summary(
     } else {
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
         let source_documents = read_source_documents(&source_document_paths)?;
-        let explicit_sifs = read_external_sifs(&sif_paths)?;
-        let mut lock_sifs = Vec::new();
-        let mut lockfile_diagnostics = Vec::new();
-        if uses_external_sif_path && let Some(lockfile) = lockfile.as_ref() {
-            match read_lock_external_sifs(lockfile) {
-                Ok(sifs) => lock_sifs = sifs,
-                Err(error) => lockfile_diagnostics
-                    .push(lockfile_invalid_style_diagnostic(lockfile, error.as_str())),
-            }
-        }
+        let external_sif_selection = if uses_external_sif_path {
+            external_sif_selection
+        } else {
+            external_sif_selection.without_lock_fallback()
+        };
         // #33: an `@use "file:///…"` edge now routes through the external-SIF branch
         // (resolver `is_external_style_module_source`). Generate the bridge SIF for each such
         // on-disk external edge in-process so an external `missingSassSymbol` is suppressed
@@ -138,19 +133,18 @@ pub(crate) fn style_diagnostics_summary(
             workspace_folder_uri.as_deref(),
             package_manifests.as_slice(),
         );
-        let in_process_external_sifs = resolve_in_process_external_sifs(
+        let authority = resolve_cli_external_sif_authority(
+            &external_sif_selection,
             workspace_sources.as_slice(),
-            explicit_sifs.as_slice(),
             &resolution_inputs,
-        );
-        let external_sifs =
-            reconcile_cli_external_sifs(explicit_sifs, in_process_external_sifs, lock_sifs);
+            CliExternalSifLockFailureModeV0::SurfaceDiagnostic,
+        )?;
         let mut host = OmenaQueryStyleMemoHostV0::new();
         let mut summary = if let Some(selector) = host.workspace_revision_selector(
             workspace_sources.as_slice(),
             source_documents.as_slice(),
             package_manifests.as_slice(),
-            external_sifs.as_slice(),
+            authority.external_sifs(),
             &resolution_inputs,
         ) {
             let mut summary = selector
@@ -170,7 +164,12 @@ pub(crate) fn style_diagnostics_summary(
                 "failed to commit workspace style diagnostics for {style_path}"
             ));
         };
-        summary.diagnostics.extend(lockfile_diagnostics);
+        if uses_external_sif_path && let Some(error) = authority.lock_error() {
+            summary.diagnostics.push(lockfile_invalid_style_diagnostic(
+                error.lockfile(),
+                error.message(),
+            ));
+        }
         summary.diagnostic_count = summary.diagnostics.len();
         Ok(summary)
     }
@@ -220,8 +219,12 @@ fn workspace_style_diagnostics_summaries_with_identity_index_mode(
         workspace_folder_uri.as_deref(),
         package_manifests.as_slice(),
     );
-    let external_sifs =
-        resolve_in_process_external_sifs(workspace_sources.as_slice(), &[], &resolution_inputs);
+    let external_sif_authority = resolve_cli_external_sif_authority(
+        &CliExternalSifSelectionV0::none(),
+        workspace_sources.as_slice(),
+        &resolution_inputs,
+        CliExternalSifLockFailureModeV0::Refuse,
+    )?;
 
     let resolver_identity_index = thread_identity_index.then(|| {
         let available_style_paths = workspace_sources
@@ -240,7 +243,7 @@ fn workspace_style_diagnostics_summaries_with_identity_index_mode(
             workspace_sources.as_slice(),
             source_documents.as_slice(),
             package_manifests.as_slice(),
-            external_sifs.as_slice(),
+            external_sif_authority.external_sifs(),
             &resolution_inputs,
             resolver_identity_index,
         )
@@ -249,7 +252,7 @@ fn workspace_style_diagnostics_summaries_with_identity_index_mode(
             workspace_sources.as_slice(),
             source_documents.as_slice(),
             package_manifests.as_slice(),
-            external_sifs.as_slice(),
+            external_sif_authority.external_sifs(),
             &resolution_inputs,
         )
     }
@@ -372,65 +375,6 @@ fn lockfile_invalid_style_diagnostic(
     }
 }
 
-pub(crate) fn read_external_sifs(
-    paths: &[PathBuf],
-) -> Result<Vec<OmenaQueryExternalSifInputV0>, String> {
-    paths
-        .iter()
-        .map(|path| {
-            let sif_json = read_source(path)?;
-            let sif = read_omena_sif_json_v1(&sif_json)
-                .map_err(|error| format!("failed to parse SIF {}: {error}", path_string(path)))?;
-            Ok(OmenaQueryExternalSifInputV0 {
-                canonical_url: sif.canonical_url.clone(),
-                sif,
-            })
-        })
-        .collect()
-}
-
-pub(crate) fn read_lock_external_sifs(
-    lockfile: &Path,
-) -> Result<Vec<OmenaQueryExternalSifInputV0>, String> {
-    let lockfile_source = read_source(lockfile)?;
-    let lock = read_omena_lock_json_v1(&lockfile_source)
-        .map_err(|error| format!("failed to parse {}: {error}", path_string(lockfile)))?;
-    lock.entries
-        .iter()
-        .map(|entry| {
-            let sif_path = resolve_lock_relative_path(lockfile, &entry.sif_path);
-            let sif_json = read_source(&sif_path)?;
-            let sif = read_omena_sif_json_v1(&sif_json).map_err(|error| {
-                format!("failed to parse SIF {}: {error}", path_string(&sif_path))
-            })?;
-            if sif.canonical_url != entry.canonical_url {
-                return Err(format!(
-                    "lock entry {} points to SIF {} with canonicalUrl {}",
-                    entry.canonical_url,
-                    path_string(&sif_path),
-                    sif.canonical_url
-                ));
-            }
-            let actual_sif_hash = compute_omena_sif_artifact_hash_v1(&sif).map_err(|error| {
-                format!("failed to hash SIF {}: {error}", path_string(&sif_path))
-            })?;
-            if actual_sif_hash != entry.sif_hash {
-                return Err(format!(
-                    "lock entry {} expected sifHash {}, but SIF {} hashes to {}",
-                    entry.canonical_url,
-                    entry.sif_hash.as_str(),
-                    path_string(&sif_path),
-                    actual_sif_hash.as_str()
-                ));
-            }
-            Ok(OmenaQueryExternalSifInputV0 {
-                canonical_url: entry.canonical_url.clone(),
-                sif,
-            })
-        })
-        .collect()
-}
-
 /// Generate, in-process, the external SIFs for readable external Sass module
 /// edges in the workspace — both literal `file://` edges and package
 /// specifiers that resolve to disk — plus every reachable `@forward` hop.
@@ -461,6 +405,7 @@ pub(crate) fn read_lock_external_sifs(
 ///
 /// The query layer consumes the generated chain by flattening forwarded external-SIF exports when
 /// it computes the visible Sass symbol set for the root external module.
+#[cfg(test)]
 pub(crate) fn resolve_in_process_external_sifs(
     workspace_sources: &[OmenaQueryStyleSourceInputV0],
     existing_external_sifs: &[OmenaQueryExternalSifInputV0],
@@ -472,23 +417,6 @@ pub(crate) fn resolve_in_process_external_sifs(
         resolution_inputs,
     )
     .external_sifs
-}
-
-pub(crate) fn reconcile_cli_external_sifs(
-    explicit_sifs: Vec<OmenaQueryExternalSifInputV0>,
-    locally_regenerated_sifs: Vec<OmenaQueryExternalSifInputV0>,
-    lock_sifs: Vec<OmenaQueryExternalSifInputV0>,
-) -> Vec<OmenaQueryExternalSifInputV0> {
-    let mut output = Vec::new();
-    let mut covered = BTreeSet::new();
-    for candidates in [explicit_sifs, locally_regenerated_sifs, lock_sifs] {
-        for candidate in candidates {
-            if covered.insert(candidate.canonical_url.clone()) {
-                output.push(candidate);
-            }
-        }
-    }
-    output
 }
 
 pub(crate) fn parse_external_module_mode(

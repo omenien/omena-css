@@ -2186,7 +2186,7 @@
                 "pub trust_records: Vec<OmenaQueryExternalSifTrustV1>",
                 "external_sif_trust_record_map(bridge_result.trust_records)",
                 "let external_sifs = bridge_result.resolution.external_sifs;",
-                "lock_read_count: 0",
+                "lock_read_count: io_audit.observed_lock_read_count()",
                 ".with_recorded_verdict_dir("
               ]
             },
@@ -2203,6 +2203,7 @@
                 "fn trust_record_projection_rechecks_the_omena_published_subject()",
                 "fn auto_discovered_lsp_lock_bytes_are_never_read_or_admitted()",
                 "fn lsp_local_bridge_is_the_sole_automatic_external_sif_authority()",
+                "job.lockfiles.len()",
                 "let substituted = resolve();",
                 "OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy"
               ]

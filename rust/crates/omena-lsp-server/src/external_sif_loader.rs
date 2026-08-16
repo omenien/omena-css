@@ -50,10 +50,31 @@ pub struct LspExternalSifRefreshResultV0 {
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     pub bridge_external_sif_urls: BTreeSet<String>,
     /// Compatibility field for the removed automatic workspace-lock reader.
-    /// Product refresh construction sets zero by design; this is not a sampled I/O counter.
+    /// The deferred collector derives this from its consumed I/O audit.
     pub lock_read_count: usize,
     pub bridge_generation_count: usize,
     pub trust_records: Vec<OmenaQueryExternalSifTrustV1>,
+}
+
+#[derive(Debug, Default)]
+struct DeferredExternalSifIoAuditV0 {
+    // Moving discovered paths into this no-read audit prevents the collector's
+    // resolution phase from retaining raw access to them.
+    _excluded_lockfiles: Vec<PathBuf>,
+    observed_lock_reads: BTreeSet<PathBuf>,
+}
+
+impl DeferredExternalSifIoAuditV0 {
+    fn excluding(discovered_lockfiles: Vec<PathBuf>) -> Self {
+        Self {
+            _excluded_lockfiles: discovered_lockfiles,
+            observed_lock_reads: BTreeSet::new(),
+        }
+    }
+
+    fn observed_lock_read_count(&self) -> usize {
+        self.observed_lock_reads.len()
+    }
 }
 
 /// The SIF job's declared input footprint (rfcs#111 §4.1). DocumentText is
@@ -367,6 +388,7 @@ pub fn collect_deferred_external_sif_refresh_with_cache_storage(
     job: LspExternalSifRefreshJobV0,
     cache_storage: LspExternalSifRefreshCacheStorageV0,
 ) -> LspExternalSifRefreshResultV0 {
+    let io_audit = DeferredExternalSifIoAuditV0::excluding(job.lockfiles);
     let bridge_result = resolve_external_sifs_for_refresh_documents(
         job.documents.as_slice(),
         &[],
@@ -381,7 +403,7 @@ pub fn collect_deferred_external_sif_refresh_with_cache_storage(
         generation: job.generation,
         external_sifs,
         bridge_external_sif_urls: bridge_result.resolution.bridge_urls.into_iter().collect(),
-        lock_read_count: 0,
+        lock_read_count: io_audit.observed_lock_read_count(),
         bridge_generation_count: bridge_result.resolution.generation_count,
         trust_records: bridge_result.trust_records,
     }

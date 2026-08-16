@@ -1,8 +1,9 @@
 use crate::{
     commands::ReportCommand,
-    diagnostics::{
-        parse_external_module_mode, read_external_sifs, read_lock_external_sifs,
-        reconcile_cli_external_sifs, resolve_in_process_external_sifs,
+    diagnostics::parse_external_module_mode,
+    external_sif_authority::{
+        CliExternalSifLockFailureModeV0, CliExternalSifSelectionV0,
+        resolve_cli_external_sif_authority,
     },
     io::{read_package_manifests, read_source_documents, read_style_sources},
     output::{CliOutputMetadataV0, print_json},
@@ -36,8 +37,7 @@ pub(crate) fn report_command(command: ReportCommand) -> Result<(), String> {
             source_paths,
             source_document_paths,
             package_manifest_paths,
-            sif_paths,
-            lockfile,
+            CliExternalSifSelectionV0::from_explicit_cli_arguments(sif_paths, lockfile),
             external,
             no_suppress,
             max_suppressions,
@@ -208,8 +208,7 @@ fn report_soundiness(
     source_paths: Vec<PathBuf>,
     source_document_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
-    sif_paths: Vec<PathBuf>,
-    lockfile: Option<PathBuf>,
+    external_sif_selection: CliExternalSifSelectionV0,
     external: String,
     no_suppress: bool,
     max_suppressions: Option<usize>,
@@ -220,8 +219,7 @@ fn report_soundiness(
         source_paths,
         source_document_paths,
         package_manifest_paths,
-        sif_paths,
-        lockfile,
+        external_sif_selection,
         external,
         no_suppress,
     )?;
@@ -255,8 +253,7 @@ fn summarize_soundiness_report(
     source_paths: Vec<PathBuf>,
     source_document_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
-    sif_paths: Vec<PathBuf>,
-    lockfile: Option<PathBuf>,
+    external_sif_selection: CliExternalSifSelectionV0,
     external: String,
     no_suppress: bool,
 ) -> Result<SoundinessReportV0, String> {
@@ -267,12 +264,6 @@ fn summarize_soundiness_report(
     let style_sources = read_style_sources(source_paths.as_slice())?;
     let source_documents = read_source_documents(source_document_paths.as_slice())?;
     let package_manifests = read_package_manifests(package_manifest_paths.as_slice())?;
-    let explicit_sifs = read_external_sifs(sif_paths.as_slice())?;
-    let lock_sifs = if let Some(lockfile) = lockfile.as_ref() {
-        read_lock_external_sifs(lockfile)?
-    } else {
-        Vec::new()
-    };
     let workspace_folder_uri = source_paths
         .first()
         .and_then(|path| style_resolution_workspace_uri_for_path(path));
@@ -280,15 +271,12 @@ fn summarize_soundiness_report(
         workspace_folder_uri.as_deref(),
         package_manifests.as_slice(),
     );
-    let in_process_external_sifs = resolve_in_process_external_sifs(
+    let external_sif_authority = resolve_cli_external_sif_authority(
+        &external_sif_selection,
         style_sources.as_slice(),
-        explicit_sifs.as_slice(),
         &resolution_inputs,
-    );
-    // Soundiness uses the same explicit-SIF → local regeneration → lock fallback
-    // authority as style diagnostics; lock bytes never suppress local regeneration.
-    let external_sifs =
-        reconcile_cli_external_sifs(explicit_sifs, in_process_external_sifs, lock_sifs);
+        CliExternalSifLockFailureModeV0::Refuse,
+    )?;
     let external_mode = parse_external_module_mode(&external)?;
     let suppression_mode = if no_suppress {
         OmenaQueryDiagnosticSuppressionModeV0::ReportOnly
@@ -311,7 +299,7 @@ fn summarize_soundiness_report(
             style_sources.as_slice(),
             source_documents.as_slice(),
             package_manifests.as_slice(),
-            external_sifs.as_slice(),
+            external_sif_authority.external_sifs(),
             &resolution_inputs,
         )
         .ok_or_else(|| "failed to commit soundiness report workspace diagnostics".to_string())?;

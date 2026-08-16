@@ -14,6 +14,7 @@ pub mod daemon;
 mod diagnostics;
 mod dispatch;
 mod explain;
+mod external_sif_authority;
 mod facts;
 mod format;
 mod intel;

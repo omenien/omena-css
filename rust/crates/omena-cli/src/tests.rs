@@ -4,15 +4,20 @@ use crate::audit::zk_audit_cli_result_v0;
 use crate::commands::{AuditCommand, ZkAuditCommand};
 use crate::{
     build::{BUNDLE_CODE_SPLIT_MANIFEST_FILE_NAME, bundle_split_file_name},
+    bundle::{BundleCommandOptions, plan_bundle},
     commands::{Cli, Command, LockCommand, ProvenanceCommand, ReportCommand, SifCommand},
     diagnostics::{
-        dynamic_classname_diagnostics_summary, read_lock_external_sifs,
-        resolve_in_process_external_sifs, source_diagnostics_summary, style_diagnostics_summary,
+        dynamic_classname_diagnostics_summary, resolve_in_process_external_sifs,
+        source_diagnostics_summary, style_diagnostics_summary,
         summarize_cross_file_streaming_reachability_diagnostics,
         workspace_source_diagnostics_summaries, workspace_style_diagnostics_summaries,
         workspace_style_diagnostics_summaries_unthreaded_for_test,
     },
     dispatch::{run, run_with_exit},
+    external_sif_authority::{
+        CliExternalSifLockFailureModeV0, CliExternalSifSelectionV0,
+        resolve_cli_external_sif_authority,
+    },
     io::read_source,
     lock::{
         AttestationStatementPolicy, build_recorded_shard_verdict,
@@ -305,6 +310,85 @@ fn bundle_command_records_open_world_blockers_without_emitting_css() -> Result<(
     assert_eq!(manifest["blockers"][0]["kind"], "missingDependency");
     assert_eq!(manifest["gates"][0]["passed"], false);
     assert!(!css_out.exists());
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
+fn bundle_lock_is_fallback_behind_local_external_sif_regeneration() -> Result<(), String> {
+    let fixture_root = temp_dir("bundle-lock-local-regeneration");
+    fs::create_dir_all(&fixture_root).map_err(|error| error.to_string())?;
+    let root = fs::canonicalize(&fixture_root).map_err(|error| error.to_string())?;
+    let sif_dir = root.join("sif");
+    let package_dir = root.join("node_modules/@fixture/tokens");
+    fs::create_dir_all(&sif_dir).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&package_dir).map_err(|error| error.to_string())?;
+    let entry = root.join("app.module.scss");
+    let external = package_dir.join("index.scss");
+    let package_manifest = package_dir.join("package.json");
+    let sif_path = sif_dir.join("tokens.sif.json");
+    let lockfile = root.join("omena.lock");
+    fs::write(&external, "$clean: red !default;\n").map_err(|error| error.to_string())?;
+    fs::write(
+        &package_manifest,
+        r#"{"exports":{".":{"sass":"./index.scss"}}}"#,
+    )
+    .map_err(|error| error.to_string())?;
+    let external_url = crate::paths::cli_path_to_file_uri(external.as_path());
+    fs::write(
+        &entry,
+        "@use \"@fixture/tokens\" as tokens;\n.button { color: tokens.$clean; }\n",
+    )
+    .map_err(|error| error.to_string())?;
+
+    let poisoned = cli_fixture_sif(external_url.as_str(), b"$poisoned: blue !default;")?;
+    fs::write(
+        &sif_path,
+        omena_sif::write_omena_sif_json_v1(&poisoned).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let lock = omena_sif::OmenaLockV1::new(vec![
+        omena_sif::build_omena_lock_sif_entry_v1("sif/tokens.sif.json", &poisoned)
+            .map_err(|error| error.to_string())?,
+    ]);
+    fs::write(
+        &lockfile,
+        omena_sif::write_omena_lock_json_v1(&lock).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let plan = |lockfile| {
+        plan_bundle(&BundleCommandOptions {
+            entry: Some(entry.clone()),
+            css_out: None,
+            evidence_path: None,
+            source_paths: vec![external.clone()],
+            package_manifest_paths: vec![package_manifest.clone()],
+            external_sif_selection:
+                crate::external_sif_authority::CliExternalSifSelectionV0::from_explicit_cli_arguments(
+                    Vec::new(),
+                    lockfile,
+                ),
+        })
+    };
+    let local_only = serde_json::to_value(plan(None)?.evidence).map_err(|e| e.to_string())?;
+    let with_lock =
+        serde_json::to_value(plan(Some(lockfile))?.evidence).map_err(|e| e.to_string())?;
+    assert_eq!(
+        local_only["outcomeStatus"], "closed",
+        "bundle authority fixture must be closed: {local_only}"
+    );
+    assert!(
+        local_only["interfaceHashes"]
+            .as_array()
+            .is_some_and(|entries| !entries.is_empty()),
+        "bundle authority fixture must exercise closed-world interface evidence: {local_only}"
+    );
+    assert_eq!(
+        with_lock, local_only,
+        "explicit lock bytes changed bundle evidence for a locally regenerable module"
+    );
+
     cleanup_dir(&root);
     Ok(())
 }
@@ -2785,6 +2869,38 @@ fn style_diagnostics_command_reads_query_owned_diagnostics() -> Result<(), Strin
 }
 
 #[test]
+fn style_diagnostics_ignored_external_mode_does_not_read_explicit_lock() -> Result<(), String> {
+    let source_path = temp_path("diagnostics-ignored-lock.module.css");
+    let lockfile_path = temp_path("diagnostics-ignored-invalid.lock");
+    fs::write(&source_path, ".button { color: red; }\n")
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+    fs::write(&lockfile_path, "not valid lock JSON\n")
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+    let result = run(Cli {
+        command: Command::StyleDiagnostics {
+            path: source_path.clone(),
+            source_paths: Vec::new(),
+            source_document_paths: Vec::new(),
+            package_manifest_paths: Vec::new(),
+            sif_paths: Vec::new(),
+            lockfile: Some(lockfile_path.clone()),
+            external: Some("ignored".to_string()),
+            deep_analysis: false,
+            json: true,
+        },
+    });
+
+    assert!(
+        result.is_ok(),
+        "ignored external mode read the lock: {result:?}"
+    );
+    cleanup(&source_path);
+    cleanup(&lockfile_path);
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_command_accepts_external_sif_mode() -> Result<(), String> {
     let source_path = temp_path("external-sif.module.scss");
     fs::write(
@@ -2999,7 +3115,15 @@ fn explicit_cli_lock_input_rejects_sif_hash_mismatch() -> Result<(), String> {
     )
     .map_err(|error| format!("fixture lock should be writable: {error}"))?;
 
-    let result = read_lock_external_sifs(lockfile_path.as_path());
+    let result = resolve_cli_external_sif_authority(
+        &CliExternalSifSelectionV0::from_explicit_cli_arguments(
+            Vec::new(),
+            Some(lockfile_path.clone()),
+        ),
+        &[],
+        &OmenaQueryStyleResolutionInputsV0::default(),
+        CliExternalSifLockFailureModeV0::Refuse,
+    );
     assert!(
         result
             .as_ref()
@@ -3054,8 +3178,7 @@ fn auto_discovered_lock_cannot_outrank_local_external_sif_regeneration() -> Resu
         Vec::new(),
         Vec::new(),
         Vec::new(),
-        Vec::new(),
-        None,
+        CliExternalSifSelectionV0::none(),
         Some("sif".to_string()),
         false,
     )?;
@@ -3073,8 +3196,10 @@ fn auto_discovered_lock_cannot_outrank_local_external_sif_regeneration() -> Resu
         Vec::new(),
         Vec::new(),
         Vec::new(),
-        Vec::new(),
-        Some(lockfile_path.clone()),
+        CliExternalSifSelectionV0::from_explicit_cli_arguments(
+            Vec::new(),
+            Some(lockfile_path.clone()),
+        ),
         Some("sif".to_string()),
         false,
     )?;

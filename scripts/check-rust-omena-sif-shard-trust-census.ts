@@ -76,13 +76,7 @@ const rules: readonly CensusRule[] = [
     id: "cli-explicit-lock-sif-reader",
     role: "consumer",
     call: "read_omena_lock_json_v1(",
-    lockKnowledge: "explicit-user-input+sifHash-check; fallback-behind-local-bridge",
-  },
-  {
-    id: "cli-lock-sif-consumer",
-    role: "consumer",
-    call: "read_lock_external_sifs(",
-    lockKnowledge: "explicit-user-input; all CLI lock-consuming call sites enumerated",
+    lockKnowledge: "single-typed-authority+sifHash-check; explicit→local→lock-fallback",
   },
   {
     id: "bridge-shard-store",
@@ -139,10 +133,7 @@ const expectedKeys = [
   "cli-lock-update-writer|rust/crates/omena-cli/src/lock.rs|lock_update",
   "cli-recorded-verdict-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
   "cli-recorded-bundle-writer|rust/crates/omena-cli/src/lock.rs|lock_verify_attestation",
-  "cli-explicit-lock-sif-reader|rust/crates/omena-cli/src/diagnostics.rs|read_lock_external_sifs",
-  "cli-lock-sif-consumer|rust/crates/omena-cli/src/bundle.rs|plan_bundle",
-  "cli-lock-sif-consumer|rust/crates/omena-cli/src/diagnostics.rs|style_diagnostics_summary",
-  "cli-lock-sif-consumer|rust/crates/omena-cli/src/reports.rs|summarize_soundiness_report",
+  "cli-explicit-lock-sif-reader|rust/crates/omena-cli/src/external_sif_authority.rs|read_explicit_lock_external_sifs",
   "bridge-shard-store|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl",
   "bridge-shard-atomic-write|rust/crates/omena-bridge/src/style_resolution.rs|store_external_sif_cache_shard",
   "bridge-shard-load|rust/crates/omena-bridge/src/style_resolution.rs|generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_impl",
@@ -166,7 +157,6 @@ const rows = scanCensus({
   injectStore: injectNewStoreCall,
   injectPrimitive: injectDirectShardPrimitive,
   injectDocCommentDecoy: injectDocCommentCfgDecoy,
-  injectCliLockConsumer,
 });
 const observedKeys = rows.map(rowKey).toSorted();
 assert.deepEqual(
@@ -196,6 +186,9 @@ const bridgeCacheRootSource = fs.readFileSync(
   "utf8",
 );
 const bridgeLockReaderSites = scanBridgeLockReaderSites(bridgeProductionSources);
+const lspLockReaderSites = scanLspLockReaderSites(false);
+const cliExternalSifAuthorityViolations =
+  scanCliExternalSifAuthorityViolations(injectCliLockConsumer);
 const bridgeNetworkSites = scanBridgeNetworkSites(bridgeProductionSources);
 const bridgeSigstoreVerifierCalls = bridgeProductionSources.flatMap(({ sourcePath, source }) =>
   source
@@ -217,6 +210,17 @@ const expectedWorkspaceIdentityConstructorKeys = [
   "rust/crates/omena-lsp-server/src/external_sif_loader.rs|bridge_cache_storage_for_document",
 ].toSorted();
 assert.deepEqual(bridgeLockReaderSites, [], "omena-bridge must not read omena.lock");
+assert.deepEqual(lspLockReaderSites, [], "omena-lsp-server must not read workspace lock bytes");
+assert.deepEqual(
+  cliExternalSifAuthorityViolations,
+  [],
+  `CLI external-SIF lock authority was bypassed:\n${cliExternalSifAuthorityViolations.join("\n")}`,
+);
+assert.equal(
+  scanLspLockReaderSites(true).length,
+  1,
+  "the LSP lock-read falsifier must expose a future production reader",
+);
 assert.deepEqual(
   bridgeNetworkSites,
   [],
@@ -328,11 +332,11 @@ if (!injectDocCommentCfgDecoy) {
   );
 }
 if (!injectCliLockConsumer) {
-  const injectedRows = scanCensus({ injectCliLockConsumer: true });
+  const injectedViolations = scanCliExternalSifAuthorityViolations(true);
   assert.equal(
-    injectedRows.filter((row) => row.id === "cli-lock-sif-consumer").length,
-    rows.filter((row) => row.id === "cli-lock-sif-consumer").length + 1,
-    "the CLI lock-consumer falsifier must expose an added production lock reader",
+    injectedViolations.length,
+    1,
+    "the CLI lock-authority falsifier must expose a reader in a future production source file",
   );
 }
 
@@ -342,16 +346,15 @@ if (!injectCliLockConsumer) {
 // FALSIFIER: id=sif-shard-no-struct-literal-sharing class=productionCallSiteMutation via=--inject-struct-literal-sharing-path expected=RED owner=sif-shard-trust-census entry=enumerated-storage-constructor-callset
 // FALSIFIER: id=sif-shard-workspace-identity-callset class=productionCallSiteMutation via=--inject-constant-identity-sharing-path expected=RED owner=sif-shard-trust-census entry=enumerated-storage-constructor-callset
 // FALSIFIER: id=sif-shard-cfg-comment-decoy class=lexicalMaskMutation via=--inject-doc-comment-cfg-decoy expected=RED owner=sif-shard-trust-census entry=comment-aware-cfg-test-mask
-// FALSIFIER: id=sif-shard-cli-lock-consumer-callset class=productionCallSiteMutation via=--inject-cli-lock-consumer expected=RED owner=sif-shard-trust-census entry=all-cli-lock-consumers
+// FALSIFIER: id=sif-shard-cli-lock-authority-boundary class=productionCallSiteMutation via=--inject-cli-lock-consumer expected=RED owner=sif-shard-trust-census entry=git-ls-files-plus-future-file-injection
 process.stdout.write(
-  `SIF shard trust census OK: scope=git-ls-files-comment-aware-production-rust coverage=enumerated-writer-consumer-and-spelled-storage-constructor-callsets rows=${rows.length} artifactInputs=${rows.filter((row) => row.role === "artifact-input").length} trustWriters=${rows.filter((row) => row.role === "trust-writer").length} shardWriters=${rows.filter((row) => row.role === "shard-writer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=${bridgeLockReaderSites.length} bridgeNetworkSites=${bridgeNetworkSites.length} bridgeSigstoreVerifierCalls=${bridgeSigstoreVerifierCalls.length} crossWorkspaceSharingPaths=0 workspaceIdentityConstructorSites=${workspaceIdentityConstructorSites.length} workspaceScopedGlobalBranches=${workspaceScopedGlobalBranches} crossWorkspaceServe=false\n${formatRows(rows)}\n`,
+  `SIF shard trust census OK: scope=git-ls-files-comment-aware-production-rust coverage=enumerated-writer-consumer-and-spelled-storage-constructor-callsets rows=${rows.length} artifactInputs=${rows.filter((row) => row.role === "artifact-input").length} trustWriters=${rows.filter((row) => row.role === "trust-writer").length} shardWriters=${rows.filter((row) => row.role === "shard-writer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=${bridgeLockReaderSites.length} lspLockReaders=${lspLockReaderSites.length} cliExternalSifAuthorityViolations=${cliExternalSifAuthorityViolations.length} bridgeNetworkSites=${bridgeNetworkSites.length} bridgeSigstoreVerifierCalls=${bridgeSigstoreVerifierCalls.length} crossWorkspaceSharingPaths=0 workspaceIdentityConstructorSites=${workspaceIdentityConstructorSites.length} workspaceScopedGlobalBranches=${workspaceScopedGlobalBranches} crossWorkspaceServe=false\n${formatRows(rows)}\n`,
 );
 
 type CensusInjection = {
   injectStore?: boolean;
   injectPrimitive?: boolean;
   injectDocCommentDecoy?: boolean;
-  injectCliLockConsumer?: boolean;
 };
 
 function scanCensus(injection: CensusInjection = {}): CensusRow[] {
@@ -370,10 +373,6 @@ function scanCensus(injection: CensusInjection = {}): CensusRow[] {
     if (injection.injectDocCommentDecoy && sourcePath === bridgeSourcePath) {
       source +=
         "\n/// #[cfg(test)]\nfn injected_cfg_comment_decoy() { store_external_sif_cache_shard(); let _ = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(PathBuf::new()); }\n";
-    }
-    if (injection.injectCliLockConsumer && sourcePath === "rust/crates/omena-cli/src/reports.rs") {
-      source +=
-        '\nfn injected_cli_lock_consumer() { let _ = read_lock_external_sifs(Path::new("omena.lock")); }\n';
     }
     const production = maskCfgTestItems(source);
     let containingFunction = "<module>";
@@ -508,13 +507,8 @@ function ruleAppliesToSite(ruleId: string, sourcePath: string, symbol: string): 
   }
   if (ruleId === "cli-explicit-lock-sif-reader") {
     return (
-      sourcePath === "rust/crates/omena-cli/src/diagnostics.rs" &&
-      symbol === "read_lock_external_sifs"
-    );
-  }
-  if (ruleId === "cli-lock-sif-consumer") {
-    return (
-      sourcePath.startsWith("rust/crates/omena-cli/src/") && symbol !== "read_lock_external_sifs"
+      sourcePath === "rust/crates/omena-cli/src/external_sif_authority.rs" &&
+      symbol === "read_explicit_lock_external_sifs"
     );
   }
   if (ruleId === "lsp-lock-hint-reader") {
@@ -550,6 +544,78 @@ function isProductionRustSource(sourcePath: string): boolean {
   );
 }
 
+function scanCliExternalSifAuthorityViolations(injectFutureSource: boolean): string[] {
+  const sources = trackedRustSources
+    .filter((sourcePath) => sourcePath.startsWith("rust/crates/omena-cli/src/"))
+    .map((sourcePath) => ({
+      sourcePath,
+      source: fs.readFileSync(path.join(repoRoot, sourcePath), "utf8"),
+    }));
+  if (injectFutureSource) {
+    sources.push({
+      sourcePath: "rust/crates/omena-cli/src/future_external_sif_reader.rs",
+      source: 'fn future_external_sif_reader() { let _ = read_omena_lock_json_v1("{}"); }\n',
+    });
+  }
+
+  const explicitSelectionSites: string[] = [];
+  const violations: string[] = [];
+  for (const { sourcePath, source } of sources) {
+    const production = maskCfgTestItems(source);
+    const lexical = maskRustCommentsAndLiterals(production);
+    let containingFunction = "<module>";
+    const productionLines = production.split(/\r?\n/u);
+    const lexicalLines = lexical.split(/\r?\n/u);
+    for (const [lineIndex, line] of productionLines.entries()) {
+      const lexicalLine = lexicalLines[lineIndex] ?? "";
+      const functionMatch = lexicalLine.match(
+        /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)/u,
+      );
+      if (functionMatch?.[1]) containingFunction = functionMatch[1];
+      const display = `${sourcePath}:${lineIndex + 1}:${containingFunction}:${line.trim()}`;
+
+      if (lexicalLine.includes("read_omena_lock_json_v1(")) {
+        const allowedReader = `${sourcePath}|${containingFunction}`;
+        const allowed = [
+          "rust/crates/omena-cli/src/external_sif_authority.rs|read_explicit_lock_external_sifs",
+          "rust/crates/omena-cli/src/lock.rs|lock_status",
+          "rust/crates/omena-cli/src/lock.rs|lock_verify",
+          "rust/crates/omena-cli/src/lock.rs|read_lockfile_or_empty",
+          "rust/crates/omena-cli/src/provenance.rs|provenance_status",
+        ].includes(allowedReader);
+        if (!allowed) violations.push(`direct-lock-parse:${display}`);
+      }
+      if (
+        lexicalLine.includes("read_explicit_lock_external_sifs(") &&
+        !lexicalLine.includes("fn read_explicit_lock_external_sifs(") &&
+        sourcePath !== "rust/crates/omena-cli/src/external_sif_authority.rs"
+      ) {
+        violations.push(`private-lock-reader-bypass:${display}`);
+      }
+      if (lexicalLine.includes("read_lock_external_sifs(")) {
+        violations.push(`retired-lock-reader:${display}`);
+      }
+      if (lexicalLine.includes("CliExternalSifSelectionV0::from_explicit_cli_arguments(")) {
+        explicitSelectionSites.push(`${sourcePath}|${containingFunction}`);
+      }
+    }
+  }
+
+  const expectedSelectionSites = [
+    "rust/crates/omena-cli/src/diagnostics.rs|style_diagnostics",
+    "rust/crates/omena-cli/src/dispatch.rs|run_with_exit",
+    "rust/crates/omena-cli/src/reports.rs|report_command",
+  ].toSorted();
+  if (!injectFutureSource) {
+    assert.deepEqual(
+      explicitSelectionSites.toSorted(),
+      expectedSelectionSites,
+      `explicit CLI external-SIF selection escaped command boundaries:\n${explicitSelectionSites.join("\n")}`,
+    );
+  }
+  return violations.toSorted();
+}
+
 function scanBridgeLockReaderSites(
   sources: readonly { sourcePath: string; source: string }[],
 ): string[] {
@@ -569,6 +635,41 @@ function scanBridgeLockReaderSites(
             : [],
         ),
     )
+    .toSorted();
+}
+
+function scanLspLockReaderSites(injectFutureSource: boolean): string[] {
+  const sources = trackedRustSources
+    .filter((sourcePath) => sourcePath.startsWith("rust/crates/omena-lsp-server/src/"))
+    .map((sourcePath) => ({
+      sourcePath,
+      source: fs.readFileSync(path.join(repoRoot, sourcePath), "utf8"),
+    }));
+  if (injectFutureSource) {
+    sources.push({
+      sourcePath: "rust/crates/omena-lsp-server/src/future_workspace_lock_reader.rs",
+      source:
+        'fn future_workspace_lock_reader(root: &Path) { let lockfile = root.join("omena.lock"); let _ = std::fs::read(lockfile); }\n',
+    });
+  }
+  const patterns = [
+    /read_omena_lock_json_v1\s*\(/u,
+    /read_lock_external_sifs\s*\(/u,
+    /(?:fs::read|fs::read_to_string|File::open)\s*\([^\n]*(?:lockfile|omena\.lock)/u,
+  ];
+  return sources
+    .flatMap(({ sourcePath, source }) => {
+      const production = maskCfgTestItems(source);
+      const lexical = maskRustCommentsAndLiterals(production);
+      const productionLines = production.split(/\r?\n/u);
+      return lexical
+        .split(/\r?\n/u)
+        .flatMap((line, index) =>
+          patterns.some((pattern) => pattern.test(line))
+            ? [`${sourcePath}:${index + 1}:${productionLines[index]?.trim() ?? ""}`]
+            : [],
+        );
+    })
     .toSorted();
 }
 

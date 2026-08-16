@@ -756,6 +756,30 @@ fn auto_discovered_lsp_lock_bytes_are_never_read_or_admitted() -> TestResult {
         }),
     );
 
+    enable_deferred_external_sif_refresh(&mut state);
+    let job = prepare_deferred_external_sif_refresh_job(&mut state)
+        .ok_or_else(|| "lock-bearing deferred SIF job was not prepared".to_string())?;
+    assert_eq!(
+        job.lockfiles.len(),
+        1,
+        "the product collector arm must receive the discovered workspace lock"
+    );
+    let result = collect_deferred_external_sif_refresh(job);
+    assert_eq!(
+        result.lock_read_count, 0,
+        "the deferred collector must derive zero observed workspace-lock reads"
+    );
+    assert!(
+        result
+            .external_sifs
+            .iter()
+            .all(|input| input.canonical_url != canonical_url),
+        "a lock-bearing deferred job must not admit the lock SIF"
+    );
+    assert!(!apply_deferred_external_sif_refresh_result(
+        &mut state, result
+    ));
+
     assert_eq!(
         state.external_sif_lock_read_count, 0,
         "the automatic LSP path must not read attacker-writable workspace lock bytes"

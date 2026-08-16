@@ -15,7 +15,10 @@ use crate::{
         rewrite_bundle_asset_urls_for_build_sources,
     },
     config::{find_omena_build_config_for_path, resolve_config_paths},
-    diagnostics::{read_external_sifs, read_lock_external_sifs},
+    external_sif_authority::{
+        CliExternalSifLockFailureModeV0, CliExternalSifSelectionV0,
+        resolve_cli_external_sif_authority,
+    },
     io::{read_package_manifests, read_source, read_workspace_sources},
     output::{write_artifact, write_json_artifact},
     paths::path_string,
@@ -27,8 +30,7 @@ pub(crate) struct BundleCommandOptions {
     pub evidence_path: Option<PathBuf>,
     pub source_paths: Vec<PathBuf>,
     pub package_manifest_paths: Vec<PathBuf>,
-    pub sif_paths: Vec<PathBuf>,
-    pub lockfile: Option<PathBuf>,
+    pub external_sif_selection: CliExternalSifSelectionV0,
 }
 
 pub(crate) struct BundlePlanV0 {
@@ -94,12 +96,12 @@ pub(crate) fn plan_bundle(options: &BundleCommandOptions) -> Result<BundlePlanV0
         rewrite_bundle_asset_urls_for_build_sources(&original_sources);
     let package_manifests = read_package_manifests(package_manifest_paths.as_slice())?;
     let resolution_inputs = resolution_inputs_for_build_path(entry, &package_manifests);
-    let mut external_sifs = read_external_sifs(options.sif_paths.as_slice())?;
-    if let Some(lockfile) = options.lockfile.as_deref() {
-        external_sifs.extend(read_lock_external_sifs(lockfile)?);
-    }
-    external_sifs.sort_by(|left, right| left.canonical_url.cmp(&right.canonical_url));
-    external_sifs.dedup_by(|left, right| left.canonical_url == right.canonical_url);
+    let external_sif_authority = resolve_cli_external_sif_authority(
+        &options.external_sif_selection,
+        original_sources.as_slice(),
+        &resolution_inputs,
+        CliExternalSifLockFailureModeV0::Refuse,
+    )?;
 
     let mut pass_ids = Vec::new();
     append_bundle_build_passes(&mut pass_ids, &entry_style_path, &entry_source);
@@ -114,7 +116,7 @@ pub(crate) fn plan_bundle(options: &BundleCommandOptions) -> Result<BundlePlanV0
             asset_rewrites,
             bundle_entry_style_paths: &[],
         },
-        &external_sifs,
+        external_sif_authority.external_sifs(),
         &OmenaQueryConsumerBuildOptionsV0::default(),
     )?;
     let evidence = summarize_omena_query_bundle_evidence(&result.bundle_result);
