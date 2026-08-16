@@ -1542,6 +1542,7 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         .ok_or_else(|| {
             std::io::Error::other("cached references should populate source occurrence memo")
         })?;
+    crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
 
     let rename_response = handle_lsp_message(
         &mut state,
@@ -1583,9 +1584,17 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         .as_ref()
         .map(|memo| std::sync::Arc::clone(&memo.source_selector_index))
         .ok_or_else(|| std::io::Error::other("rename should retain source occurrence memo"))?;
-    assert!(
+    let shadow_verifications =
+        crate::style_symbol_provider::workspace_occurrence_shadow_verification_total_for_test();
+    assert_eq!(
         std::sync::Arc::ptr_eq(&memo_after_cached_references, &memo_after_rename),
-        "rename should reuse the source occurrence index rehydrated for references"
+        shadow_verifications == 0,
+        "rename should reuse the rehydrated index unless the production sampler performs its one-time shadow verification",
+    );
+    assert_eq!(
+        serde_json::to_vec(memo_after_cached_references.as_ref())?,
+        serde_json::to_vec(memo_after_rename.as_ref())?,
+        "a sampled shadow verification must preserve the rehydrated source occurrence bytes",
     );
     let _ = std::fs::remove_dir_all(&workspace_root);
     Ok(())
