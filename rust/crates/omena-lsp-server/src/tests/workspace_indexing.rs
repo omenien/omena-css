@@ -1589,7 +1589,10 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         .ok_or_else(|| std::io::Error::other("rename should retain source occurrence memo"))?;
     let shadow_verifications =
         crate::style_symbol_provider::workspace_occurrence_shadow_verification_total_for_test();
-    assert_eq!(shadow_verifications, 0);
+    assert_eq!(
+        shadow_verifications, 0,
+        "forcing shadow verification off should exercise the ordinary memo-hit branch",
+    );
     assert!(
         std::sync::Arc::ptr_eq(&memo_after_cached_references, &memo_after_rename),
         "rename should reuse the rehydrated index when shadow verification is forced off",
@@ -1597,7 +1600,7 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
     assert_eq!(
         serde_json::to_vec(memo_after_cached_references.as_ref())?,
         serde_json::to_vec(memo_after_rename.as_ref())?,
-        "a sampled shadow verification must preserve the rehydrated source occurrence bytes",
+        "the force-off memo-hit branch must preserve the rehydrated source occurrence bytes",
     );
     let _ = std::fs::remove_dir_all(&workspace_root);
     Ok(())

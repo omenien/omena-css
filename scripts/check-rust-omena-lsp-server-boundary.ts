@@ -158,6 +158,14 @@ const lspServerDiagnosticsTestsSource = [
 assert.equal(rustSummary.schemaVersion, "0");
 assert.equal(rustSummary.product, "omena-lsp-server.boundary");
 assert.equal(rustSummary.migrationStatus, "rustStable");
+assert.deepEqual(Object.keys(rustSummary.trustBoundary).toSorted(), [
+  "diskWriteSurfaces",
+  "forbiddenRuntimeCapabilities",
+  "networkAccess",
+  "product",
+  "requestPathPolicy",
+  "verificationOwner",
+]);
 assert.equal(rustSummary.trustBoundary.product, "omena-lsp-server.trust-boundary");
 assert.equal(rustSummary.trustBoundary.networkAccess, "neverFetch");
 assert.equal(rustSummary.trustBoundary.verificationOwner, "omena-cli.lock-provenance");
