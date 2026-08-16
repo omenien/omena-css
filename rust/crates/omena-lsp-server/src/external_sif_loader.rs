@@ -13,13 +13,9 @@ use omena_query::{
     resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust,
     resolve_omena_query_bridge_external_sifs_for_style_sources_with_trust,
 };
-use omena_sif::{
-    OMENA_SIF_SHARD_VERDICT_DIR_V1, compute_omena_sif_artifact_hash_v1, read_omena_lock_json_v1,
-    read_omena_sif_json_v1,
-};
+use omena_sif::OMENA_SIF_SHARD_VERDICT_DIR_V1;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs,
     path::{Path, PathBuf},
 };
 
@@ -89,27 +85,14 @@ pub(crate) fn refresh_external_sifs_for_state(state: &mut LspShellState) {
 }
 
 fn refresh_external_sifs_for_state_immediate(state: &mut LspShellState) {
-    let mut lock_external_sifs = Vec::new();
-
-    for lockfile in workspace_lockfiles(state).iter() {
-        state.external_sif_lock_read_count = state.external_sif_lock_read_count.saturating_add(1);
-        if let Ok(lock_sifs) = read_lock_external_sifs(lockfile.as_path()) {
-            lock_external_sifs.extend(lock_sifs);
-        }
-    }
-
-    // Lock bytes are attacker-writable workspace inputs, so they never suppress
-    // the independent local-source bridge. The reconciliation below makes the
-    // locally regenerated plane the explicit winner for overlapping URLs and
-    // refuses lock-only bytes that have no regeneration witness.
+    // Workspace lock bytes are attacker-writable automatic inputs, so the LSP
+    // product path does not read them. Only independently regenerated local
+    // bridge bytes can enter the automatic external-SIF state.
     let bridge_result = resolve_in_process_external_sifs_for_lsp(state, &BTreeSet::new());
     state.external_sif_bridge_generation_count = state
         .external_sif_bridge_generation_count
         .saturating_add(bridge_result.resolution.generation_count);
-    let external_sifs = reconcile_lock_and_bridge_external_sifs(
-        lock_external_sifs,
-        bridge_result.resolution.external_sifs,
-    );
+    let external_sifs = bridge_result.resolution.external_sifs;
 
     let trust_records = external_sif_trust_record_map(bridge_result.trust_records);
     if state.resolution.external_sifs != external_sifs
@@ -382,16 +365,6 @@ pub fn collect_deferred_external_sif_refresh_with_cache_storage(
     job: LspExternalSifRefreshJobV0,
     cache_storage: LspExternalSifRefreshCacheStorageV0,
 ) -> LspExternalSifRefreshResultV0 {
-    let mut lock_external_sifs = Vec::new();
-    let mut lock_read_count = 0usize;
-
-    for lockfile in job.lockfiles.iter() {
-        lock_read_count = lock_read_count.saturating_add(1);
-        if let Ok(lock_sifs) = read_lock_external_sifs(lockfile.as_path()) {
-            lock_external_sifs.extend(lock_sifs);
-        }
-    }
-
     let bridge_result = resolve_external_sifs_for_refresh_documents(
         job.documents.as_slice(),
         &[],
@@ -399,17 +372,14 @@ pub fn collect_deferred_external_sif_refresh_with_cache_storage(
         &job.resolution_inputs_by_workspace_uri,
         Some(&cache_storage),
     );
-    let external_sifs = reconcile_lock_and_bridge_external_sifs(
-        lock_external_sifs,
-        bridge_result.resolution.external_sifs,
-    );
+    let external_sifs = bridge_result.resolution.external_sifs;
 
     LspExternalSifRefreshResultV0 {
         stamp: job.stamp,
         generation: job.generation,
         external_sifs,
         bridge_external_sif_urls: bridge_result.resolution.bridge_urls.into_iter().collect(),
-        lock_read_count,
+        lock_read_count: 0,
         bridge_generation_count: bridge_result.resolution.generation_count,
         trust_records: bridge_result.trust_records,
     }
@@ -596,72 +566,6 @@ fn discover_omena_lockfile_for_workspace_root(root: &Path) -> Option<PathBuf> {
         current = directory.parent();
     }
     None
-}
-
-fn read_lock_external_sifs(lockfile: &Path) -> Result<Vec<OmenaQueryExternalSifInputV0>, String> {
-    let lockfile_source = fs::read_to_string(lockfile)
-        .map_err(|error| format!("failed to read {}: {error}", lockfile.display()))?;
-    let lock = read_omena_lock_json_v1(lockfile_source.as_str())
-        .map_err(|error| format!("failed to parse {}: {error}", lockfile.display()))?;
-    lock.entries
-        .iter()
-        .map(|entry| {
-            let sif_path = resolve_lock_relative_path(lockfile, entry.sif_path.as_str());
-            let sif_json = fs::read_to_string(sif_path.as_path())
-                .map_err(|error| format!("failed to read {}: {error}", sif_path.display()))?;
-            let sif = read_omena_sif_json_v1(sif_json.as_str())
-                .map_err(|error| format!("failed to parse SIF {}: {error}", sif_path.display()))?;
-            if sif.canonical_url != entry.canonical_url {
-                return Err(format!(
-                    "lock entry {} points to SIF {} with canonicalUrl {}",
-                    entry.canonical_url,
-                    sif_path.display(),
-                    sif.canonical_url
-                ));
-            }
-            let actual_sif_hash = compute_omena_sif_artifact_hash_v1(&sif)
-                .map_err(|error| format!("failed to hash SIF {}: {error}", sif_path.display()))?;
-            if actual_sif_hash != entry.sif_hash {
-                return Err(format!(
-                    "lock entry {} expected sifHash {}, but SIF {} hashes to {}",
-                    entry.canonical_url,
-                    entry.sif_hash.as_str(),
-                    sif_path.display(),
-                    actual_sif_hash.as_str()
-                ));
-            }
-            Ok(OmenaQueryExternalSifInputV0 {
-                canonical_url: entry.canonical_url.clone(),
-                sif,
-            })
-        })
-        .collect()
-}
-
-fn reconcile_lock_and_bridge_external_sifs(
-    lock_candidates: Vec<OmenaQueryExternalSifInputV0>,
-    bridge_candidates: Vec<OmenaQueryExternalSifInputV0>,
-) -> Vec<OmenaQueryExternalSifInputV0> {
-    // A workspace lock candidate is only a digest-checked hint. It cannot
-    // establish Sass semantics without a local-source bridge witness.
-    drop(lock_candidates);
-    let mut output = Vec::new();
-    let mut covered = BTreeSet::new();
-    extend_unique_external_sifs(&mut output, &mut covered, bridge_candidates);
-    output
-}
-
-fn resolve_lock_relative_path(lockfile: &Path, entry_path: &str) -> PathBuf {
-    let path = PathBuf::from(entry_path);
-    if path.is_absolute() {
-        return normalize_path(path);
-    }
-    normalize_path(
-        lockfile
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
-            .join(path),
-    )
 }
 
 fn extend_unique_external_sifs(

@@ -75,8 +75,13 @@ try {
   const invalid = runStyleDiagnostics([appPath, "--json"]);
   assertDiagnostic(
     invalid,
+    "unresolvedExternalReference",
+    "malformed auto-discovered omena.lock must remain outside the diagnostics input plane",
+  );
+  assertNoDiagnostic(
+    invalid,
     "lockfileInvalid",
-    "malformed auto-discovered omena.lock should surface a product diagnostic",
+    "an auto-discovered lockfile must not be parsed as a diagnostics input",
   );
   writeFileSync(lockfilePath, '{"entries":[],"lockfileVersion":"1"}');
 
@@ -91,17 +96,20 @@ try {
   ]);
   runOmena(["lock", "update", "--lockfile", lockfilePath, "--sif", sifPath, "--json"]);
 
-  const resolved = runStyleDiagnostics([appPath, "--json"]);
+  const stillUnresolved = runStyleDiagnostics([appPath, "--json"]);
+  assertDiagnostic(
+    stillUnresolved,
+    "unresolvedExternalReference",
+    "a populated auto-discovered lockfile must not resolve the external boundary",
+  );
+
+  const resolved = runStyleDiagnostics([appPath, "--lockfile", lockfilePath, "--json"]);
   assertNoDiagnostic(
     resolved,
     "unresolvedExternalReference",
-    "auto-discovered lockfile SIF should resolve the external boundary",
+    "an explicitly selected lockfile SIF should resolve the external boundary",
   );
-  assertNoDiagnostic(
-    resolved,
-    "missingSassSymbol",
-    "auto-discovered lockfile SIF should resolve exported Sass symbols",
-  );
+  assertNoDiagnostic(resolved, "missingSassSymbol", "the selected SIF should export Sass symbols");
 
   const ignoredAfterResolution = runStyleDiagnostics([appPath, "--external", "ignored", "--json"]);
   assertNoExternalBoundaryDiagnostic(
@@ -110,7 +118,7 @@ try {
   );
 
   console.log(
-    "validated omena-cli external migration: phase2-default explicit-sif ignored lockfile-invalid resolved",
+    "validated omena-cli external migration: phase2-default explicit-sif ignored auto-lock-unread explicit-lock-resolved",
   );
 } finally {
   rmSync(workspace, { force: true, recursive: true });

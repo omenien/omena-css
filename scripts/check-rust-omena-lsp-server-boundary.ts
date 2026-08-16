@@ -163,9 +163,9 @@ assert.equal(rustSummary.trustBoundary.networkAccess, "neverFetch");
 assert.equal(rustSummary.trustBoundary.verificationOwner, "omena-cli.lock-provenance");
 for (const requiredTrustPolicy of [
   "analysisTimeUsesLocalWorkspaceOnly",
-  "lockAndSifEvidenceReadFromDisk",
+  "recordedSifEvidenceReadFromDiskWithoutWorkspaceLockAuthority",
   "attestationVerificationOwnedByCli",
-  "workspaceLockSifHintsRequireDigestAndLocalBridgeRegeneration",
+  "workspaceLockBytesAreNotReadOrAdmittedAutomatically",
   "recordedShardVerdictsVerifiedOfflineWithoutNetworkAuthority",
   "noRegistryFetchOnLspRequestPath",
   "noTransparencyLogLookupOnLspRequestPath",

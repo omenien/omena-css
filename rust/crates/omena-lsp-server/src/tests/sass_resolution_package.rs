@@ -648,7 +648,7 @@ fn resolves_sass_definition_through_package_import_and_export_array_fallbacks() 
 }
 
 #[test]
-fn workspace_lock_external_sifs_are_hints_not_automatic_lsp_authority() -> TestResult {
+fn workspace_lock_external_sifs_are_not_automatic_lsp_inputs() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_lock_external_sifs_{}_{}",
         std::process::id(),
@@ -698,7 +698,7 @@ fn workspace_lock_external_sifs_are_hints_not_automatic_lsp_authority() -> TestR
     );
     assert!(
         state.resolution.external_sifs.is_empty(),
-        "a digest-consistent lock-only SIF must remain a hint when no local source can regenerate it"
+        "a digest-consistent lock-only SIF must not become an automatic input"
     );
 
     open_style_document(&mut state, source_uri.as_str(), source_text);
@@ -716,7 +716,7 @@ fn workspace_lock_external_sifs_are_hints_not_automatic_lsp_authority() -> TestR
 }
 
 #[test]
-fn lsp_lock_digest_mismatch_is_refused_before_external_sif_admission() -> TestResult {
+fn auto_discovered_lsp_lock_bytes_are_never_read_or_admitted() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_lock_digest_refusal_{}_{}",
         std::process::id(),
@@ -756,13 +756,17 @@ fn lsp_lock_digest_mismatch_is_refused_before_external_sif_admission() -> TestRe
         }),
     );
 
+    assert_eq!(
+        state.external_sif_lock_read_count, 0,
+        "the automatic LSP path must not read attacker-writable workspace lock bytes"
+    );
     assert!(
         state
             .resolution
             .external_sifs
             .iter()
             .all(|input| input.canonical_url != canonical_url),
-        "a lock-referenced SIF whose artifact hash differs from sifHash must not enter the LSP product state"
+        "an auto-discovered lock SIF must not enter the LSP product state, regardless of its self-consistency"
     );
 
     let _ = fs::remove_dir_all(root.as_path());
@@ -770,7 +774,7 @@ fn lsp_lock_digest_mismatch_is_refused_before_external_sif_admission() -> TestRe
 }
 
 #[test]
-fn lsp_locally_regenerated_bridge_sif_explicitly_outranks_lock_bytes() -> TestResult {
+fn lsp_local_bridge_is_the_sole_automatic_external_sif_authority() -> TestResult {
     let root = std::env::temp_dir().join(format!(
         "omena_lsp_lock_bridge_precedence_{}_{}",
         std::process::id(),
@@ -836,7 +840,7 @@ fn lsp_locally_regenerated_bridge_sif_explicitly_outranks_lock_bytes() -> TestRe
         .ok_or_else(|| std::io::Error::other("locally regenerated bridge SIF"))?;
     assert_eq!(
         admitted.sif, expected_sif,
-        "the bridge's locally regenerated SIF must explicitly outrank self-consistent lock bytes"
+        "the automatic LSP path must admit only the locally regenerated bridge SIF"
     );
     assert_ne!(admitted.sif, poisoned_sif);
 

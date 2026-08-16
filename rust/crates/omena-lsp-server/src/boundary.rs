@@ -244,12 +244,12 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
         verification_owner: "omena-cli.lock-provenance",
         request_path_policy: vec![
             "analysisTimeUsesLocalWorkspaceOnly",
-            "lockAndSifEvidenceReadFromDisk",
+            "recordedSifEvidenceReadFromDiskWithoutWorkspaceLockAuthority",
             "attestationVerificationOwnedByCli",
-            // Workspace locks are digest-checked hints only. They cannot
-            // suppress the locally regenerated bridge plane or establish
-            // editor-visible Sass semantics by themselves.
-            "workspaceLockSifHintsRequireDigestAndLocalBridgeRegeneration",
+            // Attacker-writable workspace locks are not read by the automatic
+            // LSP path. Editor-visible Sass semantics come only from the
+            // independently regenerated local-source bridge plane.
+            "workspaceLockBytesAreNotReadOrAdmittedAutomatically",
             // The CLI records immutable canonical-url + SIF-hash verdicts and
             // content-addressed bundles. Bridge verifies them offline; LSP
             // never treats a lock as trust authority or uses the network.

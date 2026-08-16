@@ -2058,7 +2058,7 @@
     {
       "crate": "omena-lsp-server",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects, includes the already-landed language-server state additions, including driver-attributed republish disown counters, re-keys the public tide republish cone from URI strings to an opaque session-stable LspFileId collection, treats workspace lock SIFs as digest-checked hints behind local bridge regeneration, and propagates advisory Omena-published SIF provenance only after native URL-tier-hash subject verification. Cargo-semver-checks reports no additional lint for that enum payload and generic constructor change; the cargo-public-api receipt records the nominal change explicitly.",
+      "reason": "The next pre-1.0 minor exposes typed cache write-surface objects, includes the already-landed language-server state additions, including driver-attributed republish disown counters, re-keys the public tide republish cone from URI strings to an opaque session-stable LspFileId collection, excludes automatically discovered workspace lock bytes from LSP semantics, and propagates advisory Omena-published SIF provenance only after native URL-tier-hash subject verification. Cargo-semver-checks reports no additional lint for that enum payload and generic constructor change; the cargo-public-api receipt records the nominal change explicitly.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
@@ -2178,22 +2178,22 @@
           "id": "lsp-shard-trust-verdict-consumption",
           "kind": "wire-value-order-preserving",
           "surface": "LspExternalSifRefreshResultV0.trustRecords and LspTrustBoundaryV0.requestPathPolicy",
-          "reason": "The language server admits workspace lock SIFs only as digest-checked hints reconciled behind locally regenerated bridge output; lock-only bytes cannot establish editor semantics. Advisory Omena-published tiers enter trust-record projection only after the native bridge verifies the URL-tier-hash subject offline, and LSP uses neither lock nor network as trust authority.",
+          "reason": "The language server does not read or admit automatically discovered workspace lock SIFs; editor semantics come only from locally regenerated bridge output. Advisory Omena-published tiers enter trust-record projection only after the native bridge verifies the URL-tier-hash subject offline, and LSP uses neither lock nor network as trust authority.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/external_sif_loader.rs",
               "needles": [
                 "pub trust_records: Vec<OmenaQueryExternalSifTrustV1>",
                 "external_sif_trust_record_map(bridge_result.trust_records)",
-                "compute_omena_sif_artifact_hash_v1(&sif)",
-                "reconcile_lock_and_bridge_external_sifs(",
+                "let external_sifs = bridge_result.resolution.external_sifs;",
+                "lock_read_count: 0",
                 ".with_recorded_verdict_dir("
               ]
             },
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
               "needles": [
-                "workspaceLockSifHintsRequireDigestAndLocalBridgeRegeneration",
+                "workspaceLockBytesAreNotReadOrAdmittedAutomatically",
                 "recordedShardVerdictsVerifiedOfflineWithoutNetworkAuthority"
               ]
             },
@@ -2201,8 +2201,8 @@
               "sourcePath": "rust/crates/omena-lsp-server/src/tests/sass_resolution_package.rs",
               "needles": [
                 "fn trust_record_projection_rechecks_the_omena_published_subject()",
-                "fn lsp_lock_digest_mismatch_is_refused_before_external_sif_admission()",
-                "fn lsp_locally_regenerated_bridge_sif_explicitly_outranks_lock_bytes()",
+                "fn auto_discovered_lsp_lock_bytes_are_never_read_or_admitted()",
+                "fn lsp_local_bridge_is_the_sole_automatic_external_sif_authority()",
                 "let substituted = resolve();",
                 "OmenaQueryExternalSifTrustSourceV1::UnsignedLegacy"
               ]
