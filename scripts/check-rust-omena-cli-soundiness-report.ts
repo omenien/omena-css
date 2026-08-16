@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -148,7 +148,7 @@ try {
     1,
     "the locally regenerated SIF must report the absent poisoned symbol",
   );
-  copyFileSync(attackLockPath, defaultLockPath);
+  writeFileSync(defaultLockPath, "{ definitely not valid JSON");
   const locallyRegenerated = parseSoundinessReport(runSoundinessReport(attackStylePath).stdout);
   assert.deepEqual(
     locallyRegenerated,

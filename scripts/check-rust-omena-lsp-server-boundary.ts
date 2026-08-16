@@ -161,7 +161,7 @@ assert.equal(rustSummary.migrationStatus, "rustStable");
 assert.equal(rustSummary.trustBoundary.product, "omena-lsp-server.trust-boundary");
 assert.equal(rustSummary.trustBoundary.networkAccess, "neverFetch");
 assert.equal(rustSummary.trustBoundary.verificationOwner, "omena-cli.lock-provenance");
-for (const requiredTrustPolicy of [
+assert.deepEqual(rustSummary.trustBoundary.requestPathPolicy, [
   "analysisTimeUsesLocalWorkspaceOnly",
   "recordedSifEvidenceReadFromDiskWithoutWorkspaceLockAuthority",
   "attestationVerificationOwnedByCli",
@@ -169,18 +169,13 @@ for (const requiredTrustPolicy of [
   "noRegistryFetchOnLspRequestPath",
   "noTransparencyLogLookupOnLspRequestPath",
   "cacheWritesConfinedToDeclaredOwnedRootsNeverNetwork",
-]) {
-  assert.ok(
-    rustSummary.trustBoundary.requestPathPolicy.includes(requiredTrustPolicy),
-    `Rust LSP trust boundary must include ${requiredTrustPolicy}`,
-  );
-}
-assert.ok(
-  !rustSummary.trustBoundary.requestPathPolicy.includes(
-    "workspaceLockBytesAreNotReadOrAdmittedAutomatically",
-  ),
-  "workspace-lock exclusion must be proven by product behavior and census, not self-declared",
-);
+]);
+assert.deepEqual(rustSummary.trustBoundary.forbiddenRuntimeCapabilities, [
+  "registryHttpClient",
+  "sigstoreBundleVerifier",
+  "transparencyLogClient",
+  "socketNetworkIo",
+]);
 // The hand-authored rung table stays independent of the Rust declaration.
 // It includes bridge writes because those execute inside the LSP process.
 assert.deepEqual(rustSummary.trustBoundary.diskWriteSurfaces, [

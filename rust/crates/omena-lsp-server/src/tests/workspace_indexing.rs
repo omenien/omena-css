@@ -1544,24 +1544,27 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         })?;
     crate::style_symbol_provider::reset_workspace_occurrence_extractor_counters_for_test();
 
-    let rename_response = handle_lsp_message(
-        &mut state,
-        json!({
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "textDocument/rename",
-            "params": {
-                "textDocument": {
-                    "uri": style_uri,
-                },
-                "position": {
-                    "line": 0,
-                    "character": 2,
-                },
-                "newName": "button",
-            },
-        }),
-    );
+    let rename_response =
+        crate::workspace_occurrence_cache::with_workspace_occurrence_shadow_none_for_test(|| {
+            handle_lsp_message(
+                &mut state,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "textDocument/rename",
+                    "params": {
+                        "textDocument": {
+                            "uri": style_uri,
+                        },
+                        "position": {
+                            "line": 0,
+                            "character": 2,
+                        },
+                        "newName": "button",
+                    },
+                }),
+            )
+        });
     let changes = rename_response
         .as_ref()
         .and_then(|response| response.pointer("/result/changes"))
@@ -1586,10 +1589,10 @@ fn indexed_source_files_feed_references_and_rename() -> TestResult {
         .ok_or_else(|| std::io::Error::other("rename should retain source occurrence memo"))?;
     let shadow_verifications =
         crate::style_symbol_provider::workspace_occurrence_shadow_verification_total_for_test();
-    assert_eq!(
+    assert_eq!(shadow_verifications, 0);
+    assert!(
         std::sync::Arc::ptr_eq(&memo_after_cached_references, &memo_after_rename),
-        shadow_verifications == 0,
-        "rename should reuse the rehydrated index unless the production sampler performs its one-time shadow verification",
+        "rename should reuse the rehydrated index when shadow verification is forced off",
     );
     assert_eq!(
         serde_json::to_vec(memo_after_cached_references.as_ref())?,
