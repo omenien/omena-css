@@ -45,8 +45,7 @@ pub(crate) fn style_diagnostics(
     source_paths: Vec<PathBuf>,
     source_document_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
-    sif_paths: Vec<PathBuf>,
-    lockfile: Option<PathBuf>,
+    external_sif_selection: CliExternalSifSelectionV0,
     external: Option<String>,
     deep_analysis: bool,
     json: bool,
@@ -56,7 +55,7 @@ pub(crate) fn style_diagnostics(
         source_paths,
         source_document_paths,
         package_manifest_paths,
-        CliExternalSifSelectionV0::from_explicit_cli_arguments(sif_paths, lockfile),
+        external_sif_selection,
         external,
         deep_analysis,
     )?;

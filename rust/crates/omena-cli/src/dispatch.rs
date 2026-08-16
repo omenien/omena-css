@@ -1,10 +1,12 @@
 use omena_query::OmenaQueryTargetTransformOptionsV0;
 
+use std::path::PathBuf;
+
 use crate::{
     build::{BuildFileOptions, build_file, list_passes},
     bundle::{BundleCommandOptions, bundle_command},
     ci::ci_command,
-    commands::{Cli, Command},
+    commands::{Cli, Command, ReportCommand},
     diagnostics::{dynamic_classname_diagnostics, source_diagnostics, style_diagnostics},
     explain::explain_command,
     external_sif_authority::CliExternalSifSelectionV0,
@@ -23,12 +25,47 @@ use crate::{
         cascade_at_position, context_from_engine_input, context_index, expression_flow,
         selector_projection, style_completion, style_hover_candidates,
     },
-    reports::report_command,
+    reports::{report_resolution_policy, report_sass_module_conformance, report_soundiness},
     sass::sass_command,
     sdk::sdk_request,
     sif::sif_command,
     verification::verify_command,
 };
+
+/// Opaque proof that external-SIF paths came from the parsed CLI command.
+///
+/// The fields and minting constructor are private to this dispatch module, so
+/// product consumers cannot manufacture a lock-bearing selection from an
+/// arbitrary path. They can only consume a token minted while dispatching the
+/// corresponding parsed command.
+#[derive(Debug)]
+pub(crate) struct ParsedCliExternalSifArgumentsV0 {
+    explicit_sif_paths: Vec<PathBuf>,
+    explicit_lockfile: Option<PathBuf>,
+}
+
+impl ParsedCliExternalSifArgumentsV0 {
+    fn mint(explicit_sif_paths: Vec<PathBuf>, explicit_lockfile: Option<PathBuf>) -> Self {
+        Self {
+            explicit_sif_paths,
+            explicit_lockfile,
+        }
+    }
+
+    pub(crate) fn into_parts(self) -> (Vec<PathBuf>, Option<PathBuf>) {
+        (self.explicit_sif_paths, self.explicit_lockfile)
+    }
+}
+
+fn external_sif_selection_from_parsed_arguments(
+    explicit_sif_paths: Vec<PathBuf>,
+    explicit_lockfile: Option<PathBuf>,
+) -> CliExternalSifSelectionV0 {
+    CliExternalSifSelectionV0::from_parsed_cli_arguments(ParsedCliExternalSifArgumentsV0::mint(
+        explicit_sif_paths,
+        explicit_lockfile,
+    ))
+}
 
 #[cfg(feature = "mdl")]
 use crate::mdl::compress_file;
@@ -124,7 +161,7 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
             evidence_path: evidence,
             source_paths,
             package_manifest_paths,
-            external_sif_selection: CliExternalSifSelectionV0::from_explicit_cli_arguments(
+            external_sif_selection: external_sif_selection_from_parsed_arguments(
                 sif_paths, lockfile,
             ),
         }),
@@ -260,8 +297,7 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
             source_paths,
             source_document_paths,
             package_manifest_paths,
-            sif_paths,
-            lockfile,
+            external_sif_selection_from_parsed_arguments(sif_paths, lockfile),
             external,
             deep_analysis,
             json,
@@ -299,7 +335,32 @@ pub(crate) fn run_with_exit(cli: Cli) -> Result<(), CliExit> {
         } => lock_command(lockfile, json, command),
         Command::Sif { command } => sif_command(command),
         Command::Provenance { command } => provenance_command(command),
-        Command::Report { command } => report_command(command),
+        Command::Report { command } => match command {
+            ReportCommand::Soundiness {
+                source_paths,
+                source_document_paths,
+                package_manifest_paths,
+                sif_paths,
+                lockfile,
+                external,
+                no_suppress,
+                max_suppressions,
+                report_stale_suppressions,
+                json,
+            } => report_soundiness(
+                source_paths,
+                source_document_paths,
+                package_manifest_paths,
+                external_sif_selection_from_parsed_arguments(sif_paths, lockfile),
+                external,
+                no_suppress,
+                max_suppressions,
+                report_stale_suppressions,
+                json,
+            ),
+            ReportCommand::ResolutionPolicy { json } => report_resolution_policy(json),
+            ReportCommand::SassModuleConformance { json } => report_sass_module_conformance(json),
+        },
         #[cfg(feature = "zk-audit")]
         Command::Audit { command } => audit_command(command),
     };

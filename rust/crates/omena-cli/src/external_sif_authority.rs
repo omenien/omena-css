@@ -11,21 +11,33 @@ use omena_sif::{
     compute_omena_sif_artifact_hash_v1, read_omena_lock_json_v1, read_omena_sif_json_v1,
 };
 
-use crate::{io::read_source, lock::resolve_lock_relative_path, paths::path_string};
+use crate::{
+    dispatch::ParsedCliExternalSifArgumentsV0, io::read_source, lock::resolve_lock_relative_path,
+    paths::path_string,
+};
 
 /// The only CLI input shape that can request external-SIF artifact reads.
 ///
 /// Paths enter this type at an explicit command boundary. Automated product
 /// paths use [`Self::none`], so workspace discovery cannot silently become a
 /// lock authority.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(crate) struct CliExternalSifSelectionV0 {
     explicit_sif_paths: Vec<PathBuf>,
     explicit_lockfile: Option<PathBuf>,
 }
 
 impl CliExternalSifSelectionV0 {
-    pub(crate) fn from_explicit_cli_arguments(
+    pub(crate) fn from_parsed_cli_arguments(arguments: ParsedCliExternalSifArgumentsV0) -> Self {
+        let (explicit_sif_paths, explicit_lockfile) = arguments.into_parts();
+        Self {
+            explicit_sif_paths,
+            explicit_lockfile,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_test_arguments(
         explicit_sif_paths: Vec<PathBuf>,
         explicit_lockfile: Option<PathBuf>,
     ) -> Self {

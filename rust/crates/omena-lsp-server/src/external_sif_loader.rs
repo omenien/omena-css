@@ -49,32 +49,13 @@ pub struct LspExternalSifRefreshResultV0 {
     pub generation: u64,
     pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
     pub bridge_external_sif_urls: BTreeSet<String>,
-    /// Compatibility field for the removed automatic workspace-lock reader.
-    /// The deferred collector derives this from its consumed I/O audit.
+    /// Wire-compatibility sentinel for the retired automatic workspace-lock
+    /// reader. Automatic LSP collection never reads a lock, so this is always
+    /// zero; absence is verified by the product behavior and source census,
+    /// not inferred from a synthetic observation set.
     pub lock_read_count: usize,
     pub bridge_generation_count: usize,
     pub trust_records: Vec<OmenaQueryExternalSifTrustV1>,
-}
-
-#[derive(Debug, Default)]
-struct DeferredExternalSifIoAuditV0 {
-    // Moving discovered paths into this no-read audit prevents the collector's
-    // resolution phase from retaining raw access to them.
-    _excluded_lockfiles: Vec<PathBuf>,
-    observed_lock_reads: BTreeSet<PathBuf>,
-}
-
-impl DeferredExternalSifIoAuditV0 {
-    fn excluding(discovered_lockfiles: Vec<PathBuf>) -> Self {
-        Self {
-            _excluded_lockfiles: discovered_lockfiles,
-            observed_lock_reads: BTreeSet::new(),
-        }
-    }
-
-    fn observed_lock_read_count(&self) -> usize {
-        self.observed_lock_reads.len()
-    }
 }
 
 /// The SIF job's declared input footprint (rfcs#111 §4.1). DocumentText is
@@ -388,22 +369,30 @@ pub fn collect_deferred_external_sif_refresh_with_cache_storage(
     job: LspExternalSifRefreshJobV0,
     cache_storage: LspExternalSifRefreshCacheStorageV0,
 ) -> LspExternalSifRefreshResultV0 {
-    let io_audit = DeferredExternalSifIoAuditV0::excluding(job.lockfiles);
+    let LspExternalSifRefreshJobV0 {
+        stamp,
+        generation,
+        lockfiles: excluded_lockfiles,
+        documents,
+        package_manifests,
+        resolution_inputs_by_workspace_uri,
+    } = job;
+    drop(excluded_lockfiles);
     let bridge_result = resolve_external_sifs_for_refresh_documents(
-        job.documents.as_slice(),
+        documents.as_slice(),
         &[],
-        job.package_manifests.as_slice(),
-        &job.resolution_inputs_by_workspace_uri,
+        package_manifests.as_slice(),
+        &resolution_inputs_by_workspace_uri,
         Some(&cache_storage),
     );
     let external_sifs = bridge_result.resolution.external_sifs;
 
     LspExternalSifRefreshResultV0 {
-        stamp: job.stamp,
-        generation: job.generation,
+        stamp,
+        generation,
         external_sifs,
         bridge_external_sif_urls: bridge_result.resolution.bridge_urls.into_iter().collect(),
-        lock_read_count: io_audit.observed_lock_read_count(),
+        lock_read_count: 0,
         bridge_generation_count: bridge_result.resolution.generation_count,
         trust_records: bridge_result.trust_records,
     }
@@ -425,9 +414,6 @@ pub fn apply_deferred_external_sif_refresh_result(
         state.tide_sif_lane.tide_completed(result.generation);
         return false;
     }
-    state.external_sif_lock_read_count = state
-        .external_sif_lock_read_count
-        .saturating_add(result.lock_read_count);
     state.external_sif_bridge_generation_count = state
         .external_sif_bridge_generation_count
         .saturating_add(result.bridge_generation_count);

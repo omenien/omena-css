@@ -239,6 +239,8 @@ pub struct LspShellStateSnapshot {
     pub suppressed_dispatched_result_count: u64,
     pub workspace_style_index_exhausted_count: usize,
     pub workspace_index_pending_file_count: usize,
+    /// Wire-compatibility sentinel for the retired automatic workspace-lock
+    /// reader. It is always zero.
     pub external_sif_lock_read_count: usize,
     pub external_sif_bridge_generation_count: usize,
     pub document_count: usize,
@@ -689,7 +691,6 @@ pub struct LspShellState {
     pub(crate) source_type_fact_workspace_index_incomplete: bool,
     pub(crate) source_type_fact_watched_files_observed: bool,
     pub(crate) workspace_index_pending_file_count: usize,
-    pub(crate) external_sif_lock_read_count: usize,
     pub(crate) external_sif_bridge_generation_count: usize,
     pub(crate) external_sif_refresh_deferred: bool,
     /// Tide kernel (rfcs#111): the epoch ledger with per-input high-water
@@ -917,7 +918,7 @@ impl LspShellState {
             suppressed_dispatched_result_count: self.in_flight_requests.suppressed_result_count(),
             workspace_style_index_exhausted_count: self.workspace_style_index_exhausted_count,
             workspace_index_pending_file_count: self.workspace_index_pending_file_count,
-            external_sif_lock_read_count: self.external_sif_lock_read_count,
+            external_sif_lock_read_count: 0,
             external_sif_bridge_generation_count: self.external_sif_bridge_generation_count,
             document_count: self.document_count(),
             workspace_folder_count: self.workspace_folder_count(),

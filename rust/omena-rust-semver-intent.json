@@ -2186,7 +2186,7 @@
                 "pub trust_records: Vec<OmenaQueryExternalSifTrustV1>",
                 "external_sif_trust_record_map(bridge_result.trust_records)",
                 "let external_sifs = bridge_result.resolution.external_sifs;",
-                "lock_read_count: io_audit.observed_lock_read_count()",
+                "lock_read_count: 0",
                 ".with_recorded_verdict_dir("
               ]
             },

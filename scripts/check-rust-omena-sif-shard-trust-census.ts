@@ -9,7 +9,6 @@ type CensusRule = {
   id: string;
   role: CensusRole;
   call: string;
-  lockKnowledge: string;
 };
 
 type CensusRow = {
@@ -19,7 +18,6 @@ type CensusRow = {
   symbol: string;
   line: number;
   call: string;
-  lockKnowledge: string;
 };
 
 const repoRoot = process.cwd();
@@ -30,7 +28,7 @@ const injectCrossWorkspaceSharingPath = args.has("--inject-cross-workspace-shari
 const injectStructLiteralSharingPath = args.has("--inject-struct-literal-sharing-path");
 const injectConstantIdentitySharingPath = args.has("--inject-constant-identity-sharing-path");
 const injectDocCommentCfgDecoy = args.has("--inject-doc-comment-cfg-decoy");
-const injectCliLockConsumer = args.has("--inject-cli-lock-consumer");
+const injectCliSelectionMint = args.has("--inject-cli-selection-mint");
 assert.deepEqual(
   [...args].filter(
     (arg) =>
@@ -41,7 +39,7 @@ assert.deepEqual(
       arg !== "--inject-struct-literal-sharing-path" &&
       arg !== "--inject-constant-identity-sharing-path" &&
       arg !== "--inject-doc-comment-cfg-decoy" &&
-      arg !== "--inject-cli-lock-consumer",
+      arg !== "--inject-cli-selection-mint",
   ),
   [],
   "unknown SIF shard trust census option",
@@ -52,79 +50,66 @@ const rules: readonly CensusRule[] = [
     id: "cli-sif-artifact-writer",
     role: "artifact-input",
     call: "fs::write(&output_path, &sif_json)",
-    lockKnowledge: "canonical-url+sif-hash-derivable; no-recorded-verdict",
   },
   {
     id: "cli-lock-update-writer",
     role: "artifact-input",
     call: "fs::write(&lockfile, &lock_json)",
-    lockKnowledge: "lock-entry+default-tier; no-attestation-verdict",
   },
   {
     id: "cli-recorded-verdict-writer",
     role: "trust-writer",
     call: "write_recorded_shard_verdicts(",
-    lockKnowledge: "verified-lock-entry+canonical-sif-hash+content-addressed-bundle",
   },
   {
     id: "cli-recorded-bundle-writer",
     role: "trust-writer",
     call: "write_recorded_sigstore_bundle(",
-    lockKnowledge: "verified-sif+offline-sigstore-bundle",
   },
   {
     id: "cli-explicit-lock-sif-reader",
     role: "consumer",
     call: "read_omena_lock_json_v1(",
-    lockKnowledge: "single-typed-authority+sifHash-check; explicit→local→lock-fallback",
   },
   {
     id: "bridge-shard-store",
     role: "shard-writer",
     call: "store_external_sif_cache_shard(",
-    lockKnowledge: "recorded-verdict-sidecar-or-local-t1; no-lock-reader",
   },
   {
     id: "bridge-shard-atomic-write",
     role: "shard-writer",
     call: "write_external_sif_cache_shard_atomically(",
-    lockKnowledge: "enumerated-disk-writer-under-validated-shard-store",
   },
   {
     id: "bridge-shard-load",
     role: "consumer",
     call: "load_external_sif_cache_shard(",
-    lockKnowledge: "local-regeneration-equality+payload-digest+offline-published-subject",
   },
   {
     id: "query-resolved-style-shard-consumer",
     role: "consumer",
     call: "generate_omena_bridge_sif_for_resolved_style_path_with_cache_context_storage_and_trust(",
-    lockKnowledge: "offline-verified-advisory-tier+partitioned-cache; no-lock-reader",
   },
   {
     id: "query-published-style-shard-consumer",
     role: "consumer",
     call: "generate_omena_bridge_sif_for_resolved_style_path_with_canonical_url_cache_context_storage_and_trust(",
-    lockKnowledge: "published-url+offline-verified-advisory-tier+partitioned-cache",
   },
   {
     id: "lsp-in-process-style-shard-consumer",
     role: "consumer",
     call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(",
-    lockKnowledge: "bridge-verified-advisory-tier+partitioned-cache; no-lock-reader",
   },
   {
     id: "lsp-refresh-style-shard-consumer",
     role: "consumer",
     call: "resolve_omena_query_bridge_external_sifs_for_style_sources_with_cache_storage_and_trust(",
-    lockKnowledge: "bridge-verified-advisory-tier+partitioned-cache; no-lock-reader",
   },
   {
     id: "lsp-seed-pair-shard-consumer",
     role: "consumer",
     call: "resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(",
-    lockKnowledge: "bridge-verified-advisory-tier+workspace-owner; no-lock-reader",
   },
 ];
 
@@ -187,8 +172,7 @@ const bridgeCacheRootSource = fs.readFileSync(
 );
 const bridgeLockReaderSites = scanBridgeLockReaderSites(bridgeProductionSources);
 const lspLockReaderSites = scanLspLockReaderSites(false);
-const cliExternalSifAuthorityViolations =
-  scanCliExternalSifAuthorityViolations(injectCliLockConsumer);
+const cliSelectionBoundaryViolations = scanCliSelectionBoundaryViolations(injectCliSelectionMint);
 const bridgeNetworkSites = scanBridgeNetworkSites(bridgeProductionSources);
 const bridgeSigstoreVerifierCalls = bridgeProductionSources.flatMap(({ sourcePath, source }) =>
   source
@@ -212,9 +196,9 @@ const expectedWorkspaceIdentityConstructorKeys = [
 assert.deepEqual(bridgeLockReaderSites, [], "omena-bridge must not read omena.lock");
 assert.deepEqual(lspLockReaderSites, [], "omena-lsp-server must not read workspace lock bytes");
 assert.deepEqual(
-  cliExternalSifAuthorityViolations,
+  cliSelectionBoundaryViolations,
   [],
-  `CLI external-SIF lock authority was bypassed:\n${cliExternalSifAuthorityViolations.join("\n")}`,
+  `CLI external-SIF parsed-argument provenance boundary drifted:\n${cliSelectionBoundaryViolations.join("\n")}`,
 );
 assert.equal(
   scanLspLockReaderSites(true).length,
@@ -331,12 +315,12 @@ if (!injectDocCommentCfgDecoy) {
     "a doc-comment cfg(test) decoy must not hide an identityless storage constructor",
   );
 }
-if (!injectCliLockConsumer) {
-  const injectedViolations = scanCliExternalSifAuthorityViolations(true);
+if (!injectCliSelectionMint) {
+  const injectedViolations = scanCliSelectionBoundaryViolations(true);
   assert.equal(
     injectedViolations.length,
     1,
-    "the CLI lock-authority falsifier must expose a reader in a future production source file",
+    "the CLI parsed-argument provenance falsifier must expose a publicly mintable token",
   );
 }
 
@@ -346,9 +330,9 @@ if (!injectCliLockConsumer) {
 // FALSIFIER: id=sif-shard-no-struct-literal-sharing class=productionCallSiteMutation via=--inject-struct-literal-sharing-path expected=RED owner=sif-shard-trust-census entry=enumerated-storage-constructor-callset
 // FALSIFIER: id=sif-shard-workspace-identity-callset class=productionCallSiteMutation via=--inject-constant-identity-sharing-path expected=RED owner=sif-shard-trust-census entry=enumerated-storage-constructor-callset
 // FALSIFIER: id=sif-shard-cfg-comment-decoy class=lexicalMaskMutation via=--inject-doc-comment-cfg-decoy expected=RED owner=sif-shard-trust-census entry=comment-aware-cfg-test-mask
-// FALSIFIER: id=sif-shard-cli-lock-authority-boundary class=productionCallSiteMutation via=--inject-cli-lock-consumer expected=RED owner=sif-shard-trust-census entry=git-ls-files-plus-future-file-injection
+// FALSIFIER: id=sif-shard-cli-selection-provenance class=productionVisibilityMutation via=--inject-cli-selection-mint expected=RED owner=sif-shard-trust-census entry=dispatch-private-token-mint
 process.stdout.write(
-  `SIF shard trust census OK: scope=git-ls-files-comment-aware-production-rust coverage=enumerated-writer-consumer-and-spelled-storage-constructor-callsets rows=${rows.length} artifactInputs=${rows.filter((row) => row.role === "artifact-input").length} trustWriters=${rows.filter((row) => row.role === "trust-writer").length} shardWriters=${rows.filter((row) => row.role === "shard-writer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=${bridgeLockReaderSites.length} lspLockReaders=${lspLockReaderSites.length} cliExternalSifAuthorityViolations=${cliExternalSifAuthorityViolations.length} bridgeNetworkSites=${bridgeNetworkSites.length} bridgeSigstoreVerifierCalls=${bridgeSigstoreVerifierCalls.length} crossWorkspaceSharingPaths=0 workspaceIdentityConstructorSites=${workspaceIdentityConstructorSites.length} workspaceScopedGlobalBranches=${workspaceScopedGlobalBranches} crossWorkspaceServe=false\n${formatRows(rows)}\n`,
+  `SIF shard trust census OK: scope=git-ls-files-comment-aware-production-rust coverage=enumerated-writer-consumer-and-spelled-storage-constructor-callsets rows=${rows.length} artifactInputs=${rows.filter((row) => row.role === "artifact-input").length} trustWriters=${rows.filter((row) => row.role === "trust-writer").length} shardWriters=${rows.filter((row) => row.role === "shard-writer").length} consumers=${rows.filter((row) => row.role === "consumer").length} bridgeLockReaders=${bridgeLockReaderSites.length} lspLockReaders=${lspLockReaderSites.length} cliSelectionBoundaryViolations=${cliSelectionBoundaryViolations.length} bridgeNetworkSites=${bridgeNetworkSites.length} bridgeSigstoreVerifierCalls=${bridgeSigstoreVerifierCalls.length} crossWorkspaceSharingPaths=0 workspaceIdentityConstructorSites=${workspaceIdentityConstructorSites.length} workspaceScopedGlobalBranches=${workspaceScopedGlobalBranches} crossWorkspaceServe=false\n${formatRows(rows)}\n`,
 );
 
 type CensusInjection = {
@@ -529,10 +513,7 @@ function rowKey(row: Pick<CensusRow, "id" | "sourcePath" | "symbol">): string {
 
 function formatRows(observed: readonly CensusRow[]): string {
   return observed
-    .map(
-      (row) =>
-        `${row.role}\t${row.id}\t${row.sourcePath}:${row.line}\t${row.symbol}\t${row.lockKnowledge}`,
-    )
+    .map((row) => `${row.role}\t${row.id}\t${row.sourcePath}:${row.line}\t${row.symbol}`)
     .join("\n");
 }
 
@@ -544,75 +525,94 @@ function isProductionRustSource(sourcePath: string): boolean {
   );
 }
 
-function scanCliExternalSifAuthorityViolations(injectFutureSource: boolean): string[] {
+function scanCliSelectionBoundaryViolations(injectVisibleMint: boolean): string[] {
   const sources = trackedRustSources
     .filter((sourcePath) => sourcePath.startsWith("rust/crates/omena-cli/src/"))
     .map((sourcePath) => ({
       sourcePath,
       source: fs.readFileSync(path.join(repoRoot, sourcePath), "utf8"),
     }));
-  if (injectFutureSource) {
-    sources.push({
-      sourcePath: "rust/crates/omena-cli/src/future_external_sif_reader.rs",
-      source: 'fn future_external_sif_reader() { let _ = read_omena_lock_json_v1("{}"); }\n',
-    });
-  }
-
-  const explicitSelectionSites: string[] = [];
-  const violations: string[] = [];
-  for (const { sourcePath, source } of sources) {
-    const production = maskCfgTestItems(source);
-    const lexical = maskRustCommentsAndLiterals(production);
-    let containingFunction = "<module>";
-    const productionLines = production.split(/\r?\n/u);
-    const lexicalLines = lexical.split(/\r?\n/u);
-    for (const [lineIndex, line] of productionLines.entries()) {
-      const lexicalLine = lexicalLines[lineIndex] ?? "";
-      const functionMatch = lexicalLine.match(
-        /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)/u,
-      );
-      if (functionMatch?.[1]) containingFunction = functionMatch[1];
-      const display = `${sourcePath}:${lineIndex + 1}:${containingFunction}:${line.trim()}`;
-
-      if (lexicalLine.includes("read_omena_lock_json_v1(")) {
-        const allowedReader = `${sourcePath}|${containingFunction}`;
-        const allowed = [
-          "rust/crates/omena-cli/src/external_sif_authority.rs|read_explicit_lock_external_sifs",
-          "rust/crates/omena-cli/src/lock.rs|lock_status",
-          "rust/crates/omena-cli/src/lock.rs|lock_verify",
-          "rust/crates/omena-cli/src/lock.rs|read_lockfile_or_empty",
-          "rust/crates/omena-cli/src/provenance.rs|provenance_status",
-        ].includes(allowedReader);
-        if (!allowed) violations.push(`direct-lock-parse:${display}`);
-      }
-      if (
-        lexicalLine.includes("read_explicit_lock_external_sifs(") &&
-        !lexicalLine.includes("fn read_explicit_lock_external_sifs(") &&
-        sourcePath !== "rust/crates/omena-cli/src/external_sif_authority.rs"
-      ) {
-        violations.push(`private-lock-reader-bypass:${display}`);
-      }
-      if (lexicalLine.includes("read_lock_external_sifs(")) {
-        violations.push(`retired-lock-reader:${display}`);
-      }
-      if (lexicalLine.includes("CliExternalSifSelectionV0::from_explicit_cli_arguments(")) {
-        explicitSelectionSites.push(`${sourcePath}|${containingFunction}`);
-      }
-    }
-  }
-
-  const expectedSelectionSites = [
-    "rust/crates/omena-cli/src/diagnostics.rs|style_diagnostics",
-    "rust/crates/omena-cli/src/dispatch.rs|run_with_exit",
-    "rust/crates/omena-cli/src/reports.rs|report_command",
-  ].toSorted();
-  if (!injectFutureSource) {
-    assert.deepEqual(
-      explicitSelectionSites.toSorted(),
-      expectedSelectionSites,
-      `explicit CLI external-SIF selection escaped command boundaries:\n${explicitSelectionSites.join("\n")}`,
+  const dispatch = sources.find(
+    ({ sourcePath }) => sourcePath === "rust/crates/omena-cli/src/dispatch.rs",
+  );
+  assert.ok(dispatch, "CLI dispatch source must be tracked");
+  if (injectVisibleMint) {
+    dispatch.source = dispatch.source.replace(
+      "    fn mint(explicit_sif_paths:",
+      "    pub(crate) fn mint(explicit_sif_paths:",
     );
   }
+
+  const violations: string[] = [];
+  const productionSources = sources.map(({ sourcePath, source }) => ({
+    sourcePath,
+    source: maskCfgTestItems(source),
+  }));
+  const dispatchProduction = productionSources.find(
+    ({ sourcePath }) => sourcePath === "rust/crates/omena-cli/src/dispatch.rs",
+  )?.source;
+  const authorityProduction = productionSources.find(
+    ({ sourcePath }) => sourcePath === "rust/crates/omena-cli/src/external_sif_authority.rs",
+  )?.source;
+  assert.ok(dispatchProduction, "CLI dispatch production source must exist");
+  assert.ok(authorityProduction, "CLI authority production source must exist");
+
+  const dispatchLexical = maskRustCommentsAndLiterals(dispatchProduction);
+  const authorityLexical = maskRustCommentsAndLiterals(authorityProduction);
+  if (/\bpub(?:\([^)]*\))?\s+fn\s+mint\s*\(/u.test(dispatchLexical)) {
+    violations.push("parsed-token-mint-is-visible-outside-dispatch");
+  }
+  const tokenBody = dispatchLexical.match(
+    /struct\s+ParsedCliExternalSifArgumentsV0\s*\{(?<body>[\s\S]*?)\n\}/u,
+  )?.groups?.body;
+  assert.ok(tokenBody, "parsed CLI external-SIF token declaration must remain present");
+  if (/\bpub(?:\([^)]*\))?\s+[A-Za-z_][A-Za-z0-9_]*\s*:/u.test(tokenBody)) {
+    violations.push("parsed-token-field-is-visible-outside-dispatch");
+  }
+  const selectionBody = authorityLexical.match(
+    /struct\s+CliExternalSifSelectionV0\s*\{(?<body>[\s\S]*?)\n\}/u,
+  )?.groups?.body;
+  assert.ok(selectionBody, "CLI external-SIF selection declaration must remain present");
+  if (/\bpub(?:\([^)]*\))?\s+[A-Za-z_][A-Za-z0-9_]*\s*:/u.test(selectionBody)) {
+    violations.push("selection-field-is-visible-outside-authority");
+  }
+  if (authorityLexical.includes("from_explicit_cli_arguments")) {
+    violations.push("raw-path-selection-constructor-exists-in-production");
+  }
+  assert.match(
+    authorityLexical,
+    /fn\s+from_parsed_cli_arguments\s*\(\s*arguments\s*:\s*ParsedCliExternalSifArgumentsV0\s*\)/u,
+    "the production selection constructor must require the dispatch-minted token",
+  );
+
+  const mintCallSites: string[] = [];
+  const selectionCallSites: string[] = [];
+  for (const { sourcePath, source } of productionSources) {
+    const production = maskCfgTestItems(source);
+    const lexical = maskRustCommentsAndLiterals(production);
+    for (const match of lexical.matchAll(/ParsedCliExternalSifArgumentsV0\s*::\s*mint\s*\(/gu)) {
+      mintCallSites.push(`${sourcePath}:${lexical.slice(0, match.index).split("\n").length}`);
+    }
+    for (const match of lexical.matchAll(
+      /CliExternalSifSelectionV0\s*::\s*from_parsed_cli_arguments\s*\(/gu,
+    )) {
+      selectionCallSites.push(`${sourcePath}:${lexical.slice(0, match.index).split("\n").length}`);
+    }
+  }
+  assert.equal(mintCallSites.length, 1, `parsed token mint call-set drifted: ${mintCallSites}`);
+  assert.ok(
+    mintCallSites[0]?.startsWith("rust/crates/omena-cli/src/dispatch.rs:"),
+    `parsed token must only be minted in dispatch: ${mintCallSites}`,
+  );
+  assert.equal(
+    selectionCallSites.length,
+    1,
+    `parsed-token selection call-set drifted: ${selectionCallSites}`,
+  );
+  assert.ok(
+    selectionCallSites[0]?.startsWith("rust/crates/omena-cli/src/dispatch.rs:"),
+    `parsed-token selection must only be constructed in dispatch: ${selectionCallSites}`,
+  );
   return violations.toSorted();
 }
 

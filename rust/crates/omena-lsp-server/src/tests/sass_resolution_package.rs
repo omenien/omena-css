@@ -764,10 +764,11 @@ fn auto_discovered_lsp_lock_bytes_are_never_read_or_admitted() -> TestResult {
         1,
         "the product collector arm must receive the discovered workspace lock"
     );
+    fs::write(root.join("omena.lock"), b"{ definitely not valid JSON")?;
     let result = collect_deferred_external_sif_refresh(job);
     assert_eq!(
         result.lock_read_count, 0,
-        "the deferred collector must derive zero observed workspace-lock reads"
+        "the retired lock-read compatibility field must stay zero"
     );
     assert!(
         result
@@ -780,10 +781,6 @@ fn auto_discovered_lsp_lock_bytes_are_never_read_or_admitted() -> TestResult {
         &mut state, result
     ));
 
-    assert_eq!(
-        state.external_sif_lock_read_count, 0,
-        "the automatic LSP path must not read attacker-writable workspace lock bytes"
-    );
     assert!(
         state
             .resolution
@@ -1559,7 +1556,6 @@ fn style_document_bridge_changes_refresh_external_sifs_without_corpus_rebuild() 
     open_style_document(&mut state, peer_uri.as_str(), peer_text.as_str());
     open_style_document(&mut state, source_uri.as_str(), source_initial_text);
 
-    let lock_reads_before_change = state.external_sif_lock_read_count;
     let bridge_generations_before_change = state.external_sif_bridge_generation_count;
     handle_lsp_message(
         &mut state,
@@ -1580,11 +1576,6 @@ fn style_document_bridge_changes_refresh_external_sifs_without_corpus_rebuild() 
         }),
     );
 
-    assert_eq!(
-        state.external_sif_lock_read_count - lock_reads_before_change,
-        0,
-        "bridge source didChange must not reread workspace lockfiles"
-    );
     assert_eq!(
         state.external_sif_bridge_generation_count - bridge_generations_before_change,
         1,

@@ -2559,7 +2559,6 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
     }
 
     crate::document_refresh::reset_foreign_style_dependency_scan_count_for_test();
-    let lock_reads_before = state.external_sif_lock_read_count;
     let bridge_generations_before = state.external_sif_bridge_generation_count;
     let new_uri = style_uris
         .get(3)
@@ -2587,11 +2586,6 @@ fn background_workspace_index_admits_foreign_dependencies_from_new_batch_only() 
         crate::document_refresh::foreign_style_dependency_scan_count_for_test(),
         1,
         "background result apply must scan only newly indexed style documents"
-    );
-    assert_eq!(
-        state.external_sif_lock_read_count - lock_reads_before,
-        0,
-        "background result apply must not rerun whole-state lockfile refresh"
     );
     assert_eq!(
         state.external_sif_bridge_generation_count - bridge_generations_before,

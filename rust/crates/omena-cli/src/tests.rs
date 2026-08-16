@@ -365,7 +365,7 @@ fn bundle_lock_is_fallback_behind_local_external_sif_regeneration() -> Result<()
             source_paths: vec![external.clone()],
             package_manifest_paths: vec![package_manifest.clone()],
             external_sif_selection:
-                crate::external_sif_authority::CliExternalSifSelectionV0::from_explicit_cli_arguments(
+                crate::external_sif_authority::CliExternalSifSelectionV0::from_test_arguments(
                     Vec::new(),
                     lockfile,
                 ),
@@ -3116,10 +3116,7 @@ fn explicit_cli_lock_input_rejects_sif_hash_mismatch() -> Result<(), String> {
     .map_err(|error| format!("fixture lock should be writable: {error}"))?;
 
     let result = resolve_cli_external_sif_authority(
-        &CliExternalSifSelectionV0::from_explicit_cli_arguments(
-            Vec::new(),
-            Some(lockfile_path.clone()),
-        ),
+        &CliExternalSifSelectionV0::from_test_arguments(Vec::new(), Some(lockfile_path.clone())),
         &[],
         &OmenaQueryStyleResolutionInputsV0::default(),
         CliExternalSifLockFailureModeV0::Refuse,
@@ -3196,10 +3193,7 @@ fn auto_discovered_lock_cannot_outrank_local_external_sif_regeneration() -> Resu
         Vec::new(),
         Vec::new(),
         Vec::new(),
-        CliExternalSifSelectionV0::from_explicit_cli_arguments(
-            Vec::new(),
-            Some(lockfile_path.clone()),
-        ),
+        CliExternalSifSelectionV0::from_test_arguments(Vec::new(), Some(lockfile_path.clone())),
         Some("sif".to_string()),
         false,
     )?;

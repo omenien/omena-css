@@ -1,5 +1,4 @@
 use crate::{
-    commands::ReportCommand,
     diagnostics::parse_external_module_mode,
     external_sif_authority::{
         CliExternalSifLockFailureModeV0, CliExternalSifSelectionV0,
@@ -20,36 +19,7 @@ use omena_query::{
 use serde::Serialize;
 use std::path::PathBuf;
 
-pub(crate) fn report_command(command: ReportCommand) -> Result<(), String> {
-    match command {
-        ReportCommand::Soundiness {
-            source_paths,
-            source_document_paths,
-            package_manifest_paths,
-            sif_paths,
-            lockfile,
-            external,
-            no_suppress,
-            max_suppressions,
-            report_stale_suppressions,
-            json,
-        } => report_soundiness(
-            source_paths,
-            source_document_paths,
-            package_manifest_paths,
-            CliExternalSifSelectionV0::from_explicit_cli_arguments(sif_paths, lockfile),
-            external,
-            no_suppress,
-            max_suppressions,
-            report_stale_suppressions,
-            json,
-        ),
-        ReportCommand::ResolutionPolicy { json } => report_resolution_policy(json),
-        ReportCommand::SassModuleConformance { json } => report_sass_module_conformance(json),
-    }
-}
-
-fn report_resolution_policy(json: bool) -> Result<(), String> {
+pub(crate) fn report_resolution_policy(json: bool) -> Result<(), String> {
     let report = summarize_omena_query_style_resolution_policy_v0();
     if json {
         print_json(
@@ -71,7 +41,7 @@ fn report_resolution_policy(json: bool) -> Result<(), String> {
     Ok(())
 }
 
-fn report_sass_module_conformance(json: bool) -> Result<(), String> {
+pub(crate) fn report_sass_module_conformance(json: bool) -> Result<(), String> {
     let report = summarize_omena_query_sass_module_conformance_v0();
     let status_counts = sass_module_conformance_counts_by(report.rows.as_slice(), |row| row.status);
     let category_counts =
@@ -204,7 +174,7 @@ struct SoundinessNoiseBudgetCheckV0 {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn report_soundiness(
+pub(crate) fn report_soundiness(
     source_paths: Vec<PathBuf>,
     source_document_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
