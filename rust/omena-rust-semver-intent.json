@@ -2178,7 +2178,7 @@
           "id": "lsp-shard-trust-verdict-consumption",
           "kind": "wire-value-order-preserving",
           "surface": "LspExternalSifRefreshResultV0.trustRecords and LspTrustBoundaryV0.requestPathPolicy",
-          "reason": "The language server does not read or admit automatically discovered workspace lock SIFs; editor semantics come only from locally regenerated bridge output. Advisory Omena-published tiers enter trust-record projection only after the native bridge verifies the URL-tier-hash subject offline, and LSP uses neither lock nor network as trust authority.",
+          "reason": "The language server does not read or admit automatically discovered workspace lock SIFs; editor semantics come only from locally regenerated bridge output. That exclusion is enforced by collector behavior, a product-path mutation arm, and a whole-crate reader census instead of a self-declared requestPathPolicy string. Advisory Omena-published tiers enter trust-record projection only after the native bridge verifies the URL-tier-hash subject offline, and LSP uses neither lock nor network as trust authority.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/external_sif_loader.rs",
@@ -2192,10 +2192,7 @@
             },
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/boundary.rs",
-              "needles": [
-                "workspaceLockBytesAreNotReadOrAdmittedAutomatically",
-                "recordedShardVerdictsVerifiedOfflineWithoutNetworkAuthority"
-              ]
+              "needles": ["recordedShardVerdictsVerifiedOfflineWithoutNetworkAuthority"]
             },
             {
               "sourcePath": "rust/crates/omena-lsp-server/src/tests/sass_resolution_package.rs",

@@ -246,10 +246,6 @@ pub fn lsp_trust_boundary_contract() -> LspTrustBoundaryV0 {
             "analysisTimeUsesLocalWorkspaceOnly",
             "recordedSifEvidenceReadFromDiskWithoutWorkspaceLockAuthority",
             "attestationVerificationOwnedByCli",
-            // Attacker-writable workspace locks are not read by the automatic
-            // LSP path. Editor-visible Sass semantics come only from the
-            // independently regenerated local-source bridge plane.
-            "workspaceLockBytesAreNotReadOrAdmittedAutomatically",
             // The CLI records immutable canonical-url + SIF-hash verdicts and
             // content-addressed bundles. Bridge verifies them offline; LSP
             // never treats a lock as trust authority or uses the network.

@@ -735,7 +735,7 @@ fn auto_discovered_lsp_lock_bytes_are_never_read_or_admitted() -> TestResult {
     )?;
     let lock = omena_sif::OmenaLockV1::new(vec![omena_sif::build_omena_lock_sif_entry_v1(
         "sif/tokens.sif.json",
-        &expected_sif,
+        &poisoned_sif,
     )?]);
     fs::write(
         root.join("omena.lock"),
@@ -764,7 +764,6 @@ fn auto_discovered_lsp_lock_bytes_are_never_read_or_admitted() -> TestResult {
         1,
         "the product collector arm must receive the discovered workspace lock"
     );
-    fs::write(root.join("omena.lock"), b"{ definitely not valid JSON")?;
     let result = collect_deferred_external_sif_refresh(job);
     assert_eq!(
         result.lock_read_count, 0,

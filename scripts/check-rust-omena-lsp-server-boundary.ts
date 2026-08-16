@@ -165,7 +165,6 @@ for (const requiredTrustPolicy of [
   "analysisTimeUsesLocalWorkspaceOnly",
   "recordedSifEvidenceReadFromDiskWithoutWorkspaceLockAuthority",
   "attestationVerificationOwnedByCli",
-  "workspaceLockBytesAreNotReadOrAdmittedAutomatically",
   "recordedShardVerdictsVerifiedOfflineWithoutNetworkAuthority",
   "noRegistryFetchOnLspRequestPath",
   "noTransparencyLogLookupOnLspRequestPath",
@@ -176,6 +175,12 @@ for (const requiredTrustPolicy of [
     `Rust LSP trust boundary must include ${requiredTrustPolicy}`,
   );
 }
+assert.ok(
+  !rustSummary.trustBoundary.requestPathPolicy.includes(
+    "workspaceLockBytesAreNotReadOrAdmittedAutomatically",
+  ),
+  "workspace-lock exclusion must be proven by product behavior and census, not self-declared",
+);
 // The hand-authored rung table stays independent of the Rust declaration.
 // It includes bridge writes because those execute inside the LSP process.
 assert.deepEqual(rustSummary.trustBoundary.diskWriteSurfaces, [

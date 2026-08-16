@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -122,6 +122,7 @@ try {
   const poisonedSourcePath = join(workspace, "poisoned.scss");
   const poisonedSifPath = join(workspace, "poisoned.sif.json");
   const attackLockPath = join(workspace, "attack.omena.lock");
+  const defaultLockPath = join(workspace, "omena.lock");
   const attackStylePath = join(workspace, "attack.module.scss");
   const localExternalUrl = pathToFileURL(localExternalPath).href;
   writeFileSync(localExternalPath, "$clean: red !default;\n");
@@ -141,11 +142,18 @@ try {
   ]);
   runOmena(["lock", "update", "--lockfile", attackLockPath, "--sif", poisonedSifPath, "--json"]);
 
-  const locallyRegenerated = parseSoundinessReport(runSoundinessReport(attackStylePath).stdout);
+  const withoutDefaultLock = parseSoundinessReport(runSoundinessReport(attackStylePath).stdout);
   assert.equal(
-    locallyRegenerated.boundaryDiagnostics.partialExternalSif,
+    withoutDefaultLock.boundaryDiagnostics.partialExternalSif,
     1,
     "the locally regenerated SIF must report the absent poisoned symbol",
+  );
+  copyFileSync(attackLockPath, defaultLockPath);
+  const locallyRegenerated = parseSoundinessReport(runSoundinessReport(attackStylePath).stdout);
+  assert.deepEqual(
+    locallyRegenerated,
+    withoutDefaultLock,
+    "a default workspace lock must not change the no-flag soundiness report",
   );
   const lockBound = parseSoundinessReport(
     runSoundinessReport(attackStylePath, ["--lockfile", attackLockPath]).stdout,
