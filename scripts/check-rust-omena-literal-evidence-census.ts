@@ -29,6 +29,7 @@ const repoRoot = process.cwd();
 const censusPath = path.join(repoRoot, "rust/omena-literal-evidence-census.json");
 const writeMode = process.argv.includes("--write");
 const injectIndirectLiteral = process.argv.includes("--inject-indirect-production-literal");
+const injectConstantExpression = process.argv.includes("--inject-constant-expression-literal");
 const fieldNamePattern = /(?:within_source|verified|parity)/u;
 
 const productionLiteralAssignments: LiteralEvidenceAssignment[] = [];
@@ -72,6 +73,18 @@ assert.deepEqual(
   [{ fieldName: "precision_parity", literal: true }],
   "literal-evidence predicate must follow transitive local aliases with arbitrary names",
 );
+const constantExpressionInjected = collectLiteralEvidenceAssignments(
+  "injected/constant-expression-literal-evidence.rs",
+  "fn injected(condition: bool) {\n  let _ = EvidenceReport { precision_parity: true || condition };\n  let _ = EvidenceReport { proof_verified: [true][0] };\n}\n",
+);
+assert.deepEqual(
+  constantExpressionInjected.map(({ fieldName, literal }) => ({ fieldName, literal })),
+  [
+    { fieldName: "precision_parity", literal: true },
+    { fieldName: "proof_verified", literal: true },
+  ],
+  "literal-evidence predicate must detect the enumerated constant-true expression forms",
+);
 const commentDecoy = collectLiteralEvidenceAssignments(
   "injected/comment-decoy.rs",
   "/// let arbitrary_name = true; EvidenceReport { precision_parity: arbitrary_name }\nfn clean() {}\n",
@@ -85,8 +98,18 @@ assert.deepEqual(
   [],
   "cfg(test) attributed items must be excluded from production evidence",
 );
-if (process.env.OMENA_LITERAL_EVIDENCE_TEST_INJECT === "1" || injectIndirectLiteral) {
-  productionLiteralAssignments.push(...(injectIndirectLiteral ? indirectInjected : injected));
+if (
+  process.env.OMENA_LITERAL_EVIDENCE_TEST_INJECT === "1" ||
+  injectIndirectLiteral ||
+  injectConstantExpression
+) {
+  productionLiteralAssignments.push(
+    ...(injectConstantExpression
+      ? constantExpressionInjected
+      : injectIndirectLiteral
+        ? indirectInjected
+        : injected),
+  );
   productionLiteralAssignments.sort(compareAssignments);
 }
 
@@ -160,13 +183,12 @@ function collectLiteralEvidenceAssignments(
   const lexicalSource = maskRustCommentsAndLiterals(source);
   for (const [index, line] of lexicalSource.split("\n").entries()) {
     const bindingPattern =
-      /\b(?:let|const|static)\s+(?:mut\s+)?([a-z][a-z0-9_]*)\s*(?::\s*bool\s*)?=\s*(true|false|[a-z][a-z0-9_]*)\s*;/gu;
+      /\b(?:let|const|static)\s+(?:mut\s+)?([a-z][a-z0-9_]*)\s*(?::\s*bool\s*)?=\s*([^;]+)\s*;/gu;
     for (const match of line.matchAll(bindingPattern)) {
       const resolved = resolveBooleanValue(match[2], aliases);
       if (resolved !== undefined) aliases.set(match[1], resolved);
     }
-    const explicitAssignmentPattern =
-      /\b([a-z][a-z0-9_]*)\s*:\s*(true|false|[a-z][a-z0-9_]*)\s*(?=[,}])/gu;
+    const explicitAssignmentPattern = /\b([a-z][a-z0-9_]*)\s*:\s*([^,}]+)\s*(?=[,}])/gu;
     for (const match of line.matchAll(explicitAssignmentPattern)) {
       if (!fieldNamePattern.test(match[1])) continue;
       const literal = resolveBooleanValue(match[2], aliases);
@@ -189,9 +211,15 @@ function resolveBooleanValue(
   value: string,
   aliases: ReadonlyMap<string, boolean>,
 ): boolean | undefined {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return aliases.get(value);
+  const normalized = value.trim();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  if (/^true\s*\|\|/u.test(normalized)) return true;
+  if (/^false\s*&&/u.test(normalized)) return false;
+  const singletonIndex = /^\[\s*(true|false)\s*\]\s*\[\s*0\s*\]$/u.exec(normalized);
+  if (singletonIndex?.[1] === "true") return true;
+  if (singletonIndex?.[1] === "false") return false;
+  return aliases.get(normalized);
 }
 
 function assignmentKey(assignment: LiteralEvidenceAssignment): string {

@@ -74,7 +74,7 @@ const rules: readonly CensusRule[] = [
     id: "cli-explicit-lock-sif-reader",
     role: "consumer",
     call: "read_omena_lock_json_v1(",
-    lockKnowledge: "explicit-user-input+sifHash-check; not-automatic-lsp-authority",
+    lockKnowledge: "explicit-user-input+sifHash-check; fallback-behind-local-bridge",
   },
   {
     id: "bridge-shard-store",
@@ -124,18 +124,6 @@ const rules: readonly CensusRule[] = [
     call: "resolve_omena_query_bridge_external_sifs_for_seed_pairs_with_cache_storage_and_trust(",
     lockKnowledge: "bridge-verified-advisory-tier+workspace-owner; no-lock-reader",
   },
-  {
-    id: "lsp-lock-hint-reader",
-    role: "consumer",
-    call: "read_omena_lock_json_v1(",
-    lockKnowledge: "workspace-hint+sifHash-check; cannot-suppress-local-regeneration",
-  },
-  {
-    id: "lsp-lock-bridge-reconciliation",
-    role: "consumer",
-    call: "reconcile_lock_and_bridge_external_sifs(",
-    lockKnowledge: "lock-only-refused+locally-regenerated-bridge-precedence",
-  },
 ];
 
 const expectedKeys = [
@@ -152,9 +140,6 @@ const expectedKeys = [
   "lsp-in-process-style-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_in_process_external_sifs_for_lsp",
   "lsp-refresh-style-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_external_sifs_for_refresh_documents",
   "lsp-seed-pair-shard-consumer|rust/crates/omena-lsp-server/src/external_sif_loader.rs|resolve_bridge_external_sifs_for_sources",
-  "lsp-lock-hint-reader|rust/crates/omena-lsp-server/src/external_sif_loader.rs|read_lock_external_sifs",
-  "lsp-lock-bridge-reconciliation|rust/crates/omena-lsp-server/src/external_sif_loader.rs|collect_deferred_external_sif_refresh_with_cache_storage",
-  "lsp-lock-bridge-reconciliation|rust/crates/omena-lsp-server/src/external_sif_loader.rs|refresh_external_sifs_for_state_immediate",
 ].toSorted();
 
 const trackedRustSources = execFileSync("git", ["ls-files", "-z", "--", "*.rs"], {
@@ -236,14 +221,12 @@ assert.match(
   "Sigstore verification must remain a native-only bridge dependency",
 );
 assert.ok(
-  lspBoundarySource.includes("workspaceLockSifHintsRequireDigestAndLocalBridgeRegeneration"),
-  "the LSP boundary must name digest-checked lock hints and local bridge authority",
+  lspBoundarySource.includes("workspaceLockBytesAreNotReadOrAdmittedAutomatically"),
+  "the LSP boundary must name the automatic workspace-lock exclusion",
 );
 assert.ok(
-  sassCompatibilitySource.includes(
-    "The automatic LSP path treats workspace lock entries as digest-checked hints only",
-  ),
-  "the Sass compatibility contract must document the lock-hint and local-regeneration boundary",
+  sassCompatibilitySource.includes("The automatic LSP path does not read workspace lock bytes"),
+  "the Sass compatibility contract must document the no-read automatic lock boundary",
 );
 assert.deepEqual(
   crossWorkspaceSharingSites,
@@ -308,8 +291,8 @@ if (!injectCrossWorkspaceSharingPath) {
 if (!injectStructLiteralSharingPath) {
   assert.equal(
     scanCrossWorkspaceSharingSites({ injectStructLiteral: true }).length,
-    1,
-    "the struct-literal falsifier must expose one identityless production storage path",
+    3,
+    "the struct-literal falsifier must expose assigned, returned, and tail-expression storage paths",
   );
 }
 if (!injectConstantIdentitySharingPath) {
@@ -410,18 +393,27 @@ function scanCrossWorkspaceSharingSites(injection: SharingInjection = {}): strin
     }
     if (injection.injectStructLiteral && sourcePath === bridgeSourcePath) {
       source +=
-        "\nfn injected_struct_literal_sharing_path() { let _storage = OmenaBridgeExternalSifStorageV0 { workspace_cache_root: PathBuf::new(), workspace_identity: None, recorded_verdict_dir: None }; }\n";
+        "\nfn injected_assigned_struct_literal_sharing_path() { let _storage = OmenaBridgeExternalSifStorageV0 { workspace_cache_root: PathBuf::new(), workspace_identity: None, recorded_verdict_dir: None }; }\nfn injected_returned_struct_literal_sharing_path() -> OmenaBridgeExternalSifStorageV0 { return OmenaBridgeExternalSifStorageV0\n{ workspace_cache_root: PathBuf::new(), workspace_identity: None, recorded_verdict_dir: None }; }\nfn injected_tail_struct_literal_sharing_path() -> OmenaBridgeExternalSifStorageV0 { OmenaBridgeExternalSifStorageV0\n{ workspace_cache_root: PathBuf::new(), workspace_identity: None, recorded_verdict_dir: None } }\n";
     }
     if (injection.injectDocCommentDecoy && sourcePath === bridgeSourcePath) {
       source +=
         "\n/// #[cfg(test)]\nfn injected_cfg_comment_decoy() { store_external_sif_cache_shard(); let _ = OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(PathBuf::new()); }\n";
     }
     const production = maskCfgTestItems(source);
+    const lexicalProduction = maskRustCommentsAndLiterals(production);
+    const structLiteralLines = new Set<number>();
+    for (const match of lexicalProduction.matchAll(
+      /\bOmena(?:Bridge|Query)ExternalSifStorageV0\s*\{/gu,
+    )) {
+      const prefix = lexicalProduction.slice(Math.max(0, match.index - 32), match.index);
+      if (/\b(?:struct|impl)\s*$/u.test(prefix)) continue;
+      structLiteralLines.add(lexicalProduction.slice(0, match.index).split("\n").length - 1);
+    }
     for (const [lineIndex, line] of production.split(/\r?\n/u).entries()) {
       if (
         line.includes("OmenaBridgeExternalSifStorageV0::from_workspace_cache_root(") ||
         line.includes("OmenaQueryExternalSifStorageV0::from_workspace_cache_root(") ||
-        /=\s*Omena(?:Bridge|Query)ExternalSifStorageV0\s*\{/u.test(line) ||
+        structLiteralLines.has(lineIndex) ||
         /(?:allow|enable|serve|share)_cross_workspace_(?:external_)?sif/iu.test(line) ||
         line.includes("crossWorkspaceServe=true")
       ) {
