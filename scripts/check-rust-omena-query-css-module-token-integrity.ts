@@ -46,6 +46,13 @@ const requiredTests = [
   "ownership_census_admission_matrix_distinguishes_incomplete_and_empty_states",
   "module_reachability_preserves_projection_union_without_flattening_ownership",
 ] as const;
+const testStartPattern = (test: string): RegExp =>
+  new RegExp(`^test [^\\n]*${test} \\.\\.\\.`, "mu");
+assert.match(
+  "test style::tests::selected_interface_token_detects_unrewritten_output ... diagnostic\nok\n",
+  testStartPattern("selected_interface_token_detects_unrewritten_output"),
+  "the test-start matcher must tolerate --nocapture output before libtest reports ok",
+);
 const instrumentSource = readFileSync(
   path.join(repoRoot, "rust/crates/omena-diff-test/src/linked_emission.rs"),
   "utf8",
@@ -242,7 +249,11 @@ assert.equal(
 );
 const combinedTranscript = `${transcript}\n${admissionResult.stdout}\n${admissionResult.stderr}\n${productAdmissionResult.stdout}\n${productAdmissionResult.stderr}`;
 for (const test of requiredTests) {
-  assert.match(combinedTranscript, new RegExp(`test [^\\n]*${test} \\.\\.\\. ok`, "u"));
+  assert.match(
+    combinedTranscript,
+    testStartPattern(test),
+    `token-integrity product test did not run: ${test}`,
+  );
 }
 const passed = [...combinedTranscript.matchAll(/test result: ok\. (\d+) passed/gu)].reduce(
   (total, match) => total + Number(match[1]),
