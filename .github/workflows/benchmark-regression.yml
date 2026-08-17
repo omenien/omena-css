@@ -66,6 +66,7 @@ jobs:
           baseline_path="rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json"
           mkdir -p "${pair_root}/current" "${pair_root}/pre"
           cp "${baseline_path}" "${pair_root}/current/z5-perf-gate-baseline-v0.json"
+          git fetch --no-tags --depth=1 origin "${PRE_QUERY_WINDOW_SHA}"
           git checkout --force "${PRE_QUERY_WINDOW_SHA}"
           node --import tsx ./scripts/check-rust-z5-perf-gate-baseline.ts --write
           cp "${baseline_path}" "${pair_root}/pre/z5-perf-gate-baseline-v0.json"
