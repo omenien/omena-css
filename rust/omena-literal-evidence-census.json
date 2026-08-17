@@ -3,11 +3,11 @@
   "product": "omena.literal-evidence-census",
   "fieldNameClasses": ["within_source", "verified", "parity"],
   "excludedTestSurfaces": [
-    "rust/crates/omena-sif/src/lib.rs:2524:verified=true",
-    "rust/crates/omena-sif/src/lib.rs:2578:verified=true",
-    "rust/crates/omena-sif/src/lib.rs:2763:verified=true",
-    "rust/crates/omena-sif/src/lib.rs:2881:verified=true",
-    "rust/crates/omena-sif/src/lib.rs:2936:verified=true"
+    "rust/crates/omena-sif/src/lib.rs:2555:verified=true",
+    "rust/crates/omena-sif/src/lib.rs:2609:verified=true",
+    "rust/crates/omena-sif/src/lib.rs:2794:verified=true",
+    "rust/crates/omena-sif/src/lib.rs:2912:verified=true",
+    "rust/crates/omena-sif/src/lib.rs:2967:verified=true"
   ],
   "dispositions": [
     {
