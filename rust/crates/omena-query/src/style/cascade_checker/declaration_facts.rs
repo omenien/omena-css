@@ -33,6 +33,12 @@ pub(in crate::style) struct ParsedDeclarationFactV0 {
     pub(in crate::style) source_order: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::style) struct ParsedDeclarationFactCollectionV0 {
+    pub(in crate::style) facts: Vec<ParsedDeclarationFactV0>,
+    pub(in crate::style) topology_incomplete_unresolved_count: Option<usize>,
+}
+
 impl ParsedDeclarationFactV0 {
     #[allow(dead_code)]
     pub(in crate::style) fn checker_input(&self) -> OmenaCheckerCascadeDeclarationInputV0 {
@@ -58,13 +64,37 @@ pub(in crate::style) fn collect_parsed_declaration_facts(
     source: &str,
     dialect: StyleDialect,
 ) -> Vec<ParsedDeclarationFactV0> {
+    collect_parsed_declaration_fact_collection(style_path, source, dialect).facts
+}
+
+pub(in crate::style) fn collect_parsed_declaration_fact_collection(
+    style_path: &str,
+    source: &str,
+    dialect: StyleDialect,
+) -> ParsedDeclarationFactCollectionV0 {
     let syntax_facts = collect_parser_declaration_syntax_facts(source, dialect);
     let semantic = summarize_omena_parser_style_semantic_boundary_from_source(style_path, source);
-    join_declaration_syntax_and_context(
+    let topology_incomplete_unresolved_count = (!semantic
+        .semantic_facts
+        .context_index
+        .layer_index
+        .topology_complete)
+        .then_some(
+            semantic
+                .semantic_facts
+                .context_index
+                .layer_index
+                .unresolved_topology_count,
+        );
+    let facts = join_declaration_syntax_and_context(
         source,
         syntax_facts,
         &semantic.semantic_facts.context_index,
-    )
+    );
+    ParsedDeclarationFactCollectionV0 {
+        facts,
+        topology_incomplete_unresolved_count,
+    }
 }
 
 fn join_declaration_syntax_and_context(

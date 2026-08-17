@@ -16,6 +16,7 @@ use super::super::{
     parser_range_for_byte_span, summarize_static_css_custom_property_fixed_point_from_source,
 };
 use super::custom_property_registration::collect_query_checker_custom_property_registrations;
+use super::declaration_facts::collect_parsed_declaration_fact_collection;
 use super::source_scanner::{
     canonical_query_checker_selector, collect_query_var_references_in_value,
     find_query_top_level_byte, find_query_top_level_colon, matching_query_block_end,
@@ -146,6 +147,43 @@ pub(in crate::style) fn collect_query_checker_cascade_declarations_with_dialect(
 }
 
 fn collect_query_checker_cascade_declaration_collection(
+    source: &str,
+    dialect: StyleDialect,
+) -> QueryCheckerCascadeDeclarationCollection {
+    collect_query_checker_cascade_declaration_collection_from_scanner(source, dialect)
+}
+
+#[allow(dead_code)]
+pub(in crate::style) fn collect_query_checker_cascade_declarations_from_facts(
+    style_uri: &str,
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<QueryCheckerCascadeDeclaration> {
+    collect_query_checker_cascade_declaration_collection_from_facts(style_uri, source, dialect)
+        .declarations
+}
+
+#[allow(dead_code)]
+fn collect_query_checker_cascade_declaration_collection_from_facts(
+    style_uri: &str,
+    source: &str,
+    dialect: StyleDialect,
+) -> QueryCheckerCascadeDeclarationCollection {
+    let collection = collect_parsed_declaration_fact_collection(style_uri, source, dialect);
+    QueryCheckerCascadeDeclarationCollection {
+        declarations: collection
+            .facts
+            .into_iter()
+            .map(|fact| QueryCheckerCascadeDeclaration {
+                input: fact.checker_input(),
+                byte_span: fact.byte_span,
+            })
+            .collect(),
+        topology_incomplete_unresolved_count: collection.topology_incomplete_unresolved_count,
+    }
+}
+
+fn collect_query_checker_cascade_declaration_collection_from_scanner(
     source: &str,
     dialect: StyleDialect,
 ) -> QueryCheckerCascadeDeclarationCollection {
