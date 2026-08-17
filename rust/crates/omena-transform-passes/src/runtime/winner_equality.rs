@@ -441,8 +441,8 @@ pub fn compare_transform_winner_equality_for_conformance_v0(
         }],
         dialect,
         TransformWinnerEqualityContextV0 {
-            input_scope: SemanticObservationScopeV0::default(),
-            output_scope: SemanticObservationScopeV0::default(),
+            input_scope: SemanticObservationScopeV0::for_cst_declarations(dialect),
+            output_scope: SemanticObservationScopeV0::for_cst_declarations(dialect),
             cascade_environment: Some(&TransformCascadeEnvironmentV0::default()),
         },
     )

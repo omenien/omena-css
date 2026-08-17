@@ -111,11 +111,268 @@ fn record_obligations(
 
 #[cfg(test)]
 mod tests {
-    use omena_parser::StyleDialect;
+    use omena_cascade::CascadeValue;
+    use omena_parser::{StyleDialect, collect_parser_declaration_syntax_facts};
+    use omena_query::{
+        summarize_omena_query_style_diagnostics_for_file,
+        summarize_omena_query_style_hover_candidates,
+    };
     use omena_transform_cst::TransformPassKind;
-    use omena_transform_passes::compare_transform_winner_equality_for_conformance_v0;
+    use omena_transform_passes::{
+        compare_transform_winner_equality_for_conformance_v0,
+        execute_transform_passes_on_source_with_dialect,
+    };
 
     use super::*;
+
+    #[derive(Debug, Clone, Copy)]
+    struct CascadeAgreementFixtureV0 {
+        name: &'static str,
+        path: &'static str,
+        source: &'static str,
+        dialect: StyleDialect,
+        property: &'static str,
+    }
+
+    fn emitted_css(fixture: CascadeAgreementFixtureV0) -> String {
+        execute_transform_passes_on_source_with_dialect(
+            fixture.source,
+            fixture.dialect,
+            &[TransformPassKind::RuleMerging],
+        )
+        .output_css
+    }
+
+    fn diagnostic_plane_answers(
+        fixture: CascadeAgreementFixtureV0,
+    ) -> Result<Vec<Option<String>>, String> {
+        let candidates = summarize_omena_query_style_hover_candidates(fixture.path, fixture.source)
+            .ok_or_else(|| format!("{} has no hover candidate carrier", fixture.name))?;
+        let diagnostics = summarize_omena_query_style_diagnostics_for_file(
+            fixture.path,
+            fixture.source,
+            candidates.candidates.as_slice(),
+        );
+        let answers = diagnostics
+            .diagnostics
+            .iter()
+            .filter_map(|diagnostic| diagnostic.cascade_narrowing.as_ref())
+            .filter(|narrowing| narrowing.property_name == fixture.property)
+            .filter_map(|narrowing| narrowing.runtime_state.as_ref())
+            .flat_map(|runtime| runtime.scenarios.iter())
+            .map(|scenario| scenario.winner_value.clone())
+            .collect::<Vec<_>>();
+        if answers.is_empty() {
+            let observed = diagnostics
+                .diagnostics
+                .iter()
+                .map(|diagnostic| {
+                    (
+                        diagnostic.code,
+                        diagnostic
+                            .cascade_narrowing
+                            .as_ref()
+                            .map(|narrowing| narrowing.property_name.as_str()),
+                    )
+                })
+                .collect::<Vec<_>>();
+            return Err(format!(
+                "{} has no diagnostics-plane cascade answer: {observed:?}",
+                fixture.name,
+            ));
+        }
+        Ok(answers)
+    }
+
+    fn normalized_witness_value(
+        source: &str,
+        dialect: StyleDialect,
+        property: &str,
+        winner: &TransformWinnerEqualityWitnessV0,
+    ) -> Result<String, String> {
+        let CascadeValue::Literal(raw_value) = &winner.winner.value else {
+            return Err(format!("{property} has a non-literal winner"));
+        };
+        collect_parser_declaration_syntax_facts(source, dialect)
+            .into_iter()
+            .find(|fact| {
+                fact.property_name == property
+                    && source
+                        .get(fact.byte_span.start..fact.byte_span.end)
+                        .is_some_and(|declaration| declaration.contains(raw_value))
+            })
+            .map(|fact| fact.value_text)
+            .ok_or_else(|| {
+                format!(
+                    "parser facts cannot map authority winner {raw_value:?} for property {property}"
+                )
+            })
+    }
+
+    fn assert_reconciled_winner_agreement(
+        fixture: CascadeAgreementFixtureV0,
+        seeded_diagnostic_answer: Option<&str>,
+    ) -> Result<(), String> {
+        let emission = emitted_css(fixture);
+        let obligations = compare_transform_winner_equality_for_conformance_v0(
+            fixture.source,
+            emission.as_str(),
+            fixture.dialect,
+            TransformPassKind::RuleMerging,
+        );
+        let mut diagnostic_answers = diagnostic_plane_answers(fixture)?;
+        if let Some(seed) = seeded_diagnostic_answer {
+            diagnostic_answers = vec![Some(seed.to_string())];
+        }
+        let observation = obligations
+            .iter()
+            .find(|obligation| obligation.affected_pair.property == fixture.property)
+            .map(|obligation| &obligation.observation)
+            .ok_or_else(|| format!("{} has no emission-plane obligation", fixture.name))?;
+        if fixture.name == "guarded-winner-reconciliation"
+            && !matches!(
+                observation,
+                TransformWinnerEqualityObservationV0::ObservedGuardedEqual { .. }
+            )
+        {
+            return Err(format!(
+                "{} did not consume the guarded-plane reconciliation authority: {observation:?}",
+                fixture.name
+            ));
+        }
+        if fixture.name == "ranked-set-refusal"
+            && !matches!(
+                observation,
+                TransformWinnerEqualityObservationV0::Absent { .. }
+            )
+        {
+            return Err(format!(
+                "{} must preserve the typed refusal instead of claiming agreement: {observation:?}",
+                fixture.name
+            ));
+        }
+        match observation {
+            TransformWinnerEqualityObservationV0::ObservedEqual { input, output, .. }
+            | TransformWinnerEqualityObservationV0::ObservedGuardedEqual {
+                input, output, ..
+            } => {
+                let input_value = normalized_witness_value(
+                    fixture.source,
+                    fixture.dialect,
+                    fixture.property,
+                    input,
+                )?;
+                let output_value = normalized_witness_value(
+                    emission.as_str(),
+                    fixture.dialect,
+                    fixture.property,
+                    output,
+                )?;
+                if input_value != output_value {
+                    return Err(format!(
+                        "{} emission planes disagree: {input_value:?} != {output_value:?}",
+                        fixture.name
+                    ));
+                }
+                if !diagnostic_answers
+                    .iter()
+                    .flatten()
+                    .any(|answer| answer == &input_value)
+                {
+                    return Err(format!(
+                        "{} diagnostics answers {diagnostic_answers:?} disagree with parser-normalized authority winner {input_value:?}",
+                        fixture.name,
+                    ));
+                }
+            }
+            TransformWinnerEqualityObservationV0::Absent { .. } => {
+                if diagnostic_answers.iter().any(Option::is_some) {
+                    return Err(format!(
+                        "{} emission authority refused while diagnostics claimed {diagnostic_answers:?}",
+                        fixture.name
+                    ));
+                }
+            }
+            TransformWinnerEqualityObservationV0::ObservedDifferent { input, output, .. } => {
+                return Err(format!(
+                    "{} emission planes disagree: input={input:?} output={output:?}",
+                    fixture.name
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn cascade_input_authority_fixtures() -> [CascadeAgreementFixtureV0; 5] {
+        [
+            CascadeAgreementFixtureV0 {
+                name: "url-semicolon",
+                path: "url-semicolon.css",
+                source: include_str!(
+                    "../../omena-query/src/tests/fixtures/cascade-input-authority/url-semicolon.css"
+                ),
+                dialect: StyleDialect::Css,
+                property: "background-image",
+            },
+            CascadeAgreementFixtureV0 {
+                name: "url-brace",
+                path: "url-brace.css",
+                source: include_str!(
+                    "../../omena-query/src/tests/fixtures/cascade-input-authority/url-brace.css"
+                ),
+                dialect: StyleDialect::Css,
+                property: "background-image",
+            },
+            CascadeAgreementFixtureV0 {
+                name: "comment-adjacent",
+                path: "comment-adjacent.scss",
+                source: include_str!(
+                    "../../omena-query/src/tests/fixtures/cascade-input-authority/comment-adjacent.scss"
+                ),
+                dialect: StyleDialect::Scss,
+                property: "color",
+            },
+            CascadeAgreementFixtureV0 {
+                name: "guarded-winner-reconciliation",
+                path: "guarded-winner.css",
+                source: "@media (min-width: 1px) { .target { color: red; color: blue; } }",
+                dialect: StyleDialect::Css,
+                property: "color",
+            },
+            CascadeAgreementFixtureV0 {
+                name: "ranked-set-refusal",
+                path: "ranked-set-refusal.css",
+                source: ":is(:unknown(.target), .target) { color: red; color: blue; }",
+                dialect: StyleDialect::Css,
+                property: "color",
+            },
+        ]
+    }
+
+    #[test]
+    fn cascade_input_authority_corpus_reconciles_diagnostics_and_emission_winners()
+    -> Result<(), String> {
+        for fixture in cascade_input_authority_fixtures() {
+            let seed = (std::env::var_os("OMENA_DIFF_CASCADE_INPUT_INJECT_SCANNER_MIS_SPLIT")
+                .is_some()
+                && fixture.name == "url-semicolon")
+                .then_some("url(clean.png)");
+            assert_reconciled_winner_agreement(fixture, seed)?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn seeded_scanner_style_mis_split_is_rejected_by_winner_agreement() -> Result<(), String> {
+        let fixture = cascade_input_authority_fixtures()[0];
+        let Err(error) = assert_reconciled_winner_agreement(fixture, Some("url(clean.png)")) else {
+            return Err("dropping the important URL winner did not violate plane agreement".into());
+        };
+        if !error.contains("disagree with parser-normalized authority winner") {
+            return Err(format!("unexpected seeded disagreement: {error}"));
+        }
+        Ok(())
+    }
 
     #[test]
     fn shared_transform_corpus_has_no_observed_winner_flip() {

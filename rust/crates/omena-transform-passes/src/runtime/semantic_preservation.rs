@@ -4,7 +4,10 @@
 use omena_cascade::{
     run_cascade_conformance_seed_corpus, run_cascade_ordering_axis_self_check_corpus,
 };
-use omena_parser::{ClosedWorldBundleV0, ModuleQualifiedSymbolSetV0, StyleDialect};
+use omena_parser::{
+    ClosedWorldBundleV0, ModuleQualifiedSymbolSetV0, ParserDeclarationSyntaxFactV0, StyleDialect,
+    collect_parser_declaration_syntax_facts,
+};
 use omena_syntax::css_keyword;
 use omena_transform_cst::{
     IrBlockSpanV0, IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind,
@@ -478,6 +481,16 @@ impl<'a> SemanticObservationScopeV0<'a> {
             ignored_source_ranges: &[],
             dialect: self.dialect,
             force_ir_declarations: self.force_ir_declarations,
+        }
+    }
+
+    pub(crate) fn for_cst_declarations(dialect: StyleDialect) -> Self {
+        Self {
+            reachable_class_names: None,
+            reachable_keyframe_names: None,
+            ignored_source_ranges: &[],
+            dialect,
+            force_ir_declarations: true,
         }
     }
 }
@@ -1561,7 +1574,14 @@ fn semantic_declarations_from_direct_ir_children(
     node: &IrNodeV0,
     scope: SemanticObservationScopeV0<'_>,
 ) -> Vec<SemanticDeclarationV0> {
-    let mut declarations = semantic_declarations_from_direct_source_segments(ir, node, scope);
+    let syntax_facts = scope
+        .force_ir_declarations
+        .then(|| collect_parser_declaration_syntax_facts(ir.source_text(), scope.dialect));
+    let mut declarations = if scope.force_ir_declarations {
+        Vec::new()
+    } else {
+        semantic_declarations_from_direct_source_segments(ir, node, scope)
+    };
     declarations.extend(
         node.children
             .iter()
@@ -1570,7 +1590,9 @@ fn semantic_declarations_from_direct_ir_children(
             .filter(|child| {
                 !source_range_is_ignored(child.source_span_start, child.source_span_end, scope)
             })
-            .filter_map(|child| semantic_declaration_from_ir(ir, child)),
+            .filter_map(|child| {
+                semantic_declaration_from_ir_fact(ir, child, syntax_facts.as_deref())
+            }),
     );
     declarations.sort_by_key(|declaration| declaration.source_order);
     declarations.dedup_by(|left, right| {
@@ -1580,6 +1602,29 @@ fn semantic_declarations_from_direct_ir_children(
             && left.important == right.important
     });
     declarations
+}
+
+fn semantic_declaration_from_ir_fact(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+    syntax_facts: Option<&[ParserDeclarationSyntaxFactV0]>,
+) -> Option<SemanticDeclarationV0> {
+    if node.canonical_text.is_none()
+        && let Some(fact) = syntax_facts.and_then(|facts| {
+            facts.iter().find(|fact| {
+                fact.byte_span.start == node.source_span_start
+                    && fact.byte_span.end <= node.source_span_end
+            })
+        })
+    {
+        return Some(SemanticDeclarationV0 {
+            property: fact.property_name.clone(),
+            value: fact.value_text.clone(),
+            important: fact.important,
+            source_order: node.global_order,
+        });
+    }
+    semantic_declaration_from_ir(ir, node)
 }
 
 fn semantic_declarations_from_direct_source_segments(
