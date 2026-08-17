@@ -48,23 +48,35 @@ fn cold_open_query_corpus_2n() -> usize {
     measure_cold_open_query_corpus(2)
 }
 
-#[library_benchmark(setup = setup_memoized_recheck_query_corpus_n)]
-fn memoized_recheck_query_corpus_n(fixture: ManuallyDrop<RecheckFixture>) -> usize {
+#[library_benchmark(
+    config = query_only_callgrind_config(),
+    setup = setup_memoized_recheck_query_corpus_n
+)]
+fn memoized_recheck_query_corpus_n(fixture: RecheckFixture) -> usize {
     measure_memoized_recheck_query_corpus(fixture)
 }
 
-#[library_benchmark(setup = setup_memoized_recheck_query_corpus_2n)]
-fn memoized_recheck_query_corpus_2n(fixture: ManuallyDrop<RecheckFixture>) -> usize {
+#[library_benchmark(
+    config = query_only_callgrind_config(),
+    setup = setup_memoized_recheck_query_corpus_2n
+)]
+fn memoized_recheck_query_corpus_2n(fixture: RecheckFixture) -> usize {
     measure_memoized_recheck_query_corpus(fixture)
 }
 
-#[library_benchmark(setup = setup_committed_graph_edit_query_corpus_n)]
-fn committed_graph_edit_query_corpus_n(fixture: ManuallyDrop<RecheckFixture>) -> usize {
+#[library_benchmark(
+    config = query_only_callgrind_config(),
+    setup = setup_committed_graph_edit_query_corpus_n
+)]
+fn committed_graph_edit_query_corpus_n(fixture: RecheckFixture) -> usize {
     measure_committed_graph_edit_query_corpus(fixture)
 }
 
-#[library_benchmark(setup = setup_committed_graph_edit_query_corpus_2n)]
-fn committed_graph_edit_query_corpus_2n(fixture: ManuallyDrop<RecheckFixture>) -> usize {
+#[library_benchmark(
+    config = query_only_callgrind_config(),
+    setup = setup_committed_graph_edit_query_corpus_2n
+)]
+fn committed_graph_edit_query_corpus_2n(fixture: RecheckFixture) -> usize {
     measure_committed_graph_edit_query_corpus(fixture)
 }
 
@@ -99,7 +111,7 @@ fn transform_ir_lowering_4n(source: String) -> usize {
 }
 
 #[library_benchmark(
-    config = demand_query_callgrind_config(),
+    config = query_only_callgrind_config(),
     setup = setup_demand_monotone_fact_propagation_fixed_query_corpus_n
 )]
 fn demand_monotone_fact_propagation_fixed_query_corpus_n(
@@ -109,7 +121,7 @@ fn demand_monotone_fact_propagation_fixed_query_corpus_n(
 }
 
 #[library_benchmark(
-    config = demand_query_callgrind_config(),
+    config = query_only_callgrind_config(),
     setup = setup_demand_monotone_fact_propagation_fixed_query_corpus_2n
 )]
 fn demand_monotone_fact_propagation_fixed_query_corpus_2n(
@@ -119,7 +131,7 @@ fn demand_monotone_fact_propagation_fixed_query_corpus_2n(
 }
 
 #[library_benchmark(
-    config = demand_query_callgrind_config(),
+    config = query_only_callgrind_config(),
     setup = setup_demand_monotone_fact_propagation_fixed_query_corpus_4n
 )]
 fn demand_monotone_fact_propagation_fixed_query_corpus_4n(
@@ -129,7 +141,7 @@ fn demand_monotone_fact_propagation_fixed_query_corpus_4n(
 }
 
 #[library_benchmark(
-    config = demand_query_callgrind_config(),
+    config = query_only_callgrind_config(),
     setup = setup_demand_monotone_fact_propagation_fixed_query_corpus_8n
 )]
 fn demand_monotone_fact_propagation_fixed_query_corpus_8n(
@@ -138,7 +150,7 @@ fn demand_monotone_fact_propagation_fixed_query_corpus_8n(
     measure_demand_monotone_fact_propagation_fixed_query_corpus(&fixture)
 }
 
-fn demand_query_callgrind_config() -> LibraryBenchmarkConfig {
+fn query_only_callgrind_config() -> LibraryBenchmarkConfig {
     let mut config = LibraryBenchmarkConfig::default();
     config.tool(Callgrind::with_args(["--instr-atstart=no"]).entry_point(EntryPoint::None));
     config
@@ -229,19 +241,19 @@ fn linear_property_metadata_lookup(
         .find(|record| record.canonical_name == property)
 }
 
-fn setup_memoized_recheck_query_corpus_n() -> ManuallyDrop<RecheckFixture> {
+fn setup_memoized_recheck_query_corpus_n() -> RecheckFixture {
     setup_memoized_recheck_query_corpus(1)
 }
 
-fn setup_memoized_recheck_query_corpus_2n() -> ManuallyDrop<RecheckFixture> {
+fn setup_memoized_recheck_query_corpus_2n() -> RecheckFixture {
     setup_memoized_recheck_query_corpus(2)
 }
 
-fn setup_committed_graph_edit_query_corpus_n() -> ManuallyDrop<RecheckFixture> {
+fn setup_committed_graph_edit_query_corpus_n() -> RecheckFixture {
     setup_memoized_recheck_query_corpus(1)
 }
 
-fn setup_committed_graph_edit_query_corpus_2n() -> ManuallyDrop<RecheckFixture> {
+fn setup_committed_graph_edit_query_corpus_2n() -> RecheckFixture {
     setup_memoized_recheck_query_corpus(2)
 }
 
@@ -307,7 +319,7 @@ fn setup_demand_monotone_fact_propagation_fixed_query_corpus_8n() -> ManuallyDro
     ManuallyDrop::new(setup_demand_monotone_fact_propagation_fixed_query_corpus(8))
 }
 
-fn setup_memoized_recheck_query_corpus(repetitions: usize) -> ManuallyDrop<RecheckFixture> {
+fn setup_memoized_recheck_query_corpus(repetitions: usize) -> RecheckFixture {
     let corpus = query_corpus(repetitions);
     let target_path = corpus[0].style_path.clone();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
@@ -322,12 +334,12 @@ fn setup_memoized_recheck_query_corpus(repetitions: usize) -> ManuallyDrop<Reche
     );
     black_box(initial);
 
-    ManuallyDrop::new(RecheckFixture {
+    RecheckFixture {
         corpus,
         host,
         resolution_inputs,
         target_path,
-    })
+    }
 }
 
 fn setup_demand_monotone_fact_propagation_fixed_query_corpus(scale: usize) -> DemandFixture {
@@ -365,19 +377,19 @@ fn setup_demand_monotone_fact_propagation_fixed_query_corpus(scale: usize) -> De
     }
 }
 
-/// Measure the hot recheck while the setup-owned query cache remains alive.
-/// Dropping the host here would charge full cache/CST teardown to a product
-/// request that retains the workspace host for subsequent revisions.
-fn measure_memoized_recheck_query_corpus(mut fixture: ManuallyDrop<RecheckFixture>) -> usize {
+/// Measure only the hot product query while the setup-owned cache remains alive.
+/// Fixture teardown runs after the explicit Callgrind window has closed.
+fn measure_memoized_recheck_query_corpus(mut fixture: RecheckFixture) -> usize {
     let RecheckFixture {
         corpus,
         host,
         resolution_inputs,
         target_path,
-    } = &mut *fixture;
+    } = &mut fixture;
     corpus[0]
         .style_source
         .push_str("\n.perfGateProbe { color: currentColor; }\n");
+    callgrind::start_instrumentation();
     let diagnostics = host.workspace_style_diagnostics(
         target_path.as_str(),
         corpus.as_slice(),
@@ -386,6 +398,7 @@ fn measure_memoized_recheck_query_corpus(mut fixture: ManuallyDrop<RecheckFixtur
         &[],
         resolution_inputs,
     );
+    callgrind::stop_instrumentation();
     black_box(diagnostics);
     corpus.iter().map(|source| source.style_source.len()).sum()
 }
@@ -409,18 +422,20 @@ fn measure_demand_monotone_fact_propagation_fixed_query_corpus(fixture: &DemandF
     request_work
 }
 
-fn measure_committed_graph_edit_query_corpus(mut fixture: ManuallyDrop<RecheckFixture>) -> usize {
+fn measure_committed_graph_edit_query_corpus(mut fixture: RecheckFixture) -> usize {
     let RecheckFixture {
         corpus,
         host,
         resolution_inputs,
         target_path: _,
-    } = &mut *fixture;
+    } = &mut fixture;
     corpus[0]
         .style_source
         .push_str("\n.committedGraphProbe { color: currentColor; }\n");
+    callgrind::start_instrumentation();
     let selector =
         host.workspace_revision_selector(corpus.as_slice(), &[], &[], &[], resolution_inputs);
+    callgrind::stop_instrumentation();
     black_box(selector);
     corpus.iter().map(|source| source.style_source.len()).sum()
 }

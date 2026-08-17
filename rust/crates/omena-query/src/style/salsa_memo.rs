@@ -4614,6 +4614,48 @@ const cls = styles.root;"#
     }
 
     #[test]
+    fn parser_materialization_lives_with_the_memo_session_and_releases_with_it()
+    -> Result<(), &'static str> {
+        let corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/App.module.scss".to_string(),
+            style_source: ".card { color: red; }".to_string(),
+        }];
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(
+            corpus.as_slice(),
+            &[],
+            &[],
+            &[],
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        let file = workspace.files(&host.db)[0];
+        let weak_parser = {
+            let fact_entry = memo_style_fact_entry(&host.db, file);
+            fact_entry
+                .parser_materialization_weak()
+                .ok_or("memoized fact entry must retain its parser materialization")?
+        };
+
+        assert!(
+            weak_parser.upgrade().is_some(),
+            "the session cache must retain parser state after the caller clone is dropped",
+        );
+        let hot_fact_entry = memo_style_fact_entry(&host.db, file);
+        drop(hot_fact_entry);
+        assert!(
+            weak_parser.upgrade().is_some(),
+            "a hot lookup must leave the parser sidecar owned by the live session",
+        );
+
+        drop(host);
+        assert!(
+            weak_parser.upgrade().is_none(),
+            "dropping the memo host must release its parser sidecar",
+        );
+        Ok(())
+    }
+
+    #[test]
     fn revision_selector_recollects_cascade_declarations_for_only_the_edited_style_file()
     -> Result<(), &'static str> {
         let mut corpus = doubled_parallel_probe_corpus();

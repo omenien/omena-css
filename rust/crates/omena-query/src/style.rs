@@ -1468,6 +1468,14 @@ impl OmenaQueryStyleFactEntry {
             .as_ref()
             .map(|parsed| parsed.0.as_ref())
     }
+
+    #[cfg(all(test, feature = "salsa-memo"))]
+    fn parser_materialization_weak(&self) -> Option<std::sync::Weak<omena_parser::ParseResult>> {
+        self.parser_materialization
+            .0
+            .as_ref()
+            .map(|parsed| std::sync::Arc::downgrade(&parsed.0))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
