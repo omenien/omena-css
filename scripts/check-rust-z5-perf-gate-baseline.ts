@@ -97,6 +97,7 @@ interface Z5PerfGateBaselineV0 {
   readonly runner: {
     readonly command: readonly string[];
     readonly tool: "iai-callgrind";
+    readonly measurementBoundary: "explicit-product-query-window-v1";
     readonly measuredOperation:
       | "query-cold-open-and-memoized-recheck"
       | "query-cold-open-memoized-recheck-and-committed-graph-edit"
@@ -238,7 +239,7 @@ const queryFamilies: readonly PerfGateQueryFamilyV0[] = [
   },
 ];
 
-validateFixedQueryInstrumentationBoundary();
+validateQueryOnlyInstrumentationBoundary();
 validatePropertyMetadataLookupBoundary();
 validateTransformIrSlopeBoundary();
 
@@ -252,9 +253,13 @@ if (writeMode) {
   checkBaseline();
 }
 
-function validateFixedQueryInstrumentationBoundary() {
+function validateQueryOnlyInstrumentationBoundary() {
   const source = readFileSync(perfGateSpinePath, "utf8");
   const benchmarkFunctions = [
+    "memoized_recheck_query_corpus_n",
+    "memoized_recheck_query_corpus_2n",
+    "committed_graph_edit_query_corpus_n",
+    "committed_graph_edit_query_corpus_2n",
     "demand_monotone_fact_propagation_fixed_query_corpus_n",
     "demand_monotone_fact_propagation_fixed_query_corpus_2n",
     "demand_monotone_fact_propagation_fixed_query_corpus_4n",
@@ -269,13 +274,35 @@ function validateFixedQueryInstrumentationBoundary() {
     const attribute = source.slice(attributeOffset, functionOffset);
     assert.match(
       attribute,
-      /config\s*=\s*demand_query_callgrind_config\(\)/,
+      /config\s*=\s*query_only_callgrind_config\(\)/,
       `${functionName} must use the query-only Callgrind boundary`,
     );
   }
 
   assert.match(source, /--instr-atstart=no/);
   assert.match(source, /\.entry_point\(EntryPoint::None\)/);
+  assert.doesNotMatch(
+    source,
+    /ManuallyDrop<RecheckFixture>/,
+    "recheck fixture teardown must be excluded by the explicit query window, not leaked",
+  );
+
+  validateExplicitMeasurementWindow(
+    source,
+    "measure_memoized_recheck_query_corpus",
+    "measure_demand_monotone_fact_propagation_fixed_query_corpus",
+    ".perfGateProbe",
+    "fixture.host.workspace_style_diagnostics(",
+    "black_box(diagnostics)",
+  );
+  validateExplicitMeasurementWindow(
+    source,
+    "measure_committed_graph_edit_query_corpus",
+    "measure_transform_ir_mutation_density",
+    ".committedGraphProbe",
+    "fixture.host.workspace_revision_selector(",
+    "black_box(selector)",
+  );
 
   const measurementStart = source.indexOf(
     "fn measure_demand_monotone_fact_propagation_fixed_query_corpus(",
@@ -291,6 +318,33 @@ function validateFixedQueryInstrumentationBoundary() {
   assert.ok(
     startOffset >= 0 && startOffset < queryOffset && queryOffset < stopOffset,
     "fixed-query Callgrind instrumentation must wrap only the public demand query",
+  );
+}
+
+function validateExplicitMeasurementWindow(
+  source: string,
+  functionName: string,
+  nextFunctionName: string,
+  setupNeedle: string,
+  productQueryNeedle: string,
+  observationNeedle: string,
+): void {
+  const start = source.indexOf(`fn ${functionName}(`);
+  const end = source.indexOf(`fn ${nextFunctionName}(`, start);
+  assert.ok(start >= 0 && end > start, `missing measurement body for ${functionName}`);
+  const measurement = source.slice(start, end);
+  const setupOffset = measurement.indexOf(setupNeedle);
+  const instrumentationStart = measurement.indexOf("callgrind::start_instrumentation();");
+  const queryOffset = measurement.indexOf(productQueryNeedle);
+  const instrumentationStop = measurement.indexOf("callgrind::stop_instrumentation();");
+  const observationOffset = measurement.indexOf(observationNeedle);
+  assert.ok(
+    setupOffset >= 0 &&
+      setupOffset < instrumentationStart &&
+      instrumentationStart < queryOffset &&
+      queryOffset < instrumentationStop &&
+      instrumentationStop < observationOffset,
+    `${functionName} must exclude input mutation, observation, and fixture teardown from the product-query Callgrind window`,
   );
 }
 
@@ -367,6 +421,7 @@ function writeBaseline() {
     runner: {
       command: benchCommand,
       tool: "iai-callgrind",
+      measurementBoundary: "explicit-product-query-window-v1",
       measuredOperation: "query-and-transform-runtime-substrate",
     },
     results,
@@ -651,6 +706,7 @@ function validateBaseline(baseline: Z5PerfGateBaselineV0) {
   assert.equal(baseline.product, "omena-benchmarks.z5-perf-gate-baseline");
   assert.equal(baseline.benchmarkFamily, "z5-performance-baseline");
   assert.equal(baseline.runner.tool, "iai-callgrind");
+  assert.equal(baseline.runner.measurementBoundary, "explicit-product-query-window-v1");
   assert.ok(baseline.toolchain.cargoLockSha256.length > 0);
   assert.ok(baseline.toolchain.rustcCommitHash.length > 0);
   assert.ok(baseline.toolchain.lightningcssVersion.length > 0);
