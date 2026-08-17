@@ -204,3 +204,19 @@ fn declaration_syntax_facts_normalize_comment_trivia_from_property_and_value_tex
     assert_eq!(facts[0].property_name, "color");
     assert_eq!(facts[0].value_text, "red");
 }
+
+#[test]
+fn declaration_only_projection_matches_the_full_product_index() {
+    let source = r#"
+@media (min-width: 40rem) {
+  @layer theme {
+    .card, .panel { &:hover { color /* property */ : red !important; } }
+  }
+}
+"#;
+    let parsed = parse(source, StyleDialect::Scss);
+    let full = ProductSyntaxIndexV0::new(source, &parsed);
+    let declarations = ProductSyntaxIndexV0::declarations_from_parse(source, &parsed);
+
+    assert_eq!(declarations.as_slice(), full.declarations());
+}

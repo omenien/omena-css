@@ -52,6 +52,27 @@ mod style_fact_entry_probe {
     }
 }
 
+#[cfg(test)]
+mod memo_style_cascade_projection_probe {
+    use std::cell::Cell;
+
+    thread_local! {
+        static RUN_COUNT: Cell<u64> = const { Cell::new(0) };
+    }
+
+    pub(super) fn record() {
+        RUN_COUNT.with(|count| count.set(count.get().saturating_add(1)));
+    }
+
+    pub(super) fn reset() {
+        RUN_COUNT.with(|count| count.set(0));
+    }
+
+    pub(super) fn count() -> u64 {
+        RUN_COUNT.with(Cell::get)
+    }
+}
+
 #[cfg(any(test, feature = "test-support"))]
 mod module_interface_projection_probe {
     use std::cell::RefCell;
@@ -1215,11 +1236,14 @@ fn memo_workspace_diagnostics_substrate(
 }
 
 #[salsa::tracked(returns(ref))]
-fn memo_style_authority_entry(
+fn memo_style_parse(
     db: &dyn salsa::Database,
     file: OmenaQueryStyleFileInputV0,
-) -> OmenaQueryStyleAuthorityEntry {
-    collect_omena_query_style_authority_entry(file.style_path(db), file.style_source(db))
+) -> omena_parser::ParseResult {
+    parse_omena_query_omena_parser_style_source(
+        file.style_source(db),
+        omena_parser_dialect_for_style_path(file.style_path(db)),
+    )
 }
 
 #[salsa::tracked(returns(clone))]
@@ -1229,7 +1253,21 @@ fn memo_style_fact_entry(
 ) -> OmenaQueryStyleFactEntry {
     #[cfg(any(test, feature = "test-support"))]
     style_fact_entry_probe::record(file.style_path(db));
-    memo_style_authority_entry(db, file).fact_entry.clone()
+    let style_path = file.style_path(db);
+    let style_source = file.style_source(db);
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let (raw_facts, icss_export_values) =
+        collect_omena_query_style_facts_with_icss_values_from_parse(
+            style_source,
+            memo_style_parse(db, file),
+        );
+    collect_omena_query_style_fact_entry_from_raw(
+        style_path,
+        style_source,
+        dialect,
+        raw_facts,
+        icss_export_values,
+    )
 }
 
 #[salsa::tracked(returns(clone))]
@@ -1237,9 +1275,17 @@ fn memo_style_cascade_declarations(
     db: &dyn salsa::Database,
     file: OmenaQueryStyleFileInputV0,
 ) -> Vec<cascade_checker::QueryCheckerCascadeDeclaration> {
-    memo_style_authority_entry(db, file)
-        .cascade_declarations
-        .clone()
+    #[cfg(test)]
+    memo_style_cascade_projection_probe::record();
+    let (syntax_facts, context_index) =
+        omena_semantic::collect_parser_declaration_syntax_and_style_context_from_parse(
+            file.style_source(db),
+            memo_style_parse(db, file),
+        );
+    cascade_checker::collect_query_checker_cascade_declarations_from_syntax_and_context(
+        syntax_facts,
+        &context_index,
+    )
 }
 
 #[salsa::tracked(returns(clone))]
@@ -4474,6 +4520,7 @@ const cls = styles.root;"#
         let mut host = OmenaQueryStyleMemoHostV0::new();
 
         reset_committed_style_semantic_graph_compute_count_for_test();
+        memo_style_cascade_projection_probe::reset();
         let first = host.workspace_style_diagnostics(
             "/workspace/src/App.module.scss",
             corpus.as_slice(),
@@ -4500,6 +4547,11 @@ const cls = styles.root;"#
             read_committed_style_semantic_graph_compute_count_for_test(),
             0,
             "diagnostics-only hot path must use the tracked diagnostics substrate, not the full committed graph",
+        );
+        assert_eq!(
+            memo_style_cascade_projection_probe::count(),
+            0,
+            "diagnostics-only hot path must not invoke the tracked cascade projection",
         );
         Ok(())
     }

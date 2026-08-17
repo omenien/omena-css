@@ -231,9 +231,9 @@ const namedTokenCaseOperationRules: readonly NamedTokenCaseOperationRule[] = [
   },
   {
     path: "rust/crates/omena-parser/src/public_product/syntax_index.rs",
-    function: "declaration_syntax",
+    function: "declaration_syntax_with_context",
     operation: "to_ascii_lowercase",
-    evidence: ".to_ascii_lowercase();",
+    evidence: "property_name = property_name.trim().to_ascii_lowercase();",
     reason: "The product syntax index stores a canonical lowercase property identity.",
   },
 ] as const;

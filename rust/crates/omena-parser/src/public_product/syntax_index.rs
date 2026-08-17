@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use cstree::syntax::SyntaxNode;
 use omena_syntax::{SyntaxKind, css_keyword};
 
@@ -27,6 +29,12 @@ pub struct ParserDeclarationSyntaxFactV0 {
     pub source_order: usize,
 }
 
+#[derive(Default)]
+struct DeclarationContextCache {
+    selector_contexts: HashMap<(usize, usize), Option<ParserDeclarationSelectorContextV0>>,
+    condition_contexts: HashMap<(usize, usize), Option<String>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CssModuleValueSyntaxV0 {
     span: ParserByteSpanV0,
@@ -46,6 +54,7 @@ impl ProductSyntaxIndexV0 {
     pub fn new(source: &str, parsed: &ParseResult) -> Self {
         let mut index = Self::default();
         let mut declaration_source_order = 0usize;
+        let mut declaration_context_cache = DeclarationContextCache::default();
         for node in parsed.syntax().descendants() {
             match node.kind() {
                 SyntaxKind::CssModuleExportBlock | SyntaxKind::CssModuleImportBlock => {
@@ -61,9 +70,12 @@ impl ProductSyntaxIndexV0 {
                     index.keyframes_rules.push(node_span(node));
                 }
                 SyntaxKind::Declaration | SyntaxKind::CustomPropertyDeclaration => {
-                    if let Some(declaration) =
-                        declaration_syntax(source, node, declaration_source_order)
-                    {
+                    if let Some(declaration) = declaration_syntax(
+                        source,
+                        node,
+                        declaration_source_order,
+                        &mut declaration_context_cache,
+                    ) {
                         index.declarations.push(declaration);
                         declaration_source_order = declaration_source_order.saturating_add(1);
                     }
@@ -81,6 +93,24 @@ impl ProductSyntaxIndexV0 {
 
     pub fn declarations(&self) -> &[ParserDeclarationSyntaxFactV0] {
         self.declarations.as_slice()
+    }
+
+    /// Project declarations from an existing parse without building the
+    /// unrelated product-index families.
+    pub fn declarations_from_parse(
+        source: &str,
+        parsed: &ParseResult,
+    ) -> Vec<ParserDeclarationSyntaxFactV0> {
+        let mut declarations = Vec::new();
+        let root = parsed.syntax();
+        collect_declarations_from_subtree(
+            source,
+            &root,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            &mut declarations,
+        );
+        declarations
     }
 
     /// Consume the index and return its declaration projection without
@@ -164,7 +194,7 @@ pub fn collect_parser_declaration_syntax_facts(
     dialect: StyleDialect,
 ) -> Vec<ParserDeclarationSyntaxFactV0> {
     let parsed = parse(source, dialect);
-    ProductSyntaxIndexV0::new(source, &parsed).declarations
+    ProductSyntaxIndexV0::declarations_from_parse(source, &parsed)
 }
 
 fn parameter_list_span(node: &SyntaxNode<SyntaxKind>) -> Option<ParserByteSpanV0> {
@@ -200,78 +230,241 @@ fn declaration_syntax(
     source: &str,
     node: &SyntaxNode<SyntaxKind>,
     source_order: usize,
+    context_cache: &mut DeclarationContextCache,
 ) -> Option<ParserDeclarationSyntaxFactV0> {
-    let mut declaration_span = node_span(node);
-    if let Some(semicolon_start) = node
-        .descendants_with_tokens()
-        .filter_map(|element| element.into_token())
-        .filter(|token| token.kind() == SyntaxKind::Semicolon)
-        .map(|token| byte_span(token.text_range()).start)
-        .last()
-    {
-        declaration_span.end = declaration_span.end.min(semicolon_start);
-    }
-    let colon = node
-        .descendants_with_tokens()
-        .filter_map(|element| element.into_token())
-        .find(|token| token.kind() == SyntaxKind::Colon)
-        .map(|token| byte_span(token.text_range()))?;
-    let mut value_span = value_span_after_colon(node)?;
-    let important_span = node
-        .descendants()
-        .find(|child| child.kind() == SyntaxKind::ImportantAnnotation)
-        .map(node_span);
-    if let Some(important_span) = important_span {
-        value_span.end = value_span.end.min(important_span.start);
-    }
-    let property_name = normalized_declaration_text(
+    let (selector_contexts, condition_contexts) = declaration_contexts(source, node, context_cache);
+    declaration_syntax_with_context(
         source,
         node,
-        ParserByteSpanV0 {
-            start: declaration_span.start,
-            end: colon.start,
-        },
+        source_order,
+        selector_contexts,
+        condition_contexts,
     )
-    .to_ascii_lowercase();
-    let value_text = normalized_declaration_text(source, node, value_span);
+}
+
+fn declaration_syntax_with_context(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+    source_order: usize,
+    selector_contexts: Vec<ParserDeclarationSelectorContextV0>,
+    condition_contexts: Vec<String>,
+) -> Option<ParserDeclarationSyntaxFactV0> {
+    let mut declaration_span = node_span(node);
+    let declaration_end = declaration_span.end;
+    let mut colon = None;
+    let mut value_end = None;
+    let mut important_start = None;
+    let mut property_name = String::new();
+    let mut value_text = String::new();
+    for token in node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+    {
+        let token_span = byte_span(token.text_range());
+        if token.parent().kind() == SyntaxKind::ImportantAnnotation {
+            important_start.get_or_insert(token_span.start);
+        }
+        if colon.is_none() && token.kind() == SyntaxKind::Colon {
+            colon = Some(token_span);
+            continue;
+        }
+        if colon.is_some()
+            && value_end.is_none()
+            && matches!(
+                token.kind(),
+                SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon
+            )
+        {
+            value_end = Some(token_span.start);
+        }
+        if token.kind() == SyntaxKind::Semicolon {
+            declaration_span.end = declaration_span.end.min(token_span.start);
+        }
+
+        let target = if colon.is_none() {
+            Some(&mut property_name)
+        } else if value_end.is_none() && important_start.is_none() {
+            Some(&mut value_text)
+        } else {
+            None
+        };
+        if let Some(target) = target {
+            append_normalized_declaration_token(source, token.kind(), token_span, target);
+        }
+    }
+    let colon = colon?;
+    let value_span = ParserByteSpanV0 {
+        start: colon.end,
+        end: value_end
+            .unwrap_or(declaration_end)
+            .min(important_start.unwrap_or(usize::MAX)),
+    };
+    property_name = property_name.trim().to_ascii_lowercase();
+    let value_text = value_text.trim().to_string();
     (!property_name.is_empty()).then_some(ParserDeclarationSyntaxFactV0 {
         byte_span: declaration_span,
         property_name,
         value_span,
         value_text,
-        important: important_span.is_some(),
-        selector_contexts: declaration_selector_contexts(source, node),
-        condition_contexts: declaration_condition_contexts(source, node),
+        important: important_start.is_some(),
+        selector_contexts,
+        condition_contexts,
         source_order,
     })
 }
 
-fn declaration_selector_contexts(
+fn collect_declarations_from_subtree(
     source: &str,
     node: &SyntaxNode<SyntaxKind>,
-) -> Vec<ParserDeclarationSelectorContextV0> {
+    selector_contexts: &mut Vec<ParserDeclarationSelectorContextV0>,
+    condition_contexts: &mut Vec<String>,
+    declarations: &mut Vec<ParserDeclarationSyntaxFactV0>,
+) {
+    if matches!(
+        node.kind(),
+        SyntaxKind::Declaration | SyntaxKind::CustomPropertyDeclaration
+    ) {
+        if let Some(declaration) = declaration_syntax_with_context(
+            source,
+            node,
+            declarations.len(),
+            selector_contexts.clone(),
+            condition_contexts.clone(),
+        ) {
+            declarations.push(declaration);
+        }
+        return;
+    }
+
+    let selector_pushed = selector_context_for_node(source, node).is_some_and(|context| {
+        selector_contexts.push(context);
+        true
+    });
+    let condition_context = condition_context_for_node(source, node);
+    let condition_pushed = condition_context
+        .filter(|context| condition_contexts.last() != Some(context))
+        .is_some_and(|context| {
+            condition_contexts.push(context);
+            true
+        });
+
+    for child in node.children() {
+        collect_declarations_from_subtree(
+            source,
+            child,
+            selector_contexts,
+            condition_contexts,
+            declarations,
+        );
+    }
+
+    if condition_pushed {
+        condition_contexts.pop();
+    }
+    if selector_pushed {
+        selector_contexts.pop();
+    }
+}
+
+fn selector_context_for_node(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+) -> Option<ParserDeclarationSelectorContextV0> {
+    let (reset_to_root, selector_members) = match node.kind() {
+        SyntaxKind::Rule | SyntaxKind::NestRule => (false, selector_members_for_rule(source, node)),
+        SyntaxKind::ScssAtRootRule => (true, at_root_selector_members(source, node)),
+        _ => return None,
+    };
+    (!selector_members.is_empty()).then_some(ParserDeclarationSelectorContextV0 {
+        reset_to_root,
+        selector_members,
+    })
+}
+
+fn condition_context_for_node(source: &str, node: &SyntaxNode<SyntaxKind>) -> Option<String> {
+    if !is_at_rule_node_kind(node.kind())
+        || matches!(
+            node.kind(),
+            SyntaxKind::LayerRule | SyntaxKind::ScssAtRootRule | SyntaxKind::NestRule
+        )
+    {
+        return None;
+    }
+    block_header_text(source, node)
+        .map(|header| header.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|header| !is_non_condition_wrapper_header(header))
+        .filter(|header| !header.is_empty())
+}
+
+fn declaration_contexts(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+    cache: &mut DeclarationContextCache,
+) -> (Vec<ParserDeclarationSelectorContextV0>, Vec<String>) {
     let mut ancestors = node.ancestors().skip(1).collect::<Vec<_>>();
     ancestors.reverse();
-    ancestors
-        .into_iter()
-        .filter_map(|ancestor| match ancestor.kind() {
-            SyntaxKind::Rule | SyntaxKind::NestRule => {
-                let selector_members = selector_members_for_rule(source, ancestor);
-                (!selector_members.is_empty()).then_some(ParserDeclarationSelectorContextV0 {
-                    reset_to_root: false,
-                    selector_members,
+    let mut selector_contexts = Vec::new();
+    let mut condition_contexts = Vec::new();
+    for ancestor in ancestors {
+        let span = node_span(ancestor);
+        let key = (span.start, span.end);
+        if matches!(
+            ancestor.kind(),
+            SyntaxKind::Rule | SyntaxKind::NestRule | SyntaxKind::ScssAtRootRule
+        ) {
+            let context = cache
+                .selector_contexts
+                .entry(key)
+                .or_insert_with(|| match ancestor.kind() {
+                    SyntaxKind::Rule | SyntaxKind::NestRule => {
+                        let selector_members = selector_members_for_rule(source, ancestor);
+                        (!selector_members.is_empty()).then_some(
+                            ParserDeclarationSelectorContextV0 {
+                                reset_to_root: false,
+                                selector_members,
+                            },
+                        )
+                    }
+                    SyntaxKind::ScssAtRootRule => {
+                        let selector_members = at_root_selector_members(source, ancestor);
+                        (!selector_members.is_empty()).then_some(
+                            ParserDeclarationSelectorContextV0 {
+                                reset_to_root: true,
+                                selector_members,
+                            },
+                        )
+                    }
+                    _ => None,
                 })
+                .clone();
+            if let Some(context) = context {
+                selector_contexts.push(context);
             }
-            SyntaxKind::ScssAtRootRule => {
-                let selector_members = at_root_selector_members(source, ancestor);
-                (!selector_members.is_empty()).then_some(ParserDeclarationSelectorContextV0 {
-                    reset_to_root: true,
-                    selector_members,
+        }
+        if is_at_rule_node_kind(ancestor.kind())
+            && !matches!(
+                ancestor.kind(),
+                SyntaxKind::LayerRule | SyntaxKind::ScssAtRootRule | SyntaxKind::NestRule
+            )
+        {
+            let context = cache
+                .condition_contexts
+                .entry(key)
+                .or_insert_with(|| {
+                    block_header_text(source, ancestor)
+                        .map(|header| header.split_whitespace().collect::<Vec<_>>().join(" "))
+                        .filter(|header| !is_non_condition_wrapper_header(header))
+                        .filter(|header| !header.is_empty())
                 })
+                .clone();
+            if let Some(context) = context
+                && condition_contexts.last() != Some(&context)
+            {
+                condition_contexts.push(context);
             }
-            _ => None,
-        })
-        .collect()
+        }
+    }
+    (selector_contexts, condition_contexts)
 }
 
 fn selector_members_for_rule(source: &str, node: &SyntaxNode<SyntaxKind>) -> Vec<String> {
@@ -319,31 +512,6 @@ fn at_root_selector_members(source: &str, node: &SyntaxNode<SyntaxKind>) -> Vec<
     }
 }
 
-fn declaration_condition_contexts(source: &str, node: &SyntaxNode<SyntaxKind>) -> Vec<String> {
-    let mut ancestors = node.ancestors().skip(1).collect::<Vec<_>>();
-    ancestors.reverse();
-    let mut contexts = Vec::new();
-    for context in ancestors
-        .into_iter()
-        .filter(|ancestor| {
-            is_at_rule_node_kind(ancestor.kind())
-                && !matches!(
-                    ancestor.kind(),
-                    SyntaxKind::LayerRule | SyntaxKind::ScssAtRootRule | SyntaxKind::NestRule
-                )
-        })
-        .filter_map(|ancestor| block_header_text(source, ancestor))
-        .map(|header| header.split_whitespace().collect::<Vec<_>>().join(" "))
-        .filter(|header| !is_non_condition_wrapper_header(header))
-        .filter(|header| !header.is_empty())
-    {
-        if contexts.last() != Some(&context) {
-            contexts.push(context);
-        }
-    }
-    contexts
-}
-
 fn is_non_condition_wrapper_header(header: &str) -> bool {
     ["@layer", "@at-root", "@nest"]
         .into_iter()
@@ -357,32 +525,22 @@ fn at_rule_header_has_keyword(header: &str, keyword: &str) -> bool {
     rest.is_empty() || rest.chars().next().is_some_and(char::is_whitespace)
 }
 
-fn normalized_declaration_text(
+fn append_normalized_declaration_token(
     source: &str,
-    node: &SyntaxNode<SyntaxKind>,
+    kind: SyntaxKind,
     span: ParserByteSpanV0,
-) -> String {
-    let mut text = String::new();
-    for token in node
-        .descendants_with_tokens()
-        .filter_map(|element| element.into_token())
-    {
-        let token_span = byte_span(token.text_range());
-        if token_span.start < span.start || token_span.end > span.end {
-            continue;
+    target: &mut String,
+) {
+    if matches!(
+        kind,
+        SyntaxKind::BlockComment | SyntaxKind::LineComment | SyntaxKind::ScssSilentComment
+    ) {
+        if !target.ends_with(char::is_whitespace) {
+            target.push(' ');
         }
-        if matches!(
-            token.kind(),
-            SyntaxKind::BlockComment | SyntaxKind::LineComment | SyntaxKind::ScssSilentComment
-        ) {
-            if !text.ends_with(char::is_whitespace) {
-                text.push(' ');
-            }
-        } else if let Some(token_text) = source.get(token_span.start..token_span.end) {
-            text.push_str(token_text);
-        }
+    } else if let Some(token_text) = source.get(span.start..span.end) {
+        target.push_str(token_text);
     }
-    text.trim().to_string()
 }
 
 fn block_header_text<'a>(source: &'a str, node: &SyntaxNode<SyntaxKind>) -> Option<&'a str> {

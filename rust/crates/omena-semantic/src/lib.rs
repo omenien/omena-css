@@ -492,7 +492,7 @@ pub fn collect_parser_declaration_syntax_and_style_context_from_parse(
     source: &str,
     parsed: &ParseResult,
 ) -> (Vec<ParserDeclarationSyntaxFactV0>, StyleContextIndexV0) {
-    let declarations = ProductSyntaxIndexV0::new(source, parsed).into_declarations();
+    let declarations = ProductSyntaxIndexV0::declarations_from_parse(source, parsed);
     let cst = parsed.cst();
     let context_index = summarize_style_context_index(source, &cst);
     (declarations, context_index)
@@ -635,12 +635,7 @@ fn summarize_omena_parser_semantic_facts(
 }
 
 fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextIndexV0 {
-    let keywords = css_keyword(source);
-    if !source.as_bytes().contains(&b'\\')
-        && !keywords.contains("@layer")
-        && !keywords.contains("@container")
-        && !keywords.contains("@scope")
-    {
+    if !source_may_have_style_context(source) {
         return empty_style_context_index();
     }
     let layer_statements = layer_statement_facts_from_cst(source, cst);
@@ -741,6 +736,18 @@ fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextI
             "selectorContextMembership",
         ],
     }
+}
+
+fn source_may_have_style_context(source: &str) -> bool {
+    if source.as_bytes().contains(&b'\\') {
+        return true;
+    }
+    source.match_indices('@').any(|(offset, _)| {
+        let suffix = &source[offset..];
+        ["@layer", "@container", "@scope"]
+            .into_iter()
+            .any(|keyword| css_keyword(suffix).strip_prefix(keyword).is_some())
+    })
 }
 
 fn empty_style_context_index() -> StyleContextIndexV0 {
