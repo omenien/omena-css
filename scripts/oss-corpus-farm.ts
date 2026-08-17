@@ -115,6 +115,8 @@ interface RankedSetLossCensusArtifactV0 {
   readonly rankedSetOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
   readonly layerSyntaxFileCount: number;
+  readonly importantSyntaxFileCount: number;
+  readonly scopeSyntaxFileCount: number;
   readonly rowCount: number;
   readonly recoverableCount: number;
   readonly undecidableCount: number;
@@ -122,6 +124,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly functionPopulations: Readonly<Record<string, number>>;
   readonly invocationSitePopulations: Readonly<Record<string, number>>;
   readonly decidingAxisCounts: Readonly<Record<string, number>>;
+  readonly observedCascadeLevelCounts: Readonly<Record<string, number>>;
   readonly unclassifiedInvocationCount: number;
   readonly entries: readonly {
     readonly id: string;
@@ -133,6 +136,19 @@ interface RankedSetLossCensusArtifactV0 {
     readonly rows: readonly CascadeRankedSetLossCaptureRowV0[];
   }[];
 }
+
+const cascadeLevelVocabulary = [
+  "userAgentNormal",
+  "userNormal",
+  "authorNormal",
+  "inlineNormal",
+  "animation",
+  "authorImportant",
+  "inlineImportant",
+  "userImportant",
+  "userAgentImportant",
+  "transition",
+] as const;
 
 interface OssCorpusFarmSelectionCriteriaV0 {
   readonly minimumDialectCount: number;
@@ -661,13 +677,21 @@ function buildRankedSetLossCensus(
   const multiCandidateInexactRankedSetCount = sum(
     entries.map((entry) => entry.multiCandidateInexactRankedSetCount),
   );
-  const layerSyntaxFileCount = manifest.fixtures
+  const localStyleFiles = manifest.fixtures
     .filter(isLocalLintCensusEntry)
     .flatMap((entry) =>
       listWorkspaceCorpusFiles(path.resolve(repoRoot, entry.source.workspacePath)),
     )
-    .filter((filePath) => /\.(?:css|scss|sass|less)$/u.test(filePath))
-    .filter((filePath) => /@layer\b/u.test(readFileSync(filePath, "utf8"))).length;
+    .filter((filePath) => /\.(?:css|scss|sass|less)$/u.test(filePath));
+  const layerSyntaxFileCount = localStyleFiles.filter((filePath) =>
+    /@layer\b/u.test(readFileSync(filePath, "utf8")),
+  ).length;
+  const importantSyntaxFileCount = localStyleFiles.filter((filePath) =>
+    /!important\b/iu.test(readFileSync(filePath, "utf8")),
+  ).length;
+  const scopeSyntaxFileCount = localStyleFiles.filter((filePath) =>
+    /@scope\b/u.test(readFileSync(filePath, "utf8")),
+  ).length;
   const classCounts = initializedCounts([
     "recoverableAxisDominant",
     "axisWinnerInexact",
@@ -687,6 +711,7 @@ function buildRankedSetLossCensus(
   assert.equal(cascadeKeyAxisOrder.schemaVersion, "0");
   assert.equal(cascadeKeyAxisOrder.product, "omena-cascade.key-axis-order");
   const decidingAxisCounts = initializedCounts(cascadeKeyAxisOrder.rankedSetPrefixAxisVocabulary);
+  const observedCascadeLevelCounts = initializedCounts(cascadeLevelVocabulary);
   for (const row of rows) {
     classCounts[classificationName(row.classification)] += 1;
     functionPopulations[row.function] = (functionPopulations[row.function] ?? 0) + 1;
@@ -699,6 +724,9 @@ function buildRankedSetLossCensus(
         `ranked-set loss row uses an axis outside the emitted prefix vocabulary: ${decidingAxis}`,
       );
       decidingAxisCounts[decidingAxis] += 1;
+    }
+    for (const candidate of row.candidates) {
+      observedCascadeLevelCounts[candidate.level] += 1;
     }
   }
   const recoverableCount = classCounts.recoverableAxisDominant;
@@ -738,6 +766,14 @@ function buildRankedSetLossCensus(
   if (layerSyntaxFileCount === 0) {
     limitations.push("The bounded style corpus contains no @layer declaration or statement.");
   }
+  if (
+    scopeSyntaxFileCount > 0 &&
+    rows.every((row) => row.candidates.every((candidate) => candidate.scopeProximity === 0))
+  ) {
+    limitations.push(
+      "The bounded style corpus contains @scope syntax, but the current query capture projects every candidate at scopeProximity 0; no recovery judgment is made for that compatibility axis.",
+    );
+  }
 
   return {
     schemaVersion: "0",
@@ -751,6 +787,8 @@ function buildRankedSetLossCensus(
     rankedSetOutcomeCount,
     multiCandidateInexactRankedSetCount,
     layerSyntaxFileCount,
+    importantSyntaxFileCount,
+    scopeSyntaxFileCount,
     rowCount: rows.length,
     recoverableCount,
     undecidableCount,
@@ -758,6 +796,7 @@ function buildRankedSetLossCensus(
     functionPopulations,
     invocationSitePopulations,
     decidingAxisCounts,
+    observedCascadeLevelCounts,
     unclassifiedInvocationCount,
     entries,
   };
@@ -800,7 +839,13 @@ function runRealWorkspaceLintCensusEntry(
     );
     if (capturePath && onRankedSetLossCapture) {
       assert.ok(existsSync(capturePath), `${id} ranked-set loss capture must be written`);
-      onRankedSetLossCapture(id, readJson<CascadeRankedSetLossCaptureV0>(capturePath));
+      onRankedSetLossCapture(
+        id,
+        normalizeRankedSetLossCapture(
+          workspaceRoot,
+          readJson<CascadeRankedSetLossCaptureV0>(capturePath),
+        ),
+      );
     }
   } finally {
     if (captureRoot) rmSync(captureRoot, { recursive: true, force: true });
@@ -926,6 +971,33 @@ function runRealWorkspaceLintCensusEntry(
         left.localeCompare(right, "en"),
       ),
     ),
+  };
+}
+
+function normalizeRankedSetLossCapture(
+  workspaceRoot: string,
+  capture: CascadeRankedSetLossCaptureV0,
+): CascadeRankedSetLossCaptureV0 {
+  const absoluteInlineStylePrefix = `inline-style:${workspaceRoot}${path.sep}`;
+  const repositoryWorkspacePath = path.relative(repoRoot, workspaceRoot).split(path.sep).join("/");
+  const normalizeDeclarationId = (declarationId: string): string => {
+    if (!declarationId.startsWith(absoluteInlineStylePrefix)) return declarationId;
+    const workspaceRelativeSuffix = declarationId
+      .slice(absoluteInlineStylePrefix.length)
+      .split(path.sep)
+      .join("/");
+    return `inline-style:${repositoryWorkspacePath}/${workspaceRelativeSuffix}`;
+  };
+  return {
+    ...capture,
+    rows: capture.rows.map((row) => ({
+      ...row,
+      declarationIds: row.declarationIds.map(normalizeDeclarationId),
+      candidates: row.candidates.map((candidate) => ({
+        ...candidate,
+        declarationId: normalizeDeclarationId(candidate.declarationId),
+      })),
+    })),
   };
 }
 

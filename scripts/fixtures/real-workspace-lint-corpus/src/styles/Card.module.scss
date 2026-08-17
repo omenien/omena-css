@@ -16,3 +16,27 @@
   display: flex;
   gap: 0;
 }
+
+@layer fixture-base, fixture-theme;
+
+@layer fixture-base {
+  :unknown(.card) {
+    outline-color: #475569;
+    outline-color: #64748b;
+    border-color: #94a3b8 !important;
+  }
+}
+
+@layer fixture-theme {
+  .card {
+    outline-color: #0f766e;
+    border-color: #14b8a6;
+    border-color: #0d9488;
+  }
+}
+
+@scope (.card) {
+  .title {
+    text-decoration-color: #115e59;
+  }
+}

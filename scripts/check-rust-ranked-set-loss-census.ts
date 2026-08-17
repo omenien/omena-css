@@ -104,6 +104,8 @@ interface RankedSetLossCensusArtifactV0 {
   readonly rankedSetOutcomeCount: number;
   readonly multiCandidateInexactRankedSetCount: number;
   readonly layerSyntaxFileCount: number;
+  readonly importantSyntaxFileCount: number;
+  readonly scopeSyntaxFileCount: number;
   readonly rowCount: number;
   readonly recoverableCount: number;
   readonly undecidableCount: number;
@@ -111,6 +113,7 @@ interface RankedSetLossCensusArtifactV0 {
   readonly functionPopulations: Readonly<Record<string, number>>;
   readonly invocationSitePopulations: Readonly<Record<string, number>>;
   readonly decidingAxisCounts: Readonly<Record<string, number>>;
+  readonly observedCascadeLevelCounts: Readonly<Record<string, number>>;
   readonly unclassifiedInvocationCount: number;
   readonly entries: readonly {
     readonly id: string;
@@ -350,6 +353,9 @@ assert.deepEqual(
 
 const artifactBytes = readFileSync(artifactPath);
 const artifact = JSON.parse(artifactBytes.toString("utf8")) as RankedSetLossCensusArtifactV0;
+if (args.has("--inject-axis-variation-collapse")) {
+  Object.assign(artifact, { layerSyntaxFileCount: 0 });
+}
 assert.equal(artifact.schemaVersion, "0");
 assert.equal(artifact.product, "omena-diff-test.ranked-set-loss-census");
 assert.equal(
@@ -357,6 +363,36 @@ assert.equal(
   3,
   "the committed farm manifest has three local workspace entries",
 );
+assert.ok(
+  artifact.layerSyntaxFileCount > 0,
+  "the bounded census must contain at least one @layer syntax file before judging recovery",
+);
+assert.ok(
+  artifact.importantSyntaxFileCount > 0,
+  "the bounded census must contain importance variation before judging recovery",
+);
+assert.ok(
+  artifact.scopeSyntaxFileCount > 0,
+  "the bounded census must contain @scope syntax before judging recovery",
+);
+assert.ok(
+  artifact.multiCandidateInexactRankedSetCount > 0,
+  "the bounded census must reach a multi-candidate inexact RankedSet before judgment",
+);
+assert.ok(
+  (artifact.decidingAxisCounts.layerRank ?? 0) > 0,
+  "the bounded census must observe a layer-rank deciding row before judgment",
+);
+assert.ok(
+  (artifact.classCounts.axisWinnerInexact ?? 0) > 0,
+  "the bounded census must retain a wrong-definite guard class before judgment",
+);
+for (const level of ["authorNormal", "authorImportant", "inlineNormal"]) {
+  assert.ok(
+    (artifact.observedCascadeLevelCounts[level] ?? 0) > 0,
+    `the bounded census must observe ${level} candidates before judgment`,
+  );
+}
 const artifactRows = artifact.entries.flatMap((entry) => entry.rows);
 assert.equal(
   artifact.rowCount,
@@ -409,6 +445,10 @@ for (const row of artifactRows) {
     row.classification,
     classifyArtifactRow(row),
     "committed classification must be independently recomputable from axis-prefix values",
+  );
+  assert.ok(
+    row.declarationIds.every((declarationId) => !declarationId.includes(repoRoot)),
+    "committed declaration identities must not retain the checkout's absolute path",
   );
 }
 assert.deepEqual(Object.keys(artifact.classCounts).sort(), [
@@ -496,11 +536,14 @@ process.stdout.write(
       multiCandidateInexactRankedSetCount: artifact.multiCandidateInexactRankedSetCount,
       multiCandidateRecheckFixtureCount: 1,
       layerSyntaxFileCount: artifact.layerSyntaxFileCount,
+      importantSyntaxFileCount: artifact.importantSyntaxFileCount,
+      scopeSyntaxFileCount: artifact.scopeSyntaxFileCount,
       rowCount: artifact.rowCount,
       recoverableCount: artifact.recoverableCount,
       undecidableCount: artifact.undecidableCount,
       functionPopulations: artifact.functionPopulations,
       decidingAxisCounts: artifact.decidingAxisCounts,
+      observedCascadeLevelCounts: artifact.observedCascadeLevelCounts,
       axisOrderSiteCount: axisOrderSiteCensus.siteCount,
       axisOrderSiteDispositionCounts: axisOrderSiteCensus.dispositionCounts,
       cascadeKeyProducerCount: cascadeKeyProducerCensus.producerCount,
