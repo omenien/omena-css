@@ -60,7 +60,7 @@
     "omena-lawvere": 32,
     "omena-parser": 163,
     "omena-product-hints": 45,
-    "omena-query": 330,
+    "omena-query": 331,
     "omena-query-checker-orchestrator": 11,
     "omena-query-core": 10,
     "omena-query-transform-runner": 14,
@@ -8047,7 +8047,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryModuleDependencySurfaceV0",
       "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 1333
+      "line": 1335
     },
     {
       "crate": "omena-query",
@@ -8521,7 +8521,7 @@
       "crate": "omena-query",
       "typeName": "OmenaQueryStyleMemoHostV0",
       "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 2105
+      "line": 2107
     },
     {
       "crate": "omena-query",
@@ -8540,6 +8540,12 @@
       "typeName": "OmenaQueryStyleParallelResolveSyncV0",
       "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
       "line": 439
+    },
+    {
+      "crate": "omena-query",
+      "typeName": "OmenaQueryStyleParsedFactsV0",
+      "sourcePath": "rust/crates/omena-query/src/style/salsa_memo.rs",
+      "line": 1239
     },
     {
       "crate": "omena-query",
