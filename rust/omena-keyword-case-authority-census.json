@@ -714,7 +714,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/declaration_facts.rs",
-      "line": 287,
+      "line": 326,
       "function": "cst_join_carries_semantic_context_memberships_and_nested_selectors",
       "idiom": "starts-with",
       "keyword": "layer",
@@ -802,7 +802,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5864,
+      "line": 5906,
       "function": "css_modules_import_edges_from_module_interface_projection_recompute_only_import_dependents",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -2110,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:bf744d66ba3e096fce2ce74d777d37a66d1162a2de6e1160a26b77e123af8e82",
+  "siteDigest": "sha256:54fb09f7a63b7c818372488ba89ace4b6b9a20ca21c23c85a0c2f9ea31236113",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
