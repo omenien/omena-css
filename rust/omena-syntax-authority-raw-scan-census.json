@@ -64,9 +64,9 @@
     "rust/crates/omena-value-lattice/"
   ],
   "baselineSiteCount": 144,
-  "currentSiteCount": 144,
+  "currentSiteCount": 137,
   "baselineNamedExemptSiteCount": 143,
-  "currentNamedExemptSiteCount": 143,
+  "currentNamedExemptSiteCount": 137,
   "sites": [
     {
       "path": "rust/crates/omena-bridge/src/source_syntax.rs",
@@ -159,26 +159,8 @@
       "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
     },
     {
-      "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-      "line": 397,
-      "idiom": "brace-contains",
-      "family": "query-surface",
-      "disposition": "named-exempt",
-      "evidence": "|| property.contains('{')",
-      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
-    },
-    {
-      "path": "rust/crates/omena-query/src/style/cascade_checker/input.rs",
-      "line": 398,
-      "idiom": "brace-contains",
-      "family": "query-surface",
-      "disposition": "named-exempt",
-      "evidence": "|| property.contains('}')",
-      "reason": "Query-layer source editing and diagnostics are outside the four authority migration families."
-    },
-    {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-      "line": 220,
+      "line": 221,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -328,14 +310,6 @@
       "disposition": "named-exempt",
       "evidence": "let header_end = statement.find('{').unwrap_or(statement.len());",
       "reason": "Module-interface extraction remains a named consumer follow-up."
-    },
-    {
-      "path": "rust/crates/omena-transform-cst/src/transform_ir.rs",
-      "line": 3946,
-      "idiom": "source-substring-gate",
-      "family": "transform-ir-ownership",
-      "disposition": "migration-target",
-      "evidence": ".is_some_and(|text| text.contains(\"--alias\"))"
     },
     {
       "path": "rust/crates/omena-transform-egg/src/lib.rs",
@@ -1283,33 +1257,6 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     },
     {
-      "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
-      "line": 1235,
-      "idiom": "brace-find",
-      "family": "transform-helper",
-      "disposition": "named-exempt",
-      "evidence": ".find('{')",
-      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
-      "line": 1282,
-      "idiom": "brace-find",
-      "family": "transform-helper",
-      "disposition": "named-exempt",
-      "evidence": ".find('{')",
-      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/helpers/ir_transaction.rs",
-      "line": 1322,
-      "idiom": "brace-find",
-      "family": "transform-helper",
-      "disposition": "named-exempt",
-      "evidence": ".rfind('}')",
-      "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
-    },
-    {
       "path": "rust/crates/omena-transform-passes/src/helpers/rules.rs",
       "line": 33,
       "idiom": "matching-brace-helper",
@@ -1353,18 +1300,9 @@
       "disposition": "named-exempt",
       "evidence": "pub(crate) fn matching_right_brace_index(",
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
-    },
-    {
-      "path": "rust/crates/omena-transform-passes/src/runtime/executor.rs",
-      "line": 4629,
-      "idiom": "brace-find",
-      "family": "transform-runtime",
-      "disposition": "named-exempt",
-      "evidence": ".find('{')",
-      "reason": "Transform runtime scanning outside the preservation observer remains a named follow-up."
     }
   ],
-  "siteDigest": "sha256:74bbb94bcec41b5d4b5cd6092b85e64a943c528ed16688200342bc979e04bdd1",
+  "siteDigest": "sha256:e1eecc76fdb76cc04a648420010ab535a963d1e1dd85c91e855242cdca0e7c66",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
@@ -1447,7 +1385,7 @@
       },
       {
         "path": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
-        "line": 166,
+        "line": 229,
         "function": "declaration_syntax",
         "operation": "to_ascii_lowercase",
         "evidence": ".to_ascii_lowercase();",

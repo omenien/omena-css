@@ -12,8 +12,10 @@ mod input;
 mod replica_ensemble;
 mod runtime_state;
 mod smt;
+#[cfg(test)]
 mod source_scanner;
 mod theory_hints;
+mod value_references;
 
 use confidence::summarize_query_cascade_confidence_for_evaluation;
 pub(super) use custom_property_registration::collect_query_checker_custom_property_registrations;
@@ -51,11 +53,8 @@ use super::{
     omena_parser_dialect_for_style_path, parser_range_for_byte_span,
 };
 
-/// Cascade checker surface with an explicit deep-analysis switch.
-///
-/// The default emits product diagnostics such as `circularVar`. Deep analysis adds
-/// the multiscale-complexity compatibility and categorical theory hints. Hints
-/// overlapping `circularVar` fold into its provenance to avoid duplicate diagnostics.
+/// Cascade diagnostics with an optional theory-hint pass. Hints overlapping
+/// `circularVar` fold into its provenance to avoid duplicate diagnostics.
 pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     style_uri: &str,
     source: &str,
@@ -70,9 +69,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     } = collect_query_checker_cascade_input(style_uri, source);
     let mut diagnostics = Vec::new();
 
-    // Theory diagnostics are produced eagerly only when deep-analysis is on; the
-    // default surface skips the (whole-file-ranged, non-actionable) theory hints
-    // entirely so the LSP/CLI output stays clean.
+    // Keep whole-file theory hints off the default LSP/CLI surface.
     let (multiscale_complexity_heuristic_diagnostics, categorical_diagnostics, smt_diagnostics) =
         if deep_analysis {
             (

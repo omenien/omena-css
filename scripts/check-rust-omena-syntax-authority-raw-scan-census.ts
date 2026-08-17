@@ -835,7 +835,10 @@ function classify(relativePath: string): {
 }
 
 function maskCommentsAndTestItems(source: string): string {
-  const chars = [...source];
+  // Keep UTF-16 offsets aligned with every regex match and with the original
+  // source. Code-point spreading shortens the buffer before non-BMP text and
+  // can move a cfg(test) mask onto adjacent production bytes.
+  const chars = source.split("");
   let inBlockComment = 0;
   let inLineComment = false;
   let inString = false;

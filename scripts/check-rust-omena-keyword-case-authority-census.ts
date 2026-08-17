@@ -127,13 +127,6 @@ const namedClassificationRules: readonly NamedClassificationRule[] = [
     reason: "The comparison is performed on the function-local lowercase compact value.",
   },
   {
-    path: "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-    function: "query_value_has_important_suffix",
-    keyword: "!important",
-    classification: "PROTECTED-BY-PARSER",
-    reason: "The comparison is performed on the function-local ASCII-lowercased value.",
-  },
-  {
     path: "rust/crates/omena-query/src/style/diagnostics/cross_file_scc.rs",
     function: "summarize_omena_query_unified_cross_file_scc_diagnostics_from_report",
     keyword: "composes",
@@ -540,7 +533,10 @@ function classifySite(
   context: string,
 ): KeywordCaseClassification {
   if (isTestPath(relativePath) || sourceFunction?.testOnly) return "TEST-ONLY";
-  if (relativePath === "rust/crates/omena-cascade/src/selector.rs") {
+  if (
+    relativePath === "rust/crates/omena-cascade/src/selector.rs" ||
+    relativePath === "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs"
+  ) {
     return "ORACLE-DEMOTED";
   }
   if (
@@ -617,6 +613,9 @@ function classificationReasonFor(
     return "The comparison belongs to an assertion or fixture rather than product logic.";
   }
   if (classification === "ORACLE-DEMOTED") {
+    if (relativePath.endsWith("/cascade_checker/source_scanner.rs")) {
+      return "The retired cascade declaration scanner remains a test-only differential oracle.";
+    }
     return "The conservative selector oracle remains a named non-authoritative scanner.";
   }
   const namedRule = namedClassificationRule(relativePath, sourceFunction?.name, keyword);

@@ -25,9 +25,9 @@
   "currentDefectReachableCount": 0,
   "classificationCounts": {
     "DEFECT-REACHABLE": 0,
-    "PROTECTED-BY-PARSER": 161,
-    "TEST-ONLY": 25,
-    "ORACLE-DEMOTED": 1
+    "PROTECTED-BY-PARSER": 159,
+    "TEST-ONLY": 26,
+    "ORACLE-DEMOTED": 4
   },
   "sites": [
     {
@@ -549,7 +549,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product.rs",
-      "line": 2241,
+      "line": 2244,
       "function": "sass_module_forward_prefix_from_statement",
       "idiom": "find",
       "keyword": "as",
@@ -557,6 +557,17 @@
       "disposition": "retain-case-insensitive-witness",
       "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
       "evidence": "let Some(as_index) = css_keyword(statement).find(\" as \") else {"
+    },
+    {
+      "path": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
+      "line": 300,
+      "function": "at_root_selector_members",
+      "idiom": "strip-prefix",
+      "keyword": "@at-root",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "let Some(rest) = css_keyword(header.trim_start()).strip_prefix(\"@at-root\") else {"
     },
     {
       "path": "rust/crates/omena-parser/src/summaries.rs",
@@ -702,6 +713,17 @@
       "evidence": "if !compact.ends_with(\"!important\") {"
     },
     {
+      "path": "rust/crates/omena-query/src/style/cascade_checker/declaration_facts.rs",
+      "line": 281,
+      "function": "cst_join_carries_semantic_context_memberships_and_nested_selectors",
+      "idiom": "starts-with",
+      "keyword": "layer",
+      "classification": "TEST-ONLY",
+      "disposition": "retain-test-evidence",
+      "classificationReason": "The comparison belongs to an assertion or fixture rather than product logic.",
+      "evidence": ".any(|id| id.starts_with(\"layer:\")),"
+    },
+    {
       "path": "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs",
       "line": 380,
       "function": "query_runtime_guarded_conditions",
@@ -714,35 +736,35 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-      "line": 86,
+      "line": 87,
       "function": "query_value_has_important_suffix",
       "idiom": "ends-with",
       "keyword": "!important",
-      "classification": "PROTECTED-BY-PARSER",
-      "disposition": "retain-case-insensitive-witness",
-      "classificationReason": "The comparison is performed on the function-local ASCII-lowercased value.",
+      "classification": "ORACLE-DEMOTED",
+      "disposition": "named-exempt-conservative-oracle",
+      "classificationReason": "The retired cascade declaration scanner remains a test-only differential oracle.",
       "evidence": ".ends_with(\"!important\")"
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-      "line": 227,
+      "line": 228,
       "function": "query_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
-      "classification": "PROTECTED-BY-PARSER",
-      "disposition": "retain-case-insensitive-witness",
-      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "classification": "ORACLE-DEMOTED",
+      "disposition": "named-exempt-conservative-oracle",
+      "classificationReason": "The retired cascade declaration scanner remains a test-only differential oracle.",
       "evidence": ".strip_prefix(\"@layer\")?"
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/source_scanner.rs",
-      "line": 252,
+      "line": 253,
       "function": "query_at_root_selector_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@at-root",
-      "classification": "PROTECTED-BY-PARSER",
-      "disposition": "retain-case-insensitive-witness",
-      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "classification": "ORACLE-DEMOTED",
+      "disposition": "named-exempt-conservative-oracle",
+      "classificationReason": "The retired cascade declaration scanner remains a test-only differential oracle.",
       "evidence": "let rest = css_keyword(prelude.trim_start()).strip_prefix(\"@at-root\")?;"
     },
     {
@@ -2088,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:df8c1b4775a31804accefc4daa03a31d420e7b03d74ab63c3a03fd7298739417",
+  "siteDigest": "sha256:9389bfe9b7f0fe48515add0049251f140dc9f69ba2fb3744f4f17822a4abebf5",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
@@ -2108,6 +2130,8 @@
       "rust/crates/omena-parser/src/parse.rs#parse_declaration",
       "rust/crates/omena-parser/src/parse.rs#parse_import_prelude",
       "rust/crates/omena-parser/src/public_product.rs#sass_module_forward_prefix_from_statement",
+      "rust/crates/omena-parser/src/public_product/syntax_index.rs#at_root_selector_members",
+      "rust/crates/omena-parser/src/public_product/syntax_index.rs#at_rule_header_has_keyword",
       "rust/crates/omena-parser/src/syntax_helpers.rs#matches_ignore_ascii_case",
       "rust/crates/omena-query/src/style.rs#hover_layer_name_from_prelude",
       "rust/crates/omena-query/src/style/cascade_checker/runtime_state.rs#query_runtime_guarded_conditions",
@@ -2136,7 +2160,7 @@
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#guarded_environment_candidate_seeds_for_pair",
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair"
     ],
-    "functionKeyDigest": "sha256:a05a3be4877a055b8850f3a83848ecdc643bc953923eb702cb4b63e933c1947d",
+    "functionKeyDigest": "sha256:4d332757c2ae7730a54256296f9576a94bc8c530fa889c002faa201daffca912",
     "adHocCaseOperationCount": 0,
     "adHocCaseOperations": []
   }

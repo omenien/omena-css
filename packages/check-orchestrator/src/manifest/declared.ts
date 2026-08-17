@@ -567,6 +567,7 @@ export const DECLARED_CHECK_GATES = [
       "rust/omena-query/core-contract",
       "rust/omena-query/transform-contract",
       "rust/omena-query/runtime-contract",
+      "rust/omena-query/cascade-input-authority",
       "rust/omena-lsp-server/boundary",
       "rust/omena-cascade/boundary",
       "rust/omena-diff-test-core",
@@ -1120,6 +1121,7 @@ export const DECLARED_CHECK_GATES = [
   },
   declaredClosurePackageGate("rust/omena-query/effective-pass-set", "gate", "rust"),
   declaredClosurePackageGate("rust/omena-query/strict-verification", "gate", "rust"),
+  declaredClosurePackageGate("rust/omena-query/cascade-input-authority", "gate", "rust"),
   {
     id: "rust/omena-bundler/adapter-pass-authority",
     kind: "gate",

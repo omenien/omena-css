@@ -154,7 +154,7 @@
     "sites": [
       {
         "path": "rust/crates/omena-parser/src/public_product.rs",
-        "line": 2040,
+        "line": 2043,
         "function": "class_names_in_selector",
         "operation": "ClassNameV0::into_raw",
         "evidence": "let name = entry.name.into_raw();",
@@ -171,7 +171,7 @@
         "reason": "Cascade diagnostics preserve authored selector spelling after shared lexical extraction."
       }
     ],
-    "siteDigest": "sha256:5670591fac67a39fb4879aec353f9ed77e282a3067114f67a8adf64777563aa3"
+    "siteDigest": "sha256:89c27f619bbf81d3619401daca0040b1d29dc110756b2f573ea3ea0af8bace18"
   },
   "idiom": {
     "granularity": "line",
@@ -433,7 +433,7 @@
       },
       {
         "path": "rust/crates/omena-parser/src/public_product.rs",
-        "line": 689,
+        "line": 692,
         "function": "summarize_parser_evaluator_candidates",
         "operation": "contains",
         "evidence": "has_local_composes: local_selector_names.contains(selector),",
@@ -442,7 +442,7 @@
       },
       {
         "path": "rust/crates/omena-parser/src/public_product.rs",
-        "line": 690,
+        "line": 693,
         "function": "summarize_parser_evaluator_candidates",
         "operation": "contains",
         "evidence": "has_imported_composes: imported_selector_names.contains(selector),",
@@ -451,7 +451,7 @@
       },
       {
         "path": "rust/crates/omena-parser/src/public_product.rs",
-        "line": 691,
+        "line": 694,
         "function": "summarize_parser_evaluator_candidates",
         "operation": "contains",
         "evidence": "has_global_composes: global_selector_names.contains(selector),",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:ee38c2517a326c3a5363521cb32f37ab4e428dd5a023db26ea125c5e6ff9e253"
+    "siteDigest": "sha256:b00b273bb5cf49c8d0e3f89481410a735310a5868a7b080a4b6dc0785f0ffe09"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",

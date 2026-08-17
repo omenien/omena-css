@@ -11,9 +11,10 @@ use omena_semantic::{
     LayerBindingResolutionV0, StyleContextIndexV0, layer_ordinal_for_byte_span,
     summarize_omena_parser_style_semantic_boundary_from_source,
 };
+use omena_syntax::ident::ClassNameV0;
 
 use super::runtime_state::query_selector_class_names;
-use super::source_scanner::collect_query_var_references_in_value;
+use super::value_references::collect_query_var_references_in_value;
 
 /// The query-owned join of one parser declaration with its semantic wrapper
 /// context. This is deliberately internal: public query payloads continue to
@@ -86,11 +87,8 @@ pub(in crate::style) fn collect_parsed_declaration_fact_collection(
                 .layer_index
                 .unresolved_topology_count,
         );
-    let facts = join_declaration_syntax_and_context(
-        source,
-        syntax_facts,
-        &semantic.semantic_facts.context_index,
-    );
+    let facts =
+        join_declaration_syntax_and_context(syntax_facts, &semantic.semantic_facts.context_index);
     ParsedDeclarationFactCollectionV0 {
         facts,
         topology_incomplete_unresolved_count,
@@ -98,7 +96,6 @@ pub(in crate::style) fn collect_parsed_declaration_fact_collection(
 }
 
 fn join_declaration_syntax_and_context(
-    source: &str,
     syntax_facts: Vec<ParserDeclarationSyntaxFactV0>,
     context_index: &StyleContextIndexV0,
 ) -> Vec<ParsedDeclarationFactV0> {
@@ -106,13 +103,7 @@ fn join_declaration_syntax_and_context(
     for syntax_fact in syntax_facts {
         let selectors = canonical_selectors_for_syntax_fact(&syntax_fact);
         for selector in selectors {
-            let Some(value) = source
-                .get(syntax_fact.value_span.start..syntax_fact.value_span.end)
-                .map(str::trim)
-                .map(ToString::to_string)
-            else {
-                continue;
-            };
+            let value = syntax_fact.value_text.clone();
             let source_order = facts.len().min(u32::MAX as usize) as u32;
             let (layer_name, layer_order) =
                 layer_binding_for_span(context_index, syntax_fact.byte_span);
@@ -179,7 +170,8 @@ fn semantic_context_ids_for_selector(
 ) -> Vec<String> {
     let class_names = query_selector_class_names(selector)
         .into_iter()
-        .collect::<BTreeSet<_>>();
+        .map(ClassNameV0::new)
+        .collect::<Vec<_>>();
     let mut ids = BTreeSet::new();
     for membership in context_index
         .layer_index
@@ -188,7 +180,11 @@ fn semantic_context_ids_for_selector(
         .chain(&context_index.container_index.selector_memberships)
         .chain(&context_index.scope_index.selector_memberships)
     {
-        if class_names.contains(membership.selector_name.as_str()) {
+        let membership_name = ClassNameV0::new(membership.selector_name.as_str());
+        if class_names
+            .iter()
+            .any(|class_name| class_name.same_as(&membership_name))
+        {
             ids.insert(membership.context_id.clone());
         }
     }

@@ -1,6 +1,7 @@
-use std::collections::BTreeSet;
+//! Retired declaration-string scanner retained only as the S2 differential
+//! oracle. The parent module compiles this file under `cfg(test)`; product
+//! cascade inputs come from parser CST declaration facts.
 
-use omena_query_core::split_top_level_value_arguments as split_lattice_top_level_value_arguments;
 use omena_query_transform_runner::expand_css_nested_selector;
 use omena_syntax::css_keyword;
 
@@ -264,80 +265,6 @@ pub(super) fn query_at_root_selector_from_prelude(prelude: &str) -> Option<Strin
     Some(selector.to_string())
 }
 
-pub(super) fn collect_query_var_references_in_value(value: &str) -> Vec<String> {
-    let mut refs = BTreeSet::new();
-    let mut index = 0usize;
-    let mut quote: Option<char> = None;
-    while index < value.len() {
-        let Some(ch) = value[index..].chars().next() else {
-            break;
-        };
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                if let Some(escaped) = value[index..].chars().next() {
-                    index += escaped.len_utf8();
-                }
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                index += ch.len_utf8();
-            }
-            _ if query_function_name_starts_at(value, index, "var") => {
-                let open_index = index + "var".len();
-                let Some(close_index) = matching_query_paren_end(value, open_index, value.len())
-                else {
-                    index += ch.len_utf8();
-                    continue;
-                };
-                collect_query_var_references_from_arguments(
-                    &value[open_index + 1..close_index],
-                    &mut refs,
-                );
-                index = close_index + 1;
-            }
-            _ => {
-                index += ch.len_utf8();
-            }
-        }
-    }
-    refs.into_iter().collect()
-}
-
-fn collect_query_var_references_from_arguments(arguments: &str, refs: &mut BTreeSet<String>) {
-    let parts = split_query_top_level_arguments(arguments);
-    let Some(first_argument) = parts.first().map(|part| part.trim()) else {
-        return;
-    };
-    if first_argument.starts_with("--") {
-        refs.insert(first_argument.to_string());
-    }
-    for fallback in parts.iter().skip(1) {
-        for reference in collect_query_var_references_in_value(fallback) {
-            refs.insert(reference);
-        }
-    }
-}
-
-fn split_query_top_level_arguments(arguments: &str) -> Vec<&str> {
-    split_lattice_top_level_value_arguments(arguments, 0)
-        .map(|segments| segments.into_iter().map(|segment| segment.text).collect())
-        .unwrap_or_else(|| vec![arguments])
-}
-
-fn query_function_name_starts_at(value: &str, index: usize, function_name: &str) -> bool {
-    value
-        .get(index..index + function_name.len())
-        .is_some_and(|name| name.eq_ignore_ascii_case(function_name))
-        && value[index + function_name.len()..].starts_with('(')
-}
-
 pub(super) fn find_query_top_level_byte(
     source: &str,
     start: usize,
@@ -410,10 +337,6 @@ pub(super) fn matching_query_block_end(
     end: usize,
 ) -> Option<usize> {
     matching_query_delimiter_end(source, open_index, end, b'{', b'}')
-}
-
-fn matching_query_paren_end(source: &str, open_index: usize, end: usize) -> Option<usize> {
-    matching_query_delimiter_end(source, open_index, end, b'(', b')')
 }
 
 fn matching_query_delimiter_end(

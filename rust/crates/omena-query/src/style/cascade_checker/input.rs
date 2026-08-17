@@ -1,10 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::CascadeStandardValueVerdictV0;
+#[cfg(test)]
+use omena_query_checker_orchestrator::CanonicalSelector;
 use omena_query_checker_orchestrator::{
-    CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
+    OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCustomPropertyInputV0, standard_property_value_verdicts_v0,
 };
+#[cfg(test)]
 use omena_semantic::{
     LayerBindingResolutionV0, StyleLayerIndexV0, layer_ordinal_for_byte_span,
     summarize_style_layer_order_from_source,
@@ -17,20 +20,23 @@ use super::super::{
 };
 use super::custom_property_registration::collect_query_checker_custom_property_registrations;
 use super::declaration_facts::collect_parsed_declaration_fact_collection;
+#[cfg(test)]
 use super::source_scanner::{
-    canonical_query_checker_selector, collect_query_var_references_in_value,
-    find_query_top_level_byte, find_query_top_level_colon, matching_query_block_end,
-    normalize_query_condition_prelude, query_at_root_selector_from_prelude,
-    query_layer_name_from_prelude, query_prelude_start, query_value_has_important_suffix,
-    split_query_selector_list, strip_query_statement_comments, trimmed_query_span,
+    canonical_query_checker_selector, find_query_top_level_byte, find_query_top_level_colon,
+    matching_query_block_end, normalize_query_condition_prelude,
+    query_at_root_selector_from_prelude, query_layer_name_from_prelude, query_prelude_start,
+    query_value_has_important_suffix, split_query_selector_list, strip_query_statement_comments,
+    trimmed_query_span,
 };
+use super::value_references::collect_query_var_references_in_value;
 
 pub(super) fn collect_query_checker_cascade_input(
     style_uri: &str,
     source: &str,
 ) -> QueryCheckerCascadeInputCollection {
     let dialect = omena_parser_dialect_for_style_path(style_uri);
-    let collection = collect_query_checker_cascade_declaration_collection(source, dialect);
+    let collection =
+        collect_query_checker_cascade_declaration_collection(style_uri, source, dialect);
     let declarations = collection.declarations;
     let custom_property_registrations =
         collect_query_checker_custom_property_registrations(style_uri, source);
@@ -123,6 +129,7 @@ pub(in crate::style) struct QueryCheckerCascadeDeclaration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg(test)]
 struct QueryCheckerCascadeScope {
     condition_context: Vec<String>,
 }
@@ -143,17 +150,25 @@ pub(in crate::style) fn collect_query_checker_cascade_declarations_with_dialect(
     source: &str,
     dialect: StyleDialect,
 ) -> Vec<QueryCheckerCascadeDeclaration> {
-    collect_query_checker_cascade_declaration_collection(source, dialect).declarations
+    collect_query_checker_cascade_declaration_collection(
+        synthetic_cascade_style_path(dialect),
+        source,
+        dialect,
+    )
+    .declarations
 }
 
 fn collect_query_checker_cascade_declaration_collection(
+    style_uri: &str,
     source: &str,
     dialect: StyleDialect,
 ) -> QueryCheckerCascadeDeclarationCollection {
-    collect_query_checker_cascade_declaration_collection_from_scanner(source, dialect)
+    #[cfg(test)]
+    cascade_declarations_collect_probe::record();
+    collect_query_checker_cascade_declaration_collection_from_facts(style_uri, source, dialect)
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub(in crate::style) fn collect_query_checker_cascade_declarations_from_facts(
     style_uri: &str,
     source: &str,
@@ -163,7 +178,6 @@ pub(in crate::style) fn collect_query_checker_cascade_declarations_from_facts(
         .declarations
 }
 
-#[allow(dead_code)]
 fn collect_query_checker_cascade_declaration_collection_from_facts(
     style_uri: &str,
     source: &str,
@@ -183,12 +197,28 @@ fn collect_query_checker_cascade_declaration_collection_from_facts(
     }
 }
 
+fn synthetic_cascade_style_path(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Css => "cascade-input.css",
+        StyleDialect::Scss => "cascade-input.scss",
+        StyleDialect::Sass => "cascade-input.sass",
+        StyleDialect::Less => "cascade-input.less",
+    }
+}
+
+#[cfg(test)]
+pub(in crate::style) fn collect_query_checker_cascade_declarations_from_scanner(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<QueryCheckerCascadeDeclaration> {
+    collect_query_checker_cascade_declaration_collection_from_scanner(source, dialect).declarations
+}
+
+#[cfg(test)]
 fn collect_query_checker_cascade_declaration_collection_from_scanner(
     source: &str,
     dialect: StyleDialect,
 ) -> QueryCheckerCascadeDeclarationCollection {
-    #[cfg(test)]
-    cascade_declarations_collect_probe::record();
     let layer_index = summarize_style_layer_order_from_source(source, dialect);
     let mut declarations = Vec::new();
     collect_query_checker_cascade_blocks(
@@ -209,6 +239,7 @@ fn collect_query_checker_cascade_declaration_collection_from_scanner(
     }
 }
 
+#[cfg(test)]
 fn collect_query_checker_cascade_blocks(
     source: &str,
     start: usize,
@@ -319,6 +350,7 @@ fn collect_query_checker_cascade_blocks(
     }
 }
 
+#[cfg(test)]
 fn apply_query_checker_layer_binding(
     layer_index: &StyleLayerIndexV0,
     declaration: &mut QueryCheckerCascadeDeclaration,
@@ -345,6 +377,7 @@ fn apply_query_checker_layer_binding(
     }
 }
 
+#[cfg(test)]
 fn collect_query_checker_direct_declarations(
     source: &str,
     body_start: usize,
@@ -404,6 +437,7 @@ fn collect_query_checker_direct_declarations(
     );
 }
 
+#[cfg(test)]
 fn push_query_checker_declaration(
     source: &str,
     start: usize,

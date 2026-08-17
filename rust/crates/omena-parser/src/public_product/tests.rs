@@ -152,6 +152,12 @@ fn declaration_syntax_facts_keep_url_delimiters_inside_cst_values() {
             span_text(source, facts[0].value_span).map(str::trim),
             expected_value
         );
+        assert_eq!(facts[0].value_text, expected_value.unwrap_or_default());
+        assert!(
+            !span_text(source, facts[0].byte_span)
+                .unwrap_or_default()
+                .ends_with(';')
+        );
         assert!(facts[0].important);
         assert_eq!(facts[0].source_order, 0);
         assert_eq!(facts[0].selector_contexts.len(), 1);
@@ -179,6 +185,7 @@ fn declaration_syntax_facts_record_nested_selectors_and_cst_conditions() {
         span_text(source, fact.value_span).map(str::trim),
         Some("red")
     );
+    assert_eq!(fact.value_text, "red");
     assert!(fact.important);
     assert_eq!(fact.condition_contexts, ["@media (min-width: 40rem)"]);
     assert_eq!(fact.selector_contexts.len(), 2);
@@ -187,4 +194,13 @@ fn declaration_syntax_facts_record_nested_selectors_and_cst_conditions() {
         [".card", ".panel"]
     );
     assert_eq!(fact.selector_contexts[1].selector_members, ["&:hover"]);
+}
+
+#[test]
+fn declaration_syntax_facts_normalize_comment_trivia_from_property_and_value_text() {
+    let source = ".a { color /* property */ : red /* value */; }";
+    let facts = collect_parser_declaration_syntax_facts(source, StyleDialect::Css);
+    assert_eq!(facts.len(), 1);
+    assert_eq!(facts[0].property_name, "color");
+    assert_eq!(facts[0].value_text, "red");
 }

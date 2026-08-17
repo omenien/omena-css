@@ -131,7 +131,7 @@ pub struct OmenaQueryCascadeSiteOutcomeV0 {
     pub winning_value: String,
 }
 
-/// Project the product cascade scanner and ranker onto selector/property
+/// Project the CST-backed cascade declaration facts and ranker onto selector/property
 /// outcomes.
 ///
 /// The projection intentionally excludes custom properties because their

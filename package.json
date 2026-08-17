@@ -311,6 +311,7 @@
     "check:rust-omena-bundler-linked-emission-default-precondition": "node --import tsx ./scripts/check-rust-omena-bundler-linked-emission-default-precondition.ts",
     "check:rust-omena-query-runner-boundary": "node --import tsx ./scripts/check-rust-omena-query-runner-boundary.ts",
     "check:rust-omena-query-public-surface": "node --import tsx ./scripts/check-rust-omena-query-public-surface.ts",
+    "check:rust-omena-query-cascade-input-authority": "node --import tsx ./scripts/check-rust-omena-query-cascade-input-authority.ts",
     "check:rust-omena-query-split-boundary": "pnpm omena-check run rust/omena-query/boundary",
     "update:rust-omena-query-public-surface": "node --import tsx ./scripts/check-rust-omena-query-public-surface.ts --write",
     "check:rust-omena-resolver-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-resolver && pnpm omena-check run rust/omena-resolver/runner-boundary",

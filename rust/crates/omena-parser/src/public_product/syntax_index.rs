@@ -20,6 +20,7 @@ pub struct ParserDeclarationSyntaxFactV0 {
     pub byte_span: ParserByteSpanV0,
     pub property_name: String,
     pub value_span: ParserByteSpanV0,
+    pub value_text: String,
     pub important: bool,
     pub selector_contexts: Vec<ParserDeclarationSelectorContextV0>,
     pub condition_contexts: Vec<String>,
@@ -194,7 +195,16 @@ fn declaration_syntax(
     node: &SyntaxNode<SyntaxKind>,
     source_order: usize,
 ) -> Option<ParserDeclarationSyntaxFactV0> {
-    let declaration_span = node_span(node);
+    let mut declaration_span = node_span(node);
+    if let Some(semicolon_start) = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| token.kind() == SyntaxKind::Semicolon)
+        .map(|token| byte_span(token.text_range()).start)
+        .last()
+    {
+        declaration_span.end = declaration_span.end.min(semicolon_start);
+    }
     let colon = node
         .descendants_with_tokens()
         .filter_map(|element| element.into_token())
@@ -208,14 +218,21 @@ fn declaration_syntax(
     if let Some(important_span) = important_span {
         value_span.end = value_span.end.min(important_span.start);
     }
-    let property_name = source
-        .get(declaration_span.start..colon.start)?
-        .trim()
-        .to_ascii_lowercase();
+    let property_name = normalized_declaration_text(
+        source,
+        node,
+        ParserByteSpanV0 {
+            start: declaration_span.start,
+            end: colon.start,
+        },
+    )
+    .to_ascii_lowercase();
+    let value_text = normalized_declaration_text(source, node, value_span);
     (!property_name.is_empty()).then_some(ParserDeclarationSyntaxFactV0 {
         byte_span: declaration_span,
         property_name,
         value_span,
+        value_text,
         important: important_span.is_some(),
         selector_contexts: declaration_selector_contexts(source, node),
         condition_contexts: declaration_condition_contexts(source, node),
@@ -311,6 +328,7 @@ fn declaration_condition_contexts(source: &str, node: &SyntaxNode<SyntaxKind>) -
         })
         .filter_map(|ancestor| block_header_text(source, ancestor))
         .map(|header| header.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|header| !is_non_condition_wrapper_header(header))
         .filter(|header| !header.is_empty())
     {
         if contexts.last() != Some(&context) {
@@ -318,6 +336,47 @@ fn declaration_condition_contexts(source: &str, node: &SyntaxNode<SyntaxKind>) -
         }
     }
     contexts
+}
+
+fn is_non_condition_wrapper_header(header: &str) -> bool {
+    ["@layer", "@at-root", "@nest"]
+        .into_iter()
+        .any(|keyword| at_rule_header_has_keyword(header, keyword))
+}
+
+fn at_rule_header_has_keyword(header: &str, keyword: &str) -> bool {
+    let Some(rest) = css_keyword(header.trim_start()).strip_prefix(keyword) else {
+        return false;
+    };
+    rest.is_empty() || rest.chars().next().is_some_and(char::is_whitespace)
+}
+
+fn normalized_declaration_text(
+    source: &str,
+    node: &SyntaxNode<SyntaxKind>,
+    span: ParserByteSpanV0,
+) -> String {
+    let mut text = String::new();
+    for token in node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+    {
+        let token_span = byte_span(token.text_range());
+        if token_span.start < span.start || token_span.end > span.end {
+            continue;
+        }
+        if matches!(
+            token.kind(),
+            SyntaxKind::BlockComment | SyntaxKind::LineComment | SyntaxKind::ScssSilentComment
+        ) {
+            if !text.ends_with(char::is_whitespace) {
+                text.push(' ');
+            }
+        } else if let Some(token_text) = source.get(token_span.start..token_span.end) {
+            text.push_str(token_text);
+        }
+    }
+    text.trim().to_string()
 }
 
 fn block_header_text<'a>(source: &'a str, node: &SyntaxNode<SyntaxKind>) -> Option<&'a str> {

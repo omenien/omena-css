@@ -13,8 +13,9 @@ use crate::{
 
 use super::input::{
     QueryCheckerCascadeDeclaration, collect_query_checker_cascade_declarations_from_facts,
-    collect_query_checker_cascade_declarations_with_dialect,
+    collect_query_checker_cascade_declarations_from_scanner,
 };
+use super::summarize_query_cascade_checker_diagnostics_with_deep_analysis;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CandidateSignature {
@@ -126,7 +127,72 @@ fn facts_for(case: DifferentialCase) -> Vec<QueryCheckerCascadeDeclaration> {
 }
 
 fn scanner_for(case: DifferentialCase) -> Vec<QueryCheckerCascadeDeclaration> {
-    collect_query_checker_cascade_declarations_with_dialect(case.source, case.dialect)
+    collect_query_checker_cascade_declarations_from_scanner(case.source, case.dialect)
+}
+
+fn cascade_codes(source: &str) -> Vec<&'static str> {
+    summarize_query_cascade_checker_diagnostics_with_deep_analysis("fixture.scss", source, false)
+        .into_iter()
+        .map(|diagnostic| diagnostic.code)
+        .filter(|code| matches!(*code, "unreachableDeclaration" | "unspecifiedCascadeTie"))
+        .collect()
+}
+
+#[test]
+fn production_cst_input_keeps_url_winners_and_wire_ids() -> Result<(), String> {
+    for (path, source) in [
+        (
+            "url-semicolon.css",
+            include_str!("../../tests/fixtures/cascade-input-authority/url-semicolon.css"),
+        ),
+        (
+            "url-brace.css",
+            include_str!("../../tests/fixtures/cascade-input-authority/url-brace.css"),
+        ),
+    ] {
+        let diagnostics =
+            summarize_query_cascade_checker_diagnostics_with_deep_analysis(path, source, false);
+        let unreachable = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+            .ok_or_else(|| format!("{path} did not produce the expected cascade diagnostic"))?;
+        assert_eq!(unreachable.range.start.line, 2, "{path}: {unreachable:#?}");
+        let narrowing = unreachable
+            .cascade_narrowing
+            .as_ref()
+            .ok_or_else(|| format!("{path} did not produce cascade narrowing"))?;
+        assert_eq!(
+            serde_json::to_string(&narrowing.declaration_ids).map_err(|error| error.to_string())?,
+            r#"["decl-0","decl-1"]"#
+        );
+        let runtime = narrowing
+            .runtime_state
+            .as_ref()
+            .ok_or_else(|| format!("{path} did not produce runtime evidence"))?;
+        assert_eq!(
+            runtime.scenarios[0].winner_declaration_id.as_deref(),
+            Some("decl-0")
+        );
+        assert!(
+            runtime.scenarios[0]
+                .winner_value
+                .as_deref()
+                .is_some_and(|value| value.starts_with("url(a") && value.ends_with("b.png)"))
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn production_cst_input_keeps_comment_adjacent_control_equivalent() {
+    let commented =
+        include_str!("../../tests/fixtures/cascade-input-authority/comment-adjacent.scss");
+    let control = ".target { color: red; color: blue; }";
+    assert_eq!(cascade_codes(commented), cascade_codes(control));
+    assert_eq!(
+        cascade_codes(commented),
+        ["unreachableDeclaration", "unspecifiedCascadeTie"]
+    );
 }
 
 #[test]
@@ -135,21 +201,23 @@ fn scanner_and_cst_facts_have_an_adjudicated_differential_corpus() {
         DifferentialCase {
             name: "url-semicolon",
             path: "url-semicolon.css",
-            source: ".target { background-image: url(a;b.png)!important; background-image: url(clean.png); }",
+            source: include_str!("../../tests/fixtures/cascade-input-authority/url-semicolon.css"),
             dialect: StyleDialect::Css,
             expected: DifferentialDisposition::ScannerWrong,
         },
         DifferentialCase {
             name: "url-brace",
             path: "url-brace.css",
-            source: ".target { background-image: url(a}b.png)!important; background-image: url(clean.png); }",
+            source: include_str!("../../tests/fixtures/cascade-input-authority/url-brace.css"),
             dialect: StyleDialect::Css,
             expected: DifferentialDisposition::ScannerWrong,
         },
         DifferentialCase {
             name: "comment-adjacent",
             path: "comment-adjacent.scss",
-            source: ".target { /* header */ color: red; color: blue; }",
+            source: include_str!(
+                "../../tests/fixtures/cascade-input-authority/comment-adjacent.scss"
+            ),
             dialect: StyleDialect::Scss,
             expected: DifferentialDisposition::Agreement,
         },
@@ -192,7 +260,7 @@ fn scanner_and_cst_facts_have_an_adjudicated_differential_corpus() {
             assert_ne!(
                 candidate_signatures(&scanner),
                 candidate_signatures(&facts),
-                "{} must continue to expose the retired scanner defect until S3 cuts production over",
+                "{} must continue to expose the retired test-only scanner defect",
                 case.name
             );
             DifferentialDisposition::ScannerWrong
@@ -218,14 +286,14 @@ fn facts_authority_keeps_the_emission_preserved_url_declaration_as_winner() -> R
         DifferentialCase {
             name: "url-semicolon",
             path: "url-semicolon.css",
-            source: ".target { background-image: url(a;b.png)!important; background-image: url(clean.png); }",
+            source: include_str!("../../tests/fixtures/cascade-input-authority/url-semicolon.css"),
             dialect: StyleDialect::Css,
             expected: DifferentialDisposition::ScannerWrong,
         },
         DifferentialCase {
             name: "url-brace",
             path: "url-brace.css",
-            source: ".target { background-image: url(a}b.png)!important; background-image: url(clean.png); }",
+            source: include_str!("../../tests/fixtures/cascade-input-authority/url-brace.css"),
             dialect: StyleDialect::Css,
             expected: DifferentialDisposition::ScannerWrong,
         },
