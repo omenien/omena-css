@@ -2,20 +2,20 @@
   "schemaVersion": "0",
   "product": "omena-benchmarks.z5-perf-gate-baseline",
   "benchmarkFamily": "z5-performance-baseline",
-  "generatedAtUtc": "2026-08-08T20:13:47.077Z",
-  "omenaGitSha": "4a8e44a27b7a15a8a13952191d2bd86330451939",
+  "generatedAtUtc": "2026-08-17T17:31:20.004Z",
+  "omenaGitSha": "e9ca46b160e0c69eb0765ec668bbb047f31f8989",
   "machine": {
     "cpuModel": "AMD EPYC 7763 64-Core Processor",
     "cores": 4,
     "ramBytes": 16766414848,
     "os": "Linux",
-    "kernel": "6.17.0-1020-azure",
+    "kernel": "6.17.0-1022-azure",
     "arch": "x64"
   },
   "toolchain": {
     "rustcVersion": "rustc 1.96.0 (ac68faa20 2026-05-25)",
     "rustcCommitHash": "ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96",
-    "cargoLockSha256": "e3a1e1e41f3cf3da0119e34a243634ab0a8da4886d0cddb74a3708c004cd4533",
+    "cargoLockSha256": "d61cf9acaafe4c4c62bfe579670ec54229bca0dace3588b49c350f76f489ba9c",
     "nodeVersion": "v26.7.0",
     "lightningcssVersion": "1.33.0",
     "iaiCallgrindVersion": "0.16.1",
@@ -37,6 +37,7 @@
       "--separate-targets"
     ],
     "tool": "iai-callgrind",
+    "measurementBoundary": "explicit-product-query-window-v1",
     "measuredOperation": "query-and-transform-runtime-substrate"
   },
   "results": [
@@ -45,7 +46,7 @@
       "benchmarkFunction": "cold_open_query_corpus_2n",
       "corpusScale": "2N",
       "metric": "instructions",
-      "value": 1137899053,
+      "value": 1137300868,
       "unit": "Ir"
     },
     {
@@ -53,7 +54,7 @@
       "benchmarkFunction": "cold_open_query_corpus_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 893516872,
+      "value": 892027612,
       "unit": "Ir"
     },
     {
@@ -61,7 +62,7 @@
       "benchmarkFunction": "committed_graph_edit_query_corpus_2n",
       "corpusScale": "2N",
       "metric": "instructions",
-      "value": 2308340864,
+      "value": 2270441599,
       "unit": "Ir"
     },
     {
@@ -69,7 +70,7 @@
       "benchmarkFunction": "committed_graph_edit_query_corpus_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 1266804753,
+      "value": 1246830174,
       "unit": "Ir"
     },
     {
@@ -77,7 +78,7 @@
       "benchmarkFunction": "memoized_recheck_query_corpus_2n",
       "corpusScale": "2N",
       "metric": "instructions",
-      "value": 715959315,
+      "value": 709956269,
       "unit": "Ir"
     },
     {
@@ -85,7 +86,7 @@
       "benchmarkFunction": "memoized_recheck_query_corpus_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 687617485,
+      "value": 684175554,
       "unit": "Ir"
     },
     {
@@ -101,7 +102,7 @@
       "benchmarkFunction": "property_metadata_lookup_registry_n",
       "corpusScale": "N",
       "metric": "instructions",
-      "value": 1474585,
+      "value": 1462297,
       "unit": "Ir"
     }
   ],
@@ -110,7 +111,7 @@
       "lane": "memoized-recheck-slope",
       "numeratorLane": "memoized-recheck-2n",
       "denominatorLane": "memoized-recheck-n",
-      "multiplier": 1.041217,
+      "multiplier": 1.037681,
       "threshold": 1.1,
       "thresholdPolicy": "memoized recheck should remain near-flat across N and 2N because only the edited file fact re-runs",
       "fit": "ratio"
@@ -119,7 +120,7 @@
       "lane": "cold-open-slope",
       "numeratorLane": "cold-open-2n",
       "denominatorLane": "cold-open-n",
-      "multiplier": 1.273506,
+      "multiplier": 1.274962,
       "threshold": 2.2,
       "thresholdPolicy": "cold open may scale with corpus size; 2.2 leaves deterministic headroom over the ideal 2x slope",
       "fit": "ratio"
@@ -128,7 +129,7 @@
       "lane": "committed-graph-edit-rebuild-slope",
       "numeratorLane": "committed-graph-edit-rebuild-2n",
       "denominatorLane": "committed-graph-edit-rebuild-n",
-      "multiplier": 1.822176,
+      "multiplier": 1.820971,
       "threshold": 99,
       "thresholdPolicy": "committed graph edit rebuild is recorded as an instruction-count baseline; flatness is a future contract once the edit path is fully settled",
       "fit": "ratio"
@@ -137,7 +138,7 @@
       "lane": "property-metadata-lookup-registry-size",
       "numeratorLane": "property-metadata-lookup-full",
       "denominatorLane": "property-metadata-lookup-n",
-      "multiplier": 1.519436,
+      "multiplier": 1.532204,
       "threshold": 2,
       "thresholdPolicy": "binary-search property metadata lookup should remain sublinear from the 64-row sample to the full generated registry",
       "fit": "ratio"
