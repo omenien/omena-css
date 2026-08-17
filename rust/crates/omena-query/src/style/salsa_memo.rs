@@ -1235,17 +1235,11 @@ fn memo_workspace_diagnostics_substrate(
     )
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct OmenaQueryStyleParsedFactsV0 {
-    parsed: omena_parser::ParseResult,
-    fact_entry: OmenaQueryStyleFactEntry,
-}
-
-#[salsa::tracked(returns(ref))]
-fn memo_style_parsed_facts(
+#[salsa::tracked(returns(clone))]
+fn memo_style_fact_entry(
     db: &dyn salsa::Database,
     file: OmenaQueryStyleFileInputV0,
-) -> OmenaQueryStyleParsedFactsV0 {
+) -> OmenaQueryStyleFactEntry {
     #[cfg(any(test, feature = "test-support"))]
     style_fact_entry_probe::record(file.style_path(db));
     let style_path = file.style_path(db);
@@ -1254,21 +1248,14 @@ fn memo_style_parsed_facts(
     let parsed = parse_omena_query_omena_parser_style_source(style_source, dialect);
     let (raw_facts, icss_export_values) =
         collect_omena_query_style_facts_with_icss_values_from_parse(style_source, &parsed);
-    let fact_entry = collect_omena_query_style_fact_entry_from_raw(
+    collect_omena_query_style_fact_entry_from_raw(
         style_path,
         style_source,
         dialect,
         raw_facts,
         icss_export_values,
-    );
-    OmenaQueryStyleParsedFactsV0 { parsed, fact_entry }
-}
-
-fn memo_style_fact_entry(
-    db: &dyn salsa::Database,
-    file: OmenaQueryStyleFileInputV0,
-) -> OmenaQueryStyleFactEntry {
-    memo_style_parsed_facts(db, file).fact_entry.clone()
+    )
+    .with_parser_materialization(parsed)
 }
 
 #[salsa::tracked(returns(clone))]
@@ -1278,11 +1265,14 @@ fn memo_style_cascade_declarations(
 ) -> Vec<cascade_checker::QueryCheckerCascadeDeclaration> {
     #[cfg(test)]
     memo_style_cascade_projection_probe::record();
-    let parsed_facts = memo_style_parsed_facts(db, file);
+    let fact_entry = memo_style_fact_entry(db, file);
+    let Some(parsed) = fact_entry.parser_materialization() else {
+        return cascade_checker::collect_query_checker_cascade_declarations(file.style_source(db));
+    };
     let (syntax_facts, context_index) =
         omena_semantic::collect_parser_declaration_syntax_and_style_context_from_parse(
             file.style_source(db),
-            &parsed_facts.parsed,
+            parsed,
         );
     cascade_checker::collect_query_checker_cascade_declarations_from_syntax_and_context(
         syntax_facts,

@@ -1403,6 +1403,42 @@ pub(in crate::style) fn summarize_omena_query_style_semantic_graph_batch_from_co
     }
 }
 
+/// Non-semantic parser materialization retained beside a style fact entry so
+/// consumers that need the CST can share the parser invocation. The source
+/// text and derived facts remain the equality authority; cache presence must
+/// not make the memoized and straight-line fact entries compare differently.
+#[derive(Default)]
+struct OmenaQueryStyleParserMaterializationV0(
+    Option<std::panic::AssertUnwindSafe<std::sync::Arc<omena_parser::ParseResult>>>,
+);
+
+impl Clone for OmenaQueryStyleParserMaterializationV0 {
+    fn clone(&self) -> Self {
+        Self(
+            self.0
+                .as_ref()
+                .map(|parsed| std::panic::AssertUnwindSafe(std::sync::Arc::clone(&parsed.0))),
+        )
+    }
+}
+
+impl std::fmt::Debug for OmenaQueryStyleParserMaterializationV0 {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("OmenaQueryStyleParserMaterializationV0")
+            .field("present", &self.0.is_some())
+            .finish()
+    }
+}
+
+impl PartialEq for OmenaQueryStyleParserMaterializationV0 {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for OmenaQueryStyleParserMaterializationV0 {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OmenaQueryStyleFactEntry {
     style_path: String,
@@ -1413,6 +1449,23 @@ struct OmenaQueryStyleFactEntry {
     sass_module_public_variable_names: BTreeSet<String>,
     sass_module_public_mixin_names: BTreeSet<String>,
     sass_module_public_function_names: BTreeSet<String>,
+    parser_materialization: OmenaQueryStyleParserMaterializationV0,
+}
+
+impl OmenaQueryStyleFactEntry {
+    fn with_parser_materialization(mut self, parsed: omena_parser::ParseResult) -> Self {
+        self.parser_materialization = OmenaQueryStyleParserMaterializationV0(Some(
+            std::panic::AssertUnwindSafe(std::sync::Arc::new(parsed)),
+        ));
+        self
+    }
+
+    fn parser_materialization(&self) -> Option<&omena_parser::ParseResult> {
+        self.parser_materialization
+            .0
+            .as_ref()
+            .map(|parsed| parsed.0.as_ref())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1543,6 +1596,7 @@ fn collect_omena_query_style_fact_entry_from_raw(
         sass_module_public_variable_names,
         sass_module_public_mixin_names,
         sass_module_public_function_names,
+        parser_materialization: OmenaQueryStyleParserMaterializationV0::default(),
     }
 }
 
