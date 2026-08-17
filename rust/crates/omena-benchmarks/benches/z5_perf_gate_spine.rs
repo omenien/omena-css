@@ -49,22 +49,22 @@ fn cold_open_query_corpus_2n() -> usize {
 }
 
 #[library_benchmark(setup = setup_memoized_recheck_query_corpus_n)]
-fn memoized_recheck_query_corpus_n(fixture: RecheckFixture) -> usize {
+fn memoized_recheck_query_corpus_n(fixture: ManuallyDrop<RecheckFixture>) -> usize {
     measure_memoized_recheck_query_corpus(fixture)
 }
 
 #[library_benchmark(setup = setup_memoized_recheck_query_corpus_2n)]
-fn memoized_recheck_query_corpus_2n(fixture: RecheckFixture) -> usize {
+fn memoized_recheck_query_corpus_2n(fixture: ManuallyDrop<RecheckFixture>) -> usize {
     measure_memoized_recheck_query_corpus(fixture)
 }
 
 #[library_benchmark(setup = setup_committed_graph_edit_query_corpus_n)]
-fn committed_graph_edit_query_corpus_n(fixture: RecheckFixture) -> usize {
+fn committed_graph_edit_query_corpus_n(fixture: ManuallyDrop<RecheckFixture>) -> usize {
     measure_committed_graph_edit_query_corpus(fixture)
 }
 
 #[library_benchmark(setup = setup_committed_graph_edit_query_corpus_2n)]
-fn committed_graph_edit_query_corpus_2n(fixture: RecheckFixture) -> usize {
+fn committed_graph_edit_query_corpus_2n(fixture: ManuallyDrop<RecheckFixture>) -> usize {
     measure_committed_graph_edit_query_corpus(fixture)
 }
 
@@ -229,19 +229,19 @@ fn linear_property_metadata_lookup(
         .find(|record| record.canonical_name == property)
 }
 
-fn setup_memoized_recheck_query_corpus_n() -> RecheckFixture {
+fn setup_memoized_recheck_query_corpus_n() -> ManuallyDrop<RecheckFixture> {
     setup_memoized_recheck_query_corpus(1)
 }
 
-fn setup_memoized_recheck_query_corpus_2n() -> RecheckFixture {
+fn setup_memoized_recheck_query_corpus_2n() -> ManuallyDrop<RecheckFixture> {
     setup_memoized_recheck_query_corpus(2)
 }
 
-fn setup_committed_graph_edit_query_corpus_n() -> RecheckFixture {
+fn setup_committed_graph_edit_query_corpus_n() -> ManuallyDrop<RecheckFixture> {
     setup_memoized_recheck_query_corpus(1)
 }
 
-fn setup_committed_graph_edit_query_corpus_2n() -> RecheckFixture {
+fn setup_committed_graph_edit_query_corpus_2n() -> ManuallyDrop<RecheckFixture> {
     setup_memoized_recheck_query_corpus(2)
 }
 
@@ -307,7 +307,7 @@ fn setup_demand_monotone_fact_propagation_fixed_query_corpus_8n() -> ManuallyDro
     ManuallyDrop::new(setup_demand_monotone_fact_propagation_fixed_query_corpus(8))
 }
 
-fn setup_memoized_recheck_query_corpus(repetitions: usize) -> RecheckFixture {
+fn setup_memoized_recheck_query_corpus(repetitions: usize) -> ManuallyDrop<RecheckFixture> {
     let corpus = query_corpus(repetitions);
     let target_path = corpus[0].style_path.clone();
     let resolution_inputs = OmenaQueryStyleResolutionInputsV0::default();
@@ -322,12 +322,12 @@ fn setup_memoized_recheck_query_corpus(repetitions: usize) -> RecheckFixture {
     );
     black_box(initial);
 
-    RecheckFixture {
+    ManuallyDrop::new(RecheckFixture {
         corpus,
         host,
         resolution_inputs,
         target_path,
-    }
+    })
 }
 
 fn setup_demand_monotone_fact_propagation_fixed_query_corpus(scale: usize) -> DemandFixture {
@@ -365,24 +365,29 @@ fn setup_demand_monotone_fact_propagation_fixed_query_corpus(scale: usize) -> De
     }
 }
 
-fn measure_memoized_recheck_query_corpus(mut fixture: RecheckFixture) -> usize {
-    fixture.corpus[0]
+/// Measure the hot recheck while the setup-owned query cache remains alive.
+/// Dropping the host here would charge full cache/CST teardown to a product
+/// request that retains the workspace host for subsequent revisions.
+fn measure_memoized_recheck_query_corpus(mut fixture: ManuallyDrop<RecheckFixture>) -> usize {
+    let RecheckFixture {
+        corpus,
+        host,
+        resolution_inputs,
+        target_path,
+    } = &mut *fixture;
+    corpus[0]
         .style_source
         .push_str("\n.perfGateProbe { color: currentColor; }\n");
-    let diagnostics = fixture.host.workspace_style_diagnostics(
-        fixture.target_path.as_str(),
-        fixture.corpus.as_slice(),
+    let diagnostics = host.workspace_style_diagnostics(
+        target_path.as_str(),
+        corpus.as_slice(),
         &[],
         &[],
         &[],
-        &fixture.resolution_inputs,
+        resolution_inputs,
     );
     black_box(diagnostics);
-    fixture
-        .corpus
-        .iter()
-        .map(|source| source.style_source.len())
-        .sum()
+    corpus.iter().map(|source| source.style_source.len()).sum()
 }
 
 fn measure_demand_monotone_fact_propagation_fixed_query_corpus(fixture: &DemandFixture) -> usize {
@@ -404,23 +409,20 @@ fn measure_demand_monotone_fact_propagation_fixed_query_corpus(fixture: &DemandF
     request_work
 }
 
-fn measure_committed_graph_edit_query_corpus(mut fixture: RecheckFixture) -> usize {
-    fixture.corpus[0]
+fn measure_committed_graph_edit_query_corpus(mut fixture: ManuallyDrop<RecheckFixture>) -> usize {
+    let RecheckFixture {
+        corpus,
+        host,
+        resolution_inputs,
+        target_path: _,
+    } = &mut *fixture;
+    corpus[0]
         .style_source
         .push_str("\n.committedGraphProbe { color: currentColor; }\n");
-    let selector = fixture.host.workspace_revision_selector(
-        fixture.corpus.as_slice(),
-        &[],
-        &[],
-        &[],
-        &fixture.resolution_inputs,
-    );
+    let selector =
+        host.workspace_revision_selector(corpus.as_slice(), &[], &[], &[], resolution_inputs);
     black_box(selector);
-    fixture
-        .corpus
-        .iter()
-        .map(|source| source.style_source.len())
-        .sum()
+    corpus.iter().map(|source| source.style_source.len()).sum()
 }
 
 fn measure_transform_ir_mutation_density(mut fixture: TransformIrMutationFixture) -> usize {
