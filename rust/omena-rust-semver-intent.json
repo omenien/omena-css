@@ -387,7 +387,7 @@
     {
       "crate": "omena-parser",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "Closed-world linked modules carry module-qualified composes adjacency while the sealed bundle exposes additive evidence and adjacency accessors.",
+      "reason": "Closed-world linked modules carry module-qualified composes adjacency while the sealed bundle exposes additive evidence and adjacency accessors, and the parser exposes an additive CST-owned declaration projection for downstream semantic joins without requiring declaration-string rescanning.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",

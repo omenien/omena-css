@@ -4,6 +4,7 @@ use omena_query_checker_orchestrator::{CanonicalSelector, OmenaCheckerCascadeDec
 
 mod confidence;
 mod custom_property_registration;
+mod declaration_facts;
 mod diagnostic_render;
 mod input;
 mod replica_ensemble;

@@ -134,3 +134,57 @@ fn product_summary_preserves_syntax_derived_values_and_spans() {
     assert!(animation_properties.contains(&"animation-name"));
     assert!(animation_properties.contains(&"animation"));
 }
+
+#[test]
+fn declaration_syntax_facts_keep_url_delimiters_inside_cst_values() {
+    for source in [
+        ".a { background-image: url(a;b.png)!important; background-image: url(clean.png); }",
+        ".a { background-image: url(a}b.png)!important; background-image: url(clean.png); }",
+    ] {
+        let facts = collect_parser_declaration_syntax_facts(source, StyleDialect::Css);
+        assert_eq!(facts.len(), 2, "{facts:#?}");
+        assert_eq!(facts[0].property_name, "background-image");
+        let expected_value = source
+            .split_once("background-image: ")
+            .and_then(|(_, tail)| tail.split_once("!important"))
+            .map(|(value, _)| value);
+        assert_eq!(
+            span_text(source, facts[0].value_span).map(str::trim),
+            expected_value
+        );
+        assert!(facts[0].important);
+        assert_eq!(facts[0].source_order, 0);
+        assert_eq!(facts[0].selector_contexts.len(), 1);
+        assert_eq!(facts[0].selector_contexts[0].selector_members, [".a"]);
+        assert!(!facts[0].selector_contexts[0].reset_to_root);
+        assert_eq!(facts[1].source_order, 1);
+        assert!(!facts[1].important);
+    }
+}
+
+#[test]
+fn declaration_syntax_facts_record_nested_selectors_and_cst_conditions() {
+    let source = r#"
+@media (min-width: 40rem) {
+  .card, .panel {
+    &:hover { color: red ! /* keep */ important; }
+  }
+}
+"#;
+    let facts = collect_parser_declaration_syntax_facts(source, StyleDialect::Scss);
+    assert_eq!(facts.len(), 1, "{facts:#?}");
+    let fact = &facts[0];
+    assert_eq!(fact.property_name, "color");
+    assert_eq!(
+        span_text(source, fact.value_span).map(str::trim),
+        Some("red")
+    );
+    assert!(fact.important);
+    assert_eq!(fact.condition_contexts, ["@media (min-width: 40rem)"]);
+    assert_eq!(fact.selector_contexts.len(), 2);
+    assert_eq!(
+        fact.selector_contexts[0].selector_members,
+        [".card", ".panel"]
+    );
+    assert_eq!(fact.selector_contexts[1].selector_members, ["&:hover"]);
+}

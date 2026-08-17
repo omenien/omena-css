@@ -101,10 +101,11 @@ pub use parse::{
 pub(crate) use parse::{Parser, tokenize};
 pub use parse_tree_contract_idl_generated::ParseTreeNodeV0;
 pub use public_product::{
-    ParserCanonicalCandidateBundleV0, ParserCanonicalProducerSignalV0, ParserEvaluatorCandidatesV0,
-    ParserIndexSummaryV0, dialect_for_path, summarize_css_modules_intermediate,
-    summarize_parser_canonical_candidate, summarize_parser_canonical_producer_signal,
-    summarize_parser_evaluator_candidates,
+    ParserCanonicalCandidateBundleV0, ParserCanonicalProducerSignalV0,
+    ParserDeclarationSelectorContextV0, ParserDeclarationSyntaxFactV0, ParserEvaluatorCandidatesV0,
+    ParserIndexSummaryV0, ProductSyntaxIndexV0, collect_parser_declaration_syntax_facts,
+    dialect_for_path, summarize_css_modules_intermediate, summarize_parser_canonical_candidate,
+    summarize_parser_canonical_producer_signal, summarize_parser_evaluator_candidates,
 };
 pub use recovery::{RECOVERY_DECLARATION, RECOVERY_SELECTOR, RECOVERY_TOP, TokenSet};
 pub use spans::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};

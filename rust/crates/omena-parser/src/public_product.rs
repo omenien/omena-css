@@ -21,10 +21,13 @@ use serde::Serialize;
 mod style_blocks;
 mod syntax_index;
 
+pub use syntax_index::{
+    ParserDeclarationSelectorContextV0, ParserDeclarationSyntaxFactV0, ProductSyntaxIndexV0,
+    collect_parser_declaration_syntax_facts,
+};
+
 #[cfg(test)]
 mod tests;
-
-use syntax_index::ProductSyntaxIndexV0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
