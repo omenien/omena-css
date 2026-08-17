@@ -469,7 +469,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 1612,
+        "line": 1662,
         "function": "summarize_omena_query_css_modules_interface_bundle_inner",
         "operation": "insert",
         "evidence": "emitted_class_names.insert(",
@@ -478,7 +478,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3384,
+        "line": 3434,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "str-eq",
         "evidence": "let target_class_names = if target_style_path == *style_path {",
@@ -487,7 +487,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3399,
+        "line": 3449,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !class_names.contains(&canonical_class_key(owner_selector_name)) {",
@@ -496,7 +496,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3405,
+        "line": 3455,
         "function": "collect_css_modules_composes_adjacency_with_path_mappings",
         "operation": "contains",
         "evidence": "if !target_class_names.contains(&canonical_class_key(target_selector_name)) {",
@@ -505,7 +505,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style.rs",
-        "line": 3761,
+        "line": 3811,
         "function": "collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts",
         "operation": "insert",
         "evidence": "if seen.insert((range_span.start, range_span.end, selector_name.clone())) {",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:b00b273bb5cf49c8d0e3f89481410a735310a5868a7b080a4b6dc0785f0ffe09"
+    "siteDigest": "sha256:05cf2f9153121058b2c03773305de1ed1b13b2fd6bdd93cde6002e114c5347a8"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
