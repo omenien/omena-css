@@ -60,8 +60,28 @@ jobs:
         env:
           OMENA_Z5_CANDIDATE_BASELINE_LANES: ${{ inputs.candidate-comparison-lanes || '' }}
           OMENA_PROPERTY_METADATA_LOOKUP_PROBE: ${{ inputs.property-metadata-lookup-probe || 'indexed' }}
+      - name: Record paired query-window baselines
+        run: |
+          pair_root="${RUNNER_TEMP}/query-window-pair"
+          baseline_path="rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json"
+          mkdir -p "${pair_root}/current" "${pair_root}/pre"
+          cp "${baseline_path}" "${pair_root}/current/z5-perf-gate-baseline-v0.json"
+          git checkout --force "${PRE_QUERY_WINDOW_SHA}"
+          node --import tsx ./scripts/check-rust-z5-perf-gate-baseline.ts --write
+          cp "${baseline_path}" "${pair_root}/pre/z5-perf-gate-baseline-v0.json"
+          git checkout --force "${GITHUB_SHA}"
+          cp "${pair_root}/current/z5-perf-gate-baseline-v0.json" "${baseline_path}"
+        env:
+          PRE_QUERY_WINDOW_SHA: e9ca46b160e0c69eb0765ec668bbb047f31f8989
+          OMENA_Z5_CANDIDATE_BASELINE_LANES: ${{ inputs.candidate-comparison-lanes || '' }}
+          OMENA_PROPERTY_METADATA_LOOKUP_PROBE: ${{ inputs.property-metadata-lookup-probe || 'indexed' }}
       - name: Require z5 perf gate baseline
         run: test -s rust/crates/omena-benchmarks/baselines/z5-perf-gate-baseline-v0.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: query-window-paired-baselines
+          path: ${{ runner.temp }}/query-window-pair
+          if-no-files-found: error
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: z5-instruction-count-advisory
