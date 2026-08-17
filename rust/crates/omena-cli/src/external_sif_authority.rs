@@ -9,14 +9,15 @@ use omena_query::{
     resolve_omena_query_bridge_external_sifs_for_style_sources,
 };
 use omena_sif::{
-    compute_omena_sif_artifact_hash_v1, read_omena_lock_json_v1, read_omena_sif_json_v1,
+    compute_omena_sif_artifact_hash_v1, normalize_omena_sif_location_spelling_v1,
+    read_omena_lock_json_v1, read_omena_sif_json_v1,
 };
 
 use crate::{
     dispatch::ParsedCliExternalSifArgumentsV0,
     io::read_source,
     lock::resolve_lock_relative_path,
-    paths::{cli_file_uri_to_path, cli_path_to_file_uri, path_string},
+    paths::{cli_path_to_file_uri, path_string},
 };
 
 /// The only CLI input shape that can request external-SIF artifact reads.
@@ -177,19 +178,19 @@ pub(crate) fn resolve_cli_external_sif_authority(
 
 /// Resolve existing local-file spellings to the identity used for precedence.
 ///
-/// `file://` URLs, absolute native paths, and regular files spelled relative
-/// to the captured CLI invocation directory are canonicalized. This collapses
-/// symlink, `.` and `..` spellings according to the host filesystem. The
-/// candidate retains its authored URL bytes. Non-file URI schemes, directories
-/// and spellings that do not resolve to an existing regular file retain their
-/// exact bytes as the precedence identity.
+/// Every spelling first passes through the same `file://` and path-separator
+/// normalization used by bundle matching. Absolute native paths and regular
+/// files spelled relative to the captured CLI invocation directory are then
+/// canonicalized. This collapses symlink, `.` and `..` spellings according to
+/// the host filesystem. The candidate retains its authored URL bytes. Non-file
+/// URI schemes, directories and spellings that do not resolve to an existing
+/// regular file retain their normalized spelling as the precedence identity.
 fn resolved_external_sif_coverage_key(canonical_url: &str, invocation_directory: &Path) -> String {
-    let file_path = if let Some(path) = cli_file_uri_to_path(canonical_url) {
-        Some(path)
-    } else if canonical_url.contains("://") {
+    let normalized_location = normalize_omena_sif_location_spelling_v1(canonical_url);
+    let file_path = if normalized_location.contains("://") {
         None
     } else {
-        let path = Path::new(canonical_url);
+        let path = Path::new(normalized_location.as_str());
         Some(if path.is_absolute() {
             path.to_path_buf()
         } else {
@@ -199,8 +200,10 @@ fn resolved_external_sif_coverage_key(canonical_url: &str, invocation_directory:
     file_path
         .and_then(|path| fs::canonicalize(path).ok())
         .filter(|path| path.is_file())
-        .map(|path| cli_path_to_file_uri(path.as_path()))
-        .unwrap_or_else(|| canonical_url.to_string())
+        .map(|path| {
+            normalize_omena_sif_location_spelling_v1(cli_path_to_file_uri(path.as_path()).as_str())
+        })
+        .unwrap_or(normalized_location)
 }
 
 fn read_explicit_external_sifs(

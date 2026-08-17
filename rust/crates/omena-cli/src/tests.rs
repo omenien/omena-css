@@ -669,6 +669,151 @@ fn bundle_lock_relative_spelling_is_fallback_behind_local_regeneration() -> Resu
 }
 
 #[test]
+fn bundle_lock_backslash_spelling_is_fallback_behind_local_regeneration() -> Result<(), String> {
+    let invocation_root = std::env::current_dir()
+        .map_err(|error| format!("fixture invocation root should resolve: {error}"))?;
+    let fixture_name = temp_path("bundle-lock-backslash-local-regeneration")
+        .file_name()
+        .ok_or_else(|| "backslash authority fixture should have a directory name".to_string())?
+        .to_os_string();
+    let root = invocation_root
+        .join("rust/target/omena-cli-tests")
+        .join(fixture_name);
+    let sif_dir = root.join("sif");
+    let package_dir = root.join("node_modules/@fixture/tokens");
+    fs::create_dir_all(&sif_dir).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&package_dir).map_err(|error| error.to_string())?;
+
+    let entry = root.join("app.module.scss");
+    let external = package_dir.join("index.scss");
+    let package_manifest = package_dir.join("package.json");
+    let forward_sif_path = sif_dir.join("tokens-forward.sif.json");
+    let backslash_sif_path = sif_dir.join("tokens-backslash.sif.json");
+    let forward_lockfile = root.join("omena-forward.lock");
+    let backslash_lockfile = root.join("omena-backslash.lock");
+    fs::write(&external, "$clean: red !default;\n").map_err(|error| error.to_string())?;
+    fs::write(
+        &package_manifest,
+        r#"{"exports":{".":{"sass":"./index.scss"}}}"#,
+    )
+    .map_err(|error| error.to_string())?;
+    fs::write(
+        &entry,
+        "@use \"@fixture/tokens\" as tokens;\n.button { color: tokens.$clean; }\n",
+    )
+    .map_err(|error| error.to_string())?;
+
+    assert!(
+        !fs::symlink_metadata(&package_dir)
+            .map_err(|error| error.to_string())?
+            .file_type()
+            .is_symlink(),
+        "backslash authority fixture must use a plain node_modules directory"
+    );
+    let invocation_relative = |path: &Path| {
+        path.strip_prefix(&invocation_root)
+            .map(Path::to_path_buf)
+            .map_err(|error| format!("fixture path should be invocation-relative: {error}"))
+    };
+    let relative_entry = invocation_relative(&entry)?;
+    let relative_external_path = invocation_relative(&external)?;
+    let relative_package_manifest = invocation_relative(&package_manifest)?;
+    let forward_lockfile_path = invocation_relative(&forward_lockfile)?;
+    let backslash_lockfile_path = invocation_relative(&backslash_lockfile)?;
+    let forward_url = path_string(relative_external_path.as_path()).replace('\\', "/");
+    let backslash_url = forward_url.replace('/', "\\");
+    assert!(
+        !Path::new(&forward_url).is_absolute() && !forward_url.starts_with("file://"),
+        "fixture must preserve a relative forward-slash canonicalUrl: {forward_url}"
+    );
+    assert_ne!(
+        backslash_url, forward_url,
+        "fixture must preserve a distinct backslash canonicalUrl spelling"
+    );
+    assert!(
+        backslash_url.contains('\\'),
+        "fixture canonicalUrl must exercise the backslash axis: {backslash_url}"
+    );
+
+    let forward_poisoned = cli_fixture_sif(forward_url.as_str(), b"$poisoned: blue !default;")?;
+    fs::write(
+        &forward_sif_path,
+        omena_sif::write_omena_sif_json_v1(&forward_poisoned).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let forward_lock = omena_sif::OmenaLockV1::new(vec![
+        omena_sif::build_omena_lock_sif_entry_v1("sif/tokens-forward.sif.json", &forward_poisoned)
+            .map_err(|error| error.to_string())?,
+    ]);
+    fs::write(
+        &forward_lockfile,
+        omena_sif::write_omena_lock_json_v1(&forward_lock).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let backslash_poisoned = cli_fixture_sif(backslash_url.as_str(), b"$poisoned: blue !default;")?;
+    fs::write(
+        &backslash_sif_path,
+        omena_sif::write_omena_sif_json_v1(&backslash_poisoned)
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let backslash_lock = omena_sif::OmenaLockV1::new(vec![
+        omena_sif::build_omena_lock_sif_entry_v1(
+            "sif/tokens-backslash.sif.json",
+            &backslash_poisoned,
+        )
+        .map_err(|error| error.to_string())?,
+    ]);
+    fs::write(
+        &backslash_lockfile,
+        omena_sif::write_omena_lock_json_v1(&backslash_lock).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let plan = |lockfile| {
+        plan_bundle(&BundleCommandOptions {
+            entry: Some(relative_entry.clone()),
+            css_out: None,
+            evidence_path: None,
+            source_paths: vec![relative_external_path.clone()],
+            package_manifest_paths: vec![relative_package_manifest.clone()],
+            external_sif_selection:
+                crate::external_sif_authority::CliExternalSifSelectionV0::from_test_arguments(
+                    Vec::new(),
+                    lockfile,
+                ),
+        })
+    };
+    let local_only = serde_json::to_value(plan(None)?.evidence).map_err(|e| e.to_string())?;
+    let with_forward_lock = serde_json::to_value(plan(Some(forward_lockfile_path))?.evidence)
+        .map_err(|e| e.to_string())?;
+    let with_backslash_lock = serde_json::to_value(plan(Some(backslash_lockfile_path))?.evidence)
+        .map_err(|e| e.to_string())?;
+    assert_eq!(
+        local_only["outcomeStatus"], "closed",
+        "backslash authority fixture must be closed: {local_only}"
+    );
+    assert!(
+        local_only["interfaceHashes"]
+            .as_array()
+            .is_some_and(|entries| !entries.is_empty()),
+        "backslash authority fixture must exercise interface evidence: {local_only}"
+    );
+    assert_eq!(
+        with_forward_lock, local_only,
+        "the forward-slash control lock changed local-regeneration evidence"
+    );
+    assert_eq!(
+        with_backslash_lock, local_only,
+        "a backslash-spelled lock URL replaced invocation-relative local-regeneration evidence"
+    );
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
 fn minify_profiles_change_the_executed_pass_set_and_output() -> Result<(), String> {
     let root = temp_dir("minify-profiles");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;

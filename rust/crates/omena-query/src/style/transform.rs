@@ -34,6 +34,7 @@ use omena_query_transform_runner::{
     project_omena_transform_bundle_linker_and_emission_items_from_parsed_modules_with_instance_reachability,
     project_omena_transform_bundle_linker_inputs_from_parsed_modules,
 };
+use omena_sif::normalize_omena_sif_location_spelling_v1;
 use std::path::{Path, PathBuf};
 
 use super::parser_facade::{
@@ -4927,21 +4928,14 @@ fn closed_world_bundle_reachability_precision(
 }
 
 fn sif_matches_style_path(external_sif: &OmenaQueryExternalSifInputV0, style_path: &str) -> bool {
-    let style_path = normalize_bundle_sif_location(style_path);
+    let style_path = normalize_omena_sif_location_spelling_v1(style_path);
     [
         external_sif.canonical_url.as_str(),
         external_sif.sif.canonical_url.as_str(),
     ]
     .into_iter()
-    .map(normalize_bundle_sif_location)
+    .map(normalize_omena_sif_location_spelling_v1)
     .any(|candidate| candidate == style_path)
-}
-
-fn normalize_bundle_sif_location(location: &str) -> String {
-    location
-        .strip_prefix("file://")
-        .unwrap_or(location)
-        .replace('\\', "/")
 }
 
 fn closed_world_outcome_from_link_result(

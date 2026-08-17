@@ -37,6 +37,19 @@ pub const OMENA_SIF_SHARD_TRUST_ENVELOPE_V1_SCHEMA_JSON: &str =
 pub const OMENA_SIF_PROVENANCE_ADVISORY_REPORT_V0_SCHEMA_JSON: &str =
     include_str!("../schema/provenance-advisory-report-v0.schema.json");
 
+/// Normalize the authored spelling used to match a SIF location.
+///
+/// This removes the local `file://` marker and uses forward slashes so callers
+/// that resolve filesystem identity and callers that compare authored
+/// locations begin from the same spelling. It does not resolve symlinks or
+/// relative paths; filesystem-owning boundaries remain responsible for that.
+pub fn normalize_omena_sif_location_spelling_v1(location: &str) -> String {
+    location
+        .strip_prefix("file://")
+        .unwrap_or(location)
+        .replace('\\', "/")
+}
+
 const IN_TOTO_STATEMENT_TYPE_V1: &str = "https://in-toto.io/Statement/v1";
 const SLSA_PROVENANCE_PREDICATE_TYPE_V1: &str = "https://slsa.dev/provenance/v1";
 
@@ -1535,6 +1548,24 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn sif_location_spelling_normalization_is_shared_across_local_alias_forms() {
+        assert_eq!(
+            normalize_omena_sif_location_spelling_v1(r"node_modules\@fixture\tokens\index.scss"),
+            "node_modules/@fixture/tokens/index.scss"
+        );
+        assert_eq!(
+            normalize_omena_sif_location_spelling_v1(
+                r"file:///workspace/node_modules\@fixture/tokens\index.scss"
+            ),
+            "/workspace/node_modules/@fixture/tokens/index.scss"
+        );
+        assert_eq!(
+            normalize_omena_sif_location_spelling_v1("https://cdn.example/tokens.scss"),
+            "https://cdn.example/tokens.scss"
+        );
+    }
 
     #[test]
     fn stable_cache_shard_address_preserves_the_existing_recipe() -> Result<(), serde_json::Error> {
