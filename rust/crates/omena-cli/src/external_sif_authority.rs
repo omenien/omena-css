@@ -119,6 +119,8 @@ pub(crate) fn resolve_cli_external_sif_authority(
     resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
     lock_failure_mode: CliExternalSifLockFailureModeV0,
 ) -> Result<CliExternalSifAuthorityResolutionV0, String> {
+    let invocation_directory = std::env::current_dir()
+        .map_err(|error| format!("failed to resolve the CLI invocation directory: {error}"))?;
     let explicit_sifs = read_explicit_external_sifs(selection.explicit_sif_paths.as_slice())?;
     let locally_regenerated_sifs = resolve_omena_query_bridge_external_sifs_for_style_sources(
         workspace_sources,
@@ -151,8 +153,14 @@ pub(crate) fn resolve_cli_external_sif_authority(
             let outer_url = candidate.canonical_url.clone();
             let resolved_url = candidate.sif.canonical_url.clone();
             let coverage_keys = [
-                resolved_external_sif_coverage_key(outer_url.as_str()),
-                resolved_external_sif_coverage_key(resolved_url.as_str()),
+                resolved_external_sif_coverage_key(
+                    outer_url.as_str(),
+                    invocation_directory.as_path(),
+                ),
+                resolved_external_sif_coverage_key(
+                    resolved_url.as_str(),
+                    invocation_directory.as_path(),
+                ),
             ];
             if coverage_keys.iter().any(|key| covered.contains(key)) {
                 continue;
@@ -167,18 +175,30 @@ pub(crate) fn resolve_cli_external_sif_authority(
     })
 }
 
-/// Resolve local file spellings to the identity used for precedence only.
+/// Resolve existing local-file spellings to the identity used for precedence.
 ///
-/// The candidate retains its authored URL bytes. If a URL cannot be resolved
-/// as an existing local file, its exact spelling remains the identity so bare
-/// package names and remote URLs are never conflated speculatively.
-fn resolved_external_sif_coverage_key(canonical_url: &str) -> String {
-    let file_path = cli_file_uri_to_path(canonical_url).or_else(|| {
+/// `file://` URLs, absolute native paths, and regular files spelled relative
+/// to the captured CLI invocation directory are canonicalized. This collapses
+/// symlink, `.` and `..` spellings according to the host filesystem. The
+/// candidate retains its authored URL bytes. Non-file URI schemes, directories
+/// and spellings that do not resolve to an existing regular file retain their
+/// exact bytes as the precedence identity.
+fn resolved_external_sif_coverage_key(canonical_url: &str, invocation_directory: &Path) -> String {
+    let file_path = if let Some(path) = cli_file_uri_to_path(canonical_url) {
+        Some(path)
+    } else if canonical_url.contains("://") {
+        None
+    } else {
         let path = Path::new(canonical_url);
-        path.is_absolute().then(|| path.to_path_buf())
-    });
+        Some(if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            invocation_directory.join(path)
+        })
+    };
     file_path
         .and_then(|path| fs::canonicalize(path).ok())
+        .filter(|path| path.is_file())
         .map(|path| cli_path_to_file_uri(path.as_path()))
         .unwrap_or_else(|| canonical_url.to_string())
 }

@@ -527,6 +527,148 @@ fn bundle_lock_symlink_spelling_is_fallback_behind_realpath_local_regeneration()
 }
 
 #[test]
+fn bundle_lock_relative_spelling_is_fallback_behind_local_regeneration() -> Result<(), String> {
+    let invocation_root = std::env::current_dir()
+        .map_err(|error| format!("fixture invocation root should resolve: {error}"))?;
+    let fixture_name = temp_path("bundle-lock-relative-local-regeneration")
+        .file_name()
+        .ok_or_else(|| "relative authority fixture should have a directory name".to_string())?
+        .to_os_string();
+    let root = invocation_root
+        .join("rust/target/omena-cli-tests")
+        .join(fixture_name);
+    let sif_dir = root.join("sif");
+    let package_dir = root.join("node_modules/@fixture/tokens");
+    fs::create_dir_all(&sif_dir).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&package_dir).map_err(|error| error.to_string())?;
+
+    let entry = root.join("app.module.scss");
+    let external = package_dir.join("index.scss");
+    let package_manifest = package_dir.join("package.json");
+    let relative_sif_path = sif_dir.join("tokens-relative.sif.json");
+    let absolute_sif_path = sif_dir.join("tokens-absolute.sif.json");
+    let relative_lockfile = root.join("omena-relative.lock");
+    let absolute_lockfile = root.join("omena-absolute.lock");
+    fs::write(&external, "$clean: red !default;\n").map_err(|error| error.to_string())?;
+    fs::write(
+        &package_manifest,
+        r#"{"exports":{".":{"sass":"./index.scss"}}}"#,
+    )
+    .map_err(|error| error.to_string())?;
+    fs::write(
+        &entry,
+        "@use \"@fixture/tokens\" as tokens;\n.button { color: tokens.$clean; }\n",
+    )
+    .map_err(|error| error.to_string())?;
+
+    assert!(
+        !fs::symlink_metadata(&package_dir)
+            .map_err(|error| error.to_string())?
+            .file_type()
+            .is_symlink(),
+        "relative authority fixture must use a plain node_modules directory"
+    );
+    let canonical_external = fs::canonicalize(&external).map_err(|error| error.to_string())?;
+    let invocation_relative = |path: &Path| {
+        path.strip_prefix(&invocation_root)
+            .map(Path::to_path_buf)
+            .map_err(|error| format!("fixture path should be invocation-relative: {error}"))
+    };
+    let relative_entry = invocation_relative(&entry)?;
+    let relative_external_path = invocation_relative(&external)?;
+    let relative_package_manifest = invocation_relative(&package_manifest)?;
+    let relative_lockfile_path = invocation_relative(&relative_lockfile)?;
+    let absolute_lockfile_path = invocation_relative(&absolute_lockfile)?;
+    let relative_url = path_string(relative_external_path.as_path());
+    let absolute_url = crate::paths::cli_path_to_file_uri(canonical_external.as_path());
+    assert!(
+        !Path::new(&relative_url).is_absolute() && !relative_url.starts_with("file://"),
+        "fixture must preserve a relative canonicalUrl spelling: {relative_url}"
+    );
+
+    let relative_poisoned = cli_fixture_sif(relative_url.as_str(), b"$poisoned: blue !default;")?;
+    fs::write(
+        &relative_sif_path,
+        omena_sif::write_omena_sif_json_v1(&relative_poisoned)
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let relative_lock = omena_sif::OmenaLockV1::new(vec![
+        omena_sif::build_omena_lock_sif_entry_v1(
+            "sif/tokens-relative.sif.json",
+            &relative_poisoned,
+        )
+        .map_err(|error| error.to_string())?,
+    ]);
+    fs::write(
+        &relative_lockfile,
+        omena_sif::write_omena_lock_json_v1(&relative_lock).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let absolute_poisoned = cli_fixture_sif(absolute_url.as_str(), b"$poisoned: blue !default;")?;
+    fs::write(
+        &absolute_sif_path,
+        omena_sif::write_omena_sif_json_v1(&absolute_poisoned)
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let absolute_lock = omena_sif::OmenaLockV1::new(vec![
+        omena_sif::build_omena_lock_sif_entry_v1(
+            "sif/tokens-absolute.sif.json",
+            &absolute_poisoned,
+        )
+        .map_err(|error| error.to_string())?,
+    ]);
+    fs::write(
+        &absolute_lockfile,
+        omena_sif::write_omena_lock_json_v1(&absolute_lock).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let plan = |lockfile| {
+        plan_bundle(&BundleCommandOptions {
+            entry: Some(relative_entry.clone()),
+            css_out: None,
+            evidence_path: None,
+            source_paths: vec![relative_external_path.clone()],
+            package_manifest_paths: vec![relative_package_manifest.clone()],
+            external_sif_selection:
+                crate::external_sif_authority::CliExternalSifSelectionV0::from_test_arguments(
+                    Vec::new(),
+                    lockfile,
+                ),
+        })
+    };
+    let local_only = serde_json::to_value(plan(None)?.evidence).map_err(|e| e.to_string())?;
+    let with_absolute_lock = serde_json::to_value(plan(Some(absolute_lockfile_path))?.evidence)
+        .map_err(|e| e.to_string())?;
+    let with_relative_lock = serde_json::to_value(plan(Some(relative_lockfile_path))?.evidence)
+        .map_err(|e| e.to_string())?;
+    assert_eq!(
+        local_only["outcomeStatus"], "closed",
+        "relative authority fixture must be closed: {local_only}"
+    );
+    assert!(
+        local_only["interfaceHashes"]
+            .as_array()
+            .is_some_and(|entries| !entries.is_empty()),
+        "relative authority fixture must exercise interface evidence: {local_only}"
+    );
+    assert_eq!(
+        with_absolute_lock, local_only,
+        "the absolute-realpath control lock changed local-regeneration evidence"
+    );
+    assert_eq!(
+        with_relative_lock, local_only,
+        "a relative-spelled lock URL replaced invocation-relative local-regeneration evidence"
+    );
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
+#[test]
 fn minify_profiles_change_the_executed_pass_set_and_output() -> Result<(), String> {
     let root = temp_dir("minify-profiles");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
