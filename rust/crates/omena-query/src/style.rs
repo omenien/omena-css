@@ -1453,6 +1453,7 @@ struct OmenaQueryStyleFactEntry {
 }
 
 impl OmenaQueryStyleFactEntry {
+    #[cfg(feature = "salsa-memo")]
     fn with_parser_materialization(mut self, parsed: omena_parser::ParseResult) -> Self {
         self.parser_materialization = OmenaQueryStyleParserMaterializationV0(Some(
             std::panic::AssertUnwindSafe(std::sync::Arc::new(parsed)),
@@ -1460,6 +1461,7 @@ impl OmenaQueryStyleFactEntry {
         self
     }
 
+    #[cfg(feature = "salsa-memo")]
     fn parser_materialization(&self) -> Option<&omena_parser::ParseResult> {
         self.parser_materialization
             .0
