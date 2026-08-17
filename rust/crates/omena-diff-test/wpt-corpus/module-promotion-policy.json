@@ -14,8 +14,8 @@
       "sourceKind": "reviewed-seed",
       "stage": "blocking",
       "consecutiveGreenRuns": 5,
-      "reviewedAt": "2026-07-17",
-      "reviewAfter": "2026-08-16",
+      "reviewedAt": "2026-08-17",
+      "reviewAfter": "2026-09-16",
       "holdReason": null,
       "evidenceSource": "../known-failures/wpt-seed-policy.toml"
     },

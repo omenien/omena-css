@@ -350,7 +350,7 @@
   "promotion": {
     "policy": {
       "path": "module-promotion-policy.json",
-      "sha256": "340864edb227be972342418701a02d1abce15f0e6cc27b18036082ecc49fae22",
+      "sha256": "2effd5361a87321e0a53cf5f8e8474d6ea5a81eda45c2ff1bb3cb37d019d56f4",
       "recordCount": 8
     },
     "templateReview": {
