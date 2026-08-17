@@ -303,7 +303,7 @@ mod tests {
         Ok(())
     }
 
-    fn cascade_input_authority_fixtures() -> [CascadeAgreementFixtureV0; 5] {
+    fn cascade_input_authority_fixtures() -> [CascadeAgreementFixtureV0; 6] {
         [
             CascadeAgreementFixtureV0 {
                 name: "url-semicolon",
@@ -328,6 +328,15 @@ mod tests {
                 path: "comment-adjacent.scss",
                 source: include_str!(
                     "../../omena-query/src/tests/fixtures/cascade-input-authority/comment-adjacent.scss"
+                ),
+                dialect: StyleDialect::Scss,
+                property: "color",
+            },
+            CascadeAgreementFixtureV0 {
+                name: "comment-leading-cross-rule",
+                path: "comment-leading-cross-rule.scss",
+                source: include_str!(
+                    "../../omena-query/src/tests/fixtures/cascade-input-authority/comment-leading-cross-rule.scss"
                 ),
                 dialect: StyleDialect::Scss,
                 property: "color",

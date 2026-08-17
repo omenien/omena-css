@@ -254,6 +254,45 @@ mod tests {
     }
 
     #[test]
+    fn cst_join_reparse_preserves_declaration_ids_and_spans() {
+        let source = r#"
+/* header */
+@layer theme {
+  .target { background-image: url(a;b.png)!important; }
+  .target { background-image: url(clean.png); }
+}
+"#;
+        let first = collect_parsed_declaration_facts("fixture.scss", source, StyleDialect::Scss);
+        let second = collect_parsed_declaration_facts("fixture.scss", source, StyleDialect::Scss);
+        let identity_projection = |facts: &[ParsedDeclarationFactV0]| {
+            facts
+                .iter()
+                .map(|fact| {
+                    (
+                        fact.declaration_id.clone(),
+                        fact.source_order,
+                        fact.byte_span,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(first, second);
+        assert_eq!(
+            identity_projection(&first),
+            identity_projection(&second),
+            "reparsing identical bytes must preserve the declaration wire IDs and their CST spans",
+        );
+        assert_eq!(
+            identity_projection(&first)
+                .iter()
+                .map(|(id, _, _)| id.as_str())
+                .collect::<Vec<_>>(),
+            ["decl-0", "decl-1"],
+        );
+    }
+
+    #[test]
     fn cst_join_materializes_parser_once_for_syntax_and_context() {
         let (_, instrumentation) = omena_parser::with_omena_parser_parse_instrumentation(|| {
             collect_parsed_declaration_facts(

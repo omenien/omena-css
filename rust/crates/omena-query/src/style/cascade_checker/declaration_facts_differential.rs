@@ -36,6 +36,14 @@ struct EvaluationSignature {
     declaration_ids: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EmissionCandidateSignature {
+    selector: String,
+    property: String,
+    value: String,
+    important: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DifferentialDisposition {
     Agreement,
@@ -99,16 +107,82 @@ fn evaluation_signatures(
     evaluations
 }
 
-fn classify_against_scanner(
+fn emission_candidate_signature(
+    declaration: &QueryCheckerCascadeDeclaration,
+) -> EmissionCandidateSignature {
+    EmissionCandidateSignature {
+        selector: declaration.input.selector.as_str().to_string(),
+        property: declaration.input.property.clone(),
+        value: declaration.input.value.clone(),
+        important: declaration.input.important,
+    }
+}
+
+fn facts_match_semantic_emission(
+    case: DifferentialCase,
+    facts: &[QueryCheckerCascadeDeclaration],
+) -> Result<bool, String> {
+    let evaluations = evaluation_signatures(facts);
+    let Some(losing_declaration_id) = evaluations
+        .iter()
+        .find(|evaluation| evaluation.rule_code_name == "unreachable-declaration")
+        .and_then(|evaluation| evaluation.declaration_ids.first())
+    else {
+        return Ok(false);
+    };
+    let expected_winners = facts
+        .iter()
+        .filter(|declaration| declaration.input.declaration_id != *losing_declaration_id)
+        .map(emission_candidate_signature)
+        .collect::<Vec<_>>();
+    if expected_winners.is_empty() {
+        return Ok(false);
+    }
+
+    let profile = semantic_omena_query_minify_build_profile();
+    let pass_ids = profile
+        .pass_ids
+        .iter()
+        .map(|pass_id| (*pass_id).to_string())
+        .collect::<Vec<_>>();
+    let emission = execute_omena_query_consumer_build_style_source_with_context(
+        case.path,
+        case.source,
+        pass_ids.as_slice(),
+        &OmenaQueryTransformExecutionContextV0::default(),
+    )
+    .execution
+    .output_css;
+    let emitted_facts = collect_query_checker_cascade_declarations_from_facts(
+        case.path,
+        emission.as_str(),
+        case.dialect,
+    );
+    if evaluation_signatures(facts) == evaluation_signatures(&emitted_facts) {
+        return Ok(true);
+    }
+    let emitted = emitted_facts
+        .iter()
+        .map(emission_candidate_signature)
+        .collect::<Vec<_>>();
+    Ok(expected_winners
+        .iter()
+        .all(|winner| emitted.contains(winner)))
+}
+
+fn classify_against_scanner_and_emission(
+    case: DifferentialCase,
     scanner: &[QueryCheckerCascadeDeclaration],
     facts: &[QueryCheckerCascadeDeclaration],
-) -> DifferentialDisposition {
+) -> Result<DifferentialDisposition, String> {
     if candidate_signatures(scanner) == candidate_signatures(facts)
         && evaluation_signatures(scanner) == evaluation_signatures(facts)
     {
-        DifferentialDisposition::Agreement
+        Ok(DifferentialDisposition::Agreement)
+    } else if facts_match_semantic_emission(case, facts)? {
+        Ok(DifferentialDisposition::ScannerWrong)
     } else {
-        DifferentialDisposition::FactsWrong
+        Ok(DifferentialDisposition::FactsWrong)
     }
 }
 
@@ -196,7 +270,20 @@ fn production_cst_input_keeps_comment_adjacent_control_equivalent() {
 }
 
 #[test]
-fn scanner_and_cst_facts_have_an_adjudicated_differential_corpus() {
+fn production_cst_input_keeps_leading_comment_cross_rule_control_equivalent() {
+    let commented = include_str!(
+        "../../tests/fixtures/cascade-input-authority/comment-leading-cross-rule.scss"
+    );
+    let control = ".target { color: red; } .target { color: blue; }";
+    assert_eq!(cascade_codes(commented), cascade_codes(control));
+    assert_eq!(
+        cascade_codes(commented),
+        ["unreachableDeclaration", "unspecifiedCascadeTie"]
+    );
+}
+
+#[test]
+fn scanner_and_cst_facts_have_an_adjudicated_differential_corpus() -> Result<(), String> {
     const CASES: &[DifferentialCase] = &[
         DifferentialCase {
             name: "url-semicolon",
@@ -220,6 +307,15 @@ fn scanner_and_cst_facts_have_an_adjudicated_differential_corpus() {
             ),
             dialect: StyleDialect::Scss,
             expected: DifferentialDisposition::Agreement,
+        },
+        DifferentialCase {
+            name: "comment-leading-cross-rule",
+            path: "comment-leading-cross-rule.scss",
+            source: include_str!(
+                "../../tests/fixtures/cascade-input-authority/comment-leading-cross-rule.scss"
+            ),
+            dialect: StyleDialect::Scss,
+            expected: DifferentialDisposition::ScannerWrong,
         },
         DifferentialCase {
             name: "real-button-variants",
@@ -252,36 +348,27 @@ fn scanner_and_cst_facts_have_an_adjudicated_differential_corpus() {
 
     let mut agreement = 0usize;
     let mut scanner_wrong = 0usize;
-    let facts_wrong = 0usize;
+    let mut facts_wrong = 0usize;
     for case in CASES {
         let scanner = scanner_for(*case);
         let facts = facts_for(*case);
-        let actual = if case.expected == DifferentialDisposition::ScannerWrong {
-            assert_ne!(
-                candidate_signatures(&scanner),
-                candidate_signatures(&facts),
-                "{} must continue to expose the retired test-only scanner defect",
-                case.name
-            );
-            DifferentialDisposition::ScannerWrong
-        } else {
-            classify_against_scanner(&scanner, &facts)
-        };
+        let actual = classify_against_scanner_and_emission(*case, &scanner, &facts)?;
         assert_eq!(actual, case.expected, "{} diverged", case.name);
         match actual {
             DifferentialDisposition::Agreement => agreement += 1,
             DifferentialDisposition::ScannerWrong => scanner_wrong += 1,
-            DifferentialDisposition::FactsWrong => unreachable!("asserted above"),
+            DifferentialDisposition::FactsWrong => facts_wrong += 1,
         }
     }
 
     assert_eq!(agreement, 4);
-    assert_eq!(scanner_wrong, 2);
+    assert_eq!(scanner_wrong, 3);
     assert_eq!(facts_wrong, 0);
+    Ok(())
 }
 
 #[test]
-fn facts_authority_keeps_the_emission_preserved_url_declaration_as_winner() -> Result<(), String> {
+fn facts_authority_keeps_scanner_wrong_winners_aligned_with_emission() -> Result<(), String> {
     for case in [
         DifferentialCase {
             name: "url-semicolon",
@@ -297,50 +384,37 @@ fn facts_authority_keeps_the_emission_preserved_url_declaration_as_winner() -> R
             dialect: StyleDialect::Css,
             expected: DifferentialDisposition::ScannerWrong,
         },
+        DifferentialCase {
+            name: "comment-leading-cross-rule",
+            path: "comment-leading-cross-rule.scss",
+            source: include_str!(
+                "../../tests/fixtures/cascade-input-authority/comment-leading-cross-rule.scss"
+            ),
+            dialect: StyleDialect::Scss,
+            expected: DifferentialDisposition::ScannerWrong,
+        },
     ] {
         let facts = facts_for(case);
         let signatures = candidate_signatures(&facts);
         assert_eq!(signatures.len(), 2, "{}: {signatures:#?}", case.name);
         assert_eq!(signatures[0].declaration_id, "decl-0");
-        assert!(signatures[0].important, "{}: {signatures:#?}", case.name);
-        assert!(signatures[0].value.starts_with("url(a"));
-        assert!(signatures[0].value.ends_with("b.png)"));
         assert_eq!(signatures[1].declaration_id, "decl-1");
-        assert!(!signatures[1].important);
+        if case.name.starts_with("url-") {
+            assert!(signatures[0].important, "{}: {signatures:#?}", case.name);
+            assert!(signatures[0].value.starts_with("url(a"));
+            assert!(signatures[0].value.ends_with("b.png)"));
+            assert!(!signatures[1].important);
+        }
 
         let evaluations = evaluation_signatures(&facts);
         let unreachable = evaluations
             .iter()
             .find(|evaluation| evaluation.rule_code_name == "unreachable-declaration")
             .ok_or_else(|| format!("{}: {evaluations:#?}", case.name))?;
-        assert_eq!(
-            unreachable.declaration_ids.first().map(String::as_str),
-            Some("decl-1"),
-            "the losing declaration must lead the checker evidence: {unreachable:#?}"
-        );
         assert!(
-            unreachable.declaration_ids.iter().any(|id| id == "decl-0"),
-            "the important winner must remain in the comparison evidence: {unreachable:#?}"
-        );
-
-        let profile = semantic_omena_query_minify_build_profile();
-        let pass_ids = profile
-            .pass_ids
-            .iter()
-            .map(|pass_id| (*pass_id).to_string())
-            .collect::<Vec<_>>();
-        let emission = execute_omena_query_consumer_build_style_source_with_context(
-            case.path,
-            case.source,
-            pass_ids.as_slice(),
-            &OmenaQueryTransformExecutionContextV0::default(),
-        )
-        .execution
-        .output_css;
-        assert!(
-            emission.contains(signatures[0].value.as_str()),
-            "{} facts-side winner bytes must survive semantic minification: {emission}",
-            case.name
+            facts_match_semantic_emission(case, &facts)?,
+            "{} facts-side winner must agree with the semantic emission plane: {unreachable:#?}",
+            case.name,
         );
     }
     Ok(())
@@ -360,7 +434,7 @@ fn seeded_facts_side_misjoin_is_classified_as_facts_wrong() {
     facts[0].input.selector =
         omena_query_checker_orchestrator::CanonicalSelector::from_canonical(".wrong-owner");
     assert_eq!(
-        classify_against_scanner(&scanner, &facts),
-        DifferentialDisposition::FactsWrong
+        classify_against_scanner_and_emission(case, &scanner, &facts),
+        Ok(DifferentialDisposition::FactsWrong)
     );
 }

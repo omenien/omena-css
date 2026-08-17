@@ -126,6 +126,15 @@ interface RankedSetLossCensusArtifactV0 {
   }[];
 }
 
+interface RankedSetLossCorpusManifestV0 {
+  readonly fixtures: readonly {
+    readonly expectationKind?: string;
+    readonly source:
+      | { readonly kind: "local-workspace"; readonly workspacePath: string }
+      | { readonly kind: "pinned-repository" };
+  }[];
+}
+
 interface RankedSetLossCandidateV0 {
   readonly declarationId: string;
   readonly level: string;
@@ -161,6 +170,10 @@ const repositorySourceCache = new Map<string, string>();
 const artifactPath = path.join(
   repoRoot,
   "rust/crates/omena-diff-test/oss-corpus-farm/ranked-set-loss-census.json",
+);
+const corpusManifestPath = path.join(
+  repoRoot,
+  "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
 );
 const axisOrderArtifactPath = path.join(
   repoRoot,
@@ -353,11 +366,18 @@ assert.deepEqual(
 
 const artifactBytes = readFileSync(artifactPath);
 const artifact = JSON.parse(artifactBytes.toString("utf8")) as RankedSetLossCensusArtifactV0;
-if (args.has("--inject-axis-variation-collapse")) {
-  Object.assign(artifact, { layerSyntaxFileCount: 0 });
-}
 assert.equal(artifact.schemaVersion, "0");
 assert.equal(artifact.product, "omena-diff-test.ranked-set-loss-census");
+const corpusSyntaxCounts = deriveCorpusSyntaxCounts(args.has("--inject-axis-variation-collapse"));
+assert.deepEqual(
+  corpusSyntaxCounts,
+  {
+    layerSyntaxFileCount: artifact.layerSyntaxFileCount,
+    importantSyntaxFileCount: artifact.importantSyntaxFileCount,
+    scopeSyntaxFileCount: artifact.scopeSyntaxFileCount,
+  },
+  "source-derived bounded-corpus syntax variation drifted from the committed census",
+);
 assert.equal(
   artifact.entryCount,
   3,
@@ -563,6 +583,39 @@ function fixture(actual: FixtureResultV0[], name: string): FixtureResultV0 {
   const result = actual.find((candidate) => candidate.name === name);
   assert.ok(result, `classifier fixture is missing ${name}`);
   return result;
+}
+
+function deriveCorpusSyntaxCounts(injectLayerCollapse: boolean): {
+  readonly layerSyntaxFileCount: number;
+  readonly importantSyntaxFileCount: number;
+  readonly scopeSyntaxFileCount: number;
+} {
+  const manifest = JSON.parse(
+    readFileSync(corpusManifestPath, "utf8"),
+  ) as RankedSetLossCorpusManifestV0;
+  const localRoots = manifest.fixtures
+    .filter(
+      (entry) =>
+        entry.expectationKind === "finding-census" && entry.source.kind === "local-workspace",
+    )
+    .map((entry) => {
+      assert.equal(entry.source.kind, "local-workspace");
+      return entry.source.workspacePath.replace(/\\/gu, "/").replace(/\/$/u, "");
+    });
+  const styleFiles = listCurrentTrackedFiles().filter(
+    (file) =>
+      /\.(?:css|scss|sass|less)$/u.test(file) &&
+      localRoots.some((root) => file === root || file.startsWith(`${root}/`)),
+  );
+  const sources = styleFiles.map((file) => {
+    const source = readRepositorySource(file);
+    return injectLayerCollapse ? source.replace(/@layer\b/gu, "@media") : source;
+  });
+  return {
+    layerSyntaxFileCount: sources.filter((source) => /@layer\b/u.test(source)).length,
+    importantSyntaxFileCount: sources.filter((source) => /!important\b/iu.test(source)).length,
+    scopeSyntaxFileCount: sources.filter((source) => /@scope\b/u.test(source)).length,
+  };
 }
 
 function classifyArtifactRow(row: RankedSetLossCensusRowV0): FixtureResultV0["classification"] {

@@ -30,12 +30,18 @@ assert.match(
   "the legacy declaration scanner must remain test-only",
 );
 
-const rustPaths = execFileSync("git", ["ls-files", `${querySourceRoot}/**/*.rs`], {
-  encoding: "utf8",
-})
-  .trim()
-  .split("\n")
-  .filter(Boolean);
+const rustPaths = [
+  ...new Set(
+    execFileSync(
+      "git",
+      ["ls-files", `:(glob)${querySourceRoot}/*.rs`, `:(glob)${querySourceRoot}/**/*.rs`],
+      { encoding: "utf8" },
+    )
+      .trim()
+      .split("\n")
+      .filter(Boolean),
+  ),
+].toSorted();
 
 const references: { readonly path: string; readonly line: number; readonly token: string }[] = [];
 for (const path of rustPaths) {
@@ -44,7 +50,7 @@ for (const path of rustPaths) {
   let production = maskRustCfgTestItems(source);
   if (
     process.argv.includes("--inject-scanner-reference") &&
-    path.endsWith("/cascade_checker/input.rs")
+    path === `${querySourceRoot}/style.rs`
   ) {
     production += "\nfn injected_scanner_reference() { source_scanner::query_prelude_start(); }\n";
   }
