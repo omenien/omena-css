@@ -25,7 +25,7 @@
   "currentDefectReachableCount": 0,
   "classificationCounts": {
     "DEFECT-REACHABLE": 0,
-    "PROTECTED-BY-PARSER": 159,
+    "PROTECTED-BY-PARSER": 161,
     "TEST-ONLY": 26,
     "ORACLE-DEMOTED": 4
   },
@@ -560,7 +560,7 @@
     },
     {
       "path": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
-      "line": 300,
+      "line": 306,
       "function": "at_root_selector_members",
       "idiom": "strip-prefix",
       "keyword": "@at-root",
@@ -692,7 +692,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1194,
+      "line": 1196,
       "function": "hover_layer_name_from_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -714,7 +714,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/cascade_checker/declaration_facts.rs",
-      "line": 281,
+      "line": 287,
       "function": "cst_join_carries_semantic_context_memberships_and_nested_selectors",
       "idiom": "starts-with",
       "keyword": "layer",
@@ -791,7 +791,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 3694,
+      "line": 3704,
       "function": "committed_css_modules_graph_resolves_alias_targets_and_reachability",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -802,7 +802,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style/salsa_memo.rs",
-      "line": 5786,
+      "line": 5820,
       "function": "css_modules_import_edges_from_module_interface_projection_recompute_only_import_dependents",
       "idiom": "direct-equality",
       "keyword": "composes",
@@ -1066,7 +1066,29 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 614,
+      "line": 640,
+      "function": "summarize_style_context_index",
+      "idiom": "contains",
+      "keyword": "@layer",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& !keywords.contains(\"@layer\")"
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/lib.rs",
+      "line": 642,
+      "function": "summarize_style_context_index",
+      "idiom": "contains",
+      "keyword": "@scope",
+      "classification": "PROTECTED-BY-PARSER",
+      "disposition": "retain-case-insensitive-witness",
+      "classificationReason": "The comparison routes through the shared ASCII-insensitive keyword authority.",
+      "evidence": "&& !keywords.contains(\"@scope\")"
+    },
+    {
+      "path": "rust/crates/omena-semantic/src/lib.rs",
+      "line": 650,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "layer",
@@ -1077,7 +1099,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 624,
+      "line": 660,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "scope",
@@ -1088,7 +1110,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 629,
+      "line": 665,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "layer",
@@ -1099,7 +1121,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 639,
+      "line": 675,
       "function": "summarize_style_context_index",
       "idiom": "direct-equality",
       "keyword": "scope",
@@ -1110,7 +1132,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 718,
+      "line": 774,
       "function": "summarize_style_layer_order_from_source",
       "idiom": "contains",
       "keyword": "@layer",
@@ -1121,7 +1143,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 863,
+      "line": 919,
       "function": "layer_rule_prelude",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -1132,7 +1154,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1588,
+      "line": 1644,
       "function": "style_context_for_cst_offset",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -2110,7 +2132,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:fecafe060e5393c3141fe9af96876eaebdeb5443893f15e84c07accfe40329c6",
+  "siteDigest": "sha256:bd509eceb7ceaa0f380ff13b510cfc16f0c242d9efb8a0ef51fbce9304274f25",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
@@ -2143,6 +2165,7 @@
       "rust/crates/omena-semantic/src/layer_tree.rs#layer_names",
       "rust/crates/omena-semantic/src/lib.rs#layer_rule_prelude",
       "rust/crates/omena-semantic/src/lib.rs#style_context_for_cst_offset",
+      "rust/crates/omena-semantic/src/lib.rs#summarize_style_context_index",
       "rust/crates/omena-semantic/src/lib.rs#summarize_style_layer_order_from_source",
       "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_css_module_class_name_rewrite_replacements",
       "rust/crates/omena-transform-passes/src/domains/css_modules_classes.rs#collect_css_module_class_name_rewrite_replacements_from_ir",
@@ -2160,7 +2183,7 @@
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#guarded_environment_candidate_seeds_for_pair",
       "rust/crates/omena-transform-passes/src/runtime/winner_equality.rs#winner_for_pair"
     ],
-    "functionKeyDigest": "sha256:4d332757c2ae7730a54256296f9576a94bc8c530fa889c002faa201daffca912",
+    "functionKeyDigest": "sha256:56bf42c21f7d068a27abab633e21ad6f5a1471336f93bd6c494b8383aa7c6642",
     "adHocCaseOperationCount": 0,
     "adHocCaseOperations": []
   }
