@@ -12,7 +12,7 @@
     "manifestPath": "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
     "manifestSha256": "d012522afc77e57b57e24df41fdaf3efee4e1dc173ed4656756dc2a766c6c256",
     "lintReportPath": "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-report.json",
-    "lintReportSha256": "25531af0683e886365099f6ccb604e992b0893db4c6ffd0e1fc3e4d5d673239d",
+    "lintReportSha256": "4d8e40d97d0a7dc9306c1f30c5d1efb1367cbce4ef57b57414aa4f75b35fcb4a",
     "lintPolicyDigest": "f09d97143f20cd65e0a41143ffe7c912022ca2902d3ed08ca708700b08c5923f",
     "localWorkspacePaths": [
       "examples",
@@ -440,25 +440,25 @@
       "population": "committed-corpus",
       "sourcePath": "scripts/fixtures/real-workspace-lint-corpus/src/App.tsx",
       "byteSpan": {
-        "start": 139,
-        "end": 151
+        "start": 175,
+        "end": 187
       },
       "shapeClass": "identifierPath",
       "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
-      "expressionId": "omena-bridge-source-type-fact:styles.title:139:151"
+      "expressionId": "omena-bridge-source-type-fact:styles.title:175:187"
     },
     {
       "population": "committed-corpus",
       "sourcePath": "scripts/fixtures/real-workspace-lint-corpus/src/App.tsx",
       "byteSpan": {
-        "start": 203,
-        "end": 217
+        "start": 239,
+        "end": 253
       },
       "shapeClass": "identifierPath",
       "lexicalDisposition": "typeProviderCandidate",
       "disposition": "target",
-      "expressionId": "omena-bridge-source-type-fact:styles.utility:203:217"
+      "expressionId": "omena-bridge-source-type-fact:styles.utility:239:253"
     },
     {
       "population": "committed-corpus",

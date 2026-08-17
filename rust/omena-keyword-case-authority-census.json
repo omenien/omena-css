@@ -1990,7 +1990,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1228,
+      "line": 1241,
       "function": "keyframe_name_from_at_rule_prelude",
       "idiom": "strip-prefix",
       "keyword": "@keyframes",
@@ -2001,7 +2001,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1229,
+      "line": 1242,
       "function": "keyframe_name_from_at_rule_prelude",
       "idiom": "strip-prefix",
       "keyword": "@keyframes",
@@ -2012,7 +2012,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1547,
+      "line": 1560,
       "function": "at_rule_prelude_is_semantically_transparent",
       "idiom": "strip-prefix",
       "keyword": "@layer",
@@ -2023,7 +2023,7 @@
     },
     {
       "path": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
-      "line": 1977,
+      "line": 2022,
       "function": "declaration_value_is_important",
       "idiom": "eq-ignore-ascii-case",
       "keyword": "!important",
@@ -2110,7 +2110,7 @@
       "evidence": ".all(|removal| removal.symbol_kind == \"keyframes\")"
     }
   ],
-  "siteDigest": "sha256:9389bfe9b7f0fe48515add0049251f140dc9f69ba2fb3744f4f17822a4abebf5",
+  "siteDigest": "sha256:fecafe060e5393c3141fe9af96876eaebdeb5443893f15e84c07accfe40329c6",
   "helperAuthority": {
     "helper": "css_keyword",
     "functionKeys": [
