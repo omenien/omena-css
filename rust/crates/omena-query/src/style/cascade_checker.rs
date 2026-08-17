@@ -25,6 +25,8 @@ use diagnostic_render::{
 };
 #[cfg(test)]
 pub(crate) use input::cascade_declarations_collect_probe;
+#[cfg(feature = "salsa-memo")]
+pub(super) use input::collect_query_checker_cascade_declarations_from_syntax_and_context;
 pub(in crate::style) use input::collect_query_checker_cascade_declarations_with_dialect;
 pub(super) use input::{
     QueryCheckerCascadeDeclaration, collect_query_checker_cascade_declarations,

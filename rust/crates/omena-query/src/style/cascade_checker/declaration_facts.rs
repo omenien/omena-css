@@ -1,15 +1,12 @@
 use std::collections::BTreeSet;
 
 use omena_cascade::{CascadeOriginV0, LayerOrdinal};
-use omena_parser::{
-    ParserByteSpanV0, ParserDeclarationSyntaxFactV0, StyleDialect,
-    collect_parser_declaration_syntax_facts,
-};
+use omena_parser::{ParserByteSpanV0, ParserDeclarationSyntaxFactV0, StyleDialect};
 use omena_query_checker_orchestrator::{CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0};
 use omena_query_transform_runner::expand_css_nested_selector;
 use omena_semantic::{
-    LayerBindingResolutionV0, StyleContextIndexV0, layer_ordinal_for_byte_span,
-    summarize_omena_parser_style_semantic_boundary_from_source,
+    LayerBindingResolutionV0, StyleContextIndexV0,
+    collect_parser_declaration_syntax_and_style_context_from_source, layer_ordinal_for_byte_span,
 };
 use omena_syntax::ident::ClassNameV0;
 
@@ -69,26 +66,22 @@ pub(in crate::style) fn collect_parsed_declaration_facts(
 }
 
 pub(in crate::style) fn collect_parsed_declaration_fact_collection(
-    style_path: &str,
+    _style_path: &str,
     source: &str,
     dialect: StyleDialect,
 ) -> ParsedDeclarationFactCollectionV0 {
-    let syntax_facts = collect_parser_declaration_syntax_facts(source, dialect);
-    let semantic = summarize_omena_parser_style_semantic_boundary_from_source(style_path, source);
-    let topology_incomplete_unresolved_count = (!semantic
-        .semantic_facts
-        .context_index
-        .layer_index
-        .topology_complete)
-        .then_some(
-            semantic
-                .semantic_facts
-                .context_index
-                .layer_index
-                .unresolved_topology_count,
-        );
-    let facts =
-        join_declaration_syntax_and_context(syntax_facts, &semantic.semantic_facts.context_index);
+    let (syntax_facts, context_index) =
+        collect_parser_declaration_syntax_and_style_context_from_source(source, dialect);
+    collect_parsed_declaration_fact_collection_from_syntax_and_context(syntax_facts, &context_index)
+}
+
+pub(in crate::style) fn collect_parsed_declaration_fact_collection_from_syntax_and_context(
+    syntax_facts: Vec<ParserDeclarationSyntaxFactV0>,
+    context_index: &StyleContextIndexV0,
+) -> ParsedDeclarationFactCollectionV0 {
+    let topology_incomplete_unresolved_count = (!context_index.layer_index.topology_complete)
+        .then_some(context_index.layer_index.unresolved_topology_count);
+    let facts = join_declaration_syntax_and_context(syntax_facts, context_index);
     ParsedDeclarationFactCollectionV0 {
         facts,
         topology_incomplete_unresolved_count,
@@ -258,6 +251,19 @@ mod tests {
             ["decl-0", "decl-1"]
         );
         assert_eq!(before, after[..before.len()]);
+    }
+
+    #[test]
+    fn cst_join_materializes_parser_once_for_syntax_and_context() {
+        let (_, instrumentation) = omena_parser::with_omena_parser_parse_instrumentation(|| {
+            collect_parsed_declaration_facts(
+                "fixture.scss",
+                "@layer theme { .card { color: red; } }",
+                StyleDialect::Scss,
+            )
+        });
+
+        assert_eq!(instrumentation.parse_invocation_count, 1);
     }
 
     #[test]

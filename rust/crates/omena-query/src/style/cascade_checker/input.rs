@@ -1,12 +1,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_cascade::CascadeStandardValueVerdictV0;
+#[cfg(feature = "salsa-memo")]
+use omena_parser::ParserDeclarationSyntaxFactV0;
 #[cfg(test)]
 use omena_query_checker_orchestrator::CanonicalSelector;
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCustomPropertyInputV0, standard_property_value_verdicts_v0,
 };
+#[cfg(feature = "salsa-memo")]
+use omena_semantic::StyleContextIndexV0;
 #[cfg(test)]
 use omena_semantic::{
     LayerBindingResolutionV0, StyleLayerIndexV0, layer_ordinal_for_byte_span,
@@ -20,6 +24,8 @@ use super::super::{
 };
 use super::custom_property_registration::collect_query_checker_custom_property_registrations;
 use super::declaration_facts::collect_parsed_declaration_fact_collection;
+#[cfg(feature = "salsa-memo")]
+use super::declaration_facts::collect_parsed_declaration_fact_collection_from_syntax_and_context;
 #[cfg(test)]
 use super::source_scanner::{
     canonical_query_checker_selector, find_query_top_level_byte, find_query_top_level_colon,
@@ -156,6 +162,23 @@ pub(in crate::style) fn collect_query_checker_cascade_declarations_with_dialect(
         dialect,
     )
     .declarations
+}
+
+#[cfg(feature = "salsa-memo")]
+pub(in crate::style) fn collect_query_checker_cascade_declarations_from_syntax_and_context(
+    syntax_facts: Vec<ParserDeclarationSyntaxFactV0>,
+    context_index: &StyleContextIndexV0,
+) -> Vec<QueryCheckerCascadeDeclaration> {
+    #[cfg(test)]
+    cascade_declarations_collect_probe::record();
+    collect_parsed_declaration_fact_collection_from_syntax_and_context(syntax_facts, context_index)
+        .facts
+        .into_iter()
+        .map(|fact| QueryCheckerCascadeDeclaration {
+            input: fact.checker_input(),
+            byte_span: fact.byte_span,
+        })
+        .collect()
 }
 
 fn collect_query_checker_cascade_declaration_collection(

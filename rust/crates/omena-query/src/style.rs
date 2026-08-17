@@ -75,6 +75,8 @@ pub use module_interface::{
     summarize_omena_query_css_modules_interface_summary_view,
 };
 pub use origin_inputs::*;
+#[cfg(feature = "salsa-memo")]
+use parser_facade::collect_omena_query_parsed_style_authority;
 #[cfg(test)]
 pub(crate) use parser_facade::style_facts_collect_probe;
 pub use parser_facade::{
@@ -1410,6 +1412,13 @@ struct OmenaQueryStyleFactEntry {
     sass_module_public_function_names: BTreeSet<String>,
 }
 
+#[cfg(feature = "salsa-memo")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OmenaQueryStyleAuthorityEntry {
+    fact_entry: OmenaQueryStyleFactEntry,
+    cascade_declarations: Vec<cascade_checker::QueryCheckerCascadeDeclaration>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryModuleInterfaceProjectionV0 {
     pub style_path: String,
@@ -1506,6 +1515,47 @@ fn collect_omena_query_style_fact_entry(
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let (raw_facts, icss_export_values) =
         collect_omena_query_style_facts_with_icss_values_raw(style_source, dialect);
+    collect_omena_query_style_fact_entry_from_raw(
+        style_path,
+        style_source,
+        dialect,
+        raw_facts,
+        icss_export_values,
+    )
+}
+
+#[cfg(feature = "salsa-memo")]
+fn collect_omena_query_style_authority_entry(
+    style_path: &str,
+    style_source: &str,
+) -> OmenaQueryStyleAuthorityEntry {
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let parsed = collect_omena_query_parsed_style_authority(style_source, dialect);
+    let cascade_declarations =
+        cascade_checker::collect_query_checker_cascade_declarations_from_syntax_and_context(
+            parsed.declaration_syntax_facts,
+            &parsed.style_context_index,
+        );
+    let fact_entry = collect_omena_query_style_fact_entry_from_raw(
+        style_path,
+        style_source,
+        dialect,
+        parsed.raw_facts,
+        parsed.icss_export_values,
+    );
+    OmenaQueryStyleAuthorityEntry {
+        fact_entry,
+        cascade_declarations,
+    }
+}
+
+fn collect_omena_query_style_fact_entry_from_raw(
+    style_path: &str,
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+    raw_facts: ParsedStyleFacts,
+    icss_export_values: BTreeMap<String, String>,
+) -> OmenaQueryStyleFactEntry {
     let (
         sass_module_public_variable_names,
         sass_module_public_mixin_names,

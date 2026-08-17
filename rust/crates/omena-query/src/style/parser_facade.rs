@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(feature = "salsa-memo")]
+use omena_parser::ParserDeclarationSyntaxFactV0;
 use omena_parser::{
     LexResult, ParseResult, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
     ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
@@ -54,6 +56,39 @@ pub(super) fn collect_omena_query_style_facts_with_icss_values_raw(
         .into_iter()
         .collect();
     (facts_from_cst(style_source, &parsed), values)
+}
+
+#[cfg(feature = "salsa-memo")]
+pub(super) struct OmenaQueryParsedStyleAuthorityV0 {
+    pub(super) raw_facts: ParsedStyleFacts,
+    pub(super) icss_export_values: BTreeMap<String, String>,
+    pub(super) declaration_syntax_facts: Vec<ParserDeclarationSyntaxFactV0>,
+    pub(super) style_context_index: omena_semantic::StyleContextIndexV0,
+}
+
+#[cfg(feature = "salsa-memo")]
+pub(super) fn collect_omena_query_parsed_style_authority(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> OmenaQueryParsedStyleAuthorityV0 {
+    #[cfg(test)]
+    style_facts_collect_probe::record();
+    let parsed = parse(style_source, dialect);
+    let icss_export_values = collect_icss_export_values_from_cst(style_source, &parsed)
+        .into_iter()
+        .collect();
+    let raw_facts = facts_from_cst(style_source, &parsed);
+    let (declaration_syntax_facts, style_context_index) =
+        omena_semantic::collect_parser_declaration_syntax_and_style_context_from_parse(
+            style_source,
+            &parsed,
+        );
+    OmenaQueryParsedStyleAuthorityV0 {
+        raw_facts,
+        icss_export_values,
+        declaration_syntax_facts,
+        style_context_index,
+    }
 }
 
 pub(super) fn parse_omena_query_omena_parser_style_source(

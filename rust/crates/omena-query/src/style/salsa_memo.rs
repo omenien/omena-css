@@ -1214,6 +1214,14 @@ fn memo_workspace_diagnostics_substrate(
     )
 }
 
+#[salsa::tracked(returns(ref))]
+fn memo_style_authority_entry(
+    db: &dyn salsa::Database,
+    file: OmenaQueryStyleFileInputV0,
+) -> OmenaQueryStyleAuthorityEntry {
+    collect_omena_query_style_authority_entry(file.style_path(db), file.style_source(db))
+}
+
 #[salsa::tracked(returns(clone))]
 fn memo_style_fact_entry(
     db: &dyn salsa::Database,
@@ -1221,7 +1229,7 @@ fn memo_style_fact_entry(
 ) -> OmenaQueryStyleFactEntry {
     #[cfg(any(test, feature = "test-support"))]
     style_fact_entry_probe::record(file.style_path(db));
-    collect_omena_query_style_fact_entry(file.style_path(db), file.style_source(db))
+    memo_style_authority_entry(db, file).fact_entry.clone()
 }
 
 #[salsa::tracked(returns(clone))]
@@ -1229,7 +1237,9 @@ fn memo_style_cascade_declarations(
     db: &dyn salsa::Database,
     file: OmenaQueryStyleFileInputV0,
 ) -> Vec<cascade_checker::QueryCheckerCascadeDeclaration> {
-    cascade_checker::collect_query_checker_cascade_declarations(file.style_source(db))
+    memo_style_authority_entry(db, file)
+        .cascade_declarations
+        .clone()
 }
 
 #[salsa::tracked(returns(clone))]
@@ -4533,6 +4543,30 @@ const cls = styles.root;"#
             "selector substrate lookups must reuse declarations committed through the per-file tracked queries",
         );
         Ok(())
+    }
+
+    #[test]
+    fn style_fact_and_cascade_queries_share_one_parser_materialization() {
+        let corpus = vec![OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/App.module.scss".to_string(),
+            style_source: "@layer theme { .card { color: red; } }".to_string(),
+        }];
+        let mut host = OmenaQueryStyleMemoHostV0::new();
+        let workspace = host.sync_workspace(
+            corpus.as_slice(),
+            &[],
+            &[],
+            &[],
+            &OmenaQueryStyleResolutionInputsV0::default(),
+        );
+        let file = workspace.files(&host.db)[0];
+
+        let (_, instrumentation) = omena_parser::with_omena_parser_parse_instrumentation(|| {
+            let _ = memo_style_fact_entry(&host.db, file);
+            let _ = memo_style_cascade_declarations(&host.db, file);
+        });
+
+        assert_eq!(instrumentation.parse_invocation_count, 1);
     }
 
     #[test]

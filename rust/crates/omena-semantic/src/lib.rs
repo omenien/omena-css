@@ -12,9 +12,10 @@ use omena_interner::{
     intern_mixin_name,
 };
 use omena_parser::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
-    ParsedCssModuleValueFactKind, ParsedCst, ParsedSassModuleEdgeFactKind,
-    ParsedSassSymbolFactKind, ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind,
+    ParseResult, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
+    ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedCst,
+    ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
+    ParsedStyleFacts, ParsedVariableFactKind, ParserDeclarationSyntaxFactV0, ProductSyntaxIndexV0,
     StyleDialect, facts_from_cst, parse,
 };
 use omena_syntax::{SyntaxKind, SyntaxNode, css_keyword};
@@ -470,6 +471,33 @@ pub fn summarize_omena_parser_style_semantic_boundary_from_source(
         .0
 }
 
+/// Project declaration syntax and semantic wrapper context from one parser CST.
+///
+/// Consumers that need both inputs should use this boundary instead of parsing
+/// once for declarations and again for the semantic context index.
+pub fn collect_parser_declaration_syntax_and_style_context_from_source(
+    source: &str,
+    dialect: StyleDialect,
+) -> (Vec<ParserDeclarationSyntaxFactV0>, StyleContextIndexV0) {
+    let parsed = parse(source, dialect);
+    collect_parser_declaration_syntax_and_style_context_from_parse(source, &parsed)
+}
+
+/// Project declaration syntax and semantic wrapper context from an existing
+/// parser result.
+///
+/// This boundary lets tracked query owners share one CST materialization with
+/// their other parser-fact projections.
+pub fn collect_parser_declaration_syntax_and_style_context_from_parse(
+    source: &str,
+    parsed: &ParseResult,
+) -> (Vec<ParserDeclarationSyntaxFactV0>, StyleContextIndexV0) {
+    let declarations = ProductSyntaxIndexV0::new(source, parsed).into_declarations();
+    let cst = parsed.cst();
+    let context_index = summarize_style_context_index(source, &cst);
+    (declarations, context_index)
+}
+
 fn summarize_omena_parser_style_semantic_boundary_with_facts_from_source(
     style_path: &str,
     style_source: &str,
@@ -607,6 +635,14 @@ fn summarize_omena_parser_semantic_facts(
 }
 
 fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextIndexV0 {
+    let keywords = css_keyword(source);
+    if !source.as_bytes().contains(&b'\\')
+        && !keywords.contains("@layer")
+        && !keywords.contains("@container")
+        && !keywords.contains("@scope")
+    {
+        return empty_style_context_index();
+    }
     let layer_statements = layer_statement_facts_from_cst(source, cst);
     let (context_blocks, memberships) = style_context_blocks_and_memberships_from_cst(source, cst);
     let block_layers = context_blocks
@@ -698,6 +734,26 @@ fn summarize_style_context_index(source: &str, cst: &ParsedCst) -> StyleContextI
             selector_memberships: scope_memberships,
         },
         selector_context_count: memberships.len(),
+        ready_surfaces: vec![
+            "layerIndex",
+            "containerIndex",
+            "scopeIndex",
+            "selectorContextMembership",
+        ],
+    }
+}
+
+fn empty_style_context_index() -> StyleContextIndexV0 {
+    StyleContextIndexV0 {
+        schema_version: "0",
+        product: "omena-semantic.style-context-index",
+        layer_index: StyleLayerIndexV0 {
+            topology_complete: true,
+            ..StyleLayerIndexV0::default()
+        },
+        container_index: StyleContainerIndexV0::default(),
+        scope_index: StyleScopeIndexV0::default(),
+        selector_context_count: 0,
         ready_surfaces: vec![
             "layerIndex",
             "containerIndex",

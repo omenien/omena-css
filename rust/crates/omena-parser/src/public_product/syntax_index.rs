@@ -83,6 +83,12 @@ impl ProductSyntaxIndexV0 {
         self.declarations.as_slice()
     }
 
+    /// Consume the index and return its declaration projection without
+    /// cloning declaration strings.
+    pub fn into_declarations(self) -> Vec<ParserDeclarationSyntaxFactV0> {
+        self.declarations
+    }
+
     pub(super) fn css_module_value_span_for_offset(
         &self,
         offset: usize,
