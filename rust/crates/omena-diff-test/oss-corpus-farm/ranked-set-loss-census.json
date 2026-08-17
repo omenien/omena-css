@@ -79,9 +79,7 @@
           "invocationSite": "collectQueryReplicaEnsembleSiteOutcomes",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
           "property": "border",
-          "declarationIds": [
-            "1px solid #d1d5db"
-          ],
+          "declarationIds": ["1px solid #d1d5db"],
           "candidateCount": 1,
           "candidates": [
             {
@@ -99,9 +97,7 @@
           "invocationSite": "collectQueryReplicaEnsembleSiteOutcomes",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
           "property": "border-color",
-          "declarationIds": [
-            "#94a3b8"
-          ],
+          "declarationIds": ["#94a3b8"],
           "candidateCount": 1,
           "candidates": [
             {
@@ -119,10 +115,7 @@
           "invocationSite": "collectQueryReplicaEnsembleSiteOutcomes",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/replica_ensemble.rs",
           "property": "outline-color",
-          "declarationIds": [
-            "#64748b",
-            "#475569"
-          ],
+          "declarationIds": ["#64748b", "#475569"],
           "candidateCount": 2,
           "candidates": [
             {
@@ -147,10 +140,7 @@
           "invocationSite": "queryCascadeMarginForEvaluation",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/confidence.rs",
           "property": "outline-color",
-          "declarationIds": [
-            "decl-8",
-            "decl-7"
-          ],
+          "declarationIds": ["decl-8", "decl-7"],
           "candidateCount": 2,
           "candidates": [
             {
@@ -175,11 +165,7 @@
           "invocationSite": "queryRuntimeStateScenarioEvaluation",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/runtime_state.rs",
           "property": "border-color",
-          "declarationIds": [
-            "decl-9",
-            "decl-12",
-            "decl-11"
-          ],
+          "declarationIds": ["decl-9", "decl-12", "decl-11"],
           "candidateCount": 3,
           "candidates": [
             {
@@ -211,11 +197,7 @@
           "invocationSite": "queryRuntimeStateScenarioEvaluation",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/runtime_state.rs",
           "property": "border-color",
-          "declarationIds": [
-            "decl-9",
-            "decl-12",
-            "decl-11"
-          ],
+          "declarationIds": ["decl-9", "decl-12", "decl-11"],
           "candidateCount": 3,
           "candidates": [
             {
@@ -247,11 +229,7 @@
           "invocationSite": "queryRuntimeStateScenarioEvaluation",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/runtime_state.rs",
           "property": "outline-color",
-          "declarationIds": [
-            "decl-10",
-            "decl-8",
-            "decl-7"
-          ],
+          "declarationIds": ["decl-10", "decl-8", "decl-7"],
           "candidateCount": 3,
           "candidates": [
             {
@@ -287,11 +265,7 @@
           "invocationSite": "queryRuntimeStateScenarioEvaluation",
           "sourcePath": "crates/omena-query/src/style/cascade_checker/runtime_state.rs",
           "property": "outline-color",
-          "declarationIds": [
-            "decl-10",
-            "decl-8",
-            "decl-7"
-          ],
+          "declarationIds": ["decl-10", "decl-8", "decl-7"],
           "candidateCount": 3,
           "candidates": [
             {
