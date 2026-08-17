@@ -124,7 +124,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 1189,
+      "line": 1192,
       "idiom": "brace-list-search",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -133,7 +133,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 3986,
+      "line": 3957,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -142,7 +142,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4042,
+      "line": 4013,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -151,7 +151,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4128,
+      "line": 4099,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -286,7 +286,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1673,
+      "line": 1680,
       "idiom": "brace-list-search",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -295,7 +295,7 @@
     },
     {
       "path": "rust/crates/omena-semantic/src/lib.rs",
-      "line": 1679,
+      "line": 1686,
       "idiom": "brace-find",
       "family": "semantic-model",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:6b5ee18057dcbace4f8f76847c37bb25fe43998edcd1446581a293fbc9d0c677",
+  "siteDigest": "sha256:182e2ff5a4e22d44605396dd939500064ec15deaff4d0793e37bc4d97691997b",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
@@ -1319,7 +1319,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1581,
+        "line": 1588,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1328,7 +1328,7 @@
       },
       {
         "path": "rust/crates/omena-semantic/src/lib.rs",
-        "line": 1585,
+        "line": 1592,
         "idiom": "class-dot-byte-walk",
         "family": "semantic-model",
         "disposition": "named-exempt",
@@ -1336,7 +1336,7 @@
         "reason": "Semantic-model source scanning remains a named consumer follow-up."
       }
     ],
-    "siteDigest": "sha256:33c910758af33f189e1d1cbf71836208c2414bb052d28e73659ec9648ddc9617"
+    "siteDigest": "sha256:9b75e3057cee1b6e7faf73f40004c2f1b58ab8fda68e99e147186800efd37422"
   },
   "moduleInterfaceLessScanner": {
     "policy": "single-named-seam",
@@ -1385,10 +1385,10 @@
       },
       {
         "path": "rust/crates/omena-parser/src/public_product/syntax_index.rs",
-        "line": 235,
-        "function": "declaration_syntax",
+        "line": 302,
+        "function": "declaration_syntax_with_context",
         "operation": "to_ascii_lowercase",
-        "evidence": ".to_ascii_lowercase();",
+        "evidence": "property_name = property_name.trim().to_ascii_lowercase();",
         "reason": "The product syntax index stores a canonical lowercase property identity."
       }
     ]
