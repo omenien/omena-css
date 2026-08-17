@@ -37,8 +37,8 @@ assert.ok(
 );
 for (const required of [
   "parse(style_source, dialect)",
-  "facts_from_cst(style_source, &parsed)",
-  "collect_icss_export_values_from_cst(style_source, &parsed)",
+  "facts_from_cst(style_source, parsed)",
+  "collect_icss_export_values_from_cst(style_source, parsed)",
 ]) {
   assert.ok(
     parserFacadeSource.includes(required),
