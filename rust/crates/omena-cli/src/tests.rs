@@ -393,6 +393,139 @@ fn bundle_lock_is_fallback_behind_local_external_sif_regeneration() -> Result<()
     Ok(())
 }
 
+#[cfg(unix)]
+#[test]
+fn bundle_lock_symlink_spelling_is_fallback_behind_realpath_local_regeneration()
+-> Result<(), String> {
+    use std::os::unix::fs::symlink;
+
+    let root = temp_dir("bundle-lock-symlink-local-regeneration");
+    let sif_dir = root.join("sif");
+    let real_package_dir = root.join(".pnpm/@fixture+tokens@1.0.0/node_modules/@fixture/tokens");
+    let linked_package_dir = root.join("node_modules/@fixture/tokens");
+    fs::create_dir_all(&sif_dir).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&real_package_dir).map_err(|error| error.to_string())?;
+    fs::create_dir_all(
+        linked_package_dir
+            .parent()
+            .ok_or_else(|| "linked package fixture should have a parent".to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    symlink(&real_package_dir, &linked_package_dir).map_err(|error| error.to_string())?;
+
+    let entry = root.join("app.module.scss");
+    let real_external = real_package_dir.join("index.scss");
+    let linked_external = linked_package_dir.join("index.scss");
+    let real_package_manifest = real_package_dir.join("package.json");
+    let linked_package_manifest = linked_package_dir.join("package.json");
+    let alias_sif_path = sif_dir.join("tokens-alias.sif.json");
+    let realpath_sif_path = sif_dir.join("tokens-realpath.sif.json");
+    let alias_lockfile = root.join("omena-alias.lock");
+    let realpath_lockfile = root.join("omena-realpath.lock");
+    fs::write(&real_external, "$clean: red !default;\n").map_err(|error| error.to_string())?;
+    fs::write(
+        &real_package_manifest,
+        r#"{"exports":{".":{"sass":"./index.scss"}}}"#,
+    )
+    .map_err(|error| error.to_string())?;
+    let canonical_real_external =
+        fs::canonicalize(&real_external).map_err(|error| error.to_string())?;
+    let real_url = crate::paths::cli_path_to_file_uri(canonical_real_external.as_path());
+    let linked_url = crate::paths::cli_path_to_file_uri(linked_external.as_path());
+    fs::write(
+        &entry,
+        "@use \"@fixture/tokens\" as tokens;\n.button { color: tokens.$clean; }\n",
+    )
+    .map_err(|error| error.to_string())?;
+
+    assert_ne!(
+        linked_url, real_url,
+        "fixture must preserve distinct symlink and realpath URL spellings"
+    );
+    assert_eq!(
+        fs::canonicalize(&linked_external).map_err(|error| error.to_string())?,
+        canonical_real_external,
+        "fixture URL spellings must resolve to the same file identity"
+    );
+
+    let alias_poisoned = cli_fixture_sif(linked_url.as_str(), b"$poisoned: blue !default;")?;
+    fs::write(
+        &alias_sif_path,
+        omena_sif::write_omena_sif_json_v1(&alias_poisoned).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let alias_lock = omena_sif::OmenaLockV1::new(vec![
+        omena_sif::build_omena_lock_sif_entry_v1("sif/tokens-alias.sif.json", &alias_poisoned)
+            .map_err(|error| error.to_string())?,
+    ]);
+    fs::write(
+        &alias_lockfile,
+        omena_sif::write_omena_lock_json_v1(&alias_lock).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let realpath_poisoned = cli_fixture_sif(real_url.as_str(), b"$poisoned: blue !default;")?;
+    fs::write(
+        &realpath_sif_path,
+        omena_sif::write_omena_sif_json_v1(&realpath_poisoned)
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    let realpath_lock = omena_sif::OmenaLockV1::new(vec![
+        omena_sif::build_omena_lock_sif_entry_v1(
+            "sif/tokens-realpath.sif.json",
+            &realpath_poisoned,
+        )
+        .map_err(|error| error.to_string())?,
+    ]);
+    fs::write(
+        &realpath_lockfile,
+        omena_sif::write_omena_lock_json_v1(&realpath_lock).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let plan = |lockfile| {
+        plan_bundle(&BundleCommandOptions {
+            entry: Some(entry.clone()),
+            css_out: None,
+            evidence_path: None,
+            source_paths: vec![linked_external.clone()],
+            package_manifest_paths: vec![linked_package_manifest.clone()],
+            external_sif_selection:
+                crate::external_sif_authority::CliExternalSifSelectionV0::from_test_arguments(
+                    Vec::new(),
+                    lockfile,
+                ),
+        })
+    };
+    let local_only = serde_json::to_value(plan(None)?.evidence).map_err(|e| e.to_string())?;
+    let with_realpath_lock =
+        serde_json::to_value(plan(Some(realpath_lockfile))?.evidence).map_err(|e| e.to_string())?;
+    let with_alias_lock =
+        serde_json::to_value(plan(Some(alias_lockfile))?.evidence).map_err(|e| e.to_string())?;
+    assert_eq!(
+        local_only["outcomeStatus"], "closed",
+        "symlink authority fixture must be closed: {local_only}"
+    );
+    assert!(
+        local_only["interfaceHashes"]
+            .as_array()
+            .is_some_and(|entries| !entries.is_empty()),
+        "symlink authority fixture must exercise interface evidence: {local_only}"
+    );
+    assert_eq!(
+        with_realpath_lock, local_only,
+        "the realpath-spelled control lock changed local-regeneration evidence"
+    );
+    assert_eq!(
+        with_alias_lock, local_only,
+        "a symlink-spelled lock URL replaced realpath local-regeneration evidence"
+    );
+
+    cleanup_dir(&root);
+    Ok(())
+}
+
 #[test]
 fn minify_profiles_change_the_executed_pass_set_and_output() -> Result<(), String> {
     let root = temp_dir("minify-profiles");

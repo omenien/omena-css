@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeSet,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -12,8 +13,10 @@ use omena_sif::{
 };
 
 use crate::{
-    dispatch::ParsedCliExternalSifArgumentsV0, io::read_source, lock::resolve_lock_relative_path,
-    paths::path_string,
+    dispatch::ParsedCliExternalSifArgumentsV0,
+    io::read_source,
+    lock::resolve_lock_relative_path,
+    paths::{cli_file_uri_to_path, cli_path_to_file_uri, path_string},
 };
 
 /// The only CLI input shape that can request external-SIF artifact reads.
@@ -147,11 +150,14 @@ pub(crate) fn resolve_cli_external_sif_authority(
         for candidate in candidates {
             let outer_url = candidate.canonical_url.clone();
             let resolved_url = candidate.sif.canonical_url.clone();
-            if covered.contains(outer_url.as_str()) || covered.contains(resolved_url.as_str()) {
+            let coverage_keys = [
+                resolved_external_sif_coverage_key(outer_url.as_str()),
+                resolved_external_sif_coverage_key(resolved_url.as_str()),
+            ];
+            if coverage_keys.iter().any(|key| covered.contains(key)) {
                 continue;
             }
-            covered.insert(outer_url);
-            covered.insert(resolved_url);
+            covered.extend(coverage_keys);
             external_sifs.push(candidate);
         }
     }
@@ -159,6 +165,22 @@ pub(crate) fn resolve_cli_external_sif_authority(
         external_sifs,
         lock_error,
     })
+}
+
+/// Resolve local file spellings to the identity used for precedence only.
+///
+/// The candidate retains its authored URL bytes. If a URL cannot be resolved
+/// as an existing local file, its exact spelling remains the identity so bare
+/// package names and remote URLs are never conflated speculatively.
+fn resolved_external_sif_coverage_key(canonical_url: &str) -> String {
+    let file_path = cli_file_uri_to_path(canonical_url).or_else(|| {
+        let path = Path::new(canonical_url);
+        path.is_absolute().then(|| path.to_path_buf())
+    });
+    file_path
+        .and_then(|path| fs::canonicalize(path).ok())
+        .map(|path| cli_path_to_file_uri(path.as_path()))
+        .unwrap_or_else(|| canonical_url.to_string())
 }
 
 fn read_explicit_external_sifs(
