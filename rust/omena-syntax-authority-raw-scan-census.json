@@ -133,7 +133,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4011,
+      "line": 4013,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -142,7 +142,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4067,
+      "line": 4069,
       "idiom": "brace-find",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -151,7 +151,7 @@
     },
     {
       "path": "rust/crates/omena-query/src/style.rs",
-      "line": 4153,
+      "line": 4155,
       "idiom": "brace-contains",
       "family": "query-surface",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:f5d10c94a00b9cccade735cbd8af5a2c87526a727ec673b48be0882510b8ea0c",
+  "siteDigest": "sha256:9e23cf179dc533a69730acc5b6a1242d51c4a36990d018f4eca1a4b55ee1ccf1",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
