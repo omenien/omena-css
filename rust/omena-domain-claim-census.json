@@ -83,12 +83,12 @@
   "exit": {
     "sourceRef": null,
     "domain": {
-      "trackedFileCount": 2608,
-      "textualFileCount": 2608,
+      "trackedFileCount": 2615,
+      "textualFileCount": 2615,
       "nulExcludedCount": 0,
       "bootstrapUntrackedFileCount": 0,
       "deletedTrackedFileCount": 0,
-      "fileListSha256": "f688a17c0a15b29ba7e01459f00fe9925cc786326c8c20adcb13f4376ce6a177"
+      "fileListSha256": "79846427e79fb971c00fe007b9e3b234529a1c8acc802eb50f6235f65dc3be49"
     },
     "occurrenceCount": 2119,
     "dispositionCounts": {
@@ -123,7 +123,7 @@
         "compatCount": 322,
         "identityEscalationCount": 212,
         "governanceDataCount": 143,
-        "siteSetSha256": "3d39c9a92bca8f55bf656e0d609f8ff757dc5c13295cec3c9364ae82a855ed0b"
+        "siteSetSha256": "66ebce48337aaeb7d9bd74e54cdfd7a8eb13954aa56a44ee519b2099b11ed140"
       },
       {
         "familyId": "f04",
@@ -132,7 +132,7 @@
         "compatCount": 318,
         "identityEscalationCount": 201,
         "governanceDataCount": 136,
-        "siteSetSha256": "4f56bb538fd25fab6b08c08828ad86c4b50799d732c6d2d2b686b291c273d0a4"
+        "siteSetSha256": "3ebb7722fbfddd5adfe56354a202a0787e04e3b9217cbc94365aca2292565b6b"
       },
       {
         "familyId": "f05",
@@ -141,7 +141,7 @@
         "compatCount": 224,
         "identityEscalationCount": 0,
         "governanceDataCount": 60,
-        "siteSetSha256": "02b3da24e04e08f41b5a6b528925c369a5fd8dda7655c130cc97ac256347fa6a"
+        "siteSetSha256": "2ab9cacf6b87c940e8ee2ae259f83be72d6ff64900724ca3aa9f9684c30b75d2"
       },
       {
         "familyId": "f06",
@@ -150,10 +150,10 @@
         "compatCount": 208,
         "identityEscalationCount": 120,
         "governanceDataCount": 72,
-        "siteSetSha256": "f4eae0400f4021bf421b8eb226564d05d24374fc160ee1f98f13f0aadc0f9339"
+        "siteSetSha256": "f14955ad0dcd2d03f7ed89c079ac40d39d6f8e353122e196be5dcf2cccc70795"
       }
     ],
-    "siteSetSha256": "9c0c6301d547e04163ac9b26bd17c55e8eb21d000c7a734bb7bf80caa0565c27",
+    "siteSetSha256": "6f63528210742ce598a3dcaace5b0cedd3a741b6f125e09f2c36f2ebfd50568a",
     "claimSiteSetSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "compatDeclarationSetSha256": "edf4f2844e0197cedd72578412faebc2f57960287d3b6a92eaae0d2fb6f44b8c",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",
