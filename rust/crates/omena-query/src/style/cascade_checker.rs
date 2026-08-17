@@ -1,7 +1,6 @@
 use omena_query_checker_orchestrator::run_omena_query_checker_cascade_gate_with_standard_property_value_verdicts_v0;
 #[cfg(test)]
 use omena_query_checker_orchestrator::{CanonicalSelector, OmenaCheckerCascadeDeclarationInputV0};
-
 mod confidence;
 mod custom_property_registration;
 mod declaration_facts;
@@ -16,7 +15,6 @@ mod smt;
 mod source_scanner;
 mod theory_hints;
 mod value_references;
-
 use confidence::summarize_query_cascade_confidence_for_evaluation;
 pub(super) use custom_property_registration::collect_query_checker_custom_property_registrations;
 use diagnostic_render::{
