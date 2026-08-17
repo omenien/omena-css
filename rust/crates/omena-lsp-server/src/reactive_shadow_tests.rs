@@ -21,14 +21,23 @@ use crate::{
     },
 };
 
-const PARITY_PIPELINE_FALSIFIERS: [(ReactiveShadowParityDimensionV0, &str); 2] = [
+type ReactiveShadowPipelineFalsifierV0 =
+    fn() -> Result<Vec<ReactiveShadowParityDimensionV0>, Box<dyn std::error::Error>>;
+
+const PARITY_PIPELINE_FALSIFIERS: [(
+    ReactiveShadowParityDimensionV0,
+    &str,
+    ReactiveShadowPipelineFalsifierV0,
+); 2] = [
     (
         ReactiveShadowParityDimensionV0::TargetSet,
         "target_projection_rejects_an_unplanned_reported_uri",
+        target_projection_falsifier_result,
     ),
     (
         ReactiveShadowParityDimensionV0::DeliveryDecision,
         "delivery_projection_rejects_an_inverted_writer_decision",
+        delivery_projection_falsifier_result,
     ),
 ];
 
@@ -97,6 +106,18 @@ fn four_projection_arena_settles_without_external_effects() -> Result<(), Box<dy
 #[test]
 fn delivery_projection_rejects_an_inverted_writer_decision()
 -> Result<(), Box<dyn std::error::Error>> {
+    assert_eq!(
+        run_pipeline_falsifier(
+            ReactiveShadowParityDimensionV0::DeliveryDecision,
+            "delivery_projection_rejects_an_inverted_writer_decision",
+        )?,
+        vec![ReactiveShadowParityDimensionV0::DeliveryDecision]
+    );
+    Ok(())
+}
+
+fn delivery_projection_falsifier_result()
+-> Result<Vec<ReactiveShadowParityDimensionV0>, Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
     state
         .enable_reactive_shadow_observer()
@@ -117,15 +138,23 @@ fn delivery_projection_rejects_an_inverted_writer_decision()
         .reactive_shadow_reports_for_test()
         .unwrap_or_default();
     let parity = evaluate_reactive_shadow_parity(reports.as_slice());
-    assert_eq!(
-        parity.unclassified_divergences,
-        vec![ReactiveShadowParityDimensionV0::DeliveryDecision]
-    );
-    Ok(())
+    Ok(parity.unclassified_divergences)
 }
 
 #[test]
 fn target_projection_rejects_an_unplanned_reported_uri() -> Result<(), Box<dyn std::error::Error>> {
+    assert_eq!(
+        run_pipeline_falsifier(
+            ReactiveShadowParityDimensionV0::TargetSet,
+            "target_projection_rejects_an_unplanned_reported_uri",
+        )?,
+        vec![ReactiveShadowParityDimensionV0::TargetSet]
+    );
+    Ok(())
+}
+
+fn target_projection_falsifier_result()
+-> Result<Vec<ReactiveShadowParityDimensionV0>, Box<dyn std::error::Error>> {
     let mut state = LspShellState::default();
     state
         .enable_reactive_shadow_observer()
@@ -146,11 +175,7 @@ fn target_projection_rejects_an_unplanned_reported_uri() -> Result<(), Box<dyn s
         .reactive_shadow_reports_for_test()
         .unwrap_or_default();
     let parity = evaluate_reactive_shadow_parity(reports.as_slice());
-    assert_eq!(
-        parity.unclassified_divergences,
-        vec![ReactiveShadowParityDimensionV0::TargetSet]
-    );
-    Ok(())
+    Ok(parity.unclassified_divergences)
 }
 
 #[test]
@@ -470,7 +495,7 @@ fn every_parity_dimension_has_a_flush_pipeline_falsifier() {
     assert_eq!(
         PARITY_PIPELINE_FALSIFIERS
             .iter()
-            .map(|(dimension, _)| *dimension)
+            .map(|(dimension, _, _)| *dimension)
             .collect::<BTreeSet<_>>(),
         ReactiveShadowParityDimensionV0::all()
             .iter()
@@ -480,11 +505,30 @@ fn every_parity_dimension_has_a_flush_pipeline_falsifier() {
     assert_eq!(
         PARITY_PIPELINE_FALSIFIERS
             .iter()
-            .map(|(_, test_name)| *test_name)
+            .map(|(_, test_name, _)| *test_name)
             .collect::<BTreeSet<_>>()
             .len(),
         PARITY_PIPELINE_FALSIFIERS.len()
     );
+}
+
+fn run_pipeline_falsifier(
+    dimension: ReactiveShadowParityDimensionV0,
+    test_name: &str,
+) -> Result<Vec<ReactiveShadowParityDimensionV0>, Box<dyn std::error::Error>> {
+    let Some((_, _, falsifier)) =
+        PARITY_PIPELINE_FALSIFIERS
+            .iter()
+            .find(|(mapped_dimension, mapped_test, _)| {
+                *mapped_dimension == dimension && *mapped_test == test_name
+            })
+    else {
+        return Err(std::io::Error::other(format!(
+            "parity dimension {dimension:?} is not bound to {test_name}"
+        ))
+        .into());
+    };
+    falsifier()
 }
 
 #[test]
@@ -492,6 +536,9 @@ fn wiring_check_routes_each_report_check_to_its_summary_field() {
     // WIRING CHECK: these post-hoc mutations test report-field-to-summary routing only.
     // They are not pipeline falsifiers and do not enter the two-dimension denominator.
     let baseline = synthetic_report();
+    let clean = evaluate_reactive_shadow_parity(std::slice::from_ref(&baseline));
+    assert!(clean.unclassified_divergences.is_empty());
+    assert!(clean.oracle_failures.is_empty());
     let mutations: [ReactiveShadowReportWiringMutationV0; 3] = [
         (ReactiveShadowReportWiringCheckV0::TargetSet, |report| {
             report

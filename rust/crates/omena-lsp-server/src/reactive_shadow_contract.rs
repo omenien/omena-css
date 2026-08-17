@@ -11,17 +11,24 @@ use crate::reactive_shadow::ReactiveShadowFlushReportV0;
 /// [`evaluate_proposed_authority_reduction`]. Adding a second reactive
 /// projection node solely to increase this denominator would add observer work
 /// without adding an independent source of truth.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum ReactiveShadowParityDimensionV0 {
-    TargetSet,
-    DeliveryDecision,
+macro_rules! define_reactive_shadow_parity_dimensions {
+    ($($variant:ident),+ $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        pub(crate) enum ReactiveShadowParityDimensionV0 {
+            $($variant),+
+        }
+
+        impl ReactiveShadowParityDimensionV0 {
+            pub(crate) const fn all() -> &'static [Self] {
+                &[$(Self::$variant),+]
+            }
+        }
+    };
 }
 
-impl ReactiveShadowParityDimensionV0 {
-    pub(crate) const fn all() -> &'static [Self] {
-        &[Self::TargetSet, Self::DeliveryDecision]
-    }
-}
+// The enum and its exhaustive inventory are generated from one list. Adding a
+// dimension cannot compile while silently omitting it from `all()`.
+define_reactive_shadow_parity_dimensions!(TargetSet, DeliveryDecision);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ReactiveShadowOracleCheckV0 {
