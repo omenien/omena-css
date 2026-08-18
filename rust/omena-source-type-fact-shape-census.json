@@ -12,8 +12,8 @@
     "manifestPath": "rust/crates/omena-diff-test/oss-corpus-farm/manifest.json",
     "manifestSha256": "d012522afc77e57b57e24df41fdaf3efee4e1dc173ed4656756dc2a766c6c256",
     "lintReportPath": "rust/crates/omena-diff-test/oss-corpus-farm/lint-census-report.json",
-    "lintReportSha256": "4d8e40d97d0a7dc9306c1f30c5d1efb1367cbce4ef57b57414aa4f75b35fcb4a",
-    "lintPolicyDigest": "f09d97143f20cd65e0a41143ffe7c912022ca2902d3ed08ca708700b08c5923f",
+    "lintReportSha256": "7f445cd520f66b6da8a7a1f7481f1ca4190e3e632c64f3a86245731d859c9fbf",
+    "lintPolicyDigest": "6dc9697910387a02ee4b66914502fa938539b18976320a07c56c91af1cdb7c2a",
     "localWorkspacePaths": [
       "examples",
       "scripts/fixtures/real-workspace-lint-corpus",
