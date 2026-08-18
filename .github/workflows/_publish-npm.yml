@@ -266,10 +266,8 @@ jobs:
             ' "$dir" "$EXPECTED_URL" "$AXIS_A"
           done
 
-      # 2d. Publish with provenance. @omena/wasm uses npm Trusted Publishing.
-      #     The established native packages retain the release environment's
-      #     scoped automation token until their trusted-publisher relationships
-      #     have been configured on npm.
+      # 2d. Publish with provenance through npm Trusted Publishing. Every package
+      #     is bound to this workflow, repository, and release environment.
       - name: Publish @omena/wasm
         if: ${{ inputs.publish_wasm }}
         shell: bash
@@ -295,19 +293,9 @@ jobs:
         if: ${{ inputs.publish_napi }}
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
         run: |
           set -euo pipefail
-          if [ "${{ inputs.dry_run }}" != "true" ]; then
-            if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-              echo "::error::NPM_AUTO_TOKEN is empty in the release environment" >&2
-              exit 1
-            fi
-            npm_userconfig="${RUNNER_TEMP:-/tmp}/omena-napi-token.npmrc"
-            printf '%s\n' "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" > "${npm_userconfig}"
-            export NPM_CONFIG_USERCONFIG="${npm_userconfig}"
-          fi
           publish_dir() {
             local dir="$1"
             local name version
@@ -333,20 +321,10 @@ jobs:
         shell: bash
         working-directory: ${{ env.NAPI_PKG_DIR }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
           OMENA_NAPI_REQUIRED_PACKAGES: "@omena/napi-linux-x64-gnu,@omena/napi-linux-arm64-gnu,@omena/napi-darwin-x64,@omena/napi-darwin-arm64,@omena/napi-win32-x64-msvc"
         run: |
           set -euo pipefail
-          if [ "${{ inputs.dry_run }}" != "true" ]; then
-            if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-              echo "::error::NPM_AUTO_TOKEN is empty in the release environment" >&2
-              exit 1
-            fi
-            npm_userconfig="${RUNNER_TEMP:-/tmp}/omena-napi-token.npmrc"
-            printf '%s\n' "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" > "${npm_userconfig}"
-            export NPM_CONFIG_USERCONFIG="${npm_userconfig}"
-          fi
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             pack_dir="${RUNNER_TEMP:-/tmp}/npm-dry-run-packs"
             mkdir -p "${pack_dir}"
