@@ -1873,8 +1873,18 @@
     {
       "crate": "omena-engine-input-producers",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor re-emits the supplied-graph context label through the serialized expression-domain flow summary, demotes selector certainty and its aggregate counts when the corresponding flow graph is non-converged or carries FlowIterationLimit provenance, and interprets external selector length bounds as UTF-16 code units for exact, finite, and constrained products.",
-      "expectedFailures": [],
+      "reason": "The next pre-1.0 minor makes the class-boundary effect explicit on constructible generated control-flow blocks, re-emits the supplied-graph context label through the serialized expression-domain flow summary, demotes selector certainty and its aggregate counts when the corresponding flow graph is non-converged or carries FlowIterationLimit provenance, and interprets external selector length bounds as UTF-16 code units for exact, finite, and constrained products.",
+      "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": ["field TypeFactControlFlowBlockV2Json.boundary_effect"],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "TypeFactControlFlowBlockV2Json.boundary_effect",
+            "TypeFactControlFlowBlockV2Json.boundary_effect"
+          ]
+        }
+      ],
       "expectedRuntimeValueChanges": [
         {
           "id": "expression-domain-supplied-graph-context-wire-value",
