@@ -387,6 +387,7 @@ function renderReleaseLinks(tag: string, previousTag?: string): string {
   const repository = loadManifest().repository;
   const lines = [
     releaseLinksStart,
+    "",
     "## Release links",
     "",
     `- Source: [\`${tag}\`](https://github.com/${repository}/tree/${tag})`,
@@ -397,7 +398,7 @@ function renderReleaseLinks(tag: string, previousTag?: string): string {
       `- Full diff: [\`${previousTag}...${tag}\`](https://github.com/${repository}/compare/${previousTag}...${tag})`,
     );
   }
-  lines.push(releaseLinksEnd);
+  lines.push("", releaseLinksEnd);
   return lines.join("\n");
 }
 
