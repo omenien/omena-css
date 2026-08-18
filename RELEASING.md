@@ -92,10 +92,9 @@ gates, packages the VSIX, and verifies the packaged Rust LSP/type-fact path.
   Select `publish_wasm`, `publish_napi`, and `publish_plugins` deliberately.
 - Inspect packed names, versions, repository URLs, native optional-dependency
   names, and the five NAPI target artifacts before setting `dry_run=false`.
-- Every established `@omena` package uses workflow-bound Trusted Publishing.
-  A never-published package name still requires a manual, 2FA-backed genesis
-  publish before its trusted-publisher relationship can be configured. All
-  workflow uploads include npm provenance.
+- `@omena/wasm` and configured build tools use workflow-bound Trusted Publishing;
+  native packages use the release-scoped token until their relationships exist.
+  A new package needs 2FA genesis first; every upload includes npm provenance.
 - Confirm `@omena/napi` declares every published platform package. An immutable
   main package with an incomplete optional-dependency map requires a new
   crate-train version.
