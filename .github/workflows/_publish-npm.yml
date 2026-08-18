@@ -8,9 +8,10 @@ name: _Publish npm
 #   - @omena/css-build-adapter, @omena/vite-plugin, @omena/postcss-plugin
 #     (optional build-tool integrations, staged from private workspace packages)
 #
-# DORMANT: manual workflow_dispatch only; never runs on per-push CI. Genesis
-# (first @omena/wasm + @omena/napi publish) needs a manual/2FA establish step
-# per package — see RELEASING.md. Steady state runs over OIDC provenance.
+# DORMANT: manual workflow_dispatch only; never runs on per-push CI. Every
+# established package publishes through the release environment's workflow-bound
+# OIDC identity. A never-published name still needs the manual genesis step in
+# RELEASING.md before it can receive a trusted-publisher relationship.
 #
 # All packages publish with `npm publish --provenance --access public`
 # (Sigstore via id-token: write). The pre-publish guard fails if any
@@ -378,19 +379,9 @@ jobs:
       - name: Publish @omena build-tool packages
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTO_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
         run: |
           set -euo pipefail
-          if [ "${{ inputs.dry_run }}" != "true" ]; then
-            if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-              echo "::error::NPM_AUTO_TOKEN is empty in the 'release' environment — first publish of build-tool packages needs an npm automation token" >&2
-              exit 1
-            fi
-            npm_userconfig="${RUNNER_TEMP:-/tmp}/omena-npm-token.npmrc"
-            printf '%s\n' "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" > "${npm_userconfig}"
-            export NPM_CONFIG_USERCONFIG="${npm_userconfig}"
-          fi
           publish_dir() {
             local dir="$1"
             local name version
