@@ -15,12 +15,12 @@ filesystem access, lifecycle, and publication status.
 
 | Host     | Best for                    | Filesystem model          | Availability                   |
 | -------- | --------------------------- | ------------------------- | ------------------------------ |
-| CLI      | scripts and CI              | process filesystem        | `omena-cli@0.3.0` on crates.io |
+| CLI      | scripts and CI              | process filesystem        | `omena-cli@0.4.0` on crates.io |
 | Rust LSP | editors                     | editor workspace          | GitHub and extension bundles   |
-| NAPI     | Node hosts                  | caller and native process | `@omena/napi@0.2.1`            |
-| WASM     | browsers and portable hosts | caller-supplied memory    | `@omena/wasm@0.3.0`            |
-| Vite     | development and builds      | Vite module graph         | `@omena/vite-plugin@0.2.1`     |
-| PostCSS  | PostCSS pipelines           | PostCSS file context      | `@omena/postcss-plugin@0.2.1`  |
+| NAPI     | Node hosts                  | caller and native process | `@omena/napi@0.4.0`            |
+| WASM     | browsers and portable hosts | caller-supplied memory    | `@omena/wasm@0.4.0`            |
+| Vite     | development and builds      | Vite module graph         | `@omena/vite-plugin@0.4.0`     |
+| PostCSS  | PostCSS pipelines           | PostCSS file context      | `@omena/postcss-plugin@0.4.0`  |
 
 Use the [SDK workflow guide](../sdk.md) for request and response contracts.
 Build-tool pages focus on host-specific lifecycle and option boundaries.

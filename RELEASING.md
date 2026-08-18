@@ -13,7 +13,7 @@ The project has three independent version lines:
 | Private TypeScript tooling | package-local manifests             | none             | not published                                  |
 
 See the machine-checked [version policy](docs/governance/version-governance.md).
-Current versions are crate/npm `0.3.0` and extension `5.3.0`; verify live state at each registry.
+Current versions are crate/npm `0.4.0` and extension `5.4.0`; verify live state at each registry.
 
 ## Release-note authority
 

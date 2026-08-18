@@ -26,7 +26,7 @@ GitHub Release mutation.
 3. Render the body locally:
 
    ```sh
-   pnpm release:notes -- --tag vscode-v5.3.0 --output /tmp/release-notes.md
+   pnpm release:notes -- --tag vscode-v5.4.0 --output /tmp/release-notes.md
    ```
 
 4. Run the release-note and crate-documentation gates:

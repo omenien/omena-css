@@ -21,23 +21,19 @@ or CSS is unsupported.
 
 ## Registry Availability
 
-The repository and npm registry do not currently expose identical NAPI
-versions. Choose examples by the version you can install, not by the repository
-source alone.
+The coordinated NAPI and WASM packages expose the snapshot-bound workflow
+surface at the same release version.
 
-| Package       | Latest published | API shape                                     |
-| ------------- | ---------------- | --------------------------------------------- |
-| `@omena/napi` | `0.2.1`          | JSON functions such as `checkStyleSourceJson` |
-| `@omena/wasm` | `0.3.0`          | JavaScript values and `Workspace`             |
-
-The Node `Workspace` implementation in this repository belongs to the
-unreleased NAPI `0.3.0` surface.
+| Package       | Latest published | API shape                           |
+| ------------- | ---------------- | ----------------------------------- |
+| `@omena/napi` | `0.4.0`          | JSON functions and Node `Workspace` |
+| `@omena/wasm` | `0.4.0`          | JavaScript values and `Workspace`   |
 
 ## Install
 
 ```bash
-npm install @omena/napi@0.2.1
-npm install @omena/wasm@0.3.0
+npm install @omena/napi@0.4.0
+npm install @omena/wasm@0.4.0
 cargo install omena-cli --locked
 ```
 
@@ -76,9 +72,8 @@ const report = JSON.parse(
 );
 ```
 
-Repository source also defines a snapshot-bound Node `Workspace`, but that class
-is not part of `@omena/napi@0.2.1`. Do not copy the workspace example into a
-published-package integration until a compatible NAPI release is available.
+The Node package also exposes a snapshot-bound `Workspace` for clients that
+need repeated queries against one immutable snapshot.
 
 ## WASM
 

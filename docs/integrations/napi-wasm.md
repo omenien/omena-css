@@ -12,11 +12,12 @@ sourceOfTruth: authored
 
 Choose NAPI when a Node process can load a native package. Choose WASM when the
 host needs portable, in-memory execution. Both bindings expose semantic results,
-but their currently published versions do not have the same class surface.
+and the coordinated release publishes the same snapshot-bound class surface.
 
 ## Published NAPI
 
-`@omena/napi@0.2.1` exports JSON functions:
+`@omena/napi@0.4.0` exports JSON functions and the snapshot-bound `Workspace`
+class:
 
 ```js
 const { checkStyleSourceJson } = require("@omena/napi");
@@ -26,11 +27,9 @@ const result = JSON.parse(
 );
 ```
 
-The repository's Node `Workspace` class is not in this package version.
-
 ## Published WASM
 
-`@omena/wasm@0.3.0` is a bundler-target package and initializes during import:
+`@omena/wasm@0.4.0` is a bundler-target package and initializes during import:
 
 ```js
 import { Workspace } from "@omena/wasm";

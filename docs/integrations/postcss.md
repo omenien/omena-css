@@ -11,7 +11,7 @@ sourceOfTruth: authored
 # PostCSS integration
 
 ```sh
-npm install --save-dev @omena/postcss-plugin@0.2.1
+npm install --save-dev @omena/postcss-plugin@0.4.0
 ```
 
 ```js
@@ -27,7 +27,7 @@ export default {
 };
 ```
 
-The published `0.2.1` default scope is `.module.css` and `.module.scss`.
+The published `0.4.0` default scope is `.module.css` and `.module.scss`.
 Repository source also recognizes `.module.less`, but that change is not a
 published-package guarantee.
 

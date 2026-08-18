@@ -18,9 +18,9 @@ authoritative manifests and release gates.
 
 | Key                            | Value                                                                                                                                                                | Authority                                                   |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `extensionVersion`             | `5.3.0`                                                                                                                                                              | root `package.json`                                         |
+| `extensionVersion`             | `5.4.0`                                                                                                                                                              | root `package.json`                                         |
 | `extensionVersionLine`         | `5.x`                                                                                                                                                                | root `package.json` major                                   |
-| `crateTrainVersion`            | `0.3.0`                                                                                                                                                              | `rust/Cargo.toml` workspace package                         |
+| `crateTrainVersion`            | `0.4.0`                                                                                                                                                              | `rust/Cargo.toml` workspace package                         |
 | `crateTrainVersionLine`        | `0.x`                                                                                                                                                                | Rust workspace major                                        |
 | `crateTrainTagPrefix`          | `release-v`                                                                                                                                                          | release tag grammar gate                                    |
 | `extensionTagPrefix`           | `vscode-v`                                                                                                                                                           | release tag grammar gate                                    |
@@ -60,8 +60,9 @@ artifact and review exist, published crates stay on the `0.x` line.
 On the Rust `0.x` line, a breaking contract change increments the minor version.
 Patch versions are reserved for compatible fixes. The staged `0.2.1` workspace
 demonstrated why this distinction matters: a generator identity rotation and
-expanded public surfaces cannot be released as a patch, so the coordinated
-train moves to `0.3.0` instead.
+expanded public surfaces cannot be released as a patch. The current `0.4.0`
+train likewise advances the minor line for reviewed pre-1.0 public-shape and
+runtime-contract changes.
 
 ## Publish status
 

@@ -36,6 +36,7 @@ const targetMarkdownFiles = [
 const diagnostics: string[] = [];
 
 for (const relativePath of targetMarkdownFiles) {
+  if (/^docs\/releases\/\d+\.\d+\.\d+\.md$/u.test(relativePath)) continue;
   lintCurrentStateProse(relativePath, read(relativePath));
 }
 

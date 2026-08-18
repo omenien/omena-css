@@ -24,9 +24,9 @@ transform-catalog-saturation = []
 lawvere-saturation = ["transform-catalog-saturation"]
 
 [dependencies]
-omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.3.0" }
-omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.3.0" }
-omena-transform-cst = { path = "../omena-transform-cst", version = "=0.3.0" }
+omena-cascade-proof = { path = "../omena-cascade-proof", version = "=0.4.0" }
+omena-evidence-graph = { path = "../omena-evidence-graph", version = "=0.4.0" }
+omena-transform-cst = { path = "../omena-transform-cst", version = "=0.4.0" }
 serde.workspace = true
 serde_json.workspace = true
 

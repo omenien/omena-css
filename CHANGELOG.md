@@ -2,6 +2,53 @@
 
 ## [Unreleased]
 
+## [5.4.0] - 2026-08-18
+
+### Added
+
+- **Reactive query substrate** - publishes `omena-reactive` for the first time
+  as part of the coordinated Rust train, with branded graph identities,
+  non-exhaustive public records, and delta-fold dependency rebuilding covered
+  by its public-surface and language-server parity contracts.
+- **Source and cascade authority** - carries guarded token, winner,
+  proof-kernel, source-front-end, and cache read-set evidence through the
+  product query paths without promoting internal research labels into public
+  APIs.
+
+### Changed
+
+- **Coordinated version lines** - advances the editor to `5.4.0` and the 51
+  publishable Rust crates, CLI, generated WASM/NAPI bindings, and selected npm
+  integration packages to `0.4.0`.
+- **Pre-1.0 compatibility boundary** - absorbs the reviewed constructible
+  record growth and declared runtime-value changes in a Rust minor release;
+  compatibility aliases and exact legacy wire projections remain where the
+  published `0.3.0` surface requires them.
+
+### Fixed
+
+- **Deterministic source facts** - query ordering is locale-independent and
+  external-string lengths retain UTF-16 code-unit semantics across Rust and
+  TypeScript boundaries.
+- **Read-set cache correctness** - workspace scope, imported-style read sets,
+  watcher coverage, and source freshness now participate in cache identity and
+  invalidation instead of allowing stale or unnecessarily global rebuilds.
+- **Cascade input authority** - conditional class arguments, guarded winners,
+  source order, and proof-catalog identity now reach the checks that consume
+  them, while uncertain values remain conservative.
+- **External SIF trust** - cached external interface data is treated as a
+  performance artifact and must reconcile with local regeneration or an
+  authenticated publication boundary before it can influence elevated trust.
+
+### Upgrade Notes
+
+Linked-order emission remains opt-in. Existing `0.3.0` Rust consumers should
+review the declared pre-1.0 public-shape changes before adopting `0.4.0`;
+legacy serialized projections retained for compatibility remain byte-stable.
+
+See [the full release notes](docs/releases/5.4.0.md) for product scope and
+version-policy details.
+
 ## [5.3.0] - 2026-07-23
 
 ### Added
