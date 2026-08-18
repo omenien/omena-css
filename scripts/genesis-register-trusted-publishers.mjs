@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// One-off: register the GitHub Trusted Publisher on crates.io for EVERY publishable
-// crate in the train, so future releases (0.3.0+) publish via OIDC and the stored
-// bootstrap CRATES_IO_TOKEN can be deleted. crates.io configures Trusted Publishing
+// Register the GitHub Trusted Publisher on crates.io for EVERY publishable crate
+// in the train, so releases after the bootstrap publication use OIDC and the stored
+// bootstrap CRATES_IO_TOKEN can be retired. crates.io configures Trusted Publishing
 // PER-CRATE — one entry per publishable crate — but
 // `POST /api/v1/trusted_publishing/github_configs` accepts an API token, so this
 // scripts it. Idempotent: skips crates already configured for this repo+workflow.
