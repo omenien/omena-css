@@ -1047,8 +1047,20 @@
     {
       "crate": "omena-abstract-value",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state, stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels, adds preconstruction finite-language cost walls whose typed Top results carry two distinct serialized provenance variants, changes bounded flow results through deterministic reverse-postorder iteration, loop-header widening and narrowing, and structured incremental invalidation, defines the external length boundary in UTF-16 code units, and retains measured legacy declarations as deprecated compatibility surfaces beside additive accurate APIs.",
+      "reason": "The next pre-1.0 minor includes the already-landed explicit standard-function validation state, stops graph-local flow products from claiming call-site sensitivity while preserving the established call-site-partitioned API labels, makes boundary effects explicit on constructible flow-node inputs and results, adds preconstruction finite-language cost walls whose typed Top results carry two distinct serialized provenance variants, changes bounded flow results through deterministic reverse-postorder iteration, loop-header widening and narrowing, and structured incremental invalidation, defines the external length boundary in UTF-16 code units, and retains measured legacy declarations as deprecated compatibility surfaces beside additive accurate APIs.",
       "expectedFailures": [
+        {
+          "lint": "constructible_struct_adds_field",
+          "evidenceNeedles": [
+            "field ClassValueFlowNodeResultV0.boundary_effect",
+            "field ClassValueFlowNodeV0.boundary_effect"
+          ],
+          "witnessLinePrefix": "  field ",
+          "expectedWitnesses": [
+            "ClassValueFlowNodeResultV0.boundary_effect",
+            "ClassValueFlowNodeV0.boundary_effect"
+          ]
+        },
         {
           "lint": "enum_variant_added",
           "evidenceNeedles": [
