@@ -352,8 +352,7 @@ mod tests {
         let source = r#"import { cva } from "class-variance-authority";
 const button = cva("btn", { variants: { intent: { primary: "a" } } });
 const value = button({ intent: "primary" });"#;
-        let source_index =
-            summarize_omena_bridge_source_syntax_index(source, Vec::new(), Vec::new());
+        let source_index = summarize_omena_bridge_source_syntax_index(source, Vec::new());
         let snapshot = PluginWorkspaceSnapshotV0::new(
             OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 7 }),
             StyleIntelligenceSnapshotV0::new(&source_index),
@@ -417,7 +416,7 @@ const value = button({ intent: "primary" });"#;
     #[test]
     fn outcome_validation_rejects_unbound_snapshot_precision_and_evidence()
     -> Result<(), &'static str> {
-        let source_index = summarize_omena_bridge_source_syntax_index("", Vec::new(), Vec::new());
+        let source_index = summarize_omena_bridge_source_syntax_index("", Vec::new());
         let snapshot = PluginWorkspaceSnapshotV0::new(
             OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 1 }),
             StyleIntelligenceSnapshotV0::new(&source_index),
@@ -472,7 +471,7 @@ const value = button({ intent: "primary" });"#;
 
     #[test]
     fn rejected_plugin_outcome_restores_the_input_ir() -> Result<(), &'static str> {
-        let source_index = summarize_omena_bridge_source_syntax_index("", Vec::new(), Vec::new());
+        let source_index = summarize_omena_bridge_source_syntax_index("", Vec::new());
         let snapshot = PluginWorkspaceSnapshotV0::new(
             OmenaWorkspaceSnapshotIdV0::from_revision(IncrementalRevisionV0 { value: 3 }),
             StyleIntelligenceSnapshotV0::new(&source_index),
