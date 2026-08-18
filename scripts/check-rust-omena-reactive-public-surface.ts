@@ -12,12 +12,7 @@ const snapshotPath = path.join(
 );
 const writeSnapshot = process.argv.includes("--write");
 const workspaceVersion = readWorkspaceVersion();
-// Before first publication there is no registry baseline to resolve. Keep the enum-closure
-// registration commit fixed here; the first-publication operator checklist owns the registry
-// re-point.
-const registrationBaselineRev = "475594f67c2c97184efd8ca6ff9c90f708c69602";
-const baselineRev =
-  process.env.OMENA_REACTIVE_PUBLIC_SURFACE_BASELINE_REV ?? registrationBaselineRev;
+const baselineVersion = "0.4.0";
 
 ensureCargoSubcommand({
   subcommand: "public-api",
@@ -35,8 +30,6 @@ ensureRustupToolchain({
   toolchain: "nightly",
   reason: "cargo-public-api requires nightly rustdoc JSON support",
 });
-ensureGitRevision(baselineRev);
-
 const publicApi = renderPublicApi();
 if (writeSnapshot) {
   mkdirSync(path.dirname(snapshotPath), { recursive: true });
@@ -63,7 +56,7 @@ const semverResult = runDeclaredRustSemverCheck({
   repoRoot,
   crate: "omena-reactive",
   workspaceVersion,
-  baselineArgs: ["--baseline-rev", baselineRev],
+  baselineArgs: ["--baseline-version", baselineVersion],
   allFeatures: true,
 });
 if (semverResult.policy !== "steady-state-patch") {
@@ -82,10 +75,9 @@ process.stdout.write(
       workspaceVersion,
       semverPolicy,
       semverCheckPolicy: semverResult.policy,
-      baselineKind: "gitRevision",
-      baselineRev,
-      baselineSemantics: "pre-first-publish-git-revision-not-registry",
-      registrationBaselineRev,
+      baselineKind: "publishedRegistry",
+      baselineVersion,
+      baselineSemantics: "published-crates-io-release",
       declaredFailureCount: semverResult.declaredFailureCount,
       declaredReleaseVersion: semverResult.declaredReleaseVersion,
       cargoPublicApiVersion: "0.52.0",
@@ -203,26 +195,4 @@ function readWorkspaceVersion(): string {
     throw new Error("Unable to resolve workspace.package.version from rust/Cargo.toml");
   }
   return version;
-}
-
-function ensureGitRevision(rev: string): void {
-  if (gitRevisionExists(rev)) {
-    return;
-  }
-  execFileSync("git", ["fetch", "--no-tags", "--depth=1", "origin", rev], {
-    cwd: repoRoot,
-    stdio: "inherit",
-  });
-  if (!gitRevisionExists(rev)) {
-    throw new Error(`Unable to resolve semver baseline revision ${rev}`);
-  }
-}
-
-function gitRevisionExists(rev: string): boolean {
-  return (
-    spawnSync("git", ["rev-parse", "--verify", `${rev}^{commit}`], {
-      cwd: repoRoot,
-      stdio: "ignore",
-    }).status === 0
-  );
 }

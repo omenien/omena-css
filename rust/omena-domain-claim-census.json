@@ -83,19 +83,19 @@
   "exit": {
     "sourceRef": null,
     "domain": {
-      "trackedFileCount": 2617,
-      "textualFileCount": 2617,
+      "trackedFileCount": 2618,
+      "textualFileCount": 2618,
       "nulExcludedCount": 0,
       "bootstrapUntrackedFileCount": 0,
       "deletedTrackedFileCount": 0,
-      "fileListSha256": "8f2aa599b10197d991eaa1256f107867bec6976de764b70b6d7d4ca590a01e2e"
+      "fileListSha256": "390ac3ca39ebf7bcbf4249d06d0bf71c1144af69d7db54d7e6b4b81b1b1573df"
     },
-    "occurrenceCount": 2119,
+    "occurrenceCount": 1674,
     "dispositionCounts": {
       "claim": 0,
-      "compat": 1142,
-      "identityEscalation": 533,
-      "governanceData": 444
+      "compat": 919,
+      "identityEscalation": 459,
+      "governanceData": 296
     },
     "families": [
       {
@@ -109,53 +109,53 @@
       },
       {
         "familyId": "f02",
-        "occurrenceCount": 99,
+        "occurrenceCount": 69,
         "claimCount": 0,
-        "compatCount": 68,
+        "compatCount": 48,
         "identityEscalationCount": 0,
-        "governanceDataCount": 31,
-        "siteSetSha256": "4c75647f9d582421dd4362aa5d43f8221fa8611bf606dca0e32fb0ab732caa28"
+        "governanceDataCount": 21,
+        "siteSetSha256": "7776d0adf76ee05942f655441a6ea98c6bd76ef26502eb9918d4a4b8c0a2117c"
       },
       {
         "familyId": "f03",
-        "occurrenceCount": 677,
+        "occurrenceCount": 505,
         "claimCount": 0,
-        "compatCount": 322,
-        "identityEscalationCount": 212,
-        "governanceDataCount": 143,
-        "siteSetSha256": "2c35f5c5d03f5b5c8276445886d535a63d613adc262cdbe5d31910711e3ac087"
+        "compatCount": 247,
+        "identityEscalationCount": 179,
+        "governanceDataCount": 79,
+        "siteSetSha256": "a1dac0aa2dbf3816f1d969afde5f15592e088929e579f30d25b18c27216cbdb4"
       },
       {
         "familyId": "f04",
-        "occurrenceCount": 655,
+        "occurrenceCount": 543,
         "claimCount": 0,
-        "compatCount": 318,
-        "identityEscalationCount": 201,
-        "governanceDataCount": 136,
-        "siteSetSha256": "885ae54a4288a2a0e97d64e1a04794ab6225f2ab48753b8d84e2c4a48d8f4ef0"
+        "compatCount": 264,
+        "identityEscalationCount": 182,
+        "governanceDataCount": 97,
+        "siteSetSha256": "6b27c359242bd1e3a99759c9457626a8c4659ee553615506ccae004b304b53aa"
       },
       {
         "familyId": "f05",
-        "occurrenceCount": 284,
+        "occurrenceCount": 232,
         "claimCount": 0,
-        "compatCount": 224,
+        "compatCount": 188,
         "identityEscalationCount": 0,
-        "governanceDataCount": 60,
-        "siteSetSha256": "70d34e03de1e1957e47262c453cb235151d98f9eb7b6493a747232e71903bd35"
+        "governanceDataCount": 44,
+        "siteSetSha256": "46c89b3cb003c5a52d7ee364e97e0713c20811a9d0c9d5e17120a4abe222c851"
       },
       {
         "familyId": "f06",
-        "occurrenceCount": 400,
+        "occurrenceCount": 321,
         "claimCount": 0,
-        "compatCount": 208,
-        "identityEscalationCount": 120,
-        "governanceDataCount": 72,
-        "siteSetSha256": "4984c8e11615c0a23e677bc02e6274e35486421404e48b7d3342d5ce1875fe68"
+        "compatCount": 170,
+        "identityEscalationCount": 98,
+        "governanceDataCount": 53,
+        "siteSetSha256": "025c6fe6be85f933f611a569d70439ee085da9fa5e4a2ec1b4239cbd409dc39a"
       }
     ],
-    "siteSetSha256": "642076f0fedd70f824c9c7bb1a06cc77a2f8aeb5c015120c39efddc36bcffe64",
+    "siteSetSha256": "e7b9b211a7a980ce1e21cb6df41745481c8ab24ed6b0afa7f6d47c9db4d7c42e",
     "claimSiteSetSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    "compatDeclarationSetSha256": "edf4f2844e0197cedd72578412faebc2f57960287d3b6a92eaae0d2fb6f44b8c",
+    "compatDeclarationSetSha256": "83276fa27e53d092ba713ed2c1ab5a81df822763a1d9ca5a4a15d09e30ca1dd0",
     "identityCrateSetSha256": "301477ffa6f128519a55a9aa55d336d35400f48ae4fd73cd66b4d2fcc60ae772",
     "governanceRuleSetSha256": "7c10bd4fa049f70b4f38411296bda0c58ed6689fd594de131f04466b92cba246"
   }

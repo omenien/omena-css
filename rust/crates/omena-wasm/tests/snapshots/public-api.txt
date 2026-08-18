@@ -10,6 +10,14 @@ impl omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
 pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::analyze_summary(&mut self, &engine_input_producers::EngineInputV2) -> omena_query_core::OmenaQueryExpressionDomainIncrementalFlowAnalysisV0
 impl core::default::Default for omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0
 pub fn omena_wasm::OmenaWasmExpressionDomainFlowRuntimeV0::default() -> Self
+pub struct omena_wasm::OmenaWasmSourceImportDeclarationsV0
+impl omena_wasm::OmenaWasmSourceImportDeclarationsV0
+pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::binding_at(&self, usize) -> core::option::Option<alloc::string::String>
+pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::declaration_id_at(&self, usize) -> core::option::Option<alloc::string::String>
+pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::import_count(&self) -> usize
+pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::specifier_at(&self, usize) -> core::option::Option<alloc::string::String>
+pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::specifier_byte_end_at(&self, usize) -> core::option::Option<usize>
+pub fn omena_wasm::OmenaWasmSourceImportDeclarationsV0::specifier_byte_start_at(&self, usize) -> core::option::Option<usize>
 pub struct omena_wasm::OmenaWasmWorkspaceV0
 impl omena_wasm::OmenaWasmWorkspaceV0
 pub fn omena_wasm::OmenaWasmWorkspaceV0::build(&self, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
@@ -57,12 +65,14 @@ pub fn omena_wasm::parse_stylesheet(&str, &str) -> core::result::Result<wasm_bin
 pub fn omena_wasm::parse_stylesheet_summary(&str, &str) -> omena_parser::parse_tree_contract_idl_generated::ParseTreeNodeV0
 pub fn omena_wasm::read_cascade_at_position(&str, &str, u32, u32, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::read_cascade_at_position_summary(&str, &str, usize, usize, &engine_input_producers::EngineInputV2) -> core::option::Option<omena_query::types::OmenaQueryCascadeAtPositionV0>
-pub fn omena_wasm::read_source_binding_index(&str, &str, core::option::Option<alloc::string::String>, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
-pub fn omena_wasm::read_source_binding_index_summary(&str, &str, core::option::Option<&str>, alloc::vec::Vec<omena_bridge::source_syntax::SourceImportedStyleBindingV0>, alloc::vec::Vec<alloc::string::String>) -> omena_bridge::source_syntax::SourceBindingIndexV0
+pub fn omena_wasm::read_source_binding_index(&str, &str, core::option::Option<alloc::string::String>, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_source_binding_index_summary(&str, &str, core::option::Option<&str>, alloc::vec::Vec<omena_bridge::source_imports::SourceStyleImportResolutionV0>) -> omena_bridge::source_syntax::SourceBindingIndexV0
 pub fn omena_wasm::read_source_diagnostics(&str, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::read_source_diagnostics_summary(&str, &[omena_query::types::OmenaQuerySourceMissingSelectorDiagnosticCandidateV0]) -> omena_query::types::OmenaQuerySourceDiagnosticsForFileV0
-pub fn omena_wasm::read_source_syntax_index(&str, &str, core::option::Option<alloc::string::String>, wasm_bindgen::JsValue, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
-pub fn omena_wasm::read_source_syntax_index_summary(&str, &str, core::option::Option<&str>, alloc::vec::Vec<omena_bridge::source_syntax::SourceImportedStyleBindingV0>, alloc::vec::Vec<alloc::string::String>) -> omena_bridge::source_syntax::SourceSyntaxIndexV0
+pub fn omena_wasm::read_source_import_declarations(&str, &str, core::option::Option<alloc::string::String>) -> omena_wasm::OmenaWasmSourceImportDeclarationsV0
+pub fn omena_wasm::read_source_import_declarations_summary(&str, &str, core::option::Option<&str>) -> omena_bridge::source_imports::SourceImportDeclarationSummaryV0
+pub fn omena_wasm::read_source_syntax_index(&str, &str, core::option::Option<alloc::string::String>, wasm_bindgen::JsValue) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
+pub fn omena_wasm::read_source_syntax_index_summary(&str, &str, core::option::Option<&str>, alloc::vec::Vec<omena_bridge::source_imports::SourceStyleImportResolutionV0>) -> omena_bridge::source_syntax::SourceSyntaxIndexV0
 pub fn omena_wasm::read_source_type_fact_control_flow_graph(&str, &str, core::option::Option<alloc::string::String>, &str, u32) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
 pub fn omena_wasm::read_source_type_fact_control_flow_graph_summary(&str, &str, core::option::Option<&str>, &str, usize) -> core::option::Option<omena_query::OmenaQuerySourceTypeFactControlFlowGraphV0>
 pub fn omena_wasm::read_style_completion_at_position(&str, &str, u32, u32) -> core::result::Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>
