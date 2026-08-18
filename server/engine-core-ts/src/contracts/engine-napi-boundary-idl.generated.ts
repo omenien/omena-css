@@ -16,8 +16,7 @@ export interface EngineNapiBoundarySurfaceV0Json {
   readonly packageManifests: readonly EngineNapiStylePackageManifestV0Json[];
   readonly sourceDocuments: readonly EngineNapiSourceDocumentInputV0Json[];
   readonly candidates: readonly EngineNapiSourceMissingSelectorDiagnosticCandidateV0Json[];
-  readonly importedStyleBindings: readonly EngineNapiSourceImportedStyleBindingInputV0Json[];
-  readonly classnamesBindBindings: readonly string[];
+  readonly styleImportResolutions: readonly EngineNapiSourceStyleImportResolutionV0Json[];
   readonly buildSummary: EngineNapiConsumerBuildSummaryV0Json;
   readonly boundaryError: EngineNapiBoundaryErrorV0Json;
 }
@@ -121,8 +120,8 @@ export interface EngineNapiPositionV0Json {
   readonly line: number;
   readonly character: number;
 }
-export interface EngineNapiSourceImportedStyleBindingInputV0Json {
-  readonly binding: string;
+export interface EngineNapiSourceStyleImportResolutionV0Json {
+  readonly declarationId: string;
   readonly styleUri: string;
 }
 export interface EngineNapiConsumerBuildSummaryV0Json {

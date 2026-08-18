@@ -445,11 +445,9 @@ fn collect_omena_query_source_selector_usage_by_style(
             &document.source_source,
             None,
         );
-        let mut imported_style_bindings = Vec::new();
-        let mut classnames_bind_bindings = Vec::new();
+        let mut style_import_resolutions = Vec::new();
         for import in imports.imports {
             if import.specifier == "classnames/bind" {
-                classnames_bind_bindings.push(import.binding);
                 continue;
             }
             let Some(style_path) =
@@ -469,12 +467,9 @@ fn collect_omena_query_source_selector_usage_by_style(
                 }
                 continue;
             };
-            imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
-                binding: import.binding,
-                style_uri: style_path,
-            });
+            style_import_resolutions.push(import.style_resolution(style_path.as_str()));
         }
-        if imported_style_bindings.is_empty() {
+        if style_import_resolutions.is_empty() {
             continue;
         }
 
@@ -482,8 +477,7 @@ fn collect_omena_query_source_selector_usage_by_style(
             document.source_path.as_str(),
             &document.source_source,
             None,
-            imported_style_bindings,
-            classnames_bind_bindings,
+            style_import_resolutions,
         );
         for reference in index.selector_references {
             let Some(target_style_path) = reference.target_style_uri else {

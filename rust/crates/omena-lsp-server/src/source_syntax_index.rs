@@ -6,6 +6,7 @@ use omena_query::{
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
+    OmenaQuerySourceStyleImportResolutionV0 as SourceStyleImportResolution,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
     OmenaQuerySourceSyntaxIndexWithTypeFactAttemptsV0 as SourceSyntaxIndexWithTypeFactAttempts,
     OmenaQueryStyleResolutionInputsV0, StyleLanguage,
@@ -18,6 +19,7 @@ use omena_query::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SourceImportIndex {
     pub(crate) imported_style_bindings: Vec<ImportedStyleBinding>,
+    pub(crate) style_import_resolutions: Vec<SourceStyleImportResolution>,
     pub(crate) classnames_bind_bindings: Vec<String>,
     pub(crate) has_unresolved_style_import: bool,
 }
@@ -49,8 +51,7 @@ pub(crate) fn build_source_syntax_index_with_type_fact_attempts(
         document.uri.as_str(),
         document.text.as_str(),
         Some(document.language_id.as_str()),
-        imports.imported_style_bindings,
-        imports.classnames_bind_bindings,
+        imports.style_import_resolutions,
     )
 }
 
@@ -61,6 +62,7 @@ pub(crate) fn collect_source_imports(
     let source = document.text.as_str();
     let mut imports = SourceImportIndex {
         imported_style_bindings: Vec::new(),
+        style_import_resolutions: Vec::new(),
         classnames_bind_bindings: Vec::new(),
         has_unresolved_style_import: false,
     };
@@ -81,6 +83,9 @@ pub(crate) fn collect_source_imports(
                     resolution_inputs,
                 )
             {
+                imports
+                    .style_import_resolutions
+                    .push(import.style_resolution(style_uri.as_str()));
                 imports.imported_style_bindings.push(ImportedStyleBinding {
                     binding: import.binding,
                     style_uri,
@@ -108,6 +113,8 @@ pub(crate) fn collect_source_imports(
     imports
         .imported_style_bindings
         .dedup_by(|left, right| left.binding == right.binding && left.style_uri == right.style_uri);
+    imports.style_import_resolutions.sort();
+    imports.style_import_resolutions.dedup();
     imports.classnames_bind_bindings.sort();
     imports.classnames_bind_bindings.dedup();
     imports

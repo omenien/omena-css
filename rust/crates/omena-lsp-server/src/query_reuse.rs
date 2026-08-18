@@ -189,8 +189,8 @@ pub(crate) fn refresh_document_reusable_indexes(
             &utility_intelligence,
         );
     }
-    document.has_unresolved_style_import =
-        collect_source_imports(document, resolution_inputs).has_unresolved_style_import;
+    let source_imports = collect_source_imports(document, resolution_inputs);
+    document.has_unresolved_style_import = source_imports.has_unresolved_style_import;
     if is_style_document_uri(document.uri.as_str()) {
         document.source_module_specifiers.clear();
         document.source_module_specifier_index_complete = true;
@@ -200,8 +200,7 @@ pub(crate) fn refresh_document_reusable_indexes(
                 document.uri.as_str(),
                 document.text.as_str(),
                 Some(document.language_id.as_str()),
-                Vec::new(),
-                Vec::new(),
+                source_imports.style_import_resolutions,
             )
             .module_specifiers
             .into_iter()

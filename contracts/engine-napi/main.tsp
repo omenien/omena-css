@@ -133,8 +133,8 @@ model EngineNapiSourceMissingSelectorDiagnosticCandidateV0 {
   sourceReferenceRange: EngineNapiRangeV0;
 }
 
-model EngineNapiSourceImportedStyleBindingInputV0 {
-  binding: string;
+model EngineNapiSourceStyleImportResolutionV0 {
+  declarationId: string;
   styleUri: string;
 }
 
@@ -171,8 +171,7 @@ model EngineNapiBoundarySurfaceV0 {
   packageManifests: EngineNapiStylePackageManifestV0[];
   sourceDocuments: EngineNapiSourceDocumentInputV0[];
   candidates: EngineNapiSourceMissingSelectorDiagnosticCandidateV0[];
-  importedStyleBindings: EngineNapiSourceImportedStyleBindingInputV0[];
-  classnamesBindBindings: string[];
+  styleImportResolutions: EngineNapiSourceStyleImportResolutionV0[];
   buildSummary: EngineNapiConsumerBuildSummaryV0;
   boundaryError: EngineNapiBoundaryErrorV0;
 }

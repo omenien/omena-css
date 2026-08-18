@@ -94,11 +94,7 @@ fn source_syntax_index_adapter_is_query_owned_without_changing_product() {
     let source = "import styles from './Button.module.scss';\nconst el = styles.root;\n";
     let mut index = summarize_omena_query_source_syntax_index(
         source,
-        vec![OmenaQuerySourceImportedStyleBindingV0 {
-            binding: "styles".to_string(),
-            style_uri,
-        }],
-        Vec::new(),
+        vec![import_summary.imports[0].style_resolution(style_uri.as_str())],
     );
     assert_eq!(index.product, "omena-bridge.source-syntax-index");
     assert_eq!(index.selector_references.len(), 1);

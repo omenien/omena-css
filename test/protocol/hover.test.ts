@@ -224,6 +224,37 @@ export function Button() {
     expect(value).toContain("`.indicator`");
     expect(value).toContain("color: red;");
   });
+
+  it("keeps real style hover when a template literal contains a resolvable fake import", async () => {
+    const poisonedWorkspace = workspace({
+      [BUTTON_TSX_URI]: `const fake = \`import styles from './Fake.module.scss';\`;
+import styles from './Button.module.scss';
+export const value = styles.indic/*|*/ator;
+`,
+    });
+    client = createInProcessServer({
+      readStyleFile: (filePath) =>
+        filePath.endsWith("Button.module.scss") ? CLSX_SCSS : ".phantom { color: hotpink; }",
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: BUTTON_TSX_URI,
+        languageId: "typescriptreact",
+        version: 1,
+        text: poisonedWorkspace.file(BUTTON_TSX_URI).content,
+      },
+    });
+
+    const hover = await client.hover(fixturePositionParams(poisonedWorkspace, BUTTON_TSX_URI));
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("`.indicator`");
+    expect(value).toContain("color: red;");
+    expect(value).not.toContain("hotpink");
+  });
 });
 
 describe("hover protocol", () => {

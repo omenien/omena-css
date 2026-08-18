@@ -1241,7 +1241,6 @@ pub type EngineNapiStylePackageManifestV0Json =
 pub type EngineNapiSourceDocumentInputV0Json = omena_query::OmenaQuerySourceDocumentInputV0;
 pub type EngineNapiSourceMissingSelectorDiagnosticCandidateV0Json =
     omena_query::OmenaQuerySourceMissingSelectorDiagnosticCandidateV0;
-pub type EngineNapiClassnamesBindBindingsV0Json = Vec<String>;
 pub type EngineNapiQueryConsumerBuildSummaryV0Json =
     omena_query::OmenaQueryConsumerBuildSummaryV0;
 
@@ -1417,8 +1416,8 @@ pub struct EngineNapiEngineInputV2Json {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EngineNapiSourceImportedStyleBindingInputV0Json {
-    pub binding: String,
+pub struct EngineNapiSourceStyleImportResolutionV0Json {
+    pub declaration_id: String,
     pub style_uri: String,
 }
 
@@ -1432,8 +1431,7 @@ pub struct EngineNapiBoundarySurfaceV0Json {
     pub package_manifests: Vec<EngineNapiStylePackageManifestV0Json>,
     pub source_documents: Vec<EngineNapiSourceDocumentInputV0Json>,
     pub candidates: Vec<EngineNapiSourceMissingSelectorDiagnosticCandidateV0Json>,
-    pub imported_style_bindings: Vec<EngineNapiSourceImportedStyleBindingInputV0Json>,
-    pub classnames_bind_bindings: EngineNapiClassnamesBindBindingsV0Json,
+    pub style_import_resolutions: Vec<EngineNapiSourceStyleImportResolutionV0Json>,
     pub build_summary: serde_json::Value,
     pub boundary_error: EngineNapiBoundaryErrorV0Json,
 }

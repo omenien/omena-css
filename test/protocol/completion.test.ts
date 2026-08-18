@@ -168,6 +168,35 @@ const x = styles./*|*/
     const labels = items.map((i) => i.label).toSorted();
     expect(labels).toEqual(["active", "disabled", "indicator"]);
   });
+
+  it("keeps real style completions when a comment contains a resolvable fake import", async () => {
+    const poisonedWorkspace = workspace({
+      [BUTTON_TSX_URI]: `// import styles from './Fake.module.scss';
+import styles from './Button.module.scss';
+const x = styles./*|*/
+`,
+    });
+    client = createInProcessServer({
+      readStyleFile: (filePath) =>
+        filePath.endsWith("Button.module.scss") ? CLSX_SCSS : ".phantom { color: hotpink; }",
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: BUTTON_TSX_URI,
+        languageId: "typescriptreact",
+        version: 1,
+        text: poisonedWorkspace.file(BUTTON_TSX_URI).content,
+      },
+    });
+
+    const result = await client.completion(completionParams(poisonedWorkspace, BUTTON_TSX_URI));
+    expect(result).not.toBeNull();
+    const items = Array.isArray(result) ? result : result!.items;
+    expect(items.map((item) => item.label).toSorted()).toEqual(["active", "disabled", "indicator"]);
+  });
 });
 
 describe("completion protocol", () => {

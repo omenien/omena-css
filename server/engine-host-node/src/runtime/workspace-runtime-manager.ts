@@ -8,6 +8,7 @@ import {
 } from "../workspace/workspace-registry";
 import { toWorkspaceFolderInfo } from "../workspace/workspace-folder-info";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
+import type { SourceFrontendAnalysisOutcomeCounterSnapshotV0 } from "../source-frontend-analysis-provider";
 import type { RuntimeSink } from "./runtime-sink";
 import type { WorkspaceRuntime, WorkspaceRuntimeIO } from "./workspace-runtime";
 import type { RuntimeDocumentsLike } from "./workspace-runtime-support";
@@ -30,6 +31,7 @@ export interface WorkspaceRuntimeManager {
   getDepsForFilePath(filePath: string): WorkspaceProviderDeps | null;
   hasFolder(folderUri: string): boolean;
   getFolders(): readonly WorkspaceFolderInfo[];
+  sourceFrontendAnalysisOutcomeSnapshot(): SourceFrontendAnalysisOutcomeCounterSnapshotV0;
   setSourcePathInventoryWatcherCoverage(available: boolean): void;
   registerInitialFolders(folders: readonly WorkspaceFolderInfo[]): void;
   applyWorkspaceFolderChange(
@@ -66,6 +68,9 @@ export function createWorkspaceRuntimeManager(
     },
     getFolders(): readonly WorkspaceFolderInfo[] {
       return registry.getFolders();
+    },
+    sourceFrontendAnalysisOutcomeSnapshot(): SourceFrontendAnalysisOutcomeCounterSnapshotV0 {
+      return args.caches.sourceFrontendAnalysisOutcomes.snapshot();
     },
     setSourcePathInventoryWatcherCoverage(available): void {
       sourcePathInventoryWatcherCoverage = available;

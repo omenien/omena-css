@@ -1,5 +1,81 @@
 use super::*;
 
+fn style_import_resolutions_for_test(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
+) -> Vec<SourceStyleImportResolutionV0> {
+    let declarations = summarize_omena_bridge_source_import_declarations_for_source_language(
+        source_path,
+        source,
+        source_language,
+    );
+    imported_style_bindings
+        .into_iter()
+        .flat_map(|binding| {
+            declarations
+                .imports
+                .iter()
+                .filter(move |declaration| declaration.binding == binding.binding)
+                .map(move |declaration| declaration.style_resolution(binding.style_uri.as_str()))
+        })
+        .collect()
+}
+
+fn summarize_omena_bridge_source_syntax_index(
+    source: &str,
+    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
+    _classnames_bind_bindings: Vec<String>,
+) -> SourceSyntaxIndexV0 {
+    super::summarize_omena_bridge_source_syntax_index(
+        source,
+        style_import_resolutions_for_test("source.tsx", source, None, imported_style_bindings),
+    )
+}
+
+fn summarize_omena_bridge_source_syntax_index_with_type_fact_attempts(
+    source: &str,
+    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
+    _classnames_bind_bindings: Vec<String>,
+) -> SourceSyntaxIndexWithTypeFactAttemptsV0 {
+    super::summarize_omena_bridge_source_syntax_index_with_type_fact_attempts(
+        source,
+        style_import_resolutions_for_test("source.tsx", source, None, imported_style_bindings),
+    )
+}
+
+fn summarize_omena_bridge_source_syntax_index_for_source_language(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
+    _classnames_bind_bindings: Vec<String>,
+) -> SourceSyntaxIndexV0 {
+    super::summarize_omena_bridge_source_syntax_index_for_source_language(
+        source_path,
+        source,
+        source_language,
+        style_import_resolutions_for_test(
+            source_path,
+            source,
+            source_language,
+            imported_style_bindings,
+        ),
+    )
+}
+
+fn summarize_omena_bridge_source_binding_index(
+    source: &str,
+    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
+    _classnames_bind_bindings: Vec<String>,
+) -> SourceBindingIndexV0 {
+    super::summarize_omena_bridge_source_binding_index(
+        source,
+        style_import_resolutions_for_test("source.tsx", source, None, imported_style_bindings),
+    )
+}
+
 #[test]
 fn source_class_splitter_consumes_dom_ordered_tokenization() {
     assert_eq!(split_class_names("b a b"), vec!["b", "a"]);
@@ -93,6 +169,116 @@ export function App({ tone }: { tone: "warm" | "cool" }) {
             && target.prefix == "tone-"
             && target.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
     }));
+}
+
+#[test]
+fn style_resolution_accepts_only_an_emitted_rust_declaration_identity() {
+    let source = r#"import styles from "./App.module.scss";
+export const view = <div className={styles.root} />;"#;
+    let declarations = crate::summarize_omena_bridge_source_import_declarations(source);
+    let real = &declarations.imports[0];
+    let ghost = SourceStyleImportResolutionV0 {
+        declaration_id: "rust-decl:import:ghost:0:5:./Ghost.module.scss".to_string(),
+        style_uri: "file:///workspace/Ghost.module.scss".to_string(),
+    };
+
+    let ghost_index = super::summarize_omena_bridge_source_syntax_index(source, vec![ghost]);
+    assert!(ghost_index.imported_style_bindings.is_empty());
+    assert!(
+        ghost_index
+            .selector_references
+            .iter()
+            .all(|reference| { reference.target_style_uri.is_none() })
+    );
+
+    let real_index = super::summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![real.style_resolution("file:///workspace/App.module.scss")],
+    );
+    assert_eq!(
+        real_index.imported_style_bindings,
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/App.module.scss".to_string(),
+        }]
+    );
+    assert!(real_index.selector_references.iter().any(|reference| {
+        selector_reference_name(source, reference) == "root"
+            && reference.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+    }));
+}
+
+#[test]
+fn ambiguous_resolution_for_one_declaration_id_is_not_bound() {
+    let source = r#"import styles from "./App.module.scss";
+export const view = <div className={styles.root} />;"#;
+    let declarations = crate::summarize_omena_bridge_source_import_declarations(source);
+    let declaration = &declarations.imports[0];
+    let index = super::summarize_omena_bridge_source_syntax_index(
+        source,
+        vec![
+            declaration.style_resolution("file:///workspace/App.module.scss"),
+            declaration.style_resolution("file:///workspace/Other.module.scss"),
+        ],
+    );
+
+    assert!(index.imported_style_bindings.is_empty());
+    assert!(
+        index
+            .selector_references
+            .iter()
+            .all(|reference| { reference.target_style_uri.is_none() })
+    );
+}
+
+#[test]
+fn incomplete_editor_buffer_keeps_real_binding_without_recovery_expression_fact() {
+    let source = format!(
+        r#"// import phantom from "./Phantom.module.scss";
+import styles from "./Card.module.scss";
+const value = styles.
+{}
+"#,
+        (0..24)
+            .map(|index| format!("const tail{index} = {index};"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    let declaration = crate::summarize_omena_bridge_source_import_declarations(source.as_str())
+        .imports
+        .into_iter()
+        .find(|declaration| declaration.binding == "styles");
+    assert!(
+        declaration.is_some(),
+        "Oxc recovery must preserve the real import declaration"
+    );
+    let Some(declaration) = declaration else {
+        return;
+    };
+    let resolution = declaration.style_resolution("file:///workspace/Card.module.scss");
+    let syntax_index = super::summarize_omena_bridge_source_syntax_index(
+        source.as_str(),
+        vec![resolution.clone()],
+    );
+    let index =
+        super::summarize_omena_bridge_source_binding_index(source.as_str(), vec![resolution]);
+
+    assert_eq!(index.style_import_bindings.len(), 1);
+    assert_eq!(index.style_import_bindings[0].local_name, "styles");
+    assert!(
+        syntax_index.style_property_accesses.is_empty(),
+        "the inserted recovery identifier must never become a source fact"
+    );
+    assert!(
+        index
+            .binding_decls
+            .iter()
+            .any(|fact| fact.kind == "import" && fact.name == "styles")
+    );
+    assert!(
+        index.binding_decls.iter().all(|fact| fact.name != "tail23"),
+        "declarations after the recovery boundary are not trusted facts"
+    );
 }
 
 #[test]
@@ -307,6 +493,9 @@ fn collects_template_style_binding_class_expressions() {
   <section :class="styles['item--primary']"></section>
   <section v-bind:class="styles.icon"></section>
 </template>
+<script setup lang="ts">
+import styles from "./Card.module.css";
+</script>
 "#;
     let index = summarize_omena_bridge_source_syntax_index_for_source_language(
         "Card.vue",
@@ -871,6 +1060,13 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
         start: 0,
         end: source.len(),
     };
+    let style_declaration_id = crate::summarize_omena_bridge_source_import_declarations(source)
+        .imports
+        .into_iter()
+        .find(|declaration| declaration.binding == "moduleStyles")
+        .map(|declaration| declaration.declaration_id)
+        .unwrap_or_default();
+    assert!(!style_declaration_id.is_empty());
     assert_eq!(
         index.binding_scopes,
         vec![SourceBindingScopeFactV0 {
@@ -992,6 +1188,7 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
     assert_eq!(
         index.style_import_bindings,
         vec![SourceBindingStyleImportFactV0 {
+            declaration_id: style_declaration_id,
             local_name: "moduleStyles".to_string(),
             style_uri: "file:///workspace/App.module.scss".to_string(),
         }]

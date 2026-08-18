@@ -127,6 +127,8 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   if (process.env.OMENA_LSP_RUNTIME_LOOP_PROBE === "1") {
     connection.onRequest(RUNTIME_LOOP_PROBE_REQUEST, () => ({
       now: Date.now(),
+      sourceFrontendAnalysisOutcomes:
+        session?.runtimeManager.sourceFrontendAnalysisOutcomeSnapshot() ?? null,
     }));
   }
 

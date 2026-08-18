@@ -511,7 +511,7 @@ mod tests {
         let source = r#"import { cva } from "class-variance-authority";
 const button = cva("btn", { variants: { intent: { primary: "a", secondary: "b" } } });
 const value = button({ intent: "pri" });"#;
-        let index = summarize_omena_bridge_source_syntax_index(source, Vec::new(), Vec::new());
+        let index = summarize_omena_bridge_source_syntax_index(source, Vec::new());
         let reference = index
             .domain_class_references
             .first()
@@ -544,7 +544,7 @@ const value = button({ intent: "pri" });"#;
     fn utility_provider_projects_patterns_and_graph_bindings_from_shared_facts()
     -> Result<(), &'static str> {
         let source = r#"export const Card = () => <div className="bg-brand" />;"#;
-        let mut index = summarize_omena_bridge_source_syntax_index(source, Vec::new(), Vec::new());
+        let mut index = summarize_omena_bridge_source_syntax_index(source, Vec::new());
         let report = summarize_omena_bridge_utility_class_intelligence_for_config(
             Path::new("tailwind.config.ts"),
             r##"export default { theme: { extend: { colors: { brand: "#123" } } } }"##,

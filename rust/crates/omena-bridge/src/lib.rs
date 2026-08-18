@@ -55,7 +55,7 @@ pub use source_evidence::{
     ValueDomainExplanationEvidenceV0, summarize_omena_bridge_source_input_evidence,
 };
 pub use source_imports::{
-    SourceImportDeclarationSummaryV0, SourceImportDeclarationV0,
+    SourceImportDeclarationSummaryV0, SourceImportDeclarationV0, SourceStyleImportResolutionV0,
     summarize_omena_bridge_source_import_declarations,
     summarize_omena_bridge_source_import_declarations_for_path,
     summarize_omena_bridge_source_import_declarations_for_source_language,

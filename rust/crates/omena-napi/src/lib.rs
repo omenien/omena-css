@@ -30,8 +30,9 @@ use omena_query::{
     OmenaQuerySourceBindingIndexV0 as OmenaNapiSourceBindingIndexV0,
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaNapiSourceDiagnosticsForFileV0,
     OmenaQuerySourceDocumentInputV0 as OmenaNapiSourceDocumentInputV0,
-    OmenaQuerySourceImportedStyleBindingV0 as OmenaNapiSourceImportedStyleBindingV0,
+    OmenaQuerySourceImportDeclarationSummaryV0 as OmenaNapiQuerySourceImportDeclarationSummaryV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaNapiSourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQuerySourceStyleImportResolutionV0 as OmenaNapiSourceStyleImportResolutionV0,
     OmenaQuerySourceSyntaxIndexV0 as OmenaNapiSourceSyntaxIndexV0,
     OmenaQuerySourceTypeFactControlFlowGraphV0 as OmenaNapiSourceTypeFactControlFlowGraphV0,
     OmenaQueryStyleContextIndexV0 as OmenaNapiStyleContextIndexV0,
@@ -67,6 +68,7 @@ use omena_query::{
     summarize_omena_query_source_binding_index_for_source_language,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_inputs,
+    summarize_omena_query_source_import_declarations_for_source_language,
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_source_type_fact_control_flow_graph_for_source_language,
     summarize_omena_query_style_completion_at_position,
@@ -74,8 +76,37 @@ use omena_query::{
     summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_transform_bundle_from_source,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::path::Path;
+
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaNapiSourceByteSpanV0 {
+    pub start: u32,
+    pub end: u32,
+}
+
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaNapiSourceImportDeclarationV0 {
+    #[napi(js_name = "declarationId")]
+    pub declaration_id: String,
+    pub binding: String,
+    pub specifier: String,
+    #[napi(js_name = "specifierByteSpan")]
+    pub specifier_byte_span: OmenaNapiSourceByteSpanV0,
+}
+
+#[napi(object)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaNapiSourceImportDeclarationsV0 {
+    #[napi(js_name = "schemaVersion")]
+    pub schema_version: String,
+    pub product: String,
+    #[napi(js_name = "importCount")]
+    pub import_count: u32,
+    pub imports: Vec<OmenaNapiSourceImportDeclarationV0>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -536,19 +567,15 @@ pub fn read_source_syntax_index_json(
     source_path: String,
     source: String,
     source_language: Option<String>,
-    imported_style_bindings_json: String,
-    classnames_bind_bindings_json: String,
+    style_import_resolutions_json: String,
 ) -> napi::Result<String> {
-    let imported_style_bindings =
-        parse_source_imported_style_bindings_json(&imported_style_bindings_json)?;
-    let classnames_bind_bindings =
-        parse_classnames_bind_bindings_json(&classnames_bind_bindings_json)?;
+    let style_import_resolutions =
+        parse_source_style_import_resolutions_json(&style_import_resolutions_json)?;
     to_json_string(&read_source_syntax_index_summary(
         &source_path,
         &source,
         source_language.as_deref(),
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     ))
 }
 
@@ -557,19 +584,28 @@ pub fn read_source_binding_index_json(
     source_path: String,
     source: String,
     source_language: Option<String>,
-    imported_style_bindings_json: String,
-    classnames_bind_bindings_json: String,
+    style_import_resolutions_json: String,
 ) -> napi::Result<String> {
-    let imported_style_bindings =
-        parse_source_imported_style_bindings_json(&imported_style_bindings_json)?;
-    let classnames_bind_bindings =
-        parse_classnames_bind_bindings_json(&classnames_bind_bindings_json)?;
+    let style_import_resolutions =
+        parse_source_style_import_resolutions_json(&style_import_resolutions_json)?;
     to_json_string(&read_source_binding_index_summary(
         &source_path,
         &source,
         source_language.as_deref(),
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
+    ))
+}
+
+#[napi(js_name = "readSourceImportDeclarations")]
+pub fn read_source_import_declarations(
+    source_path: String,
+    source: String,
+    source_language: Option<String>,
+) -> napi::Result<OmenaNapiSourceImportDeclarationsV0> {
+    source_import_declarations_for_napi(read_source_import_declarations_summary(
+        &source_path,
+        &source,
+        source_language.as_deref(),
     ))
 }
 
@@ -1048,15 +1084,13 @@ pub fn read_source_syntax_index_summary(
     source_path: &str,
     source: &str,
     source_language: Option<&str>,
-    imported_style_bindings: Vec<OmenaNapiSourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<OmenaNapiSourceStyleImportResolutionV0>,
 ) -> OmenaNapiSourceSyntaxIndexV0 {
     summarize_omena_query_source_syntax_index_for_source_language(
         source_path,
         source,
         source_language,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
 }
 
@@ -1064,16 +1098,57 @@ pub fn read_source_binding_index_summary(
     source_path: &str,
     source: &str,
     source_language: Option<&str>,
-    imported_style_bindings: Vec<OmenaNapiSourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<OmenaNapiSourceStyleImportResolutionV0>,
 ) -> OmenaNapiSourceBindingIndexV0 {
     summarize_omena_query_source_binding_index_for_source_language(
         source_path,
         source,
         source_language,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
+}
+
+pub fn read_source_import_declarations_summary(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+) -> OmenaNapiQuerySourceImportDeclarationSummaryV0 {
+    summarize_omena_query_source_import_declarations_for_source_language(
+        source_path,
+        source,
+        source_language,
+    )
+}
+
+fn source_import_declarations_for_napi(
+    summary: OmenaNapiQuerySourceImportDeclarationSummaryV0,
+) -> napi::Result<OmenaNapiSourceImportDeclarationsV0> {
+    let imports = summary
+        .imports
+        .into_iter()
+        .map(|declaration| {
+            Ok(OmenaNapiSourceImportDeclarationV0 {
+                declaration_id: declaration.declaration_id,
+                binding: declaration.binding,
+                specifier: declaration.specifier,
+                specifier_byte_span: OmenaNapiSourceByteSpanV0 {
+                    start: u32::try_from(declaration.specifier_byte_span.start).map_err(|_| {
+                        napi::Error::from_reason("source import byte-span start exceeds u32")
+                    })?,
+                    end: u32::try_from(declaration.specifier_byte_span.end).map_err(|_| {
+                        napi::Error::from_reason("source import byte-span end exceeds u32")
+                    })?,
+                },
+            })
+        })
+        .collect::<napi::Result<Vec<_>>>()?;
+    Ok(OmenaNapiSourceImportDeclarationsV0 {
+        schema_version: summary.schema_version.to_string(),
+        product: summary.product.to_string(),
+        import_count: u32::try_from(summary.import_count)
+            .map_err(|_| napi::Error::from_reason("source import declaration count exceeds u32"))?,
+        imports,
+    })
 }
 
 pub fn read_source_type_fact_control_flow_graph_summary(
@@ -1197,41 +1272,15 @@ fn parse_source_diagnostic_candidates_json(
     })
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SourceImportedStyleBindingInputV0 {
-    binding: String,
-    style_uri: String,
-}
-
-fn parse_source_imported_style_bindings_json(
+fn parse_source_style_import_resolutions_json(
     input_json: &str,
-) -> napi::Result<Vec<OmenaNapiSourceImportedStyleBindingV0>> {
-    if json_argument_is_absent(input_json) {
-        return Ok(Vec::new());
-    }
-    let inputs = serde_json::from_str::<Vec<SourceImportedStyleBindingInputV0>>(input_json)
-        .map_err(|error| {
-            napi::Error::from_reason(format!(
-                "failed to parse source imported style bindings JSON: {error}"
-            ))
-        })?;
-    Ok(inputs
-        .into_iter()
-        .map(|input| OmenaNapiSourceImportedStyleBindingV0 {
-            binding: input.binding,
-            style_uri: input.style_uri,
-        })
-        .collect())
-}
-
-fn parse_classnames_bind_bindings_json(input_json: &str) -> napi::Result<Vec<String>> {
+) -> napi::Result<Vec<OmenaNapiSourceStyleImportResolutionV0>> {
     if json_argument_is_absent(input_json) {
         return Ok(Vec::new());
     }
     serde_json::from_str(input_json).map_err(|error| {
         napi::Error::from_reason(format!(
-            "failed to parse classnames bind bindings JSON: {error}"
+            "failed to parse source style import resolutions JSON: {error}"
         ))
     })
 }
@@ -1517,20 +1566,19 @@ mod tests {
             serde_json::to_value(query_candidate)?
         );
 
-        let imported_binding_value = serde_json::json!({
-            "binding": "styles",
+        let style_import_resolution_value = serde_json::json!({
+            "declarationId": "rust-decl:import:styles:7:13:./card.module.css",
             "styleUri": "file:///src/card.module.css"
         });
-        let generated_binding: boundary::EngineNapiSourceImportedStyleBindingInputV0Json =
-            serde_json::from_value(imported_binding_value.clone())?;
-        let parsed_binding: SourceImportedStyleBindingInputV0 =
-            serde_json::from_value(imported_binding_value)?;
-        assert_eq!(generated_binding.binding, parsed_binding.binding);
-        assert_eq!(generated_binding.style_uri, parsed_binding.style_uri);
-
-        let classnames_bindings: boundary::EngineNapiClassnamesBindBindingsV0Json =
-            serde_json::from_value(serde_json::json!(["card", "active"]))?;
-        assert_eq!(classnames_bindings, vec!["card", "active"]);
+        let generated_resolution: boundary::EngineNapiSourceStyleImportResolutionV0Json =
+            serde_json::from_value(style_import_resolution_value.clone())?;
+        let parsed_resolution: OmenaNapiSourceStyleImportResolutionV0 =
+            serde_json::from_value(style_import_resolution_value)?;
+        assert_eq!(
+            generated_resolution.declaration_id,
+            parsed_resolution.declaration_id
+        );
+        assert_eq!(generated_resolution.style_uri, parsed_resolution.style_uri);
 
         let engine_input_value = serde_json::json!({
             "version": "2",
@@ -1917,27 +1965,29 @@ mod tests {
 
     #[test]
     fn serializes_source_frontend_indexes_for_node_clients() -> napi::Result<()> {
-        let imported_style_bindings = serde_json::json!([
-            {
-                "binding": "styles",
-                "styleUri": "file:///workspace/src/Card.module.scss"
-            }
-        ])
-        .to_string();
-        let classnames_bind_bindings = serde_json::json!(["cn"]).to_string();
+        let style_import_resolutions = read_source_import_declarations_summary(
+            "/workspace/src/Card.tsx",
+            source_frontend_fixture(),
+            Some("typescriptreact"),
+        )
+        .imports
+        .into_iter()
+        .filter(|declaration| declaration.binding == "styles")
+        .map(|declaration| declaration.style_resolution("file:///workspace/src/Card.module.scss"))
+        .collect::<Vec<_>>();
+        let style_import_resolutions = serde_json::to_string(&style_import_resolutions)
+            .map_err(|error| napi::Error::from_reason(error.to_string()))?;
         let syntax_json = read_source_syntax_index_json(
             "/workspace/src/Card.tsx".to_string(),
             source_frontend_fixture().to_string(),
             Some("typescriptreact".to_string()),
-            imported_style_bindings.clone(),
-            classnames_bind_bindings.clone(),
+            style_import_resolutions.clone(),
         )?;
         let binding_json = read_source_binding_index_json(
             "/workspace/src/Card.tsx".to_string(),
             source_frontend_fixture().to_string(),
             Some("typescriptreact".to_string()),
-            imported_style_bindings,
-            classnames_bind_bindings,
+            style_import_resolutions,
         )?;
         let syntax = serde_json::from_str::<serde_json::Value>(&syntax_json)
             .map_err(|error| napi::Error::from_reason(error.to_string()))?;

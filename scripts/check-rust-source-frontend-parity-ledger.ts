@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 import { resolveSourceFrontendBackendKind } from "../server/engine-host-node/src/source-frontend-analysis-provider";
 
 const repoRoot = process.cwd();
@@ -134,6 +135,7 @@ assert.equal(
 );
 
 assertNoProductSourceFrontendFallbacks();
+const importSyntaxProducerSites = assertNoImportSyntaxRegexProducers();
 assertTsSourceFrontendOracleIsNotProductPath();
 
 console.log(
@@ -148,6 +150,7 @@ console.log(
         oracleStatus,
       })),
       survivors: ledger.survivors.map(({ id, status }) => ({ id, status })),
+      importSyntaxProducerSites,
     },
     null,
     2,
@@ -209,6 +212,11 @@ function assertNoProductSourceFrontendFallbacks(): void {
     "ctx.entry.sourceFile.text",
     "cached?.sourceFile.fileName",
     "readonly sourceFile: ts.SourceFile",
+    "IMPORT_FROM_PATTERN",
+    "CLASSNAMES_BIND_INITIALIZER_PATTERN",
+    "bindingIndexWithImportFallbacks",
+    "importedStyleBindingsJson",
+    "classnamesBindBindingsJson",
   ];
 
   for (const filePath of productFiles) {
@@ -234,6 +242,166 @@ function assertNoProductSourceFrontendFallbacks(): void {
     analysisCache,
     /sourceFrontendAnalysis\?:/u,
     "DocumentAnalysisCache must not make sourceFrontendAnalysis optional",
+  );
+}
+
+interface ImportSyntaxRegexProducerSiteV0 {
+  readonly path: string;
+  readonly line: number;
+  readonly method: string;
+}
+
+function assertNoImportSyntaxRegexProducers(): number {
+  const sources = new Map(
+    listRepoFiles("server/engine-host-node/src")
+      .filter((filePath) => filePath.endsWith(".ts"))
+      .map((filePath) => [filePath, readRepoFile(filePath)]),
+  );
+  if (process.argv.includes("--inject-import-regex-producer")) {
+    sources.set(
+      "__injection__/source-import-regex-producer.ts",
+      String.raw`const importKeyword = "import";
+const pattern = "^\\s*" + importKeyword + "\\s+(.+?)\\s+from\\s+['\"](.+?)['\"]";
+const producer = new RegExp(pattern, "gm");
+const renamedProducer = producer;
+export function injected(source: string) { return [...source.matchAll(renamedProducer)]; }
+`,
+    );
+  }
+
+  const sites = [...sources].flatMap(([filePath, source]) =>
+    importSyntaxRegexProducerSites(filePath, source),
+  );
+  assert.deepEqual(
+    sites,
+    [],
+    `source frontend host contains import-syntax regex producers: ${sites
+      .map((site) => `${site.path}:${site.line} via ${site.method}`)
+      .join(", ")}`,
+  );
+  return sites.length;
+}
+
+function importSyntaxRegexProducerSites(
+  filePath: string,
+  source: string,
+): readonly ImportSyntaxRegexProducerSiteV0[] {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const regexIdentifiers = new Set<string>();
+  const regexNodes = new Set<ts.Node>();
+  const staticStrings = new Map<string, string>();
+  const declarations: ts.VariableDeclaration[] = [];
+
+  const registerRegex = (node: ts.Expression): boolean => {
+    const pattern = regexPattern(node, sourceFile, staticStrings);
+    if (!pattern || !looksLikeImportSyntaxPattern(pattern)) return false;
+    regexNodes.add(node);
+    return true;
+  };
+
+  const collect = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node)) {
+      declarations.push(node);
+    } else if (ts.isRegularExpressionLiteral(node)) {
+      registerRegex(node);
+    } else if (ts.isNewExpression(node)) {
+      registerRegex(node);
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(sourceFile);
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const declaration of declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+      const name = declaration.name.text;
+      const staticValue = staticStringValue(declaration.initializer, staticStrings);
+      if (staticValue !== null && staticStrings.get(name) !== staticValue) {
+        staticStrings.set(name, staticValue);
+        changed = true;
+      }
+      if (
+        !regexIdentifiers.has(name) &&
+        (registerRegex(declaration.initializer) ||
+          (ts.isIdentifier(declaration.initializer) &&
+            regexIdentifiers.has(declaration.initializer.text)))
+      ) {
+        regexIdentifiers.add(name);
+        changed = true;
+      }
+    }
+  }
+
+  const isProducer = (node: ts.Expression | undefined): boolean => {
+    if (!node) return false;
+    if (regexNodes.has(node)) return true;
+    if (ts.isIdentifier(node)) return regexIdentifiers.has(node.text);
+    return looksLikeImportSyntaxPattern(regexPattern(node, sourceFile, staticStrings) ?? "");
+  };
+
+  const sites: ImportSyntaxRegexProducerSiteV0[] = [];
+  const inspect = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      const method = node.expression.name.text;
+      const producerUsed =
+        (["match", "matchAll", "search"].includes(method) && isProducer(node.arguments[0])) ||
+        (["exec", "test"].includes(method) && isProducer(node.expression.expression));
+      if (producerUsed) {
+        const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+        sites.push({ path: filePath, line: line + 1, method });
+      }
+    }
+    ts.forEachChild(node, inspect);
+  };
+  inspect(sourceFile);
+  return sites;
+}
+
+function regexPattern(
+  node: ts.Expression,
+  sourceFile: ts.SourceFile,
+  staticStrings: ReadonlyMap<string, string>,
+): string | null {
+  if (ts.isRegularExpressionLiteral(node)) return node.getText(sourceFile);
+  if (
+    ts.isNewExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    node.expression.text === "RegExp" &&
+    node.arguments?.length
+  ) {
+    const [pattern] = node.arguments;
+    if (pattern) return staticStringValue(pattern, staticStrings);
+  }
+  return null;
+}
+
+function staticStringValue(
+  node: ts.Expression,
+  staticStrings: ReadonlyMap<string, string>,
+): string | null {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  if (ts.isIdentifier(node)) return staticStrings.get(node.text) ?? null;
+  if (ts.isParenthesizedExpression(node)) return staticStringValue(node.expression, staticStrings);
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = staticStringValue(node.left, staticStrings);
+    const right = staticStringValue(node.right, staticStrings);
+    return left === null || right === null ? null : left + right;
+  }
+  return null;
+}
+
+function looksLikeImportSyntaxPattern(pattern: string): boolean {
+  return (
+    pattern.includes("import") &&
+    (pattern.includes("from") || pattern.includes("require") || pattern.includes("module"))
   );
 }
 

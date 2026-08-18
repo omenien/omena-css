@@ -4,11 +4,15 @@ import {
   createDefaultRustSourceFrontendAnalysisProvider,
   createRequiredRustSourceFrontendAnalysisProvider,
   resolveSourceFrontendBackendKind,
+  SourceFrontendAnalysisError,
+  SourceFrontendAnalysisOutcomeCountersV0,
+  type SourceFrontendAnalysisOutcomeV0,
 } from "../../../server/engine-host-node/src/source-frontend-analysis-provider";
+import type { OmenaNapiSourceFrontendBinding } from "../../../server/engine-host-node/src/omena-napi-source-frontend-binding";
 import { EMPTY_ALIAS_RESOLVER } from "../../_fixtures/test-helpers";
 
 describe("source frontend analysis provider", () => {
-  it("defaults to the rust source frontend and rejects the retired TS frontend override", () => {
+  it("defaults to the Rust source frontend and rejects the retired TS override", () => {
     expect(resolveSourceFrontendBackendKind({})).toBe("rust-source-frontend");
     expect(
       resolveSourceFrontendBackendKind({ OMENA_SOURCE_FRONTEND_BACKEND: "rust-source-frontend" }),
@@ -30,7 +34,7 @@ describe("source frontend analysis provider", () => {
         filePath: "/fake/ws/src/Button.tsx",
         content: 'const el = <div className="button" />;',
       }),
-    ).toThrow("Rust source frontend analysis is required for /fake/ws/src/Button.tsx");
+    ).toThrow(SourceFrontendAnalysisError);
     expect(
       provider({
         filePath: "/fake/ws/src/Button.module.scss",
@@ -39,7 +43,7 @@ describe("source frontend analysis provider", () => {
     ).toBeNull();
   });
 
-  it("projects native binding index output into the analysis cache contract", () => {
+  it("resolves only Rust-declared import identities before projecting the binding index", () => {
     const source = [
       'import bind from "classnames/bind";',
       'import styles from "./Button.module.scss";',
@@ -49,22 +53,24 @@ describe("source frontend analysis provider", () => {
     ].join("\n");
     const sourcePath = "/fake/ws/src/Button.tsx";
     const styleUri = pathToFileURL("/fake/ws/src/Button.module.scss").href;
+    const styleDeclaration = rustImportDeclaration(source, "styles", "./Button.module.scss");
+    const importSummary = rustImportSummary([
+      rustImportDeclaration(source, "bind", "classnames/bind"),
+      styleDeclaration,
+    ]);
     const variantSpan = byteSpanFor(source, "indicator", 'cx("indicator"');
     const readSourceBindingIndexJson = vi.fn(
       (
         _sourcePath: string,
         _source: string,
         _sourceLanguage: string,
-        importedStyleBindingsJson: string,
-        classnamesBindBindingsJson: string,
+        styleImportResolutionsJson: string,
       ) => {
-        expect(JSON.parse(importedStyleBindingsJson)).toEqual([{ binding: "styles", styleUri }]);
-        expect(JSON.parse(classnamesBindBindingsJson)).toEqual(["bind"]);
+        expect(JSON.parse(styleImportResolutionsJson)).toEqual([
+          { declarationId: styleDeclaration.declarationId, styleUri },
+        ]);
         return JSON.stringify({
-          schemaVersion: "0",
-          product: "omena.source-binding-index",
-          bindingScopes: [{ kind: "sourceFile", byteSpan: byteSpanForWholeSource(source) }],
-          scopeParentEdges: [],
+          ...emptyBindingIndex(source),
           bindingDecls: [
             {
               kind: "import",
@@ -82,7 +88,13 @@ describe("source frontend analysis provider", () => {
             scopeContains(source, "import", "styles", "./Button.module.scss"),
             scopeContains(source, "localVar", "cx"),
           ],
-          styleImportBindings: [{ localName: "styles", styleUri }],
+          styleImportBindings: [
+            {
+              declarationId: styleDeclaration.declarationId,
+              localName: "styles",
+              styleUri,
+            },
+          ],
           declaresStyleImports: [{ declName: "styles", stylesLocalName: "styles", styleUri }],
           styleImportResolvesModules: [{ stylesLocalName: "styles", styleUri }],
           classExpressionNodes: [
@@ -92,12 +104,7 @@ describe("source frontend analysis provider", () => {
               targetStyleUri: styleUri,
             },
           ],
-          expressionTargetsModules: [
-            {
-              byteSpan: variantSpan,
-              targetStyleUri: styleUri,
-            },
-          ],
+          expressionTargetsModules: [{ byteSpan: variantSpan, targetStyleUri: styleUri }],
           classnamesBindUtilityBindings: [
             {
               localName: "cx",
@@ -106,28 +113,17 @@ describe("source frontend analysis provider", () => {
               classnamesImportName: "bind",
             },
           ],
-          classUtilBindings: [],
           declaresUtilityBindings: [
             { declName: "cx", utilityLocalName: "cx", utilityKind: "classnamesBind" },
           ],
           utilityUsesStyleImports: [
             { utilityLocalName: "cx", stylesLocalName: "styles", styleUri },
           ],
-          styleAccessUsesStyleImports: [],
-          symbolRefUsesDecls: [],
         });
       },
     );
     const readSourceSyntaxIndexJson = vi.fn(() =>
       JSON.stringify({
-        schemaVersion: "0",
-        product: "omena.source-syntax-index",
-        importedStyleBindings: [{ binding: "styles", styleUri }],
-        classStringLiterals: [],
-        stylePropertyAccesses: [],
-        inlineStyleDeclarations: [],
-        selectorReferences: [],
-        typeFactTargets: [],
         classValueUniverses: [
           {
             pluginId: "cva-recipe-domain",
@@ -153,25 +149,29 @@ describe("source frontend analysis provider", () => {
     const provider = createDefaultRustSourceFrontendAnalysisProvider({
       aliasResolver: () => EMPTY_ALIAS_RESOLVER,
       fileExists: () => true,
-      loadBinding: () => ({ readSourceBindingIndexJson, readSourceSyntaxIndexJson }),
+      loadBinding: () => ({
+        readSourceImportDeclarations: () => importSummary,
+        readSourceBindingIndexJson,
+        readSourceSyntaxIndexJson,
+      }),
     });
 
-    const projected = provider({ filePath: sourcePath, content: source });
+    const result = successResult(provider({ filePath: sourcePath, content: source }));
 
     expect(readSourceBindingIndexJson).toHaveBeenCalledTimes(1);
-    expect(projected?.sourceDocument.styleImports).toMatchObject([
+    expect(result.sourceDocument.styleImports).toMatchObject([
       { localName: "styles", resolved: { absolutePath: "/fake/ws/src/Button.module.scss" } },
     ]);
-    expect(projected?.sourceDocument.utilityBindings).toMatchObject([
+    expect(result.sourceDocument.utilityBindings).toMatchObject([
       { kind: "classnamesBind", localName: "cx", stylesLocalName: "styles" },
     ]);
-    expect(projected?.sourceDocument.classExpressions).toMatchObject([
+    expect(result.sourceDocument.classExpressions).toMatchObject([
       { kind: "literal", className: "indicator" },
     ]);
-    expect(projected?.sourceDocument.domainClassReferences).toMatchObject([
+    expect(result.sourceDocument.domainClassReferences).toMatchObject([
       { matchKind: "literal", className: "button.tone.primary", domain: "cva-recipe" },
     ]);
-    expect(projected?.classValueUniverses).toMatchObject([
+    expect(result.classValueUniverses).toMatchObject([
       {
         pluginId: "cva-recipe-domain",
         domain: "cva-recipe",
@@ -181,7 +181,7 @@ describe("source frontend analysis provider", () => {
     ]);
   });
 
-  it("preserves unresolved style imports for missing-module diagnostics", () => {
+  it("preserves unresolved Rust-declared style imports for missing-module diagnostics", () => {
     const source = [
       'import styles from "./Missing.module.scss";',
       "export const Button = () => <div className={styles.root}>hi</div>;",
@@ -189,51 +189,22 @@ describe("source frontend analysis provider", () => {
     ].join("\n");
     const sourcePath = "/fake/ws/src/Button.tsx";
     const missingPath = "/fake/ws/src/Missing.module.scss";
-    const readSourceBindingIndexJson = vi.fn(
-      (
-        _sourcePath: string,
-        _source: string,
-        _sourceLanguage: string,
-        importedStyleBindingsJson: string,
-      ) => {
-        expect(JSON.parse(importedStyleBindingsJson)).toEqual([]);
-        return JSON.stringify({
-          schemaVersion: "0",
-          product: "omena.source-binding-index",
-          bindingScopes: [{ kind: "sourceFile", byteSpan: byteSpanForWholeSource(source) }],
-          scopeParentEdges: [],
-          bindingDecls: [
-            {
-              kind: "import",
-              name: "styles",
-              importPath: "./Missing.module.scss",
-              byteSpan: byteSpanFor(source, "styles", 'styles from "./Missing.module.scss"'),
-            },
-          ],
-          scopeContainsDecls: [scopeContains(source, "import", "styles", "./Missing.module.scss")],
-          styleImportBindings: [],
-          declaresStyleImports: [],
-          styleImportResolvesModules: [],
-          classExpressionNodes: [],
-          expressionTargetsModules: [],
-          classnamesBindUtilityBindings: [],
-          classUtilBindings: [],
-          declaresUtilityBindings: [],
-          utilityUsesStyleImports: [],
-          styleAccessUsesStyleImports: [],
-          symbolRefUsesDecls: [],
-        });
-      },
-    );
+    const declaration = rustImportDeclaration(source, "styles", "./Missing.module.scss");
     const provider = createDefaultRustSourceFrontendAnalysisProvider({
       aliasResolver: () => EMPTY_ALIAS_RESOLVER,
       fileExists: () => false,
-      loadBinding: () => ({ readSourceBindingIndexJson }),
+      loadBinding: () => ({
+        readSourceImportDeclarations: () => rustImportSummary([declaration]),
+        readSourceBindingIndexJson: (_path, _source, _language, resolutionsJson) => {
+          expect(JSON.parse(resolutionsJson)).toEqual([]);
+          return JSON.stringify(emptyBindingIndex(source));
+        },
+      }),
     });
 
-    const projected = provider({ filePath: sourcePath, content: source });
+    const result = successResult(provider({ filePath: sourcePath, content: source }));
 
-    expect(projected?.sourceDocument.styleImports).toMatchObject([
+    expect(result.sourceDocument.styleImports).toMatchObject([
       {
         localName: "styles",
         resolved: {
@@ -243,7 +214,7 @@ describe("source frontend analysis provider", () => {
         },
       },
     ]);
-    expect(projected?.sourceDocument.styleImports[0]?.range).toEqual({
+    expect(result.sourceDocument.styleImports[0]?.range).toEqual({
       start: { line: 0, character: source.indexOf("./Missing.module.scss") },
       end: {
         line: 0,
@@ -252,52 +223,114 @@ describe("source frontend analysis provider", () => {
     });
   });
 
-  it("recovers import facts when the native AST index is empty for incomplete source", () => {
-    const source = 'import styles from "./Button.module.scss";\nstyles.';
-    const readSourceBindingIndexJson = vi.fn(() =>
-      JSON.stringify({
-        schemaVersion: "0",
-        product: "omena.source-binding-index",
-        bindingScopes: [],
-        scopeParentEdges: [],
-        bindingDecls: [],
-        scopeContainsDecls: [],
-        styleImportBindings: [],
-        declaresStyleImports: [],
-        styleImportResolvesModules: [],
-        classExpressionNodes: [],
-        expressionTargetsModules: [],
-        classnamesBindUtilityBindings: [],
-        classUtilBindings: [],
-        declaresUtilityBindings: [],
-        utilityUsesStyleImports: [],
-        styleAccessUsesStyleImports: [],
-        symbolRefUsesDecls: [],
-      }),
-    );
-    const provider = createDefaultRustSourceFrontendAnalysisProvider({
-      aliasResolver: () => EMPTY_ALIAS_RESOLVER,
-      fileExists: () => true,
-      loadBinding: () => ({ readSourceBindingIndexJson }),
+  it("distinguishes and counts N-API, JSON, and projection failures", () => {
+    const counters = new SourceFrontendAnalysisOutcomeCountersV0();
+    const sourceInput = {
+      filePath: "/fake/ws/src/Button.tsx",
+      content: 'import styles from "./Button.module.scss";',
+    };
+    const outcomes = [
+      providerOutcome(counters, {
+        readSourceImportDeclarations: () => {
+          throw new Error("native exploded");
+        },
+        readSourceBindingIndexJson: () => "{}",
+      })(sourceInput),
+      providerOutcome(counters, {
+        readSourceImportDeclarations: () => rustImportSummary([]),
+        readSourceBindingIndexJson: () => "{not-json",
+      })(sourceInput),
+      providerOutcome(counters, {
+        readSourceImportDeclarations: () => rustImportSummary([]),
+        readSourceBindingIndexJson: () => "{}",
+      })(sourceInput),
+    ];
+
+    expect(outcomes.map((outcome) => outcome.kind)).toEqual([
+      "napiFailure",
+      "jsonFailure",
+      "projectionFailure",
+    ]);
+    expect(counters.snapshot()).toEqual({
+      total: 3,
+      success: 0,
+      unsupportedLanguage: 0,
+      bindingUnavailable: 0,
+      napiFailure: 1,
+      jsonFailure: 1,
+      projectionFailure: 1,
     });
-
-    const projected = provider({ filePath: "/fake/ws/src/Button.tsx", content: source });
-
-    expect(projected?.sourceBinder.decls).toMatchObject([
-      {
-        kind: "import",
-        name: "styles",
-        importPath: "./Button.module.scss",
-      },
-    ]);
-    expect(projected?.sourceDocument.styleImports).toMatchObject([
-      {
-        localName: "styles",
-        resolved: { absolutePath: "/fake/ws/src/Button.module.scss" },
-      },
-    ]);
   });
 });
+
+function providerOutcome(
+  outcomeCounters: SourceFrontendAnalysisOutcomeCountersV0,
+  binding: OmenaNapiSourceFrontendBinding,
+) {
+  return createDefaultRustSourceFrontendAnalysisProvider({
+    aliasResolver: () => EMPTY_ALIAS_RESOLVER,
+    fileExists: () => true,
+    loadBinding: () => binding,
+    outcomeCounters,
+  });
+}
+
+function successResult(outcome: SourceFrontendAnalysisOutcomeV0) {
+  if (outcome.kind !== "success") {
+    throw new Error(
+      `Expected source frontend success, received ${outcome.kind}: ${outcome.detail}`,
+    );
+  }
+  return outcome.result;
+}
+
+function rustImportDeclaration(source: string, binding: string, specifier: string) {
+  const bindingStart = source.indexOf(binding);
+  const specifierStart = source.indexOf(specifier);
+  if (bindingStart < 0 || specifierStart < 0) {
+    throw new Error(`Missing import fixture token: ${binding} from ${specifier}`);
+  }
+  return {
+    declarationId: `rust-decl:import:${binding}:${bindingStart}:${bindingStart + binding.length}:${specifier}`,
+    binding,
+    specifier,
+    specifierByteSpan: {
+      start: Buffer.byteLength(source.slice(0, specifierStart), "utf8"),
+      end: Buffer.byteLength(source.slice(0, specifierStart + specifier.length), "utf8"),
+    },
+  };
+}
+
+function rustImportSummary(imports: ReturnType<typeof rustImportDeclaration>[]) {
+  return {
+    schemaVersion: "0",
+    product: "omena-bridge.source-import-declarations",
+    importCount: imports.length,
+    imports,
+  };
+}
+
+function emptyBindingIndex(source: string) {
+  return {
+    schemaVersion: "0",
+    product: "omena.source-binding-index",
+    bindingScopes: [{ kind: "sourceFile", byteSpan: byteSpanForWholeSource(source) }],
+    scopeParentEdges: [],
+    bindingDecls: [],
+    scopeContainsDecls: [],
+    styleImportBindings: [],
+    declaresStyleImports: [],
+    styleImportResolvesModules: [],
+    classExpressionNodes: [],
+    expressionTargetsModules: [],
+    classnamesBindUtilityBindings: [],
+    classUtilBindings: [],
+    declaresUtilityBindings: [],
+    utilityUsesStyleImports: [],
+    styleAccessUsesStyleImports: [],
+    symbolRefUsesDecls: [],
+  };
+}
 
 function scopeContains(
   source: string,

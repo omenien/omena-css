@@ -151,7 +151,7 @@ fn utility_membership_fails_closed_when_config_is_partial() {
 #[test]
 fn config_population_attaches_static_source_tokens_to_existing_provider_plane() {
     let source = r#"export function Card() { return <div className="flex bg-brand p-18" />; }"#;
-    let mut index = summarize_omena_bridge_source_syntax_index(source, Vec::new(), Vec::new());
+    let mut index = summarize_omena_bridge_source_syntax_index(source, Vec::new());
     let report = summarize_omena_bridge_utility_class_intelligence_for_config(
         Path::new("tailwind.config.ts"),
         r##"export default { safelist: ["flex"], theme: { extend: {

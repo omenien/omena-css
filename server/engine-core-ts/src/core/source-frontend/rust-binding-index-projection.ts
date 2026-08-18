@@ -83,6 +83,7 @@ export interface RustSourceScopeContainsDeclFactV0 {
 }
 
 export interface RustSourceBindingStyleImportFactV0 {
+  readonly declarationId: string;
   readonly localName: string;
   readonly styleUri: string;
 }
@@ -239,13 +240,10 @@ function sourceDocumentFromIndex(
 ): SourceDocumentHIR {
   const styleImports = args.index.styleImportBindings.map((binding) => {
     const stylePath = styleUriToPath(binding.styleUri);
-    const bindingDeclId =
-      declIdForNameAndKind(args.index, binding.localName, "import", context) ??
-      syntheticDeclId("import", binding.localName, byteSpanKey({ start: 0, end: 0 }));
     return makeStyleImportBinding(
       styleImportNodeId(binding.localName, binding.styleUri),
       binding.localName,
-      bindingDeclId,
+      binding.declarationId,
       { kind: "resolved", absolutePath: stylePath },
     );
   });
@@ -419,8 +417,12 @@ function sourceBindingGraphFromIndex(
     );
   }
   for (const edge of args.index.declaresStyleImports) {
+    const binding = args.index.styleImportBindings.find(
+      (candidate) =>
+        candidate.localName === edge.stylesLocalName && candidate.styleUri === edge.styleUri,
+    );
     addEdge(
-      declNodeIdForName(args.index, edge.declName, context),
+      binding ? declNodeId(binding.declarationId) : undefined,
       styleImportNodeId(edge.stylesLocalName, edge.styleUri),
       "declaresStyleImport",
     );

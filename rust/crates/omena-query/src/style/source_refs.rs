@@ -620,13 +620,11 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
         source_source,
         None,
     );
-    let mut imported_style_bindings = Vec::new();
-    let mut classnames_bind_bindings = Vec::new();
+    let mut style_import_resolutions = Vec::new();
     let mut diagnostics = Vec::new();
 
     for import in imports.imports {
         if import.specifier == "classnames/bind" {
-            classnames_bind_bindings.push(import.binding);
             continue;
         }
 
@@ -644,10 +642,7 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
             resolution_inputs.disk_style_path_identities.as_slice(),
         ) {
             Some(style_path) => {
-                imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
-                    binding: import.binding,
-                    style_uri: style_path,
-                })
+                style_import_resolutions.push(import.style_resolution(style_path.as_str()))
             }
             None => diagnostics.push(OmenaQuerySourceDiagnosticV0 {
                 code: "missing-module",
@@ -683,8 +678,7 @@ fn summarize_omena_query_source_diagnostics_for_workspace_file_with_resolution_i
         source_path,
         source_source,
         None,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     );
     summarize_omena_query_source_diagnostics_from_syntax_index(
         source_path,
@@ -1297,12 +1291,10 @@ fn source_selector_reference_index_for_document(
         &document.source_source,
         None,
     );
-    let mut imported_style_bindings = Vec::new();
-    let mut classnames_bind_bindings = Vec::new();
+    let mut style_import_resolutions = Vec::new();
 
     for import in imports.imports {
         if import.specifier == "classnames/bind" {
-            classnames_bind_bindings.push(import.binding);
             continue;
         }
         let Some(style_uri) = resolve_style_module_source_with_path_mappings(
@@ -1316,13 +1308,10 @@ fn source_selector_reference_index_for_document(
         ) else {
             continue;
         };
-        imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
-            binding: import.binding,
-            style_uri,
-        });
+        style_import_resolutions.push(import.style_resolution(style_uri.as_str()));
     }
 
-    if imported_style_bindings.is_empty() {
+    if style_import_resolutions.is_empty() {
         return None;
     }
 
@@ -1331,8 +1320,7 @@ fn source_selector_reference_index_for_document(
             document.source_path.as_str(),
             &document.source_source,
             None,
-            imported_style_bindings,
-            classnames_bind_bindings,
+            style_import_resolutions,
         ),
     )
 }

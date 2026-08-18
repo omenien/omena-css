@@ -11,6 +11,7 @@ import type {
   StyleSemanticGraphCache,
 } from "../style-semantic-graph-query-backend";
 import type { SelectorUsagePayloadCache } from "../selector-usage-query-backend";
+import { SourceFrontendAnalysisOutcomeCountersV0 } from "../source-frontend-analysis-provider";
 
 export interface PackageManifestTextCache {
   read(filePath: string, readFile: (filePath: string) => string | null): string | null;
@@ -26,6 +27,7 @@ export interface SharedRuntimeCaches {
   readonly styleSemanticGraphBatchOutputCache: StyleSemanticGraphBatchOutputCache;
   readonly selectorUsagePayloadCache: SelectorUsagePayloadCache;
   readonly packageManifestTextCache: PackageManifestTextCache;
+  readonly sourceFrontendAnalysisOutcomes: SourceFrontendAnalysisOutcomeCountersV0;
 }
 
 export interface BuildSharedRuntimeCachesOptions {
@@ -46,6 +48,7 @@ export function buildSharedRuntimeCaches(
     styleSemanticGraphBatchOutputCache: new Map(),
     selectorUsagePayloadCache: new Map(),
     packageManifestTextCache: new RuntimePackageManifestTextCache(),
+    sourceFrontendAnalysisOutcomes: new SourceFrontendAnalysisOutcomeCountersV0(),
   };
 }
 

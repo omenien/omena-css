@@ -25,10 +25,15 @@ use oxc_span::{GetSpan, SourceType, Span};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::source_imports::{
+    SourceStyleImportResolutionV0, source_declaration_id,
+    summarize_omena_bridge_source_import_declarations_for_source_language,
+};
 use crate::source_language::{
     ServerTemplateDelimiterFamilyV0, is_astro_source, is_html_source, is_markdown_source,
     is_server_template_source, is_svelte_source, is_vue_source, project_source_for_language,
-    server_template_delimiter_family, source_type_for_language, tag_content_ranges,
+    recover_panicked_editor_source, server_template_delimiter_family, source_type_for_language,
+    tag_content_ranges,
 };
 use crate::style_intelligence::{
     BuiltInRecipeCallShapeV0 as VariantRecipeCallShape,
@@ -165,6 +170,7 @@ pub struct SourceScopeContainsDeclFactV0 {
 pub struct SourceBindingStyleImportFactV0 {
     pub local_name: String,
     pub style_uri: String,
+    pub declaration_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -588,6 +594,7 @@ pub enum SourceSelectorReferenceMatchKindV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SourceStyleBindingTarget {
+    declaration_id: String,
     binding: String,
     target_style_uri: Option<String>,
     binding_symbol_id: Option<SymbolId>,
@@ -686,28 +693,24 @@ type SourceReferenceTargetMap = BTreeMap<SourceReferenceDedupeKey, BTreeSet<Opti
 
 pub fn summarize_omena_bridge_source_syntax_index(
     source: &str,
-    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<SourceStyleImportResolutionV0>,
 ) -> SourceSyntaxIndexV0 {
     summarize_omena_bridge_source_syntax_index_with_type_fact_attempts(
         source,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
     .source_syntax_index
 }
 
 pub fn summarize_omena_bridge_source_syntax_index_with_type_fact_attempts(
     source: &str,
-    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<SourceStyleImportResolutionV0>,
 ) -> SourceSyntaxIndexWithTypeFactAttemptsV0 {
     summarize_omena_bridge_source_syntax_index_for_source_language_with_type_fact_attempts(
         "source.tsx",
         source,
         None,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
 }
 
@@ -715,15 +718,13 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
     source_path: &str,
     source: &str,
     source_language: Option<&str>,
-    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<SourceStyleImportResolutionV0>,
 ) -> SourceSyntaxIndexV0 {
     summarize_omena_bridge_source_syntax_index_for_source_language_with_type_fact_attempts(
         source_path,
         source,
         source_language,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
     .source_syntax_index
 }
@@ -732,19 +733,24 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language_with_type_
     source_path: &str,
     source: &str,
     source_language: Option<&str>,
-    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<SourceStyleImportResolutionV0>,
 ) -> SourceSyntaxIndexWithTypeFactAttemptsV0 {
     let projected_source = project_source_for_language(source_path, source, source_language);
-    let imported_style_targets = imported_style_targets(imported_style_bindings.as_slice());
-    let property_access_targets = property_access_style_targets(imported_style_bindings.as_slice());
+    let import_context = resolved_source_import_context(
+        source_path,
+        source,
+        source_language,
+        style_import_resolutions.as_slice(),
+    );
+    let imported_style_targets = import_context.style_targets;
+    let property_access_targets = imported_style_targets.clone();
     let ast_facts = collect_source_syntax_ast_facts(
         source_path,
         projected_source.as_ref(),
         source_type_for_language(source_path, source_language),
         property_access_targets.as_slice(),
         imported_style_targets.as_slice(),
-        classnames_bind_bindings.as_slice(),
+        import_context.classnames_bind_bindings.as_slice(),
     );
     let class_string_literals = ast_facts.class_string_literals;
     let style_property_accesses = ast_facts.style_property_accesses;
@@ -757,7 +763,7 @@ pub fn summarize_omena_bridge_source_syntax_index_for_source_language_with_type_
     let mut index = SourceSyntaxIndexV0 {
         schema_version: "0",
         product: "omena-bridge.source-syntax-index",
-        imported_style_bindings,
+        imported_style_bindings: import_context.imported_style_bindings,
         class_string_literals,
         style_property_accesses,
         inline_style_declarations: ast_facts.inline_style_declarations,
@@ -911,15 +917,13 @@ pub(crate) fn summarize_source_control_flow_graph_with_semantic(
 
 pub fn summarize_omena_bridge_source_binding_index(
     source: &str,
-    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<SourceStyleImportResolutionV0>,
 ) -> SourceBindingIndexV0 {
     summarize_omena_bridge_source_binding_index_for_source_language(
         "source.tsx",
         source,
         None,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
 }
 
@@ -927,26 +931,30 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     source_path: &str,
     source: &str,
     source_language: Option<&str>,
-    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<SourceStyleImportResolutionV0>,
 ) -> SourceBindingIndexV0 {
     let syntax_index = summarize_omena_bridge_source_syntax_index_for_source_language(
         source_path,
         source,
         source_language,
-        imported_style_bindings.clone(),
-        classnames_bind_bindings.clone(),
+        style_import_resolutions.clone(),
     );
     let projected_source = project_source_for_language(source_path, source, source_language);
-    let imported_style_targets = imported_style_targets(imported_style_bindings.as_slice());
-    let property_access_targets = property_access_style_targets(imported_style_bindings.as_slice());
+    let import_context = resolved_source_import_context(
+        source_path,
+        source,
+        source_language,
+        style_import_resolutions.as_slice(),
+    );
+    let imported_style_targets = import_context.style_targets;
+    let property_access_targets = imported_style_targets.clone();
     let ast_facts = collect_source_syntax_ast_facts(
         source_path,
         projected_source.as_ref(),
         source_type_for_language(source_path, source_language),
         property_access_targets.as_slice(),
         imported_style_targets.as_slice(),
-        classnames_bind_bindings.as_slice(),
+        import_context.classnames_bind_bindings.as_slice(),
     );
     let mut binding_scopes = ast_facts.binding_scopes;
     binding_scopes.sort();
@@ -968,6 +976,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
                 .target_style_uri
                 .as_ref()
                 .map(|style_uri| SourceBindingStyleImportFactV0 {
+                    declaration_id: target.declaration_id.clone(),
                     local_name: target.binding.clone(),
                     style_uri: style_uri.clone(),
                 })
@@ -1226,6 +1235,17 @@ pub fn collect_omena_bridge_vue_style_module_bindings(
     source: &str,
     source_language: Option<&str>,
 ) -> Vec<String> {
+    collect_vue_style_module_binding_identities(source_path, source, source_language)
+        .into_iter()
+        .map(|binding| binding.binding)
+        .collect()
+}
+
+fn collect_vue_style_module_binding_identities(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+) -> Vec<VueStyleModuleBindingIdentity> {
     let projected_source = project_source_for_language(source_path, source, source_language);
     let allocator = Allocator::default();
     let ParserReturn {
@@ -1239,7 +1259,7 @@ pub fn collect_omena_bridge_vue_style_module_bindings(
     if panicked {
         return Vec::new();
     }
-    collect_vue_use_css_module_bindings(&program)
+    collect_vue_use_css_module_bindings(source, &program)
 }
 
 pub fn canonicalize_source_selector_references(
@@ -1854,31 +1874,93 @@ fn byte_in_optional_ranges(byte_offset: usize, ranges: Option<&[(usize, usize)]>
     ranges.is_none_or(|ranges| byte_in_ranges(byte_offset, ranges))
 }
 
-fn imported_style_targets(
-    bindings: &[SourceImportedStyleBindingV0],
-) -> Vec<SourceStyleBindingTarget> {
-    bindings
-        .iter()
-        .map(|binding| SourceStyleBindingTarget {
-            binding: binding.binding.clone(),
-            target_style_uri: Some(binding.style_uri.clone()),
-            binding_symbol_id: None,
-        })
-        .collect()
+struct ResolvedSourceImportContext {
+    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
+    style_targets: Vec<SourceStyleBindingTarget>,
+    classnames_bind_bindings: Vec<String>,
 }
 
-fn property_access_style_targets(
-    bindings: &[SourceImportedStyleBindingV0],
-) -> Vec<SourceStyleBindingTarget> {
-    let imported = imported_style_targets(bindings);
-    if imported.is_empty() {
-        vec![SourceStyleBindingTarget {
-            binding: "styles".to_string(),
-            target_style_uri: None,
-            binding_symbol_id: None,
-        }]
-    } else {
-        imported
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct VueStyleModuleBindingIdentity {
+    declaration_id: String,
+    binding: String,
+}
+
+fn resolved_source_import_context(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    resolutions: &[SourceStyleImportResolutionV0],
+) -> ResolvedSourceImportContext {
+    let imports = summarize_omena_bridge_source_import_declarations_for_source_language(
+        source_path,
+        source,
+        source_language,
+    );
+    let mut uris_by_declaration_id = BTreeMap::<String, BTreeSet<String>>::new();
+    for resolution in resolutions {
+        uris_by_declaration_id
+            .entry(resolution.declaration_id.clone())
+            .or_default()
+            .insert(resolution.style_uri.clone());
+    }
+
+    let mut style_targets = imports
+        .imports
+        .iter()
+        .filter_map(|import| {
+            let uris = uris_by_declaration_id.get(import.declaration_id.as_str())?;
+            let style_uri = single_btree_set_item(uris)?;
+            Some(SourceStyleBindingTarget {
+                declaration_id: import.declaration_id.clone(),
+                binding: import.binding.clone(),
+                target_style_uri: Some(style_uri),
+                binding_symbol_id: None,
+            })
+        })
+        .collect::<Vec<_>>();
+    if is_vue_source(source_path, source_language) {
+        style_targets.extend(
+            collect_vue_style_module_binding_identities(source_path, source, source_language)
+                .into_iter()
+                .map(|binding| SourceStyleBindingTarget {
+                    declaration_id: binding.declaration_id,
+                    binding: binding.binding,
+                    target_style_uri: Some(source_path.to_string()),
+                    binding_symbol_id: None,
+                }),
+        );
+    }
+    style_targets.sort_by(|left, right| {
+        left.declaration_id
+            .cmp(&right.declaration_id)
+            .then_with(|| left.target_style_uri.cmp(&right.target_style_uri))
+    });
+    style_targets.dedup();
+
+    let imported_style_bindings = style_targets
+        .iter()
+        .filter_map(|target| {
+            target
+                .target_style_uri
+                .as_ref()
+                .map(|style_uri| SourceImportedStyleBindingV0 {
+                    binding: target.binding.clone(),
+                    style_uri: style_uri.clone(),
+                })
+        })
+        .collect();
+    let classnames_bind_bindings = imports
+        .imports
+        .iter()
+        .filter(|import| import.specifier == "classnames/bind")
+        .map(|import| import.binding.clone())
+        .collect();
+
+    ResolvedSourceImportContext {
+        imported_style_bindings,
+        style_targets,
+        classnames_bind_bindings,
     }
 }
 
@@ -1891,6 +1973,7 @@ fn source_style_targets_with_symbols(
     targets
         .iter()
         .map(|target| SourceStyleBindingTarget {
+            declaration_id: target.declaration_id.clone(),
             binding: target.binding.clone(),
             target_style_uri: target.target_style_uri.clone(),
             binding_symbol_id: import_symbols
@@ -2028,43 +2111,94 @@ fn collect_source_syntax_ast_facts(
 ) -> SourceSyntaxAstFacts {
     let allocator = Allocator::default();
     let ParserReturn {
-        program, panicked, ..
+        program,
+        panicked,
+        diagnostics,
+        ..
     } = Parser::new(&allocator, source, source_type).parse();
     if panicked {
-        return SourceSyntaxAstFacts {
-            binding_scopes: Vec::new(),
-            scope_parent_edges: Vec::new(),
-            binding_decls: Vec::new(),
-            scope_contains_decls: Vec::new(),
-            class_string_literals: Vec::new(),
-            style_property_accesses: Vec::new(),
-            style_property_access_selector_names: BTreeMap::new(),
-            inline_style_declarations: Vec::new(),
-            class_name_expression_spans: Vec::new(),
-            class_attribute_sites: Vec::new(),
-            classnames_bind_utility_bindings: Vec::new(),
-            classnames_bind_call_arguments: Vec::new(),
-            symbol_ref_class_value_bindings: Vec::new(),
-            module_specifiers: Vec::new(),
-            class_value_universes: Vec::new(),
-            domain_class_references: Vec::new(),
-            source_elements: Vec::new(),
-            element_parent_edges: Vec::new(),
+        let diagnostic_offsets = diagnostics
+            .iter()
+            .flat_map(|diagnostic| diagnostic.labels.as_slice())
+            .map(|label| label.offset() as usize)
+            .collect::<Vec<_>>();
+        let Some(recovered) =
+            recover_panicked_editor_source(source, source_type, diagnostic_offsets.as_slice())
+        else {
+            return empty_source_syntax_ast_facts();
         };
+        let recovered_allocator = Allocator::default();
+        let recovered_parse =
+            Parser::new(&recovered_allocator, recovered.source.as_str(), source_type).parse();
+        if recovered_parse.panicked {
+            return empty_source_syntax_ast_facts();
+        }
+        return collect_source_syntax_ast_facts_from_program(
+            source_path,
+            source,
+            &recovered_parse.program,
+            recovered.trusted_byte_end,
+            property_access_targets,
+            style_targets,
+            classnames_bind_imports,
+        );
     }
 
-    let semantic = SemanticBuilder::new().build(&program).semantic;
+    collect_source_syntax_ast_facts_from_program(
+        source_path,
+        source,
+        &program,
+        source.len(),
+        property_access_targets,
+        style_targets,
+        classnames_bind_imports,
+    )
+}
+
+fn empty_source_syntax_ast_facts() -> SourceSyntaxAstFacts {
+    SourceSyntaxAstFacts {
+        binding_scopes: Vec::new(),
+        scope_parent_edges: Vec::new(),
+        binding_decls: Vec::new(),
+        scope_contains_decls: Vec::new(),
+        class_string_literals: Vec::new(),
+        style_property_accesses: Vec::new(),
+        style_property_access_selector_names: BTreeMap::new(),
+        inline_style_declarations: Vec::new(),
+        class_name_expression_spans: Vec::new(),
+        class_attribute_sites: Vec::new(),
+        classnames_bind_utility_bindings: Vec::new(),
+        classnames_bind_call_arguments: Vec::new(),
+        symbol_ref_class_value_bindings: Vec::new(),
+        module_specifiers: Vec::new(),
+        class_value_universes: Vec::new(),
+        domain_class_references: Vec::new(),
+        source_elements: Vec::new(),
+        element_parent_edges: Vec::new(),
+    }
+}
+
+fn collect_source_syntax_ast_facts_from_program<'a>(
+    source_path: &'a str,
+    source: &'a str,
+    program: &'a Program<'a>,
+    trusted_source_byte_end: usize,
+    property_access_targets: &'a [SourceStyleBindingTarget],
+    style_targets: &'a [SourceStyleBindingTarget],
+    classnames_bind_imports: &'a [String],
+) -> SourceSyntaxAstFacts {
+    let semantic = SemanticBuilder::new().build(program).semantic;
     let scoping = semantic.scoping();
     let property_access_targets =
-        source_style_targets_with_symbols(property_access_targets, &program);
-    let style_targets = source_style_targets_with_symbols(style_targets, &program);
+        source_style_targets_with_symbols(property_access_targets, program);
+    let style_targets = source_style_targets_with_symbols(style_targets, program);
     let classnames_bind_import_symbols =
-        classnames_bind_import_symbol_ids(&program, classnames_bind_imports);
-    let variant_recipe_bindings = collect_variant_recipe_bindings(source, &program, scoping);
+        classnames_bind_import_symbol_ids(program, classnames_bind_imports);
+    let variant_recipe_bindings = collect_variant_recipe_bindings(source, program, scoping);
     let mut collector = SourceSyntaxAstCollector {
         source_path,
         source,
-        program: &program,
+        program,
         scoping,
         property_access_targets: property_access_targets.as_slice(),
         style_targets: style_targets.as_slice(),
@@ -2089,8 +2223,9 @@ fn collect_source_syntax_ast_facts(
         source_elements: Vec::new(),
         element_parent_edges: Vec::new(),
         element_stack: Vec::new(),
+        trusted_source_byte_end,
     };
-    collector.collect_program(&program);
+    collector.collect_program(program);
     collector.canonicalize();
     SourceSyntaxAstFacts {
         binding_scopes: collector.binding_scopes,
@@ -2580,7 +2715,10 @@ fn collect_vue_use_css_module_import_names(program: &Program<'_>) -> BTreeSet<St
     names
 }
 
-fn collect_vue_use_css_module_bindings(program: &Program<'_>) -> Vec<String> {
+fn collect_vue_use_css_module_bindings(
+    source: &str,
+    program: &Program<'_>,
+) -> Vec<VueStyleModuleBindingIdentity> {
     let use_css_module_names = collect_vue_use_css_module_import_names(program);
     if use_css_module_names.is_empty() {
         return Vec::new();
@@ -2589,6 +2727,7 @@ fn collect_vue_use_css_module_bindings(program: &Program<'_>) -> Vec<String> {
     for statement in &program.body {
         collect_vue_use_css_module_bindings_from_statement(
             statement,
+            source,
             &use_css_module_names,
             &mut bindings,
         );
@@ -2619,13 +2758,15 @@ fn single_btree_set_item(values: &BTreeSet<String>) -> Option<String> {
 
 fn collect_vue_use_css_module_bindings_from_statement(
     statement: &Statement<'_>,
+    source: &str,
     use_css_module_names: &BTreeSet<String>,
-    bindings: &mut BTreeSet<String>,
+    bindings: &mut BTreeSet<VueStyleModuleBindingIdentity>,
 ) {
     match statement {
         Statement::VariableDeclaration(declaration) => {
             collect_vue_use_css_module_bindings_from_variable_declaration(
                 declaration,
+                source,
                 use_css_module_names,
                 bindings,
             );
@@ -2634,6 +2775,7 @@ fn collect_vue_use_css_module_bindings_from_statement(
             if let Some(Declaration::VariableDeclaration(declaration)) = &declaration.declaration {
                 collect_vue_use_css_module_bindings_from_variable_declaration(
                     declaration,
+                    source,
                     use_css_module_names,
                     bindings,
                 );
@@ -2645,11 +2787,12 @@ fn collect_vue_use_css_module_bindings_from_statement(
 
 fn collect_vue_use_css_module_bindings_from_variable_declaration(
     declaration: &oxc_ast::ast::VariableDeclaration<'_>,
+    source: &str,
     use_css_module_names: &BTreeSet<String>,
-    bindings: &mut BTreeSet<String>,
+    bindings: &mut BTreeSet<VueStyleModuleBindingIdentity>,
 ) {
     for declarator in &declaration.declarations {
-        let Some(binding) = binding_pattern_identifier_name(&declarator.id) else {
+        let Some(binding) = binding_pattern_identifier(&declarator.id) else {
             continue;
         };
         let Some(Expression::CallExpression(call)) = &declarator.init else {
@@ -2659,7 +2802,17 @@ fn collect_vue_use_css_module_bindings_from_variable_declaration(
             continue;
         };
         if use_css_module_names.contains(callee) {
-            bindings.insert(binding.to_string());
+            bindings.insert(VueStyleModuleBindingIdentity {
+                declaration_id: source_declaration_id(
+                    source,
+                    "localVar",
+                    binding.name.as_str(),
+                    binding.span.start as usize,
+                    binding.span.end as usize,
+                    "",
+                ),
+                binding: binding.name.as_str().to_string(),
+            });
         }
     }
 }
@@ -2692,6 +2845,7 @@ struct SourceSyntaxAstCollector<'a, 'b, 's> {
     source_elements: Vec<SourceElementFactV0>,
     element_parent_edges: Vec<SourceElementParentFactV0>,
     element_stack: Vec<SourceElementIdentityFactV0>,
+    trusted_source_byte_end: usize,
 }
 
 impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
@@ -3049,6 +3203,9 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     }
 
     fn push_binding_decl_fact(&mut self, fact: SourceBindingDeclFactV0) {
+        if fact.byte_span.end > self.trusted_source_byte_end {
+            return;
+        }
         if let Some(scope) = self.scope_stack.last() {
             self.scope_contains_decls
                 .push(SourceScopeContainsDeclFactV0 {
@@ -3163,6 +3320,9 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     }
 
     fn collect_expression(&mut self, expression: &Expression<'a>) {
+        if expression.span().end as usize > self.trusted_source_byte_end {
+            return;
+        }
         match expression {
             Expression::StaticMemberExpression(member) => {
                 self.collect_static_member_expression(member);
@@ -4435,10 +4595,6 @@ fn split_class_names(value: &str) -> Vec<String> {
         .iter()
         .map(|token| token.as_str().to_string())
         .collect()
-}
-
-fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {
-    binding_pattern_identifier(pattern).map(|identifier| identifier.name.as_str())
 }
 
 fn binding_pattern_identifier<'a>(

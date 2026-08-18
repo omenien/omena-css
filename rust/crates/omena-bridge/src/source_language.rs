@@ -1,6 +1,88 @@
+use oxc_allocator::Allocator;
+use oxc_parser::Parser;
 use oxc_span::SourceType;
 use serde::Serialize;
 use std::borrow::Cow;
+
+const EDITOR_RECOVERY_IDENTIFIER: &str = "omenaEditorRecovery";
+
+pub(crate) struct RecoveredEditorSourceV0 {
+    pub source: String,
+    pub trusted_byte_end: usize,
+}
+
+/// Asks Oxc, rather than a second syntax recognizer, whether a bounded repair makes an
+/// incomplete editor buffer structurally parseable. Callers must ignore expression facts that
+/// cross `trusted_byte_end`; inserted text exists only to recover scopes and declarations that
+/// precede the incomplete expression.
+pub(crate) fn recover_panicked_editor_source(
+    source: &str,
+    source_type: SourceType,
+    diagnostic_offsets: &[usize],
+) -> Option<RecoveredEditorSourceV0> {
+    const REPAIRS: &[&str] = &[
+        EDITOR_RECOVERY_IDENTIFIER,
+        "omenaEditorRecovery)} />;",
+        "omenaEditorRecovery')} />;",
+        "omenaEditorRecovery\")} />;",
+        "omenaEditorRecovery`)} />;",
+        "omenaEditorRecovery']",
+        "omenaEditorRecovery\"]",
+        "omenaEditorRecovery`]",
+    ];
+
+    let line_ends = source
+        .match_indices('\n')
+        .map(|(index, _)| {
+            if index > 0 && source.as_bytes()[index - 1] == b'\r' {
+                index - 1
+            } else {
+                index
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut insertion_points = line_ends.iter().rev().take(16).copied().collect::<Vec<_>>();
+    for diagnostic_offset in diagnostic_offsets {
+        let diagnostic_offset = (*diagnostic_offset).min(source.len());
+        if let Some(previous_line_end) = line_ends
+            .iter()
+            .copied()
+            .rev()
+            .find(|line_end| *line_end <= diagnostic_offset)
+        {
+            insertion_points.push(previous_line_end);
+        }
+        let line_end = line_ends
+            .iter()
+            .copied()
+            .find(|line_end| *line_end >= diagnostic_offset)
+            .unwrap_or(source.len());
+        insertion_points.push(line_end);
+    }
+    insertion_points.push(source.len());
+    insertion_points.sort_unstable();
+    insertion_points.dedup();
+
+    for insertion_point in insertion_points.into_iter().rev() {
+        for repair in REPAIRS {
+            let mut candidate = String::with_capacity(source.len() + repair.len());
+            candidate.push_str(&source[..insertion_point]);
+            candidate.push_str(repair);
+            candidate.push_str(&source[insertion_point..]);
+            let allocator = Allocator::default();
+            if !Parser::new(&allocator, candidate.as_str(), source_type)
+                .parse()
+                .panicked
+            {
+                return Some(RecoveredEditorSourceV0 {
+                    source: candidate,
+                    trusted_byte_end: insertion_point,
+                });
+            }
+        }
+    }
+    None
+}
 
 pub(crate) trait SourceLanguageParserV0 {
     fn parser_id(&self) -> &'static str;

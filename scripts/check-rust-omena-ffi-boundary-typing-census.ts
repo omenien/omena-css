@@ -7,6 +7,7 @@ type BoundaryClass = "json-string" | "jsvalue-any" | "typed" | "unclassified";
 type BoundaryClassifierRule =
   | "napi-json-string"
   | "wasm-jsvalue"
+  | "wasm-typed-value"
   | "typed-self"
   | "typed-versioned-struct";
 type ExportKind = "function" | "method" | "constructor";
@@ -69,6 +70,7 @@ const sources = [
 const classifierRuleIds: readonly BoundaryClassifierRule[] = [
   "napi-json-string",
   "wasm-jsvalue",
+  "wasm-typed-value",
   "typed-self",
   "typed-versioned-struct",
 ];
@@ -95,6 +97,12 @@ const pinnedRows: readonly BoundaryClassPin[] = [
     crate: "omena-wasm",
     jsName: "constructor",
     signatureIncludes: "pub fn new() -> Self",
+    expectedClass: "typed",
+  },
+  {
+    crate: "omena-wasm",
+    jsName: "readSourceImportDeclarations",
+    signatureIncludes: "OmenaWasmSourceImportDeclarationsV0",
     expectedClass: "typed",
   },
 ];
@@ -380,6 +388,7 @@ function classifyBoundary(crateName: CrateName, signature: string): BoundaryClas
       return "json-string";
     case "typed-self":
     case "typed-versioned-struct":
+    case "wasm-typed-value":
       return "typed";
     default:
       return "unclassified";
@@ -392,6 +401,14 @@ function classifierRuleForBoundary(
 ): BoundaryClassifierRule | undefined {
   if (crateName === "omena-wasm" && /\bJsValue\b/.test(signature)) {
     return "wasm-jsvalue";
+  }
+  if (
+    crateName === "omena-wasm" &&
+    /->\s*(?:Option\s*<\s*)?(?:String|u(?:8|16|32|64|128|size)|i(?:8|16|32|64|128|size)|bool|[A-Z][A-Za-z0-9_]*V\d+)\s*>?/.test(
+      signature,
+    )
+  ) {
+    return "wasm-typed-value";
   }
   if (
     crateName === "omena-napi" &&

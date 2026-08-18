@@ -522,25 +522,18 @@ fn style_source_path_as_file_uri(path: &str) -> String {
 
 pub fn summarize_omena_query_source_syntax_index(
     source: &str,
-    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<OmenaQuerySourceStyleImportResolutionV0>,
 ) -> OmenaQuerySourceSyntaxIndexV0 {
-    omena_bridge::summarize_omena_bridge_source_syntax_index(
-        source,
-        imported_style_bindings,
-        classnames_bind_bindings,
-    )
+    omena_bridge::summarize_omena_bridge_source_syntax_index(source, style_import_resolutions)
 }
 
 pub fn summarize_omena_query_source_syntax_index_with_type_fact_attempts(
     source: &str,
-    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<OmenaQuerySourceStyleImportResolutionV0>,
 ) -> OmenaQuerySourceSyntaxIndexWithTypeFactAttemptsV0 {
     omena_bridge::summarize_omena_bridge_source_syntax_index_with_type_fact_attempts(
         source,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
 }
 
@@ -548,15 +541,13 @@ pub fn summarize_omena_query_source_syntax_index_for_source_language(
     source_path: &str,
     source: &str,
     source_language: Option<&str>,
-    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<OmenaQuerySourceStyleImportResolutionV0>,
 ) -> OmenaQuerySourceSyntaxIndexV0 {
     omena_bridge::summarize_omena_bridge_source_syntax_index_for_source_language(
         source_path,
         source,
         source_language,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
 }
 
@@ -564,43 +555,34 @@ pub fn summarize_omena_query_source_syntax_index_for_source_language_with_type_f
     source_path: &str,
     source: &str,
     source_language: Option<&str>,
-    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<OmenaQuerySourceStyleImportResolutionV0>,
 ) -> OmenaQuerySourceSyntaxIndexWithTypeFactAttemptsV0 {
     omena_bridge::summarize_omena_bridge_source_syntax_index_for_source_language_with_type_fact_attempts(
         source_path,
         source,
         source_language,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
 }
 
 pub fn summarize_omena_query_source_binding_index(
     source: &str,
-    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<OmenaQuerySourceStyleImportResolutionV0>,
 ) -> OmenaQuerySourceBindingIndexV0 {
-    omena_bridge::summarize_omena_bridge_source_binding_index(
-        source,
-        imported_style_bindings,
-        classnames_bind_bindings,
-    )
+    omena_bridge::summarize_omena_bridge_source_binding_index(source, style_import_resolutions)
 }
 
 pub fn summarize_omena_query_source_binding_index_for_source_language(
     source_path: &str,
     source: &str,
     source_language: Option<&str>,
-    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
-    classnames_bind_bindings: Vec<String>,
+    style_import_resolutions: Vec<OmenaQuerySourceStyleImportResolutionV0>,
 ) -> OmenaQuerySourceBindingIndexV0 {
     omena_bridge::summarize_omena_bridge_source_binding_index_for_source_language(
         source_path,
         source,
         source_language,
-        imported_style_bindings,
-        classnames_bind_bindings,
+        style_import_resolutions,
     )
 }
 
@@ -807,30 +789,20 @@ pub fn resolve_omena_query_class_site_values_for_source_with_type_facts(
         source_language,
     );
     let base_document_uri = style_source_path_as_file_uri(source_path);
-    let imported_style_bindings = imports
+    let style_import_resolutions = imports
         .imports
         .iter()
         .filter(|import| source_specifier_is_style_module(&import.specifier))
         .filter_map(|import| {
             resolve_omena_query_style_uri_for_specifier(&base_document_uri, None, &import.specifier)
-                .map(|style_uri| OmenaQuerySourceImportedStyleBindingV0 {
-                    binding: import.binding.clone(),
-                    style_uri,
-                })
+                .map(|style_uri| import.style_resolution(style_uri.as_str()))
         })
-        .collect::<Vec<_>>();
-    let classnames_bindings = imports
-        .imports
-        .iter()
-        .filter(|import| import.specifier == "classnames/bind")
-        .map(|import| import.binding.clone())
         .collect::<Vec<_>>();
     let binding_index = summarize_omena_query_source_binding_index_for_source_language(
         source_path,
         source,
         source_language,
-        imported_style_bindings,
-        classnames_bindings,
+        style_import_resolutions,
     );
     binding_index
         .class_attribute_sites

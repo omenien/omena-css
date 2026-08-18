@@ -2889,7 +2889,6 @@ pub fn memo_source_element_parent_chain(
                 file.source_source(db),
                 None,
                 Vec::new(),
-                Vec::new(),
             );
             &owned_index
         };
@@ -2981,7 +2980,6 @@ pub fn memo_source_scope_proximity(
                 file.source_path(db),
                 file.source_source(db),
                 None,
-                Vec::new(),
                 Vec::new(),
             );
             &owned_index
@@ -3129,7 +3127,6 @@ fn memo_source_element_static_declarations(
             file.source_path(db),
             file.source_source(db),
             None,
-            Vec::new(),
             Vec::new(),
         );
         &owned_index
@@ -3604,6 +3601,38 @@ mod tests {
         build_salsa_demand_evidence_graph_v0,
     };
     use std::collections::BTreeSet;
+
+    fn summarize_omena_query_source_syntax_index_for_source_language(
+        source_path: &str,
+        source: &str,
+        source_language: Option<&str>,
+        imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
+        _classnames_bind_bindings: Vec<String>,
+    ) -> OmenaQuerySourceSyntaxIndexV0 {
+        let declarations = summarize_omena_query_source_import_declarations_for_source_language(
+            source_path,
+            source,
+            source_language,
+        );
+        let resolutions = imported_style_bindings
+            .into_iter()
+            .flat_map(|binding| {
+                declarations
+                    .imports
+                    .iter()
+                    .filter(move |declaration| declaration.binding == binding.binding)
+                    .map(move |declaration| {
+                        declaration.style_resolution(binding.style_uri.as_str())
+                    })
+            })
+            .collect();
+        super::summarize_omena_query_source_syntax_index_for_source_language(
+            source_path,
+            source,
+            source_language,
+            resolutions,
+        )
+    }
 
     fn parallel_probe_corpus() -> Vec<OmenaQueryStyleSourceInputV0> {
         vec![

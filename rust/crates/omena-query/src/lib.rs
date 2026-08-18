@@ -107,6 +107,7 @@ pub use omena_bridge::{
     SourceSelectorReferenceMatchKindV0 as OmenaQuerySourceSelectorReferenceMatchKindV0,
     SourceSelectorReferenceSurfaceV0 as OmenaQuerySourceSelectorReferenceSurfaceV0,
     SourceStyleAccessUsesStyleImportFactV0 as OmenaQuerySourceStyleAccessUsesStyleImportFactV0,
+    SourceStyleImportResolutionV0 as OmenaQuerySourceStyleImportResolutionV0,
     SourceStyleImportResolvesModuleFactV0 as OmenaQuerySourceStyleImportResolvesModuleFactV0,
     SourceStylePropertyAccessFactV0 as OmenaQuerySourceStylePropertyAccessFactV0,
     SourceSymbolRefUsesDeclFactV0 as OmenaQuerySourceSymbolRefUsesDeclFactV0,

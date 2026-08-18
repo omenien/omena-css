@@ -25,6 +25,7 @@ export function createWorkspaceAnalysisCache(
   const sourceFrontendAnalysis = createRequiredRustSourceFrontendAnalysisProvider({
     aliasResolver: () => args.aliasResolver(),
     fileExists: args.fileExists,
+    outcomeCounters: args.caches.sourceFrontendAnalysisOutcomes,
   });
   return new DocumentAnalysisCache({
     sourceFrontendAnalysis,

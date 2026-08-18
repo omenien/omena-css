@@ -15,60 +15,105 @@ import {
   type RustSourceBindingIndexV0,
   type RustSourceSyntaxIndexV0,
 } from "../../engine-core-ts/src/core/source-frontend/rust-binding-index-projection";
-import { utf8ByteOffsetAtUtf16Offset } from "../../engine-core-ts/src/core/source-frontend/source-text-offsets";
+import { utf16OffsetAtUtf8ByteOffset } from "../../engine-core-ts/src/core/source-frontend/source-text-offsets";
 import {
   loadDefaultOmenaNapiSourceFrontendBinding,
   type OmenaNapiSourceFrontendBinding,
+  type OmenaNapiSourceImportDeclarationSummaryV0,
+  type OmenaNapiSourceImportDeclarationV0,
 } from "./omena-napi-source-frontend-binding";
 
 export type SourceFrontendBackendKind = "rust-source-frontend";
+
+export type SourceFrontendAnalysisOutcomeKindV0 =
+  | "success"
+  | "unsupportedLanguage"
+  | "bindingUnavailable"
+  | "napiFailure"
+  | "jsonFailure"
+  | "projectionFailure";
+
+export type SourceFrontendAnalysisOutcomeV0 =
+  | {
+      readonly kind: "success";
+      readonly result: SourceFrontendAnalysisProviderResultV0;
+    }
+  | {
+      readonly kind: Exclude<SourceFrontendAnalysisOutcomeKindV0, "success">;
+      readonly detail: string;
+    };
+
+export interface SourceFrontendAnalysisOutcomeCounterSnapshotV0 {
+  readonly total: number;
+  readonly success: number;
+  readonly unsupportedLanguage: number;
+  readonly bindingUnavailable: number;
+  readonly napiFailure: number;
+  readonly jsonFailure: number;
+  readonly projectionFailure: number;
+}
+
+export class SourceFrontendAnalysisOutcomeCountersV0 {
+  private readonly counts = new Map<SourceFrontendAnalysisOutcomeKindV0, number>();
+
+  record(kind: SourceFrontendAnalysisOutcomeKindV0): void {
+    this.counts.set(kind, (this.counts.get(kind) ?? 0) + 1);
+  }
+
+  snapshot(): SourceFrontendAnalysisOutcomeCounterSnapshotV0 {
+    const success = this.counts.get("success") ?? 0;
+    const unsupportedLanguage = this.counts.get("unsupportedLanguage") ?? 0;
+    const bindingUnavailable = this.counts.get("bindingUnavailable") ?? 0;
+    const napiFailure = this.counts.get("napiFailure") ?? 0;
+    const jsonFailure = this.counts.get("jsonFailure") ?? 0;
+    const projectionFailure = this.counts.get("projectionFailure") ?? 0;
+    return {
+      total:
+        success +
+        unsupportedLanguage +
+        bindingUnavailable +
+        napiFailure +
+        jsonFailure +
+        projectionFailure,
+      success,
+      unsupportedLanguage,
+      bindingUnavailable,
+      napiFailure,
+      jsonFailure,
+      projectionFailure,
+    };
+  }
+}
+
+export class SourceFrontendAnalysisError extends Error {
+  constructor(
+    readonly outcomeKind: Exclude<SourceFrontendAnalysisOutcomeKindV0, "success">,
+    readonly sourcePath: string,
+    detail: string,
+  ) {
+    super(`Rust source frontend ${outcomeKind} for ${sourcePath}: ${detail}`);
+    this.name = "SourceFrontendAnalysisError";
+  }
+}
 
 export interface RustSourceFrontendAnalysisProviderOptions {
   readonly aliasResolver: () => AliasResolver;
   readonly fileExists: (path: string) => boolean;
   readonly loadBinding?: () => OmenaNapiSourceFrontendBinding | null | undefined;
+  readonly outcomeCounters?: SourceFrontendAnalysisOutcomeCountersV0;
 }
 
 interface SourceFrontendImportInputsV0 {
-  readonly importedStyleBindings: readonly {
-    readonly binding: string;
+  readonly styleImportResolutions: readonly {
+    readonly declarationId: string;
     readonly styleUri: string;
   }[];
-  readonly styleImportFallbacks: readonly SourceFrontendStyleImportFallbackV0[];
-  readonly classUtilFallbacks: readonly SourceFrontendClassUtilFallbackV0[];
-  readonly classnamesBindUtilityFallbacks: readonly SourceFrontendClassnamesBindUtilityFallbackV0[];
   readonly missingStyleImports: readonly {
+    readonly declarationId: string;
     readonly binding: string;
     readonly resolved: StyleImport;
   }[];
-  readonly classnamesBindBindings: readonly string[];
 }
-
-interface SourceFrontendStyleImportFallbackV0 {
-  readonly binding: string;
-  readonly styleUri: string;
-  readonly importPath: string;
-  readonly byteSpan: RustSourceBindingIndexV0["bindingDecls"][number]["byteSpan"];
-}
-
-interface SourceFrontendClassUtilFallbackV0 {
-  readonly localName: string;
-  readonly importPath: string;
-  readonly byteSpan: RustSourceBindingIndexV0["bindingDecls"][number]["byteSpan"];
-}
-
-interface SourceFrontendClassnamesBindUtilityFallbackV0 {
-  readonly localName: string;
-  readonly stylesLocalName: string;
-  readonly styleUri: string;
-  readonly classnamesImportName: string;
-  readonly byteSpan: RustSourceBindingIndexV0["bindingDecls"][number]["byteSpan"];
-}
-
-const IMPORT_FROM_PATTERN =
-  /\bimport\s+(?:type\s+)?(?:(?<defaultName>[A-Za-z_$][\w$]*)\s*,?\s*)?(?:\*\s+as\s+(?<namespaceName>[A-Za-z_$][\w$]*)\s*)?(?:\{[^}]*\}\s*)?from\s*["'](?<specifier>[^"']+)["']/g;
-const CLASSNAMES_BIND_INITIALIZER_PATTERN =
-  /\b(?:const|let|var)\s+(?<localName>[A-Za-z_$][\w$]*)\s*=\s*(?<classnamesImportName>[A-Za-z_$][\w$]*)\.bind\(\s*(?<stylesLocalName>[A-Za-z_$][\w$]*)\s*\)/g;
 
 export function resolveSourceFrontendBackendKind(
   env: NodeJS.ProcessEnv = process.env,
@@ -81,68 +126,144 @@ export function resolveSourceFrontendBackendKind(
 export function createRequiredRustSourceFrontendAnalysisProvider(
   options: RustSourceFrontendAnalysisProviderOptions,
 ): (input: SourceFrontendAnalysisProviderInputV0) => SourceFrontendAnalysisProviderResultV0 | null {
-  const optionalProvider = createDefaultRustSourceFrontendAnalysisProvider(options);
+  const provider = createDefaultRustSourceFrontendAnalysisProvider(options);
   return (input) => {
-    if (!sourceLanguageForPath(input.filePath)) return null;
-    const result = optionalProvider(input);
-    if (result) return result;
-    throw new Error(
-      `Rust source frontend analysis is required for ${input.filePath}. Build or install @omena/napi before analyzing supported source files.`,
-    );
+    const outcome = provider(input);
+    if (outcome.kind === "success") return outcome.result;
+    if (outcome.kind === "unsupportedLanguage") return null;
+    throw new SourceFrontendAnalysisError(outcome.kind, input.filePath, outcome.detail);
   };
 }
 
 export function createDefaultRustSourceFrontendAnalysisProvider(
   options: RustSourceFrontendAnalysisProviderOptions,
-): (input: SourceFrontendAnalysisProviderInputV0) => SourceFrontendAnalysisProviderResultV0 | null {
+): (input: SourceFrontendAnalysisProviderInputV0) => SourceFrontendAnalysisOutcomeV0 {
   const loadBinding = options.loadBinding ?? loadDefaultOmenaNapiSourceFrontendBinding;
+  const emit = (outcome: SourceFrontendAnalysisOutcomeV0): SourceFrontendAnalysisOutcomeV0 => {
+    options.outcomeCounters?.record(outcome.kind);
+    return outcome;
+  };
+
   return (input) => {
     const sourceLanguage = sourceLanguageForPath(input.filePath);
-    if (!sourceLanguage) return null;
-    const binding = loadBinding();
-    if (!binding) return null;
-    const readBinding = binding.readSourceBindingIndexJson;
-    if (typeof readBinding !== "function") return null;
+    if (!sourceLanguage) {
+      return emit({ kind: "unsupportedLanguage", detail: "unsupported source extension" });
+    }
 
-    const importInputs = collectSourceFrontendImportInputs({
-      content: input.content,
-      filePath: input.filePath,
-      aliasResolver: options.aliasResolver(),
-      fileExists: options.fileExists,
-    });
-    const importedStyleBindingsJson = JSON.stringify(importInputs.importedStyleBindings);
-    const classnamesBindBindingsJson = JSON.stringify(importInputs.classnamesBindBindings);
+    let binding: OmenaNapiSourceFrontendBinding | null | undefined;
     try {
-      const raw = readBinding(
+      binding = loadBinding();
+    } catch (error) {
+      return emit({ kind: "bindingUnavailable", detail: errorDetail(error) });
+    }
+    const readBinding = binding?.readSourceBindingIndexJson;
+    const readImports = binding?.readSourceImportDeclarations;
+    if (!binding || typeof readBinding !== "function" || typeof readImports !== "function") {
+      return emit({
+        kind: "bindingUnavailable",
+        detail: "required @omena/napi source-frontend exports are unavailable",
+      });
+    }
+
+    let importSummaryValue: OmenaNapiSourceImportDeclarationSummaryV0 | null | undefined;
+    try {
+      importSummaryValue = readImports(input.filePath, input.content, sourceLanguage);
+    } catch (error) {
+      return emit({ kind: "napiFailure", detail: errorDetail(error) });
+    }
+    if (!importSummaryValue) {
+      return emit({ kind: "napiFailure", detail: "import declaration export returned no value" });
+    }
+    if (!isRustSourceImportDeclarationSummaryV0(importSummaryValue)) {
+      return emit({
+        kind: "projectionFailure",
+        detail: "import declaration result does not match the Rust summary shape",
+      });
+    }
+
+    let importInputs: SourceFrontendImportInputsV0;
+    try {
+      importInputs = collectSourceFrontendImportInputs({
+        imports: importSummaryValue.imports,
+        content: input.content,
+        filePath: input.filePath,
+        aliasResolver: options.aliasResolver(),
+        fileExists: options.fileExists,
+      });
+    } catch (error) {
+      return emit({ kind: "projectionFailure", detail: errorDetail(error) });
+    }
+    const styleImportResolutionsJson = JSON.stringify(importInputs.styleImportResolutions);
+
+    let bindingIndexRaw: string | null | undefined;
+    try {
+      bindingIndexRaw = readBinding(
         input.filePath,
         input.content,
         sourceLanguage,
-        importedStyleBindingsJson,
-        classnamesBindBindingsJson,
+        styleImportResolutionsJson,
       );
-      if (!raw) return null;
-      const bindingIndex = bindingIndexWithImportFallbacks(
-        JSON.parse(raw) as RustSourceBindingIndexV0,
-        input.content,
-        importInputs,
-      );
-      const projected = projectRustSourceBindingIndexV0({
+    } catch (error) {
+      return emit({ kind: "napiFailure", detail: errorDetail(error) });
+    }
+    if (!bindingIndexRaw) {
+      return emit({ kind: "napiFailure", detail: "binding index export returned no JSON" });
+    }
+
+    let bindingIndex: RustSourceBindingIndexV0;
+    try {
+      bindingIndex = JSON.parse(bindingIndexRaw) as RustSourceBindingIndexV0;
+    } catch (error) {
+      return emit({ kind: "jsonFailure", detail: errorDetail(error) });
+    }
+
+    let projected: ReturnType<typeof projectRustSourceBindingIndexV0>;
+    try {
+      projected = projectRustSourceBindingIndexV0({
         filePath: input.filePath,
         source: input.content,
         language: sourceLanguage,
         index: bindingIndex,
       });
-      if (projected.sourceBinder.scopes.length === 0 && projected.sourceBinder.decls.length === 0) {
-        return null;
+    } catch (error) {
+      return emit({ kind: "projectionFailure", detail: errorDetail(error) });
+    }
+
+    let extras: ReturnType<typeof projectRustSourceSyntaxExtrasV0> | null = null;
+    const readSyntax = binding.readSourceSyntaxIndexJson;
+    if (typeof readSyntax === "function") {
+      let syntaxIndexRaw: string | null | undefined;
+      try {
+        syntaxIndexRaw = readSyntax(
+          input.filePath,
+          input.content,
+          sourceLanguage,
+          styleImportResolutionsJson,
+        );
+      } catch (error) {
+        return emit({ kind: "napiFailure", detail: errorDetail(error) });
       }
-      const extras = readRustSourceSyntaxExtras({
-        binding,
-        filePath: input.filePath,
-        content: input.content,
-        sourceLanguage,
-        importedStyleBindingsJson,
-        classnamesBindBindingsJson,
-      });
+      if (!syntaxIndexRaw) {
+        return emit({ kind: "napiFailure", detail: "syntax index export returned no JSON" });
+      }
+      let syntaxIndex: RustSourceSyntaxIndexV0;
+      try {
+        syntaxIndex = JSON.parse(syntaxIndexRaw) as RustSourceSyntaxIndexV0;
+      } catch (error) {
+        return emit({ kind: "jsonFailure", detail: errorDetail(error) });
+      }
+      try {
+        extras = projectRustSourceSyntaxExtrasV0({
+          filePath: input.filePath,
+          source: input.content,
+          index: syntaxIndex,
+        });
+      } catch (error) {
+        return emit({ kind: "projectionFailure", detail: errorDetail(error) });
+      }
+    }
+
+    try {
       const sourceDocument = sourceDocumentWithMissingStyleImports(
         {
           ...projected.sourceDocument,
@@ -150,365 +271,108 @@ export function createDefaultRustSourceFrontendAnalysisProvider(
         },
         importInputs.missingStyleImports,
       );
-      return {
-        ...projected,
-        sourceDocument,
-        ...(extras ? { classValueUniverses: extras.classValueUniverses } : {}),
-      };
-    } catch {
-      return null;
+      return emit({
+        kind: "success",
+        result: {
+          ...projected,
+          sourceDocument,
+          ...(extras ? { classValueUniverses: extras.classValueUniverses } : {}),
+        },
+      });
+    } catch (error) {
+      return emit({ kind: "projectionFailure", detail: errorDetail(error) });
     }
   };
 }
 
-function readRustSourceSyntaxExtras(args: {
-  readonly binding: OmenaNapiSourceFrontendBinding;
-  readonly filePath: string;
-  readonly content: string;
-  readonly sourceLanguage: SourceLanguage;
-  readonly importedStyleBindingsJson: string;
-  readonly classnamesBindBindingsJson: string;
-}) {
-  const readSyntax = args.binding.readSourceSyntaxIndexJson;
-  if (typeof readSyntax !== "function") return null;
-  const raw = readSyntax(
-    args.filePath,
-    args.content,
-    args.sourceLanguage,
-    args.importedStyleBindingsJson,
-    args.classnamesBindBindingsJson,
+function errorDetail(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isRustSourceImportDeclarationSummaryV0(
+  value: unknown,
+): value is OmenaNapiSourceImportDeclarationSummaryV0 {
+  if (!value || typeof value !== "object") return false;
+  const imports = (value as { readonly imports?: unknown }).imports;
+  return (
+    Array.isArray(imports) &&
+    imports.every(
+      (entry) =>
+        !!entry &&
+        typeof entry === "object" &&
+        typeof (entry as OmenaNapiSourceImportDeclarationV0).declarationId === "string" &&
+        typeof (entry as OmenaNapiSourceImportDeclarationV0).binding === "string" &&
+        typeof (entry as OmenaNapiSourceImportDeclarationV0).specifier === "string" &&
+        isSourceFrontendByteSpan((entry as OmenaNapiSourceImportDeclarationV0).specifierByteSpan),
+    )
   );
-  if (!raw) return null;
-  return projectRustSourceSyntaxExtrasV0({
-    filePath: args.filePath,
-    source: args.content,
-    index: JSON.parse(raw) as RustSourceSyntaxIndexV0,
-  });
+}
+
+function isSourceFrontendByteSpan(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const span = value as { readonly start?: unknown; readonly end?: unknown };
+  return (
+    typeof span.start === "number" &&
+    Number.isSafeInteger(span.start) &&
+    span.start >= 0 &&
+    typeof span.end === "number" &&
+    Number.isSafeInteger(span.end) &&
+    span.end >= span.start
+  );
 }
 
 function collectSourceFrontendImportInputs(args: {
+  readonly imports: readonly OmenaNapiSourceImportDeclarationV0[];
   readonly content: string;
   readonly filePath: string;
   readonly aliasResolver: AliasResolver;
   readonly fileExists: (path: string) => boolean;
 }): SourceFrontendImportInputsV0 {
   const styleExtensions = getAllStyleExtensions();
-  const importedStyleBindings: { binding: string; styleUri: string }[] = [];
-  const styleImportFallbacks: SourceFrontendStyleImportFallbackV0[] = [];
-  const classUtilFallbacks: SourceFrontendClassUtilFallbackV0[] = [];
-  const missingStyleImports: { binding: string; resolved: StyleImport }[] = [];
-  const classnamesBindBindings: string[] = [];
+  const styleImportResolutions: { declarationId: string; styleUri: string }[] = [];
+  const missingStyleImports: {
+    declarationId: string;
+    binding: string;
+    resolved: StyleImport;
+  }[] = [];
 
-  for (const match of args.content.matchAll(IMPORT_FROM_PATTERN)) {
-    const specifier = match.groups?.specifier;
-    const localName = match.groups?.defaultName ?? match.groups?.namespaceName;
-    if (!specifier || !localName) continue;
-
-    if (specifier === "classnames/bind") {
-      classnamesBindBindings.push(localName);
-      continue;
-    }
-    if (isClassUtilityImportPath(specifier)) {
-      classUtilFallbacks.push({
-        localName,
-        importPath: specifier,
-        byteSpan: localNameByteSpan(args.content, match, localName),
-      });
-      continue;
-    }
-
-    const styleImport = resolveStyleImport(specifier, match, args);
+  for (const declaration of args.imports) {
+    const styleImport = resolveStyleImport(declaration, args);
     if (
-      styleImport &&
-      styleExtensions.some((extension) => styleImport.absolutePath.endsWith(extension))
+      !styleImport ||
+      !styleExtensions.some((extension) => styleImport.absolutePath.endsWith(extension))
     ) {
-      if (styleImport.kind === "resolved") {
-        importedStyleBindings.push({
-          binding: localName,
-          styleUri: pathToFileURL(styleImport.absolutePath).href,
-        });
-        styleImportFallbacks.push({
-          binding: localName,
-          styleUri: pathToFileURL(styleImport.absolutePath).href,
-          importPath: specifier,
-          byteSpan: localNameByteSpan(args.content, match, localName),
-        });
-      } else {
-        missingStyleImports.push({ binding: localName, resolved: styleImport });
-      }
+      continue;
+    }
+    if (styleImport.kind === "resolved") {
+      styleImportResolutions.push({
+        declarationId: declaration.declarationId,
+        styleUri: pathToFileURL(styleImport.absolutePath).href,
+      });
+    } else {
+      missingStyleImports.push({
+        declarationId: declaration.declarationId,
+        binding: declaration.binding,
+        resolved: styleImport,
+      });
     }
   }
 
-  const classnamesBindUtilityFallbacks = collectClassnamesBindUtilityFallbacks(
-    args.content,
-    styleImportFallbacks,
-    classnamesBindBindings,
-  );
-
   return {
-    importedStyleBindings: importedStyleBindings.toSorted((a, b) =>
-      `${a.binding}:${a.styleUri}`.localeCompare(`${b.binding}:${b.styleUri}`),
-    ),
-    styleImportFallbacks: styleImportFallbacks.toSorted((a, b) =>
-      `${a.binding}:${a.styleUri}`.localeCompare(`${b.binding}:${b.styleUri}`),
-    ),
-    classUtilFallbacks: classUtilFallbacks.toSorted((a, b) =>
-      `${a.localName}:${a.importPath}`.localeCompare(`${b.localName}:${b.importPath}`),
-    ),
-    classnamesBindUtilityFallbacks: classnamesBindUtilityFallbacks.toSorted((a, b) =>
-      `${a.localName}:${a.stylesLocalName}`.localeCompare(`${b.localName}:${b.stylesLocalName}`),
+    styleImportResolutions: styleImportResolutions.toSorted((a, b) =>
+      compareUtf8ByteOrder(`${a.declarationId}:${a.styleUri}`, `${b.declarationId}:${b.styleUri}`),
     ),
     missingStyleImports: missingStyleImports.toSorted((a, b) =>
-      `${a.binding}:${a.resolved.absolutePath}`.localeCompare(
-        `${b.binding}:${b.resolved.absolutePath}`,
+      compareUtf8ByteOrder(
+        `${a.declarationId}:${a.resolved.absolutePath}`,
+        `${b.declarationId}:${b.resolved.absolutePath}`,
       ),
     ),
-    classnamesBindBindings: [...new Set(classnamesBindBindings)].toSorted(),
-  };
-}
-
-function bindingIndexWithImportFallbacks(
-  index: RustSourceBindingIndexV0,
-  source: string,
-  importInputs: SourceFrontendImportInputsV0,
-): RustSourceBindingIndexV0 {
-  const sourceFileScope = {
-    kind: "sourceFile" as const,
-    byteSpan: { start: 0, end: utf8ByteOffsetAtUtf16Offset(source, source.length) },
-  };
-  const bindingScopes = index.bindingScopes.length > 0 ? index.bindingScopes : [sourceFileScope];
-  const bindingDecls = [
-    ...index.bindingDecls,
-    ...importInputs.styleImportFallbacks
-      .filter((fallback) => !hasDecl(index.bindingDecls, fallback.binding, "import"))
-      .map((fallback) => ({
-        kind: "import" as const,
-        name: fallback.binding,
-        importPath: fallback.importPath,
-        byteSpan: fallback.byteSpan,
-      })),
-    ...importInputs.classUtilFallbacks
-      .filter((fallback) => !hasDecl(index.bindingDecls, fallback.localName, "import"))
-      .map((fallback) => ({
-        kind: "import" as const,
-        name: fallback.localName,
-        importPath: fallback.importPath,
-        byteSpan: fallback.byteSpan,
-      })),
-    ...importInputs.classnamesBindUtilityFallbacks
-      .filter((fallback) => !hasDecl(index.bindingDecls, fallback.localName, "localVar"))
-      .map((fallback) => ({
-        kind: "localVar" as const,
-        name: fallback.localName,
-        byteSpan: fallback.byteSpan,
-      })),
-  ];
-  return {
-    ...index,
-    bindingScopes,
-    bindingDecls,
-    styleImportBindings: [
-      ...index.styleImportBindings,
-      ...importInputs.styleImportFallbacks
-        .filter(
-          (fallback) =>
-            !index.styleImportBindings.some(
-              (entry) =>
-                entry.localName === fallback.binding && entry.styleUri === fallback.styleUri,
-            ),
-        )
-        .map((fallback) => ({ localName: fallback.binding, styleUri: fallback.styleUri })),
-    ],
-    declaresStyleImports: [
-      ...index.declaresStyleImports,
-      ...importInputs.styleImportFallbacks
-        .filter(
-          (fallback) =>
-            !index.declaresStyleImports.some(
-              (entry) =>
-                entry.declName === fallback.binding &&
-                entry.stylesLocalName === fallback.binding &&
-                entry.styleUri === fallback.styleUri,
-            ),
-        )
-        .map((fallback) => ({
-          declName: fallback.binding,
-          stylesLocalName: fallback.binding,
-          styleUri: fallback.styleUri,
-        })),
-    ],
-    styleImportResolvesModules: [
-      ...index.styleImportResolvesModules,
-      ...importInputs.styleImportFallbacks
-        .filter(
-          (fallback) =>
-            !index.styleImportResolvesModules.some(
-              (entry) =>
-                entry.stylesLocalName === fallback.binding && entry.styleUri === fallback.styleUri,
-            ),
-        )
-        .map((fallback) => ({
-          stylesLocalName: fallback.binding,
-          styleUri: fallback.styleUri,
-        })),
-    ],
-    scopeContainsDecls: [
-      ...index.scopeContainsDecls,
-      ...bindingDecls
-        .filter((decl) => !hasScopeContainsDecl(index.scopeContainsDecls, decl.name, decl.kind))
-        .map((decl) => {
-          const importPath = "importPath" in decl ? decl.importPath : undefined;
-          if (importPath) {
-            return {
-              scopeKind: "sourceFile" as const,
-              scopeByteSpan: sourceFileScope.byteSpan,
-              declKind: decl.kind,
-              declName: decl.name,
-              declByteSpan: decl.byteSpan,
-              importPath,
-            };
-          }
-          return {
-            scopeKind: "sourceFile" as const,
-            scopeByteSpan: sourceFileScope.byteSpan,
-            declKind: decl.kind,
-            declName: decl.name,
-            declByteSpan: decl.byteSpan,
-          };
-        }),
-    ],
-    classUtilBindings: [
-      ...index.classUtilBindings,
-      ...importInputs.classUtilFallbacks
-        .filter(
-          (fallback) =>
-            !index.classUtilBindings.some((entry) => entry.localName === fallback.localName),
-        )
-        .map((fallback) => ({ localName: fallback.localName })),
-    ],
-    classnamesBindUtilityBindings: [
-      ...index.classnamesBindUtilityBindings,
-      ...importInputs.classnamesBindUtilityFallbacks.filter(
-        (fallback) =>
-          !index.classnamesBindUtilityBindings.some(
-            (entry) => entry.localName === fallback.localName,
-          ),
-      ),
-    ],
-    declaresUtilityBindings: [
-      ...index.declaresUtilityBindings,
-      ...importInputs.classUtilFallbacks
-        .filter(
-          (fallback) =>
-            !index.declaresUtilityBindings.some(
-              (entry) => entry.utilityLocalName === fallback.localName,
-            ),
-        )
-        .map((fallback) => ({
-          declName: fallback.localName,
-          utilityLocalName: fallback.localName,
-          utilityKind: "classUtil" as const,
-        })),
-      ...importInputs.classnamesBindUtilityFallbacks
-        .filter(
-          (fallback) =>
-            !index.declaresUtilityBindings.some(
-              (entry) => entry.utilityLocalName === fallback.localName,
-            ),
-        )
-        .map((fallback) => ({
-          declName: fallback.localName,
-          utilityLocalName: fallback.localName,
-          utilityKind: "classnamesBind" as const,
-        })),
-    ],
-    utilityUsesStyleImports: [
-      ...index.utilityUsesStyleImports,
-      ...importInputs.classnamesBindUtilityFallbacks
-        .filter(
-          (fallback) =>
-            !index.utilityUsesStyleImports.some(
-              (entry) =>
-                entry.utilityLocalName === fallback.localName &&
-                entry.stylesLocalName === fallback.stylesLocalName,
-            ),
-        )
-        .map((fallback) => ({
-          utilityLocalName: fallback.localName,
-          stylesLocalName: fallback.stylesLocalName,
-          styleUri: fallback.styleUri,
-        })),
-    ],
-  };
-}
-
-function hasDecl(
-  decls: RustSourceBindingIndexV0["bindingDecls"],
-  name: string,
-  kind: RustSourceBindingIndexV0["bindingDecls"][number]["kind"],
-): boolean {
-  return decls.some((decl) => decl.name === name && decl.kind === kind);
-}
-
-function hasScopeContainsDecl(
-  edges: RustSourceBindingIndexV0["scopeContainsDecls"],
-  name: string,
-  kind: RustSourceBindingIndexV0["scopeContainsDecls"][number]["declKind"],
-): boolean {
-  return edges.some((edge) => edge.declName === name && edge.declKind === kind);
-}
-
-function collectClassnamesBindUtilityFallbacks(
-  source: string,
-  styleImportFallbacks: readonly SourceFrontendStyleImportFallbackV0[],
-  classnamesBindBindings: readonly string[],
-): readonly SourceFrontendClassnamesBindUtilityFallbackV0[] {
-  const classnamesImports = new Set(classnamesBindBindings);
-  const styleImportsByLocalName = new Map(
-    styleImportFallbacks.map((fallback) => [fallback.binding, fallback] as const),
-  );
-  const fallbacks: SourceFrontendClassnamesBindUtilityFallbackV0[] = [];
-  for (const match of source.matchAll(CLASSNAMES_BIND_INITIALIZER_PATTERN)) {
-    const localName = match.groups?.localName;
-    const classnamesImportName = match.groups?.classnamesImportName;
-    const stylesLocalName = match.groups?.stylesLocalName;
-    if (!localName || !classnamesImportName || !stylesLocalName) continue;
-    if (!classnamesImports.has(classnamesImportName)) continue;
-    const styleImport = styleImportsByLocalName.get(stylesLocalName);
-    if (!styleImport) continue;
-    fallbacks.push({
-      localName,
-      stylesLocalName,
-      styleUri: styleImport.styleUri,
-      classnamesImportName,
-      byteSpan: localNameByteSpan(source, match, localName),
-    });
-  }
-  return fallbacks;
-}
-
-function isClassUtilityImportPath(specifier: string): boolean {
-  return specifier === "clsx" || specifier === "clsx/lite" || specifier === "classnames";
-}
-
-function localNameByteSpan(
-  source: string,
-  match: RegExpMatchArray,
-  localName: string,
-): RustSourceBindingIndexV0["bindingDecls"][number]["byteSpan"] {
-  const matchStart = match.index ?? 0;
-  const localStartInMatch = match[0].indexOf(localName);
-  const start = matchStart + Math.max(localStartInMatch, 0);
-  const end = start + localName.length;
-  return {
-    start: utf8ByteOffsetAtUtf16Offset(source, start),
-    end: utf8ByteOffsetAtUtf16Offset(source, end),
   };
 }
 
 function resolveStyleImport(
-  specifier: string,
-  match: RegExpMatchArray,
+  declaration: OmenaNapiSourceImportDeclarationV0,
   args: {
     readonly filePath: string;
     readonly content: string;
@@ -516,6 +380,7 @@ function resolveStyleImport(
     readonly fileExists: (path: string) => boolean;
   },
 ): StyleImport | null {
+  const specifier = declaration.specifier;
   const absolutePath = specifier.startsWith(".")
     ? path.resolve(path.dirname(args.filePath), specifier)
     : args.aliasResolver.resolve(specifier, args.fileExists, args.filePath);
@@ -527,7 +392,7 @@ function resolveStyleImport(
     kind: "missing",
     absolutePath,
     specifier,
-    range: rangeForSpecifierMatch(args.content, match, specifier),
+    range: rangeForSpecifierByteSpan(args.content, declaration.specifierByteSpan),
   };
 }
 
@@ -539,11 +404,11 @@ function sourceDocumentWithMissingStyleImports(
   const existingLocals = new Set(sourceDocument.styleImports.map((entry) => entry.localName));
   const additions = missingStyleImports
     .filter((entry) => !existingLocals.has(entry.binding))
-    .map((entry, index) =>
+    .map((entry) =>
       makeStyleImportBinding(
-        `rust-missing-style-import:${entry.binding}:${entry.resolved.absolutePath}:${index}`,
+        `rust-missing-style-import:${entry.declarationId}:${entry.resolved.absolutePath}`,
         entry.binding,
-        `rust-missing-style-import-decl:${entry.binding}:${index}`,
+        entry.declarationId,
         entry.resolved,
       ),
     );
@@ -551,20 +416,21 @@ function sourceDocumentWithMissingStyleImports(
   return {
     ...sourceDocument,
     styleImports: [...sourceDocument.styleImports, ...additions].toSorted(
-      (a, b) => a.localName.localeCompare(b.localName) || a.id.localeCompare(b.id),
+      (a, b) => compareUtf8ByteOrder(a.localName, b.localName) || compareUtf8ByteOrder(a.id, b.id),
     ),
   };
 }
 
-function rangeForSpecifierMatch(source: string, match: RegExpMatchArray, specifier: string) {
-  const groups = match.groups as { readonly specifier?: string } | undefined;
-  const matchStart = match.index ?? 0;
-  const specifierStartInMatch =
-    groups?.specifier !== undefined
-      ? match[0].indexOf(groups.specifier)
-      : match[0].indexOf(specifier);
-  const specifierStart = matchStart + Math.max(specifierStartInMatch, 0);
-  const specifierEnd = specifierStart + specifier.length;
+function compareUtf8ByteOrder(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+function rangeForSpecifierByteSpan(
+  source: string,
+  span: OmenaNapiSourceImportDeclarationV0["specifierByteSpan"],
+) {
+  const specifierStart = utf16OffsetAtUtf8ByteOffset(source, span.start);
+  const specifierEnd = utf16OffsetAtUtf8ByteOffset(source, span.end);
   return {
     start: positionAtOffset(source, specifierStart),
     end: positionAtOffset(source, specifierEnd),

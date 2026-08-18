@@ -2,19 +2,22 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 export interface OmenaNapiSourceFrontendBinding {
+  readonly readSourceImportDeclarations?: (
+    sourcePath: string,
+    source: string,
+    sourceLanguage: string,
+  ) => OmenaNapiSourceImportDeclarationSummaryV0 | null | undefined;
   readonly readSourceBindingIndexJson?: (
     sourcePath: string,
     source: string,
     sourceLanguage: string,
-    importedStyleBindingsJson: string,
-    classnamesBindBindingsJson: string,
+    styleImportResolutionsJson: string,
   ) => string | null | undefined;
   readonly readSourceSyntaxIndexJson?: (
     sourcePath: string,
     source: string,
     sourceLanguage: string,
-    importedStyleBindingsJson: string,
-    classnamesBindBindingsJson: string,
+    styleImportResolutionsJson: string,
   ) => string | null | undefined;
   readonly readSourceTypeFactControlFlowGraphJson?: (
     sourcePath: string,
@@ -23,6 +26,20 @@ export interface OmenaNapiSourceFrontendBinding {
     variableName: string,
     referenceByteOffset: number,
   ) => string | null | undefined;
+}
+
+export interface OmenaNapiSourceImportDeclarationV0 {
+  readonly declarationId: string;
+  readonly binding: string;
+  readonly specifier: string;
+  readonly specifierByteSpan: { readonly start: number; readonly end: number };
+}
+
+export interface OmenaNapiSourceImportDeclarationSummaryV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly importCount: number;
+  readonly imports: readonly OmenaNapiSourceImportDeclarationV0[];
 }
 
 const requireFromHostNode = createRequire(__filename);
@@ -65,6 +82,7 @@ function isOmenaNapiSourceFrontendBinding(value: unknown): value is OmenaNapiSou
   if (!value || typeof value !== "object") return false;
   const binding = value as OmenaNapiSourceFrontendBinding;
   return (
+    typeof binding.readSourceImportDeclarations === "function" ||
     typeof binding.readSourceBindingIndexJson === "function" ||
     typeof binding.readSourceSyntaxIndexJson === "function" ||
     typeof binding.readSourceTypeFactControlFlowGraphJson === "function"

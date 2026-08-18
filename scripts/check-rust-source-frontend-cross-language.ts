@@ -64,7 +64,9 @@ interface RustFixtureCaptureV0 {
     readonly scopeContainsDecls: readonly CanonicalScopeContainsDeclV0[];
     readonly styleModules: readonly CanonicalStyleModuleNodeV0[];
     readonly classExpressionNodes: readonly CanonicalClassExpressionNodeV0[];
-    readonly styleImportBindings: readonly CanonicalBindingStyleImportV0[];
+    readonly styleImportBindings: readonly (CanonicalBindingStyleImportV0 & {
+      readonly declarationId: string;
+    })[];
     readonly declaresStyleImports: readonly CanonicalDeclaresStyleImportV0[];
     readonly styleImportResolvesModules: readonly CanonicalStyleImportResolvesModuleV0[];
     readonly expressionTargetsModules: readonly CanonicalExpressionTargetsModuleV0[];
@@ -896,7 +898,9 @@ function compareBindingProjection(tsCapture: FixtureCaptureV0, rustCapture: Rust
     fieldReport(
       "styleImportBindings",
       styleImportBindingsForTsCapture(tsCapture),
-      rustCapture.binding.styleImportBindings.toSorted(compareByStableJson),
+      rustCapture.binding.styleImportBindings
+        .map(({ localName, styleUri }) => ({ localName, styleUri }))
+        .toSorted(compareByStableJson),
     ),
     fieldReport(
       "declaresStyleImports",

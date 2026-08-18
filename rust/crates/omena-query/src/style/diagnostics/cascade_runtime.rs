@@ -245,11 +245,9 @@ pub(in crate::style) fn collect_omena_query_inline_style_runtime_overrides_by_st
             &document.source_source,
             None,
         );
-        let mut imported_style_bindings = Vec::new();
-        let mut classnames_bind_bindings = Vec::new();
+        let mut style_import_resolutions = Vec::new();
         for import in imports.imports {
             if import.specifier == "classnames/bind" {
-                classnames_bind_bindings.push(import.binding);
                 continue;
             }
             let Some(style_path) =
@@ -266,12 +264,9 @@ pub(in crate::style) fn collect_omena_query_inline_style_runtime_overrides_by_st
             else {
                 continue;
             };
-            imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
-                binding: import.binding,
-                style_uri: style_path,
-            });
+            style_import_resolutions.push(import.style_resolution(style_path.as_str()));
         }
-        if imported_style_bindings.is_empty() {
+        if style_import_resolutions.is_empty() {
             continue;
         }
 
@@ -279,8 +274,7 @@ pub(in crate::style) fn collect_omena_query_inline_style_runtime_overrides_by_st
             document.source_path.as_str(),
             &document.source_source,
             None,
-            imported_style_bindings,
-            classnames_bind_bindings,
+            style_import_resolutions,
         );
         for declaration in index.inline_style_declarations {
             let Some(target_style_uri) = declaration.target_style_uri.as_deref() else {
