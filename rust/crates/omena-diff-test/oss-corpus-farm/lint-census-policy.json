@@ -123,8 +123,8 @@
           "ruleId": "missing-module",
           "filePath": "src/BrokenImport.tsx",
           "range": {
-            "start": { "line": 0, "character": 19 },
-            "end": { "line": 0, "character": 42 }
+            "start": { "line": 0, "character": 20 },
+            "end": { "line": 0, "character": 41 }
           },
           "messageSha256": "2e4f2c34d544db519e4a4aec64fd5fff04d4d3bed65c0df44cb1e2eb533edd64"
         }

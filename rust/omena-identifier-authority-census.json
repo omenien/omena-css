@@ -226,7 +226,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 4029,
+        "line": 4189,
         "function": "collect_computed_member_expression",
         "operation": "insert",
         "evidence": "self.style_property_access_selector_names.insert(",
@@ -235,7 +235,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 4089,
+        "line": 4249,
         "function": "static_string_expression_class_name",
         "operation": "str-eq",
         "evidence": "&& class_selector_name_end(selector_name.as_str(), 0) == Some(selector_name.len()))",
@@ -244,7 +244,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 5755,
+        "line": 5911,
         "function": "retire_template_prefix_reference",
         "operation": "str-eq",
         "evidence": "|| reference.selector_name.as_deref() != Some(prefix)",
@@ -541,7 +541,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 506,
+        "line": 500,
         "function": "collect_omena_query_source_selector_usage_by_style",
         "operation": "insert",
         "evidence": "used_for_style.insert(selector_name);",
@@ -550,7 +550,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 714,
+        "line": 708,
         "function": "record_omena_query_used_source_selector",
         "operation": "insert",
         "evidence": "used_for_style.insert(selector_name);",
@@ -559,7 +559,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 729,
+        "line": 723,
         "function": "class_name_aliases",
         "operation": "map-get",
         "evidence": "aliases.get(selector_name).or_else(|| {",
@@ -568,7 +568,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 767,
+        "line": 761,
         "function": "collect_classname_transform_aliases",
         "operation": "insert",
         "evidence": ".insert(selector_name.clone());",
@@ -577,7 +577,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
-        "line": 843,
+        "line": 837,
         "function": "propagate_omena_query_composes_usage",
         "operation": "insert",
         "evidence": ".insert(target.selector_name.clone());",
@@ -595,7 +595,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/source_refs.rs",
-        "line": 1360,
+        "line": 1348,
         "function": "summarize_omena_query_unresolved_source_reference_diagnostic",
         "operation": "str-eq",
         "evidence": "OmenaQuerySourceSelectorReferenceMatchKindV0::Exact if reference_text == selector_name => {",
@@ -604,7 +604,7 @@
       },
       {
         "path": "rust/crates/omena-query/src/style/source_refs.rs",
-        "line": 1364,
+        "line": 1352,
         "function": "summarize_omena_query_unresolved_source_reference_diagnostic",
         "operation": "str-eq",
         "evidence": "OmenaQuerySourceSelectorReferenceMatchKindV0::Prefix if reference_text == selector_name => {",
@@ -783,7 +783,7 @@
         "reason": "idiom site reviewed in the initial authored census."
       }
     ],
-    "siteDigest": "sha256:08424422fd97f9604684923550e360e11fde15a077cfe74715b6d5ad360e8a7a"
+    "siteDigest": "sha256:4c89267df22e3956d4be711b0287c292b094e2bca4ab74e45ecc14c75b82ec6d"
   },
   "predicateCopies": {
     "derivation": "direct-character-predicate-body",
@@ -804,7 +804,7 @@
       },
       {
         "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-        "line": 1610,
+        "line": 1630,
         "function": "is_html_attribute_name_byte",
         "operation": "character-predicate-copy",
         "evidence": "fn is_html_attribute_name_byte(byte: u8) -> bool { byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'-' | b'_' | b'.') }",
@@ -893,6 +893,6 @@
         "reason": "omena-transform-cst owns diagnostic context extraction, whose punctuation set is intentionally broader than a CSS identifier."
       }
     ],
-    "siteDigest": "sha256:2cf9ca4dc41942d5d25b19dec45e21f521a91b15a79179b906ea063938146643"
+    "siteDigest": "sha256:8e07b10a074784dcbe17d36cf6491079811eec21d6c2c7a248d0104b04b314da"
   }
 }

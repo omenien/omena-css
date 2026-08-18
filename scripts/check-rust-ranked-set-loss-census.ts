@@ -87,11 +87,9 @@ interface CascadeDriverCensusArtifactV0 {
   };
 }
 
-interface RustSemverIntentArtifactV0 {
-  readonly intents: readonly {
-    readonly crate: string;
-    readonly expectedRuntimeValueChanges?: readonly { readonly id: string }[];
-  }[];
+interface CascadeRuntimeContractEvidenceV0 {
+  readonly path: string;
+  readonly needles: readonly string[];
 }
 
 interface RankedSetLossCensusArtifactV0 {
@@ -183,7 +181,6 @@ const driverCensusArtifactPath = path.join(
   repoRoot,
   "rust/crates/omena-cascade/data/cascade-driver-census.json",
 );
-const semverIntentArtifactPath = "rust/omena-rust-semver-intent.json";
 const cssCascadeSpecAxisOrderFixturePath = "scripts/fixtures/css-cascade-6-key-axis-order.json";
 const syntheticCascadeKeyProbeRoots = new Set([
   "rust/crates/cascade-key-census-probe/src/lib.rs",
@@ -227,7 +224,7 @@ if (sourceRef !== undefined) {
 }
 
 const cascadeKeyProducerCensus = validateCascadeKeyProducerCensus();
-const cascadeRuntimeIntentCoverage = validateCascadeRuntimeIntentCoverage();
+const cascadeRuntimeContractCoverage = validateCascadeRuntimeContractCoverage();
 const cascadeReachFixtureTestCount = validateCascadeReachFixtureTests();
 const cascadeFunctionalContractTestCount = validateCascadeFunctionalContractTests();
 
@@ -572,7 +569,7 @@ process.stdout.write(
       automaticProductScopeDriver: cascadeKeyProducerCensus.automaticProductScopeDriver,
       cascadeReachFixtureTestCount,
       cascadeFunctionalContractTestCount,
-      cascadeRuntimeIntentCoverage,
+      cascadeRuntimeContractCoverage,
     },
     null,
     2,
@@ -687,7 +684,7 @@ function valueAfter(flag: string): string | undefined {
   return value;
 }
 
-function validateCascadeRuntimeIntentCoverage(): {
+function validateCascadeRuntimeContractCoverage(): {
   readonly cascadeAxisOrder: boolean;
   readonly cascadeOpenWorldTieEvidence: boolean;
   readonly bundlerLinkedStylesheetEvidence: boolean;
@@ -695,71 +692,82 @@ function validateCascadeRuntimeIntentCoverage(): {
 } {
   assert.ok(
     !(
-      args.has("--inject-cascade-runtime-intent-removal") &&
-      args.has("--inject-cascade-runtime-intent-row-removal")
+      args.has("--inject-cascade-runtime-contract-evidence-removal") &&
+      args.has("--inject-cascade-runtime-contract-row-removal")
     ),
-    "runtime-intent entry and row falsifiers are mutually exclusive",
+    "runtime-contract evidence and row falsifiers are mutually exclusive",
   );
-  const artifact = JSON.parse(
-    readRepositorySource(semverIntentArtifactPath),
-  ) as RustSemverIntentArtifactV0;
-  let intents = [...artifact.intents];
-
-  if (args.has("--inject-cascade-runtime-intent-row-removal")) {
-    assert.equal(
-      intents.filter((intent) => intent.crate === "omena-cascade").length,
-      1,
-      "runtime-intent row-removal falsifier requires exactly one omena-cascade row",
-    );
-    intents = intents.filter((intent) => intent.crate !== "omena-cascade");
-  }
-  if (args.has("--inject-cascade-runtime-intent-removal")) {
-    const cascadeRows = intents.filter((intent) => intent.crate === "omena-cascade");
-    assert.equal(
-      cascadeRows.length,
-      1,
-      "runtime-intent entry-removal falsifier requires exactly one omena-cascade row",
-    );
-    assert.ok(
-      cascadeRows[0]?.expectedRuntimeValueChanges?.some(
-        (change) => change.id === "cascade-spec-axis-order-and-classification",
-      ),
-      "runtime-intent entry-removal falsifier needle is stale",
-    );
-    intents = intents.map((intent) =>
-      intent.crate === "omena-cascade"
-        ? {
-            ...intent,
-            expectedRuntimeValueChanges: intent.expectedRuntimeValueChanges?.filter(
-              (change) => change.id !== "cascade-spec-axis-order-and-classification",
-            ),
-          }
-        : intent,
-    );
-  }
-
-  const required = [
+  let required: readonly {
+    readonly coverage:
+      | "cascadeAxisOrder"
+      | "cascadeOpenWorldTieEvidence"
+      | "bundlerLinkedStylesheetEvidence"
+      | "queryConfidenceAxisOrder";
+    readonly evidence: readonly CascadeRuntimeContractEvidenceV0[];
+  }[] = [
     {
-      crate: "omena-cascade",
-      id: "cascade-spec-axis-order-and-classification",
       coverage: "cascadeAxisOrder" as const,
+      evidence: [
+        {
+          path: "rust/crates/omena-cascade/src/axis_order.rs",
+          needles: [
+            "CascadeKeyAxisV0::SpecificityElements,\n    CascadeKeyAxisV0::ScopeProximity,\n    CascadeKeyAxisV0::SourceOrder,",
+            "compare_axes(left, right, cascade_key_axis_order_v0().iter().copied())",
+          ],
+        },
+      ],
     },
     {
-      crate: "omena-cascade",
-      id: "open-world-tie-evidence-carrier-shape",
       coverage: "cascadeOpenWorldTieEvidence" as const,
+      evidence: [
+        {
+          path: "rust/crates/omena-cascade/src/model.rs",
+          needles: ["pub open_world_tie_evidence: OpenWorldTieEvidence"],
+        },
+        {
+          path: "rust/crates/omena-cascade/src/ranking.rs",
+          needles: ["key_and_evidence_for: impl Fn(&T) -> (CascadeKey, OpenWorldTieEvidence)"],
+        },
+      ],
     },
     {
-      crate: "omena-bundler",
-      id: "linked-stylesheet-cascade-evidence-return",
       coverage: "bundlerLinkedStylesheetEvidence" as const,
+      evidence: [
+        {
+          path: "rust/crates/omena-bundler/src/lib.rs",
+          needles: [
+            ") -> (CascadeKey, OpenWorldTieEvidence) {",
+            "OpenWorldTieEvidence::new(module_rank)",
+          ],
+        },
+      ],
     },
     {
-      crate: "omena-query",
-      id: "cascade-confidence-axis-order",
       coverage: "queryConfidenceAxisOrder" as const,
+      evidence: [
+        {
+          path: "rust/crates/omena-query/src/style/cascade_checker/confidence.rs",
+          needles: [
+            "let axis_order = AXIS_ORDER.get_or_init(|| summarize_cascade_margin_schema_v0().axis_order);",
+            "fn query_cascade_confidence_score_basis_points(",
+          ],
+        },
+      ],
     },
   ];
+  if (args.has("--inject-cascade-runtime-contract-row-removal")) {
+    required = required.slice(1);
+  }
+  if (args.has("--inject-cascade-runtime-contract-evidence-removal")) {
+    required = required.map((requirement, index) =>
+      index === 0
+        ? {
+            ...requirement,
+            evidence: [],
+          }
+        : requirement,
+    );
+  }
   const coverage = {
     cascadeAxisOrder: false,
     cascadeOpenWorldTieEvidence: false,
@@ -768,18 +776,33 @@ function validateCascadeRuntimeIntentCoverage(): {
   };
 
   for (const requirement of required) {
-    const crateIntents = intents.filter((intent) => intent.crate === requirement.crate);
-    assert.equal(
-      crateIntents.length,
-      1,
-      `${requirement.crate} must have exactly one release-intent row`,
-    );
     assert.ok(
-      crateIntents[0]?.expectedRuntimeValueChanges?.some((change) => change.id === requirement.id),
-      `${requirement.crate} release intent must declare runtime change ${requirement.id}`,
+      requirement.evidence.length > 0,
+      `${requirement.coverage} runtime contract must carry product evidence`,
     );
+    for (const evidence of requirement.evidence) {
+      const source = readRepositorySource(evidence.path);
+      assert.ok(evidence.needles.length > 0, `${evidence.path} runtime evidence needs a needle`);
+      for (const needle of evidence.needles) {
+        assert.ok(
+          source.includes(needle),
+          `${requirement.coverage} runtime contract lost ${JSON.stringify(needle)} in ${evidence.path}`,
+        );
+      }
+    }
     coverage[requirement.coverage] = true;
   }
+
+  assert.deepEqual(
+    coverage,
+    {
+      cascadeAxisOrder: true,
+      cascadeOpenWorldTieEvidence: true,
+      bundlerLinkedStylesheetEvidence: true,
+      queryConfidenceAxisOrder: true,
+    },
+    "ranked-set runtime contract coverage is incomplete",
+  );
 
   return coverage;
 }

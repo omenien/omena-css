@@ -1508,6 +1508,18 @@
           "flatten": false,
           "skipSerializing": false,
           "skipDeserializing": false
+        },
+        {
+          "memberPath": "declaration_id",
+          "memberKind": "field",
+          "rustName": "declaration_id",
+          "serializeKey": "declarationId",
+          "deserializeKey": "declarationId",
+          "typeExpression": "String",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
         }
       ]
     },
@@ -2830,6 +2842,18 @@
           "flatten": false,
           "skipSerializing": false,
           "skipDeserializing": false
+        },
+        {
+          "memberPath": "declaration_id",
+          "memberKind": "field",
+          "rustName": "declaration_id",
+          "serializeKey": "declarationId",
+          "deserializeKey": "declarationId",
+          "typeExpression": "String",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
         }
       ]
     },
@@ -3487,6 +3511,40 @@
           "rustName": "styles_local_name",
           "serializeKey": "stylesLocalName",
           "deserializeKey": "stylesLocalName",
+          "typeExpression": "String",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "style_uri",
+          "memberKind": "field",
+          "rustName": "style_uri",
+          "serializeKey": "styleUri",
+          "deserializeKey": "styleUri",
+          "typeExpression": "String",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        }
+      ]
+    },
+    {
+      "crate": "omena-bridge",
+      "typeName": "SourceStyleImportResolutionV0",
+      "kind": "struct",
+      "sourcePath": "rust/crates/omena-bridge/src/source_imports.rs",
+      "nonExhaustive": false,
+      "containerSerde": "rename_all = \"camelCase\"",
+      "members": [
+        {
+          "memberPath": "declaration_id",
+          "memberKind": "field",
+          "rustName": "declaration_id",
+          "serializeKey": "declarationId",
+          "deserializeKey": "declarationId",
           "typeExpression": "String",
           "optional": false,
           "flatten": false,

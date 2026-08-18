@@ -3,7 +3,7 @@
   "product": "omena-diff-test.real-workspace-lint-census",
   "generatedBy": "scripts/oss-corpus-farm.ts",
   "coverageDigest": "3b5f821de0f1dadebbf463d3aba45c6b4a1e42da1c339f61985d1ce5441b2db4",
-  "policyDigest": "f09d97143f20cd65e0a41143ffe7c912022ca2902d3ed08ca708700b08c5923f",
+  "policyDigest": "6dc9697910387a02ee4b66914502fa938539b18976320a07c56c91af1cdb7c2a",
   "entryCount": 3,
   "totalFindingCount": 13,
   "truePositiveCount": 6,

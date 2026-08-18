@@ -70,7 +70,7 @@
   "sites": [
     {
       "path": "rust/crates/omena-bridge/src/source_syntax.rs",
-      "line": 1643,
+      "line": 1663,
       "idiom": "brace-contains",
       "family": "engine-support",
       "disposition": "named-exempt",
@@ -1302,7 +1302,7 @@
       "reason": "Shared transform helpers remain visible until their callers consume typed CST spans."
     }
   ],
-  "siteDigest": "sha256:2e6a0320c1a8138402ee30cdbac8783784de5b8620a541eb6e147bc40b4a2fb2",
+  "siteDigest": "sha256:2b93f53b72f16704f25773ebad03109b1a9fa58860c247a8160f01dd9ce9f3a0",
   "classSelectorScanner": {
     "policy": "decrease-only",
     "baselineSiteCount": 3,
