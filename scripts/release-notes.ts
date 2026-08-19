@@ -206,7 +206,7 @@ function checkCommand(): void {
     "every npm publication job must remain downstream of the provenance source guard",
   );
 
-  const provenanceChecker = path.join(repoRoot, "scripts/check-publish-provenance-source.mjs");
+  const provenanceChecker = path.join(repoRoot, "scripts/verify-publish-provenance-source.mjs");
   const headSha = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: repoRoot,
     encoding: "utf8",
