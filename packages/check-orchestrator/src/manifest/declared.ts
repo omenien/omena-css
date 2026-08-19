@@ -249,16 +249,6 @@ export const DECLARED_CHECK_GATES = [
     ciReason: "Focused CLI validation is dispatched explicitly during development.",
   },
   {
-    id: "rust/ci-probe/closure-diff",
-    kind: "bundle",
-    scope: "rust",
-    deps: [{ target: "rust/closure-fast", args: ["--summary", "--shard=diff-test"] }],
-    tags: ["ci-probe", "closure-fast", "diff-test"],
-    ciTier: "manual",
-    ciGroup: "ci-probe",
-    ciReason: "The expensive differential shard is dispatched only when its evidence is needed.",
-  },
-  {
     id: "rust/ci-probe/workspace",
     kind: "bundle",
     scope: "rust",

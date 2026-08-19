@@ -5,7 +5,6 @@ const PROFILES = new Set([
   "rust-cli",
   "cross-platform-cli",
   "rust-workspace",
-  "closure-diff",
   "linux-benchmark",
   "verify",
 ]);

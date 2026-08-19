@@ -3,7 +3,6 @@ export type CiProbeProfileId =
   | "rust-cli"
   | "cross-platform-cli"
   | "rust-workspace"
-  | "closure-diff"
   | "linux-benchmark"
   | "verify";
 
@@ -40,12 +39,6 @@ export const CI_PROBE_PROFILES: readonly CiProbeProfile[] = [
     target: "rust/ci-probe/workspace",
     description: "Run workspace formatting, checking, and strict clippy.",
     platforms: ALL_RUNNER_PLATFORMS,
-  },
-  {
-    id: "closure-diff",
-    target: "rust/ci-probe/closure-diff",
-    description: "Run the differential-test shard of the closure suite.",
-    platforms: ["linux"],
   },
   {
     id: "linux-benchmark",

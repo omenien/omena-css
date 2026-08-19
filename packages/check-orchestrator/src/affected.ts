@@ -19,7 +19,6 @@ const PROFILE_ORDER: readonly CiProbeProfileId[] = [
   "rust-cli",
   "cross-platform-cli",
   "rust-workspace",
-  "closure-diff",
   "linux-benchmark",
   "verify",
 ];

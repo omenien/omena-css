@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { buildCheckPlan } from "./plan";
+import { loadGatePolicy } from "./gate-policy";
 import type { CheckCiTier, CheckDiagnostic, CheckGate } from "./types";
 
 const PNPM_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
@@ -15,11 +16,21 @@ const NODE_SCRIPT_REF = /\bnode\b[^|;&\n]*?\.\/(scripts\/[A-Za-z0-9_./-]+\.ts)\b
 const WORKFLOW_CI_TIER_ANNOTATION = /^\s*#\s*omena-ci-tier:\s*([A-Za-z0-9_-]+)\s*$/;
 const WORKFLOW_REQUIRED_ANNOTATION = /^\s*#\s*omena-ci-required:\s*(true|false)\s*$/;
 
-const CI_REACHABILITY_ESCAPE_HATCH_POLICY = Object.freeze({
-  maxGateCount: 157,
+const CI_REACHABILITY_ESCAPE_HATCH_FALLBACK = Object.freeze({
+  maxGateCount: 156,
   owner: "check-orchestrator maintainers",
-  reviewBy: "2026-10-31",
+  reviewBy: "gate-policy.json escapeHatch.reviewAfter",
 });
+
+function escapeHatchPolicy(rootDir: string) {
+  const policy = loadGatePolicy(rootDir);
+  if (!policy) return CI_REACHABILITY_ESCAPE_HATCH_FALLBACK;
+  return {
+    maxGateCount: policy.escapeHatch.maxGateCount,
+    owner: policy.escapeHatch.owner,
+    reviewBy: policy.escapeHatch.reviewAfter,
+  };
+}
 
 const VALID_WORKFLOW_CI_TIERS = new Set<CheckCiTier>([
   "verify",
@@ -35,11 +46,6 @@ const VALID_WORKFLOW_CI_TIERS = new Set<CheckCiTier>([
   "manual",
   "none",
 ]);
-
-interface GovernedCiLeafClassification {
-  readonly id: string;
-  readonly reason: string;
-}
 
 interface GovernedWorkflowNodeInvocation {
   readonly workflowPath: string;
@@ -78,635 +84,773 @@ if (
   throw new Error("governed workflow Node invocations must have unique keys and non-empty reasons");
 }
 
-const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedCiLeafClassification[] = [
+type GovernedLeafCriterion =
+  | "research-evidence"
+  | "compat-alias-with-retirement-window"
+  | "manual-tool-with-named-consumer";
+
+interface GovernedLeafClassification {
+  readonly id: string;
+  readonly reason: string;
+  readonly criterion: GovernedLeafCriterion;
+}
+
+const GOVERNED_CI_LEAF_CLASSIFICATIONS: readonly GovernedLeafClassification[] = [
   {
     id: "rust/benchmark/bundler-productization",
     reason: "Benchmark/profiling entrypoint; run manually when collecting performance evidence.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/benchmark/z5/macro",
     reason: "Benchmark/profiling entrypoint; run manually when collecting performance evidence.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/benchmark/z5/micro",
     reason: "Benchmark/profiling entrypoint; run manually when collecting performance evidence.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/benchmark/emitted-css-golden-gate:update",
     reason:
       "Golden snapshot regeneration command; the read-only emitted CSS gate is the CI validation surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/benchmark/transform-relex-baseline:update",
     reason:
       "Benchmark snapshot regeneration command; the read-only transform re-lex baseline gate is the CI validation surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/z5-perf-baseline:update",
     reason:
       "Perf baseline regeneration command; the read-only z5 perf baseline and regression gates are the CI validation surfaces.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-transform-target/generated-compat:update",
     reason:
       "Generated compat data regeneration command; the read-only generated-compat gate is the CI validation surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-coverage-gap-report:update",
     reason:
       "Generated coverage-gap report regeneration command; the read-only coverage-gap report gate is the CI validation surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/discharge-ledger:update",
     reason:
       "Generated discharge ledger regeneration command; the read-only discharge-ledger gate is the CI validation surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "release/changeset",
     reason: "Release authoring command; not a CI validation gate.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "tooling/cme-checker-boundary",
     reason:
       "Tooling helper gate retained for local orchestrator maintenance; canonical doctor/inventory gates run from verify CI.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "tooling/cme-checker-testkit-archetypes",
     reason:
       "Tooling helper gate retained for local orchestrator maintenance; canonical doctor/inventory gates run from verify CI.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "contract/parity-v1-golden",
     reason:
       "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "contract/parity-v1-smoke",
     reason:
       "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "contract/parity-v2-smoke",
     reason:
       "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "editor/editor-path-boundary",
     reason:
       "Editor/provider smoke probe retained for targeted manual diagnosis; product CI uses broader provider and extension-host gates.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "tooling/orchestrator-doctor",
     reason:
       "Tooling helper gate retained for local orchestrator maintenance; canonical doctor/inventory gates run from verify CI.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "tooling/omena-check",
     reason: "Check-orchestrator CLI entrypoint; workflow jobs validate the gates it runs.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "release/check/packaged-engine-shadow-runner",
     reason: "Legacy packaged-runner probe superseded by release/package/prepared in package CI.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "editor/provider-host-routing-boundary",
     reason:
       "Editor/provider smoke probe retained for targeted manual diagnosis; product CI uses broader provider and extension-host gates.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/checker/release-gate-shadow-review",
     reason:
       "Checker promotion/release probe retained for manual diagnosis; scheduled checker-release-gate carries the release shadow path.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/design-system/universality-class",
     reason:
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/expression-domain/candidates",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-domain/canonical-candidate",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-domain/canonical-producer",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-domain/compare",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-domain/evaluator-candidates",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-domain/fragments",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-domain/reduced-evaluator",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-semantics/candidates",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-semantics/canonical-candidate",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-semantics/canonical-producer",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-semantics/evaluator-candidates",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-semantics/fragments",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-semantics/match-fragments",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/expression-semantics/query-fragments",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/input-producers/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/lsp-runtime-loop",
     reason:
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/m4-alpha-frame-refresh-latency",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-alpha-frame-rule-fuzz",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-alpha-grn-explicit",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-alpha-mdl-differential",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-alpha-qtt-semiring",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-alpha-spin-glass-policy",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-axis-a-closure-audit",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-axis-a-readiness",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-axis-b-closure-audit",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-axis-b-readiness",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-axis-c-closure-audit",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-axis-c-readiness",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-axis-d-closure-audit",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-axis-d-readiness",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-beta-ensemble",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-beta-hypergraph-monotone-fact-propagation",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-beta-transform-catalog",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-beta-multiscale-complexity-heuristic",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-closure-audit",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-gamma-categorical-evidence",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-gamma-refinement",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-gamma-smt-fuzz-full",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-gamma-smt-verification",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-gamma-demand-sliced-monotone-fact-propagation",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-gamma-zk-audit-matrix",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m4-readiness",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/m8-dynamic-classname-deepening",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-abstract-value/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/omena-bridge/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/omena-categorical/classify-omega-truth",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-categorical/compare-design-system-theory",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-categorical/summarize-kripke-frame",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-categorical/verify-beck-chevalley",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-categorical/verify-cascade-section-aggregation-covariance",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-categorical/verify-cross-project-symmetry",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-categorical/verify-invariant-functoriality",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-categorical/verify-modal-imperative-equivalence",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-categorical/verify-s4-axioms",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-categorical/verify-cascade-section-aggregation-plan-stability",
     reason:
       "Research evidence gate retained for manual review; not part of the current PR or scheduled CI surface.",
+    criterion: "research-evidence",
   },
   {
     id: "rust/omena-checker/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/omena-incremental/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/omena-lsp-server/style-provider-parity",
     reason:
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-meta-macros-boundary",
     reason:
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-query/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/omena-resolver/fixture-suite",
     reason:
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-resolver/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/omena-semantic-observation-harness",
     reason:
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-semantic-split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/omena-spec-audit-boundary",
     reason:
       "Rust subsystem probe retained for targeted manual diagnosis; canonical boundary/readiness bundles carry CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-conformance-dashboard:update",
     reason:
       "Local generator command retained for reviewed dashboard refreshes; the read-only conformance dashboard gate carries CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-diff-test-wpt-extraction:update",
     reason:
       "Local generator command retained for reviewed WPT extraction refreshes; committed extraction and generator gates carry CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-diff-test-wpt-extraction-source",
     reason:
       "Pinned-source maintenance gate requires an explicit external WPT checkout; committed extraction and generator gates carry CI coverage.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/omena-tsgo-client/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/parser/split-boundary",
     reason:
       "Compatibility alias for split-boundary checks; canonical boundary bundles carry CI coverage.",
+    criterion: "compat-alias-with-retirement-window",
   },
   {
     id: "rust/phase-2-swap-readiness",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/query-plan/compare",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/selector-usage/fragments",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/selector-usage/plan-compare",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/selector-usage/query-fragments",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/shadow/compare",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/shadow/smoke",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/source-resolution/candidates",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/source-resolution/canonical-candidate",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/source-resolution/canonical-producer",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/source-resolution/evaluator-candidates",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/source-resolution/fragments",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/source-resolution/match-fragments",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/source-resolution/plan-compare",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/source-resolution/query-fragments",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/split/boundaries",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "rust/type-fact/compare",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "editor/selected-query-boundary",
     reason:
       "Editor/provider smoke probe retained for targeted manual diagnosis; product CI uses broader provider and extension-host gates.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "workspace/semantic-smoke",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "ts7/decision-ready",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "ts7/phase-a/decision-ready",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "ts7/phase-a/shadow-review",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "ts7/phase-b/readiness",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "tsgo/operational/shadow-review",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "workspace/check",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "editor/explain/expression",
     reason:
       "Editor/provider smoke probe retained for targeted manual diagnosis; product CI uses broader provider and extension-host gates.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "core/format",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "core/lint/fix",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "editor/omena",
     reason:
       "Editor/provider smoke probe retained for targeted manual diagnosis; product CI uses broader provider and extension-host gates.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "release/release/publish",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "test/bench",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "tooling/update/check-inventory",
     reason:
       "Tooling helper gate retained for local orchestrator maintenance; canonical doctor/inventory gates run from verify CI.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "contract/update:contract-parity-v1-golden",
     reason:
       "Contract fixture probe retained for manual compatibility checks outside the CI matrix.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "core/watch",
     reason:
       "Reviewed package-origin leaf retained for manual diagnosis outside the closed-world CI surface.",
+    criterion: "manual-tool-with-named-consumer",
   },
   {
     id: "core/prepare",
     reason:
       "Lefthook git-hook installer; runs on local pnpm install only (skipped in CI) and is not a CI gate.",
+    criterion: "manual-tool-with-named-consumer",
   },
 ];
 
@@ -1028,14 +1172,15 @@ export function findCiTierReachabilityDiagnostics(
     }
   }
 
-  if (escapeHatchGateIds.length > CI_REACHABILITY_ESCAPE_HATCH_POLICY.maxGateCount) {
+  const hatch = escapeHatchPolicy(rootDir);
+  if (escapeHatchGateIds.length > hatch.maxGateCount) {
     diagnostics.push({
       severity: "error",
       code: "ci-tier-escape-hatch-budget-exceeded",
       message:
         `CI reachability escape-hatch population ${escapeHatchGateIds.length} exceeds the governed maximum ` +
-        `${CI_REACHABILITY_ESCAPE_HATCH_POLICY.maxGateCount}; owner=${CI_REACHABILITY_ESCAPE_HATCH_POLICY.owner}, ` +
-        `reviewBy=${CI_REACHABILITY_ESCAPE_HATCH_POLICY.reviewBy}.`,
+        `${hatch.maxGateCount}; owner=${hatch.owner}, ` +
+        `reviewBy=${hatch.reviewBy}.`,
     });
   } else if (escapeHatchGateIds.length > 0) {
     diagnostics.push({
@@ -1043,9 +1188,9 @@ export function findCiTierReachabilityDiagnostics(
       code: "ci-tier-escape-hatch-summary",
       message:
         `CI reachability escape-hatch population: ${escapeHatchGateIds.length}/` +
-        `${CI_REACHABILITY_ESCAPE_HATCH_POLICY.maxGateCount} gate(s); ` +
-        `owner=${CI_REACHABILITY_ESCAPE_HATCH_POLICY.owner}, ` +
-        `reviewBy=${CI_REACHABILITY_ESCAPE_HATCH_POLICY.reviewBy}.`,
+        `${hatch.maxGateCount} gate(s); ` +
+        `owner=${hatch.owner}, ` +
+        `reviewBy=${hatch.reviewBy}.`,
     });
   }
 
