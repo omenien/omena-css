@@ -581,7 +581,8 @@
     "package:prepared": "rm -f ./*.vsix && pnpm omena-check run release/check/release-m5-class-value-universe-matrix && pnpm omena-check run release/check/release-m5-api-freeze-audit && pnpm omena-check run ts7/ts-api-surface-lock && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && node ./scripts/restore-native-binary-permissions.mjs && pnpm omena-check run release/check/packaged-engine-shadow-runner-matrix && pnpm omena-check run release/check/packaged-tsgo-binary && rm -rf dist/server && node --import tsx ./scripts/package-extension-vsix.ts --no-dependencies && pnpm omena-check run release/check/packaged-selected-query-default && pnpm omena-check run release/check/packaged-omena-lsp-server-type-fact-protocol",
     "version-packages": "changeset version && ./scripts/release.sh",
     "release:verify": "pnpm omena-check bundle release/release/verify",
-    "release:publish": "./scripts/publish-extension.sh"
+    "release:publish": "./scripts/publish-extension.sh",
+    "check:ci-workflow": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts ci-workflow"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",

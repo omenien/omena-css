@@ -24,6 +24,15 @@ const VALID_CI_TIERS = new Set<CheckCiTier>([
 
 export const DECLARED_CHECK_GATES = [
   {
+    id: "tooling/ci-workflow",
+    kind: "gate",
+    scope: "tooling",
+    packageTarget: "check:ci-workflow",
+    ciTier: "verify",
+    ciGroup: "verify",
+    tags: ["ci-workflow", "generated-artifact-drift"],
+  },
+  {
     id: "docs/site-contracts",
     kind: "gate",
     scope: "docs",

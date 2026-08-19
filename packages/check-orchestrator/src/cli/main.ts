@@ -3,6 +3,12 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import path from "node:path";
 import { buildAffectedCheckPlan } from "../affected";
 import {
+  adoptAndWriteRegistry,
+  checkCiWorkflow,
+  resolveCiWorkflowVerdict,
+  writeCiWorkflow,
+} from "../manifest/ci-workflow";
+import {
   buildCheckPlan,
   buildCheckSurfaceReport,
   loadCheckManifest,
@@ -917,6 +923,37 @@ function printSurface(json: boolean): void {
   console.log(renderCheckSurfaceReport(report));
 }
 
+function runCiWorkflowCommand(parsed: ParsedArgs): void {
+  const rootDir = manifest.rootDir;
+  if (parsed.extraArgs.includes("--adopt") || process.argv.includes("--adopt")) {
+    const registry = adoptAndWriteRegistry(rootDir);
+    process.stdout.write(`ci-workflow registry adopted: ${registry.jobs.length} jobs\n`);
+    return;
+  }
+  if (parsed.write) {
+    writeCiWorkflow(rootDir);
+    process.stdout.write("ci-workflow: .github/workflows/ci.yml regenerated from the registry\n");
+    return;
+  }
+  const outcome = checkCiWorkflow(rootDir);
+  const verdict = resolveCiWorkflowVerdict(outcome, process.env.OMENA_CI_GENERATED_OVERRIDE);
+  if (verdict === "ok") {
+    process.stdout.write(
+      `${JSON.stringify({ product: "omena.check-orchestrator.ci-workflow", drift: "none" })}\n`,
+    );
+    return;
+  }
+  if (verdict === "override-warning") {
+    process.stdout.write(
+      `::warning::ci-workflow drift OVERRIDDEN (break-glass, disclose as an incident): ` +
+        `${process.env.OMENA_CI_GENERATED_OVERRIDE} — ${outcome.reason}\n`,
+    );
+    return;
+  }
+  process.stderr.write(`ci-workflow drift: ${outcome.reason}\n`);
+  process.exitCode = 1;
+}
+
 function runInventoryCommand(parsed: ParsedArgs): void {
   if (parsed.check && parsed.write) {
     fail("Use either --check or --write, not both.");
@@ -987,6 +1024,9 @@ async function dispatch(): Promise<void> {
       break;
     case "inventory":
       runInventoryCommand(parsedArgs);
+      break;
+    case "ci-workflow":
+      runCiWorkflowCommand(parsedArgs);
       break;
     case "probe":
       await runProbeCommand(parsedArgs);
