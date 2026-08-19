@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -151,6 +151,12 @@ function checkCommand(): void {
     ([relativePath]) => relativePath === ".github/workflows/publish-extension.yml",
   )?.[1];
   assert.ok(extensionWorkflow);
+  const provenanceSourceGuard = "node ./scripts/check-publish-provenance-source.mjs";
+  assert.ok(
+    extensionWorkflow.indexOf(provenanceSourceGuard) <
+      extensionWorkflow.indexOf("./scripts/publish-extension.sh"),
+    "extension publication must reject a checkout/provenance mismatch before publishing",
+  );
   assert.ok(
     extensionWorkflow.indexOf("Render canonical release notes") <
       extensionWorkflow.indexOf("./scripts/publish-extension.sh"),
@@ -181,6 +187,48 @@ function checkCommand(): void {
     "direct extension publishing must run the release-note gate before upload",
   );
 
+  const npmWorkflow = readFileSync(
+    path.join(repoRoot, ".github/workflows/_publish-npm.yml"),
+    "utf8",
+  );
+  const npmIntegrityJob = npmWorkflow.slice(
+    npmWorkflow.indexOf("  release-integrity:"),
+    npmWorkflow.indexOf("  # --- 1."),
+  );
+  assert.ok(
+    npmIntegrityJob.indexOf(provenanceSourceGuard) <
+      npmIntegrityJob.indexOf("./.github/actions/setup-pnpm"),
+    "npm publication must reject a checkout/provenance mismatch in its prerequisite gate",
+  );
+  assert.ok(
+    npmWorkflow.includes("needs: [release-integrity, napi-binaries]") &&
+      npmWorkflow.includes("needs: release-integrity"),
+    "every npm publication job must remain downstream of the provenance source guard",
+  );
+
+  const provenanceChecker = path.join(repoRoot, "scripts/check-publish-provenance-source.mjs");
+  const headSha = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  }).trim();
+  const matchingCheckout = spawnSync(process.execPath, [provenanceChecker], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: { ...process.env, OMENA_PROVENANCE_SOURCE_SHA: headSha },
+  });
+  assert.equal(
+    matchingCheckout.status,
+    0,
+    `matching publication checkout must pass:\n${matchingCheckout.stderr}`,
+  );
+  const mismatchedCheckout = spawnSync(process.execPath, [provenanceChecker], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: { ...process.env, OMENA_PROVENANCE_SOURCE_SHA: "0".repeat(40) },
+  });
+  assert.notEqual(mismatchedCheckout.status, 0, "mismatched publication checkout must fail");
+  assert.match(mismatchedCheckout.stderr, /publish provenance source mismatch/u);
+
   assert.ok(existsSync(path.join(repoRoot, ".github/release.yml")));
   assert.ok(changelogSectionForTag("v5.2.0")?.includes("## [5.2.0]"));
   assert.equal(changelogSectionForTag("release-v0.2.0"), null);
@@ -208,6 +256,8 @@ function checkCommand(): void {
         releaseAxes: [...new Set(manifest.releases.map((entry) => entry.axis))].toSorted(),
         workflowCount: workflows.length,
         persistedBodyVerificationRequired: true,
+        provenanceSourceGuard: "green",
+        provenanceMismatchSelfTest: "red",
       },
       null,
       2,

@@ -90,6 +90,10 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
+      - name: Verify publication checkout matches provenance source
+        env:
+          OMENA_PROVENANCE_SOURCE_SHA: ${{ github.sha }}
+        run: node ./scripts/check-publish-provenance-source.mjs
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
         with:
