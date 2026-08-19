@@ -13,6 +13,15 @@ export type CheckScopeId =
   | "tooling";
 
 export type CheckGateKind = "command" | "gate" | "bundle" | "alias";
+export type GateCadence = "push" | "nightly" | "weekly" | "release" | "manual";
+export type GateStrength = "blocking" | "advisory";
+
+export interface GateLifecycle {
+  readonly cadence: GateCadence;
+  readonly strength: GateStrength;
+  readonly cadenceSource: "derived" | "declared-override";
+  readonly strengthSource: "derived" | "declared-override";
+}
 export type CheckGateOrigin = "package" | "declared" | "package+declared";
 export type CheckExecutorKind = "dependencies" | "package-script" | "direct";
 export type CheckCiTier =
@@ -49,6 +58,9 @@ export interface DeclaredCheckGateV0 {
   readonly ciTier?: CheckCiTier;
   readonly ciGroup?: string;
   readonly ciReason?: string;
+  readonly cadence?: GateCadence;
+  readonly strength?: GateStrength;
+  readonly axisException?: string;
   readonly deprecatedAliases?: readonly string[];
 }
 
@@ -75,6 +87,9 @@ export interface CheckGate {
   readonly ciTier?: CheckCiTier;
   readonly ciGroup?: string;
   readonly ciReason?: string;
+  readonly cadence?: GateCadence;
+  readonly strength?: GateStrength;
+  readonly axisException?: string;
   readonly deprecatedAliases?: readonly string[];
   readonly deprecatedBy?: string;
 }
@@ -96,6 +111,7 @@ export interface CheckManifest {
   readonly gates: readonly CheckGate[];
   readonly bundles: readonly CheckBundle[];
   readonly diagnostics: readonly CheckDiagnostic[];
+  readonly lifecycleByGateId: ReadonlyMap<string, GateLifecycle>;
 }
 
 export interface CheckPlanStep {

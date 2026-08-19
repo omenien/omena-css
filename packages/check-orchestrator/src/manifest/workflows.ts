@@ -1215,6 +1215,8 @@ function parseWorkflowJobNeeds(lines: readonly string[], job: WorkflowJobBlock):
   if (needsIndex < 0) return [];
 
   const needsLine = block[needsIndex] ?? "";
+  const scalar = needsLine.match(/^ {4}needs:\s*([A-Za-z0-9_-]+)\s*$/)?.[1];
+  if (scalar) return [scalar];
   const inline = needsLine.match(/^ {4}needs:\s*\[([^\]]*)\]\s*$/)?.[1];
   if (inline !== undefined) {
     return inline
@@ -1271,4 +1273,93 @@ function parseWorkflowJobTierAnnotation(
     return tier as CheckCiTier;
   }
   return null;
+}
+
+// --- Lifecycle façade (g130-S1): a read-only view of workflow jobs, their
+// needs edges, their plan-expanded gate ids, and each workflow's trigger
+// facts. lifecycle.ts derives cadence×strength from this view; keeping the
+// walker here reuses the private parsers without widening their surface.
+
+export interface WorkflowTriggerFacts {
+  readonly fileName: string;
+  readonly hasBranchPush: boolean;
+  readonly hasTagPush: boolean;
+  readonly crons: readonly string[];
+  readonly hasDispatch: boolean;
+  readonly hasWorkflowCall: boolean;
+  readonly reusableWorkflowUses: readonly string[];
+}
+
+export interface WorkflowJobView {
+  readonly workflowFile: string;
+  readonly jobName: string;
+  readonly needs: readonly string[];
+  readonly gateIds: ReadonlySet<string>;
+}
+
+export interface WorkflowLifecycleView {
+  readonly jobs: readonly WorkflowJobView[];
+  readonly triggers: readonly WorkflowTriggerFacts[];
+}
+
+export function collectWorkflowLifecycleView(
+  rootDir: string,
+  gates: readonly CheckGate[],
+): WorkflowLifecycleView {
+  const workflowsDir = path.join(rootDir, ".github/workflows");
+  const jobs: WorkflowJobView[] = [];
+  const triggers: WorkflowTriggerFacts[] = [];
+  if (!existsSync(workflowsDir)) return { jobs, triggers };
+
+  for (const fileName of readdirSync(workflowsDir).toSorted()) {
+    if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) continue;
+    const lines = readFileSync(path.join(workflowsDir, fileName), "utf8").split(/\r?\n/);
+    const text = lines.join("\n");
+    triggers.push(parseWorkflowTriggerFacts(fileName, text));
+
+    for (const job of parseWorkflowJobs(lines)) {
+      const block = lines.slice(job.start, job.end);
+      const gateIds = new Set<string>();
+      for (const line of block) {
+        for (const match of line.matchAll(OMENA_CHECK_TARGET_REF)) {
+          const target = match[2];
+          if (!target) continue;
+          const gate = resolveWorkflowTarget(gates, target);
+          if (!gate) continue;
+          for (const step of buildCheckPlan({ gates }, gate).steps) gateIds.add(step.id);
+        }
+      }
+      for (const reference of findMatrixOmenaCheckTargets(block)) {
+        const gate = resolveWorkflowTarget(gates, reference.target);
+        if (!gate) continue;
+        for (const step of buildCheckPlan({ gates }, gate).steps) gateIds.add(step.id);
+      }
+      jobs.push({
+        workflowFile: fileName,
+        jobName: job.name,
+        needs: parseWorkflowJobNeeds(lines, job),
+        gateIds,
+      });
+    }
+  }
+  return { jobs, triggers };
+}
+
+function parseWorkflowTriggerFacts(fileName: string, text: string): WorkflowTriggerFacts {
+  const onBlock = /^on:\s*$([\s\S]*?)(?=^\S)/m.exec(text)?.[1] ?? "";
+  const pushBlock = /^ {2}push:\s*$([\s\S]*?)(?=^ {2}\S|$(?![\s\S]))/m.exec(onBlock)?.[1] ?? "";
+  const hasPushKey = /^ {2}push:/m.test(onBlock);
+  return {
+    fileName,
+    hasBranchPush: hasPushKey && (!pushBlock.includes("tags:") || pushBlock.includes("branches:")),
+    hasTagPush: hasPushKey && pushBlock.includes("tags:"),
+    crons: [...onBlock.matchAll(/^\s*-\s*cron:\s*["']([^"']+)["']\s*$/gm)].map(
+      (match) => match[1] ?? "",
+    ),
+    hasDispatch: /^ {2}workflow_dispatch:/m.test(onBlock),
+    hasWorkflowCall: /^ {2}workflow_call:/m.test(onBlock),
+    reusableWorkflowUses: [
+      ...text.matchAll(/^\s*uses:\s*\.\/\.github\/workflows\/([A-Za-z0-9_.-]+)\s*$/gm),
+    ].map((match) => match[1] ?? ""),
+  };
 }

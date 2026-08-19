@@ -1576,6 +1576,9 @@ function buildDeclaredGate(
     ...(declaration.ciTier ? { ciTier: declaration.ciTier } : {}),
     ...(declaration.ciGroup ? { ciGroup: declaration.ciGroup } : {}),
     ...(declaration.ciReason ? { ciReason: declaration.ciReason } : {}),
+    ...(declaration.cadence ? { cadence: declaration.cadence } : {}),
+    ...(declaration.strength ? { strength: declaration.strength } : {}),
+    ...(declaration.axisException ? { axisException: declaration.axisException } : {}),
     ...(declaration.deprecatedAliases ? { deprecatedAliases: declaration.deprecatedAliases } : {}),
   };
 }
@@ -1699,6 +1702,9 @@ function mergeDeclaredMetadata(gate: CheckGate, declaration: DeclaredCheckGateV0
     ...(declaration.ciTier ? { ciTier: declaration.ciTier } : {}),
     ...(declaration.ciGroup ? { ciGroup: declaration.ciGroup } : {}),
     ...(declaration.ciReason ? { ciReason: declaration.ciReason } : {}),
+    ...(declaration.cadence ? { cadence: declaration.cadence } : {}),
+    ...(declaration.strength ? { strength: declaration.strength } : {}),
+    ...(declaration.axisException ? { axisException: declaration.axisException } : {}),
     ...(declaration.deprecatedAliases
       ? {
           deprecatedAliases: mergeUnique(

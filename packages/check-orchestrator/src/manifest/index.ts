@@ -8,6 +8,7 @@ import {
   getDeprecatedPackageScriptReplacement,
 } from "./declared";
 import { findDocumentedPublicScriptDiagnostics } from "./documented-commands";
+import { computeGateLifecycles, findGateLifecycleDiagnostics } from "./lifecycle";
 import { renderCheckInventory } from "./inventory";
 import { buildCheckPlan, renderCheckPlan } from "./plan";
 import { classifyScript } from "./scopes";
@@ -104,6 +105,8 @@ export function loadCheckManifest(
   diagnostics.push(...findScheduledWorkflowEscalationDiagnostics(rootDir));
   diagnostics.push(...findCiRequiredAggregationDiagnostics(rootDir));
   diagnostics.push(...findCiTierReachabilityDiagnostics(rootDir, gates));
+  diagnostics.push(...findGateLifecycleDiagnostics(rootDir, gates));
+  const lifecycleByGateId = computeGateLifecycles(rootDir, gates).byGateId;
 
   return {
     rootDir,
@@ -112,6 +115,7 @@ export function loadCheckManifest(
       (gate): gate is CheckBundle => gate.kind === "bundle" || gate.kind === "alias",
     ),
     diagnostics,
+    lifecycleByGateId,
   };
 }
 

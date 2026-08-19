@@ -181,6 +181,7 @@ function printList(json: boolean): void {
             deprecatedBy,
           }) => ({
             id,
+            ...manifest.lifecycleByGateId.get(id),
             scriptName,
             scope,
             kind,
