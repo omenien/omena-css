@@ -1,4 +1,4 @@
-import type { CheckGate, CheckManifest, CheckScopeId } from "./types";
+import type { GateLifecycle, CheckGate, CheckManifest, CheckScopeId } from "./types";
 
 const SCOPE_ORDER: readonly CheckScopeId[] = [
   "core",
@@ -15,7 +15,9 @@ const SCOPE_ORDER: readonly CheckScopeId[] = [
   "tooling",
 ];
 
-export function renderCheckInventory(manifest: Pick<CheckManifest, "gates">): string {
+export function renderCheckInventory(
+  manifest: Pick<CheckManifest, "gates"> & Partial<Pick<CheckManifest, "lifecycleByGateId">>,
+): string {
   const gates = [...manifest.gates].toSorted((left, right) => {
     const scopeOrder = scopeIndex(left.scope) - scopeIndex(right.scope);
     return scopeOrder || left.id.localeCompare(right.id);
@@ -36,7 +38,7 @@ export function renderCheckInventory(manifest: Pick<CheckManifest, "gates">): st
       ["left", "right", "right", "right", "right"],
     ),
     "",
-    ...SCOPE_ORDER.flatMap((scope) => renderScopeSection(scope, gates)),
+    ...SCOPE_ORDER.flatMap((scope) => renderScopeSection(scope, gates, manifest.lifecycleByGateId)),
   ]
     .join("\n")
     .trimEnd();
@@ -52,7 +54,11 @@ function renderScopeSummary(gates: readonly CheckGate[]): string[][] {
   }).filter(([, gateCount]) => gateCount !== "0");
 }
 
-function renderScopeSection(scope: CheckScopeId, gates: readonly CheckGate[]): string[] {
+function renderScopeSection(
+  scope: CheckScopeId,
+  gates: readonly CheckGate[],
+  lifecycle?: ReadonlyMap<string, GateLifecycle>,
+): string[] {
   const scopeGates = gates.filter((gate) => gate.scope === scope);
   if (scopeGates.length === 0) return [];
 
@@ -60,16 +66,18 @@ function renderScopeSection(scope: CheckScopeId, gates: readonly CheckGate[]): s
     `## ${scope}`,
     "",
     renderMarkdownTable(
-      ["ID", "Kind", "Origin", "Script", "References", "Status"],
+      ["ID", "Kind", "Origin", "Cadence", "Strength", "Script", "References", "Status"],
       scopeGates.map((gate) => [
         formatCode(gate.id),
         gate.kind,
         gate.origin,
+        lifecycle?.get(gate.id)?.cadence ?? "",
+        lifecycle?.get(gate.id)?.strength ?? "",
         formatCode(gate.scriptName),
         formatRefs(gate.referencedScripts),
         formatStatus(gate),
       ]),
-      ["left", "left", "left", "left", "left", "left"],
+      ["left", "left", "left", "left", "left", "left", "left", "left"],
     ),
     "",
   ];
@@ -122,9 +130,10 @@ function renderMarkdownTable(
   rows: readonly (readonly string[])[],
   alignments: readonly ColumnAlignment[],
 ): string {
-  const widths = headers.map((header, index) =>
-    Math.max(3, header.length, ...rows.map((row) => row[index]?.length ?? 0)),
-  );
+  // Minimal-width cells (g130-S4): padding every cell to the widest column made
+  // one added gate rewrite ~445 rows (~886 diff lines). Unpadded rows keep an
+  // added gate's diff to its own line.
+  const widths = headers.map((header) => Math.max(3, header.length));
 
   return [
     renderTableRow(headers, widths, alignments, true),
@@ -142,10 +151,10 @@ function renderTableRow(
   return `| ${widths
     .map((width, index) => {
       const cell = cells[index] ?? "";
-      if (!isHeader && alignments[index] === "right") {
-        return cell.padStart(width);
-      }
-      return cell.padEnd(width);
+      if (isHeader) return cell.padEnd(width);
+      void width;
+      void alignments;
+      return cell;
     })
     .join(" | ")} |`;
 }

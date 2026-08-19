@@ -1726,11 +1726,40 @@ function findDeclaredDependencyDiagnostics(
   const diagnostics: CheckDiagnostic[] = [];
   for (const declaration of declarations) {
     for (const dep of normalizeDeclaredDeps(declaration.deps ?? [])) {
-      if (!resolveDeclaredDependency(gates, dep.target)) {
+      const resolved = resolveDeclaredDependency(gates, dep.target);
+      if (!resolved) {
         diagnostics.push({
           severity: "error",
           code: "declared-gate-unknown-dep",
           message: `Declared gate "${declaration.id}" references unknown dep "${dep.target}".`,
+        });
+        continue;
+      }
+      if (!dep.args || dep.args.length === 0) continue;
+      // Mirror of the RUNTIME forwarding predicate (cli/main.ts executeGate):
+      // args reach direct/package-script executors and aliases; a
+      // dependencies-executor non-alias target rejects them at run time, so
+      // reject at LOAD time (the class that hid a dead probe for months).
+      if (resolved.executor === "dependencies" && resolved.kind !== "alias") {
+        diagnostics.push({
+          severity: "error",
+          code: "declared-dep-args-not-forwardable",
+          message:
+            `Declared gate "${declaration.id}" passes args to "${dep.target}", whose ` +
+            `dependencies-executor ${resolved.kind} cannot receive them at run time.`,
+        });
+      }
+      const cliLevel = dep.args.filter(
+        (arg) => arg.startsWith("--shard") || arg === "--summary" || arg.startsWith("--base"),
+      );
+      if (cliLevel.length > 0) {
+        diagnostics.push({
+          severity: "error",
+          code: "declared-dep-cli-level-args",
+          message:
+            `Declared gate "${declaration.id}" passes CLI-level flag(s) ${cliLevel.join(", ")} ` +
+            `to "${dep.target}"; those flags are parsed only from the top-level invocation and ` +
+            `never reach a dep, so the dep does not do what it claims.`,
         });
       }
     }

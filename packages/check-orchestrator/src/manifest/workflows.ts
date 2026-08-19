@@ -1025,7 +1025,22 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
     job,
     required: parseWorkflowRequiredAnnotation(lines, job),
   }));
-  if (annotations.every(({ required }) => required === null)) return [];
+  if (annotations.every(({ required }) => required === null)) {
+    // g130-S5: this was the ONE genuine fail-open — deleting EVERY
+    // `# omena-ci-required:` annotation used to disable the whole contract
+    // (single deletions and flips were already loud). A ci.yml with jobs and
+    // zero annotations is now an error, not silence.
+    if (jobs.length === 0) return [];
+    return [
+      {
+        severity: "error",
+        code: "ci-required-model-missing",
+        message:
+          ".github/workflows/ci.yml declares jobs but carries no `# omena-ci-required:` annotations; " +
+          "the required-aggregation contract cannot be derived from nothing.",
+      },
+    ];
+  }
 
   const diagnostics: CheckDiagnostic[] = [];
   for (const { job, required } of annotations) {
