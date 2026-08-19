@@ -3,11 +3,7 @@
   "product": "omena.check-orchestrator.gate-policy",
   "template": {
     "reviewIntervalDays": 90,
-    "advisoryHoldReasons": [
-      "cost-review-pending",
-      "demotion-staged",
-      "instrument-rebuild"
-    ]
+    "advisoryHoldReasons": ["cost-review-pending", "demotion-staged", "instrument-rebuild"]
   },
   "costSource": "static-enumeration-2026-08-18",
   "escapeHatch": {
