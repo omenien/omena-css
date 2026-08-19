@@ -1742,6 +1742,18 @@
           "flatten": false,
           "skipSerializing": false,
           "skipDeserializing": false
+        },
+        {
+          "memberPath": "declaration_id",
+          "memberKind": "field",
+          "rustName": "declaration_id",
+          "serializeKey": "declarationId",
+          "deserializeKey": "declarationId",
+          "typeExpression": "String",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
         }
       ]
     },
@@ -1759,6 +1771,18 @@
           "rustName": "local_name",
           "serializeKey": "localName",
           "deserializeKey": "localName",
+          "typeExpression": "String",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "declaration_id",
+          "memberKind": "field",
+          "rustName": "declaration_id",
+          "serializeKey": "declarationId",
+          "deserializeKey": "declarationId",
           "typeExpression": "String",
           "optional": false,
           "flatten": false,
@@ -2224,6 +2248,18 @@
           "serializeKey": "utilityKind",
           "deserializeKey": "utilityKind",
           "typeExpression": "&'static str",
+          "optional": false,
+          "flatten": false,
+          "skipSerializing": false,
+          "skipDeserializing": false
+        },
+        {
+          "memberPath": "declaration_id",
+          "memberKind": "field",
+          "rustName": "declaration_id",
+          "serializeKey": "declarationId",
+          "deserializeKey": "declarationId",
+          "typeExpression": "String",
           "optional": false,
           "flatten": false,
           "skipSerializing": false,
