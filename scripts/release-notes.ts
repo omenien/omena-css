@@ -151,7 +151,7 @@ function checkCommand(): void {
     ([relativePath]) => relativePath === ".github/workflows/publish-extension.yml",
   )?.[1];
   assert.ok(extensionWorkflow);
-  const provenanceSourceGuard = "node ./scripts/check-publish-provenance-source.mjs";
+  const provenanceSourceGuard = 'checked_out_sha="$(git rev-parse HEAD)"';
   assert.ok(
     extensionWorkflow.indexOf(provenanceSourceGuard) <
       extensionWorkflow.indexOf("./scripts/publish-extension.sh"),

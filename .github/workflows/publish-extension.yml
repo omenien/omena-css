@@ -75,7 +75,18 @@ jobs:
       - name: Verify publication checkout matches provenance source
         env:
           OMENA_PROVENANCE_SOURCE_SHA: ${{ github.sha }}
-        run: node ./scripts/check-publish-provenance-source.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ "${checked_out_sha}" != "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then
+            echo "publish provenance source mismatch" >&2
+            echo "workflow provenance source: ${OMENA_PROVENANCE_SOURCE_SHA}" >&2
+            echo "checked-out publication source: ${checked_out_sha}" >&2
+            echo "Dispatch the workflow from the same immutable ref that is being checked out." >&2
+            exit 1
+          fi
+          echo "publish provenance source verified: ${checked_out_sha}"
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/setup-rust-pinned
       - uses: ./.github/actions/cache-rust
