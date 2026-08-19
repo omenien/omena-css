@@ -64,7 +64,9 @@ async function main(): Promise<void> {
 function renderCommand(args: readonly string[]): void {
   const tag = requiredOption(args, "--tag");
   const output = option(args, "--output");
-  const rendered = renderRegisteredRelease(tag);
+  const rendered = renderRegisteredRelease(tag, {
+    withGeneratedChangelog: args.includes("--changelog"),
+  });
   if (output) {
     writeFileSync(path.resolve(repoRoot, output), rendered);
     process.stdout.write(`release notes: ${tag} -> ${output}\n`);
@@ -96,6 +98,10 @@ function checkCommand(): void {
     const notePath = path.join(repoRoot, entry.notesFile);
     assert.ok(existsSync(notePath), `${entry.tag} notes file does not exist: ${entry.notesFile}`);
     const notes = readFileSync(notePath, "utf8");
+    assert.ok(
+      notes.startsWith("---\n"),
+      `${entry.notesFile} must carry docs-site frontmatter in the source page`,
+    );
     for (const heading of [
       "## Platform surface",
       "## Explicit opt-ins",
@@ -104,7 +110,27 @@ function checkCommand(): void {
     ]) {
       assert.ok(notes.includes(heading), `${entry.notesFile} must include ${heading}`);
     }
-    assert.ok(renderRegisteredRelease(entry.tag).length > notes.length);
+    assert.ok(
+      !entry.name.includes(entry.tag),
+      `${entry.tag} release name must not repeat the tag string`,
+    );
+    const rendered = renderRegisteredRelease(entry.tag);
+    assert.ok(rendered.length > notes.length - 200);
+    assert.ok(
+      !rendered.startsWith("---"),
+      `${entry.tag} rendered body must not leak docs frontmatter`,
+    );
+    assert.ok(
+      !rendered.includes("sourceOfTruth:"),
+      `${entry.tag} rendered body must not leak docs metadata fields`,
+    );
+    assert.ok(rendered.includes("## Release links"), `${entry.tag} body must carry release links`);
+    if (manifestPreviousTag(manifest, entry)) {
+      assert.ok(
+        rendered.includes("- Full diff:"),
+        `${entry.tag} body must link the compare range to its predecessor`,
+      );
+    }
   }
 
   const packageVersion = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"))
@@ -133,6 +159,10 @@ function checkCommand(): void {
     assert.ok(
       workflow.includes("release-notes.md"),
       `${relativePath} must render and publish release-notes.md`,
+    );
+    assert.ok(
+      workflow.includes("--changelog"),
+      `${relativePath} must render the generated changelog section`,
     );
     assert.ok(
       workflow.includes("body_path: release-notes.md"),
@@ -230,6 +260,26 @@ function checkCommand(): void {
   assert.match(mismatchedCheckout.stderr, /publish provenance source mismatch/u);
 
   assert.ok(existsSync(path.join(repoRoot, ".github/release.yml")));
+  const processDoc = readFileSync(path.join(repoRoot, "docs/releases/PROCESS.md"), "utf8");
+  for (const heading of [
+    "## Tag families",
+    "## Release order",
+    "## Provenance rule",
+    "## Release notes pipeline",
+    "## Historical releases",
+  ]) {
+    assert.ok(processDoc.includes(heading), `docs/releases/PROCESS.md must include ${heading}`);
+  }
+  assert.equal(stripDocsFrontmatter("---\ntitle: x\n---\nBody\n"), "Body\n");
+  assert.equal(stripDocsFrontmatter("Body only"), "Body only");
+  const latestExtension = manifest.releases.find((entry) => entry.tag === "vscode-v5.4.0");
+  assert.ok(latestExtension);
+  assert.equal(manifestPreviousTag(manifest, latestExtension), "vscode-v5.3.0");
+  assert.equal(
+    stripLegacyPreamble(`${legacyEraBanner}\n\n## [4.0.0]\n> quoted content stays`),
+    "## [4.0.0]\n> quoted content stays",
+    "legacy banner stripping must be idempotent and preserve body blockquotes",
+  );
   assert.ok(changelogSectionForTag("v5.2.0")?.includes("## [5.2.0]"));
   assert.equal(changelogSectionForTag("release-v0.2.0"), null);
   assert.ok(isCrateNameList("omena-parser\nomena-query\nomena-cli\nomena-wasm\nomena-sif"));
@@ -305,20 +355,27 @@ function backfillCommand(args: readonly string[]): void {
     `repos/${manifest.repository}/releases?per_page=100`,
   ]);
   const releases = releasePages.flat();
+  const existingTags = new Set(releases.map((release) => release.tag_name));
   const previousTags = previousTagByAxis(releases.map((release) => release.tag_name));
   let changed = 0;
 
   for (const release of releases.filter(
     (candidate) => !tagFilter || candidate.tag_name === tagFilter,
   )) {
-    const body = buildHistoricalBody(release, previousTags.get(release.tag_name));
-    if (normalizeMarkdown(release.body ?? "") === normalizeMarkdown(body)) continue;
+    const body = buildHistoricalBody(release, previousTags.get(release.tag_name), existingTags);
+    const registered = manifest.releases.find((entry) => entry.tag === release.tag_name);
+    const desiredName = registered?.name ?? release.name ?? release.tag_name;
+    const bodyChanged = normalizeMarkdown(release.body ?? "") !== normalizeMarkdown(body);
+    const nameChanged = desiredName !== (release.name ?? "");
+    if (!bodyChanged && !nameChanged) continue;
     changed += 1;
     if (printBody) {
       process.stdout.write(`${body}\n`);
       continue;
     }
-    process.stdout.write(`${apply ? "update" : "would update"} ${release.tag_name}\n`);
+    process.stdout.write(
+      `${apply ? "update" : "would update"} ${release.tag_name}${nameChanged ? ` (name -> ${desiredName})` : ""}\n`,
+    );
     if (apply) {
       githubJson([
         "api",
@@ -327,6 +384,8 @@ function backfillCommand(args: readonly string[]): void {
         `repos/${manifest.repository}/releases/${release.id}`,
         "--raw-field",
         `body=${body}`,
+        "--raw-field",
+        `name=${desiredName}`,
       ]);
     }
   }
@@ -338,7 +397,12 @@ function backfillCommand(args: readonly string[]): void {
   }
 }
 
-function renderRegisteredRelease(tag: string): string {
+interface RenderOptions {
+  readonly withGeneratedChangelog?: boolean;
+  readonly previousTagOverride?: string;
+}
+
+function renderRegisteredRelease(tag: string, options: RenderOptions = {}): string {
   const manifest = loadManifest();
   const stableTag = tag.replace(/-preview\.\d+$/, "");
   const entry = manifest.releases.find((candidate) => candidate.tag === stableTag);
@@ -346,7 +410,7 @@ function renderRegisteredRelease(tag: string): string {
 
   const sourcePath = path.join(repoRoot, entry.notesFile);
   const source = absolutizeRelativeLinks(
-    readFileSync(sourcePath, "utf8").trim(),
+    stripDocsFrontmatter(readFileSync(sourcePath, "utf8")).trim(),
     entry.notesFile,
     tag,
   );
@@ -358,20 +422,144 @@ function renderRegisteredRelease(tag: string): string {
         "",
       ].join("\n")
     : "";
-  return `${preamble}${source}\n\n${renderArtifactSection(entry)}\n\n${renderReleaseLinks(tag)}\n`;
+  const previousTag = options.previousTagOverride ?? manifestPreviousTag(manifest, entry);
+  const changelog = options.withGeneratedChangelog
+    ? `\n\n${renderGeneratedChangelog(entry, previousTag)}`
+    : "";
+  return `${preamble}${source}${changelog}\n\n${renderArtifactSection(entry)}\n\n${renderReleaseLinks(tag, previousTag)}\n`;
+}
+
+function stripDocsFrontmatter(source: string): string {
+  // docs/releases/*.md pages carry docs-site YAML frontmatter; a GitHub Release
+  // body must never expose that internal metadata block.
+  return source.replace(/^---\n[\s\S]*?\n---\n/, "");
+}
+
+function manifestPreviousTag(
+  manifest: ReleaseManifest,
+  entry: ReleaseManifestEntry,
+): string | undefined {
+  const axisTags = manifest.releases
+    .filter((candidate) => candidate.axis === entry.axis)
+    .map((candidate) => candidate.tag)
+    .toSorted(compareReleaseTags);
+  return axisTags[axisTags.indexOf(entry.tag) - 1];
+}
+
+function renderGeneratedChangelog(
+  entry: ReleaseManifestEntry,
+  previousTag: string | undefined,
+): string {
+  const lines = ["## Changes", ""];
+  if (entry.axis === "rust") {
+    const declared = declaredBreakingSection(entry.version);
+    if (declared.length > 0) lines.push(...declared, "");
+  }
+  if (!previousTag) {
+    lines.push("- First registered release on this axis; no comparison baseline exists.");
+    return lines.join("\n");
+  }
+  const repository = loadManifest().repository;
+  const comparison = githubJson<{
+    readonly commits: readonly { readonly sha: string; readonly commit: { message: string } }[];
+    readonly total_commits: number;
+  }>(["api", `repos/${repository}/compare/${previousTag}...${entry.tag}`]);
+  const groups = new Map<string, string[]>([
+    ["Features", []],
+    ["Fixes", []],
+    ["Performance", []],
+    ["Other changes", []],
+  ]);
+  for (const commit of comparison.commits) {
+    const subject = commit.commit.message.split("\n", 1)[0] ?? "";
+    const kind = /^([a-z]+)(?:\([^)]*\))?!?:/.exec(subject)?.[1] ?? "";
+    const group =
+      kind === "feat"
+        ? "Features"
+        : kind === "fix"
+          ? "Fixes"
+          : kind === "perf"
+            ? "Performance"
+            : "Other changes";
+    groups.get(group)?.push(`- ${commit.sha.slice(0, 7)} ${subject}`);
+  }
+  for (const [title, entries] of groups) {
+    if (entries.length === 0) continue;
+    if (title === "Other changes") {
+      lines.push("<details>", `<summary>Other changes (${entries.length})</summary>`, "");
+      lines.push(...entries, "", "</details>", "");
+      continue;
+    }
+    lines.push(`### ${title}`, "", ...entries, "");
+  }
+  if (comparison.total_commits > comparison.commits.length) {
+    lines.push(
+      `- …and ${comparison.total_commits - comparison.commits.length} earlier commits (see the full diff below).`,
+      "",
+    );
+  }
+  while (lines.at(-1) === "") lines.pop();
+  return lines.join("\n");
+}
+
+function declaredBreakingSection(releaseVersion: string): readonly string[] {
+  const intentPath = path.join(repoRoot, "rust/omena-rust-semver-intent.json");
+  if (!existsSync(intentPath)) return [];
+  const intent = JSON.parse(readFileSync(intentPath, "utf8")) as {
+    readonly baselineWorkspaceVersion?: string;
+    readonly targetReleaseVersion?: string;
+    readonly intents?: readonly {
+      readonly crate?: string;
+      readonly expectedFailures?: readonly unknown[];
+      readonly expectedRuntimeValueChanges?: readonly unknown[];
+    }[];
+  };
+  // The intent contract is the CURRENT train's declaration. Only render it when
+  // it targets exactly this release; a HEAD-side backfill of an older tag must
+  // not borrow the in-progress next-train declaration.
+  if (intent.targetReleaseVersion !== releaseVersion) return [];
+  const rows = intent.intents ?? [];
+  if (rows.length === 0) return [];
+  const lines = [
+    `### Declared breaking changes (\`${intent.baselineWorkspaceVersion ?? "?"}\` → \`${intent.targetReleaseVersion ?? "?"}\`)`,
+    "",
+    "Machine-declared in the release-semver intent contract; every entry below was gated before publication.",
+    "",
+  ];
+  for (const row of rows) {
+    const failureCount = row.expectedFailures?.length ?? 0;
+    const runtimeCount = row.expectedRuntimeValueChanges?.length ?? 0;
+    lines.push(
+      `- \`${row.crate ?? "?"}\` — ${failureCount} API change witness(es), ${runtimeCount} declared runtime value change(s)`,
+    );
+  }
+  return lines;
 }
 
 function renderArtifactSection(entry: ReleaseManifestEntry): string {
   return ["## Distribution", "", ...entry.distribution.map((fact) => `- ${fact}`)].join("\n");
 }
 
-function buildHistoricalBody(release: GitHubRelease, previousTag: string | undefined): string {
+const legacyEraBanner = [
+  "> [!NOTE]",
+  "> Pre-rebrand release from the `css-module-explainer` era. Current releases use the",
+  "> `vscode-v*` (editor extension) and `release-v*` (Rust crate train / CLI / npm) tag families.",
+].join("\n");
+
+function buildHistoricalBody(
+  release: GitHubRelease,
+  previousTag: string | undefined,
+  existingTags: ReadonlySet<string> = new Set(),
+): string {
   const registeredTag = release.tag_name.replace(/-preview\.\d+$/, "");
   if (loadManifest().releases.some((entry) => entry.tag === registeredTag)) {
-    return renderRegisteredRelease(release.tag_name);
+    return renderRegisteredRelease(release.tag_name, {
+      previousTagOverride: previousTag,
+      withGeneratedChangelog: true,
+    });
   }
 
-  const existing = stripReleaseLinks(release.body ?? "").trim();
+  const existing = stripLegacyPreamble(stripReleaseLinks(release.body ?? "").trim());
   let base = existing;
   if (base.length === 0) {
     base =
@@ -395,7 +583,28 @@ function buildHistoricalBody(release: GitHubRelease, previousTag: string | undef
     ].join("\n");
   }
 
-  return `${base.trim()}\n\n${renderReleaseLinks(release.tag_name, previousTag)}\n`;
+  const isLegacyEra =
+    !release.tag_name.startsWith("release-v") && !release.tag_name.startsWith("vscode-v");
+  const preamble = isLegacyEra
+    ? `${legacyEraBanner}\n${legacyDuplicateNotice(release, existingTags)}\n`
+    : "";
+  return `${preamble}${base.trim()}\n\n${renderReleaseLinks(release.tag_name, previousTag)}\n`;
+}
+
+function legacyDuplicateNotice(release: GitHubRelease, existingTags: ReadonlySet<string>): string {
+  const counterpart = `vscode-${release.tag_name}`;
+  if (!existingTags.has(counterpart)) return "";
+  return `>\n> This tag duplicates [\`${counterpart}\`](https://github.com/${loadManifest().repository}/releases/tag/${counterpart}), which is the canonical release for this version.\n`;
+}
+
+function stripLegacyPreamble(body: string): string {
+  // Idempotency: a rerun must not stack banners or duplicate notices. Only the
+  // LEADING banner block is stripped; blockquotes inside historical bodies stay.
+  if (!body.startsWith("> [!NOTE]\n> Pre-rebrand release")) return body;
+  const lines = body.split("\n");
+  let index = 0;
+  while (index < lines.length && (lines[index] ?? "").startsWith(">")) index += 1;
+  return lines.slice(index).join("\n").replace(/^\n+/, "");
 }
 
 function generatedNotes(tag: string, previousTag: string | undefined): string {

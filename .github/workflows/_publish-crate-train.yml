@@ -312,7 +312,7 @@ jobs:
       #    binaries on this page; the manifest table + SBOM are emitted by gh-release.
       - name: Render canonical release notes
         if: ${{ env.DRY_RUN != 'true' && startsWith(github.ref, 'refs/tags/release-v') }}
-        run: pnpm omena-check run release/release/notes -- --tag "${RELEASE_TAG}" --output release-notes.md
+        run: pnpm omena-check run release/release/notes -- --tag "${RELEASE_TAG}" --changelog --output release-notes.md
         env:
           RELEASE_TAG: ${{ github.ref_name }}
 

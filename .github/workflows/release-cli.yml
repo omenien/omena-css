@@ -132,7 +132,7 @@ jobs:
           echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
       - name: Render canonical release notes
         if: github.event_name != 'workflow_dispatch'
-        run: pnpm omena-check run release/release/notes -- --tag "${{ steps.tag.outputs.tag }}" --output release-notes.md
+        run: pnpm omena-check run release/release/notes -- --tag "${{ steps.tag.outputs.tag }}" --changelog --output release-notes.md
       - name: Export existing GitHub Release notes
         if: github.event_name == 'workflow_dispatch'
         run: pnpm omena-check run release/release/notes -- export-github --tag "${{ steps.tag.outputs.tag }}" --output release-notes.md

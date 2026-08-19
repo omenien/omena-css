@@ -123,7 +123,7 @@ jobs:
             echo "target_commit=${TARGET_COMMIT}"
           } >> "$GITHUB_OUTPUT"
       - name: Render canonical release notes
-        run: pnpm omena-check run release/release/notes -- --tag "${{ steps.meta.outputs.tag }}" --output release-notes.md
+        run: pnpm omena-check run release/release/notes -- --tag "${{ steps.meta.outputs.tag }}" --changelog --output release-notes.md
       - name: Format canonical release notes
         run: pnpm exec oxfmt --write release-notes.md
       - run: ./scripts/publish-extension.sh
