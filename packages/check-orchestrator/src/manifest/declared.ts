@@ -24,6 +24,26 @@ const VALID_CI_TIERS = new Set<CheckCiTier>([
 
 export const DECLARED_CHECK_GATES = [
   {
+    id: "rust/omena-abstract-value/split-boundary",
+    kind: "bundle",
+    scope: "rust",
+    packageTarget: "check:rust-omena-abstract-value-split-boundary",
+    ciTier: "manual",
+    ciReason:
+      "Compatibility split-boundary surface retained for manual review; canonical members run in CI.",
+    tags: ["compat-split-boundary"],
+  },
+  {
+    id: "rust/omena-semantic-split-boundary",
+    kind: "bundle",
+    scope: "rust",
+    packageTarget: "check:rust-omena-semantic-split-boundary",
+    ciTier: "manual",
+    ciReason:
+      "Compatibility split-boundary surface retained for manual review; canonical members run in CI.",
+    tags: ["compat-split-boundary"],
+  },
+  {
     id: "tooling/ci-workflow",
     kind: "gate",
     scope: "tooling",

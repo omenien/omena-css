@@ -6,20 +6,20 @@ Total gates: 573
 
 ## Scope Summary
 
-| Scope | Gates | Bundles | Aliases | Commands |
-| ----- | ----: | ------: | ------: | -------: |
-| core | 16 | 0 | 0 | 15 |
-| release | 22 | 1 | 0 | 8 |
-| tsgo | 6 | 1 | 1 | 0 |
-| ts7 | 17 | 7 | 0 | 0 |
-| rust | 444 | 48 | 13 | 26 |
-| plugin | 12 | 1 | 0 | 0 |
-| contract | 14 | 1 | 0 | 1 |
-| docs | 10 | 1 | 0 | 1 |
-| editor | 13 | 1 | 0 | 3 |
-| test | 4 | 0 | 0 | 0 |
-| workspace | 3 | 0 | 0 | 0 |
-| tooling | 12 | 3 | 0 | 4 |
+| Scope | Gates | Bundles | Aliases | Commands | Blocking | Advisory | Push | Scheduled |
+| ----- | ----: | ------: | ------: | -------: | -------: | -------: | ---: | --------: |
+| core | 16 | 0 | 0 | 15 | 10 | 6 | 10 | 0 |
+| release | 22 | 1 | 0 | 8 | 11 | 11 | 12 | 2 |
+| tsgo | 6 | 1 | 1 | 0 | 0 | 6 | 2 | 3 |
+| ts7 | 17 | 7 | 0 | 0 | 1 | 16 | 2 | 11 |
+| rust | 444 | 48 | 13 | 26 | 218 | 226 | 227 | 114 |
+| plugin | 12 | 1 | 0 | 0 | 11 | 1 | 11 | 1 |
+| contract | 14 | 1 | 0 | 1 | 10 | 4 | 10 | 0 |
+| docs | 10 | 1 | 0 | 1 | 9 | 1 | 9 | 0 |
+| editor | 13 | 1 | 0 | 3 | 7 | 6 | 7 | 1 |
+| test | 4 | 0 | 0 | 0 | 3 | 1 | 3 | 0 |
+| workspace | 3 | 0 | 0 | 0 | 1 | 2 | 1 | 0 |
+| tooling | 12 | 3 | 0 | 4 | 5 | 7 | 5 | 0 |
 
 ## core
 
@@ -74,11 +74,11 @@ Total gates: 573
 | ID  | Kind | Origin | Cadence | Strength | Script | References | Status |
 | --- | ---- | ------ | ------- | -------- | ------ | ---------- | ------ |
 | `tsgo/lsp-server-smoke` | gate | package | nightly | advisory | `check:lsp-server-smoke-tsgo` | `check:lsp-server-smoke` |  |
-| `tsgo/operational/lane` | bundle | package | nightly | advisory | `check:tsgo-operational-lane` | `check:ts7-phase-a-tsgo-lane`, `check:ts7-phase-b-build-tsgo`, `check:ts7-phase-b-editing-tsgo`, `check:ts7-phase-b-protocol-tsgo`, `check:ts7-phase-b-workspace-build-tsgo`, `check:ts7-phase-c-readiness` |  |
+| `tsgo/operational/lane` | bundle | package | push | advisory | `check:tsgo-operational-lane` | `check:ts7-phase-a-tsgo-lane`, `check:ts7-phase-b-build-tsgo`, `check:ts7-phase-b-editing-tsgo`, `check:ts7-phase-b-protocol-tsgo`, `check:ts7-phase-b-workspace-build-tsgo`, `check:ts7-phase-c-readiness` |  |
 | `tsgo/operational/shadow-review` | gate | package | manual | advisory | `check:tsgo-operational-shadow-review` |  |  |
 | `tsgo/real-project-corpus` | gate | package | nightly | advisory | `check:real-project-corpus-tsgo` | `check:real-project-corpus` |  |
 | `tsgo/release-batch` | gate | package | nightly | advisory | `check:release-batch-tsgo` | `check:release-batch` |  |
-| `tsgo/release/bundle` | alias | package | nightly | advisory | `check:tsgo-release-bundle` | `check:tsgo-operational-lane` |  |
+| `tsgo/release/bundle` | alias | package | push | advisory | `check:tsgo-release-bundle` | `check:tsgo-operational-lane` |  |
 
 ## ts7
 
@@ -90,7 +90,7 @@ Total gates: 573
 | `ts7/phase-a/shadow` | bundle | package | nightly | advisory | `check:ts7-phase-a-shadow` | `check:lsp-server-smoke-tsgo`, `check:real-project-corpus-tsgo`, `check:release-batch-tsgo` |  |
 | `ts7/phase-a/shadow-review` | gate | package | manual | advisory | `check:ts7-phase-a-shadow-review` |  |  |
 | `ts7/phase-a/stability` | gate | package | nightly | advisory | `check:ts7-phase-a-stability` |  |  |
-| `ts7/phase-a/tsgo-lane` | bundle | package | nightly | advisory | `check:ts7-phase-a-tsgo-lane` | `build`, `check:ts7-phase-a-readiness`, `check:ts7-phase-a-shadow`, `check:ts7-phase-a-stability` |  |
+| `ts7/phase-a/tsgo-lane` | bundle | package | push | advisory | `check:ts7-phase-a-tsgo-lane` | `build`, `check:ts7-phase-a-readiness`, `check:ts7-phase-a-shadow`, `check:ts7-phase-a-stability` |  |
 | `ts7/phase-b/build@tsgo` | gate | package | nightly | advisory | `check:ts7-phase-b-build-tsgo` |  |  |
 | `ts7/phase-b/editing@tsgo` | gate | package | nightly | advisory | `check:ts7-phase-b-editing-tsgo` |  |  |
 | `ts7/phase-b/protocol@tsgo` | gate | package | nightly | advisory | `check:ts7-phase-b-protocol-tsgo` |  |  |
@@ -136,7 +136,7 @@ Total gates: 573
 | `rust/checker/promotion-review` | gate | package | nightly | advisory | `check:rust-checker-promotion-review` |  |  |
 | `rust/checker/real-project-bounded` | gate | package | nightly | advisory | `check:rust-checker-real-project-bounded` |  |  |
 | `rust/checker/release-gate-readiness` | gate | package | nightly | advisory | `check:rust-checker-release-gate-readiness` |  |  |
-| `rust/checker/release-gate-shadow` | bundle | package | nightly | advisory | `check:rust-checker-release-gate-shadow` | `check:rust-checker-entrance`, `check:rust-checker-promotion-evidence`, `check:rust-checker-release-gate-readiness`, `check:rust-release-bundle` |  |
+| `rust/checker/release-gate-shadow` | bundle | package | push | advisory | `check:rust-checker-release-gate-shadow` | `check:rust-checker-entrance`, `check:rust-checker-promotion-evidence`, `check:rust-checker-release-gate-readiness`, `check:rust-release-bundle` |  |
 | `rust/checker/release-gate-shadow-review` | gate | package | manual | advisory | `check:rust-checker-release-gate-shadow-review` |  |  |
 | `rust/ci-probe/linux-benchmark` | bundle | declared | push | blocking | `@declared/rust/ci-probe/linux-benchmark` | `check:rust-benchmark-ci-reachability`, `check:rust-benchmark-emitted-css-golden-gate`, `check:rust-benchmark-headline-axis`, `check:rust-benchmark-transform-relex-baseline`, `check:rust-z5-parser-product-cutover`, `check:rust-z5-perf-baseline`, `check:rust-z5-perf-per-file-invariant`, `check:rust-z5-perf-complexity-slope`, `check:rust-demand-sliced-monotone-fact-propagation-relocation-gate-bound`, `check:rust-z5-perf-warmup-wave-count`, `check:rust-z5-perf-no-regression`, `check:rust-bundler-productization-benchmark` | ci `manual`; group `ci-probe`; reason Linux performance evidence is dispatched explicitly before the final CI run. |
 | `rust/ci-probe/omena-cli` | bundle | declared | manual | advisory | `@declared/rust/ci-probe/omena-cli` | `@declared/rust/ci-probe/omena-cli-tests`, `check:rust-omena-cli-engine-contract`, `check:rust-omena-cli-trace`, `check:rust-omena-cli-bundle-origin-chain`, `check:rust-omena-cli-soundiness-report`, `check:rust-omena-cli-resolution-policy`, `check:rust-omena-cli-sass-module-conformance`, `check:rust-omena-cli-migration` | ci `manual`; group `ci-probe`; reason Focused CLI validation is dispatched explicitly during development. |
@@ -220,7 +220,7 @@ Total gates: 573
 | `rust/omena-abstract-value/domain` | gate | package | nightly | advisory | `check:rust-omena-abstract-value-domain` |  |  |
 | `rust/omena-abstract-value/incremental-flow` | gate | package | nightly | advisory | `check:rust-omena-abstract-value-incremental-flow` |  |  |
 | `rust/omena-abstract-value/one-cfa` | gate | package | nightly | advisory | `check:rust-omena-abstract-value-one-cfa` |  |  |
-| `rust/omena-abstract-value/split-boundary` | bundle | package | nightly | advisory | `check:rust-omena-abstract-value-split-boundary` | `check:rust-omena-abstract-value-domain`, `check:rust-omena-abstract-value-incremental-flow`, `check:rust-omena-abstract-value-one-cfa` |  |
+| `rust/omena-abstract-value/split-boundary` | bundle | package+declared | nightly | advisory | `check:rust-omena-abstract-value-split-boundary` | `check:rust-omena-abstract-value-domain`, `check:rust-omena-abstract-value-incremental-flow`, `check:rust-omena-abstract-value-one-cfa` | ci `manual`; reason Compatibility split-boundary surface retained for manual review; canonical members run in CI. |
 | `rust/omena-alias-resolution-surfaces` | gate | package+declared | push | blocking | `check:rust-omena-alias-resolution-surfaces` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/omena-benchmarks-boundary` | gate | package | nightly | advisory | `check:rust-omena-benchmarks-boundary` |  |  |
 | `rust/omena-bridge/boundary` | bundle | package | nightly | advisory | `check:rust-omena-bridge-boundary` | `check:rust-omena-bridge-parser-consumer` |  |
@@ -283,15 +283,15 @@ Total gates: 573
 | `rust/omena-cross-surface-parity-full` | gate | package+declared | nightly | advisory | `check:rust-omena-cross-surface-parity-full` |  | ci `scheduled`; group `drift` |
 | `rust/omena-css/cargo-fuzz` | gate | package | nightly | advisory | `check:rust-omena-css-cargo-fuzz` |  |  |
 | `rust/omena-css/fuzz-harness` | gate | package | nightly | advisory | `check:rust-omena-css-fuzz-harness` |  |  |
-| `rust/omena-css/h1-assurance` | bundle | declared | nightly | advisory | `@declared/rust/omena-css/h1-assurance` | `check:rust-z5-performance-baseline-readiness`, `check:rust-omena-css-fuzz-harness`, `check:rust-omena-css-cargo-fuzz`, `check:rust-omena-css-rustdoc-coverage` | ci `scheduled`; group `drift` |
-| `rust/omena-css/h1-core-semantics` | bundle | declared | nightly | advisory | `@declared/rust/omena-css/h1-core-semantics` | `check:rust-omena-syntax-boundary`, `check:rust-omena-parser-boundary`, `check:rust-omena-diff-test-boundary`, `check:rust-omena-testkit-boundary`, `check:rust-omena-abstract-value-domain`, `check:rust-omena-abstract-value-incremental-flow`, `check:rust-omena-abstract-value-one-cfa`, `check:rust-omena-incremental-boundary`, `check:rust-omena-resolver-boundary`, `check:rust-omena-bridge-boundary`, `check:rust-omena-semantic-boundary`, `check:rust-omena-cascade-boundary` | ci `scheduled`; group `drift` |
-| `rust/omena-css/h1-product-surfaces` | bundle | declared | nightly | advisory | `@declared/rust/omena-css/h1-product-surfaces` | `check:rust-omena-bundler-boundary`, `check:rust-omena-transform-cst-boundary`, `check:rust-omena-transform-passes-boundary`, `check:rust-omena-transform-bundle-boundary`, `check:rust-omena-transform-target-boundary`, `check:rust-omena-transform-print-boundary`, `check:rust-omena-transform-egg-boundary`, `check:rust-omena-query-boundary`, `check:rust-checker-entrance`, `check:rust-omena-consumer-surfaces`, `check:rust-omena-lsp-server-split-boundary` | ci `scheduled`; group `drift` |
-| `rust/omena-css/h1-readiness` | bundle | declared | nightly | advisory | `check:rust-omena-css-h1-readiness` | `@declared/rust/omena-css/h1-core-semantics`, `@declared/rust/omena-css/h1-product-surfaces`, `@declared/rust/omena-css/h1-assurance` | compatibility script; ci `scheduled`; group `drift` |
+| `rust/omena-css/h1-assurance` | bundle | declared | push | advisory | `@declared/rust/omena-css/h1-assurance` | `check:rust-z5-performance-baseline-readiness`, `check:rust-omena-css-fuzz-harness`, `check:rust-omena-css-cargo-fuzz`, `check:rust-omena-css-rustdoc-coverage` | ci `scheduled`; group `drift` |
+| `rust/omena-css/h1-core-semantics` | bundle | declared | push | advisory | `@declared/rust/omena-css/h1-core-semantics` | `check:rust-omena-syntax-boundary`, `check:rust-omena-parser-boundary`, `check:rust-omena-diff-test-boundary`, `check:rust-omena-testkit-boundary`, `check:rust-omena-abstract-value-domain`, `check:rust-omena-abstract-value-incremental-flow`, `check:rust-omena-abstract-value-one-cfa`, `check:rust-omena-incremental-boundary`, `check:rust-omena-resolver-boundary`, `check:rust-omena-bridge-boundary`, `check:rust-omena-semantic-boundary`, `check:rust-omena-cascade-boundary` | ci `scheduled`; group `drift` |
+| `rust/omena-css/h1-product-surfaces` | bundle | declared | push | advisory | `@declared/rust/omena-css/h1-product-surfaces` | `check:rust-omena-bundler-boundary`, `check:rust-omena-transform-cst-boundary`, `check:rust-omena-transform-passes-boundary`, `check:rust-omena-transform-bundle-boundary`, `check:rust-omena-transform-target-boundary`, `check:rust-omena-transform-print-boundary`, `check:rust-omena-transform-egg-boundary`, `check:rust-omena-query-boundary`, `check:rust-checker-entrance`, `check:rust-omena-consumer-surfaces`, `check:rust-omena-lsp-server-split-boundary` | ci `scheduled`; group `drift` |
+| `rust/omena-css/h1-readiness` | bundle | declared | push | advisory | `check:rust-omena-css-h1-readiness` | `@declared/rust/omena-css/h1-core-semantics`, `@declared/rust/omena-css/h1-product-surfaces`, `@declared/rust/omena-css/h1-assurance` | compatibility script; ci `scheduled`; group `drift` |
 | `rust/omena-css/rustdoc-coverage` | gate | package | nightly | advisory | `check:rust-omena-css-rustdoc-coverage` |  |  |
 | `rust/omena-css/spec-boundary` | gate | package+declared | push | blocking | `check:rust-omena-css-spec-boundary` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/omena-custom-property-fixed-point-formalization` | gate | package | push | blocking | `check:rust-omena-custom-property-fixed-point-formalization` |  |  |
 | `rust/omena-debt-clock` | gate | package+declared | push | blocking | `check:rust-omena-debt-clock` |  | ci `closure-fast`; group `closure-fast` |
-| `rust/omena-diff-test-boundary` | bundle | package | nightly | blocking | `check:rust-omena-diff-test-boundary` | `check:rust-omena-diff-test-core`, `check:rust-omena-diff-test-extended`, `check:rust-omena-diff-test-sass-spec`, `check:rust-omena-diff-test-wpt` |  |
+| `rust/omena-diff-test-boundary` | bundle | package | push | blocking | `check:rust-omena-diff-test-boundary` | `check:rust-omena-diff-test-core`, `check:rust-omena-diff-test-extended`, `check:rust-omena-diff-test-sass-spec`, `check:rust-omena-diff-test-wpt` |  |
 | `rust/omena-diff-test-core` | gate | package+declared | push | blocking | `check:rust-omena-diff-test-core` | `check:rust-omena-diff-test-regressions` | ci `closure-fast`; group `closure-fast` |
 | `rust/omena-diff-test-extended` | gate | package+declared | push | blocking | `check:rust-omena-diff-test-extended` | `check:rust-omena-diff-test-external-corpus-differential`, `check:rust-omena-diff-test-less-seed`, `check:rust-omena-diff-test-raffia-advisory`, `check:rust-omena-diff-test-transform-pass-cascade-conformance` | ci `closure-fast`; group `closure-fast` |
 | `rust/omena-diff-test-external-corpus-differential` | gate | package | push | blocking | `check:rust-omena-diff-test-external-corpus-differential` |  |  |
@@ -351,7 +351,7 @@ Total gates: 573
 | `rust/omena-lsp-server/runtime-loop` | gate | package | push | blocking | `check:rust-omena-lsp-server-runtime-loop` |  |  |
 | `rust/omena-lsp-server/sass-alias-diagnostics` | gate | package | push | blocking | `check:rust-omena-lsp-server-sass-alias-diagnostics` |  |  |
 | `rust/omena-lsp-server/shell` | gate | package | push | blocking | `check:rust-omena-lsp-server-shell` |  |  |
-| `rust/omena-lsp-server/split-boundary` | bundle | package | nightly | advisory | `check:rust-omena-lsp-server-split-boundary` | `check:rust-omena-lsp-server-boundary`, `check:rust-omena-lsp-server-multi-editor`, `check:rust-omena-lsp-server-standalone-distribution`, `check:rust-omena-lsp-server-thin-client-boundary` |  |
+| `rust/omena-lsp-server/split-boundary` | bundle | package | push | advisory | `check:rust-omena-lsp-server-split-boundary` | `check:rust-omena-lsp-server-boundary`, `check:rust-omena-lsp-server-multi-editor`, `check:rust-omena-lsp-server-standalone-distribution`, `check:rust-omena-lsp-server-thin-client-boundary` |  |
 | `rust/omena-lsp-server/standalone-distribution` | gate | package | nightly | advisory | `check:rust-omena-lsp-server-standalone-distribution` |  |  |
 | `rust/omena-lsp-server/style-provider-parity` | gate | package | manual | advisory | `check:rust-omena-lsp-server-style-provider-parity` |  |  |
 | `rust/omena-lsp-server/thin-client-boundary` | gate | package | nightly | advisory | `check:rust-omena-lsp-server-thin-client-boundary` |  |  |
@@ -371,7 +371,7 @@ Total gates: 573
 | `rust/omena-plugin-consumption-law` | gate | package+declared | push | blocking | `check:rust-omena-plugin-consumption-law` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/omena-precision-witness-census` | gate | package+declared | push | blocking | `check:rust-omena-precision-witness-census` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/omena-query/adapter-capabilities` | gate | package | push | blocking | `check:rust-omena-query-adapter-capabilities` |  |  |
-| `rust/omena-query/boundary` | bundle | package | nightly | blocking | `check:rust-omena-query-boundary` | `check:rust-omena-query-core-contract`, `check:rust-omena-query-runtime-contract`, `check:rust-omena-query-transform-contract` |  |
+| `rust/omena-query/boundary` | bundle | package | push | blocking | `check:rust-omena-query-boundary` | `check:rust-omena-query-core-contract`, `check:rust-omena-query-runtime-contract`, `check:rust-omena-query-transform-contract` |  |
 | `rust/omena-query/bundle-execution-scope` | gate | package+declared | push | blocking | `check:rust-omena-query-bundle-execution-scope` |  | ci `rust-workspace`; group `rust-workspace` |
 | `rust/omena-query/cascade-input-authority` | gate | package+declared | push | blocking | `check:rust-omena-query-cascade-input-authority` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/omena-query/consumer-facade` | gate | package | push | blocking | `check:rust-omena-query-consumer-facade` |  |  |
@@ -388,7 +388,7 @@ Total gates: 573
 | `rust/omena-query/public-surface:update` | command | package+declared | manual | advisory | `update:rust-omena-query-public-surface` |  | ci `manual`; group `rust`; reason Snapshot refresh command is invoked deliberately when accepting public API drift. |
 | `rust/omena-query/runner-boundary` | gate | package | push | blocking | `check:rust-omena-query-runner-boundary` |  |  |
 | `rust/omena-query/runtime-contract` | alias | package+declared | push | blocking | `check:rust-omena-query-runtime-contract` | `check:rust-omena-query-runner-boundary` | ci `closure-fast`; group `closure-fast` |
-| `rust/omena-query/split-boundary` | alias | package | nightly | blocking | `check:rust-omena-query-split-boundary` | `check:rust-omena-query-boundary` |  |
+| `rust/omena-query/split-boundary` | alias | package | push | blocking | `check:rust-omena-query-split-boundary` | `check:rust-omena-query-boundary` |  |
 | `rust/omena-query/strict-verification` | gate | package+declared | push | blocking | `check:rust-omena-query-strict-verification` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/omena-query/transform-context` | gate | package | push | blocking | `check:rust-omena-query-transform-context` |  |  |
 | `rust/omena-query/transform-contract` | gate | package+declared | push | blocking | `check:rust-omena-query-transform-contract` | `check:rust-omena-query-bundle-execution-scope`, `check:rust-omena-query-effective-pass-set`, `check:rust-omena-query-linked-source-map-boundary`, `check:rust-omena-query-native-css-routing`, `check:rust-omena-query-strict-verification`, `check:rust-omena-query-transform-context`, `check:rust-omena-query-transform-differential`, `check:rust-omena-query-transform-execute`, `check:rust-omena-query-transform-plan` | ci `closure-fast`; group `closure-fast` |
@@ -409,7 +409,7 @@ Total gates: 573
 | `rust/omena-semantic-boundary` | gate | package | nightly | advisory | `check:rust-omena-semantic-boundary` |  |  |
 | `rust/omena-semantic-observation-harness` | gate | package | manual | advisory | `check:rust-omena-semantic-observation-harness` |  |  |
 | `rust/omena-semantic-publish-readiness` | gate | package | nightly | advisory | `check:rust-omena-semantic-publish-readiness` |  |  |
-| `rust/omena-semantic-split-boundary` | bundle | package | manual | advisory | `check:rust-omena-semantic-split-boundary` | `check:rust-omena-literal-evidence-census`, `check:rust-omena-semantic-boundary`, `check:rust-omena-semantic-observation-harness`, `check:rust-omena-semantic-publish-readiness` |  |
+| `rust/omena-semantic-split-boundary` | bundle | package+declared | manual | advisory | `check:rust-omena-semantic-split-boundary` | `check:rust-omena-literal-evidence-census`, `check:rust-omena-semantic-boundary`, `check:rust-omena-semantic-observation-harness`, `check:rust-omena-semantic-publish-readiness` | ci `manual`; reason Compatibility split-boundary surface retained for manual review; canonical members run in CI. |
 | `rust/omena-sif/boundary` | bundle | package | nightly | advisory | `check:rust-omena-sif-boundary` | `check:rust-omena-cli-external-migration`, `check:rust-omena-cli-external-sif-chain`, `check:rust-omena-cli-lock-management`, `check:rust-omena-cli-lock-source-coverage`, `check:rust-omena-sif-npm-provenance-acquisition`, `check:rust-omena-sif-shard-trust-census`, `check:rust-omena-sif-t3-keyless-workflow` |  |
 | `rust/omena-sif/end-to-end` | gate | package | nightly | advisory | `check:rust-omena-sif-end-to-end` |  |  |
 | `rust/omena-sif/npm-provenance-acquisition` | gate | package | nightly | advisory | `check:rust-omena-sif-npm-provenance-acquisition` |  |  |
@@ -488,7 +488,7 @@ Total gates: 573
 | `rust/query-plan/compare` | gate | package | manual | advisory | `check:rust-query-plan-compare` |  |  |
 | `rust/ranked-set-loss-census` | gate | package+declared | push | blocking | `check:rust-ranked-set-loss-census` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/release-semver-intent-contract` | gate | declared | push | blocking | `@declared/rust/release-semver-intent-contract` |  | ci `verify`; group `verify` |
-| `rust/release/bundle` | bundle | declared | nightly | advisory | `check:rust-release-bundle` | `check:rust-workspace`, `check:rust-omena-syntax-boundary`, `check:rust-omena-interner-boundary`, `check:rust-omena-parser-boundary`, `check:rust-omena-testkit-boundary`, `check:rust-omena-abstract-value-domain`, `check:rust-omena-abstract-value-incremental-flow`, `check:rust-omena-abstract-value-one-cfa`, `check:rust-omena-incremental-boundary`, `check:rust-omena-resolver-boundary`, `check:rust-omena-sif-boundary`, `check:rust-omena-sif-end-to-end`, `check:rust-omena-query-boundary`, `check:rust-omena-consumer-surfaces`, `check:rust-omena-lsp-server-split-boundary`, `check:rust-producer-boundary`, `check:rust-parser-public-product`, `check:rust-omena-bridge-boundary`, `check:rust-omena-cascade-boundary`, `check:rust-omena-bundler-boundary`, `check:rust-omena-transform-cst-boundary`, `check:rust-omena-transform-passes-boundary`, `check:rust-omena-transform-bundle-boundary`, `check:rust-omena-transform-target-boundary`, `check:rust-omena-transform-print-boundary`, `check:rust-omena-transform-egg-boundary`, `check:rust-omena-css-fuzz-harness`, `check:rust-omena-semantic-boundary`, `check:rust-omena-semantic-publish-readiness`, `check:rust-checker-entrance`, `check:rust-theory-claim-levels`, `check:rust-gate-evidence` | compatibility script; ci `manual`; group `release`; reason Full Rust release bundle is covered by manual release verification. |
+| `rust/release/bundle` | bundle | declared | push | advisory | `check:rust-release-bundle` | `check:rust-workspace`, `check:rust-omena-syntax-boundary`, `check:rust-omena-interner-boundary`, `check:rust-omena-parser-boundary`, `check:rust-omena-testkit-boundary`, `check:rust-omena-abstract-value-domain`, `check:rust-omena-abstract-value-incremental-flow`, `check:rust-omena-abstract-value-one-cfa`, `check:rust-omena-incremental-boundary`, `check:rust-omena-resolver-boundary`, `check:rust-omena-sif-boundary`, `check:rust-omena-sif-end-to-end`, `check:rust-omena-query-boundary`, `check:rust-omena-consumer-surfaces`, `check:rust-omena-lsp-server-split-boundary`, `check:rust-producer-boundary`, `check:rust-parser-public-product`, `check:rust-omena-bridge-boundary`, `check:rust-omena-cascade-boundary`, `check:rust-omena-bundler-boundary`, `check:rust-omena-transform-cst-boundary`, `check:rust-omena-transform-passes-boundary`, `check:rust-omena-transform-bundle-boundary`, `check:rust-omena-transform-target-boundary`, `check:rust-omena-transform-print-boundary`, `check:rust-omena-transform-egg-boundary`, `check:rust-omena-css-fuzz-harness`, `check:rust-omena-semantic-boundary`, `check:rust-omena-semantic-publish-readiness`, `check:rust-checker-entrance`, `check:rust-theory-claim-levels`, `check:rust-gate-evidence` | compatibility script; ci `manual`; group `release`; reason Full Rust release bundle is covered by manual release verification. |
 | `rust/role-boundaries` | gate | package+declared | push | blocking | `check:rust-role-boundaries` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/runtime-query-api-hardening` | alias | declared | push | blocking | `@declared/rust/runtime-query-api-hardening` | `check:rust-m1-runtime-query-api-hardening` | replaces `rust/m1-runtime-query-api-hardening`, `check:rust-m1-runtime-query-api-hardening`; ci `closure-fast`; group `closure-fast` |
 | `rust/selected-query/consumers` | gate | package | nightly | advisory | `check:rust-selected-query-consumers` |  |  |
@@ -549,7 +549,7 @@ Total gates: 573
 | `rust/z5-perf-warmup-wave-count` | gate | package | push | blocking | `check:rust-z5-perf-warmup-wave-count` |  |  |
 | `rust/z5-performance-baseline-macro` | gate | package | nightly | advisory | `check:rust-z5-performance-baseline-macro` | `check:rust-omena-lsp-server-runtime-loop` |  |
 | `rust/z5-performance-baseline-micro` | gate | package | nightly | advisory | `check:rust-z5-performance-baseline-micro` |  |  |
-| `rust/z5-performance-baseline-readiness` | bundle | package | nightly | advisory | `check:rust-z5-performance-baseline-readiness` | `check:rust-benchmark-emitted-css-golden-gate`, `check:rust-benchmark-transform-relex-baseline`, `check:rust-omena-benchmarks-boundary`, `check:rust-z5-criterion-surface-snapshot`, `check:rust-z5-external-comparator-readiness`, `check:rust-z5-format-idempotence`, `check:rust-z5-parser-product-cutover`, `check:rust-z5-performance-baseline-macro`, `check:rust-z5-performance-baseline-micro` |  |
+| `rust/z5-performance-baseline-readiness` | bundle | package | push | advisory | `check:rust-z5-performance-baseline-readiness` | `check:rust-benchmark-emitted-css-golden-gate`, `check:rust-benchmark-transform-relex-baseline`, `check:rust-omena-benchmarks-boundary`, `check:rust-z5-criterion-surface-snapshot`, `check:rust-z5-external-comparator-readiness`, `check:rust-z5-format-idempotence`, `check:rust-z5-parser-product-cutover`, `check:rust-z5-performance-baseline-macro`, `check:rust-z5-performance-baseline-micro` |  |
 
 ## plugin
 

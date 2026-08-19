@@ -5,7 +5,7 @@ import {
   type WorkflowTriggerFacts,
 } from "./workflows";
 
-// g130-S1: cadence and strength are TOTAL, DERIVED axes.
+// cadence and strength are TOTAL, DERIVED axes.
 // - cadence(gate) = the fastest cadence among the workflows whose jobs reach
 //   the gate (push < nightly < weekly < release < manual); unreached => manual.
 // - strength(gate) = blocking iff the gate is reached from a ci.yml job whose
@@ -42,21 +42,26 @@ export function computeGateLifecycles(
       }
     }
   }
-  // Bundle fixpoint: a gate whose referenced targets are all reachable adopts
-  // the fastest cadence among them (mirrors the tier-reachability fixpoint).
+  // Bundle fixpoint, SYMMETRIC with the strength fixpoint (hardening review):
+  // a bundle's cadence is the fastest of its own direct reach AND its member
+  // closure — a directly-scheduled bundle whose members all run on push is a
+  // push-cadence surface, not a nightly one.
   let changed = true;
   while (changed) {
     changed = false;
     for (const gate of gates) {
-      if (derivedCadence.has(gate.id) || !gate.referencedTargets?.length) continue;
+      if (!gate.referencedTargets?.length) continue;
       const memberCadences = gate.referencedTargets.map((target) =>
         derivedCadence.get(resolveGateIdForTarget(gates, target) ?? ""),
       );
       if (memberCadences.some((cadence) => cadence === undefined)) continue;
-      const fastest = (memberCadences as GateCadence[]).toSorted(
+      const candidates = [...(memberCadences as GateCadence[])];
+      const direct = derivedCadence.get(gate.id);
+      if (direct) candidates.push(direct);
+      const fastest = candidates.toSorted(
         (left, right) => CADENCE_ORDER.indexOf(left) - CADENCE_ORDER.indexOf(right),
       )[0];
-      if (!fastest) continue;
+      if (!fastest || fastest === direct) continue;
       derivedCadence.set(gate.id, fastest);
       changed = true;
     }

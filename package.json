@@ -626,7 +626,8 @@
     "vitest": "^4.1.10",
     "vscode-jsonrpc": "^9.0.1",
     "vscode-languageserver-protocol": "^3.18.2",
-    "web-features": "3.34.3"
+    "web-features": "3.34.3",
+    "yaml": "^2.9.0"
   },
   "contributes": {
     "commands": [

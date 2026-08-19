@@ -1,8 +1,9 @@
 import { strict as assert } from "node:assert";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 
-// g130-S3: ci.yml becomes a generated artifact. The registry carries every job
+// ci.yml becomes a generated artifact. The registry carries every job
 // BLOCK VERBATIM (REV4: run bodies, matrices, permissions, artifact names are
 // carried, not synthesized) plus structured metadata that generation VALIDATES
 // against the block — so byte-identity is achievable while the derived facts
@@ -156,6 +157,24 @@ export function validateCiWorkflowRegistry(
         errors.push(`job "${job.name}" needs unknown job "${need}"`);
       }
     }
+  }
+  for (const job of registry.jobs) {
+    const blockText = job.block.join("\n");
+    if (!/^ {4}(runs-on|uses):/m.test(blockText)) {
+      errors.push(
+        `job "${job.name}" block carries neither runs-on nor uses — a run-body line ` +
+          `matching the job-header shape has likely split a real job (phantom job)`,
+      );
+    }
+  }
+  // The emitted document must PARSE — a registry hand-edit must never ship an
+  // unloadable workflow while the drift gate reports none (hardening review).
+  try {
+    parseYaml(renderCiWorkflow(registry));
+  } catch (error) {
+    errors.push(
+      `emitted ci.yml does not parse as YAML: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`,
+    );
   }
   const ciRequired = registry.jobs.find((job) => job.name === "ci-required");
   if (!ciRequired) {

@@ -33,9 +33,19 @@ export function renderCheckInventory(
     "## Scope Summary",
     "",
     renderMarkdownTable(
-      ["Scope", "Gates", "Bundles", "Aliases", "Commands"],
-      renderScopeSummary(gates),
-      ["left", "right", "right", "right", "right"],
+      [
+        "Scope",
+        "Gates",
+        "Bundles",
+        "Aliases",
+        "Commands",
+        "Blocking",
+        "Advisory",
+        "Push",
+        "Scheduled",
+      ],
+      renderScopeSummary(gates, manifest.lifecycleByGateId),
+      ["left", "right", "right", "right", "right", "right", "right", "right", "right"],
     ),
     "",
     ...SCOPE_ORDER.flatMap((scope) => renderScopeSection(scope, gates, manifest.lifecycleByGateId)),
@@ -44,13 +54,33 @@ export function renderCheckInventory(
     .trimEnd();
 }
 
-function renderScopeSummary(gates: readonly CheckGate[]): string[][] {
+function renderScopeSummary(
+  gates: readonly CheckGate[],
+  lifecycle?: ReadonlyMap<string, GateLifecycle>,
+): string[][] {
   return SCOPE_ORDER.map((scope) => {
     const scopeGates = gates.filter((gate) => gate.scope === scope);
     const bundles = scopeGates.filter((gate) => gate.kind === "bundle").length;
     const aliases = scopeGates.filter((gate) => gate.kind === "alias").length;
     const commands = scopeGates.filter((gate) => gate.kind === "command").length;
-    return [scope, String(scopeGates.length), String(bundles), String(aliases), String(commands)];
+    const axes = scopeGates.map((gate) => lifecycle?.get(gate.id));
+    const blocking = axes.filter((axis) => axis?.strength === "blocking").length;
+    const advisory = axes.filter((axis) => axis?.strength === "advisory").length;
+    const push = axes.filter((axis) => axis?.cadence === "push").length;
+    const scheduled = axes.filter(
+      (axis) => axis?.cadence === "nightly" || axis?.cadence === "weekly",
+    ).length;
+    return [
+      scope,
+      String(scopeGates.length),
+      String(bundles),
+      String(aliases),
+      String(commands),
+      String(blocking),
+      String(advisory),
+      String(push),
+      String(scheduled),
+    ];
   }).filter(([, gateCount]) => gateCount !== "0");
 }
 
@@ -130,7 +160,7 @@ function renderMarkdownTable(
   rows: readonly (readonly string[])[],
   alignments: readonly ColumnAlignment[],
 ): string {
-  // Minimal-width cells (g130-S4): padding every cell to the widest column made
+  // Minimal-width cells (hardening review): padding every cell to the widest column made
   // one added gate rewrite ~445 rows (~886 diff lines). Unpadded rows keep an
   // added gate's diff to its own line.
   const widths = headers.map((header) => Math.max(3, header.length));

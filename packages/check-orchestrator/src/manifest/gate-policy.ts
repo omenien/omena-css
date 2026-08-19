@@ -2,8 +2,55 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { CheckDiagnostic, CheckGate, GateLifecycle } from "./types";
 
-// g130-S2: the WPT module-promotion mechanism generalized to the gate corpus.
-// The expensive tier (static enumeration until the g131 cost ledger replaces
+/**
+ * The mechanical tier rule, recomputed at LOAD time from the lane definition
+ * the policy itself records: direct members of the named bundles, the named
+ * single gates, and every `omena-check run|bundle` target inside the named
+ * ci.yml jobs. Population completeness holds in BOTH directions against the
+ * record set (both directions — adding a tier gate without a record is as loud as retiring one).
+ */
+export function expensiveTierMembers(
+  rootDir: string,
+  gates: readonly CheckGate[],
+  lanes: GatePolicy["lanes"],
+): ReadonlySet<string> {
+  const ids = new Set<string>();
+  const resolve = (target: string): CheckGate | undefined =>
+    gates.find((gate) => gate.id === target || gate.scriptName === target) ??
+    gates.find((gate) => gate.deprecatedAliases?.includes(target)) ??
+    gates.find((gate) => gate.id.endsWith(`/${target}`));
+  for (const bundleId of lanes.bundles) {
+    const bundle = resolve(bundleId);
+    if (!bundle) continue;
+    ids.add(bundle.id);
+    for (const target of bundle.referencedTargets ?? []) {
+      const member = resolve(target);
+      if (member) ids.add(member.id);
+    }
+  }
+  for (const single of lanes.singles) {
+    const gate = resolve(single);
+    if (gate) ids.add(gate.id);
+  }
+  const ciPath = path.join(rootDir, ".github/workflows/ci.yml");
+  if (existsSync(ciPath)) {
+    const lines = readFileSync(ciPath, "utf8").split(/\r?\n/);
+    let currentJob = "";
+    for (const line of lines) {
+      const header = line.match(/^ {2}([A-Za-z0-9_-]+):\s*$/);
+      if (header) currentJob = header[1] ?? "";
+      if (!lanes.ciJobs.includes(currentJob)) continue;
+      const target = line.match(/omena-check (?:run|bundle) ([A-Za-z0-9:_@/.-]+)/)?.[1];
+      if (!target) continue;
+      const gate = resolve(target);
+      if (gate) ids.add(gate.id);
+    }
+  }
+  return ids;
+}
+
+// the WPT module-promotion mechanism generalized to the gate corpus.
+// The expensive tier (static enumeration until the cost-ledger successor replaces
 // it) carries per-gate lifecycle records with a review interval; the CI
 // reachability escape hatch folds into the same file so its review date is
 // COMPARED, not prose. The clock is env-injectable (WPT pattern) so the
@@ -31,6 +78,11 @@ export interface GatePolicy {
     readonly owner: string;
     readonly reviewedAt: string;
     readonly reviewAfter: string;
+  };
+  readonly lanes: {
+    readonly bundles: readonly string[];
+    readonly singles: readonly string[];
+    readonly ciJobs: readonly string[];
   };
   readonly records: readonly GatePolicyRecord[];
 }
@@ -142,6 +194,30 @@ export function findGatePolicyDiagnostics(
         message:
           `gate-policy record "${record.gateId}" is staged "${record.stage}" but the derived strength is ` +
           `"${derived}"; align the stage or carry a vocabulary holdReason.`,
+      });
+    }
+  }
+
+  const tier = expensiveTierMembers(rootDir, gates, policy.lanes);
+  for (const memberId of tier) {
+    if (!seen.has(memberId)) {
+      diagnostics.push({
+        severity: "error",
+        code: "gate-policy-record-missing",
+        message:
+          `expensive-tier gate "${memberId}" has no gate-policy record; adding or moving a gate ` +
+          `into a governed lane must land its record in the same commit.`,
+      });
+    }
+  }
+  for (const recordId of seen) {
+    if (!tier.has(recordId) && gateIds.has(recordId)) {
+      diagnostics.push({
+        severity: "error",
+        code: "gate-policy-record-not-in-tier",
+        message:
+          `gate-policy record "${recordId}" is no longer an expensive-tier member; retire the ` +
+          `record in the same commit as the lane change.`,
       });
     }
   }

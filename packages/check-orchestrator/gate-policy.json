@@ -12,1063 +12,1076 @@
     "reviewedAt": "2026-08-20",
     "reviewAfter": "2026-11-18"
   },
+  "lanes": {
+    "bundles": ["rust/closure-fast", "rust/product-test-contracts"],
+    "singles": ["plugin/consumers", "rust/product-test-execution", "rust/workspace"],
+    "ciJobs": [
+      "rust-contracts",
+      "benchmark-contracts",
+      "benchmark-instructions",
+      "benchmark-complexity",
+      "benchmark-products",
+      "protocol-matrix",
+      "verify-native-linux"
+    ]
+  },
   "records": [
     {
       "gateId": "contract/parity-v2-golden",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "contract/type-fact-backend-parity",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "core/build/omena-napi",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "plugin/consumers",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "release/check/packaged-omena-napi-crossplatform",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "release/check/release-tag-grammar",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/benchmark/ci-reachability",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/benchmark/emitted-css-golden-gate",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/benchmark/headline-axis",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/benchmark/transform-relex-baseline",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/bundler-productization-benchmark",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/closure-fast",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/closure-fast-aggregation-complete",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/contract-shape-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/core-layer-hygiene",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/cross-file-reachability-diagnostic",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/cst-typed-egress-closure",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-relocation-gate",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-settle-soak",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-solver-hygiene",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/discharge-ledger",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/domain-claim-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/evidence-graph-single-authority",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/feature-resolved-product-reachability",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/guarded-cascade-winner-closure",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/inter-crate-pin",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/layer-dependency-exceptions",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/lint-finding-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/naming-consistency",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/no-split-repo-residue",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/obligation-family-closure",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-alias-resolution-surfaces",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-bundler/adapter-pass-authority",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-bundler/closed-world-authority",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-bundler/emission-item-contract",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-bundler/emission-order-contract",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-bundler/linked-emission-byte-differential",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-bundler/linked-emission-default-precondition",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-bundler/linked-emission-falsifier-disclosure",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-bundler/public-surface",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cascade/boundary",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cascade/layer-rank-construction",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cascade/property-metadata",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cli-json-output-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cli-migration",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cli-minify-backend",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cli-persona-presets",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cli-postcss-compat",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cli-verb-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-config-schema-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-coverage-gap-report",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-cross-surface-parity",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-css/spec-boundary",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-debt-clock",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-diff-test-core",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-diff-test-extended",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-diff-test-sass-spec",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-diff-test-wpt",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-fact-precision-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-ffi-boundary-typing-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-js-bundler-host-no-regex-classmap",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-js-bundler-host-parity",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-js-bundler-host-plugin-kind",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-keyword-case-authority-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-lint-parity",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-lint-tier-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-literal-evidence-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-lsp-server/boundary",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-lsp-server/reactive-shadow-parity",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-lsp-server/tide-sole-authority",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-modules-surface",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-plugin-abi-stability",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-plugin-consumption-law",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-precision-witness-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/bundle-execution-scope",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/cascade-input-authority",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/core-contract",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/css-module-token-integrity",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/linked-source-map-boundary",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/linker-input-walk-authority",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/module-qualified-product-path",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/module-reachability-hoist",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/runtime-contract",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/transform-contract",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-query/transform-differential",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-reactive/contract",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-reactive/performance",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-reactive/public-surface",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-reactive/public-surface:update",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-response-surface-split-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-sass-intelligence",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-sdk-error-mapping-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-source-type-fact-shape-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-spec-audit-webref-drift",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-spec-audit-webref-grammar",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-style-resolution-authority",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-stylelint-compat",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-syntax-authority-raw-scan-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-top-provenance-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-transform-cst/minify-profile-manifest",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-transform-cst/observation-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-transform-passes/lex-splice-equivalence",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-transform-passes/structural-ir-shadow",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-transform-target/boundary",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-tsgo-type-flags-abi",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-value-grammar-differential",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-value-grammar-evidence",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-verification-targets",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-workspace-session-routing",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omena-write-safety",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omenad-protocol",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/omenad-substrate-inventory",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/oss-corpus-farm-determinism",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/oss-corpus-farm-regressions",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/precision-floor",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/product-facing-capability",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/product-lab-severance",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/product-path-matrix",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/product-surface-boundary-reviews",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/product-test-contracts",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/product-test-execution",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/proof-kernel",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/proof-kernel-self-produced-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/publish-flags",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/publish-train-closure",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/published-crate-surface-register",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/ranked-set-loss-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/role-boundaries",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/runtime-query-api-hardening",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/semantic/preservation-model-conformance",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/source-frontend/cross-language",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/source-frontend/parity-ledger",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/source-precision-ratchet",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/theory-generalization",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/transform-decision-census",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/transform-rollback",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/transform-source-map-integrity",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/transform-winner-equality-audit",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/translation-validation-kill-rate",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/two-tier-identity-contract",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/verification-plane-closure",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/workspace",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/z5-parser-product-cutover",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/z5-perf-baseline",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/z5-perf-complexity-slope",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/z5-perf-no-regression",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/z5-perf-per-file-invariant",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "rust/z5-perf-warmup-wave-count",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "test/protocol",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
       "gateId": "test/test",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the g131 cost ledger when it lands"
+      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     }
   ]
 }

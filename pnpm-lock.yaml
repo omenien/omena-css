@@ -139,6 +139,9 @@ importers:
       web-features:
         specifier: 3.34.3
         version: 3.34.3
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
 
   apps/docs:
     dependencies:

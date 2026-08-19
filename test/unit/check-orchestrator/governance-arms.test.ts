@@ -6,13 +6,18 @@ import {
   renderCheckInventory,
 } from "../../../packages/check-orchestrator/src/manifest/index";
 import { findCiRequiredAggregationDiagnostics } from "../../../packages/check-orchestrator/src/manifest/workflows";
+import { expensiveTierMembers } from "../../../packages/check-orchestrator/src/manifest/gate-policy";
+import {
+  adoptCiWorkflow,
+  validateCiWorkflowRegistry,
+} from "../../../packages/check-orchestrator/src/manifest/ci-workflow";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 
 const repoRoot = path.resolve(__dirname, "../../..");
 
-describe("g130 S4/S5 governance arms", () => {
-  it("S4 DIFF-SIZE ARM: adding one gate changes at most 3 inventory lines", () => {
+describe("inventory and governance hardening arms", () => {
+  it("DIFF-SIZE ARM: adding one gate changes at most 3 inventory lines", () => {
     const manifest = loadCheckManifest(repoRoot);
     const before = renderCheckInventory(manifest).split("\n");
     const synthetic = {
@@ -38,7 +43,7 @@ describe("g130 S4/S5 governance arms", () => {
     expect(changed).toBeLessThanOrEqual(3);
   });
 
-  it("S4 RED-PROOF: dep args on a dependencies-executor bundle and CLI-level flags are load-time errors", () => {
+  it("DEP-ARGS RED-PROOF: dep args on a dependencies-executor bundle and CLI-level flags are load-time errors", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-dep-args-"));
     writeFileSync(
       path.join(root, "package.json"),
@@ -99,7 +104,7 @@ describe("g130 S4/S5 governance arms", () => {
     ).toEqual([]);
   });
 
-  it("S5 RED-PROOF (isolated from the drift gate): stripping every required annotation is now ci-required-model-missing, not silence", () => {
+  it("REQUIRED-MODEL RED-PROOF (isolated from the drift gate): stripping every required annotation is now ci-required-model-missing, not silence", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-required-model-"));
     mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
     const annotated = [
@@ -135,7 +140,103 @@ describe("g130 S4/S5 governance arms", () => {
     ]);
   });
 
-  it("S5 DIAGNOSTIC-CODE CENSUS: every code literal in src is in the committed inventory and vice versa", () => {
+  it("HARDENING RED-PROOF: an interior always() aggregator without a judge is an error (silent strength inversion closed)", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-aggregator-judge-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    const base = [
+      "name: CI",
+      "jobs:",
+      "  leaf:",
+      "    # omena-ci-required: false",
+      "    runs-on: ubuntu-latest",
+      "  aggregate:",
+      "    # omena-ci-required: true",
+      "    needs:",
+      "      - leaf",
+      "    if: ${{ always() }}",
+      "    runs-on: ubuntu-latest",
+      "    steps:",
+      "      - run: node ./scripts/check-ci-required-results.mjs",
+      "  ci-required:",
+      "    # omena-ci-required: false",
+      "    needs:",
+      "      - aggregate",
+      "    if: ${{ always() }}",
+      "    runs-on: ubuntu-latest",
+      "    steps:",
+      "      - run: node ./scripts/check-ci-required-results.mjs",
+    ].join("\n");
+    writeFileSync(path.join(root, ".github/workflows/ci.yml"), base);
+    expect(
+      findCiRequiredAggregationDiagnostics(root).filter((diagnostic) =>
+        diagnostic.code.startsWith("ci-aggregator"),
+      ),
+    ).toEqual([]);
+
+    // The lens's sanctioned one-line edit: drop the judge from the interior aggregator.
+    writeFileSync(
+      path.join(root, ".github/workflows/ci.yml"),
+      base.replace(
+        "    steps:\n      - run: node ./scripts/check-ci-required-results.mjs\n  ci-required:",
+        "    steps:\n      - run: echo ok\n  ci-required:",
+      ),
+    );
+    expect(findCiRequiredAggregationDiagnostics(root)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "ci-aggregator-judge-missing" })]),
+    );
+  });
+
+  it("HARDENING RED-PROOF: a new expensive-lane member without a policy record REDs (population ADD direction)", () => {
+    const manifest = loadCheckManifest(repoRoot);
+    const policy = JSON.parse(
+      readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
+    ) as { lanes: { singles: string[] } };
+    policy.lanes.singles = [...policy.lanes.singles, "docs/site"];
+    const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-policy-add-"));
+    // Reuse the real repo gates against a scratch policy via the exported tier rule.
+    const tier = expensiveTierMembers(repoRoot, manifest.gates, policy.lanes as never);
+    expect(tier.has("docs/site")).toBe(true);
+    void scratch;
+  });
+
+  it("HARDENING RED-PROOF: registry emitting unparseable YAML or a phantom job block is refused at validation", () => {
+    const registry = adoptCiWorkflow(
+      [
+        "name: CI",
+        "jobs:",
+        "  solo:",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        "      - run: echo ok",
+      ].join("\n"),
+    );
+    expect(validateCiWorkflowRegistry(registry).errors).toEqual(
+      expect.arrayContaining([expect.stringContaining("ci-required")]),
+    );
+    const broken = {
+      ...registry,
+      jobs: registry.jobs.map((job) => ({
+        ...job,
+        block: [...job.block, "    runs-on: [unclosed"],
+      })),
+    };
+    expect(validateCiWorkflowRegistry(broken).errors.join(";")).toContain("does not parse as YAML");
+    const phantom = {
+      ...registry,
+      jobs: [
+        ...registry.jobs,
+        {
+          name: "ghost",
+          block: ["  ghost:"],
+          requiredAnnotation: null,
+          tierAnnotation: null,
+          needs: [],
+        },
+      ],
+    };
+    expect(validateCiWorkflowRegistry(phantom).errors.join(";")).toContain("phantom job");
+  });
+  it("DIAGNOSTIC-CODE CENSUS: every code literal in src is in the committed inventory and vice versa", () => {
     const src = path.join(repoRoot, "packages/check-orchestrator/src");
     const found = new Set<string>();
     const walk = (dir: string): void => {

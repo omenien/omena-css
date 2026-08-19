@@ -67,7 +67,7 @@ const SCRIPTS = {
   "check:docs-soak-only": "node ./scripts/check-docs-soak.ts",
 };
 
-describe("gate lifecycle derivation (g130-S1)", () => {
+describe("gate lifecycle derivation (derived axes)", () => {
   it("derives blocking through the ci-required needs-ancestor closure and advisory outside it", () => {
     const root = fixtureRoot({ "ci.yml": CI_YML, "nightly.yml": NIGHTLY_YML }, SCRIPTS);
     const manifest = loadCheckManifest(root, { declaredGates: [] });

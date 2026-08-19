@@ -56,6 +56,7 @@ const BASE_POLICY = {
     reviewedAt: "2026-08-20",
     reviewAfter: "2026-11-18",
   },
+  lanes: { bundles: [], singles: ["docs/site"], ciJobs: [] },
   records: [
     {
       gateId: "docs/site",
@@ -77,7 +78,7 @@ afterEach(() => {
   delete process.env.OMENA_GATE_POLICY_TODAY;
 });
 
-describe("gate policy registry (g130-S2)", () => {
+describe("gate policy registry (promotion policy)", () => {
   it("is quiet on a coherent policy", () => {
     expect(diagnosticsFor(BASE_POLICY)).toEqual([]);
   });

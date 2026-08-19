@@ -78,7 +78,7 @@ jobs:
       - run: node ./scripts/check-ci-required-results.mjs
 `;
 
-describe("ci-workflow generator (g130-S3)", () => {
+describe("ci-workflow generator (generated workflow)", () => {
   it("NO-OP PROOF: adopt(write(committed ci.yml)) round-trips byte-identically on the real repository", () => {
     const committed = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
     const registry = adoptCiWorkflow(committed);

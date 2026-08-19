@@ -1026,7 +1026,7 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
     required: parseWorkflowRequiredAnnotation(lines, job),
   }));
   if (annotations.every(({ required }) => required === null)) {
-    // g130-S5: this was the ONE genuine fail-open — deleting EVERY
+    // this was the ONE genuine fail-open — deleting EVERY
     // `# omena-ci-required:` annotation used to disable the whole contract
     // (single deletions and flips were already loud). A ci.yml with jobs and
     // zero annotations is now an error, not silence.
@@ -1043,6 +1043,45 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
   }
 
   const diagnostics: CheckDiagnostic[] = [];
+
+  // Hardening review: the strength derivation's skip-cascade premise is
+  // broken exactly at `if: always()` joints. EVERY ci-required needs-ancestor
+  // that disables skip-propagation with always() must judge its needs with
+  // check-ci-required-results.mjs — previously only the job literally named
+  // "ci-required" carried that duty, so one sanctioned line-edit could invert
+  // ~100 gates' strength silently.
+  const jobByName = new Map(jobs.map((job) => [job.name, job]));
+  const needsByName = new Map(jobs.map((job) => [job.name, parseWorkflowJobNeeds(lines, job)]));
+  const ancestors = new Set<string>();
+  const queue = [...(needsByName.get("ci-required") ?? [])];
+  while (queue.length > 0) {
+    const name = queue.pop();
+    if (!name || ancestors.has(name)) continue;
+    ancestors.add(name);
+    queue.push(...(needsByName.get(name) ?? []));
+  }
+  for (const name of ancestors) {
+    const job = jobByName.get(name);
+    if (!job) continue;
+    const block = lines.slice(job.start, job.end).join("\n");
+    const hasAlways = /if:\s*\$\{\{\s*always\(\)\s*\}\}/.test(block);
+    const hasJudge = block.includes("check-ci-required-results.mjs");
+    if (hasAlways && !hasJudge) {
+      diagnostics.push({
+        severity: "error",
+        code: "ci-aggregator-judge-missing",
+        message: `.github/workflows/ci.yml job "${name}" reaches ci-required and uses if: always() without judging its needs via check-ci-required-results.mjs; a failed need would silently become success.`,
+      });
+    }
+    if (hasJudge && !hasAlways && name !== "ci-required") {
+      diagnostics.push({
+        severity: "error",
+        code: "ci-aggregator-missing-always",
+        message: `.github/workflows/ci.yml job "${name}" judges its needs but lacks if: always(); the judge is skipped exactly when it matters.`,
+      });
+    }
+  }
+
   for (const { job, required } of annotations) {
     if (required !== null) continue;
     diagnostics.push({
@@ -1143,6 +1182,19 @@ export function findCiTierReachabilityDiagnostics(
       }
 
       const classification = GOVERNED_CI_LEAF_CLASSIFICATIONS_BY_ID.get(gate.id);
+      if (
+        classification?.criterion === "compat-alias-with-retirement-window" &&
+        gate.kind !== "alias" &&
+        !gate.deprecatedBy &&
+        !gate.deprecatedAliases?.length &&
+        !gate.tags?.includes("compat-split-boundary")
+      ) {
+        diagnostics.push({
+          severity: "error",
+          code: "governed-leaf-criterion-mismatch",
+          message: `Governed leaf "${gate.id}" carries criterion compat-alias-with-retirement-window but is not an alias-shaped gate (kind=${gate.kind}, no deprecation linkage).`,
+        });
+      }
       if (!classification) {
         diagnostics.push({
           severity: "error",
@@ -1198,12 +1250,32 @@ export function findCiTierReachabilityDiagnostics(
         `reviewBy=${hatch.reviewBy}.`,
     });
   } else if (escapeHatchGateIds.length > 0) {
+    const criterionCounts = new Map<string, number>();
+    for (const gateId of escapeHatchGateIds) {
+      const criterion =
+        GOVERNED_CI_LEAF_CLASSIFICATIONS_BY_ID.get(gateId)?.criterion ?? "declared-none-or-manual";
+      criterionCounts.set(criterion, (criterionCounts.get(criterion) ?? 0) + 1);
+    }
+    const criterionSummary = [...criterionCounts.entries()]
+      .toSorted(([left], [right]) => left.localeCompare(right))
+      .map(([criterion, count]) => `${criterion}=${count}`)
+      .join(", ");
+    if (escapeHatchGateIds.length < hatch.maxGateCount) {
+      diagnostics.push({
+        severity: "warning",
+        code: "ci-tier-escape-hatch-slack",
+        message:
+          `CI reachability escape-hatch population ${escapeHatchGateIds.length} is below the cap ` +
+          `${hatch.maxGateCount}; ratchet the cap down in gate-policy.json (decrease-only discipline).`,
+      });
+    }
     diagnostics.push({
       severity: "warning",
       code: "ci-tier-escape-hatch-summary",
       message:
         `CI reachability escape-hatch population: ${escapeHatchGateIds.length}/` +
         `${hatch.maxGateCount} gate(s); ` +
+        `criteria: ${criterionSummary}; ` +
         `owner=${hatch.owner}, ` +
         `reviewBy=${hatch.reviewBy}.`,
     });
@@ -1435,7 +1507,7 @@ function parseWorkflowJobTierAnnotation(
   return null;
 }
 
-// --- Lifecycle façade (g130-S1): a read-only view of workflow jobs, their
+// --- Lifecycle façade (derived axes): a read-only view of workflow jobs, their
 // needs edges, their plan-expanded gate ids, and each workflow's trigger
 // facts. lifecycle.ts derives cadence×strength from this view; keeping the
 // walker here reuses the private parsers without widening their surface.
