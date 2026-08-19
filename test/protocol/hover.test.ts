@@ -227,14 +227,14 @@ export function Button() {
 
   it("keeps real style hover when a template literal contains a resolvable fake import", async () => {
     const poisonedWorkspace = workspace({
-      [BUTTON_TSX_URI]: `const fake = \`import styles from './Fake.module.scss';\`;
+      [BUTTON_TSX_URI]: `const fake = \`import styles from './AFake.module.scss';\`;
 import styles from './Button.module.scss';
 export const value = styles.indic/*|*/ator;
 `,
     });
     client = createInProcessServer({
       readStyleFile: (filePath) =>
-        filePath.endsWith("Button.module.scss") ? CLSX_SCSS : ".phantom { color: hotpink; }",
+        filePath.endsWith("Button.module.scss") ? CLSX_SCSS : ".indicator { color: hotpink; }",
       typeResolver: new FakeTypeResolver(),
     });
     await client.initialize();

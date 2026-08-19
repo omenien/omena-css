@@ -171,14 +171,14 @@ const x = styles./*|*/
 
   it("keeps real style completions when a comment contains a resolvable fake import", async () => {
     const poisonedWorkspace = workspace({
-      [BUTTON_TSX_URI]: `// import styles from './Fake.module.scss';
+      [BUTTON_TSX_URI]: `// import styles from './AFake.module.scss';
 import styles from './Button.module.scss';
 const x = styles./*|*/
 `,
     });
     client = createInProcessServer({
       readStyleFile: (filePath) =>
-        filePath.endsWith("Button.module.scss") ? CLSX_SCSS : ".phantom { color: hotpink; }",
+        filePath.endsWith("Button.module.scss") ? CLSX_SCSS : ".indicator { color: hotpink; }",
       typeResolver: new FakeTypeResolver(),
     });
     await client.initialize();
@@ -193,6 +193,40 @@ const x = styles./*|*/
     });
 
     const result = await client.completion(completionParams(poisonedWorkspace, BUTTON_TSX_URI));
+    expect(result).not.toBeNull();
+    const items = Array.isArray(result) ? result : result!.items;
+    expect(items.map((item) => item.label).toSorted()).toEqual(["active", "disabled", "indicator"]);
+  });
+
+  it("keeps the span-owned classnames binding when an unrelated cx declaration comes first", async () => {
+    const shadowedBindingWorkspace = workspace({
+      [BUTTON_TSX_URI]: `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = 'unrelated';
+export function Button() {
+  const cx = classNames.bind(styles);
+  return <div className={cx('/*|*/
+}
+`,
+    });
+    client = createInProcessServer({
+      readStyleFile: () => CLSX_SCSS,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: BUTTON_TSX_URI,
+        languageId: "typescriptreact",
+        version: 1,
+        text: shadowedBindingWorkspace.file(BUTTON_TSX_URI).content,
+      },
+    });
+
+    const result = await client.completion(
+      completionParams(shadowedBindingWorkspace, BUTTON_TSX_URI),
+    );
     expect(result).not.toBeNull();
     const items = Array.isArray(result) ? result : result!.items;
     expect(items.map((item) => item.label).toSorted()).toEqual(["active", "disabled", "indicator"]);

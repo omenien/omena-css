@@ -237,12 +237,14 @@ pub struct SourceClassnamesBindUtilityBindingFactV0 {
     pub styles_local_name: String,
     pub style_uri: String,
     pub classnames_import_name: String,
+    pub declaration_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceClassUtilityBindingFactV0 {
     pub local_name: String,
+    pub declaration_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -251,6 +253,7 @@ pub struct SourceDeclaresUtilityBindingFactV0 {
     pub decl_name: String,
     pub utility_local_name: String,
     pub utility_kind: &'static str,
+    pub declaration_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -602,6 +605,7 @@ struct SourceStyleBindingTarget {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ClassnamesBindUtilityBinding {
+    declaration_id: String,
     binding: String,
     binding_symbol_id: SymbolId,
     styles_binding: String,
@@ -1118,6 +1122,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .classnames_bind_utility_bindings
         .into_iter()
         .map(|binding| SourceClassnamesBindUtilityBindingFactV0 {
+            declaration_id: binding.declaration_id,
             local_name: binding.binding,
             styles_local_name: binding.styles_binding,
             style_uri: binding.style_uri,
@@ -1132,6 +1137,14 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
             let import_path = decl.import_path.as_deref()?;
             if decl.kind == "import" && is_class_utility_import_path(import_path) {
                 Some(SourceClassUtilityBindingFactV0 {
+                    declaration_id: source_declaration_id(
+                        source,
+                        decl.kind,
+                        decl.name.as_str(),
+                        decl.byte_span.start,
+                        decl.byte_span.end,
+                        import_path,
+                    ),
                     local_name: decl.name.clone(),
                 })
             } else {
@@ -1144,6 +1157,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
     let mut declares_utility_bindings = classnames_bind_utility_bindings
         .iter()
         .map(|binding| SourceDeclaresUtilityBindingFactV0 {
+            declaration_id: binding.declaration_id.clone(),
             decl_name: binding.local_name.clone(),
             utility_local_name: binding.local_name.clone(),
             utility_kind: "classnamesBind",
@@ -1151,6 +1165,7 @@ pub fn summarize_omena_bridge_source_binding_index_for_source_language(
         .collect::<Vec<_>>();
     declares_utility_bindings.extend(class_util_bindings.iter().map(|binding| {
         SourceDeclaresUtilityBindingFactV0 {
+            declaration_id: binding.declaration_id.clone(),
             decl_name: binding.local_name.clone(),
             utility_local_name: binding.local_name.clone(),
             utility_kind: "classUtil",
@@ -3257,6 +3272,14 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
             .clone()?;
 
         Some(ClassnamesBindUtilityBinding {
+            declaration_id: source_declaration_id(
+                self.source,
+                "localVar",
+                binding.name.as_str(),
+                binding.span.start as usize,
+                binding.span.end as usize,
+                "",
+            ),
             binding: binding.name.as_str().to_string(),
             binding_symbol_id,
             styles_binding: style_identifier.name.as_str().to_string(),

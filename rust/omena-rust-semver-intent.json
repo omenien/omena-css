@@ -7,18 +7,24 @@
     {
       "crate": "omena-bridge",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, binds style resolutions to Rust-authored declaration identities, and exposes those identities on serialized source-frontend facts.",
+      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, binds style and utility projections to Rust-authored declaration identities, and exposes those identities on serialized source-frontend facts.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
             "field SourceImportDeclarationV0.declaration_id",
-            "field SourceBindingStyleImportFactV0.declaration_id"
+            "field SourceBindingStyleImportFactV0.declaration_id",
+            "field SourceClassnamesBindUtilityBindingFactV0.declaration_id",
+            "field SourceClassUtilityBindingFactV0.declaration_id",
+            "field SourceDeclaresUtilityBindingFactV0.declaration_id"
           ],
           "witnessLinePrefix": "  field ",
           "expectedWitnesses": [
             "SourceImportDeclarationV0.declaration_id",
-            "SourceBindingStyleImportFactV0.declaration_id"
+            "SourceBindingStyleImportFactV0.declaration_id",
+            "SourceClassnamesBindUtilityBindingFactV0.declaration_id",
+            "SourceClassUtilityBindingFactV0.declaration_id",
+            "SourceDeclaresUtilityBindingFactV0.declaration_id"
           ]
         },
         {
@@ -75,6 +81,30 @@
               "needles": [
                 "fn style_resolution_accepts_only_an_emitted_rust_declaration_identity()",
                 "fn ambiguous_resolution_for_one_declaration_id_is_not_bound()"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "source-utility-declaration-identity-wire",
+          "kind": "selection-outcome-changing",
+          "surface": "SourceClassnamesBindUtilityBindingFactV0, SourceClassUtilityBindingFactV0, and SourceDeclaresUtilityBindingFactV0 declarationId",
+          "reason": "Serialized utility facts now carry the exact Rust-authored declaration identity, so the TypeScript projection selects the utility declaration by lexical span instead of taking the first same-name declaration.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-bridge/src/source_syntax.rs",
+              "needles": [
+                "pub struct SourceClassnamesBindUtilityBindingFactV0",
+                "pub struct SourceClassUtilityBindingFactV0",
+                "pub struct SourceDeclaresUtilityBindingFactV0",
+                "declaration_id: source_declaration_id("
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-bridge/src/source_syntax/tests.rs",
+              "needles": [
+                "fn summarizes_classnames_bind_utility_binding_identity_for_binding_index()",
+                "declaration_id: cx_declaration_id.clone()"
               ]
             }
           ]

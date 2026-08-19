@@ -310,6 +310,59 @@ const value = styles.
     }
 
     #[test]
+    fn trusted_byte_end_accepts_only_complete_import_declarations() -> Result<(), String> {
+        let source = r#"import first from "./First.module.scss";
+import second from "./Second.module.scss";
+"#;
+        let allocator = Allocator::default();
+        let parsed = Parser::new(
+            &allocator,
+            source,
+            source_type_for_language("Component.tsx", None),
+        )
+        .parse();
+        assert!(!parsed.panicked);
+        let first_end = match parsed.program.body.first() {
+            Some(Statement::ImportDeclaration(import)) => import.span.end as usize,
+            _ => return Err("fixture must start with an import declaration".to_string()),
+        };
+
+        let mut exact_boundary = Vec::new();
+        push_import_declarations_from_program(
+            source,
+            parsed.program.body.as_slice(),
+            first_end,
+            &mut exact_boundary,
+        );
+        assert_eq!(
+            exact_boundary
+                .iter()
+                .map(|import| import.binding.as_str())
+                .collect::<Vec<_>>(),
+            vec!["first"]
+        );
+
+        let mut before_boundary = Vec::new();
+        push_import_declarations_from_program(
+            source,
+            parsed.program.body.as_slice(),
+            first_end - 1,
+            &mut before_boundary,
+        );
+        assert!(before_boundary.is_empty());
+
+        let mut full_source = Vec::new();
+        push_import_declarations_from_program(
+            source,
+            parsed.program.body.as_slice(),
+            source.len(),
+            &mut full_source,
+        );
+        assert_eq!(full_source.len(), 2);
+        Ok(())
+    }
+
+    #[test]
     fn extracts_imports_from_vue_sfc_script_projection() {
         let source = r#"<template><button /></template>
 <script setup lang="ts">

@@ -156,9 +156,7 @@ fn source_diagnostics_for_file_are_query_owned() {
 
 #[test]
 fn source_diagnostics_for_workspace_file_are_query_owned() -> Result<(), String> {
-    let diagnostics = summarize_omena_query_source_diagnostics_for_workspace_file(
-        "/workspace/src/App.tsx",
-        r#"import bind from "classnames/bind";
+    let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";
 import missing from "./Missing.module.scss";
 const cx = bind.bind(styles);
@@ -166,7 +164,10 @@ const variant = Math.random() > 0.5 ? "chip" : "ghost";
 const dynamicPrefix = "lost-" + suffix;
 export function App({ suffix }) {
   return <div className={cx("ghost", variant, dynamicPrefix, `empty-${suffix}`)} data-x={styles.ghost} />;
-}"#,
+}"#;
+    let diagnostics = summarize_omena_query_source_diagnostics_for_workspace_file(
+        "/workspace/src/App.tsx",
+        source,
         &[OmenaQueryStyleSourceInputV0 {
             style_path: "/workspace/src/App.module.scss".to_string(),
             style_source: ".root {}\n.chip {}\n".to_string(),
@@ -213,21 +214,34 @@ export function App({ suffix }) {
             "OmenaQuerySourceDiagnosticsForFileV0.input"
         );
     }
+    let missing_module = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "missing-module")
+        .ok_or_else(|| "expected missing-module diagnostic".to_string())?;
     assert_eq!(
-        diagnostics
-            .diagnostics
-            .iter()
-            .find(|diagnostic| diagnostic.code == "missing-module")
-            .map(|diagnostic| diagnostic.provenance.as_slice()),
-        Some(
-            [
-                "omena-query.source-import-declarations",
-                "omena-resolver.style-module-resolution",
-                "omena-query-checker-orchestrator.product-diagnostic-gate",
-                "omena-checker.rule-registry",
-            ]
-            .as_slice()
-        )
+        missing_module.provenance.as_slice(),
+        [
+            "omena-query.source-import-declarations",
+            "omena-resolver.style-module-resolution",
+            "omena-query-checker-orchestrator.product-diagnostic-gate",
+            "omena-checker.rule-registry",
+        ]
+        .as_slice()
+    );
+    assert_eq!(
+        missing_module.range,
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 2,
+                character: 21,
+            },
+            end: ParserPositionV0 {
+                line: 2,
+                character: 42,
+            },
+        },
+        "missing-module range must select the module specifier without quote delimiters"
     );
     assert!(
         diagnostics

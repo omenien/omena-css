@@ -171,6 +171,7 @@ struct RustExpressionTargetsModuleCaptureV0 {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RustClassnamesBindUtilityBindingCaptureV0 {
+    declaration_id: String,
     local_name: String,
     styles_local_name: String,
     style_uri: String,
@@ -180,12 +181,14 @@ struct RustClassnamesBindUtilityBindingCaptureV0 {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RustClassUtilBindingCaptureV0 {
+    declaration_id: String,
     local_name: String,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RustDeclaresUtilityBindingCaptureV0 {
+    declaration_id: String,
     decl_name: String,
     utility_local_name: String,
     utility_kind: &'static str,
@@ -494,6 +497,7 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 .classnames_bind_utility_bindings
                 .into_iter()
                 .map(|binding| RustClassnamesBindUtilityBindingCaptureV0 {
+                    declaration_id: binding.declaration_id,
                     local_name: binding.local_name,
                     styles_local_name: binding.styles_local_name,
                     style_uri: binding.style_uri,
@@ -504,6 +508,7 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 .class_util_bindings
                 .into_iter()
                 .map(|binding| RustClassUtilBindingCaptureV0 {
+                    declaration_id: binding.declaration_id,
                     local_name: binding.local_name,
                 })
                 .collect(),
@@ -511,6 +516,7 @@ fn capture_fixture(fixture: RustCaptureFixtureV0) -> RustFixtureCaptureV0 {
                 .declares_utility_bindings
                 .into_iter()
                 .map(|edge| RustDeclaresUtilityBindingCaptureV0 {
+                    declaration_id: edge.declaration_id,
                     decl_name: edge.decl_name,
                     utility_local_name: edge.utility_local_name,
                     utility_kind: edge.utility_kind,

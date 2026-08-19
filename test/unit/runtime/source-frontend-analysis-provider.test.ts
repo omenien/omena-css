@@ -54,6 +54,7 @@ describe("source frontend analysis provider", () => {
     const sourcePath = "/fake/ws/src/Button.tsx";
     const styleUri = pathToFileURL("/fake/ws/src/Button.module.scss").href;
     const styleDeclaration = rustImportDeclaration(source, "styles", "./Button.module.scss");
+    const cxDeclarationId = rustDeclarationId(source, "localVar", "cx", "const cx");
     const importSummary = rustImportSummary([
       rustImportDeclaration(source, "bind", "classnames/bind"),
       styleDeclaration,
@@ -107,6 +108,7 @@ describe("source frontend analysis provider", () => {
           expressionTargetsModules: [{ byteSpan: variantSpan, targetStyleUri: styleUri }],
           classnamesBindUtilityBindings: [
             {
+              declarationId: cxDeclarationId,
               localName: "cx",
               stylesLocalName: "styles",
               styleUri,
@@ -114,7 +116,12 @@ describe("source frontend analysis provider", () => {
             },
           ],
           declaresUtilityBindings: [
-            { declName: "cx", utilityLocalName: "cx", utilityKind: "classnamesBind" },
+            {
+              declarationId: cxDeclarationId,
+              declName: "cx",
+              utilityLocalName: "cx",
+              utilityKind: "classnamesBind",
+            },
           ],
           utilityUsesStyleImports: [
             { utilityLocalName: "cx", stylesLocalName: "styles", styleUri },
@@ -308,6 +315,20 @@ function rustImportSummary(imports: ReturnType<typeof rustImportDeclaration>[]) 
     importCount: imports.length,
     imports,
   };
+}
+
+function rustDeclarationId(
+  source: string,
+  kind: "import" | "localVar",
+  name: string,
+  searchContext: string,
+  importPath = "",
+) {
+  const contextStart = source.indexOf(searchContext);
+  if (contextStart < 0) throw new Error(`Missing declaration context: ${searchContext}`);
+  const start = source.indexOf(name, contextStart);
+  if (start < 0) throw new Error(`Missing declaration fixture token: ${name}`);
+  return `rust-decl:${kind}:${name}:${start}:${start + name.length}:${importPath}`;
 }
 
 function emptyBindingIndex(source: string) {

@@ -111,6 +111,7 @@ export interface RustSourceExpressionTargetsModuleFactV0 {
 }
 
 export interface RustSourceClassnamesBindUtilityBindingFactV0 {
+  readonly declarationId: string;
   readonly localName: string;
   readonly stylesLocalName: string;
   readonly styleUri: string;
@@ -118,10 +119,12 @@ export interface RustSourceClassnamesBindUtilityBindingFactV0 {
 }
 
 export interface RustSourceClassUtilityBindingFactV0 {
+  readonly declarationId: string;
   readonly localName: string;
 }
 
 export interface RustSourceDeclaresUtilityBindingFactV0 {
+  readonly declarationId: string;
   readonly declName: string;
   readonly utilityLocalName: string;
   readonly utilityKind: UtilityBindingHIR["kind"];
@@ -248,9 +251,6 @@ function sourceDocumentFromIndex(
     );
   });
   const classnamesBindings = args.index.classnamesBindUtilityBindings.map((binding) => {
-    const bindingDeclId =
-      declIdForNameAndKind(args.index, binding.localName, "localVar", context) ??
-      syntheticDeclId("localVar", binding.localName, byteSpanKey({ start: 0, end: 0 }));
     return {
       kind: "classnamesBind" as const,
       id: classnamesUtilityNodeId(binding.localName, binding.stylesLocalName, binding.styleUri),
@@ -258,15 +258,14 @@ function sourceDocumentFromIndex(
       stylesLocalName: binding.stylesLocalName,
       scssModulePath: styleUriToPath(binding.styleUri),
       classNamesImportName: binding.classnamesImportName,
-      bindingDeclId,
+      bindingDeclId: binding.declarationId,
     };
   });
   const classUtilBindings = args.index.classUtilBindings.map((binding) =>
     makeClassUtilBinding(
       classUtilNodeId(binding.localName),
       binding.localName,
-      declIdForNameAndKind(args.index, binding.localName, "import", context) ??
-        syntheticDeclId("import", binding.localName, byteSpanKey({ start: 0, end: 0 })),
+      binding.declarationId,
     ),
   );
   return makeSourceDocumentHIR({
@@ -436,7 +435,7 @@ function sourceBindingGraphFromIndex(
   }
   for (const edge of args.index.declaresUtilityBindings) {
     addEdge(
-      declNodeIdForName(args.index, edge.declName, context),
+      declNodeId(edge.declarationId),
       edge.utilityKind === "classnamesBind"
         ? classnamesUtilityNodeIdForLocalName(args.index, edge.utilityLocalName)
         : classUtilNodeId(edge.utilityLocalName),
@@ -628,20 +627,6 @@ function sourceFileScopeId(index: RustSourceBindingIndexV0, context: ProjectionC
     : "scope:sourceFile:0:0";
 }
 
-function declIdForNameAndKind(
-  index: RustSourceBindingIndexV0,
-  name: string,
-  kind: BinderDecl["kind"],
-  context: ProjectionContext,
-): string | null {
-  const decl = index.bindingDecls.find(
-    (candidate) => candidate.name === name && candidate.kind === kind,
-  );
-  return decl
-    ? declId(kind, decl.name, spanFromByteSpan(decl.byteSpan, context), decl.importPath)
-    : null;
-}
-
 function declNodeIdForName(
   index: RustSourceBindingIndexV0,
   name: string,
@@ -749,10 +734,6 @@ function declId(
   importPath?: string,
 ): string {
   return `rust-decl:${kind}:${name}:${span.start}:${span.end}:${importPath ?? ""}`;
-}
-
-function syntheticDeclId(kind: BinderDecl["kind"], name: string, spanKey: string): string {
-  return `rust-decl:${kind}:${name}:${spanKey}:synthetic`;
 }
 
 function scopeNodeId(scopeIdValue: string): string {

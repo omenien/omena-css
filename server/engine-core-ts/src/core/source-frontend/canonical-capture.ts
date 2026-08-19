@@ -135,6 +135,7 @@ export interface CanonicalExpressionTargetsModuleV0 {
 }
 
 export interface CanonicalClassUtilBindingV0 {
+  readonly declarationId: string;
   readonly localName: string;
 }
 
@@ -202,7 +203,7 @@ export function captureTsSourceFrontendFactsV0(
         args.sourceFile,
         args.sourceBindingGraph,
       ),
-      classUtilBindings: canonicalClassUtilBindings(args.sourceDocument),
+      classUtilBindings: canonicalClassUtilBindings(args.sourceDocument, args.sourceBindingGraph),
       styleAccessUsesStyleImports: canonicalStyleAccessUsesStyleImports(
         args.sourceFile,
         args.sourceBindingGraph,
@@ -593,18 +594,43 @@ function canonicalClassExpressionNodes(
 
 function canonicalClassUtilBindings(
   sourceDocument: SourceDocumentHIR,
+  graph: SourceBindingGraph,
 ): readonly CanonicalClassUtilBindingV0[] {
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
   return sourceDocument.utilityBindings
     .flatMap((binding) =>
       binding.kind === "classUtil"
         ? [
             {
+              declarationId: canonicalRustDeclarationId(
+                declarationNodeForId(nodes, binding.bindingDeclId),
+              ),
               localName: binding.localName,
             },
           ]
         : [],
     )
     .toSorted(compareByStableJson);
+}
+
+function declarationNodeForId(
+  nodes: ReadonlyMap<string, SourceBindingGraph["nodes"][number]>,
+  declarationId: string,
+) {
+  const node = nodes.get(`decl:${declarationId}`);
+  if (node?.kind !== "decl") {
+    throw new Error(`Missing declaration node for ${declarationId}`);
+  }
+  return node.decl;
+}
+
+function canonicalRustDeclarationId(decl: {
+  readonly kind: string;
+  readonly name: string;
+  readonly span: { readonly start: number; readonly end: number };
+  readonly importPath?: string;
+}): string {
+  return `rust-decl:${decl.kind}:${decl.name}:${decl.span.start}:${decl.span.end}:${decl.importPath ?? ""}`;
 }
 
 function canonicalStyleAccessUsesStyleImports(

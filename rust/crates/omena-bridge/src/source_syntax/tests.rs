@@ -1067,6 +1067,14 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
         .map(|declaration| declaration.declaration_id)
         .unwrap_or_default();
     assert!(!style_declaration_id.is_empty());
+    let cx_declaration_id = source_declaration_id(
+        source,
+        "localVar",
+        "cx",
+        cx_decl_start,
+        cx_decl_start + "cx".len(),
+        "",
+    );
     assert_eq!(
         index.binding_scopes,
         vec![SourceBindingScopeFactV0 {
@@ -1255,6 +1263,7 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
     assert_eq!(
         index.classnames_bind_utility_bindings,
         vec![SourceClassnamesBindUtilityBindingFactV0 {
+            declaration_id: cx_declaration_id.clone(),
             local_name: "cx".to_string(),
             styles_local_name: "moduleStyles".to_string(),
             style_uri: "file:///workspace/App.module.scss".to_string(),
@@ -1264,6 +1273,7 @@ export const view = <div className={cx(localClass, moduleStyles.icon)} />;"#;
     assert_eq!(
         index.declares_utility_bindings,
         vec![SourceDeclaresUtilityBindingFactV0 {
+            declaration_id: cx_declaration_id,
             decl_name: "cx".to_string(),
             utility_local_name: "cx".to_string(),
             utility_kind: "classnamesBind",

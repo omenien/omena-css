@@ -198,6 +198,7 @@ interface CanonicalClassExpressionNodeV0 {
 }
 
 interface CanonicalClassnamesBindUtilityBindingV0 {
+  readonly declarationId: string;
   readonly localName: string;
   readonly stylesLocalName: string;
   readonly styleUri: string;
@@ -229,6 +230,7 @@ interface CanonicalExpressionTargetsModuleV0 {
 }
 
 interface CanonicalClassUtilBindingV0 {
+  readonly declarationId: string;
   readonly localName: string;
 }
 
@@ -260,6 +262,7 @@ interface CanonicalUtilityUsesStyleImportV0 {
 }
 
 interface CanonicalDeclaresUtilityBindingV0 {
+  readonly declarationId: string;
   readonly declName: string;
   readonly utilityLocalName: string;
   readonly utilityKind: "classnamesBind" | "classUtil";
@@ -844,6 +847,8 @@ function compareCfgProjection(tsCapture: FixtureCaptureV0, rustCapture: RustFixt
 
 function compareBindingProjection(tsCapture: FixtureCaptureV0, rustCapture: RustFixtureCaptureV0) {
   const projectedRustCapture = captureProjectedRustBindingGraph(tsCapture, rustCapture);
+  const source = fixtures.find((fixture) => fixture.id === fixtureId(tsCapture))?.source;
+  assert.ok(source, `missing source fixture for ${fixtureId(tsCapture)}`);
   const fields = [
     fieldReport(
       "graphNodeKeys",
@@ -853,7 +858,7 @@ function compareBindingProjection(tsCapture: FixtureCaptureV0, rustCapture: Rust
     fieldReport(
       "graphEdgeKeys",
       tsCapture.bindingGraph.graphEdgeKeys,
-      rustBindingGraphEdgeKeys(rustCapture.binding),
+      rustBindingGraphEdgeKeys(rustCapture.binding, source),
     ),
     fieldReport(
       "projectedGraphNodeKeys",
@@ -1022,8 +1027,14 @@ function rustBindingGraphNodeKeys(binding: RustFixtureCaptureV0["binding"]): rea
   ].toSorted();
 }
 
-function rustBindingGraphEdgeKeys(binding: RustFixtureCaptureV0["binding"]): readonly string[] {
+function rustBindingGraphEdgeKeys(
+  binding: RustFixtureCaptureV0["binding"],
+  source: string,
+): readonly string[] {
   const declByName = new Map(binding.bindingDecls.map((decl) => [decl.name, rustDeclKey(decl)]));
+  const declById = new Map(
+    binding.bindingDecls.map((decl) => [rustDeclarationId(source, decl), rustDeclKey(decl)]),
+  );
   const expressionBySpanAndUri = new Map(
     binding.classExpressionNodes.map((expression) => [
       `${spanKey(expression.byteSpan)}:${expression.targetStyleUri}`,
@@ -1110,7 +1121,7 @@ function rustBindingGraphEdgeKeys(binding: RustFixtureCaptureV0["binding"]): rea
           : classUtilByLocalName.get(edge.utilityLocalName);
       return graphEdgeKey(
         "declaresUtilityBinding",
-        declByName.get(edge.declName) ?? missingGraphNodeKey("decl", edge.declName),
+        declById.get(edge.declarationId) ?? missingGraphNodeKey("decl", edge.declarationId),
         utility ?? missingGraphNodeKey("utilityBinding", edge.utilityLocalName),
       );
     }),
@@ -1208,6 +1219,16 @@ function rustDeclKey(decl: {
     byteSpan: decl.byteSpan,
     ...(decl.importPath ? { importPath: decl.importPath } : {}),
   });
+}
+
+function rustDeclarationId(source: string, decl: CanonicalBindingDeclV0): string {
+  const utf16Start = Buffer.from(source, "utf8")
+    .subarray(0, decl.byteSpan.start)
+    .toString("utf8").length;
+  const utf16End = Buffer.from(source, "utf8")
+    .subarray(0, decl.byteSpan.end)
+    .toString("utf8").length;
+  return `rust-decl:${decl.kind}:${decl.name}:${utf16Start}:${utf16End}:${decl.importPath ?? ""}`;
 }
 
 function rustStyleImportKey(localName: string, styleUri: string): string {
@@ -1332,11 +1353,15 @@ function styleImportResolvesModulesForTsCapture(
 function classnamesBindUtilityBindingsForTsCapture(
   capture: CanonicalSourceFrontendCaptureV0,
 ): readonly CanonicalClassnamesBindUtilityBindingV0[] {
+  const nodes = new Map(capture.bindingGraph.nodes.map((node) => [node.id, node]));
   return capture.syntax.utilityBindings
     .flatMap((binding) =>
       binding.kind === "classnamesBind"
         ? [
             {
+              declarationId: canonicalDeclarationIdForTsNode(
+                nodes.get(`decl:${binding.bindingDeclId}`),
+              ),
               localName: binding.localName,
               stylesLocalName: binding.stylesLocalName,
               styleUri: fileUriForAbsolutePath(binding.scssModulePath),
@@ -1362,6 +1387,7 @@ function declaresUtilityBindingsForTsCapture(
       }
       return [
         {
+          declarationId: canonicalDeclarationIdForTsNode(declNode),
           declName: declNode.decl.name,
           utilityLocalName: utilityNode.utilityBinding.localName,
           utilityKind: utilityNode.utilityBinding.kind,
@@ -1369,6 +1395,14 @@ function declaresUtilityBindingsForTsCapture(
       ];
     })
     .toSorted(compareByStableJson);
+}
+
+function canonicalDeclarationIdForTsNode(
+  node: CanonicalSourceFrontendCaptureV0["bindingGraph"]["nodes"][number] | undefined,
+): string {
+  assert.equal(node?.kind, "decl", "utility binding must reference a declaration node");
+  const decl = node.decl;
+  return `rust-decl:${decl.kind}:${decl.name}:${decl.span.start}:${decl.span.end}:${decl.importPath ?? ""}`;
 }
 
 function utilityUsesStyleImportsForTsCapture(
