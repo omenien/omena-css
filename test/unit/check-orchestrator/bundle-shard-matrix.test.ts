@@ -128,8 +128,8 @@ describe("bundle shard-table/matrix consumption (g131 R2-R5)", () => {
 
   it("RED: the output mapped from a step UNRELATED to the shards run (R5-confirm rider)", () => {
     const mutated = GENERATED_OK.replace(
-      "      closure-fast-shards: \${{ steps.closure-fast-shards.outputs.matrix }}",
-      "      closure-fast-shards: \${{ steps.unrelated.outputs.matrix }}",
+      "      closure-fast-shards: ${{ steps.closure-fast-shards.outputs.matrix }}",
+      "      closure-fast-shards: ${{ steps.unrelated.outputs.matrix }}",
     ).replace(
       "      - id: closure-fast-shards\n        run: pnpm omena-check shards rust/closure-fast --json",
       "      - id: unrelated\n        run: echo literal-matrix\n      - id: closure-fast-shards\n        run: pnpm omena-check shards rust/closure-fast --json",
@@ -143,11 +143,11 @@ describe("bundle shard-table/matrix consumption (g131 R2-R5)", () => {
     // closure-fast output must RED.
     const mutated = GENERATED_OK.replace(
       "        contracts-shard: [public-surface, rest]",
-      "        contracts-shard: \${{ fromJSON(needs.preflight.outputs.closure-fast-shards) }}",
+      "        contracts-shard: ${{ fromJSON(needs.preflight.outputs.closure-fast-shards) }}",
     )
       .replace(
-        "      - run: pnpm omena-check bundle rust/contracts --summary --shard=\${{ matrix.contracts-shard }}",
-        '      - env:\n          S: \${{ matrix.contracts-shard }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
+        "      - run: pnpm omena-check bundle rust/contracts --summary --shard=${{ matrix.contracts-shard }}",
+        '      - env:\n          S: ${{ matrix.contracts-shard }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
       )
       .replace(
         "      - id: closure-fast-shards\n        run: pnpm omena-check shards rust/closure-fast --json",
