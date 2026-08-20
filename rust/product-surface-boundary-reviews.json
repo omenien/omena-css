@@ -154,10 +154,10 @@
             "scripts/check-rust-checker-real-project-bounded.ts",
             "scripts/check-rust-checker-source-missing-consumer-boundary.ts",
             "scripts/check-rust-checker-style-recovery-consumer-boundary.ts",
-            "scripts/check-rust-checker-style-unused-consumer-boundary.ts",
             "scripts/check-rust-oss-corpus-farm-regressions.ts",
             "scripts/check-semantic-smoke.ts",
             "scripts/check-workspace.ts",
+            "scripts/lib/rust-shadow-family.ts",
             "scripts/oss-corpus-farm.ts",
             "test/unit/architecture/package-boundaries.test.ts",
             "test/unit/checker/checker-cli.test.ts"

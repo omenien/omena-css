@@ -5,6 +5,8 @@
 import { RUST_SHADOW_FAMILY } from "./lib/rust-shadow-family";
 
 const slug = process.argv[2];
+// Remove the slug so member bodies that parse argv see their own args only.
+process.argv.splice(2, 1);
 if (!slug) {
   const rows = Object.entries(RUST_SHADOW_FAMILY)
     .map(([name, row]) => `  ${name} (${row.corpus})`)

@@ -3,6 +3,8 @@
 import { CONTRACT_PARITY_SMOKE_FAMILY as FAMILY } from "./lib/contract-parity-smoke-family";
 
 const slug = process.argv[2];
+// Remove the slug so member bodies that parse argv see their own args only.
+process.argv.splice(2, 1);
 if (!slug || !FAMILY[slug]) {
   process.stderr.write(
     `usage: run-contract-parity-smoke-family.ts <member>\nmembers:\n${Object.keys(FAMILY)
