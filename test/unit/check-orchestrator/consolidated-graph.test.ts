@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadCiWorkflowRegistry } from "../../../packages/check-orchestrator/src/manifest/ci-workflow";
@@ -72,6 +73,43 @@ describe("consolidated CI graph (g131-S3)", () => {
     ]) {
       expect(registry.jobs.some((job) => job.name === gone)).toBe(false);
     }
+  });
+
+  it("SCCACHE GUARD (g131-S4): the wrapper rides behind the OMENA_SCCACHE switch with a variable kill switch", () => {
+    const ci = readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
+    // Kill switch: a repo variable overrides the default without a commit.
+    expect(ci).toContain("OMENA_SCCACHE: ${{ vars.OMENA_SCCACHE || 'on' }}");
+    const cacheRust = readFileSync(
+      path.join(repoRoot, ".github/actions/cache-rust/action.yml"),
+      "utf8",
+    );
+    // Every sccache step is gated on the switch — flipping the variable to
+    // "off" must leave ZERO ungated sccache surface in the action.
+    const steps = cacheRust
+      .split("\n    - ")
+      .slice(1)
+      .map((segment) =>
+        segment
+          .split("\n")
+          .filter((line) => !line.trim().startsWith("#"))
+          .join("\n"),
+      );
+    for (const step of steps) {
+      // Gate the steps that USE sccache (comments naming it are not steps).
+      if (!step.includes("sccache-action") && !step.includes("RUSTC_WRAPPER")) continue;
+      expect(step, "sccache step must be gated on OMENA_SCCACHE").toContain(
+        "if: ${{ env.OMENA_SCCACHE == 'on' }}",
+      );
+    }
+    // The divergence lane exists, is weekly, and escalates on failure.
+    const divergence = readFileSync(
+      path.join(repoRoot, ".github/workflows/sccache-divergence.yml"),
+      "utf8",
+    );
+    expect(divergence).toContain("cron:");
+    expect(divergence).toContain("issues: write");
+    expect(divergence).toContain("escalate-ci-failure");
+    expect(divergence).toContain("diff /tmp/digest-sccache.txt /tmp/digest-plain.txt");
   });
 
   it(

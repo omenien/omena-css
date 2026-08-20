@@ -17,3 +17,15 @@ runs:
         workspaces: rust -> target
         shared-key: ${{ inputs.shared-key }}
         cache-targets: ${{ inputs.cache-targets }}
+    # g131-S4: sccache rides BEHIND the OMENA_SCCACHE=on switch (workflow env,
+    # overridable per-repo via the OMENA_SCCACHE variable — the kill switch).
+    # Stats are dumped by the post step of sccache-action; the weekly
+    # divergence lane compares deterministic-crate digests with the wrapper
+    # on vs off and escalates on mismatch.
+    - uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+      if: ${{ env.OMENA_SCCACHE == 'on' }}
+    - shell: bash
+      if: ${{ env.OMENA_SCCACHE == 'on' }}
+      run: |
+        echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+        echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
