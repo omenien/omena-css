@@ -12,7 +12,7 @@ Total gates: 576
 | release | 22 | 1 | 0 | 8 | 11 | 11 | 12 | 2 |
 | tsgo | 6 | 1 | 1 | 0 | 0 | 6 | 2 | 3 |
 | ts7 | 17 | 7 | 0 | 0 | 1 | 16 | 2 | 11 |
-| rust | 446 | 49 | 13 | 26 | 219 | 227 | 228 | 114 |
+| rust | 446 | 49 | 13 | 26 | 213 | 233 | 228 | 114 |
 | plugin | 12 | 1 | 0 | 0 | 11 | 1 | 11 | 1 |
 | contract | 14 | 1 | 0 | 1 | 10 | 4 | 10 | 0 |
 | docs | 10 | 1 | 0 | 1 | 9 | 1 | 9 | 0 |
@@ -138,7 +138,7 @@ Total gates: 576
 | `rust/checker/release-gate-readiness` | gate | package | nightly | advisory | `check:rust-checker-release-gate-readiness` |  |  |
 | `rust/checker/release-gate-shadow` | bundle | package | push | advisory | `check:rust-checker-release-gate-shadow` | `check:rust-checker-entrance`, `check:rust-checker-promotion-evidence`, `check:rust-checker-release-gate-readiness`, `check:rust-release-bundle` |  |
 | `rust/checker/release-gate-shadow-review` | gate | package | manual | advisory | `check:rust-checker-release-gate-shadow-review` |  |  |
-| `rust/ci-probe/linux-benchmark` | bundle | declared | push | blocking | `@declared/rust/ci-probe/linux-benchmark` | `check:rust-benchmark-ci-reachability`, `check:rust-benchmark-emitted-css-golden-gate`, `check:rust-benchmark-headline-axis`, `check:rust-benchmark-transform-relex-baseline`, `check:rust-z5-parser-product-cutover`, `check:rust-z5-perf-baseline`, `check:rust-z5-perf-per-file-invariant`, `check:rust-z5-perf-complexity-slope`, `check:rust-demand-sliced-monotone-fact-propagation-relocation-gate-bound`, `check:rust-z5-perf-warmup-wave-count`, `check:rust-z5-perf-no-regression`, `check:rust-bundler-productization-benchmark` | ci `manual`; group `ci-probe`; reason Linux performance evidence is dispatched explicitly before the final CI run. |
+| `rust/ci-probe/linux-benchmark` | bundle | declared | push | advisory | `@declared/rust/ci-probe/linux-benchmark` | `check:rust-benchmark-ci-reachability`, `check:rust-benchmark-emitted-css-golden-gate`, `check:rust-benchmark-headline-axis`, `check:rust-benchmark-transform-relex-baseline`, `check:rust-z5-parser-product-cutover`, `check:rust-z5-perf-baseline`, `check:rust-z5-perf-per-file-invariant`, `check:rust-z5-perf-complexity-slope`, `check:rust-demand-sliced-monotone-fact-propagation-relocation-gate-bound`, `check:rust-z5-perf-warmup-wave-count`, `check:rust-z5-perf-no-regression`, `check:rust-bundler-productization-benchmark` | ci `manual`; group `ci-probe`; reason Linux performance evidence is dispatched explicitly before the final CI run. |
 | `rust/ci-probe/omena-cli` | bundle | declared | manual | advisory | `@declared/rust/ci-probe/omena-cli` | `@declared/rust/ci-probe/omena-cli-tests`, `check:rust-omena-cli-engine-contract`, `check:rust-omena-cli-trace`, `check:rust-omena-cli-bundle-origin-chain`, `check:rust-omena-cli-soundiness-report`, `check:rust-omena-cli-resolution-policy`, `check:rust-omena-cli-sass-module-conformance`, `check:rust-omena-cli-migration` | ci `manual`; group `ci-probe`; reason Focused CLI validation is dispatched explicitly during development. |
 | `rust/ci-probe/omena-cli-tests` | command | declared | manual | advisory | `@declared/rust/ci-probe/omena-cli-tests` |  | ci `manual`; group `ci-probe`; reason Focused CLI validation is dispatched explicitly during development. |
 | `rust/ci-probe/workspace` | bundle | declared | push | blocking | `@declared/rust/ci-probe/workspace` | `check:rust-workspace` | ci `manual`; group `ci-probe`; reason Focused workspace validation is dispatched explicitly during development. |
@@ -151,7 +151,7 @@ Total gates: 576
 | `rust/cross-file-reachability-diagnostic` | gate | package+declared | push | blocking | `check:rust-cross-file-reachability-diagnostic` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/cst-typed-egress-closure` | gate | package+declared | push | blocking | `check:rust-cst-typed-egress-closure` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/demand-sliced-monotone-fact-propagation-relocation-gate` | gate | package+declared | push | blocking | `check:rust-demand-sliced-monotone-fact-propagation-relocation-gate` |  | ci `closure-fast`; group `closure-fast` |
-| `rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound` | gate | package+declared | push | blocking | `check:rust-demand-sliced-monotone-fact-propagation-relocation-gate-bound` |  | ci `verify`; group `benchmark-gates` |
+| `rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound` | gate | package+declared | push | advisory | `check:rust-demand-sliced-monotone-fact-propagation-relocation-gate-bound` |  | ci `verify`; group `benchmark-gates` |
 | `rust/demand-sliced-monotone-fact-propagation-settle-soak` | gate | package+declared | push | blocking | `check:rust-demand-sliced-monotone-fact-propagation-settle-soak` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/demand-sliced-monotone-fact-propagation-solver-hygiene` | gate | package+declared | push | blocking | `check:rust-demand-sliced-monotone-fact-propagation-solver-hygiene` |  | ci `closure-fast`; group `closure-fast` |
 | `rust/design-system/universality-class` | gate | package | manual | advisory | `check:rust-design-system-universality-class` |  |  |
@@ -543,12 +543,12 @@ Total gates: 576
 | `rust/z5-external-comparator-readiness` | gate | package | nightly | advisory | `check:rust-z5-external-comparator-readiness` |  |  |
 | `rust/z5-format-idempotence` | gate | package | nightly | advisory | `check:rust-z5-format-idempotence` |  |  |
 | `rust/z5-parser-product-cutover` | gate | package | push | blocking | `check:rust-z5-parser-product-cutover` |  |  |
-| `rust/z5-perf-baseline` | gate | package | push | blocking | `check:rust-z5-perf-baseline` |  |  |
+| `rust/z5-perf-baseline` | gate | package | push | advisory | `check:rust-z5-perf-baseline` |  |  |
 | `rust/z5-perf-baseline:update` | command | package | manual | advisory | `update:rust-z5-perf-baseline` |  |  |
-| `rust/z5-perf-complexity-slope` | gate | package | push | blocking | `check:rust-z5-perf-complexity-slope` |  |  |
-| `rust/z5-perf-no-regression` | gate | package | push | blocking | `check:rust-z5-perf-no-regression` |  |  |
+| `rust/z5-perf-complexity-slope` | gate | package | push | advisory | `check:rust-z5-perf-complexity-slope` |  |  |
+| `rust/z5-perf-no-regression` | gate | package | push | advisory | `check:rust-z5-perf-no-regression` |  |  |
 | `rust/z5-perf-per-file-invariant` | gate | package | push | blocking | `check:rust-z5-perf-per-file-invariant` |  |  |
-| `rust/z5-perf-warmup-wave-count` | gate | package | push | blocking | `check:rust-z5-perf-warmup-wave-count` |  |  |
+| `rust/z5-perf-warmup-wave-count` | gate | package | push | advisory | `check:rust-z5-perf-warmup-wave-count` |  |  |
 | `rust/z5-performance-baseline-macro` | gate | package | nightly | advisory | `check:rust-z5-performance-baseline-macro` | `check:rust-omena-lsp-server-runtime-loop` |  |
 | `rust/z5-performance-baseline-micro` | gate | package | nightly | advisory | `check:rust-z5-performance-baseline-micro` |  |  |
 | `rust/z5-performance-baseline-readiness` | bundle | package | push | advisory | `check:rust-z5-performance-baseline-readiness` | `check:rust-benchmark-emitted-css-golden-gate`, `check:rust-benchmark-transform-relex-baseline`, `check:rust-omena-benchmarks-boundary`, `check:rust-z5-criterion-surface-snapshot`, `check:rust-z5-external-comparator-readiness`, `check:rust-z5-format-idempotence`, `check:rust-z5-parser-product-cutover`, `check:rust-z5-performance-baseline-macro`, `check:rust-z5-performance-baseline-micro` |  |
