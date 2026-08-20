@@ -310,13 +310,13 @@ export function injected(source: string) { return pattern.test(source); }
   if (process.argv.includes("--inject-import-regex-replacement-template")) {
     sources.set(
       "__injection__/source-import-regex-replacement-template.ts",
-      'const source = String.raw`^\\s*impXrt\\s+(.+?)\\s+from\\s+[\'\"](.+?)[\'\"]`.replace("X", "o");\nconst pattern = new RegExp(source, "gm");\nexport function injected(input: string) { return pattern.exec(input); }\n',
+      'const source = String.raw`^\\s*impXrt\\s+(.+?)\\s+from\\s+[\'"](.+?)[\'"]`.replace("X", "o");\nconst pattern = new RegExp(source, "gm");\nexport function injected(input: string) { return pattern.exec(input); }\n',
     );
   }
   if (process.argv.includes("--inject-import-regex-aliased-string-raw")) {
     sources.set(
       "__injection__/source-import-regex-aliased-string-raw.ts",
-      'const raw = String.raw;\nconst source = raw`^\\s*import\\s+(.+?)\\s+from\\s+[\'\"](.+?)[\'\"]`;\nconst pattern = new RegExp(source, "gm");\nexport function injected(input: string) { return pattern.test(input); }\n',
+      'const raw = String.raw;\nconst source = raw`^\\s*import\\s+(.+?)\\s+from\\s+[\'"](.+?)[\'"]`;\nconst pattern = new RegExp(source, "gm");\nexport function injected(input: string) { return pattern.test(input); }\n',
     );
   }
   if (process.argv.includes("--inject-import-regex-array-join")) {
@@ -328,7 +328,7 @@ export function injected(source: string) { return pattern.test(source); }
   if (process.argv.includes("--inject-import-regex-helper-return")) {
     sources.set(
       "__injection__/source-import-regex-helper-return.ts",
-      'function importPatternSource() { return String.raw`^\\s*import\\s+(.+?)\\s+from\\s+[\'\"](.+?)[\'\"]`; }\nconst pattern = new RegExp(importPatternSource(), "gm");\nexport function injected(input: string) { return input.search(pattern); }\n',
+      'function importPatternSource() { return String.raw`^\\s*import\\s+(.+?)\\s+from\\s+[\'"](.+?)[\'"]`; }\nconst pattern = new RegExp(importPatternSource(), "gm");\nexport function injected(input: string) { return input.search(pattern); }\n',
     );
   }
   if (process.argv.includes("--inject-classnames-bind-regex-producer")) {
@@ -890,8 +890,9 @@ function resolveTypeScriptModule(
 ): string | null {
   const base = path.normalize(path.join(path.dirname(importerPath), specifier));
   const withoutRuntimeExtension = base.replace(/\.(?:c|m)?jsx?$/u, "");
-  const candidates = [base, withoutRuntimeExtension];
-  for (const stem of [...candidates]) {
+  const baseCandidates = [base, withoutRuntimeExtension];
+  const candidates = [...baseCandidates];
+  for (const stem of baseCandidates) {
     for (const extension of [".ts", ".tsx", ".mts", ".cts"]) {
       candidates.push(`${stem}${extension}`);
       candidates.push(path.join(stem, `index${extension}`));
