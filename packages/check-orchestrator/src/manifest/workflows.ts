@@ -1355,18 +1355,44 @@ function jobConsumesGeneratedMatrix(
     const producerBlock = allLines
       .slice(producer.start, producer.end)
       .filter((producerLine) => !/^\s*#/u.test(producerLine));
+    // STEP-ID JOIN (R5-confirm closure rider): the output must be mapped
+    // from the SAME step whose EXECUTING run line derives THIS bundle's
+    // table — independent existence checks let a two-bundle producer or an
+    // unrelated-step mapping bind the wrong table, and a substring test let
+    // a comment/name mention satisfy provenance.
     const outputEscaped = outputName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-    const definesOutput = producerBlock.some((producerLine) =>
-      new RegExp(
-        `^\\s+${outputEscaped}:\\s*\\$\\{\\{\\s*steps\\.[A-Za-z0-9_-]+\\.outputs\\.`,
+    let producingStepId: string | null = null;
+    for (const producerLine of producerBlock) {
+      const mapping = new RegExp(
+        `^\\s+${outputEscaped}:\\s*\\$\\{\\{\\s*steps\\.([A-Za-z0-9_-]+)\\.outputs\\.`,
         "u",
-      ).test(producerLine),
-    );
+      ).exec(producerLine);
+      if (mapping) {
+        producingStepId = mapping[1] ?? null;
+        break;
+      }
+    }
+    if (!producingStepId) continue;
     const bundleEscaped = bundleId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-    const derivesFromTable = producerBlock.some((producerLine) =>
-      new RegExp(`omena-check shards ${bundleEscaped} --json`, "u").test(producerLine),
+    const shardsRun = new RegExp(
+      `^\\s*(?:- )?run: .*omena-check shards ${bundleEscaped} --json`,
+      "u",
     );
-    if (definesOutput && derivesFromTable) return true;
+    let currentStepId: string | null = null;
+    let stepDerives = false;
+    for (const producerLine of producerBlock) {
+      if (/^\s*- /u.test(producerLine)) currentStepId = null;
+      const idLine = /^\s*(?:- )?id:\s*([A-Za-z0-9_-]+)\s*$/u.exec(producerLine);
+      if (idLine) currentStepId = idLine[1] ?? null;
+      // Strip a trailing comment before testing — `run: echo x # omena-check
+      // shards ...` is a mention, not an execution.
+      const executable = producerLine.split(" #")[0] ?? producerLine;
+      if (currentStepId === producingStepId && shardsRun.test(executable)) {
+        stepDerives = true;
+        break;
+      }
+    }
+    if (stepDerives) return true;
   }
   return false;
 }

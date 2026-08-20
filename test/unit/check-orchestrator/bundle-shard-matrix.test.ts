@@ -118,6 +118,44 @@ describe("bundle shard-table/matrix consumption (g131 R2-R5)", () => {
     expect(drifts(mutated).join(";")).toContain("env-bound --shard");
   });
 
+  it("RED: a producer whose shards run is only MENTIONED (comment/name), not executed (R5-confirm rider)", () => {
+    const mutated = GENERATED_OK.replace(
+      "      - id: closure-fast-shards\n        run: pnpm omena-check shards rust/closure-fast --json",
+      "      - id: closure-fast-shards\n        run: echo hand-written # omena-check shards rust/closure-fast --json",
+    );
+    expect(drifts(mutated).join(";")).toContain("env-bound --shard");
+  });
+
+  it("RED: the output mapped from a step UNRELATED to the shards run (R5-confirm rider)", () => {
+    const mutated = GENERATED_OK.replace(
+      "      closure-fast-shards: \${{ steps.closure-fast-shards.outputs.matrix }}",
+      "      closure-fast-shards: \${{ steps.unrelated.outputs.matrix }}",
+    ).replace(
+      "      - id: closure-fast-shards\n        run: pnpm omena-check shards rust/closure-fast --json",
+      "      - id: unrelated\n        run: echo literal-matrix\n      - id: closure-fast-shards\n        run: pnpm omena-check shards rust/closure-fast --json",
+    );
+    expect(drifts(mutated).join(";")).toContain("env-bound --shard");
+  });
+
+  it("RED: a two-bundle producer cannot sanction the WRONG bundle's consumer (R5-confirm rider)", () => {
+    // preflight also derives rust/contracts, but the consumed OUTPUT is still
+    // mapped from the closure-fast step — a contracts consumer binding the
+    // closure-fast output must RED.
+    const mutated = GENERATED_OK.replace(
+      "        contracts-shard: [public-surface, rest]",
+      "        contracts-shard: \${{ fromJSON(needs.preflight.outputs.closure-fast-shards) }}",
+    )
+      .replace(
+        "      - run: pnpm omena-check bundle rust/contracts --summary --shard=\${{ matrix.contracts-shard }}",
+        '      - env:\n          S: \${{ matrix.contracts-shard }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
+      )
+      .replace(
+        "      - id: closure-fast-shards\n        run: pnpm omena-check shards rust/closure-fast --json",
+        "      - id: closure-fast-shards\n        run: pnpm omena-check shards rust/closure-fast --json\n      - id: contracts-shards\n        run: pnpm omena-check shards rust/contracts --json",
+      );
+    expect(drifts(mutated).join(";")).toContain("env-bound --shard");
+  });
+
   it("RED: an unconsumed table (no --shard invocation at all)", () => {
     const mutated = GENERATED_OK.replace(
       "      - run: pnpm omena-check bundle rust/contracts --summary --shard=${{ matrix.contracts-shard }}",
