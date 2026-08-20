@@ -67,7 +67,7 @@ describe("thin-driver families (g131-S6)", () => {
     }
   });
 
-  it("SLUG-BODY BINDING (stage-5 R2): every registry row binds run_<slug> — a swapped or repointed body is loud", () => {
+  it("SLUG-BODY BINDING (stage-5 R2): every registry row binds run_<slug> — a swapped run binding is loud (a repointed FUNCTION BODY is out of this arm's reach; disclosed)", () => {
     // VALUE check (R2-confirm lens repair): the bound function's own .name
     // must equal run_<slug>. Immune to formatting/key-order churn, and a
     // swap of two members' run functions REDs with the row named.

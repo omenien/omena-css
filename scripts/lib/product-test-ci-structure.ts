@@ -29,10 +29,38 @@ const PRODUCT_TEST_JOBS = [CRATE_JOB, CONTRACT_JOB] as const;
 // The duty is satisfied only by an EXECUTING run step — a comment naming
 // the invocation is not a step (the same fail-open species the g130 judge
 // rules closed; stage-5 lens reproduced the comment evasion end-to-end).
-// `- run:` (inline step) or `run:` (the two-line `- name:` + `run:` shape) —
-// a `#`-led comment can match neither.
-const CLASSGUARD_LINE =
-  /^\s*(?:- )?run: .*pnpm omena-check run rust\/product-test-coverage-classguard/u;
+const CLASSGUARD_INLINE_STEP =
+  /^(\s*)- run: .*pnpm omena-check run rust\/product-test-coverage-classguard/u;
+const CLASSGUARD_BARE_RUN =
+  /^(\s*)run: .*pnpm omena-check run rust\/product-test-coverage-classguard/u;
+
+// A job block EXECUTES the classguard iff it carries either an inline
+// `- run:` step or a bare `run:` that is a STEP key — i.e. the nearest
+// preceding `- `-led line is a `- name:`/`- id:` step header one indent
+// level shallower. A `#` comment matches neither, and a `run:` INPUT under a
+// `with:` mapping fails the step-header requirement (R3-confirm lens: the
+// `(?:- )?` relaxation accepted a non-executing action input).
+function blockExecutesClassguard(blockLines: readonly string[]): boolean {
+  for (let index = 0; index < blockLines.length; index += 1) {
+    const line = blockLines[index] ?? "";
+    if (CLASSGUARD_INLINE_STEP.test(line)) return true;
+    const bare = CLASSGUARD_BARE_RUN.exec(line);
+    if (!bare) continue;
+    const runIndent = bare[1]?.length ?? 0;
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      const candidate = blockLines[cursor] ?? "";
+      if (/^\s*$/u.test(candidate) || /^\s*#/u.test(candidate)) continue;
+      const header = /^(\s*)- (?:name|id):/u.exec(candidate);
+      if (header && (header[1]?.length ?? 0) + 2 === runIndent) return true;
+      // Any other intervening structure (e.g. `with:`) breaks the step shape.
+      if (!/^\s*- /u.test(candidate) && (candidate.match(/^\s*/u)?.[0]?.length ?? 0) >= runIndent) {
+        continue;
+      }
+      break;
+    }
+  }
+  return false;
+}
 
 function parseInlineMatrix(blockLines: readonly string[], key: string): readonly string[] | null {
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -72,9 +100,7 @@ export function findProductTestCiStructureErrors(
   // g131-S3: the classguard's HOME is not pinned to a named job (the plan job
   // was legally merged into the crates matrix as a ride-along) — the duty is
   // that SOME job executes it and that job's result reaches ci-required.
-  const classguardHomes = jobs.filter((job) =>
-    job.block.some((line) => CLASSGUARD_LINE.test(line)),
-  );
+  const classguardHomes = jobs.filter((job) => blockExecutesClassguard(job.block));
   if (classguardHomes.length === 0) {
     errors.push(
       "no CI job executes the product-test classguard; the coverage contract is unenforced",

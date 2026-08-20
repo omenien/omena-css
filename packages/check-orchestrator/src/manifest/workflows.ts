@@ -1327,7 +1327,12 @@ export function findBundleShardMatrixDiagnostics(rootDir: string): readonly Chec
     // which is itself derived from this same shard table (R2-confirm lens:
     // an env-form invocation with a hand-shrunk inline matrix silently
     // dropped a whole shard — the env branch must not blanket-satisfy).
-    const generatedMatrixRef = /fromJSON\(needs\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+\)/u;
+    // The reference must sit on a REAL matrix-value line — comments are
+    // stripped and the line must be a `<key>: ${{ fromJSON(...) }}` mapping
+    // (R3-confirm lens: a YAML comment carrying the fromJSON string re-opened
+    // the bypass against the raw-block test).
+    const generatedMatrixRef =
+      /^\s+[A-Za-z0-9_-]+:\s*\$\{\{\s*fromJSON\(needs\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+\)\s*\}\}\s*$/u;
     let consumed = false;
     for (const job of jobs) {
       const blockLines = lines.slice(job.start, job.end);
@@ -1360,7 +1365,8 @@ export function findBundleShardMatrixDiagnostics(rootDir: string): readonly Chec
         continue;
       }
       if (envRef.test(block)) {
-        if (generatedMatrixRef.test(block)) {
+        const effectiveLines = blockLines.filter((line) => !/^\s*#/u.test(line));
+        if (effectiveLines.some((line) => generatedMatrixRef.test(line))) {
           consumed = true;
         } else {
           diagnostics.push({
