@@ -174,6 +174,75 @@ assert.ok(
   "Omena CSS drift workflow must not mask benchmark readiness failures",
 );
 
+// g131-S5: the DECIDED placement (D-CI-1 option b, user decision 2026-08-20).
+// The demoted lanes stay hard-run on push as ADVISORY (outside ci-required)
+// and get their BLOCKING signal from the nightly hard-run + escalation.
+// Moving a lane out of either home without editing this contract is RED.
+const ciRegistry = JSON.parse(read("packages/check-orchestrator/ci-workflow.json")) as {
+  readonly jobs: readonly {
+    readonly name: string;
+    readonly requiredAnnotation: boolean | null;
+    readonly needs: readonly string[];
+  }[];
+};
+const ciRequiredNeeds = new Set(
+  ciRegistry.jobs.find((job) => job.name === "ci-required")?.needs ?? [],
+);
+for (const demotedJob of ["benchmark-instructions", "benchmark-complexity"]) {
+  const job = ciRegistry.jobs.find((candidate) => candidate.name === demotedJob);
+  assert.ok(job, `ci.yml must keep the push-advisory job "${demotedJob}"`);
+  assert.equal(
+    job.requiredAnnotation,
+    false,
+    `"${demotedJob}" must be advisory on push CI (D-CI-1 option b)`,
+  );
+  assert.ok(
+    !ciRequiredNeeds.has(demotedJob),
+    `"${demotedJob}" must not sit in ci-required.needs (D-CI-1 option b)`,
+  );
+}
+for (const [nightlyJob, lanes] of [
+  [
+    "  benchmark-instructions:",
+    ["rust/z5-perf-baseline", "rust/z5-perf-warmup-wave-count", "rust/z5-perf-no-regression"],
+  ],
+  [
+    "  benchmark-complexity:",
+    [
+      "rust/z5-perf-complexity-slope",
+      "rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound",
+    ],
+  ],
+  [
+    "  protocol-windows:",
+    ["core/build/omena-napi", "test/protocol", "release/check/packaged-omena-napi-crossplatform"],
+  ],
+] as const) {
+  const start = nightlySoak.indexOf(`\n${nightlyJob}`);
+  assert.ok(start >= 0, `nightly-soak must carry the demoted job block "${nightlyJob.trim()}"`);
+  const end = nightlySoak.indexOf("\n  ", start + nightlyJob.length + 2);
+  const blockEnd = nightlySoak.indexOf("\n\n  ", start);
+  const block = nightlySoak.slice(start, blockEnd === -1 ? undefined : blockEnd + 1);
+  void end;
+  for (const lane of lanes) {
+    assert.ok(
+      block.includes(`pnpm omena-check run ${lane}`),
+      `nightly-soak "${nightlyJob.trim()}" must hard-run ${lane}`,
+    );
+  }
+  assert.ok(
+    block.includes("escalate-ci-failure"),
+    `nightly-soak "${nightlyJob.trim()}" must escalate failures to an issue`,
+  );
+}
+// The windows protocol leg left push CI entirely: the push matrix is
+// macos-only, and the leg's nightly home is asserted above.
+const ci2 = read(".github/workflows/ci.yml");
+assert.ok(
+  ci2.includes("os: [macos-latest]") && !ci2.includes("os: [macos-latest, windows-latest]"),
+  "push protocol-matrix must be macos-only (windows leg demoted to nightly, D-CI-1 option b)",
+);
+
 console.log(
   JSON.stringify({
     schemaVersion: "0",

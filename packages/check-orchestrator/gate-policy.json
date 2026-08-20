@@ -167,10 +167,10 @@
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound",
-      "stage": "blocking",
+      "stage": "advisory",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+      "evidence": "g131-S5 D-CI-1(b): demoted to nightly hard-run + push advisory (user decision 2026-08-20); nightly escalation in nightly-soak.yml"
     },
     {
       "gateId": "rust/demand-sliced-monotone-fact-propagation-settle-soak",
@@ -1049,24 +1049,24 @@
     },
     {
       "gateId": "rust/z5-perf-baseline",
-      "stage": "blocking",
+      "stage": "advisory",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+      "evidence": "g131-S5 D-CI-1(b): demoted to nightly hard-run + push advisory (user decision 2026-08-20); nightly escalation in nightly-soak.yml"
     },
     {
       "gateId": "rust/z5-perf-complexity-slope",
-      "stage": "blocking",
+      "stage": "advisory",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+      "evidence": "g131-S5 D-CI-1(b): demoted to nightly hard-run + push advisory (user decision 2026-08-20); nightly escalation in nightly-soak.yml"
     },
     {
       "gateId": "rust/z5-perf-no-regression",
-      "stage": "blocking",
+      "stage": "advisory",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+      "evidence": "g131-S5 D-CI-1(b): demoted to nightly hard-run + push advisory (user decision 2026-08-20); nightly escalation in nightly-soak.yml"
     },
     {
       "gateId": "rust/z5-perf-per-file-invariant",
@@ -1077,10 +1077,10 @@
     },
     {
       "gateId": "rust/z5-perf-warmup-wave-count",
-      "stage": "blocking",
+      "stage": "advisory",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+      "evidence": "g131-S5 D-CI-1(b): demoted to nightly hard-run + push advisory (user decision 2026-08-20); nightly escalation in nightly-soak.yml"
     },
     {
       "gateId": "test/protocol",

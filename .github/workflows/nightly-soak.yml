@@ -357,6 +357,97 @@ jobs:
           job-name: demand-sliced-monotone-fact-propagation-settle-soak
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+  # g131-S5 (D-CI-1 option b): the three demoted push lanes run here nightly
+  # with hard failure-escalation; on push CI they remain advisory (outside
+  # ci-required). Demoted set = benchmark-instructions + benchmark-complexity
+  # (the valgrind poles) + the windows protocol leg. native-runner windows is
+  # NOT demotable (the package lane asserts the 3-leg native matrix).
+  benchmark-instructions:
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run rust/z5-perf-baseline --summary
+      - run: pnpm omena-check run rust/z5-perf-warmup-wave-count --summary
+      - run: pnpm omena-check run rust/z5-perf-no-regression --summary
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: nightly-soak / benchmark-instructions"
+          body: |
+            The nightly hard-run of the demoted z5 instruction-count lanes failed.
+            These are advisory on push CI (D-CI-1 option b) — this issue is the
+            blocking signal.
+          workflow-name: Nightly Soak
+          job-name: benchmark-instructions
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  benchmark-complexity:
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run rust/z5-perf-complexity-slope --summary
+      - run: pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound --summary
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: nightly-soak / benchmark-complexity"
+          body: |
+            The nightly hard-run of the demoted complexity-slope lanes failed.
+            These are advisory on push CI (D-CI-1 option b) — this issue is the
+            blocking signal.
+          workflow-name: Nightly Soak
+          job-name: benchmark-complexity
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  protocol-windows:
+    permissions:
+      contents: read
+      issues: write
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run core/build/omena-napi --summary
+      - run: pnpm omena-check run test/protocol --summary
+      - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform --summary
+      - name: Escalate scheduled failure
+        if: ${{ failure() }}
+        uses: ./.github/actions/escalate-ci-failure
+        with:
+          title: "CI failure: nightly-soak / protocol-windows"
+          body: |
+            The nightly hard-run of the demoted windows protocol leg failed.
+            It is no longer on push CI (D-CI-1 option b) — this issue is the
+            blocking signal.
+          workflow-name: Nightly Soak
+          job-name: protocol-windows
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   # NOTE: rust/omena-css/h1-readiness runs once nightly in omena-css-drift.yml
   # (08:00, green there). The duplicate 90-min soft run that lived here was removed
   # to stop running the same composite twice an hour apart (CI-hardening N7 dedup).

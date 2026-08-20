@@ -198,7 +198,7 @@
         "    strategy:",
         "      fail-fast: false",
         "      matrix:",
-        "        os: [macos-latest, windows-latest]",
+        "        os: [macos-latest]",
         "    runs-on: ${{ matrix.os }}",
         "    timeout-minutes: 20",
         "    steps:",
@@ -479,7 +479,7 @@
       "block": [
         "  benchmark-instructions:",
         "    # omena-ci-tier: verify",
-        "    # omena-ci-required: true",
+        "    # omena-ci-required: false",
         "    needs: preflight",
         "    runs-on: ubuntu-latest",
         "    timeout-minutes: 25",
@@ -513,7 +513,7 @@
         "          if-no-files-found: warn",
         ""
       ],
-      "requiredAnnotation": true,
+      "requiredAnnotation": false,
       "tierAnnotation": "verify",
       "needs": ["preflight"]
     },
@@ -522,7 +522,7 @@
       "block": [
         "  benchmark-complexity:",
         "    # omena-ci-tier: verify",
-        "    # omena-ci-required: true",
+        "    # omena-ci-required: false",
         "    needs: preflight",
         "    runs-on: ubuntu-latest",
         "    timeout-minutes: 20",
@@ -558,7 +558,7 @@
         "          if-no-files-found: warn",
         ""
       ],
-      "requiredAnnotation": true,
+      "requiredAnnotation": false,
       "tierAnnotation": "verify",
       "needs": ["preflight"]
     },
@@ -798,8 +798,6 @@
         "      - rust-product-test-crates",
         "      - rust-product-test-contracts",
         "      - benchmark-contracts",
-        "      - benchmark-instructions",
-        "      - benchmark-complexity",
         "      - plugin-consumers",
         "      - closure-fast-shards",
         "      - extension-host-smoke",
@@ -827,8 +825,6 @@
         "rust-product-test-crates",
         "rust-product-test-contracts",
         "benchmark-contracts",
-        "benchmark-instructions",
-        "benchmark-complexity",
         "plugin-consumers",
         "closure-fast-shards",
         "extension-host-smoke",

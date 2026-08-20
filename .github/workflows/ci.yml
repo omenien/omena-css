@@ -157,7 +157,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -374,7 +374,7 @@ jobs:
 
   benchmark-instructions:
     # omena-ci-tier: verify
-    # omena-ci-required: true
+    # omena-ci-required: false
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -409,7 +409,7 @@ jobs:
 
   benchmark-complexity:
     # omena-ci-tier: verify
-    # omena-ci-required: true
+    # omena-ci-required: false
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -645,8 +645,6 @@ jobs:
       - rust-product-test-crates
       - rust-product-test-contracts
       - benchmark-contracts
-      - benchmark-instructions
-      - benchmark-complexity
       - plugin-consumers
       - closure-fast-shards
       - extension-host-smoke
