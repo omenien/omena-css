@@ -85,24 +85,24 @@ describe("bundle shard-table/matrix consumption (g131 R2-R5)", () => {
 
   it("RED: env-form without any generated matrix (the R2-confirm evasion)", () => {
     const mutated = GENERATED_OK.replace(
-      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=\${{ matrix.contracts-shard }}",
-      '      - env:\n          S: \${{ matrix.contracts-shard }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
+      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=${{ matrix.contracts-shard }}",
+      '      - env:\n          S: ${{ matrix.contracts-shard }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
     ).replace("contracts-shard: [public-surface, rest]", "contracts-shard: [rest]");
     expect(drifts(mutated).join(";")).toContain("env-bound --shard");
   });
 
   it("RED: a fromJSON reference in a COMMENT does not sanction the env form (R3-confirm evasion)", () => {
     const mutated = GENERATED_OK.replace(
-      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=\${{ matrix.contracts-shard }}",
-      '      # shard: \${{ fromJSON(needs.preflight.outputs.contracts-shards) }}\n      - env:\n          S: \${{ matrix.contracts-shard }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
+      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=${{ matrix.contracts-shard }}",
+      '      # shard: ${{ fromJSON(needs.preflight.outputs.contracts-shards) }}\n      - env:\n          S: ${{ matrix.contracts-shard }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
     ).replace("contracts-shard: [public-surface, rest]", "contracts-shard: [rest]");
     expect(drifts(mutated).join(";")).toContain("env-bound --shard");
   });
 
   it("RED: a fromJSON DECOY outside strategy.matrix does not sanction the env form (R4-confirm evasion)", () => {
     const mutated = GENERATED_OK.replace(
-      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=\${{ matrix.contracts-shard }}",
-      '      - env:\n          S: \${{ matrix.contracts-shard }}\n          DECOY: \${{ fromJSON(needs.preflight.outputs.not-a-real-output) }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
+      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=${{ matrix.contracts-shard }}",
+      '      - env:\n          S: ${{ matrix.contracts-shard }}\n          DECOY: ${{ fromJSON(needs.preflight.outputs.not-a-real-output) }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
     ).replace("contracts-shard: [public-surface, rest]", "contracts-shard: [rest]");
     expect(drifts(mutated).join(";")).toContain("env-bound --shard");
   });
@@ -110,17 +110,17 @@ describe("bundle shard-table/matrix consumption (g131 R2-R5)", () => {
   it("RED: a generated matrix from the WRONG bundle's table does not sanction (R4-confirm D2)", () => {
     const mutated = GENERATED_OK.replace(
       "        contracts-shard: [public-surface, rest]",
-      "        contracts-shard: \${{ fromJSON(needs.preflight.outputs.closure-fast-shards) }}",
+      "        contracts-shard: ${{ fromJSON(needs.preflight.outputs.closure-fast-shards) }}",
     ).replace(
-      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=\${{ matrix.contracts-shard }}",
-      '      - env:\n          S: \${{ matrix.contracts-shard }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
+      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=${{ matrix.contracts-shard }}",
+      '      - env:\n          S: ${{ matrix.contracts-shard }}\n        run: pnpm omena-check bundle rust/contracts --summary --shard="$S"',
     );
     expect(drifts(mutated).join(";")).toContain("env-bound --shard");
   });
 
   it("RED: an unconsumed table (no --shard invocation at all)", () => {
     const mutated = GENERATED_OK.replace(
-      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=\${{ matrix.contracts-shard }}",
+      "      - run: pnpm omena-check bundle rust/contracts --summary --shard=${{ matrix.contracts-shard }}",
       "      - run: echo not-consuming",
     );
     expect(drifts(mutated).join(";")).toContain("no ci.yml job consumes it");
