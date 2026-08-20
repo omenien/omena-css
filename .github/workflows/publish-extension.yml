@@ -78,6 +78,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ ! "${OMENA_PROVENANCE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "publish provenance source check requires a full OMENA_PROVENANCE_SOURCE_SHA or GITHUB_SHA" >&2
+            exit 1
+          fi
           checked_out_sha="$(git rev-parse HEAD)"
           if [[ "${checked_out_sha}" != "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then
             echo "publish provenance source mismatch" >&2

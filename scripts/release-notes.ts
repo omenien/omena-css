@@ -44,7 +44,7 @@ async function main(): Promise<void> {
       renderCommand(args);
       return;
     case "check":
-      checkCommand();
+      checkCommand(args);
       return;
     case "verify-github":
       verifyGitHubCommand(args);
@@ -75,7 +75,7 @@ function renderCommand(args: readonly string[]): void {
   process.stdout.write(rendered);
 }
 
-function checkCommand(): void {
+function checkCommand(args: readonly string[]): void {
   const manifest = loadManifest();
   assert.equal(manifest.schemaVersion, "1");
   assert.equal(manifest.repository, "omenien/omena-css");
@@ -151,10 +151,7 @@ function checkCommand(): void {
     ".github/workflows/publish-extension.yml",
     ".github/workflows/release-cli.yml",
     ".github/workflows/_publish-crate-train.yml",
-  ].map(
-    (relativePath) =>
-      [relativePath, readFileSync(path.join(repoRoot, relativePath), "utf8")] as const,
-  );
+  ].map((relativePath) => [relativePath, workflowSourceForCheck(relativePath, args)] as const);
   for (const [relativePath, workflow] of workflows) {
     assert.ok(
       workflow.includes("release-notes.md"),
@@ -181,11 +178,15 @@ function checkCommand(): void {
     ([relativePath]) => relativePath === ".github/workflows/publish-extension.yml",
   )?.[1];
   assert.ok(extensionWorkflow);
-  const provenanceSourceGuard = 'checked_out_sha="$(git rev-parse HEAD)"';
-  assert.ok(
-    extensionWorkflow.indexOf(provenanceSourceGuard) <
-      extensionWorkflow.indexOf("./scripts/publish-extension.sh"),
-    "extension publication must reject a checkout/provenance mismatch before publishing",
+  const provenanceGuardReceipts: ProvenanceGuardReceipt[] = [];
+  provenanceGuardReceipts.push(
+    assertProvenanceSourceGuard({
+      relativePath: ".github/workflows/publish-extension.yml",
+      scope: "publish",
+      source: extensionWorkflow,
+      stepName: "Verify publication checkout matches provenance source",
+      before: "- uses: ./.github/actions/setup-pnpm",
+    }),
   );
   assert.ok(
     extensionWorkflow.indexOf("Render canonical release notes") <
@@ -217,23 +218,64 @@ function checkCommand(): void {
     "direct extension publishing must run the release-note gate before upload",
   );
 
-  const npmWorkflow = readFileSync(
-    path.join(repoRoot, ".github/workflows/_publish-npm.yml"),
-    "utf8",
-  );
+  const npmWorkflow = workflowSourceForCheck(".github/workflows/_publish-npm.yml", args);
   const npmIntegrityJob = npmWorkflow.slice(
     npmWorkflow.indexOf("  release-integrity:"),
     npmWorkflow.indexOf("  # --- 1."),
   );
-  assert.ok(
-    npmIntegrityJob.indexOf(provenanceSourceGuard) <
-      npmIntegrityJob.indexOf("./.github/actions/setup-pnpm"),
-    "npm publication must reject a checkout/provenance mismatch in its prerequisite gate",
+  provenanceGuardReceipts.push(
+    assertProvenanceSourceGuard({
+      relativePath: ".github/workflows/_publish-npm.yml",
+      scope: "release-integrity",
+      source: npmIntegrityJob,
+      stepName: "Verify publication checkout matches provenance source",
+      before: "- uses: ./.github/actions/setup-pnpm",
+    }),
+  );
+  provenanceGuardReceipts.push(
+    assertProvenanceSourceGuard({
+      relativePath: ".github/workflows/_publish-npm.yml",
+      scope: "napi-binaries",
+      source: yamlJobSource(npmWorkflow, "napi-binaries"),
+      stepName: "Verify publication checkout matches provenance source",
+      before: "- uses: ./.github/actions/setup-pnpm",
+    }),
+  );
+  const npmPublishJob = yamlJobSource(npmWorkflow, "publish");
+  provenanceGuardReceipts.push(
+    assertProvenanceSourceGuard({
+      relativePath: ".github/workflows/_publish-npm.yml",
+      scope: "publish",
+      source: npmPublishJob,
+      stepName: "Verify publication checkout matches provenance source",
+      before: "- uses: ./.github/actions/setup-pnpm",
+    }),
+  );
+  const npmPluginPublishJob = yamlJobSource(npmWorkflow, "publish-plugins");
+  provenanceGuardReceipts.push(
+    assertProvenanceSourceGuard({
+      relativePath: ".github/workflows/_publish-npm.yml",
+      scope: "publish-plugins",
+      source: npmPluginPublishJob,
+      stepName: "Verify publication checkout matches provenance source",
+      before: "- uses: ./.github/actions/setup-pnpm",
+    }),
   );
   assert.ok(
     npmWorkflow.includes("needs: [release-integrity, napi-binaries]") &&
       npmWorkflow.includes("needs: release-integrity"),
     "every npm publication job must remain downstream of the provenance source guard",
+  );
+
+  const sifWorkflow = workflowSourceForCheck(".github/workflows/sif-keyless-attestation.yml", args);
+  provenanceGuardReceipts.push(
+    assertProvenanceSourceGuard({
+      relativePath: ".github/workflows/sif-keyless-attestation.yml",
+      scope: "generate-and-attest",
+      source: yamlJobSource(sifWorkflow, "generate-and-attest"),
+      stepName: "Verify attestation checkout matches provenance source",
+      before: "- uses: ./.github/actions/setup-rust-pinned",
+    }),
   );
 
   const provenanceChecker = path.join(repoRoot, "scripts/verify-publish-provenance-source.mjs");
@@ -258,6 +300,13 @@ function checkCommand(): void {
   });
   assert.notEqual(mismatchedCheckout.status, 0, "mismatched publication checkout must fail");
   assert.match(mismatchedCheckout.stderr, /publish provenance source mismatch/u);
+  const malformedCheckout = spawnSync(process.execPath, [provenanceChecker], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: { ...process.env, OMENA_PROVENANCE_SOURCE_SHA: "0".repeat(39) },
+  });
+  assert.notEqual(malformedCheckout.status, 0, "malformed publication source SHA must fail");
+  assert.match(malformedCheckout.stderr, /requires a full OMENA_PROVENANCE_SOURCE_SHA/u);
 
   assert.ok(existsSync(path.join(repoRoot, ".github/release.yml")));
   const processDoc = readFileSync(path.join(repoRoot, "docs/releases/PROCESS.md"), "utf8");
@@ -306,13 +355,157 @@ function checkCommand(): void {
         releaseAxes: [...new Set(manifest.releases.map((entry) => entry.axis))].toSorted(),
         workflowCount: workflows.length,
         persistedBodyVerificationRequired: true,
-        provenanceSourceGuard: "green",
-        provenanceMismatchSelfTest: "red",
+        provenanceSourceGuardChecks: provenanceGuardReceipts,
+        provenanceRuntimeSelfTests: {
+          matchingCheckoutExit: matchingCheckout.status,
+          mismatchedCheckoutExit: mismatchedCheckout.status,
+          malformedCheckoutExit: malformedCheckout.status,
+        },
       },
       null,
       2,
     )}\n`,
   );
+}
+
+interface ProvenanceGuardReceipt {
+  readonly workflow: string;
+  readonly scope: string;
+  readonly guardStep: string;
+  readonly checkoutCount: number;
+  readonly sourceShaValidation: "full-lowercase-hex-40";
+  readonly mismatchExit: 1;
+}
+
+interface ProvenanceGuardCheckInput {
+  readonly relativePath: string;
+  readonly scope: string;
+  readonly source: string;
+  readonly stepName: string;
+  readonly before: string;
+}
+
+const provenanceGuardRunBlock = [
+  "set -euo pipefail",
+  'if [[ ! "${OMENA_PROVENANCE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then',
+  'echo "publish provenance source check requires a full OMENA_PROVENANCE_SOURCE_SHA or GITHUB_SHA" >&2',
+  "exit 1",
+  "fi",
+  'checked_out_sha="$(git rev-parse HEAD)"',
+  'if [[ "${checked_out_sha}" != "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then',
+  'echo "publish provenance source mismatch" >&2',
+  'echo "workflow provenance source: ${OMENA_PROVENANCE_SOURCE_SHA}" >&2',
+  'echo "checked-out publication source: ${checked_out_sha}" >&2',
+  'echo "Dispatch the workflow from the same immutable ref that is being checked out." >&2',
+  "exit 1",
+  "fi",
+  'echo "publish provenance source verified: ${checked_out_sha}"',
+].join("\n");
+
+function assertProvenanceSourceGuard(input: ProvenanceGuardCheckInput): ProvenanceGuardReceipt {
+  const checkoutMarker = "- uses: actions/checkout@";
+  const checkoutCount = occurrences(input.source, checkoutMarker);
+  assert.equal(
+    checkoutCount,
+    1,
+    `${input.relativePath} ${input.scope} must have exactly one checkout before its provenance guard`,
+  );
+  const checkoutIndex = input.source.indexOf(checkoutMarker);
+  const step = namedWorkflowStep(input.source, input.stepName);
+  const beforeIndex = input.source.indexOf(input.before);
+  assert.ok(
+    checkoutIndex < step.start,
+    `${input.relativePath} ${input.scope} provenance guard must follow checkout`,
+  );
+  assert.ok(
+    beforeIndex >= step.end,
+    `${input.relativePath} ${input.scope} provenance guard must finish before ${input.before}`,
+  );
+  const normalizedStep = step.source
+    .split("\n")
+    .map((line) => line.trimStart())
+    .join("\n");
+  assert.ok(
+    normalizedStep.includes("OMENA_PROVENANCE_SOURCE_SHA: ${{ github.sha }}"),
+    `${input.relativePath} ${input.scope} must compare against the workflow provenance source`,
+  );
+  assert.ok(
+    normalizedStep.includes(provenanceGuardRunBlock),
+    `${input.relativePath} ${input.scope} must carry the canonical fail-closed provenance guard`,
+  );
+  assert.equal(
+    normalizedStep.includes("exit 0"),
+    false,
+    `${input.relativePath} ${input.scope} provenance guard must not turn a refusal into success`,
+  );
+  return {
+    workflow: input.relativePath,
+    scope: input.scope,
+    guardStep: input.stepName,
+    checkoutCount,
+    sourceShaValidation: "full-lowercase-hex-40",
+    mismatchExit: 1,
+  };
+}
+
+function workflowSourceForCheck(relativePath: string, args: readonly string[]): string {
+  const source = readFileSync(path.join(repoRoot, relativePath), "utf8");
+  if (relativePath !== ".github/workflows/publish-extension.yml") return source;
+  const mutationFlags = [
+    "--inject-provenance-guard-deletion",
+    "--inject-provenance-guard-inversion",
+    "--inject-provenance-guard-exit-zero",
+  ].filter((flag) => args.includes(flag));
+  assert.ok(mutationFlags.length <= 1, "select at most one provenance guard mutation");
+  const [mutation] = mutationFlags;
+  if (!mutation) return source;
+
+  const stepName = "Verify publication checkout matches provenance source";
+  const step = namedWorkflowStep(source, stepName);
+  if (mutation === "--inject-provenance-guard-deletion") {
+    return source.slice(0, step.start) + source.slice(step.end);
+  }
+  if (mutation === "--inject-provenance-guard-inversion") {
+    const before = 'if [[ "${checked_out_sha}" != "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then';
+    assert.ok(step.source.includes(before), "provenance inversion mutation target is absent");
+    const mutated = step.source.replace(
+      before,
+      'if [[ "${checked_out_sha}" == "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then',
+    );
+    return source.slice(0, step.start) + mutated + source.slice(step.end);
+  }
+
+  const exitIndex = step.source.lastIndexOf("exit 1");
+  assert.ok(exitIndex >= 0, "provenance exit mutation target is absent");
+  const mutated = `${step.source.slice(0, exitIndex)}exit 0${step.source.slice(exitIndex + 6)}`;
+  return source.slice(0, step.start) + mutated + source.slice(step.end);
+}
+
+function namedWorkflowStep(
+  source: string,
+  stepName: string,
+): { readonly start: number; readonly end: number; readonly source: string } {
+  const marker = `      - name: ${stepName}\n`;
+  const start = source.indexOf(marker);
+  assert.ok(start >= 0, `workflow step is missing: ${stepName}`);
+  const nextStep = source.indexOf("\n      - ", start + marker.length);
+  const end = nextStep < 0 ? source.length : nextStep + 1;
+  return { start, end, source: source.slice(start, end) };
+}
+
+function yamlJobSource(source: string, jobName: string): string {
+  const marker = `\n  ${jobName}:\n`;
+  const markerIndex = source.indexOf(marker);
+  assert.ok(markerIndex >= 0, `workflow job is missing: ${jobName}`);
+  const start = markerIndex + 1;
+  const remainder = source.slice(start + marker.length - 1);
+  const nextJob = /^  [A-Za-z0-9_-]+:\n/gmu.exec(remainder);
+  const end = nextJob ? start + marker.length - 1 + nextJob.index : source.length;
+  return source.slice(start, end);
+}
+
+function occurrences(source: string, needle: string): number {
+  return source.split(needle).length - 1;
 }
 
 function verifyGitHubCommand(args: readonly string[]): void {

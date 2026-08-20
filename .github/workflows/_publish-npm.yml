@@ -96,6 +96,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ ! "${OMENA_PROVENANCE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "publish provenance source check requires a full OMENA_PROVENANCE_SOURCE_SHA or GITHUB_SHA" >&2
+            exit 1
+          fi
           checked_out_sha="$(git rev-parse HEAD)"
           if [[ "${checked_out_sha}" != "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then
             echo "publish provenance source mismatch" >&2
@@ -148,6 +152,25 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
+      - name: Verify publication checkout matches provenance source
+        env:
+          OMENA_PROVENANCE_SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${OMENA_PROVENANCE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "publish provenance source check requires a full OMENA_PROVENANCE_SOURCE_SHA or GITHUB_SHA" >&2
+            exit 1
+          fi
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ "${checked_out_sha}" != "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then
+            echo "publish provenance source mismatch" >&2
+            echo "workflow provenance source: ${OMENA_PROVENANCE_SOURCE_SHA}" >&2
+            echo "checked-out publication source: ${checked_out_sha}" >&2
+            echo "Dispatch the workflow from the same immutable ref that is being checked out." >&2
+            exit 1
+          fi
+          echo "publish provenance source verified: ${checked_out_sha}"
       - uses: ./.github/actions/setup-pnpm
       - name: Install Rust target
         shell: bash
@@ -194,6 +217,25 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
+      - name: Verify publication checkout matches provenance source
+        env:
+          OMENA_PROVENANCE_SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${OMENA_PROVENANCE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "publish provenance source check requires a full OMENA_PROVENANCE_SOURCE_SHA or GITHUB_SHA" >&2
+            exit 1
+          fi
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ "${checked_out_sha}" != "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then
+            echo "publish provenance source mismatch" >&2
+            echo "workflow provenance source: ${OMENA_PROVENANCE_SOURCE_SHA}" >&2
+            echo "checked-out publication source: ${checked_out_sha}" >&2
+            echo "Dispatch the workflow from the same immutable ref that is being checked out." >&2
+            exit 1
+          fi
+          echo "publish provenance source verified: ${checked_out_sha}"
       - uses: ./.github/actions/setup-pnpm
       # Install the rust-toolchain.toml-pinned 1.96.0 WITH the wasm32 target ON it —
       # wasm-pack runs cargo from rust/ (1.96.0), so a bare `rustup target add` (which
@@ -387,6 +429,25 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
+      - name: Verify publication checkout matches provenance source
+        env:
+          OMENA_PROVENANCE_SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${OMENA_PROVENANCE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "publish provenance source check requires a full OMENA_PROVENANCE_SOURCE_SHA or GITHUB_SHA" >&2
+            exit 1
+          fi
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ "${checked_out_sha}" != "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then
+            echo "publish provenance source mismatch" >&2
+            echo "workflow provenance source: ${OMENA_PROVENANCE_SOURCE_SHA}" >&2
+            echo "checked-out publication source: ${checked_out_sha}" >&2
+            echo "Dispatch the workflow from the same immutable ref that is being checked out." >&2
+            exit 1
+          fi
+          echo "publish provenance source verified: ${checked_out_sha}"
       - uses: ./.github/actions/setup-pnpm
       - name: Stage @omena build-tool packages
         run: pnpm omena-check run core/build/omena-plugin-packages -- --out "${PLUGIN_PKG_DIR}"

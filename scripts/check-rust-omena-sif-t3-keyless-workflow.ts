@@ -51,6 +51,34 @@ assert.match(
   /actions\/checkout@[0-9a-f]{40}\b/,
   "SIF attestation workflow must use a SHA-pinned checkout action",
 );
+const checkoutIndex = workflow.indexOf("- uses: actions/checkout@");
+const provenanceGuardIndex = workflow.indexOf(
+  "- name: Verify attestation checkout matches provenance source",
+);
+const rustSetupIndex = workflow.indexOf("- uses: ./.github/actions/setup-rust-pinned");
+const attestationIndex = workflow.indexOf("- name: Attest SIF build provenance");
+assert.ok(
+  checkoutIndex >= 0 &&
+    checkoutIndex < provenanceGuardIndex &&
+    provenanceGuardIndex < rustSetupIndex &&
+    rustSetupIndex < attestationIndex,
+  "SIF provenance guard must run immediately after checkout and before setup, generation, or attestation",
+);
+for (const guardLine of [
+  "OMENA_PROVENANCE_SOURCE_SHA: ${{ github.sha }}",
+  'if [[ ! "${OMENA_PROVENANCE_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then',
+  'checked_out_sha="$(git rev-parse HEAD)"',
+  'if [[ "${checked_out_sha}" != "${OMENA_PROVENANCE_SOURCE_SHA}" ]]; then',
+  'echo "publish provenance source mismatch" >&2',
+  'echo "publish provenance source verified: ${checked_out_sha}"',
+]) {
+  assert.ok(workflow.includes(guardLine), `SIF provenance guard is missing ${guardLine}`);
+}
+assert.equal(
+  workflow.includes("exit 0"),
+  false,
+  "SIF provenance guard must not turn a mismatch refusal into success",
+);
 assert.ok(
   workflow.includes("uses: ./.github/actions/setup-rust-pinned"),
   "SIF attestation workflow must use the pinned Rust toolchain setup",
@@ -214,6 +242,12 @@ process.stdout.write(
       lockSurface: "omena lock update",
       attestationSubject: "dist/sif/*.attestation-subject.json",
       unconsumedShardBatch: "not-published",
+      provenanceSourceGuard: {
+        sourceSha: "github.sha",
+        sourceShaValidation: "full-lowercase-hex-40",
+        mismatchExit: 1,
+        beforeSetupAndAttestation: true,
+      },
     },
     null,
     2,
