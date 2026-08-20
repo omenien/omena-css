@@ -3,7 +3,11 @@
   "product": "omena.check-orchestrator.gate-policy",
   "template": {
     "reviewIntervalDays": 90,
-    "advisoryHoldReasons": ["cost-review-pending", "demotion-staged", "instrument-rebuild"]
+    "advisoryHoldReasons": [
+      "cost-review-pending",
+      "demotion-staged",
+      "instrument-rebuild"
+    ]
   },
   "costSource": "static-enumeration-2026-08-18",
   "escapeHatch": {
@@ -13,8 +17,15 @@
     "reviewAfter": "2026-11-18"
   },
   "lanes": {
-    "bundles": ["rust/closure-fast", "rust/product-test-contracts"],
-    "singles": ["plugin/consumers", "rust/product-test-execution", "rust/workspace"],
+    "bundles": [
+      "rust/closure-fast",
+      "rust/product-test-contracts"
+    ],
+    "singles": [
+      "plugin/consumers",
+      "rust/product-test-execution",
+      "rust/workspace"
+    ],
     "ciJobs": [
       "rust-contracts",
       "benchmark-contracts",
@@ -31,6 +42,7 @@
     "manual-tool-with-named-consumer": 65,
     "research-evidence": 51
   },
+  "governedLeafCriteriaDigest": "ce6b2243c6add585bbfec7ab52d06754e65269be1b4b2cfc0a4449543ce6fdca",
   "records": [
     {
       "gateId": "contract/parity-v2-golden",

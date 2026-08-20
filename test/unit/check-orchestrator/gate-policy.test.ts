@@ -57,6 +57,10 @@ const BASE_POLICY = {
     reviewAfter: "2026-11-18",
   },
   lanes: { bundles: [], singles: ["docs/site"], ciJobs: [] },
+  // The fixture's live escape-hatch population is exactly tooling/omena-check
+  // (docs/site is tier-unclassified in this root); the digest pins that pair.
+  governedLeafCriteria: { "manual-tool-with-named-consumer": 1 },
+  governedLeafCriteriaDigest: "18776702947c2a0560f5e35f0112e387d0f09a6994a446858ea6d3cc8483e32e",
   records: [
     {
       gateId: "docs/site",

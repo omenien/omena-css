@@ -5,13 +5,19 @@ import {
   loadCheckManifest,
   renderCheckInventory,
 } from "../../../packages/check-orchestrator/src/manifest/index";
-import { findCiRequiredAggregationDiagnostics } from "../../../packages/check-orchestrator/src/manifest/workflows";
-import { expensiveTierMembers } from "../../../packages/check-orchestrator/src/manifest/gate-policy";
+import {
+  findCiRequiredAggregationDiagnostics,
+  findCiTierReachabilityDiagnostics,
+} from "../../../packages/check-orchestrator/src/manifest/workflows";
+import {
+  expensiveTierMembers,
+  findGatePolicyDiagnostics,
+} from "../../../packages/check-orchestrator/src/manifest/gate-policy";
 import {
   adoptCiWorkflow,
   validateCiWorkflowRegistry,
 } from "../../../packages/check-orchestrator/src/manifest/ci-workflow";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 
 const repoRoot = path.resolve(__dirname, "../../..");
@@ -326,6 +332,215 @@ describe("inventory and governance hardening arms", () => {
     ).toEqual([]);
   });
 
+  it("R4 RED-PROOF: the ROOT aggregator judge is semantic — comments, echoes, and inert steps do not judge", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-root-judge-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    const make = (rootSteps: readonly string[]) =>
+      [
+        "name: CI",
+        "jobs:",
+        "  leaf:",
+        "    # omena-ci-required: true",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        "      - run: echo work",
+        "  ci-required:",
+        "    # omena-ci-required: false",
+        "    needs:",
+        "      - leaf",
+        "    if: ${{ always() }}",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        ...rootSteps,
+      ].join("\n");
+    const codesFor = (content: string) => {
+      writeFileSync(path.join(root, ".github/workflows/ci.yml"), content);
+      return findCiRequiredAggregationDiagnostics(root).map((diagnostic) => diagnostic.code);
+    };
+    // A live judge is quiet.
+    expect(codesFor(make(["      - run: node ./scripts/check-ci-required-results.mjs"]))).toEqual(
+      [],
+    );
+    // The confirm lens's root evasion: a comment naming the script plus echo.
+    expect(
+      codesFor(
+        make([
+          "      # judged elsewhere: scripts/check-ci-required-results.mjs",
+          "      - run: echo ok",
+        ]),
+      ),
+    ).toContain("ci-required-result-check-missing");
+    // A block-scalar judge is a REAL judge (false-positive direction).
+    expect(
+      codesFor(make(["      - run: |", "          node ./scripts/check-ci-required-results.mjs"])),
+    ).toEqual([]);
+    // A judge that runs but cannot fail the job is inert.
+    expect(
+      codesFor(
+        make([
+          "      - run: node ./scripts/check-ci-required-results.mjs",
+          "        continue-on-error: true",
+        ]),
+      ),
+    ).toContain("ci-aggregator-judge-inert");
+    // A judge that is skipped is inert.
+    expect(
+      codesFor(
+        make(["      - if: false", "        run: node ./scripts/check-ci-required-results.mjs"]),
+      ),
+    ).toContain("ci-aggregator-judge-inert");
+  });
+
+  it("R4 RED-PROOF: interior judge liveness, if-key spelling, required-path soft-fail, and YAML failure are all governed", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-judge-liveness-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    const make = (aggregateLines: readonly string[]) =>
+      [
+        "name: CI",
+        "jobs:",
+        "  leaf:",
+        "    # omena-ci-required: false",
+        "    runs-on: ubuntu-latest",
+        "  aggregate:",
+        "    # omena-ci-required: true",
+        "    needs:",
+        "      - leaf",
+        ...aggregateLines,
+        "  ci-required:",
+        "    # omena-ci-required: false",
+        "    needs:",
+        "      - aggregate",
+        "    if: ${{ always() }}",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        "      - run: node ./scripts/check-ci-required-results.mjs",
+      ].join("\n");
+    const codesFor = (content: string) => {
+      writeFileSync(path.join(root, ".github/workflows/ci.yml"), content);
+      return findCiRequiredAggregationDiagnostics(root).map((diagnostic) => diagnostic.code);
+    };
+    // Judge neutered by continue-on-error on an interior aggregator.
+    expect(
+      codesFor(
+        make([
+          "    if: ${{ always() }}",
+          "    runs-on: ubuntu-latest",
+          "    steps:",
+          "      - run: node ./scripts/check-ci-required-results.mjs",
+          "        continue-on-error: true",
+        ]),
+      ),
+    ).toContain("ci-aggregator-judge-inert");
+    // Judge neutered by a step-level if.
+    expect(
+      codesFor(
+        make([
+          "    if: ${{ always() }}",
+          "    runs-on: ubuntu-latest",
+          "    steps:",
+          "      - if: false",
+          "        run: node ./scripts/check-ci-required-results.mjs",
+        ]),
+      ),
+    ).toContain("ci-aggregator-judge-inert");
+    // Key-spelling evasions: quoted key and space-before-colon are BOTH
+    // job-level ifs to a YAML parser and must fire the judge duty.
+    for (const spelledIf of [
+      '    "if": ${{ always() && true }}',
+      "    if : ${{ always() && true }}",
+    ]) {
+      expect(
+        codesFor(
+          make([spelledIf, "    runs-on: ubuntu-latest", "    steps:", "      - run: echo ok"]),
+        ),
+      ).toContain("ci-aggregator-judge-missing");
+    }
+    // Job-level continue-on-error anywhere on the required path REDs.
+    expect(
+      codesFor(
+        make([
+          "    continue-on-error: true",
+          "    runs-on: ubuntu-latest",
+          "    steps:",
+          "      - run: echo work",
+        ]),
+      ),
+    ).toContain("ci-required-soft-fail");
+    // Unparseable ci.yml fails CLOSED as a governed diagnostic, not a crash.
+    expect(
+      codesFor(make(["    runs-on: [unclosed", "    steps:", "      - run: echo work"])),
+    ).toEqual(["ci-workflow-yaml-invalid"]);
+  });
+
+  it("R4 RED-PROOF: criterion pins are fail-closed — key deletion, ghost pins, and digest drift are all loud", () => {
+    const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-criteria-pins-"));
+    cpSync(path.join(repoRoot, ".github/workflows"), path.join(scratch, ".github/workflows"), {
+      recursive: true,
+    });
+    mkdirSync(path.join(scratch, "packages/check-orchestrator"), { recursive: true });
+    const policyPath = path.join(scratch, "packages/check-orchestrator/gate-policy.json");
+    const policy = JSON.parse(
+      readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const manifest = loadCheckManifest(repoRoot);
+    const codesWith = (mutate: (draft: Record<string, unknown>) => void) => {
+      const draft = JSON.parse(JSON.stringify(policy)) as Record<string, unknown>;
+      mutate(draft);
+      writeFileSync(policyPath, JSON.stringify(draft));
+      return findCiTierReachabilityDiagnostics(scratch, manifest.gates).map(
+        (diagnostic) => diagnostic.code,
+      );
+    };
+    // A faithful copy is quiet on every pin arm (setup soundness).
+    const baseline = codesWith(() => {});
+    for (const code of [
+      "gate-policy-criteria-missing",
+      "gate-policy-criterion-drift",
+      "gate-policy-criterion-digest-drift",
+    ]) {
+      expect(baseline).not.toContain(code);
+    }
+    // Deleting the counts key must not silently retire the governance.
+    expect(codesWith((draft) => delete draft["governedLeafCriteria"])).toContain(
+      "gate-policy-criteria-missing",
+    );
+    // ...nor may deleting the digest key.
+    expect(codesWith((draft) => delete draft["governedLeafCriteriaDigest"])).toContain(
+      "gate-policy-criteria-missing",
+    );
+    // A pinned criterion with zero live members (ghost pin) REDs.
+    expect(
+      codesWith((draft) => {
+        (draft["governedLeafCriteria"] as Record<string, number>)["ghost-criterion"] = 7;
+      }),
+    ).toContain("gate-policy-criterion-drift");
+    // Count-preserving content churn REDs via the pairs digest.
+    expect(
+      codesWith((draft) => {
+        draft["governedLeafCriteriaDigest"] = "f".repeat(64);
+      }),
+    ).toContain("gate-policy-criterion-digest-drift");
+  });
+
+  it("R4 RED-PROOF: gate-policy shape failures are governed diagnostics, not stack traces", () => {
+    const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-policy-shape-"));
+    mkdirSync(path.join(scratch, "packages/check-orchestrator"), { recursive: true });
+    const policy = JSON.parse(
+      readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
+    ) as Record<string, unknown>;
+    delete policy["records"];
+    delete policy["template"];
+    writeFileSync(
+      path.join(scratch, "packages/check-orchestrator/gate-policy.json"),
+      JSON.stringify(policy),
+    );
+    const diagnostics = findGatePolicyDiagnostics(scratch, [], new Map());
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain("gate-policy-invalid-shape");
+    expect(diagnostics.map((diagnostic) => diagnostic.message).join(";")).toContain(
+      "records must be an array",
+    );
+  });
+
   it("HARDENING RED-PROOF: criterion coherence reaches declared-tier gates, and pinned criterion counts make relabels a reviewed diff", () => {
     const repoManifest = loadCheckManifest(repoRoot);
     // The two compat-split-boundary bundles are declared (ciTier manual) — the
@@ -360,6 +575,20 @@ describe("inventory and governance hardening arms", () => {
         (diagnostic) => diagnostic.code === "gate-policy-criterion-drift",
       ),
     ).toEqual([]);
+    // R4: the arm must PERTURB, not just describe (the confirm lens supplied
+    // this missing perturbation live) — removing the tag from the REAL gate
+    // set REDs, so the sweep's reach is proven, not narrated.
+    const mutated = repoManifest.gates.map((gate) =>
+      gate.id === "rust/omena-semantic-split-boundary"
+        ? { ...gate, tags: gate.tags?.filter((tag) => tag !== "compat-split-boundary") }
+        : gate,
+    );
+    expect(
+      findCiTierReachabilityDiagnostics(repoRoot, mutated)
+        .filter((diagnostic) => diagnostic.code === "governed-leaf-criterion-mismatch")
+        .map((diagnostic) => diagnostic.message)
+        .join(";"),
+    ).toContain('Governed leaf "rust/omena-semantic-split-boundary"');
   });
   it("DIAGNOSTIC-CODE CENSUS: every code literal in src is in the committed inventory and vice versa", () => {
     const src = path.join(repoRoot, "packages/check-orchestrator/src");

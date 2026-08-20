@@ -84,7 +84,11 @@ export interface GatePolicy {
     readonly singles: readonly string[];
     readonly ciJobs: readonly string[];
   };
+  // Optional in the TYPE because loadGatePolicy casts untrusted JSON; absence
+  // is made loud by findGatePolicyDiagnostics (shape) and the consumer in
+  // workflows.ts (gate-policy-criteria-missing) — never silently tolerated.
   readonly governedLeafCriteria?: Readonly<Record<string, number>>;
+  readonly governedLeafCriteriaDigest?: string;
   readonly records: readonly GatePolicyRecord[];
 }
 
@@ -125,17 +129,60 @@ export function findGatePolicyDiagnostics(
     }
     return diagnostics;
   }
+  // Whole-document shape validation (R4): every field the checks below (and
+  // the workflows.ts consumers) dereference must fail as a governed
+  // diagnostic, never as a stack trace — `lanes` alone was a point patch.
+  const shapeErrors: string[] = [];
   if (
     !policy.lanes ||
     !Array.isArray(policy.lanes.bundles) ||
     !Array.isArray(policy.lanes.singles) ||
     !Array.isArray(policy.lanes.ciJobs)
   ) {
-    diagnostics.push({
-      severity: "error",
-      code: "gate-policy-invalid-shape",
-      message: "gate-policy.json lanes must declare bundles/singles/ciJobs arrays.",
-    });
+    shapeErrors.push("lanes must declare bundles/singles/ciJobs arrays");
+  }
+  if (!policy.template || typeof policy.template.reviewIntervalDays !== "number") {
+    shapeErrors.push("template.reviewIntervalDays must be a number");
+  }
+  if (!policy.template || !Array.isArray(policy.template.advisoryHoldReasons)) {
+    shapeErrors.push("template.advisoryHoldReasons must be an array");
+  }
+  if (
+    !policy.escapeHatch ||
+    typeof policy.escapeHatch.maxGateCount !== "number" ||
+    typeof policy.escapeHatch.owner !== "string" ||
+    typeof policy.escapeHatch.reviewedAt !== "string" ||
+    typeof policy.escapeHatch.reviewAfter !== "string"
+  ) {
+    shapeErrors.push("escapeHatch must declare maxGateCount/owner/reviewedAt/reviewAfter");
+  }
+  if (!Array.isArray(policy.records)) {
+    shapeErrors.push("records must be an array");
+  }
+  if (
+    !policy.governedLeafCriteria ||
+    typeof policy.governedLeafCriteria !== "object" ||
+    Array.isArray(policy.governedLeafCriteria) ||
+    Object.values(policy.governedLeafCriteria).some(
+      (count) => !Number.isInteger(count) || count < 0,
+    )
+  ) {
+    shapeErrors.push("governedLeafCriteria must map criteria to non-negative integers");
+  }
+  if (
+    typeof policy.governedLeafCriteriaDigest !== "string" ||
+    !/^[0-9a-f]{64}$/.test(policy.governedLeafCriteriaDigest)
+  ) {
+    shapeErrors.push("governedLeafCriteriaDigest must be a sha256 hex digest");
+  }
+  if (shapeErrors.length > 0) {
+    for (const shapeError of shapeErrors) {
+      diagnostics.push({
+        severity: "error",
+        code: "gate-policy-invalid-shape",
+        message: `gate-policy.json ${shapeError}.`,
+      });
+    }
     return diagnostics;
   }
   const today = gatePolicyToday();

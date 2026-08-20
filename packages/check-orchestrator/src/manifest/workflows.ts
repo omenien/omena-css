@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 import { buildCheckPlan } from "./plan";
 import { loadGatePolicy } from "./gate-policy";
 import type { CheckCiTier, CheckDiagnostic, CheckGate } from "./types";
@@ -1015,6 +1017,52 @@ export function findScheduledWorkflowEscalationDiagnostics(
   return diagnostics;
 }
 
+// R4 hardening: judge facts come from the PARSED job mapping, not line
+// regexes. The YAML parser normalizes key spelling (`"if":`, `if :`) and
+// block-scalar run bodies, so the rule governs semantics: does the job carry
+// a job-level if of any form, and does a LIVE judge step (no step-level if,
+// no continue-on-error) actually execute check-ci-required-results.mjs?
+const JUDGE_COMMAND = /^node \.\/scripts\/check-ci-required-results\.mjs$/;
+
+interface ParsedJobFacts {
+  readonly hasJobLevelIf: boolean;
+  readonly softFail: boolean;
+  readonly judge: "live" | "inert" | "missing";
+  readonly judgeInertReason: string;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function readParsedJobFacts(jobValue: unknown): ParsedJobFacts {
+  const job = asRecord(jobValue);
+  const hasJobLevelIf = Object.hasOwn(job, "if");
+  const softFail = Object.hasOwn(job, "continue-on-error") && job["continue-on-error"] !== false;
+  let judge: ParsedJobFacts["judge"] = "missing";
+  let judgeInertReason = "";
+  const steps = Array.isArray(job["steps"]) ? job["steps"] : [];
+  for (const stepValue of steps) {
+    const step = asRecord(stepValue);
+    const run = typeof step["run"] === "string" ? step["run"] : "";
+    if (!run.split(/\r?\n/).some((line) => JUDGE_COMMAND.test(line.trim()))) continue;
+    if (Object.hasOwn(step, "if")) {
+      judge = "inert";
+      judgeInertReason = "the judge step carries a step-level if: and can be skipped";
+      continue;
+    }
+    if (Object.hasOwn(step, "continue-on-error") && step["continue-on-error"] !== false) {
+      judge = "inert";
+      judgeInertReason = "the judge step carries continue-on-error: and cannot fail the job";
+      continue;
+    }
+    return { hasJobLevelIf, softFail, judge: "live", judgeInertReason: "" };
+  }
+  return { hasJobLevelIf, softFail, judge, judgeInertReason };
+}
+
 export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
   const workflowPath = path.join(rootDir, ".github/workflows/ci.yml");
   if (!existsSync(workflowPath)) return [];
@@ -1044,13 +1092,27 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
 
   const diagnostics: CheckDiagnostic[] = [];
 
-  // Hardening review: the strength derivation's skip-cascade premise is
-  // broken exactly at `if: always()` joints. EVERY ci-required needs-ancestor
-  // that disables skip-propagation with always() must judge its needs with
-  // check-ci-required-results.mjs — previously only the job literally named
-  // "ci-required" carried that duty, so one sanctioned line-edit could invert
-  // ~100 gates' strength silently.
-  const jobByName = new Map(jobs.map((job) => [job.name, job]));
+  // Hardening review (R3/R4): the strength derivation's skip-cascade premise
+  // is broken exactly at job-level `if:` joints. EVERY ci-required
+  // needs-ancestor that disables skip-propagation (ANY if form counts) must
+  // judge its needs with a LIVE check-ci-required-results.mjs step, and no
+  // job on the required path may soft-fail via job-level continue-on-error,
+  // which converts a failing conclusion into success upstream of every other
+  // rule. Facts come from the parsed document (see readParsedJobFacts).
+  let parsedJobs: Record<string, unknown>;
+  try {
+    parsedJobs = asRecord(asRecord(parseYaml(lines.join("\n")))["jobs"]);
+  } catch (error) {
+    return [
+      {
+        severity: "error",
+        code: "ci-workflow-yaml-invalid",
+        message: `.github/workflows/ci.yml does not parse as YAML: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      },
+    ];
+  }
   const needsByName = new Map(jobs.map((job) => [job.name, parseWorkflowJobNeeds(lines, job)]));
   const ancestors = new Set<string>();
   const queue = [...(needsByName.get("ci-required") ?? [])];
@@ -1060,27 +1122,34 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
     ancestors.add(name);
     queue.push(...(needsByName.get(name) ?? []));
   }
-  for (const name of ancestors) {
-    const job = jobByName.get(name);
-    if (!job) continue;
-    const blockLines = lines.slice(job.start + 1, job.end);
-    // JOB-level `if:` of ANY form disables skip-propagation inheritance — the
-    // invariant is form-agnostic (always(), !cancelled(), always() && cond all
-    // count); step-level `if:` (6+ spaces) is irrelevant and must not trigger.
-    const hasJobLevelIf = blockLines.some((line) => /^ {4}if:/.test(line));
-    // The judge must be an actual run step, not a substring anywhere (a
-    // comment naming the script must not satisfy the duty).
-    const hasJudge = blockLines.some((line) =>
-      /^ {6,}-?\s*run: node \.\/scripts\/check-ci-required-results\.mjs\s*$/.test(line),
-    );
-    if (hasJobLevelIf && !hasJudge) {
+  for (const name of new Set([...ancestors, "ci-required"])) {
+    if (!Object.hasOwn(parsedJobs, name)) continue;
+    const facts = readParsedJobFacts(parsedJobs[name]);
+    if (facts.softFail) {
+      diagnostics.push({
+        severity: "error",
+        code: "ci-required-soft-fail",
+        message: `.github/workflows/ci.yml job "${name}" is on the ci-required path but carries job-level continue-on-error:, which converts a failing conclusion into success.`,
+      });
+    }
+    // The root aggregator has its own mandatory-judge and mandatory-always
+    // rules below; only the soft-fail arm applies to it here.
+    if (name === "ci-required") continue;
+    if (facts.hasJobLevelIf && facts.judge === "missing") {
       diagnostics.push({
         severity: "error",
         code: "ci-aggregator-judge-missing",
         message: `.github/workflows/ci.yml job "${name}" reaches ci-required and carries a job-level if: (any form disables skip-propagation) without judging its needs via check-ci-required-results.mjs; a failed need could silently become success.`,
       });
     }
-    if (hasJudge && !hasJobLevelIf && name !== "ci-required") {
+    if (facts.hasJobLevelIf && facts.judge === "inert") {
+      diagnostics.push({
+        severity: "error",
+        code: "ci-aggregator-judge-inert",
+        message: `.github/workflows/ci.yml job "${name}" reaches ci-required and its judge step is inert (${facts.judgeInertReason}); a failed need could silently become success.`,
+      });
+    }
+    if (facts.judge === "live" && !facts.hasJobLevelIf) {
       diagnostics.push({
         severity: "error",
         code: "ci-aggregator-missing-always",
@@ -1136,8 +1205,12 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
     });
   }
 
-  const block = lines.slice(aggregator.start, aggregator.end).join("\n");
-  if (!/^\s+if:\s*\$\{\{\s*always\(\)\s*\}\}\s*$/m.test(block)) {
+  // Root aggregator duties, judged on the PARSED job (R4: the root was the
+  // last judge still governed by a substring test — a comment naming the
+  // script satisfied it).
+  const rootJob = asRecord(parsedJobs["ci-required"]);
+  const rootIf = typeof rootJob["if"] === "string" ? rootJob["if"].trim() : "";
+  if (!/^\$\{\{\s*always\(\)\s*\}\}$/.test(rootIf)) {
     diagnostics.push({
       severity: "error",
       code: "ci-required-missing-always",
@@ -1145,12 +1218,20 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
         'The "ci-required" aggregate job must use "if: ${{ always() }}" so failed or cancelled dependencies are evaluated.',
     });
   }
-  if (!block.includes("scripts/check-ci-required-results.mjs")) {
+  const rootFacts = readParsedJobFacts(parsedJobs["ci-required"]);
+  if (rootFacts.judge === "missing") {
     diagnostics.push({
       severity: "error",
       code: "ci-required-result-check-missing",
       message:
-        'The "ci-required" aggregate job must execute scripts/check-ci-required-results.mjs.',
+        'The "ci-required" aggregate job must execute scripts/check-ci-required-results.mjs as a ' +
+        "live run step (a comment or echo naming the script judges nothing).",
+    });
+  } else if (rootFacts.judge === "inert") {
+    diagnostics.push({
+      severity: "error",
+      code: "ci-aggregator-judge-inert",
+      message: `.github/workflows/ci.yml job "ci-required" is the root aggregator and its judge step is inert (${rootFacts.judgeInertReason}); a failed need could silently become success.`,
     });
   }
 
@@ -1272,19 +1353,68 @@ export function findCiTierReachabilityDiagnostics(
         GOVERNED_CI_LEAF_CLASSIFICATIONS_BY_ID.get(gateId)?.criterion ?? "declared-none-or-manual";
       criterionCounts.set(criterion, (criterionCounts.get(criterion) ?? 0) + 1);
     }
-    const pinnedCriteria = loadGatePolicy(rootDir)?.governedLeafCriteria;
+    const policy = loadGatePolicy(rootDir);
+    const pinnedCriteria = policy?.governedLeafCriteria;
+    if (policy && !pinnedCriteria) {
+      // Fail-closed (R4): deleting the key must not silently retire the
+      // whole criterion governance — the exact fail-open species
+      // ci-required-model-missing closed for annotations.
+      diagnostics.push({
+        severity: "error",
+        code: "gate-policy-criteria-missing",
+        message:
+          "gate-policy.json exists but pins no governedLeafCriteria; deleting the key must not silently retire criterion governance.",
+      });
+    }
     if (pinnedCriteria) {
-      for (const [criterion, count] of criterionCounts) {
-        if ((pinnedCriteria[criterion] ?? 0) !== count) {
+      // Union of pinned and live criteria (R4): a pinned criterion with zero
+      // live members (ghost pin) must be as loud as an unpinned live one.
+      const criteria = new Set([...criterionCounts.keys(), ...Object.keys(pinnedCriteria)]);
+      for (const criterion of [...criteria].toSorted()) {
+        const live = criterionCounts.get(criterion) ?? 0;
+        const pinned = pinnedCriteria[criterion] ?? 0;
+        if (live !== pinned) {
           diagnostics.push({
             severity: "error",
             code: "gate-policy-criterion-drift",
             message:
-              `escape-hatch criterion "${criterion}" counts ${count} live but gate-policy.json pins ` +
-              `${pinnedCriteria[criterion] ?? 0}; relabels must land as a reviewed policy diff.`,
+              `escape-hatch criterion "${criterion}" counts ${live} live but gate-policy.json pins ` +
+              `${pinned}; relabels must land as a reviewed policy diff.`,
           });
         }
       }
+    }
+    // Counts alone are blind to count-preserving compensating relabels (R4);
+    // the digest pins the (gateId, criterion) PAIRS themselves.
+    const liveDigest = createHash("sha256")
+      .update(
+        [...escapeHatchGateIds]
+          .toSorted()
+          .map(
+            (gateId) =>
+              `${gateId}=${
+                GOVERNED_CI_LEAF_CLASSIFICATIONS_BY_ID.get(gateId)?.criterion ??
+                "declared-none-or-manual"
+              }`,
+          )
+          .join("\n"),
+      )
+      .digest("hex");
+    const pinnedDigest = policy?.governedLeafCriteriaDigest;
+    if (policy && typeof pinnedDigest !== "string") {
+      diagnostics.push({
+        severity: "error",
+        code: "gate-policy-criteria-missing",
+        message: `gate-policy.json exists but pins no governedLeafCriteriaDigest; pin the live digest ${liveDigest}.`,
+      });
+    } else if (policy && pinnedDigest !== liveDigest) {
+      diagnostics.push({
+        severity: "error",
+        code: "gate-policy-criterion-digest-drift",
+        message:
+          `escape-hatch (gateId, criterion) pairs digest to ${liveDigest} but gate-policy.json pins ` +
+          `${pinnedDigest}; content relabels must land as a reviewed policy diff (re-pin governedLeafCriteriaDigest deliberately).`,
+      });
     }
     const criterionSummary = [...criterionCounts.entries()]
       .toSorted(([left], [right]) => left.localeCompare(right))
