@@ -1308,6 +1308,69 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
 //   (b) generated matrix + `--shard="$ENV"` (closure-fast) — the matrix is
 //       produced by `omena-check shards --json` from the SAME table, so the
 //       equality is structural; the aggregation-complete gate pins that form.
+
+// R4-confirm lens (third round of one species): the fromJSON reference must
+// (1) sit on a value line INSIDE this job's strategy.matrix section — not a
+// comment, not an env mapping, not any other block; and (2) name an output
+// whose PRODUCING job derives it from THIS bundle's shard table via
+// `omena-check shards <bundleId> --json`. Position and provenance, both.
+function jobConsumesGeneratedMatrix(
+  blockLines: readonly string[],
+  allLines: readonly string[],
+  jobs: readonly { readonly name: string; readonly start: number; readonly end: number }[],
+  bundleId: string,
+): boolean {
+  const valueRef =
+    /^(\s+)[A-Za-z0-9_-]+:\s*\$\{\{\s*fromJSON\(needs\.([A-Za-z0-9_-]+)\.outputs\.([A-Za-z0-9_-]+)\)\s*\}\}\s*$/u;
+  let inStrategy = false;
+  let inMatrix = false;
+  let strategyIndent = -1;
+  let matrixIndent = -1;
+  for (const line of blockLines) {
+    if (/^\s*#/u.test(line) || /^\s*$/u.test(line)) continue;
+    const indent = line.match(/^\s*/u)?.[0]?.length ?? 0;
+    if (/^\s*strategy:\s*$/u.test(line)) {
+      inStrategy = true;
+      strategyIndent = indent;
+      inMatrix = false;
+      continue;
+    }
+    if (inStrategy && indent <= strategyIndent) {
+      inStrategy = false;
+      inMatrix = false;
+    }
+    if (inStrategy && /^\s*matrix:\s*$/u.test(line)) {
+      inMatrix = true;
+      matrixIndent = indent;
+      continue;
+    }
+    if (inMatrix && indent <= matrixIndent) inMatrix = false;
+    if (!inMatrix) continue;
+    const match = valueRef.exec(line);
+    if (!match) continue;
+    const producerName = match[2] ?? "";
+    const outputName = match[3] ?? "";
+    const producer = jobs.find((candidate) => candidate.name === producerName);
+    if (!producer) continue;
+    const producerBlock = allLines
+      .slice(producer.start, producer.end)
+      .filter((producerLine) => !/^\s*#/u.test(producerLine));
+    const outputEscaped = outputName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const definesOutput = producerBlock.some((producerLine) =>
+      new RegExp(
+        `^\\s+${outputEscaped}:\\s*\\$\\{\\{\\s*steps\\.[A-Za-z0-9_-]+\\.outputs\\.`,
+        "u",
+      ).test(producerLine),
+    );
+    const bundleEscaped = bundleId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const derivesFromTable = producerBlock.some((producerLine) =>
+      new RegExp(`omena-check shards ${bundleEscaped} --json`, "u").test(producerLine),
+    );
+    if (definesOutput && derivesFromTable) return true;
+  }
+  return false;
+}
+
 export function findBundleShardMatrixDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
   const workflowPath = path.join(rootDir, ".github/workflows/ci.yml");
   if (!existsSync(workflowPath)) return [];
@@ -1327,12 +1390,7 @@ export function findBundleShardMatrixDiagnostics(rootDir: string): readonly Chec
     // which is itself derived from this same shard table (R2-confirm lens:
     // an env-form invocation with a hand-shrunk inline matrix silently
     // dropped a whole shard — the env branch must not blanket-satisfy).
-    // The reference must sit on a REAL matrix-value line — comments are
-    // stripped and the line must be a `<key>: ${{ fromJSON(...) }}` mapping
-    // (R3-confirm lens: a YAML comment carrying the fromJSON string re-opened
-    // the bypass against the raw-block test).
-    const generatedMatrixRef =
-      /^\s+[A-Za-z0-9_-]+:\s*\$\{\{\s*fromJSON\(needs\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+\)\s*\}\}\s*$/u;
+
     let consumed = false;
     for (const job of jobs) {
       const blockLines = lines.slice(job.start, job.end);
@@ -1365,8 +1423,7 @@ export function findBundleShardMatrixDiagnostics(rootDir: string): readonly Chec
         continue;
       }
       if (envRef.test(block)) {
-        const effectiveLines = blockLines.filter((line) => !/^\s*#/u.test(line));
-        if (effectiveLines.some((line) => generatedMatrixRef.test(line))) {
+        if (jobConsumesGeneratedMatrix(blockLines, lines, jobs, bundleId)) {
           consumed = true;
         } else {
           diagnostics.push({
@@ -1374,8 +1431,9 @@ export function findBundleShardMatrixDiagnostics(rootDir: string): readonly Chec
             code: "bundle-shard-matrix-drift",
             message:
               `ci.yml job "${job.name}" consumes bundle "${bundleId}" through an env-bound ` +
-              "--shard without a generated fromJSON(needs.*.outputs.*) matrix; the env form is " +
-              "sanctioned only when the matrix is derived from the shard table itself.",
+              "--shard without a strategy.matrix value generated from THIS bundle's shard " +
+              "table (fromJSON of an output produced by `omena-check shards <bundleId> --json`); " +
+              "the env form is sanctioned only for that generated-matrix shape.",
           });
         }
       }

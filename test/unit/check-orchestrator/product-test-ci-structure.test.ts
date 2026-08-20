@@ -103,6 +103,34 @@ describe("product-test CI structure (registry-anchored classguard, g131-S0)", ()
     expect(findProductTestCiStructureErrors(jobs, EXPECTED)).toEqual([]);
   });
 
+  it("STEP-SHAPE ARMS (stage-5 R5): the classguard duty accepts only EXECUTING steps", () => {
+    const CG = "pnpm omena-check run rust/product-test-coverage-classguard --summary";
+    const stripped = realJobs().map((job) => ({
+      ...job,
+      block: job.block.filter((line) => !line.includes("product-test-coverage-classguard")),
+    }));
+    const withExtra = (extra: readonly string[]) =>
+      stripped.map((job) =>
+        job.name === "rust-product-test-crates" ? { ...job, block: [...job.block, ...extra] } : job,
+      );
+    const unenforced = (jobs: ReturnType<typeof realJobs>) =>
+      findProductTestCiStructureErrors(jobs, EXPECTED)
+        .join(";")
+        .includes("no CI job executes the product-test classguard");
+    // Executing shapes SATISFY:
+    expect(unenforced(withExtra([`      - run: ${CG}`]))).toBe(false);
+    expect(unenforced(withExtra(["      - name: classguard", `        run: ${CG}`]))).toBe(false);
+    expect(unenforced(withExtra(["      - id: cg", `        run: ${CG}`]))).toBe(false);
+    // Non-executing shapes DO NOT:
+    expect(unenforced(withExtra([`      # DISABLED - run: ${CG}`]))).toBe(true);
+    expect(
+      unenforced(
+        withExtra(["      - uses: some/action@abc", "        with:", `          run: ${CG}`]),
+      ),
+    ).toBe(true);
+    expect(unenforced(withExtra([`        run: ${CG}`]))).toBe(true);
+  });
+
   it("CONTENT RED-PROOF: dropping a matrix leg or the pinned installer still REDs after the migration", () => {
     const noLeg = realJobs().map((job) =>
       job.name === "rust-product-test-crates"
