@@ -1059,12 +1059,22 @@ const JUDGE_NEEDS_BINDING = /^\$\{\{\s*toJson\(needs\)\s*\}\}$/;
 // step-level if:, or soft-fail via continue-on-error; and (c) its env binds
 // OMENA_CI_REQUIRED_RESULTS to `${{ toJson(needs) }}` — a stubbed or missing
 // binding makes the judge judge nothing.
-function judgeStepInertReason(step: Record<string, unknown>, effectiveLines: string[]): string {
+function judgeStepInertReason(
+  step: Record<string, unknown>,
+  effectiveLines: string[],
+  inheritedShellOverride: boolean,
+): string {
   if (effectiveLines.length !== 1) {
     return "the judge run body carries additional commands that can swallow the judge's exit code";
   }
   if (Object.hasOwn(step, "shell")) {
     return "the judge step overrides shell:, which can drop fail-on-error semantics";
+  }
+  if (inheritedShellOverride) {
+    // R6 (confirm-lens prescription): GitHub honors defaults.run.shell at
+    // workflow AND job scope — a wrapping shell there swallows the judge's
+    // exit code exactly like a step-level shell: override would.
+    return "a workflow- or job-level defaults.run.shell override covers the judge step, which can drop fail-on-error semantics";
   }
   if (Object.hasOwn(step, "if")) {
     return "the judge step carries a step-level if: and can be skipped";
@@ -1079,10 +1089,15 @@ function judgeStepInertReason(step: Record<string, unknown>, effectiveLines: str
   return "";
 }
 
-function readParsedJobFacts(jobValue: unknown): ParsedJobFacts {
+function hasRunShellDefault(scope: Record<string, unknown>): boolean {
+  return Object.hasOwn(asRecord(asRecord(scope["defaults"])["run"]), "shell");
+}
+
+function readParsedJobFacts(jobValue: unknown, workflowShellDefault = false): ParsedJobFacts {
   const job = asRecord(jobValue);
   const hasJobLevelIf = Object.hasOwn(job, "if");
   const softFail = Object.hasOwn(job, "continue-on-error") && job["continue-on-error"] !== false;
+  const inheritedShellOverride = workflowShellDefault || hasRunShellDefault(job);
   let judge: ParsedJobFacts["judge"] = "missing";
   let judgeInertReason = "";
   const steps = Array.isArray(job["steps"]) ? job["steps"] : [];
@@ -1094,7 +1109,7 @@ function readParsedJobFacts(jobValue: unknown): ParsedJobFacts {
       .map((line) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#"));
     if (!effectiveLines.some((line) => JUDGE_COMMAND.test(line))) continue;
-    const inertReason = judgeStepInertReason(step, effectiveLines);
+    const inertReason = judgeStepInertReason(step, effectiveLines, inheritedShellOverride);
     if (inertReason) {
       judge = "inert";
       judgeInertReason = inertReason;
@@ -1141,9 +1156,9 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
   // job on the required path may soft-fail via job-level continue-on-error,
   // which converts a failing conclusion into success upstream of every other
   // rule. Facts come from the parsed document (see readParsedJobFacts).
-  let parsedJobs: Record<string, unknown>;
+  let parsedDoc: Record<string, unknown>;
   try {
-    parsedJobs = asRecord(asRecord(parseYaml(lines.join("\n")))["jobs"]);
+    parsedDoc = asRecord(parseYaml(lines.join("\n")));
   } catch (error) {
     return [
       {
@@ -1155,6 +1170,8 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
       },
     ];
   }
+  const parsedJobs = asRecord(parsedDoc["jobs"]);
+  const workflowShellDefault = hasRunShellDefault(parsedDoc);
   const needsByName = new Map(jobs.map((job) => [job.name, parseWorkflowJobNeeds(lines, job)]));
   const ancestors = new Set<string>();
   const queue = [...(needsByName.get("ci-required") ?? [])];
@@ -1166,7 +1183,7 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
   }
   for (const name of new Set([...ancestors, "ci-required"])) {
     if (!Object.hasOwn(parsedJobs, name)) continue;
-    const facts = readParsedJobFacts(parsedJobs[name]);
+    const facts = readParsedJobFacts(parsedJobs[name], workflowShellDefault);
     if (facts.softFail) {
       diagnostics.push({
         severity: "error",
@@ -1260,7 +1277,7 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
         'The "ci-required" aggregate job must use "if: ${{ always() }}" so failed or cancelled dependencies are evaluated.',
     });
   }
-  const rootFacts = readParsedJobFacts(parsedJobs["ci-required"]);
+  const rootFacts = readParsedJobFacts(parsedJobs["ci-required"], workflowShellDefault);
   if (rootFacts.judge === "missing") {
     diagnostics.push({
       severity: "error",

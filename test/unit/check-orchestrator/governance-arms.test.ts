@@ -578,6 +578,20 @@ describe("inventory and governance hardening arms", () => {
         ]),
       ),
     ).toEqual([]);
+    // R6 (confirm-lens prescription): a WORKFLOW-level defaults.run.shell
+    // wraps every judge and drops fail-on-error semantics — inert.
+    const live = ["      - run: node ./scripts/check-ci-required-results.mjs", ...ENV];
+    const workflowDefaults = make(live).replace(
+      "name: CI\njobs:",
+      'name: CI\ndefaults:\n  run:\n    shell: sh -c "sh {0} || true"\njobs:',
+    );
+    expect(codesFor(workflowDefaults)).toContain("ci-aggregator-judge-inert");
+    // ...and a JOB-level defaults.run.shell on the aggregator does the same.
+    const jobDefaults = make(live).replace(
+      "  ci-required:\n    # omena-ci-required: false",
+      '  ci-required:\n    defaults:\n      run:\n        shell: sh -c "sh {0} || true"\n    # omena-ci-required: false',
+    );
+    expect(codesFor(jobDefaults)).toContain("ci-aggregator-judge-inert");
   });
 
   it("R5 RED-PROOF: a deleted escapeHatch degrades to the fallback and a governed shape error, never a TypeError", () => {
