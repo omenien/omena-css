@@ -22,7 +22,7 @@ runs:
     # Stats are dumped by the post step of sccache-action; the weekly
     # divergence lane compares deterministic-crate digests with the wrapper
     # on vs off and escalates on mismatch.
-    - uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+    - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       if: ${{ env.OMENA_SCCACHE == 'on' }}
     - shell: bash
       if: ${{ env.OMENA_SCCACHE == 'on' }}
