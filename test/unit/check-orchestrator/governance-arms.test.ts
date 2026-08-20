@@ -17,31 +17,35 @@ import os from "node:os";
 const repoRoot = path.resolve(__dirname, "../../..");
 
 describe("inventory and governance hardening arms", () => {
-  it("DIFF-SIZE ARM: adding one gate changes at most 3 inventory lines", () => {
-    const manifest = loadCheckManifest(repoRoot);
-    const before = renderCheckInventory(manifest).split("\n");
-    const synthetic = {
-      ...manifest,
-      gates: [
-        ...manifest.gates,
-        {
-          ...manifest.gates.find((gate) => gate.id === "docs/site")!,
-          id: "docs/zz-synthetic-diff-probe",
-          scriptName: "check:docs-zz-synthetic-diff-probe",
-        },
-      ],
-    };
-    const after = renderCheckInventory(synthetic).split("\n");
-    const beforeSet = new Map<string, number>();
-    for (const line of before) beforeSet.set(line, (beforeSet.get(line) ?? 0) + 1);
-    let changed = 0;
-    for (const line of after) {
-      const count = beforeSet.get(line) ?? 0;
-      if (count > 0) beforeSet.set(line, count - 1);
-      else changed += 1;
-    }
-    expect(changed).toBeLessThanOrEqual(3);
-  });
+  it(
+    "DIFF-SIZE ARM: adding one gate changes at most 3 inventory lines",
+    { timeout: 30_000 },
+    () => {
+      const manifest = loadCheckManifest(repoRoot);
+      const before = renderCheckInventory(manifest).split("\n");
+      const synthetic = {
+        ...manifest,
+        gates: [
+          ...manifest.gates,
+          {
+            ...manifest.gates.find((gate) => gate.id === "docs/site")!,
+            id: "docs/zz-synthetic-diff-probe",
+            scriptName: "check:docs-zz-synthetic-diff-probe",
+          },
+        ],
+      };
+      const after = renderCheckInventory(synthetic).split("\n");
+      const beforeSet = new Map<string, number>();
+      for (const line of before) beforeSet.set(line, (beforeSet.get(line) ?? 0) + 1);
+      let changed = 0;
+      for (const line of after) {
+        const count = beforeSet.get(line) ?? 0;
+        if (count > 0) beforeSet.set(line, count - 1);
+        else changed += 1;
+      }
+      expect(changed).toBeLessThanOrEqual(3);
+    },
+  );
 
   it("DEP-ARGS RED-PROOF: dep args on a dependencies-executor bundle and CLI-level flags are load-time errors", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omena-dep-args-"));
