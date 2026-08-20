@@ -1,5 +1,4 @@
 // g131-S6: contract-parity golden drivers (v1+v2 rows in one driver).
-/* oxlint-disable no-await-in-loop */
 
 import { CONTRACT_PARITY_GOLDEN_CORPUS } from "../contract-parity-golden-corpus-v1";
 import { CONTRACT_PARITY_GOLDEN_CORPUS_V2 } from "../contract-parity-golden-corpus-v2";

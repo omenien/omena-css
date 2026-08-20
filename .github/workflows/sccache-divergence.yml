@@ -25,7 +25,17 @@ jobs:
         with:
           persist-credentials: false
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
-      - name: Build omena-parser with sccache
+      # Stage-5 hardening: the comparison must be CACHE-SERVED vs PLAIN, and
+      # the cache-served build must PROVE it read the cache (hit count > 0) —
+      # otherwise the guard compares two fresh compiles and passes vacuously.
+      - name: Warm the sccache cache
+        run: |
+          export RUSTC_WRAPPER=sccache
+          export SCCACHE_GHA_ENABLED=true
+          cargo build --manifest-path rust/Cargo.toml -p omena-parser --locked
+          cargo clean --manifest-path rust/Cargo.toml -p omena-parser
+          sccache --zero-stats
+      - name: Rebuild omena-parser FROM the cache and assert hits
         run: |
           export RUSTC_WRAPPER=sccache
           export SCCACHE_GHA_ENABLED=true
@@ -33,6 +43,9 @@ jobs:
           find rust/target/debug -maxdepth 2 -name 'libomena_parser*.rlib' -exec sha256sum {} \; \
             | awk '{print $1}' | sort > /tmp/digest-sccache.txt
           sccache --show-stats
+          HITS=$(sccache --show-stats | awk '/Cache hits/ {print $3; exit}')
+          echo "cache hits: ${HITS}"
+          test "${HITS:-0}" -gt 0 || { echo "::error::divergence guard is vacuous: the cache-served build recorded zero hits"; exit 1; }
           cargo clean --manifest-path rust/Cargo.toml -p omena-parser
       - name: Build omena-parser without sccache
         run: |
@@ -42,18 +55,22 @@ jobs:
       - name: Compare deterministic digests
         run: |
           diff /tmp/digest-sccache.txt /tmp/digest-plain.txt
-          echo "sccache and plain builds produced identical rlib digests"
+          echo "cache-served and plain builds produced identical rlib digests"
       - name: Escalate scheduled failure
         if: ${{ failure() }}
         uses: ./.github/actions/escalate-ci-failure
         with:
           title: "CI failure: sccache-divergence / divergence"
           body: |
-            The weekly sccache divergence guard failed: the compiler-wrapper
+            The weekly sccache divergence guard failed: the cache-served
             build and the plain build disagree on deterministic rlib digests
-            (or the guard itself broke). Flip the OMENA_SCCACHE repository
-            variable to "off" (kill switch) and investigate before trusting
-            cached compilations.
+            (or the guard itself broke). Response: (1) flip the OMENA_SCCACHE
+            repository variable to "off" (kill switch); (2) rotate the
+            rust-cache shared-key (bump `shared-key: cme-rust` in
+            .github/actions/cache-rust/action.yml) — the wrapper's outputs
+            already live inside rust/target and are re-distributed by the
+            Swatinem cache until its key rotates; (3) investigate before
+            trusting cached compilations again.
           workflow-name: Sccache Divergence Guard
           job-name: divergence
           run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

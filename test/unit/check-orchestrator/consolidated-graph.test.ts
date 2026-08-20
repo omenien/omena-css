@@ -46,14 +46,41 @@ describe("consolidated CI graph (g131-S3)", () => {
     }
   });
 
-  it("ORDERING ARM RED-PROOF: dropping one former leaf from package's closure fails the golden", () => {
-    const mutated = jobs.map((job) =>
+  // The golden itself, extracted so the RED-proof exercises THE SAME
+  // assertion the green case runs (stage-5 R2: the old arm re-derived the
+  // closure by hand and never touched the golden — a legitimate re-route
+  // would have failed the arm while the golden stayed correctly green).
+  function orderingGoldenErrors(
+    graph: readonly { name: string; needs: readonly string[] }[],
+  ): string[] {
+    const errors: string[] = [];
+    for (const consumer of ["package", "extension-host-smoke"]) {
+      const closure = needsClosure(graph, consumer);
+      for (const leaf of FORMER_VERIFY_LEAVES) {
+        if (!closure.has(leaf)) errors.push(`${consumer} no longer waits on ${leaf}`);
+      }
+    }
+    return errors;
+  }
+
+  it("ORDERING ARM RED-PROOF: a mis-rewire fails the golden; an equivalent re-route stays green", () => {
+    // Mis-rewire: drop a former leaf from package's needs -> golden RED.
+    const misWired = jobs.map((job) =>
       job.name === "package"
         ? { ...job, needs: job.needs.filter((need) => need !== "verify-native-linux") }
         : job,
     );
-    const closure = needsClosure(mutated, "package");
-    expect(closure.has("verify-native-linux")).toBe(false);
+    expect(orderingGoldenErrors(misWired)).toEqual([
+      "package no longer waits on verify-native-linux",
+    ]);
+    // Equivalent re-route: package waits on extension-host-smoke which waits
+    // on all three leaves -> transitively ordered, golden stays GREEN.
+    const rerouted = jobs.map((job) =>
+      job.name === "package"
+        ? { ...job, needs: ["extension-host-smoke", "native-runner-matrix"] }
+        : job,
+    );
+    expect(orderingGoldenErrors(rerouted)).toEqual([]);
   });
 
   it("REQUIRED MODEL: ci-required needs exactly the required-annotated jobs and every job reaches it or is advisory", () => {

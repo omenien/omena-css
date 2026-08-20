@@ -26,7 +26,10 @@ export interface ProductTestCiStructureExpectation {
 const CRATE_JOB = "rust-product-test-crates";
 const CONTRACT_JOB = "rust-product-test-contracts";
 const PRODUCT_TEST_JOBS = [CRATE_JOB, CONTRACT_JOB] as const;
-const CLASSGUARD_LINE = /pnpm omena-check run rust\/product-test-coverage-classguard/u;
+// The duty is satisfied only by an EXECUTING run step — a comment naming
+// the invocation is not a step (the same fail-open species the g130 judge
+// rules closed; stage-5 lens reproduced the comment evasion end-to-end).
+const CLASSGUARD_LINE = /^\s*- run: .*pnpm omena-check run rust\/product-test-coverage-classguard/u;
 
 function parseInlineMatrix(blockLines: readonly string[], key: string): readonly string[] | null {
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");

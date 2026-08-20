@@ -1057,9 +1057,20 @@ function runCostLedgerCommand(parsed: ParsedArgs): void {
           if (entry.isDirectory()) stack.push(full);
           else if (/^check-summary-.*\.json$/.test(entry.name)) {
             const summary = JSON.parse(readFileSync(full, "utf8")) as {
-              readonly results?: readonly { readonly title: string; readonly durationMs: number }[];
+              readonly results?: readonly {
+                readonly title: string;
+                readonly durationMs: number;
+                readonly status?: string;
+                readonly timedOut?: boolean;
+              }[];
             };
-            for (const row of summary.results ?? []) {
+            // Only PASSING, non-timed-out rows may feed the p50/p95 samples —
+            // job rows are already success-filtered at two levels; gate rows
+            // must match (stage-5 lens: a failed-member artifact inside a
+            // green-classified run would silently bias the partition input).
+            for (const row of (summary.results ?? []).filter(
+              (candidate) => candidate.status === "pass" && !candidate.timedOut,
+            )) {
               (gateSamples.get(row.title) ?? gateSamples.set(row.title, []).get(row.title)!).push(
                 row.durationMs,
               );

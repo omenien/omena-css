@@ -17,6 +17,7 @@ import { classifyScript } from "./scopes";
 import { buildCheckSurfaceReport, findAliasChains, renderCheckSurfaceReport } from "./surface";
 import { findToolPinCoherenceDiagnostics } from "./tool-pins";
 import {
+  findBundleShardMatrixDiagnostics,
   findCiRequiredAggregationDiagnostics,
   findCiTierReachabilityDiagnostics,
   findScheduledWorkflowEscalationDiagnostics,
@@ -107,6 +108,7 @@ export function loadCheckManifest(
   diagnostics.push(...findScheduledWorkflowEscalationDiagnostics(rootDir));
   diagnostics.push(...findCiRequiredAggregationDiagnostics(rootDir));
   diagnostics.push(...findCiTierReachabilityDiagnostics(rootDir, gates));
+  diagnostics.push(...findBundleShardMatrixDiagnostics(rootDir));
   diagnostics.push(...findGateLifecycleDiagnostics(rootDir, gates));
   const lifecycleByGateId = computeGateLifecycles(rootDir, gates).byGateId;
   diagnostics.push(...findGatePolicyDiagnostics(rootDir, gates, lifecycleByGateId));

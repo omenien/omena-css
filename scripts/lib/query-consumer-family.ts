@@ -1,5 +1,4 @@
 // g131-S6: the editor query-consumer thin-driver family (6 -> 1 driver).
-/* oxlint-disable no-await-in-loop */
 
 import { AliasResolver } from "../../server/engine-core-ts/src/core/cx/alias-resolver";
 import { DocumentAnalysisCache } from "../../server/engine-core-ts/src/core/indexing/document-analysis-cache";

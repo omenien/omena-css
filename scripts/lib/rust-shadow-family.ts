@@ -2,7 +2,6 @@
 // 42 former single-file drivers (14 shared-corpus COLLAPSE + 28 own-corpus
 // RELOCATE) keyed by their former script slug; the driver script executes
 // exactly one member per invocation so gate ids and outputs are unchanged.
-/* oxlint-disable no-await-in-loop */
 
 import {
   assertCheckerCanonicalCandidateEqual,
@@ -232,7 +231,7 @@ async function run_rust_checker_source_missing_canonical_candidate(): Promise<vo
     },
   ] as const;
 
-  void (async () => {
+  await (async () => {
     for (const entry of SOURCE_MISSING_CORPUS) {
       process.stdout.write(`== rust-checker-source-missing:${entry.label} ==\n`);
       // oxlint-disable-next-line no-await-in-loop
@@ -353,7 +352,7 @@ async function run_rust_checker_source_missing_canonical_producer(): Promise<voi
     },
   ] as const;
 
-  void (async () => {
+  await (async () => {
     for (const entry of SOURCE_MISSING_CORPUS) {
       process.stdout.write(`== rust-checker-source-missing-producer:${entry.label} ==\n`);
       // oxlint-disable-next-line no-await-in-loop
@@ -621,7 +620,7 @@ async function run_rust_checker_style_recovery_canonical_producer(): Promise<voi
     },
   ] as const;
 
-  void (async () => {
+  await (async () => {
     for (const entry of STYLE_RECOVERY_CORPUS) {
       process.stdout.write(`== rust-checker-style-recovery-producer:${entry.label} ==\n`);
       // oxlint-disable-next-line no-await-in-loop
@@ -654,7 +653,7 @@ async function run_rust_checker_style_recovery_canonical_producer(): Promise<voi
 }
 
 async function run_rust_checker_style_unused_canonical_candidate(): Promise<void> {
-  void (async () => {
+  await (async () => {
     process.stdout.write(`== rust-checker-style-unused:${STYLE_UNUSED_ENTRY.label} ==\n`);
     const snapshot = await buildContractParitySnapshot(STYLE_UNUSED_ENTRY);
     const expected = deriveTsCheckerStyleUnusedCanonicalCandidate(snapshot);
@@ -674,7 +673,7 @@ async function run_rust_checker_style_unused_canonical_candidate(): Promise<void
 }
 
 async function run_rust_checker_style_unused_canonical_producer(): Promise<void> {
-  void (async () => {
+  await (async () => {
     process.stdout.write(`== rust-checker-style-unused-producer:${STYLE_UNUSED_ENTRY.label} ==\n`);
     const snapshot = await buildContractParitySnapshot(STYLE_UNUSED_ENTRY);
     const canonicalCandidate = deriveTsCheckerStyleUnusedCanonicalCandidate(snapshot);
@@ -698,7 +697,7 @@ async function run_rust_checker_style_unused_canonical_producer(): Promise<void>
 }
 
 async function run_rust_checker_style_unused_consumer_boundary(): Promise<void> {
-  void (async () => {
+  await (async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
 

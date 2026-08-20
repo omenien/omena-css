@@ -7,9 +7,11 @@ import { loadCiWorkflowRegistry } from "./ci-workflow";
 // g131-S1: the committed CI cost ledger. Written LOCALLY (gh credentials, no
 // CI commit path, no `actions:` grant) by `omena-check cost-ledger --write`
 // from real green-run receipts; checked in CI as an ordinary reachable gate
-// so the escape-hatch population is untouched. Every duration is labeled
-// with its source run ids and sealed under a digest — a hand-edited number
-// without a re-run of the writer is a digest drift, not a quiet lie.
+// so the escape-hatch population is untouched. The digest is a TRANSCRIPTION
+// seal over the file's own records (an edit without a deliberate re-seal is
+// loud) — it does NOT prove provenance: a forger who re-runs the exported
+// digest helper passes it. Provenance rests on the pinned sourceRunIds being
+// auditable against the GitHub API, which the check does not do (disclosed).
 
 export interface CostLedgerGateRecord {
   readonly gateId: string;
@@ -79,7 +81,14 @@ export interface MeasuredMember {
 }
 
 export interface MeasuredPartition {
-  readonly named: readonly { readonly p95TotalMs: number; readonly members: readonly string[] }[];
+  readonly named: readonly {
+    readonly p95TotalMs: number;
+    readonly members: readonly string[];
+    // A single member larger than the target forces an over-target bin; the
+    // pack cannot split a member, so it FLAGS instead of hiding it (stage-5
+    // lens: a 10m member at an 8m target used to emit silently).
+    readonly overTarget: boolean;
+  }[];
   readonly rest: { readonly p95TotalMs: number; readonly members: readonly string[] };
 }
 
@@ -114,7 +123,11 @@ export function packMeasuredPartition(
     throw new Error("proposed partition empties the rest shard; refusing to emit.");
   }
   return {
-    named: bins.slice(0, -1).map((bin) => ({ p95TotalMs: bin.totalMs, members: [...bin.members] })),
+    named: bins.slice(0, -1).map((bin) => ({
+      p95TotalMs: bin.totalMs,
+      members: [...bin.members],
+      overTarget: bin.totalMs > targetMs,
+    })),
     rest: { p95TotalMs: rest.totalMs, members: [...rest.members] },
   };
 }
@@ -180,7 +193,7 @@ export function findCostLedgerDiagnostics(rootDir: string): readonly CheckDiagno
       code: "ci-cost-ledger-digest-drift",
       message:
         `ci-cost-ledger.json records digest to ${digest} but the file pins ${ledger.recordsDigest}; ` +
-        "durations must come from the writer over real runs, never a hand edit.",
+        "the seal marks a transcription edit without a deliberate re-seal (it does not prove provenance; audit sourceRunIds against the run API for that).",
     });
   }
 

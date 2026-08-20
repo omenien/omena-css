@@ -3,6 +3,7 @@
   "product": "omena.check-orchestrator.diagnostic-codes",
   "codes": [
     "alias-chain",
+    "bundle-shard-matrix-drift",
     "ci-aggregator-judge-inert",
     "ci-aggregator-judge-missing",
     "ci-aggregator-missing-always",

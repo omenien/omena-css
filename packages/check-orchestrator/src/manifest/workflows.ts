@@ -4,6 +4,7 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { buildCheckPlan } from "./plan";
 import { loadGatePolicy } from "./gate-policy";
+import { BUNDLE_SHARDS, bundleShardNames } from "./shards";
 import type { CheckCiTier, CheckDiagnostic, CheckGate } from "./types";
 
 const PNPM_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
@@ -1294,6 +1295,76 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
     });
   }
 
+  return diagnostics;
+}
+
+// g131 stage-5 R2 (lens-A HIGH): every bundle that carries a committed shard
+// table must have ci.yml consume EXACTLY that shard set — adding a named
+// shard to the table without wiring the matrix silently removes its members
+// from CI (reproduced by the lens with 9/13 gates dropped and every other
+// surface green). Two sanctioned consumption forms:
+//   (a) inline matrix + `--shard=${{ matrix.<key> }}` — the matrix values
+//       must equal bundleShardNames(bundle);
+//   (b) generated matrix + `--shard="$ENV"` (closure-fast) — the matrix is
+//       produced by `omena-check shards --json` from the SAME table, so the
+//       equality is structural; the aggregation-complete gate pins that form.
+export function findBundleShardMatrixDiagnostics(rootDir: string): readonly CheckDiagnostic[] {
+  const workflowPath = path.join(rootDir, ".github/workflows/ci.yml");
+  if (!existsSync(workflowPath)) return [];
+  const lines = readFileSync(workflowPath, "utf8").split(/\r?\n/);
+  const jobs = parseWorkflowJobs(lines);
+  const diagnostics: CheckDiagnostic[] = [];
+  for (const bundleId of Object.keys(BUNDLE_SHARDS)) {
+    const expected = [...bundleShardNames(bundleId)].toSorted();
+    const escaped = bundleId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const inlineRef = new RegExp(
+      `omena-check (?:run|bundle) ${escaped} --summary --shard=\\$\\{\\{ matrix\\.([A-Za-z0-9_-]+) \\}\\}`,
+      "u",
+    );
+    const envRef = new RegExp(`omena-check (?:run|bundle) ${escaped} --summary --shard="\\$`, "u");
+    let consumed = false;
+    for (const job of jobs) {
+      const blockLines = lines.slice(job.start, job.end);
+      const block = blockLines.join("\n");
+      const inline = inlineRef.exec(block);
+      if (inline) {
+        consumed = true;
+        const key = inline[1] ?? "";
+        const keyEscaped = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+        const matrixLine = blockLines.find((line) =>
+          new RegExp(`^\\s+${keyEscaped}:\\s*\\[[^\\]]+\\]\\s*$`, "u").test(line),
+        );
+        const values = matrixLine
+          ? (/\[([^\]]+)\]/u.exec(matrixLine)?.[1] ?? "")
+              .split(",")
+              .map((value) => value.trim().replace(/^["']|["']$/gu, ""))
+              .filter(Boolean)
+              .toSorted()
+          : [];
+        if (JSON.stringify(values) !== JSON.stringify(expected)) {
+          diagnostics.push({
+            severity: "error",
+            code: "bundle-shard-matrix-drift",
+            message:
+              `ci.yml job "${job.name}" consumes bundle "${bundleId}" with matrix shards ` +
+              `[${values.join(", ")}] but the committed shard table declares [${expected.join(", ")}]; ` +
+              "a table shard the matrix never runs silently removes its members from CI.",
+          });
+        }
+        continue;
+      }
+      if (envRef.test(block)) consumed = true;
+    }
+    if (!consumed) {
+      diagnostics.push({
+        severity: "error",
+        code: "bundle-shard-matrix-drift",
+        message:
+          `bundle "${bundleId}" carries a committed shard table but no ci.yml job consumes it ` +
+          "with a --shard invocation; every table shard must be wired into a matrix.",
+      });
+    }
+  }
   return diagnostics;
 }
 
