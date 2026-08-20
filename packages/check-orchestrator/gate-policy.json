@@ -3,11 +3,7 @@
   "product": "omena.check-orchestrator.gate-policy",
   "template": {
     "reviewIntervalDays": 90,
-    "advisoryHoldReasons": [
-      "cost-review-pending",
-      "demotion-staged",
-      "instrument-rebuild"
-    ]
+    "advisoryHoldReasons": ["cost-review-pending", "demotion-staged", "instrument-rebuild"]
   },
   "costSource": "static-enumeration-2026-08-18",
   "escapeHatch": {
@@ -17,15 +13,8 @@
     "reviewAfter": "2026-11-18"
   },
   "lanes": {
-    "bundles": [
-      "rust/closure-fast",
-      "rust/product-test-contracts"
-    ],
-    "singles": [
-      "plugin/consumers",
-      "rust/product-test-execution",
-      "rust/workspace"
-    ],
+    "bundles": ["rust/closure-fast", "rust/product-test-contracts"],
+    "singles": ["plugin/consumers", "rust/product-test-execution", "rust/workspace"],
     "ciJobs": [
       "rust-contracts",
       "benchmark-contracts",
