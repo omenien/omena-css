@@ -25,6 +25,12 @@
       "verify-native-linux"
     ]
   },
+  "governedLeafCriteria": {
+    "compat-alias-with-retirement-window": 10,
+    "declared-none-or-manual": 30,
+    "manual-tool-with-named-consumer": 65,
+    "research-evidence": 51
+  },
   "records": [
     {
       "gateId": "contract/parity-v2-golden",

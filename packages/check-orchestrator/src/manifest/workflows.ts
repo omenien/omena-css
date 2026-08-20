@@ -1063,17 +1063,24 @@ export function findCiRequiredAggregationDiagnostics(rootDir: string): readonly 
   for (const name of ancestors) {
     const job = jobByName.get(name);
     if (!job) continue;
-    const block = lines.slice(job.start, job.end).join("\n");
-    const hasAlways = /if:\s*\$\{\{\s*always\(\)\s*\}\}/.test(block);
-    const hasJudge = block.includes("check-ci-required-results.mjs");
-    if (hasAlways && !hasJudge) {
+    const blockLines = lines.slice(job.start + 1, job.end);
+    // JOB-level `if:` of ANY form disables skip-propagation inheritance — the
+    // invariant is form-agnostic (always(), !cancelled(), always() && cond all
+    // count); step-level `if:` (6+ spaces) is irrelevant and must not trigger.
+    const hasJobLevelIf = blockLines.some((line) => /^ {4}if:/.test(line));
+    // The judge must be an actual run step, not a substring anywhere (a
+    // comment naming the script must not satisfy the duty).
+    const hasJudge = blockLines.some((line) =>
+      /^ {6,}-?\s*run: node \.\/scripts\/check-ci-required-results\.mjs\s*$/.test(line),
+    );
+    if (hasJobLevelIf && !hasJudge) {
       diagnostics.push({
         severity: "error",
         code: "ci-aggregator-judge-missing",
-        message: `.github/workflows/ci.yml job "${name}" reaches ci-required and uses if: always() without judging its needs via check-ci-required-results.mjs; a failed need would silently become success.`,
+        message: `.github/workflows/ci.yml job "${name}" reaches ci-required and carries a job-level if: (any form disables skip-propagation) without judging its needs via check-ci-required-results.mjs; a failed need could silently become success.`,
       });
     }
-    if (hasJudge && !hasAlways && name !== "ci-required") {
+    if (hasJudge && !hasJobLevelIf && name !== "ci-required") {
       diagnostics.push({
         severity: "error",
         code: "ci-aggregator-missing-always",
@@ -1160,6 +1167,28 @@ export function findCiTierReachabilityDiagnostics(
   const escapeHatchReachableGateIds = buildEscapeHatchReachableGateIds(gates);
   const escapeHatchGateIds: string[] = [];
 
+  // Criterion coherence runs over the WHOLE classification map, independent of
+  // whether the gate also declares a ciTier — a declared tier must not exempt
+  // an entry from its criterion's structural shape (hardening review).
+  const gateById = new Map(gates.map((gate) => [gate.id, gate]));
+  for (const classification of GOVERNED_CI_LEAF_CLASSIFICATIONS) {
+    const gate = gateById.get(classification.id);
+    if (!gate) continue;
+    if (
+      classification.criterion === "compat-alias-with-retirement-window" &&
+      gate.kind !== "alias" &&
+      !gate.deprecatedBy &&
+      !gate.deprecatedAliases?.length &&
+      !gate.tags?.includes("compat-split-boundary")
+    ) {
+      diagnostics.push({
+        severity: "error",
+        code: "governed-leaf-criterion-mismatch",
+        message: `Governed leaf "${classification.id}" carries criterion compat-alias-with-retirement-window but is not an alias-shaped gate (kind=${gate.kind}, no deprecation linkage, no compat-split-boundary tag).`,
+      });
+    }
+  }
+
   for (const gate of gates) {
     const reachableTierCount = reachableTiersByGate.get(gate.id)?.size ?? 0;
     if (!gate.ciTier) {
@@ -1182,19 +1211,6 @@ export function findCiTierReachabilityDiagnostics(
       }
 
       const classification = GOVERNED_CI_LEAF_CLASSIFICATIONS_BY_ID.get(gate.id);
-      if (
-        classification?.criterion === "compat-alias-with-retirement-window" &&
-        gate.kind !== "alias" &&
-        !gate.deprecatedBy &&
-        !gate.deprecatedAliases?.length &&
-        !gate.tags?.includes("compat-split-boundary")
-      ) {
-        diagnostics.push({
-          severity: "error",
-          code: "governed-leaf-criterion-mismatch",
-          message: `Governed leaf "${gate.id}" carries criterion compat-alias-with-retirement-window but is not an alias-shaped gate (kind=${gate.kind}, no deprecation linkage).`,
-        });
-      }
       if (!classification) {
         diagnostics.push({
           severity: "error",
@@ -1255,6 +1271,20 @@ export function findCiTierReachabilityDiagnostics(
       const criterion =
         GOVERNED_CI_LEAF_CLASSIFICATIONS_BY_ID.get(gateId)?.criterion ?? "declared-none-or-manual";
       criterionCounts.set(criterion, (criterionCounts.get(criterion) ?? 0) + 1);
+    }
+    const pinnedCriteria = loadGatePolicy(rootDir)?.governedLeafCriteria;
+    if (pinnedCriteria) {
+      for (const [criterion, count] of criterionCounts) {
+        if ((pinnedCriteria[criterion] ?? 0) !== count) {
+          diagnostics.push({
+            severity: "error",
+            code: "gate-policy-criterion-drift",
+            message:
+              `escape-hatch criterion "${criterion}" counts ${count} live but gate-policy.json pins ` +
+              `${pinnedCriteria[criterion] ?? 0}; relabels must land as a reviewed policy diff.`,
+          });
+        }
+      }
     }
     const criterionSummary = [...criterionCounts.entries()]
       .toSorted(([left], [right]) => left.localeCompare(right))

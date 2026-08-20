@@ -84,6 +84,7 @@ export interface GatePolicy {
     readonly singles: readonly string[];
     readonly ciJobs: readonly string[];
   };
+  readonly governedLeafCriteria?: Readonly<Record<string, number>>;
   readonly records: readonly GatePolicyRecord[];
 }
 
@@ -122,6 +123,19 @@ export function findGatePolicyDiagnostics(
         message: "packages/check-orchestrator/gate-policy.json is absent.",
       });
     }
+    return diagnostics;
+  }
+  if (
+    !policy.lanes ||
+    !Array.isArray(policy.lanes.bundles) ||
+    !Array.isArray(policy.lanes.singles) ||
+    !Array.isArray(policy.lanes.ciJobs)
+  ) {
+    diagnostics.push({
+      severity: "error",
+      code: "gate-policy-invalid-shape",
+      message: "gate-policy.json lanes must declare bundles/singles/ciJobs arrays.",
+    });
     return diagnostics;
   }
   const today = gatePolicyToday();

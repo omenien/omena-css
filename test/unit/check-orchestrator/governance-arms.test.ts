@@ -236,6 +236,127 @@ describe("inventory and governance hardening arms", () => {
     };
     expect(validateCiWorkflowRegistry(phantom).errors.join(";")).toContain("phantom job");
   });
+
+  it("HARDENING RED-PROOF: job-level if of ANY form triggers the judge duty; step-level if and comment-judges do not evade", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-if-forms-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    const make = (jobIf: string, judgeLine: string) =>
+      [
+        "name: CI",
+        "jobs:",
+        "  leaf:",
+        "    # omena-ci-required: false",
+        "    runs-on: ubuntu-latest",
+        "  aggregate:",
+        "    # omena-ci-required: true",
+        "    needs:",
+        "      - leaf",
+        jobIf,
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        judgeLine,
+        "  ci-required:",
+        "    # omena-ci-required: false",
+        "    needs:",
+        "      - aggregate",
+        "    if: ${{ always() }}",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        "      - run: node ./scripts/check-ci-required-results.mjs",
+      ].join("\n");
+    const judgedBy = (content: string, code: string) => {
+      writeFileSync(path.join(root, ".github/workflows/ci.yml"), content);
+      return findCiRequiredAggregationDiagnostics(root).filter(
+        (diagnostic) => diagnostic.code === code,
+      );
+    };
+    // Spelling evasions from the confirm lens — all must now RED:
+    for (const evasion of [
+      "    if: ${{ always() && true }}",
+      "    if: ${{ !cancelled() }}",
+      "    if: ${{ always() && github.event_name == 'push' }}",
+    ]) {
+      expect(
+        judgedBy(make(evasion, "      - run: echo not-a-judge"), "ci-aggregator-judge-missing"),
+      ).toHaveLength(1);
+      // ...and with the judge present the same form is QUIET (over-strictness fixed).
+      expect(
+        judgedBy(
+          make(evasion, "      - run: node ./scripts/check-ci-required-results.mjs"),
+          "ci-aggregator-missing-always",
+        ),
+      ).toHaveLength(0);
+    }
+    // A comment naming the judge script does not satisfy the duty.
+    expect(
+      judgedBy(
+        make("    if: ${{ always() }}", "      - run: echo judged # check-ci-required-results.mjs"),
+        "ci-aggregator-judge-missing",
+      ),
+    ).toHaveLength(1);
+    // Step-level always() (the upload-artifact idiom) must NOT trigger the duty.
+    const stepLevel = [
+      "name: CI",
+      "jobs:",
+      "  leaf:",
+      "    # omena-ci-required: false",
+      "    runs-on: ubuntu-latest",
+      "    steps:",
+      "      - run: echo work",
+      "      - if: ${{ always() }}",
+      "        run: echo upload",
+      "  ci-required:",
+      "    # omena-ci-required: false",
+      "    needs:",
+      "      - leaf",
+      "    if: ${{ always() }}",
+      "    runs-on: ubuntu-latest",
+      "    steps:",
+      "      - run: node ./scripts/check-ci-required-results.mjs",
+    ].join("\n");
+    writeFileSync(path.join(root, ".github/workflows/ci.yml"), stepLevel);
+    expect(
+      findCiRequiredAggregationDiagnostics(root).filter((diagnostic) =>
+        diagnostic.code.startsWith("ci-aggregator"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("HARDENING RED-PROOF: criterion coherence reaches declared-tier gates, and pinned criterion counts make relabels a reviewed diff", () => {
+    const repoManifest = loadCheckManifest(repoRoot);
+    // The two compat-split-boundary bundles are declared (ciTier manual) — the
+    // sweep must still reach them: removing the tag would RED. We verify the
+    // reachability by asserting the sweep currently passes WITH the tag and
+    // that the classification map contains them with the compat criterion.
+    const source = readFileSync(
+      path.join(repoRoot, "packages/check-orchestrator/src/manifest/workflows.ts"),
+      "utf8",
+    );
+    for (const id of [
+      "rust/omena-abstract-value/split-boundary",
+      "rust/omena-semantic-split-boundary",
+    ]) {
+      const gate = repoManifest.gates.find((candidate) => candidate.id === id);
+      expect(gate?.tags).toContain("compat-split-boundary");
+      expect(source).toContain(`id: "${id}"`);
+    }
+    expect(
+      repoManifest.diagnostics.filter(
+        (diagnostic) => diagnostic.code === "governed-leaf-criterion-mismatch",
+      ),
+    ).toEqual([]);
+    // Pinned criterion counts exist and match the live summary counts.
+    const policy = JSON.parse(
+      readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
+    ) as { governedLeafCriteria: Record<string, number> };
+    const total = Object.values(policy.governedLeafCriteria).reduce((sum, n) => sum + n, 0);
+    expect(total).toBe(156);
+    expect(
+      repoManifest.diagnostics.filter(
+        (diagnostic) => diagnostic.code === "gate-policy-criterion-drift",
+      ),
+    ).toEqual([]);
+  });
   it("DIAGNOSTIC-CODE CENSUS: every code literal in src is in the committed inventory and vice versa", () => {
     const src = path.join(repoRoot, "packages/check-orchestrator/src");
     const found = new Set<string>();
