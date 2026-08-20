@@ -23,10 +23,10 @@ export interface ProductTestCiStructureExpectation {
   readonly contractShardNames: readonly string[];
 }
 
-const PLAN_JOB = "rust-product-test-plan";
 const CRATE_JOB = "rust-product-test-crates";
 const CONTRACT_JOB = "rust-product-test-contracts";
-const PRODUCT_TEST_JOBS = [PLAN_JOB, CRATE_JOB, CONTRACT_JOB] as const;
+const PRODUCT_TEST_JOBS = [CRATE_JOB, CONTRACT_JOB] as const;
+const CLASSGUARD_LINE = /pnpm omena-check run rust\/product-test-coverage-classguard/u;
 
 function parseInlineMatrix(blockLines: readonly string[], key: string): readonly string[] | null {
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -63,15 +63,16 @@ export function findProductTestCiStructureErrors(
   const errors: string[] = [];
   const byName = new Map(jobs.map((job) => [job.name, job]));
 
-  const planJob = byName.get(PLAN_JOB);
-  if (!planJob) {
-    errors.push(`registry must declare job "${PLAN_JOB}" (the classguard's own home)`);
-  } else if (
-    !planJob.block.some((line) =>
-      /pnpm omena-check run rust\/product-test-coverage-classguard/u.test(line),
-    )
-  ) {
-    errors.push(`job "${PLAN_JOB}" must execute the product-test classguard`);
+  // g131-S3: the classguard's HOME is not pinned to a named job (the plan job
+  // was legally merged into the crates matrix as a ride-along) — the duty is
+  // that SOME job executes it and that job's result reaches ci-required.
+  const classguardHomes = jobs.filter((job) =>
+    job.block.some((line) => CLASSGUARD_LINE.test(line)),
+  );
+  if (classguardHomes.length === 0) {
+    errors.push(
+      "no CI job executes the product-test classguard; the coverage contract is unenforced",
+    );
   }
 
   const crateJob = byName.get(CRATE_JOB);
@@ -158,6 +159,14 @@ export function findProductTestCiStructureErrors(
       errors.push(
         `job "${jobName}" no longer reaches ci-required through the needs graph; ` +
           "a product-test failure could stop blocking the merge",
+      );
+    }
+  }
+  for (const home of classguardHomes) {
+    if (!closure.has(home.name)) {
+      errors.push(
+        `job "${home.name}" executes the classguard but does not reach ci-required; ` +
+          "a coverage violation could stop blocking the merge",
       );
     }
   }

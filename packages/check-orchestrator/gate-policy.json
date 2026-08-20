@@ -20,7 +20,6 @@
       "benchmark-contracts",
       "benchmark-instructions",
       "benchmark-complexity",
-      "benchmark-products",
       "protocol-matrix",
       "verify-native-linux"
     ]

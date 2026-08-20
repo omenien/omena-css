@@ -1,0 +1,107 @@
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { loadCiWorkflowRegistry } from "../../../packages/check-orchestrator/src/manifest/ci-workflow";
+
+const repoRoot = path.resolve(__dirname, "../../..");
+
+// g131-S3: the consolidation's two mandatory arms.
+//
+// ORDERING ARM — the verify barrier was replaced by direct leaf needs; the
+// failure matrix alone cannot catch a mis-rewire that lets package or
+// extension-host-smoke START before a former verify leaf finished. The
+// golden below asserts the transitive needs closure of each former consumer
+// still contains EVERY former verify leaf (verify-docs folded into
+// verify-core, so the post-merge leaf set is the golden).
+const FORMER_VERIFY_LEAVES = ["verify-core", "verify-native-linux", "build-output"] as const;
+
+function needsClosure(
+  jobs: readonly { name: string; needs: readonly string[] }[],
+  root: string,
+): Set<string> {
+  const byName = new Map(jobs.map((job) => [job.name, job.needs]));
+  const closure = new Set<string>();
+  const queue = [...(byName.get(root) ?? [])];
+  while (queue.length > 0) {
+    const name = queue.pop();
+    if (!name || closure.has(name)) continue;
+    closure.add(name);
+    queue.push(...(byName.get(name) ?? []));
+  }
+  return closure;
+}
+
+describe("consolidated CI graph (g131-S3)", () => {
+  const registry = loadCiWorkflowRegistry(repoRoot);
+  if (!registry) throw new Error("ci-workflow.json missing");
+  const jobs = registry.jobs.map((job) => ({ name: job.name, needs: job.needs }));
+
+  it("ORDERING ARM: package and extension-host-smoke transitively need every former verify leaf", () => {
+    for (const consumer of ["package", "extension-host-smoke"]) {
+      const closure = needsClosure(jobs, consumer);
+      for (const leaf of FORMER_VERIFY_LEAVES) {
+        expect(closure.has(leaf), `${consumer} must wait on ${leaf}`).toBe(true);
+      }
+    }
+  });
+
+  it("ORDERING ARM RED-PROOF: dropping one former leaf from package's closure fails the golden", () => {
+    const mutated = jobs.map((job) =>
+      job.name === "package"
+        ? { ...job, needs: job.needs.filter((need) => need !== "verify-native-linux") }
+        : job,
+    );
+    const closure = needsClosure(mutated, "package");
+    expect(closure.has("verify-native-linux")).toBe(false);
+  });
+
+  it("REQUIRED MODEL: ci-required needs exactly the required-annotated jobs and every job reaches it or is advisory", () => {
+    const ciRequired = registry.jobs.find((job) => job.name === "ci-required")!;
+    const required = registry.jobs
+      .filter((job) => job.requiredAnnotation === true)
+      .map((job) => job.name)
+      .toSorted();
+    expect([...ciRequired.needs].toSorted()).toEqual(required);
+    // The five former aggregator-only jobs are gone.
+    for (const gone of [
+      "verify",
+      "rust-product-tests",
+      "rust-workspace",
+      "benchmark-gates",
+      "closure-fast",
+    ]) {
+      expect(registry.jobs.some((job) => job.name === gone)).toBe(false);
+    }
+  });
+
+  it(
+    "LEAF-FAILURE MATRIX: the root judge REDs when ANY required leaf fails and stays green on all-success",
+    { timeout: 60_000 },
+    () => {
+      const ciRequired = registry.jobs.find((job) => job.name === "ci-required")!;
+      const judge = (results: Record<string, { result: string }>): number => {
+        try {
+          execFileSync("node", ["./scripts/check-ci-required-results.mjs"], {
+            cwd: repoRoot,
+            env: { ...process.env, OMENA_CI_REQUIRED_RESULTS: JSON.stringify(results) },
+            stdio: "pipe",
+          });
+          return 0;
+        } catch (error) {
+          return (error as { status?: number }).status ?? 1;
+        }
+      };
+      const allGreen = Object.fromEntries(
+        ciRequired.needs.map((need) => [need, { result: "success" }]),
+      );
+      expect(judge(allGreen)).toBe(0);
+      // Every leaf, in turn: failure AND skipped must both flip the judge RED.
+      for (const need of ciRequired.needs) {
+        for (const outcome of ["failure", "skipped"]) {
+          const mutated = { ...allGreen, [need]: { result: outcome } };
+          expect(judge(mutated), `${need}=${outcome} must RED the judge`).not.toBe(0);
+        }
+      }
+    },
+  );
+});

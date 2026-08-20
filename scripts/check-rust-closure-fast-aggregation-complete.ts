@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadCheckManifest } from "../packages/check-orchestrator/src/manifest/index.ts";
+import { loadCiWorkflowRegistry } from "../packages/check-orchestrator/src/manifest/ci-workflow.ts";
 import {
   bundleShardNames,
   resolveShardMembers,
@@ -97,23 +98,27 @@ assert.equal(
   `closure-fast shards must partition the bundle (union ${shardUnionSize} vs deps ${bundleDeps.length})`,
 );
 
-const aggregateJobStart = lines.findIndex((line) => /^ {2}closure-fast:\s*$/.test(line));
-assert.ok(aggregateJobStart >= 0, "ci.yml must define the closure-fast aggregate job");
-const aggregateJobEnd = lines.findIndex(
-  (line, index) => index > aggregateJobStart && /^ {2}[A-Za-z0-9_-]+:\s*$/.test(line),
-);
-const aggregateBlock = lines
-  .slice(aggregateJobStart, aggregateJobEnd < 0 ? lines.length : aggregateJobEnd)
-  .join("\n");
-assert.match(
-  aggregateBlock,
-  /^\s+needs:\s*closure-fast-shards\s*$/m,
-  "closure-fast aggregate must depend on the complete shard matrix",
-);
-assert.match(
-  aggregateBlock,
-  /scripts\/check-ci-required-results\.mjs/,
-  "closure-fast aggregate must reject any failed, cancelled, or skipped shard",
+// g131-S3 (registry-anchored aggregation): the intermediate closure-fast
+// aggregate job was legally folded away — the invariant is that the shard
+// matrix's RESULT reaches ci-required through the needs graph (any
+// aggregation shape or none; GitHub's skip-cascade makes every needs
+// ancestor failure-propagating, and the orchestrator's judge rules govern
+// the root aggregator's if:/judge semantics).
+const registry = loadCiWorkflowRegistry(repoRoot);
+assert.ok(registry, "packages/check-orchestrator/ci-workflow.json must exist");
+const needsByName = new Map(registry.jobs.map((job) => [job.name, job.needs]));
+const requiredClosure = new Set<string>();
+const closureQueue = [...(needsByName.get("ci-required") ?? [])];
+while (closureQueue.length > 0) {
+  const name = closureQueue.pop();
+  if (!name || requiredClosure.has(name)) continue;
+  requiredClosure.add(name);
+  closureQueue.push(...(needsByName.get(name) ?? []));
+}
+assert.ok(
+  requiredClosure.has("closure-fast-shards"),
+  "closure-fast-shards must reach ci-required through the needs graph; " +
+    "a failed shard could stop blocking the merge",
 );
 
 process.stdout.write(
@@ -121,7 +126,7 @@ process.stdout.write(
     {
       schemaVersion: "0",
       product: "rust.closure-fast-aggregation-complete",
-      aggregateJob: "closure-fast",
+      aggregation: "ci-required needs closure (registry-anchored)",
       matrixJob: "closure-fast-shards",
       shardCoverage: {
         bundle: shardedBundleId,

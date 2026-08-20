@@ -51,7 +51,7 @@ jobs:
 
   verify-core:
     # omena-ci-tier: verify
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -65,6 +65,9 @@ jobs:
       - run: pnpm omena-check run core/check --summary
       - run: pnpm omena-check bundle contract/engine-v2-contract-idl --summary
       - run: pnpm omena-check run workspace/backend-typecheck-smoke --summary
+      - run: pnpm omena-check bundle docs/contracts --summary
+      - run: pnpm omena-check run docs/site --summary
+      - run: pnpm omena-check run docs/smoke --summary
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
@@ -76,34 +79,9 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  verify-docs:
-    # omena-ci-tier: verify
-    # omena-ci-required: false
-    needs: preflight
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-pnpm
-      - run: pnpm omena-check bundle docs/contracts --summary
-      - run: pnpm omena-check run docs/site --summary
-      - run: pnpm omena-check run docs/smoke --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: verify-docs-summary
-          path: |
-            .omena-ci/check-summary-*.json
-            .omena-ci/check-output/**
-          include-hidden-files: true
-          retention-days: 14
-          if-no-files-found: warn
-
   verify-native-linux:
     # omena-ci-tier: verify
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -138,7 +116,7 @@ jobs:
 
   build-output:
     # omena-ci-tier: verify
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -166,25 +144,6 @@ jobs:
           include-hidden-files: true
           retention-days: 14
           if-no-files-found: warn
-
-  verify:
-    # omena-ci-required: true
-    needs:
-      - preflight
-      - verify-core
-      - verify-docs
-      - verify-native-linux
-      - build-output
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: node ./scripts/check-ci-required-results.mjs
-        env:
-          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
 
   protocol-matrix:
     # omena-ci-tier: protocol
@@ -226,7 +185,7 @@ jobs:
 
   rust-static:
     # omena-ci-tier: rust-workspace
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -253,7 +212,7 @@ jobs:
 
   rust-contracts:
     # omena-ci-tier: rust-workspace
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     strategy:
       fail-fast: false
@@ -282,39 +241,16 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  rust-product-test-plan:
-    # omena-ci-tier: rust-workspace
-    # omena-ci-required: false
-    needs: preflight
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-pnpm
-      - run: pnpm omena-check run rust/product-test-coverage-classguard --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: rust-product-test-plan-summary
-          path: |
-            .omena-ci/check-summary-*.json
-            .omena-ci/check-output/**
-          include-hidden-files: true
-          retention-days: 14
-          if-no-files-found: warn
-
   rust-product-test-crates:
     # omena-ci-tier: rust-workspace
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     strategy:
       fail-fast: false
       matrix:
         product-shard: [workspace, differential, benchmarks]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
     steps:
@@ -324,6 +260,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm omena-check run rust/product-test-coverage-classguard --summary
       - run: pnpm omena-check run rust/product-test-execution --summary -- ${{ matrix.product-shard }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -338,7 +275,7 @@ jobs:
 
   rust-product-test-contracts:
     # omena-ci-tier: rust-workspace
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     strategy:
       fail-fast: false
@@ -382,41 +319,6 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  rust-product-tests:
-    # omena-ci-tier: rust-workspace
-    # omena-ci-required: false
-    needs:
-      - rust-product-test-plan
-      - rust-product-test-crates
-      - rust-product-test-contracts
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: node ./scripts/check-ci-required-results.mjs
-        env:
-          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
-
-  rust-workspace:
-    # omena-ci-required: true
-    needs:
-      - rust-static
-      - rust-contracts
-      - rust-product-tests
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: node ./scripts/check-ci-required-results.mjs
-        env:
-          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
-
   resolver-path-identity-advisory:
     # omena-ci-tier: none
     # omena-ci-required: false
@@ -435,10 +337,10 @@ jobs:
 
   benchmark-contracts:
     # omena-ci-tier: verify
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -452,6 +354,8 @@ jobs:
       - run: pnpm omena-check run rust/benchmark/transform-relex-baseline --summary
       - run: pnpm omena-check run rust/z5-parser-product-cutover --summary
       - run: pnpm omena-check run rust/z5-perf-per-file-invariant --summary
+      - run: pnpm omena-check run rust/bundler-productization-benchmark --summary
+      - run: pnpm omena-check run rust/omena-reactive/performance --summary
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
@@ -465,7 +369,7 @@ jobs:
 
   benchmark-instructions:
     # omena-ci-tier: verify
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -500,7 +404,7 @@ jobs:
 
   benchmark-complexity:
     # omena-ci-tier: verify
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -534,50 +438,6 @@ jobs:
           include-hidden-files: true
           retention-days: 14
           if-no-files-found: warn
-
-  benchmark-products:
-    # omena-ci-tier: verify
-    # omena-ci-required: false
-    needs: preflight
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-pnpm
-      - uses: ./.github/actions/cache-rust
-      - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run rust/bundler-productization-benchmark --summary
-      - run: pnpm omena-check run rust/omena-reactive/performance --summary
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: benchmark-products-summary
-          path: |
-            .omena-ci/check-summary-*.json
-            .omena-ci/check-output/**
-          include-hidden-files: true
-          retention-days: 14
-          if-no-files-found: warn
-
-  benchmark-gates:
-    # omena-ci-required: true
-    needs:
-      - benchmark-contracts
-      - benchmark-instructions
-      - benchmark-complexity
-      - benchmark-products
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: node ./scripts/check-ci-required-results.mjs
-        env:
-          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
 
   plugin-consumers:
     # omena-ci-tier: plugin
@@ -641,7 +501,7 @@ jobs:
 
   closure-fast-shards:
     # omena-ci-tier: closure-fast
-    # omena-ci-required: false
+    # omena-ci-required: true
     needs: preflight
     strategy:
       fail-fast: false
@@ -680,25 +540,12 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  closure-fast:
-    # omena-ci-required: true
-    needs: closure-fast-shards
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: node ./scripts/check-ci-required-results.mjs
-        env:
-          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}
-
   extension-host-smoke:
     # omena-ci-tier: extension-host
     # omena-ci-required: true
     needs:
-      - verify
+      - verify-core
+      - verify-native-linux
       - build-output
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -728,9 +575,10 @@ jobs:
     # omena-ci-tier: package
     # omena-ci-required: true
     needs:
-      - verify
-      - native-runner-matrix
+      - verify-core
+      - verify-native-linux
       - build-output
+      - native-runner-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -780,17 +628,24 @@ jobs:
 
   ci-required:
     # omena-ci-required: false
+    if: ${{ always() }}
     needs:
-      - verify
+      - verify-core
+      - verify-native-linux
+      - build-output
       - protocol-matrix
       - native-runner-matrix
-      - rust-workspace
-      - benchmark-gates
+      - rust-static
+      - rust-contracts
+      - rust-product-test-crates
+      - rust-product-test-contracts
+      - benchmark-contracts
+      - benchmark-instructions
+      - benchmark-complexity
       - plugin-consumers
-      - closure-fast
+      - closure-fast-shards
       - extension-host-smoke
       - package
-    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

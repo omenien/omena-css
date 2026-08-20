@@ -26,17 +26,47 @@ describe("product-test CI structure (registry-anchored classguard, g131-S0)", ()
     expect(findProductTestCiStructureErrors(realJobs(), EXPECTED)).toEqual([]);
   });
 
-  it("STRUCTURE RED-PROOF: deleting rust-product-test-plan REDs (the fixture g131-S3 demands)", () => {
-    const jobs = realJobs().filter((job) => job.name !== "rust-product-test-plan");
+  it("STRUCTURE RED-PROOF: removing the classguard from every job REDs (home-agnostic duty, post-S3)", () => {
+    const jobs = realJobs().map((job) => ({
+      ...job,
+      block: job.block.filter((line) => !line.includes("rust/product-test-coverage-classguard")),
+    }));
     expect(findProductTestCiStructureErrors(jobs, EXPECTED).join(";")).toContain(
-      'registry must declare job "rust-product-test-plan"',
+      "no CI job executes the product-test classguard",
+    );
+  });
+
+  it("STRUCTURE RED-PROOF: a classguard home that does not reach ci-required REDs", () => {
+    // Move the classguard line to an advisory job outside the required graph.
+    const jobs = realJobs().map((job) => {
+      if (job.name === "rust-product-test-crates") {
+        return {
+          ...job,
+          block: job.block.filter(
+            (line) => !line.includes("rust/product-test-coverage-classguard"),
+          ),
+        };
+      }
+      if (job.name === "resolver-path-identity-advisory") {
+        return {
+          ...job,
+          block: [
+            ...job.block,
+            "      - run: pnpm omena-check run rust/product-test-coverage-classguard --summary",
+          ],
+        };
+      }
+      return job;
+    });
+    expect(findProductTestCiStructureErrors(jobs, EXPECTED).join(";")).toContain(
+      "does not reach ci-required",
     );
   });
 
   it("STRUCTURE RED-PROOF: a needs restructure that drops a product-test result from ci-required REDs", () => {
-    // Sever the crates job from its aggregator without touching anything else.
+    // Sever the crates job from ci-required (post-S3: it is a DIRECT need).
     const jobs = realJobs().map((job) =>
-      job.name === "rust-product-tests"
+      job.name === "ci-required"
         ? { ...job, needs: job.needs.filter((need) => need !== "rust-product-test-crates") }
         : job,
     );
@@ -45,22 +75,31 @@ describe("product-test CI structure (registry-anchored classguard, g131-S0)", ()
     );
   });
 
-  it("STRUCTURE EQUIVALENCE: deleting the intermediate aggregator while wiring the three jobs directly into ci-required stays GREEN (the legal g131-S3 restructure)", () => {
-    const jobs = realJobs()
-      .filter((job) => job.name !== "rust-product-tests")
-      .map((job) =>
+  it("STRUCTURE EQUIVALENCE: re-introducing an intermediate aggregator between the product-test jobs and ci-required stays GREEN (aggregation-shape agnosticism, both directions)", () => {
+    const real = realJobs();
+    const ciRequired = real.find((job) => job.name === "ci-required")!;
+    const jobs = [
+      ...real.map((job) =>
         job.name === "ci-required"
           ? {
               ...job,
               needs: [
-                ...job.needs.filter((need) => need !== "rust-product-tests"),
-                "rust-product-test-plan",
-                "rust-product-test-crates",
-                "rust-product-test-contracts",
+                ...job.needs.filter(
+                  (need) =>
+                    need !== "rust-product-test-crates" && need !== "rust-product-test-contracts",
+                ),
+                "rust-product-tests",
               ],
             }
           : job,
-      );
+      ),
+      {
+        name: "rust-product-tests",
+        block: ["  rust-product-tests:", "    runs-on: ubuntu-latest"],
+        needs: ["rust-product-test-crates", "rust-product-test-contracts"],
+      },
+    ];
+    void ciRequired;
     expect(findProductTestCiStructureErrors(jobs, EXPECTED)).toEqual([]);
   });
 
