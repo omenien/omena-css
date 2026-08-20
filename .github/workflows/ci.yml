@@ -32,11 +32,19 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - run: pnpm omena-check doctor
-      - run: pnpm omena-check run tooling/orchestrator-inventory
-      - run: pnpm omena-check run tooling/ci-workflow
-      - run: pnpm omena-check run rust/release-semver-intent-contract
+      - run: pnpm omena-check run tooling/orchestrator-inventory --summary
+      - run: pnpm omena-check run tooling/ci-workflow --summary
+      - run: pnpm omena-check run rust/release-semver-intent-contract --summary
       - id: closure-fast-shards
         run: echo "matrix=$(pnpm --silent omena-check shards rust/closure-fast --json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: preflight-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   verify-core:
     # omena-ci-tier: verify
@@ -51,9 +59,17 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run core/check
-      - run: pnpm omena-check bundle contract/engine-v2-contract-idl
-      - run: pnpm omena-check run workspace/backend-typecheck-smoke
+      - run: pnpm omena-check run core/check --summary
+      - run: pnpm omena-check bundle contract/engine-v2-contract-idl --summary
+      - run: pnpm omena-check run workspace/backend-typecheck-smoke --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: verify-core-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   verify-docs:
     # omena-ci-tier: verify
@@ -66,9 +82,17 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - run: pnpm omena-check bundle docs/contracts
-      - run: pnpm omena-check run docs/site
-      - run: pnpm omena-check run docs/smoke
+      - run: pnpm omena-check bundle docs/contracts --summary
+      - run: pnpm omena-check run docs/site --summary
+      - run: pnpm omena-check run docs/smoke --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: verify-docs-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   verify-native-linux:
     # omena-ci-tier: verify
@@ -83,17 +107,25 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run core/build/omena-napi
-      - run: pnpm omena-check run contract/parity-v2-golden
-      - run: pnpm omena-check run contract/type-fact-backend-parity
-      - run: pnpm omena-check run test/test
-      - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform
+      - run: pnpm omena-check run core/build/omena-napi --summary
+      - run: pnpm omena-check run contract/parity-v2-golden --summary
+      - run: pnpm omena-check run contract/type-fact-backend-parity --summary
+      - run: pnpm omena-check run test/test --summary
+      - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform --summary
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: omena-napi-linux-x64
           path: rust/crates/omena-napi/pkg/
           retention-days: 1
           if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: verify-native-linux-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   build-output:
     # omena-ci-tier: verify
@@ -108,13 +140,21 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run core/build
+      - run: pnpm omena-check run core/build --summary
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: build-output
           path: dist/
           retention-days: 1
           if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: build-output-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   verify:
     # omena-ci-required: true
@@ -152,9 +192,17 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run core/build/omena-napi
-      - run: pnpm omena-check run test/protocol
-      - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform
+      - run: pnpm omena-check run core/build/omena-napi --summary
+      - run: pnpm omena-check run test/protocol --summary
+      - run: pnpm omena-check run release/check/packaged-omena-napi-crossplatform --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: protocol-matrix-summary-${{ matrix.os }}
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   native-runner-matrix:
     # omena-ci-required: true
@@ -178,7 +226,15 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run rust/workspace
+      - run: pnpm omena-check run rust/workspace --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: rust-static-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   rust-contracts:
     # omena-ci-tier: rust-workspace
@@ -195,19 +251,27 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run rust/omena-reactive/contract
-      - run: pnpm omena-check run rust/omena-reactive/public-surface
+      - run: pnpm omena-check run rust/omena-reactive/contract --summary
+      - run: pnpm omena-check run rust/omena-reactive/public-surface --summary
       - run: pnpm omena-check run rust/omena-reactive/public-surface:update && git diff --exit-code -- rust/crates/omena-reactive/tests/snapshots/public-api.txt
-      - run: pnpm omena-check run rust/omena-lsp-server/tide-sole-authority
-      - run: pnpm omena-check run rust/omena-lsp-server/reactive-shadow-parity
-      - run: pnpm omena-check run rust/omena-cascade/property-metadata
-      - run: pnpm omena-check run rust/omena-transform-cst/observation-census
-      - run: pnpm omena-check run rust/transform-winner-equality-audit
-      - run: pnpm omena-check run rust/omena-transform-cst/minify-profile-manifest
-      - run: pnpm omena-check run rust/omena-cli-minify-backend
-      - run: pnpm omena-check run rust/omena-cli-postcss-compat
-      - run: pnpm omena-check run rust/omena-query/transform-differential
-      - run: pnpm omena-check run rust/omena-transform-target/boundary
+      - run: pnpm omena-check run rust/omena-lsp-server/tide-sole-authority --summary
+      - run: pnpm omena-check run rust/omena-lsp-server/reactive-shadow-parity --summary
+      - run: pnpm omena-check run rust/omena-cascade/property-metadata --summary
+      - run: pnpm omena-check run rust/omena-transform-cst/observation-census --summary
+      - run: pnpm omena-check run rust/transform-winner-equality-audit --summary
+      - run: pnpm omena-check run rust/omena-transform-cst/minify-profile-manifest --summary
+      - run: pnpm omena-check run rust/omena-cli-minify-backend --summary
+      - run: pnpm omena-check run rust/omena-cli-postcss-compat --summary
+      - run: pnpm omena-check run rust/omena-query/transform-differential --summary
+      - run: pnpm omena-check run rust/omena-transform-target/boundary --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: rust-contracts-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   rust-product-test-plan:
     # omena-ci-tier: rust-workspace
@@ -220,7 +284,15 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
-      - run: pnpm omena-check run rust/product-test-coverage-classguard
+      - run: pnpm omena-check run rust/product-test-coverage-classguard --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: rust-product-test-plan-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   rust-product-test-crates:
     # omena-ci-tier: rust-workspace
@@ -241,7 +313,15 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run rust/product-test-execution -- ${{ matrix.product-shard }}
+      - run: pnpm omena-check run rust/product-test-execution --summary -- ${{ matrix.product-shard }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: rust-product-test-crates-summary-${{ matrix.product-shard }}
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   rust-product-test-contracts:
     # omena-ci-tier: rust-workspace
@@ -278,6 +358,14 @@ jobs:
         with:
           tool: cargo-public-api@0.52.0,cargo-semver-checks@0.48.0
       - run: pnpm omena-check bundle rust/product-test-contracts --summary --shard=${{ matrix.contract-shard }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: rust-product-test-contracts-summary-${{ matrix.contract-shard }}
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   rust-product-tests:
     # omena-ci-tier: rust-workspace
@@ -343,12 +431,20 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run rust/benchmark/ci-reachability
-      - run: pnpm omena-check run rust/benchmark/emitted-css-golden-gate
-      - run: pnpm omena-check run rust/benchmark/headline-axis
-      - run: pnpm omena-check run rust/benchmark/transform-relex-baseline
-      - run: pnpm omena-check run rust/z5-parser-product-cutover
-      - run: pnpm omena-check run rust/z5-perf-per-file-invariant
+      - run: pnpm omena-check run rust/benchmark/ci-reachability --summary
+      - run: pnpm omena-check run rust/benchmark/emitted-css-golden-gate --summary
+      - run: pnpm omena-check run rust/benchmark/headline-axis --summary
+      - run: pnpm omena-check run rust/benchmark/transform-relex-baseline --summary
+      - run: pnpm omena-check run rust/z5-parser-product-cutover --summary
+      - run: pnpm omena-check run rust/z5-perf-per-file-invariant --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: benchmark-contracts-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   benchmark-instructions:
     # omena-ci-tier: verify
@@ -371,9 +467,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y valgrind
           valgrind --version
-      - run: pnpm omena-check run rust/z5-perf-baseline
-      - run: pnpm omena-check run rust/z5-perf-warmup-wave-count
-      - run: pnpm omena-check run rust/z5-perf-no-regression
+      - run: pnpm omena-check run rust/z5-perf-baseline --summary
+      - run: pnpm omena-check run rust/z5-perf-warmup-wave-count --summary
+      - run: pnpm omena-check run rust/z5-perf-no-regression --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: benchmark-instructions-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   benchmark-complexity:
     # omena-ci-tier: verify
@@ -399,8 +503,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y valgrind
           valgrind --version
-      - run: pnpm omena-check run rust/z5-perf-complexity-slope
-      - run: pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound
+      - run: pnpm omena-check run rust/z5-perf-complexity-slope --summary
+      - run: pnpm omena-check run rust/demand-sliced-monotone-fact-propagation-relocation-gate-bound --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: benchmark-complexity-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   benchmark-products:
     # omena-ci-tier: verify
@@ -415,8 +527,16 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check run rust/bundler-productization-benchmark
-      - run: pnpm omena-check run rust/omena-reactive/performance
+      - run: pnpm omena-check run rust/bundler-productization-benchmark --summary
+      - run: pnpm omena-check run rust/omena-reactive/performance --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: benchmark-products-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   benchmark-gates:
     # omena-ci-required: true
@@ -484,7 +604,15 @@ jobs:
 
           echo "CHROME_BIN=${chrome}" >> "$GITHUB_ENV"
           "${chrome}" --version
-      - run: pnpm omena-check run plugin/consumers
+      - run: pnpm omena-check run plugin/consumers --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: plugin-consumers-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   closure-fast-shards:
     # omena-ci-tier: closure-fast
@@ -559,7 +687,15 @@ jobs:
           name: build-output
           path: dist/
       - run: node ./scripts/restore-native-binary-permissions.mjs
-      - run: xvfb-run -a pnpm omena-check run test/extension-host
+      - run: xvfb-run -a pnpm omena-check run test/extension-host --summary
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: extension-host-smoke-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   package:
     # omena-ci-tier: package
@@ -583,7 +719,7 @@ jobs:
         with:
           pattern: engine-shadow-runner-*
           path: .runner-artifacts
-      - run: pnpm omena-check run release/package/prepared
+      - run: pnpm omena-check run release/package/prepared --summary
         env:
           OMENA_PACKAGED_RUNNER_MIN_TARGETS: "3"
           OMENA_PACKAGED_RUNNER_REQUIRED_PLATFORMS: linux,darwin,win32
@@ -604,6 +740,14 @@ jobs:
           name: vsix
           path: "*.vsix"
           if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: package-summary
+          path: |
+            .omena-ci/check-summary-*.json
+            .omena-ci/check-output/**
+          if-no-files-found: ignore
 
   ci-required:
     # omena-ci-required: false

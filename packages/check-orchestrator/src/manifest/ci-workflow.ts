@@ -176,6 +176,36 @@ export function validateCiWorkflowRegistry(
       `emitted ci.yml does not parse as YAML: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`,
     );
   }
+  // Artifact names must be unique PER RUN (upload-artifact@v7 rejects
+  // duplicates): a matrixed job's uploads must carry a `${{ matrix.` suffix,
+  // and static names must be globally unique (g131-S0 per-leg naming rule).
+  const staticArtifactNames = new Map<string, string>();
+  for (const job of registry.jobs) {
+    const hasMatrix = job.block.some((line) => /^ {6,}matrix:\s*$/.test(line));
+    for (let index = 0; index < job.block.length; index += 1) {
+      if (!/- uses: actions\/upload-artifact@/.test(job.block[index] ?? "")) continue;
+      for (let cursor = index + 1; cursor < Math.min(index + 6, job.block.length); cursor += 1) {
+        const artifactName = job.block[cursor]?.match(/^\s+name:\s*(\S.*)$/)?.[1];
+        if (artifactName === undefined) continue;
+        if (hasMatrix && !artifactName.includes("${{ matrix.")) {
+          errors.push(
+            `job "${job.name}" is matrixed but uploads artifact "${artifactName}" without a ` +
+              "${{ matrix. }} suffix — parallel legs would collide on the name",
+          );
+        }
+        if (!artifactName.includes("${{")) {
+          const owner = staticArtifactNames.get(artifactName);
+          if (owner && owner !== job.name) {
+            errors.push(
+              `artifact name "${artifactName}" is uploaded by both "${owner}" and "${job.name}" — names must be unique per run`,
+            );
+          }
+          staticArtifactNames.set(artifactName, job.name);
+        }
+        break;
+      }
+    }
+  }
   const ciRequired = registry.jobs.find((job) => job.name === "ci-required");
   if (!ciRequired) {
     errors.push("registry must declare the ci-required aggregator job");
