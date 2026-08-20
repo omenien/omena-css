@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   computeCostLedgerDigest,
   findCostLedgerDiagnostics,
+  packMeasuredPartition,
   summaryInstrumentedJobNames,
 } from "../../../packages/check-orchestrator/src/manifest/cost-ledger";
 
@@ -99,6 +100,37 @@ describe("ci cost ledger (g131-S1)", () => {
     ledger["recordsDigest"] = computeCostLedgerDigest(body as never);
     writeLedger(root, ledger);
     expect(codesFor(root)).toContain("error:ci-cost-ledger-coverage-gap");
+  });
+
+  it("PARTITION: measured pack respects the target, keeps rest non-empty, and REFUSES single-bin packs", () => {
+    const minutes = (value: number) => value * 60_000;
+    const partition = packMeasuredPartition(
+      [
+        { id: "a", p95Ms: minutes(6) },
+        { id: "b", p95Ms: minutes(5) },
+        { id: "c", p95Ms: minutes(3) },
+        { id: "d", p95Ms: minutes(2) },
+        { id: "e", p95Ms: minutes(1) },
+      ],
+      minutes(8),
+    );
+    // Every named bin respects the target; rest is structurally non-empty.
+    for (const bin of partition.named) expect(bin.p95TotalMs).toBeLessThanOrEqual(minutes(8));
+    expect(partition.rest.members.length).toBeGreaterThanOrEqual(1);
+    // Partition property: named ∪ rest == input, disjoint.
+    const all = [...partition.named.flatMap((bin) => bin.members), ...partition.rest.members];
+    expect([...all].toSorted()).toEqual(["a", "b", "c", "d", "e"]);
+    // RED: a pack that fits one bin would empty rest — the writer refuses.
+    expect(() =>
+      packMeasuredPartition(
+        [
+          { id: "a", p95Ms: minutes(1) },
+          { id: "b", p95Ms: minutes(1) },
+        ],
+        minutes(8),
+      ),
+    ).toThrow(/rest shard would be empty/u);
+    expect(() => packMeasuredPartition([], minutes(8))).toThrow(/empty member set/u);
   });
 
   it("RED-PROOF: deleting the digest key is a governed shape error, not silence", () => {

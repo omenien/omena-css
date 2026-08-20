@@ -21,6 +21,7 @@ import {
   costLedgerToday,
   findCostLedgerDiagnostics,
   loadCostLedger,
+  packMeasuredPartition,
   percentile,
 } from "../manifest/cost-ledger";
 import {
@@ -1121,6 +1122,53 @@ function runCostLedgerCommand(parsed: ParsedArgs): void {
   );
 }
 
+// g131-S2: propose a measured partition for a bundle from ledger p95 — the
+// committed table in shards.ts stays the authority (small reviewable diff);
+// this command computes the pack and REFUSES to propose one that empties the
+// rest shard (the hard-fail at shard resolution would otherwise fire in CI).
+function runPartitionCommand(parsed: ParsedArgs): void {
+  const target = parsed.target;
+  if (!target) fail("Usage: pnpm omena-check partition <bundle-id> [--target-minutes=8]");
+  const gate = resolveTarget(target);
+  if (gate.kind !== "bundle" && gate.kind !== "alias") {
+    fail(`Target "${target}" is not a bundle.`);
+  }
+  const ledger = loadCostLedger(manifest.rootDir);
+  if (!ledger) fail("ci-cost-ledger.json is absent; run `pnpm omena-check cost-ledger --write`.");
+  const targetArg = parsed.extraArgs.find((arg) => arg.startsWith("--target-minutes="));
+  const targetMs = (targetArg ? Number(targetArg.slice("--target-minutes=".length)) : 8) * 60_000;
+  const p95ByGate = new Map(ledger.gates.map((row) => [row.gateId, row.p95Ms]));
+  const members = (gate.referencedTargets ?? []).map((memberTarget) => {
+    const member = resolveTarget(memberTarget);
+    return { id: member.id, p95Ms: p95ByGate.get(member.id) ?? null };
+  });
+  const unmeasured = members.filter((member) => member.p95Ms === null);
+  if (unmeasured.length > 0) {
+    fail(
+      `bundle "${gate.id}" has ${unmeasured.length} member(s) with no ledger p95 ` +
+        `(${unmeasured.map((member) => member.id).join(", ")}); a measured partition needs ` +
+        "summary receipts for every member — accumulate runs and re-run `cost-ledger --write`.",
+    );
+  }
+  let partition;
+  try {
+    partition = packMeasuredPartition(
+      members.map((member) => ({ id: member.id, p95Ms: member.p95Ms ?? 0 })),
+      targetMs,
+    );
+  } catch (error) {
+    fail(`bundle "${gate.id}": ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const proposal = {
+    bundle: gate.id,
+    targetMinutes: targetMs / 60_000,
+    sourceLedgerGeneratedAt: ledger.generatedAt,
+    named: partition.named.map((bin, index) => ({ shard: `pack-${index + 1}`, ...bin })),
+    rest: partition.rest,
+  };
+  process.stdout.write(`${JSON.stringify(proposal, null, 2)}\n`);
+}
+
 function runInventoryCommand(parsed: ParsedArgs): void {
   if (parsed.check && parsed.write) {
     fail("Use either --check or --write, not both.");
@@ -1197,6 +1245,9 @@ async function dispatch(): Promise<void> {
       break;
     case "cost-ledger":
       runCostLedgerCommand(parsedArgs);
+      break;
+    case "partition":
+      runPartitionCommand(parsedArgs);
       break;
     case "probe":
       await runProbeCommand(parsedArgs);

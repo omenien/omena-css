@@ -7,13 +7,13 @@
   },
   "costSource": "static-enumeration-2026-08-18",
   "escapeHatch": {
-    "maxGateCount": 156,
+    "maxGateCount": 157,
     "owner": "check-orchestrator maintainers",
     "reviewedAt": "2026-08-20",
     "reviewAfter": "2026-11-18"
   },
   "lanes": {
-    "bundles": ["rust/closure-fast", "rust/product-test-contracts"],
+    "bundles": ["rust/closure-fast", "rust/contracts", "rust/product-test-contracts"],
     "singles": ["plugin/consumers", "rust/product-test-execution", "rust/workspace"],
     "ciJobs": [
       "rust-contracts",
@@ -27,11 +27,11 @@
   },
   "governedLeafCriteria": {
     "compat-alias-with-retirement-window": 10,
-    "declared-none-or-manual": 30,
+    "declared-none-or-manual": 31,
     "manual-tool-with-named-consumer": 65,
     "research-evidence": 51
   },
-  "governedLeafCriteriaDigest": "ce6b2243c6add585bbfec7ab52d06754e65269be1b4b2cfc0a4449543ce6fdca",
+  "governedLeafCriteriaDigest": "6d0f1f291d60af86d385b55d3b80bb738cf10ba37e47e91246b72058de79d29f",
   "records": [
     {
       "gateId": "contract/parity-v2-golden",
@@ -130,6 +130,13 @@
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+    },
+    {
+      "gateId": "rust/contracts",
+      "stage": "blocking",
+      "reviewedAt": "2026-08-20",
+      "reviewAfter": "2026-11-18",
+      "evidence": "g131-S2 bundle-ification: rust-contracts lane 12+1 with the re-homed byte postcondition"
     },
     {
       "gateId": "rust/core-layer-hygiene",
@@ -657,11 +664,11 @@
       "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
     },
     {
-      "gateId": "rust/omena-reactive/public-surface:update",
+      "gateId": "rust/omena-reactive/public-surface-clean",
       "stage": "blocking",
       "reviewedAt": "2026-08-20",
       "reviewAfter": "2026-11-18",
-      "evidence": "static-enumeration-2026-08-18: CI cost review (research 00/01 poles + 150-run failure-yield sample); replaced by the cost-ledger successor when it lands"
+      "evidence": "g131-S2 bundle-ification: rust-contracts lane 12+1 with the re-homed byte postcondition"
     },
     {
       "gateId": "rust/omena-response-surface-split-census",

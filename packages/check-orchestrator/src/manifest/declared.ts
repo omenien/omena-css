@@ -1043,6 +1043,46 @@ export const DECLARED_CHECK_GATES = [
     ciGroup: "rust-workspace",
   },
   {
+    // g131-S2: the re-homed `:update && git diff --exit-code` shell
+    // postcondition — raw-byte equality between the snapshot writer's output
+    // and the committed file (the plain public-surface member normalizes
+    // both sides and cannot see normalization-masked drift).
+    id: "rust/omena-reactive/public-surface-clean",
+    kind: "gate",
+    scope: "rust",
+    packageTarget: "rust/omena-reactive/public-surface-clean",
+    tags: ["rust-workspace", "public-api", "reactive", "snapshot-bytes"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
+    // g131-S2: the rust-contracts CI job's 13 sequential steps as a governed,
+    // shard-able bundle — 12 former plain lanes + the re-homed byte
+    // postcondition. The shell-postcondition census: the job carried exactly
+    // ONE `&&`-composed step; its postcondition is the -clean member.
+    id: "rust/contracts",
+    kind: "bundle",
+    scope: "rust",
+    deps: [
+      "rust/omena-reactive/contract",
+      "rust/omena-reactive/public-surface",
+      "rust/omena-reactive/public-surface-clean",
+      "rust/omena-lsp-server/tide-sole-authority",
+      "rust/omena-lsp-server/reactive-shadow-parity",
+      "rust/omena-cascade/property-metadata",
+      "rust/omena-transform-cst/observation-census",
+      "rust/transform-winner-equality-audit",
+      "rust/omena-transform-cst/minify-profile-manifest",
+      "rust/omena-cli-minify-backend",
+      "rust/omena-cli-postcss-compat",
+      "rust/omena-query/transform-differential",
+      "rust/omena-transform-target/boundary",
+    ],
+    tags: ["rust-workspace", "contracts"],
+    ciTier: "rust-workspace",
+    ciGroup: "rust-workspace",
+  },
+  {
     id: "rust/omena-reactive/performance",
     kind: "gate",
     scope: "rust",
@@ -1418,13 +1458,17 @@ export const DECLARED_CHECK_GATES = [
     ciReason: "Snapshot refresh command is invoked deliberately when accepting public API drift.",
   },
   {
+    // g131-S2: demoted to the manual tier alongside its bundler/query
+    // siblings — the ci.yml composed step that reached it was re-homed as
+    // rust/omena-reactive/public-surface-clean (which spawns this writer).
     id: "rust/omena-reactive/public-surface:update",
     kind: "command",
     scope: "rust",
     packageTarget: "rust/omena-reactive/public-surface:update",
     tags: ["public-api", "reactive"],
-    ciTier: "rust-workspace",
-    ciGroup: "rust-workspace",
+    ciTier: "manual",
+    ciGroup: "rust",
+    ciReason: "Snapshot refresh command is invoked deliberately when accepting public API drift.",
   },
   {
     id: "rust/product-test-coverage-classguard",

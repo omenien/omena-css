@@ -108,6 +108,7 @@
     "check:rust-workspace": "cargo fmt --manifest-path rust/Cargo.toml --all --check && cargo check --manifest-path rust/Cargo.toml && cargo clippy --manifest-path rust/Cargo.toml --all-targets --all-features -- -D warnings",
     "check:rust-omena-reactive-contract": "cargo test --manifest-path rust/Cargo.toml -p omena-reactive",
     "check:rust-omena-reactive-public-surface": "node --import tsx ./scripts/check-rust-omena-reactive-public-surface.ts",
+    "check:rust-omena-reactive-public-surface-clean": "node --import tsx ./scripts/check-rust-omena-reactive-public-surface-clean.ts",
     "update:rust-omena-reactive-public-surface": "node --import tsx ./scripts/check-rust-omena-reactive-public-surface.ts --write",
     "check:rust-omena-reactive-performance": "cargo run --manifest-path rust/Cargo.toml -p omena-reactive --release --example performance_envelope",
     "check:rust-product-test-execution": "node --import tsx ./scripts/run-rust-product-tests.ts",

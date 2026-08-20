@@ -11,6 +11,13 @@ const snapshotPath = path.join(
   "rust/crates/omena-reactive/tests/snapshots/public-api.txt",
 );
 const writeSnapshot = process.argv.includes("--write");
+// g131-S2: the -clean gate re-homes the old `:update && git diff --exit-code`
+// shell postcondition as a real gate. It needs the writer's OUTPUT BYTES
+// without mutating the committed snapshot (out override), and it skips the
+// semver check that the plain public-surface member already runs (the shell
+// step duplicated it; the byte postcondition never depended on it).
+const outOverride = process.env.OMENA_REACTIVE_PUBLIC_SURFACE_OUT;
+const skipSemver = process.env.OMENA_REACTIVE_PUBLIC_SURFACE_SKIP_SEMVER === "1";
 const workspaceVersion = readWorkspaceVersion();
 const baselineVersion = "0.4.0";
 
@@ -32,8 +39,9 @@ ensureRustupToolchain({
 });
 const publicApi = renderPublicApi();
 if (writeSnapshot) {
-  mkdirSync(path.dirname(snapshotPath), { recursive: true });
-  writeFileSync(snapshotPath, publicApi);
+  const writeTarget = outOverride ?? snapshotPath;
+  mkdirSync(path.dirname(writeTarget), { recursive: true });
+  writeFileSync(writeTarget, publicApi);
 } else {
   if (!existsSync(snapshotPath)) {
     throw new Error(
@@ -50,6 +58,19 @@ if (writeSnapshot) {
         "`pnpm run update:rust-omena-reactive-public-surface` and review the diff.",
     );
   }
+}
+
+if (skipSemver) {
+  process.stdout.write(
+    `${JSON.stringify({
+      schemaVersion: "0",
+      product: "rust.omena-reactive.public-surface",
+      mode: "snapshot-bytes-only",
+      snapshot: path.relative(repoRoot, snapshotPath),
+      workspaceVersion,
+    })}\n`,
+  );
+  process.exit(0);
 }
 
 const semverResult = runDeclaredRustSemverCheck({

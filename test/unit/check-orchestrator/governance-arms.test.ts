@@ -719,9 +719,14 @@ describe("inventory and governance hardening arms", () => {
       // Pinned criterion counts exist and match the live summary counts.
       const policy = JSON.parse(
         readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
-      ) as { governedLeafCriteria: Record<string, number> };
+      ) as {
+        governedLeafCriteria: Record<string, number>;
+        escapeHatch: { maxGateCount: number };
+      };
       const total = Object.values(policy.governedLeafCriteria).reduce((sum, n) => sum + n, 0);
-      expect(total).toBe(156);
+      // The pinned criteria must sum to the governed cap — the pair moves
+      // only as one reviewed policy diff (the digest pins the content).
+      expect(total).toBe(policy.escapeHatch.maxGateCount);
       expect(
         repoManifest.diagnostics.filter(
           (diagnostic) => diagnostic.code === "gate-policy-criterion-drift",

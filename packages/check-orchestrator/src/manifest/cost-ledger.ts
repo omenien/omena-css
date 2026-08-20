@@ -73,6 +73,52 @@ export function percentile(samples: readonly number[], fraction: number): number
   return sorted[Math.max(0, index)] ?? 0;
 }
 
+export interface MeasuredMember {
+  readonly id: string;
+  readonly p95Ms: number;
+}
+
+export interface MeasuredPartition {
+  readonly named: readonly { readonly p95TotalMs: number; readonly members: readonly string[] }[];
+  readonly rest: { readonly p95TotalMs: number; readonly members: readonly string[] };
+}
+
+// g131-S2: first-fit-decreasing pack into bins of targetMs. The LAST bin is
+// the implicit rest shard; the pack REFUSES a result whose rest would be
+// empty (single-bin packs included) — the shard resolver hard-fails on an
+// empty rest, so the writer must never propose one.
+export function packMeasuredPartition(
+  members: readonly MeasuredMember[],
+  targetMs: number,
+): MeasuredPartition {
+  if (members.length === 0) throw new Error("cannot partition an empty member set");
+  const sorted = [...members].toSorted((left, right) => right.p95Ms - left.p95Ms);
+  const bins: { totalMs: number; members: string[] }[] = [];
+  for (const member of sorted) {
+    const fit = bins.find((bin) => bin.totalMs + member.p95Ms <= targetMs);
+    if (fit) {
+      fit.totalMs += member.p95Ms;
+      fit.members.push(member.id);
+    } else {
+      bins.push({ totalMs: member.p95Ms, members: [member.id] });
+    }
+  }
+  if (bins.length < 2) {
+    throw new Error(
+      `pack fits a single ${Math.round((bins[0]?.totalMs ?? 0) / 60_000)}m shard at this target; ` +
+        "the rest shard would be empty (the resolver hard-fails on that) — widen the member set or lower the target.",
+    );
+  }
+  const rest = bins[bins.length - 1]!;
+  if (rest.members.length === 0) {
+    throw new Error("proposed partition empties the rest shard; refusing to emit.");
+  }
+  return {
+    named: bins.slice(0, -1).map((bin) => ({ p95TotalMs: bin.totalMs, members: [...bin.members] })),
+    rest: { p95TotalMs: rest.totalMs, members: [...rest.members] },
+  };
+}
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
 const AGING_DAYS = 30;
 const STALE_DAYS = 90;
