@@ -355,7 +355,7 @@ async function run_rename_query_consumer(): Promise<void> {
         "--json",
       ],
       {
-        cwd: path.resolve(__dirname, ".."),
+        cwd: path.resolve(__dirname, "../.."),
         env: {
           ...process.env,
           OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
@@ -411,7 +411,10 @@ async function run_rename_query_consumer(): Promise<void> {
       end: { line: 0, character: 5 },
     });
     const debtLedger = JSON.parse(
-      readFileSync(path.join(path.resolve(__dirname, ".."), "rust/omena-debt-ledger.json"), "utf8"),
+      readFileSync(
+        path.join(path.resolve(__dirname, "../.."), "rust/omena-debt-ledger.json"),
+        "utf8",
+      ),
     ) as {
       readonly entries: readonly {
         readonly id: string;
@@ -815,7 +818,7 @@ async function run_explain_expression_query_consumer(): Promise<void> {
         "--json",
       ],
       {
-        cwd: path.resolve(__dirname, ".."),
+        cwd: path.resolve(__dirname, "../.."),
         env: {
           ...process.env,
           OMENA_SELECTED_QUERY_BACKEND: "rust-selected-query",
