@@ -55,19 +55,15 @@ describe("affected check planning", () => {
 });
 
 describe("CI probe profiles", () => {
-  it(
-    "resolve to manual, declared check targets",
-    { timeout: 30_000 },
-    () => {
-      const manifest = loadCheckManifest(repoRoot);
+  it("resolve to manual, declared check targets", { timeout: 30_000 }, () => {
+    const manifest = loadCheckManifest(repoRoot);
 
-      for (const profile of CI_PROBE_PROFILES) {
-        const target = resolveGateTarget(manifest, profile.target);
-        expect(target, profile.id).not.toBeNull();
-        expect(target?.ciTier, profile.id).toBe("manual");
-      }
-    },
-  );
+    for (const profile of CI_PROBE_PROFILES) {
+      const target = resolveGateTarget(manifest, profile.target);
+      expect(target, profile.id).not.toBeNull();
+      expect(target?.ciTier, profile.id).toBe("manual");
+    }
+  });
 
   it("keeps workflow choices synchronized with the profile registry", () => {
     const workflow = readFileSync(path.join(repoRoot, ".github/workflows/ci-probe.yml"), "utf8");

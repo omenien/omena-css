@@ -303,9 +303,9 @@ describe("inventory and governance hardening arms", () => {
       expect(
         judgedBy(
           make(
-          evasion,
-          "      - run: node ./scripts/check-ci-required-results.mjs\n        env:\n          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}",
-        ),
+            evasion,
+            "      - run: node ./scripts/check-ci-required-results.mjs\n        env:\n          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}",
+          ),
           "ci-aggregator-missing-always",
         ),
       ).toHaveLength(0);
@@ -563,9 +563,9 @@ describe("inventory and governance hardening arms", () => {
       ),
     ).toContain("ci-aggregator-judge-inert");
     // A missing env binding is equally inert.
-    expect(
-      codesFor(make(["      - run: node ./scripts/check-ci-required-results.mjs"])),
-    ).toContain("ci-aggregator-judge-inert");
+    expect(codesFor(make(["      - run: node ./scripts/check-ci-required-results.mjs"]))).toContain(
+      "ci-aggregator-judge-inert",
+    );
     // A block-scalar whose only effective line is the judge stays LIVE
     // (comments and blank lines are not commands).
     expect(
@@ -602,7 +602,6 @@ describe("inventory and governance hardening arms", () => {
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain("gate-policy-invalid-shape");
     expect(diagnostics.map((diagnostic) => diagnostic.message).join(";")).toContain("escapeHatch");
   });
-
 
   it(
     "R4 RED-PROOF: criterion pins are fail-closed — key deletion, ghost pins, and digest drift are all loud",
