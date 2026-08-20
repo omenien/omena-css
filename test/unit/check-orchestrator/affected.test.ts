@@ -67,7 +67,6 @@ describe("CI probe profiles", () => {
         expect(target?.ciTier, profile.id).toBe("manual");
       }
     },
-    5_000,
   );
 
   it("keeps workflow choices synchronized with the profile registry", () => {

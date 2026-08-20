@@ -26,11 +26,24 @@ const CI_REACHABILITY_ESCAPE_HATCH_FALLBACK = Object.freeze({
 
 function escapeHatchPolicy(rootDir: string) {
   const policy = loadGatePolicy(rootDir);
-  if (!policy) return CI_REACHABILITY_ESCAPE_HATCH_FALLBACK;
+  // Defensive against a malformed document (R5): the reachability sweep runs
+  // BEFORE the gate-policy shape validator, so a deleted/null escapeHatch must
+  // fall back here (the validator then reports the governed
+  // gate-policy-invalid-shape error) instead of crashing with a TypeError.
+  const hatch = policy?.escapeHatch;
+  if (
+    !hatch ||
+    typeof hatch !== "object" ||
+    typeof hatch.maxGateCount !== "number" ||
+    typeof hatch.owner !== "string" ||
+    typeof hatch.reviewAfter !== "string"
+  ) {
+    return CI_REACHABILITY_ESCAPE_HATCH_FALLBACK;
+  }
   return {
-    maxGateCount: policy.escapeHatch.maxGateCount,
-    owner: policy.escapeHatch.owner,
-    reviewBy: policy.escapeHatch.reviewAfter,
+    maxGateCount: hatch.maxGateCount,
+    owner: hatch.owner,
+    reviewBy: hatch.reviewAfter,
   };
 }
 
@@ -1037,6 +1050,35 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+const JUDGE_NEEDS_BINDING = /^\$\{\{\s*toJson\(needs\)\s*\}\}$/;
+
+// R5 hardening: liveness is SEMANTIC, not lexical. A judge step is live only
+// when (a) the judge invocation is the step's ONLY effective command — a
+// block-scalar wrapping it in `set +e` … `exit 0` swallows the exit code;
+// (b) the step does not override shell: (which can drop errexit), carry a
+// step-level if:, or soft-fail via continue-on-error; and (c) its env binds
+// OMENA_CI_REQUIRED_RESULTS to `${{ toJson(needs) }}` — a stubbed or missing
+// binding makes the judge judge nothing.
+function judgeStepInertReason(step: Record<string, unknown>, effectiveLines: string[]): string {
+  if (effectiveLines.length !== 1) {
+    return "the judge run body carries additional commands that can swallow the judge's exit code";
+  }
+  if (Object.hasOwn(step, "shell")) {
+    return "the judge step overrides shell:, which can drop fail-on-error semantics";
+  }
+  if (Object.hasOwn(step, "if")) {
+    return "the judge step carries a step-level if: and can be skipped";
+  }
+  if (Object.hasOwn(step, "continue-on-error") && step["continue-on-error"] !== false) {
+    return "the judge step carries continue-on-error: and cannot fail the job";
+  }
+  const binding = asRecord(step["env"])["OMENA_CI_REQUIRED_RESULTS"];
+  if (typeof binding !== "string" || !JUDGE_NEEDS_BINDING.test(binding.trim())) {
+    return "the judge step does not bind OMENA_CI_REQUIRED_RESULTS to ${{ toJson(needs) }}, so it judges a stub instead of the needs";
+  }
+  return "";
+}
+
 function readParsedJobFacts(jobValue: unknown): ParsedJobFacts {
   const job = asRecord(jobValue);
   const hasJobLevelIf = Object.hasOwn(job, "if");
@@ -1047,15 +1089,15 @@ function readParsedJobFacts(jobValue: unknown): ParsedJobFacts {
   for (const stepValue of steps) {
     const step = asRecord(stepValue);
     const run = typeof step["run"] === "string" ? step["run"] : "";
-    if (!run.split(/\r?\n/).some((line) => JUDGE_COMMAND.test(line.trim()))) continue;
-    if (Object.hasOwn(step, "if")) {
+    const effectiveLines = run
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    if (!effectiveLines.some((line) => JUDGE_COMMAND.test(line))) continue;
+    const inertReason = judgeStepInertReason(step, effectiveLines);
+    if (inertReason) {
       judge = "inert";
-      judgeInertReason = "the judge step carries a step-level if: and can be skipped";
-      continue;
-    }
-    if (Object.hasOwn(step, "continue-on-error") && step["continue-on-error"] !== false) {
-      judge = "inert";
-      judgeInertReason = "the judge step carries continue-on-error: and cannot fail the job";
+      judgeInertReason = inertReason;
       continue;
     }
     return { hasJobLevelIf, softFail, judge: "live", judgeInertReason: "" };

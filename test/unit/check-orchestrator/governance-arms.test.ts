@@ -131,6 +131,8 @@ describe("inventory and governance hardening arms", () => {
       "    runs-on: ubuntu-latest",
       "    steps:",
       "      - run: node ./scripts/check-ci-required-results.mjs",
+      "        env:",
+      "          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}",
     ].join("\n");
     writeFileSync(path.join(root, ".github/workflows/ci.yml"), annotated);
     expect(
@@ -167,6 +169,8 @@ describe("inventory and governance hardening arms", () => {
       "    runs-on: ubuntu-latest",
       "    steps:",
       "      - run: node ./scripts/check-ci-required-results.mjs",
+      "        env:",
+      "          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}",
       "  ci-required:",
       "    # omena-ci-required: false",
       "    needs:",
@@ -175,6 +179,8 @@ describe("inventory and governance hardening arms", () => {
       "    runs-on: ubuntu-latest",
       "    steps:",
       "      - run: node ./scripts/check-ci-required-results.mjs",
+      "        env:",
+      "          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}",
     ].join("\n");
     writeFileSync(path.join(root, ".github/workflows/ci.yml"), base);
     expect(
@@ -187,7 +193,7 @@ describe("inventory and governance hardening arms", () => {
     writeFileSync(
       path.join(root, ".github/workflows/ci.yml"),
       base.replace(
-        "    steps:\n      - run: node ./scripts/check-ci-required-results.mjs\n  ci-required:",
+        "    steps:\n      - run: node ./scripts/check-ci-required-results.mjs\n        env:\n          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}\n  ci-required:",
         "    steps:\n      - run: echo ok\n  ci-required:",
       ),
     );
@@ -296,7 +302,10 @@ describe("inventory and governance hardening arms", () => {
       // ...and with the judge present the same form is QUIET (over-strictness fixed).
       expect(
         judgedBy(
-          make(evasion, "      - run: node ./scripts/check-ci-required-results.mjs"),
+          make(
+          evasion,
+          "      - run: node ./scripts/check-ci-required-results.mjs\n        env:\n          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}",
+        ),
           "ci-aggregator-missing-always",
         ),
       ).toHaveLength(0);
@@ -327,6 +336,8 @@ describe("inventory and governance hardening arms", () => {
       "    runs-on: ubuntu-latest",
       "    steps:",
       "      - run: node ./scripts/check-ci-required-results.mjs",
+      "        env:",
+      "          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}",
     ].join("\n");
     writeFileSync(path.join(root, ".github/workflows/ci.yml"), stepLevel);
     expect(
@@ -362,9 +373,15 @@ describe("inventory and governance hardening arms", () => {
       return findCiRequiredAggregationDiagnostics(root).map((diagnostic) => diagnostic.code);
     };
     // A live judge is quiet.
-    expect(codesFor(make(["      - run: node ./scripts/check-ci-required-results.mjs"]))).toEqual(
-      [],
-    );
+    expect(
+      codesFor(
+        make([
+          "      - run: node ./scripts/check-ci-required-results.mjs",
+          "        env:",
+          "          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}",
+        ]),
+      ),
+    ).toEqual([]);
     // The confirm lens's root evasion: a comment naming the script plus echo.
     expect(
       codesFor(
@@ -376,7 +393,14 @@ describe("inventory and governance hardening arms", () => {
     ).toContain("ci-required-result-check-missing");
     // A block-scalar judge is a REAL judge (false-positive direction).
     expect(
-      codesFor(make(["      - run: |", "          node ./scripts/check-ci-required-results.mjs"])),
+      codesFor(
+        make([
+          "      - run: |",
+          "          node ./scripts/check-ci-required-results.mjs",
+          "        env:",
+          "          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}",
+        ]),
+      ),
     ).toEqual([]);
     // A judge that runs but cannot fail the job is inert.
     expect(
@@ -475,6 +499,110 @@ describe("inventory and governance hardening arms", () => {
       codesFor(make(["    runs-on: [unclosed", "    steps:", "      - run: echo work"])),
     ).toEqual(["ci-workflow-yaml-invalid"]);
   });
+
+  it("R5 RED-PROOF: judge liveness is semantic — wrapped bodies, shell overrides, and stubbed env bindings are all inert", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omena-judge-semantic-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    const make = (rootSteps: readonly string[]) =>
+      [
+        "name: CI",
+        "jobs:",
+        "  leaf:",
+        "    # omena-ci-required: true",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        "      - run: echo work",
+        "  ci-required:",
+        "    # omena-ci-required: false",
+        "    needs:",
+        "      - leaf",
+        "    if: ${{ always() }}",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        ...rootSteps,
+      ].join("\n");
+    const codesFor = (content: string) => {
+      writeFileSync(path.join(root, ".github/workflows/ci.yml"), content);
+      return findCiRequiredAggregationDiagnostics(root).map((diagnostic) => diagnostic.code);
+    };
+    const ENV = ["        env:", "          OMENA_CI_REQUIRED_RESULTS: ${{ toJson(needs) }}"];
+    // Baseline: single-line judge with the needs binding is live.
+    expect(
+      codesFor(make(["      - run: node ./scripts/check-ci-required-results.mjs", ...ENV])),
+    ).toEqual([]);
+    // The R5 lens's regression: block-scalar wrapping the judge in set +e … exit 0.
+    expect(
+      codesFor(
+        make([
+          "      - run: |",
+          "          set +e",
+          "          node ./scripts/check-ci-required-results.mjs",
+          "          exit 0",
+          ...ENV,
+        ]),
+      ),
+    ).toContain("ci-aggregator-judge-inert");
+    // shell: override drops fail-on-error semantics.
+    expect(
+      codesFor(
+        make([
+          "      - run: node ./scripts/check-ci-required-results.mjs",
+          "        shell: bash {0}",
+          ...ENV,
+        ]),
+      ),
+    ).toContain("ci-aggregator-judge-inert");
+    // A stubbed env binding judges a stub, not the needs.
+    expect(
+      codesFor(
+        make([
+          "      - run: node ./scripts/check-ci-required-results.mjs",
+          "        env:",
+          '          OMENA_CI_REQUIRED_RESULTS: \'{"stub":{"result":"success"}}\'',
+        ]),
+      ),
+    ).toContain("ci-aggregator-judge-inert");
+    // A missing env binding is equally inert.
+    expect(
+      codesFor(make(["      - run: node ./scripts/check-ci-required-results.mjs"])),
+    ).toContain("ci-aggregator-judge-inert");
+    // A block-scalar whose only effective line is the judge stays LIVE
+    // (comments and blank lines are not commands).
+    expect(
+      codesFor(
+        make([
+          "      - run: |",
+          "          # single effective command",
+          "          node ./scripts/check-ci-required-results.mjs",
+          ...ENV,
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("R5 RED-PROOF: a deleted escapeHatch degrades to the fallback and a governed shape error, never a TypeError", () => {
+    const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-hatch-shape-"));
+    cpSync(path.join(repoRoot, ".github/workflows"), path.join(scratch, ".github/workflows"), {
+      recursive: true,
+    });
+    mkdirSync(path.join(scratch, "packages/check-orchestrator"), { recursive: true });
+    const policy = JSON.parse(
+      readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
+    ) as Record<string, unknown>;
+    delete policy["escapeHatch"];
+    writeFileSync(
+      path.join(scratch, "packages/check-orchestrator/gate-policy.json"),
+      JSON.stringify(policy),
+    );
+    const manifest = loadCheckManifest(repoRoot);
+    // The reachability sweep must not crash (it runs before the validator).
+    expect(() => findCiTierReachabilityDiagnostics(scratch, manifest.gates)).not.toThrow();
+    // ...and the validator reports the governed shape error for the field.
+    const diagnostics = findGatePolicyDiagnostics(scratch, [], new Map());
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain("gate-policy-invalid-shape");
+    expect(diagnostics.map((diagnostic) => diagnostic.message).join(";")).toContain("escapeHatch");
+  });
+
 
   it(
     "R4 RED-PROOF: criterion pins are fail-closed — key deletion, ghost pins, and digest drift are all loud",
