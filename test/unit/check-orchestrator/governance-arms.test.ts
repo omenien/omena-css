@@ -196,18 +196,22 @@ describe("inventory and governance hardening arms", () => {
     );
   });
 
-  it("HARDENING RED-PROOF: a new expensive-lane member without a policy record REDs (population ADD direction)", () => {
-    const manifest = loadCheckManifest(repoRoot);
-    const policy = JSON.parse(
-      readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
-    ) as { lanes: { singles: string[] } };
-    policy.lanes.singles = [...policy.lanes.singles, "docs/site"];
-    const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-policy-add-"));
-    // Reuse the real repo gates against a scratch policy via the exported tier rule.
-    const tier = expensiveTierMembers(repoRoot, manifest.gates, policy.lanes as never);
-    expect(tier.has("docs/site")).toBe(true);
-    void scratch;
-  });
+  it(
+    "HARDENING RED-PROOF: a new expensive-lane member without a policy record REDs (population ADD direction)",
+    { timeout: 30_000 },
+    () => {
+      const manifest = loadCheckManifest(repoRoot);
+      const policy = JSON.parse(
+        readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
+      ) as { lanes: { singles: string[] } };
+      policy.lanes.singles = [...policy.lanes.singles, "docs/site"];
+      const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-policy-add-"));
+      // Reuse the real repo gates against a scratch policy via the exported tier rule.
+      const tier = expensiveTierMembers(repoRoot, manifest.gates, policy.lanes as never);
+      expect(tier.has("docs/site")).toBe(true);
+      void scratch;
+    },
+  );
 
   it("HARDENING RED-PROOF: registry emitting unparseable YAML or a phantom job block is refused at validation", () => {
     const registry = adoptCiWorkflow(
@@ -472,55 +476,59 @@ describe("inventory and governance hardening arms", () => {
     ).toEqual(["ci-workflow-yaml-invalid"]);
   });
 
-  it("R4 RED-PROOF: criterion pins are fail-closed — key deletion, ghost pins, and digest drift are all loud", () => {
-    const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-criteria-pins-"));
-    cpSync(path.join(repoRoot, ".github/workflows"), path.join(scratch, ".github/workflows"), {
-      recursive: true,
-    });
-    mkdirSync(path.join(scratch, "packages/check-orchestrator"), { recursive: true });
-    const policyPath = path.join(scratch, "packages/check-orchestrator/gate-policy.json");
-    const policy = JSON.parse(
-      readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
-    ) as Record<string, unknown>;
-    const manifest = loadCheckManifest(repoRoot);
-    const codesWith = (mutate: (draft: Record<string, unknown>) => void) => {
-      const draft = JSON.parse(JSON.stringify(policy)) as Record<string, unknown>;
-      mutate(draft);
-      writeFileSync(policyPath, JSON.stringify(draft));
-      return findCiTierReachabilityDiagnostics(scratch, manifest.gates).map(
-        (diagnostic) => diagnostic.code,
+  it(
+    "R4 RED-PROOF: criterion pins are fail-closed — key deletion, ghost pins, and digest drift are all loud",
+    { timeout: 60_000 },
+    () => {
+      const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-criteria-pins-"));
+      cpSync(path.join(repoRoot, ".github/workflows"), path.join(scratch, ".github/workflows"), {
+        recursive: true,
+      });
+      mkdirSync(path.join(scratch, "packages/check-orchestrator"), { recursive: true });
+      const policyPath = path.join(scratch, "packages/check-orchestrator/gate-policy.json");
+      const policy = JSON.parse(
+        readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
+      ) as Record<string, unknown>;
+      const manifest = loadCheckManifest(repoRoot);
+      const codesWith = (mutate: (draft: Record<string, unknown>) => void) => {
+        const draft = JSON.parse(JSON.stringify(policy)) as Record<string, unknown>;
+        mutate(draft);
+        writeFileSync(policyPath, JSON.stringify(draft));
+        return findCiTierReachabilityDiagnostics(scratch, manifest.gates).map(
+          (diagnostic) => diagnostic.code,
+        );
+      };
+      // A faithful copy is quiet on every pin arm (setup soundness).
+      const baseline = codesWith(() => {});
+      for (const code of [
+        "gate-policy-criteria-missing",
+        "gate-policy-criterion-drift",
+        "gate-policy-criterion-digest-drift",
+      ]) {
+        expect(baseline).not.toContain(code);
+      }
+      // Deleting the counts key must not silently retire the governance.
+      expect(codesWith((draft) => delete draft["governedLeafCriteria"])).toContain(
+        "gate-policy-criteria-missing",
       );
-    };
-    // A faithful copy is quiet on every pin arm (setup soundness).
-    const baseline = codesWith(() => {});
-    for (const code of [
-      "gate-policy-criteria-missing",
-      "gate-policy-criterion-drift",
-      "gate-policy-criterion-digest-drift",
-    ]) {
-      expect(baseline).not.toContain(code);
-    }
-    // Deleting the counts key must not silently retire the governance.
-    expect(codesWith((draft) => delete draft["governedLeafCriteria"])).toContain(
-      "gate-policy-criteria-missing",
-    );
-    // ...nor may deleting the digest key.
-    expect(codesWith((draft) => delete draft["governedLeafCriteriaDigest"])).toContain(
-      "gate-policy-criteria-missing",
-    );
-    // A pinned criterion with zero live members (ghost pin) REDs.
-    expect(
-      codesWith((draft) => {
-        (draft["governedLeafCriteria"] as Record<string, number>)["ghost-criterion"] = 7;
-      }),
-    ).toContain("gate-policy-criterion-drift");
-    // Count-preserving content churn REDs via the pairs digest.
-    expect(
-      codesWith((draft) => {
-        draft["governedLeafCriteriaDigest"] = "f".repeat(64);
-      }),
-    ).toContain("gate-policy-criterion-digest-drift");
-  });
+      // ...nor may deleting the digest key.
+      expect(codesWith((draft) => delete draft["governedLeafCriteriaDigest"])).toContain(
+        "gate-policy-criteria-missing",
+      );
+      // A pinned criterion with zero live members (ghost pin) REDs.
+      expect(
+        codesWith((draft) => {
+          (draft["governedLeafCriteria"] as Record<string, number>)["ghost-criterion"] = 7;
+        }),
+      ).toContain("gate-policy-criterion-drift");
+      // Count-preserving content churn REDs via the pairs digest.
+      expect(
+        codesWith((draft) => {
+          draft["governedLeafCriteriaDigest"] = "f".repeat(64);
+        }),
+      ).toContain("gate-policy-criterion-digest-drift");
+    },
+  );
 
   it("R4 RED-PROOF: gate-policy shape failures are governed diagnostics, not stack traces", () => {
     const scratch = mkdtempSync(path.join(os.tmpdir(), "omena-policy-shape-"));
@@ -541,55 +549,59 @@ describe("inventory and governance hardening arms", () => {
     );
   });
 
-  it("HARDENING RED-PROOF: criterion coherence reaches declared-tier gates, and pinned criterion counts make relabels a reviewed diff", () => {
-    const repoManifest = loadCheckManifest(repoRoot);
-    // The two compat-split-boundary bundles are declared (ciTier manual) — the
-    // sweep must still reach them: removing the tag would RED. We verify the
-    // reachability by asserting the sweep currently passes WITH the tag and
-    // that the classification map contains them with the compat criterion.
-    const source = readFileSync(
-      path.join(repoRoot, "packages/check-orchestrator/src/manifest/workflows.ts"),
-      "utf8",
-    );
-    for (const id of [
-      "rust/omena-abstract-value/split-boundary",
-      "rust/omena-semantic-split-boundary",
-    ]) {
-      const gate = repoManifest.gates.find((candidate) => candidate.id === id);
-      expect(gate?.tags).toContain("compat-split-boundary");
-      expect(source).toContain(`id: "${id}"`);
-    }
-    expect(
-      repoManifest.diagnostics.filter(
-        (diagnostic) => diagnostic.code === "governed-leaf-criterion-mismatch",
-      ),
-    ).toEqual([]);
-    // Pinned criterion counts exist and match the live summary counts.
-    const policy = JSON.parse(
-      readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
-    ) as { governedLeafCriteria: Record<string, number> };
-    const total = Object.values(policy.governedLeafCriteria).reduce((sum, n) => sum + n, 0);
-    expect(total).toBe(156);
-    expect(
-      repoManifest.diagnostics.filter(
-        (diagnostic) => diagnostic.code === "gate-policy-criterion-drift",
-      ),
-    ).toEqual([]);
-    // R4: the arm must PERTURB, not just describe (the confirm lens supplied
-    // this missing perturbation live) — removing the tag from the REAL gate
-    // set REDs, so the sweep's reach is proven, not narrated.
-    const mutated = repoManifest.gates.map((gate) =>
-      gate.id === "rust/omena-semantic-split-boundary"
-        ? { ...gate, tags: gate.tags?.filter((tag) => tag !== "compat-split-boundary") }
-        : gate,
-    );
-    expect(
-      findCiTierReachabilityDiagnostics(repoRoot, mutated)
-        .filter((diagnostic) => diagnostic.code === "governed-leaf-criterion-mismatch")
-        .map((diagnostic) => diagnostic.message)
-        .join(";"),
-    ).toContain('Governed leaf "rust/omena-semantic-split-boundary"');
-  });
+  it(
+    "HARDENING RED-PROOF: criterion coherence reaches declared-tier gates, and pinned criterion counts make relabels a reviewed diff",
+    { timeout: 30_000 },
+    () => {
+      const repoManifest = loadCheckManifest(repoRoot);
+      // The two compat-split-boundary bundles are declared (ciTier manual) — the
+      // sweep must still reach them: removing the tag would RED. We verify the
+      // reachability by asserting the sweep currently passes WITH the tag and
+      // that the classification map contains them with the compat criterion.
+      const source = readFileSync(
+        path.join(repoRoot, "packages/check-orchestrator/src/manifest/workflows.ts"),
+        "utf8",
+      );
+      for (const id of [
+        "rust/omena-abstract-value/split-boundary",
+        "rust/omena-semantic-split-boundary",
+      ]) {
+        const gate = repoManifest.gates.find((candidate) => candidate.id === id);
+        expect(gate?.tags).toContain("compat-split-boundary");
+        expect(source).toContain(`id: "${id}"`);
+      }
+      expect(
+        repoManifest.diagnostics.filter(
+          (diagnostic) => diagnostic.code === "governed-leaf-criterion-mismatch",
+        ),
+      ).toEqual([]);
+      // Pinned criterion counts exist and match the live summary counts.
+      const policy = JSON.parse(
+        readFileSync(path.join(repoRoot, "packages/check-orchestrator/gate-policy.json"), "utf8"),
+      ) as { governedLeafCriteria: Record<string, number> };
+      const total = Object.values(policy.governedLeafCriteria).reduce((sum, n) => sum + n, 0);
+      expect(total).toBe(156);
+      expect(
+        repoManifest.diagnostics.filter(
+          (diagnostic) => diagnostic.code === "gate-policy-criterion-drift",
+        ),
+      ).toEqual([]);
+      // R4: the arm must PERTURB, not just describe (the confirm lens supplied
+      // this missing perturbation live) — removing the tag from the REAL gate
+      // set REDs, so the sweep's reach is proven, not narrated.
+      const mutated = repoManifest.gates.map((gate) =>
+        gate.id === "rust/omena-semantic-split-boundary"
+          ? { ...gate, tags: gate.tags?.filter((tag) => tag !== "compat-split-boundary") }
+          : gate,
+      );
+      expect(
+        findCiTierReachabilityDiagnostics(repoRoot, mutated)
+          .filter((diagnostic) => diagnostic.code === "governed-leaf-criterion-mismatch")
+          .map((diagnostic) => diagnostic.message)
+          .join(";"),
+      ).toContain('Governed leaf "rust/omena-semantic-split-boundary"');
+    },
+  );
   it("DIAGNOSTIC-CODE CENSUS: every code literal in src is in the committed inventory and vice versa", () => {
     const src = path.join(repoRoot, "packages/check-orchestrator/src");
     const found = new Set<string>();

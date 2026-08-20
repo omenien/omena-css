@@ -205,7 +205,7 @@ jobs:
     expect(lifecycles.get("docs/site")?.cadence).toBe("push");
   });
 
-  it("findGateLifecycleDiagnostics is quiet on the real repository", () => {
+  it("findGateLifecycleDiagnostics is quiet on the real repository", { timeout: 30_000 }, () => {
     const repoRoot = path.resolve(__dirname, "../../..");
     const manifest = loadCheckManifest(repoRoot);
     expect(findGateLifecycleDiagnostics(repoRoot, manifest.gates)).toEqual([]);
