@@ -255,8 +255,12 @@ jobs:
     # omena-ci-tier: rust-workspace
     # omena-ci-required: false
     needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        contracts-shard: [public-surface, rest]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     env:
       READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
     steps:
@@ -266,11 +270,11 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
       - uses: ./.github/actions/sync-release-metadata
-      - run: pnpm omena-check bundle rust/contracts --summary
+      - run: pnpm omena-check bundle rust/contracts --summary --shard=${{ matrix.contracts-shard }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: rust-contracts-summary
+          name: rust-contracts-summary-${{ matrix.contracts-shard }}
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
