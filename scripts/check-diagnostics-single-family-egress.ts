@@ -33,8 +33,11 @@ const FILES = {
   queryStyleDiagnostics: "rust/crates/omena-query/src/style/diagnostics",
   queryStyleSourceUsage: "rust/crates/omena-query/src/style/diagnostics/source_usage.rs",
   querySourceSurfacesTests: "rust/crates/omena-query/src/tests/source_surfaces.rs",
-  sourceConsumerGate: "scripts/check-source-diagnostics-query-consumer.ts",
-  styleConsumerGate: "scripts/check-style-diagnostics-query-consumer.ts",
+  // g131-S6: both consumer gates were relocated into the query-consumer
+  // family table; their bodies (the coverage surface this gate reads) live
+  // in the one file now.
+  sourceConsumerGate: "scripts/lib/query-consumer-family.ts",
+  styleConsumerGate: "scripts/lib/query-consumer-family.ts",
   sourceProviderTests: "test/unit/providers/diagnostics.test.ts",
   styleProviderTests: "test/unit/providers/scss-diagnostics.test.ts",
   queryDiagnosticsIdl: "server/engine-host-node/src/query-diagnostics-idl.generated.ts",
