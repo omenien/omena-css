@@ -53,6 +53,15 @@ export const DECLARED_CHECK_GATES = [
     tags: ["ci-workflow", "generated-artifact-drift"],
   },
   {
+    id: "tooling/ci-cost-ledger",
+    kind: "gate",
+    scope: "tooling",
+    packageTarget: "check:ci-cost-ledger",
+    ciTier: "verify",
+    ciGroup: "verify",
+    tags: ["ci-cost", "generated-artifact-drift"],
+  },
+  {
     id: "docs/site-contracts",
     kind: "gate",
     scope: "docs",

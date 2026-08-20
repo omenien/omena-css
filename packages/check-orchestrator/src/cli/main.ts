@@ -1,5 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { buildAffectedCheckPlan } from "../affected";
 import {
@@ -8,6 +15,14 @@ import {
   resolveCiWorkflowVerdict,
   writeCiWorkflow,
 } from "../manifest/ci-workflow";
+import {
+  computeCostLedgerDigest,
+  costLedgerPath,
+  costLedgerToday,
+  findCostLedgerDiagnostics,
+  loadCostLedger,
+  percentile,
+} from "../manifest/cost-ledger";
 import {
   buildCheckPlan,
   buildCheckSurfaceReport,
@@ -954,6 +969,158 @@ function runCiWorkflowCommand(parsed: ParsedArgs): void {
   process.exitCode = 1;
 }
 
+// g131-S1: build the committed cost ledger from real green-run receipts.
+// Runs LOCALLY with gh credentials (no CI commit path, no `actions:` grant);
+// CI only ever runs the --check side.
+function runCostLedgerCommand(parsed: ParsedArgs): void {
+  const rootDir = manifest.rootDir;
+  if (parsed.write) {
+    const runLimitArg = parsed.extraArgs.find((arg) => arg.startsWith("--runs="));
+    const runLimit = runLimitArg ? Number(runLimitArg.slice("--runs=".length)) : 10;
+    const gh = (args: readonly string[]): string => {
+      const result = spawnSync("gh", [...args], { cwd: rootDir, encoding: "utf8" });
+      if (result.status !== 0) {
+        fail(`gh ${args[0]} failed: ${result.stderr?.trim() || result.status}`);
+      }
+      return result.stdout;
+    };
+    const runs = JSON.parse(
+      gh([
+        "run",
+        "list",
+        "--workflow",
+        "CI",
+        "--branch",
+        "master",
+        "--status",
+        "success",
+        "--limit",
+        String(runLimit),
+        "--json",
+        "databaseId",
+      ]),
+    ) as readonly { databaseId: number }[];
+    if (runs.length === 0) fail("no successful CI runs found to build the ledger from");
+    const sourceRunIds = runs.map((run) => String(run.databaseId));
+
+    const jobWall = new Map<string, number[]>();
+    const jobQueue = new Map<string, number[]>();
+    for (const runId of sourceRunIds) {
+      const payload = JSON.parse(
+        gh(["api", `repos/{owner}/{repo}/actions/runs/${runId}/jobs?per_page=100`]),
+      ) as {
+        readonly jobs: readonly {
+          readonly name: string;
+          readonly conclusion: string | null;
+          readonly created_at: string;
+          readonly started_at: string;
+          readonly completed_at: string | null;
+        }[];
+      };
+      for (const job of payload.jobs) {
+        if (job.conclusion !== "success" || !job.completed_at) continue;
+        const created = Date.parse(job.created_at);
+        const started = Date.parse(job.started_at);
+        const completed = Date.parse(job.completed_at);
+        // Matrix legs report as "name (leg, ...)" — fold them onto the job.
+        const jobName = job.name.replace(/\s*\(.*\)$/u, "");
+        if (completed > started) {
+          (jobWall.get(jobName) ?? jobWall.set(jobName, []).get(jobName)!).push(
+            completed - started,
+          );
+        }
+        if (started > created) {
+          (jobQueue.get(jobName) ?? jobQueue.set(jobName, []).get(jobName)!).push(
+            started - created,
+          );
+        }
+      }
+    }
+
+    const gateSamples = new Map<string, number[]>();
+    const downloadRoot = path.join(rootDir, ".omena-ci", "cost-ledger-artifacts");
+    for (const runId of sourceRunIds) {
+      const runDir = path.join(downloadRoot, runId);
+      mkdirSync(runDir, { recursive: true });
+      const download = spawnSync(
+        "gh",
+        ["run", "download", runId, "--pattern", "*summary*", "--dir", runDir],
+        { cwd: rootDir, encoding: "utf8" },
+      );
+      if (download.status !== 0) continue; // runs predating S0 carry no summary artifacts
+      const stack = [runDir];
+      while (stack.length > 0) {
+        const dir = stack.pop()!;
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) stack.push(full);
+          else if (/^check-summary-.*\.json$/.test(entry.name)) {
+            const summary = JSON.parse(readFileSync(full, "utf8")) as {
+              readonly results?: readonly { readonly title: string; readonly durationMs: number }[];
+            };
+            for (const row of summary.results ?? []) {
+              (gateSamples.get(row.title) ?? gateSamples.set(row.title, []).get(row.title)!).push(
+                row.durationMs,
+              );
+            }
+          }
+        }
+      }
+    }
+
+    const ledgerBody = {
+      generatedAt: costLedgerToday(),
+      sourceRunIds,
+      gates: [...gateSamples.entries()]
+        .toSorted(([left], [right]) => left.localeCompare(right))
+        .map(([gateId, samples]) => ({
+          gateId,
+          p50Ms: percentile(samples, 0.5),
+          p95Ms: percentile(samples, 0.95),
+          sampleCount: samples.length,
+        })),
+      jobs: [...jobWall.entries()]
+        .toSorted(([left], [right]) => left.localeCompare(right))
+        .map(([jobName, wall]) => ({
+          jobName,
+          wallP50Ms: percentile(wall, 0.5),
+          wallP95Ms: percentile(wall, 0.95),
+          queueP50Ms: percentile(jobQueue.get(jobName) ?? [], 0.5),
+          queueP95Ms: percentile(jobQueue.get(jobName) ?? [], 0.95),
+          sampleCount: wall.length,
+        })),
+    };
+    const ledger = {
+      schemaVersion: "1",
+      product: "omena.check-orchestrator.ci-cost-ledger",
+      ...ledgerBody,
+      recordsDigest: computeCostLedgerDigest(ledgerBody),
+    };
+    writeFileSync(costLedgerPath(rootDir), `${JSON.stringify(ledger, null, 2)}\n`);
+    process.stdout.write(
+      `cost-ledger: ${ledger.gates.length} gate row(s), ${ledger.jobs.length} job row(s) from ${sourceRunIds.length} run(s)\n`,
+    );
+    return;
+  }
+  const diagnostics = findCostLedgerDiagnostics(rootDir);
+  for (const diagnostic of diagnostics) {
+    process.stdout.write(`${diagnostic.severity}: ${diagnostic.code}: ${diagnostic.message}\n`);
+  }
+  if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+    process.exitCode = 1;
+    return;
+  }
+  const ledger = loadCostLedger(rootDir);
+  process.stdout.write(
+    `${JSON.stringify({
+      product: "omena.check-orchestrator.ci-cost-ledger",
+      gates: ledger?.gates.length ?? 0,
+      jobs: ledger?.jobs.length ?? 0,
+      generatedAt: ledger?.generatedAt ?? null,
+    })}\n`,
+  );
+}
+
 function runInventoryCommand(parsed: ParsedArgs): void {
   if (parsed.check && parsed.write) {
     fail("Use either --check or --write, not both.");
@@ -1027,6 +1194,9 @@ async function dispatch(): Promise<void> {
       break;
     case "ci-workflow":
       runCiWorkflowCommand(parsedArgs);
+      break;
+    case "cost-ledger":
+      runCostLedgerCommand(parsedArgs);
       break;
     case "probe":
       await runProbeCommand(parsedArgs);

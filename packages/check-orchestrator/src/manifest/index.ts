@@ -9,6 +9,7 @@ import {
 } from "./declared";
 import { findDocumentedPublicScriptDiagnostics } from "./documented-commands";
 import { findGatePolicyDiagnostics } from "./gate-policy";
+import { findCostLedgerDiagnostics } from "./cost-ledger";
 import { computeGateLifecycles, findGateLifecycleDiagnostics } from "./lifecycle";
 import { renderCheckInventory } from "./inventory";
 import { buildCheckPlan, renderCheckPlan } from "./plan";
@@ -109,6 +110,7 @@ export function loadCheckManifest(
   diagnostics.push(...findGateLifecycleDiagnostics(rootDir, gates));
   const lifecycleByGateId = computeGateLifecycles(rootDir, gates).byGateId;
   diagnostics.push(...findGatePolicyDiagnostics(rootDir, gates, lifecycleByGateId));
+  diagnostics.push(...findCostLedgerDiagnostics(rootDir));
 
   return {
     rootDir,

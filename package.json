@@ -582,7 +582,8 @@
     "version-packages": "changeset version && ./scripts/release.sh",
     "release:verify": "pnpm omena-check bundle release/release/verify",
     "release:publish": "./scripts/publish-extension.sh",
-    "check:ci-workflow": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts ci-workflow"
+    "check:ci-workflow": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts ci-workflow",
+    "check:ci-cost-ledger": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts cost-ledger"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",
