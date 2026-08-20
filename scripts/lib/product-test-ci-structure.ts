@@ -29,7 +29,10 @@ const PRODUCT_TEST_JOBS = [CRATE_JOB, CONTRACT_JOB] as const;
 // The duty is satisfied only by an EXECUTING run step — a comment naming
 // the invocation is not a step (the same fail-open species the g130 judge
 // rules closed; stage-5 lens reproduced the comment evasion end-to-end).
-const CLASSGUARD_LINE = /^\s*- run: .*pnpm omena-check run rust\/product-test-coverage-classguard/u;
+// `- run:` (inline step) or `run:` (the two-line `- name:` + `run:` shape) —
+// a `#`-led comment can match neither.
+const CLASSGUARD_LINE =
+  /^\s*(?:- )?run: .*pnpm omena-check run rust\/product-test-coverage-classguard/u;
 
 function parseInlineMatrix(blockLines: readonly string[], key: string): readonly string[] | null {
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");

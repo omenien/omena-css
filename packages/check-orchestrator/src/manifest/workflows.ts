@@ -1322,6 +1322,12 @@ export function findBundleShardMatrixDiagnostics(rootDir: string): readonly Chec
       "u",
     );
     const envRef = new RegExp(`omena-check (?:run|bundle) ${escaped} --summary --shard="\\$`, "u");
+    // The env form is sanctioned ONLY for a generated matrix: the job must
+    // consume a preflight-produced matrix via fromJSON(needs.*.outputs.*),
+    // which is itself derived from this same shard table (R2-confirm lens:
+    // an env-form invocation with a hand-shrunk inline matrix silently
+    // dropped a whole shard — the env branch must not blanket-satisfy).
+    const generatedMatrixRef = /fromJSON\(needs\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+\)/u;
     let consumed = false;
     for (const job of jobs) {
       const blockLines = lines.slice(job.start, job.end);
@@ -1353,7 +1359,20 @@ export function findBundleShardMatrixDiagnostics(rootDir: string): readonly Chec
         }
         continue;
       }
-      if (envRef.test(block)) consumed = true;
+      if (envRef.test(block)) {
+        if (generatedMatrixRef.test(block)) {
+          consumed = true;
+        } else {
+          diagnostics.push({
+            severity: "error",
+            code: "bundle-shard-matrix-drift",
+            message:
+              `ci.yml job "${job.name}" consumes bundle "${bundleId}" through an env-bound ` +
+              "--shard without a generated fromJSON(needs.*.outputs.*) matrix; the env form is " +
+              "sanctioned only when the matrix is derived from the shard table itself.",
+          });
+        }
+      }
     }
     if (!consumed) {
       diagnostics.push({
@@ -1361,7 +1380,8 @@ export function findBundleShardMatrixDiagnostics(rootDir: string): readonly Chec
         code: "bundle-shard-matrix-drift",
         message:
           `bundle "${bundleId}" carries a committed shard table but no ci.yml job consumes it ` +
-          "with a --shard invocation; every table shard must be wired into a matrix.",
+          "with the sanctioned `--summary --shard` invocation; every table shard must be wired " +
+          "into a matrix (an off-form invocation counts as unconsumed — fix the invocation shape).",
       });
     }
   }

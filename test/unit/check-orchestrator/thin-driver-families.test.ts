@@ -1,12 +1,8 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { RUST_SHADOW_FAMILY } from "../../../scripts/lib/rust-shadow-family";
 import { QUERY_CONSUMER_FAMILY } from "../../../scripts/lib/query-consumer-family";
 import { CONTRACT_PARITY_SMOKE_FAMILY } from "../../../scripts/lib/contract-parity-smoke-family";
 import { CONTRACT_PARITY_GOLDEN_FAMILY } from "../../../scripts/lib/contract-parity-golden-family";
-
-const repoRoot = path.resolve(__dirname, "../../..");
 
 // The enumerated former single-file drivers (goal S6 分解: 14 shared + 28 own).
 const RUST_SHADOW_MEMBER_SLUGS = [
@@ -72,38 +68,23 @@ describe("thin-driver families (g131-S6)", () => {
   });
 
   it("SLUG-BODY BINDING (stage-5 R2): every registry row binds run_<slug> — a swapped or repointed body is loud", () => {
-    // The lens proved a silent hole: swapping two members' run functions left
-    // every surface green. The binding contract is structural in the table
-    // source: each row must reference the function named after its own slug.
-    const source = readFileSync(path.join(repoRoot, "scripts/lib/rust-shadow-family.ts"), "utf8");
-    for (const slug of Object.keys(RUST_SHADOW_FAMILY)) {
-      const fn = `run_${slug.replaceAll("-", "_")}`;
-      // oxfmt renders rows either inline or expanded — accept both shapes,
-      // but the run: binding must name the slug's own function.
-      expect(source, `row "${slug}" must bind ${fn}`).toMatch(
-        new RegExp(`"${slug}": \\{\\s*corpus: "(?:shared|own)",\\s*run: ${fn},?\\s*\\}`, "u"),
-      );
-      expect(source, `${fn} must be defined`).toContain(`async function ${fn}(`);
-    }
-    const qcSource = readFileSync(
-      path.join(repoRoot, "scripts/lib/query-consumer-family.ts"),
-      "utf8",
-    );
-    for (const slug of Object.keys(QUERY_CONSUMER_FAMILY)) {
-      const fn = `run_${slug.replaceAll("-", "_")}`;
-      expect(qcSource, `row "${slug}" must bind ${fn}`).toMatch(
-        new RegExp(`"${slug}": ${fn},`, "u"),
+    // VALUE check (R2-confirm lens repair): the bound function's own .name
+    // must equal run_<slug>. Immune to formatting/key-order churn, and a
+    // swap of two members' run functions REDs with the row named.
+    for (const [slug, row] of Object.entries(RUST_SHADOW_FAMILY)) {
+      expect(row.run.name, `row "${slug}" must bind run_${slug.replaceAll("-", "_")}`).toBe(
+        `run_${slug.replaceAll("-", "_")}`,
       );
     }
-    for (const [file, family] of [
-      ["scripts/lib/contract-parity-smoke-family.ts", CONTRACT_PARITY_SMOKE_FAMILY],
-      ["scripts/lib/contract-parity-golden-family.ts", CONTRACT_PARITY_GOLDEN_FAMILY],
-    ] as const) {
-      const parity = readFileSync(path.join(repoRoot, file), "utf8");
-      for (const slug of Object.keys(family)) {
-        const fn = `run_${slug.replaceAll("-", "_")}`;
-        expect(parity, `row "${slug}" must bind ${fn}`).toMatch(
-          new RegExp(`"${slug}": ${fn},`, "u"),
+    for (const [slug, run] of Object.entries(QUERY_CONSUMER_FAMILY)) {
+      expect(run.name, `row "${slug}" must bind run_${slug.replaceAll("-", "_")}`).toBe(
+        `run_${slug.replaceAll("-", "_")}`,
+      );
+    }
+    for (const family of [CONTRACT_PARITY_SMOKE_FAMILY, CONTRACT_PARITY_GOLDEN_FAMILY]) {
+      for (const [slug, run] of Object.entries(family)) {
+        expect(run.name, `row "${slug}" must bind run_${slug.replaceAll("-", "_")}`).toBe(
+          `run_${slug.replaceAll("-", "_")}`,
         );
       }
     }

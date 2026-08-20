@@ -38,12 +38,9 @@ describe("consolidated CI graph (g131-S3)", () => {
   const jobs = registry.jobs.map((job) => ({ name: job.name, needs: job.needs }));
 
   it("ORDERING ARM: package and extension-host-smoke transitively need every former verify leaf", () => {
-    for (const consumer of ["package", "extension-host-smoke"]) {
-      const closure = needsClosure(jobs, consumer);
-      for (const leaf of FORMER_VERIFY_LEAVES) {
-        expect(closure.has(leaf), `${consumer} must wait on ${leaf}`).toBe(true);
-      }
-    }
+    // The green case runs THE golden itself (R2-confirm: the inline
+    // re-derivation left the RED-proof exercising a different predicate).
+    expect(orderingGoldenErrors(jobs)).toEqual([]);
   });
 
   // The golden itself, extracted so the RED-proof exercises THE SAME
@@ -72,6 +69,16 @@ describe("consolidated CI graph (g131-S3)", () => {
     );
     expect(orderingGoldenErrors(misWired)).toEqual([
       "package no longer waits on verify-native-linux",
+    ]);
+    // BOTH consumers are pinned (R2-confirm: narrowing the golden's consumer
+    // loop to package alone must fail here).
+    const ehsMisWired = jobs.map((job) =>
+      job.name === "extension-host-smoke"
+        ? { ...job, needs: job.needs.filter((need) => need !== "build-output") }
+        : job,
+    );
+    expect(orderingGoldenErrors(ehsMisWired)).toEqual([
+      "extension-host-smoke no longer waits on build-output",
     ]);
     // Equivalent re-route: package waits on extension-host-smoke which waits
     // on all three leaves -> transitively ordered, golden stays GREEN.

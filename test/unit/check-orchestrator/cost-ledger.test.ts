@@ -120,6 +120,20 @@ describe("ci cost ledger (g131-S1)", () => {
     // Partition property: named ∪ rest == input, disjoint.
     const all = [...partition.named.flatMap((bin) => bin.members), ...partition.rest.members];
     expect([...all].toSorted()).toEqual(["a", "b", "c", "d", "e"]);
+    // A single member larger than the target is FLAGGED, never silent
+    // (R2-confirm: neutering overTarget to false must fail here).
+    const oversized = packMeasuredPartition(
+      [
+        { id: "huge", p95Ms: minutes(10) },
+        { id: "small-a", p95Ms: minutes(2) },
+        { id: "small-b", p95Ms: minutes(3) },
+      ],
+      minutes(8),
+    );
+    expect(oversized.named.some((bin) => bin.overTarget)).toBe(true);
+    expect(oversized.named.find((bin) => bin.members.includes("huge"))?.overTarget).toBe(true);
+    // ...and fitting bins are NOT flagged (no false positive).
+    expect(partition.named.every((bin) => !bin.overTarget)).toBe(true);
     // RED: a pack that fits one bin would empty rest — the writer refuses.
     expect(() =>
       packMeasuredPartition(
