@@ -45,7 +45,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   verify-core:
     # omena-ci-tier: verify
@@ -70,7 +72,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   verify-docs:
     # omena-ci-tier: verify
@@ -93,7 +97,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   verify-native-linux:
     # omena-ci-tier: verify
@@ -126,7 +132,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   build-output:
     # omena-ci-tier: verify
@@ -155,7 +163,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   verify:
     # omena-ci-required: true
@@ -203,7 +213,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   native-runner-matrix:
     # omena-ci-required: true
@@ -235,7 +247,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   rust-contracts:
     # omena-ci-tier: rust-workspace
@@ -272,7 +286,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   rust-product-test-plan:
     # omena-ci-tier: rust-workspace
@@ -293,7 +309,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   rust-product-test-crates:
     # omena-ci-tier: rust-workspace
@@ -322,7 +340,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   rust-product-test-contracts:
     # omena-ci-tier: rust-workspace
@@ -366,7 +386,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   rust-product-tests:
     # omena-ci-tier: rust-workspace
@@ -445,7 +467,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   benchmark-instructions:
     # omena-ci-tier: verify
@@ -478,7 +502,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   benchmark-complexity:
     # omena-ci-tier: verify
@@ -513,7 +539,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   benchmark-products:
     # omena-ci-tier: verify
@@ -537,7 +565,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   benchmark-gates:
     # omena-ci-required: true
@@ -613,7 +643,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   closure-fast-shards:
     # omena-ci-tier: closure-fast
@@ -696,7 +728,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   package:
     # omena-ci-tier: package
@@ -748,7 +782,9 @@ jobs:
           path: |
             .omena-ci/check-summary-*.json
             .omena-ci/check-output/**
-          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
 
   ci-required:
     # omena-ci-required: false
