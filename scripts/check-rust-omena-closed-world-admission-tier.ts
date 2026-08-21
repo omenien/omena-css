@@ -136,40 +136,74 @@ const reachabilityCorpusRun = queryTest(
   "tests::consumer_reachability::attributed_empty_projection_removes_unreachable_parse_derived_names",
 );
 
-interface DialectCycleRealCorpusDiff {
+interface DialectCycleCorpusRefusalMeasurement {
   readonly product: string;
+  readonly comparisonBaselineExecuted: boolean;
+  readonly productCorpusInputCount: number;
+  readonly edgeFixtureInputCount: number;
   readonly inputCount: number;
   readonly moduleCount: number;
-  readonly newlyRefusedInputCount: number;
+  readonly dependencyEdgeCount: number;
+  readonly edgeBearingInputCount: number;
+  readonly knownAcyclicEdgeInputCount: number;
+  readonly knownCyclicEdgeInputCount: number;
+  readonly currentPolicyRefusedInputCount: number;
   readonly inputIds: readonly string[];
-  readonly newlyRefusedInputIds: readonly string[];
+  readonly currentPolicyRefusedInputIds: readonly string[];
 }
-const dialectCycleCorpusTestName = argumentsSet.has(
+const injectDialectCycleCorpusMeasurementLoss = argumentsSet.has(
   "--inject-dialect-cycle-corpus-measurement-loss",
-)
-  ? "dialect_cycle_refusal::tests::injected_missing_corpus_measurement"
-  : "dialect_cycle_refusal::tests::dialect_cycle_real_corpus_refusal_diff_is_measured";
+);
+const dialectCycleCorpusTestName =
+  "dialect_cycle_refusal::tests::dialect_cycle_corpus_refusal_measurement_is_edge_bearing";
 const dialectCycleCorpusRun = diffTest(dialectCycleCorpusTestName);
-const dialectCycleCorpusDiff = dialectCycleCorpusRun.transcript
+const dialectCycleCorpusMeasurement = dialectCycleCorpusRun.transcript
   .split("\n")
-  .find((line) => line.startsWith("DIALECT_CYCLE_REAL_CORPUS_DIFF="));
-const dialectCycleCorpusReport = dialectCycleCorpusDiff
+  .find((line) => line.startsWith("DIALECT_CYCLE_CORPUS_MEASUREMENT="));
+const dialectCycleCorpusReport = dialectCycleCorpusMeasurement
   ? (JSON.parse(
-      dialectCycleCorpusDiff.slice("DIALECT_CYCLE_REAL_CORPUS_DIFF=".length),
-    ) as DialectCycleRealCorpusDiff)
+      dialectCycleCorpusMeasurement.slice("DIALECT_CYCLE_CORPUS_MEASUREMENT=".length),
+    ) as DialectCycleCorpusRefusalMeasurement)
   : null;
-// FALSIFIER: id=closed-world-admission-dialect-cycle-corpus class=accounting via=--inject-dialect-cycle-corpus-measurement-loss producer=can-fail owner=closed-world-admission-tier entry=unmeasured-real-corpus-refusal-delta
+// FALSIFIER: id=closed-world-admission-dialect-cycle-corpus class=accounting via=--inject-dialect-cycle-corpus-measurement-loss producer=can-fail owner=closed-world-admission-tier entry=unmeasured-edge-bearing-corpus-refusal
 assert.equal(
   dialectCycleCorpusRun.status === 0 &&
+    dialectCycleCorpusRun.transcript.includes("running 1 test") &&
+    dialectCycleCorpusRun.transcript.includes(`test ${dialectCycleCorpusTestName} ... ok`) &&
     dialectCycleCorpusReport?.product ===
-      "omena-diff-test.dialect-cycle-real-corpus-refusal-diff" &&
-    dialectCycleCorpusReport.inputCount > 0 &&
+      "omena-diff-test.dialect-cycle-corpus-refusal-measurement" &&
+    dialectCycleCorpusReport.comparisonBaselineExecuted === false &&
+    dialectCycleCorpusReport.productCorpusInputCount === 3 &&
+    dialectCycleCorpusReport.edgeFixtureInputCount === 2 &&
+    dialectCycleCorpusReport.inputCount === 5 &&
     dialectCycleCorpusReport.moduleCount > dialectCycleCorpusReport.inputCount &&
-    dialectCycleCorpusReport.newlyRefusedInputCount ===
-      dialectCycleCorpusReport.newlyRefusedInputIds.length,
+    dialectCycleCorpusReport.dependencyEdgeCount === 3 &&
+    dialectCycleCorpusReport.edgeBearingInputCount === 2 &&
+    dialectCycleCorpusReport.knownAcyclicEdgeInputCount === 1 &&
+    dialectCycleCorpusReport.knownCyclicEdgeInputCount === 1 &&
+    dialectCycleCorpusReport.currentPolicyRefusedInputCount ===
+      dialectCycleCorpusReport.currentPolicyRefusedInputIds.length &&
+    dialectCycleCorpusReport.currentPolicyRefusedInputIds.length === 1 &&
+    dialectCycleCorpusReport.currentPolicyRefusedInputIds[0] === "scss-use-cycle-edge",
   true,
-  "dialect-cycle real-corpus refusal diff was not measured:\n" + dialectCycleCorpusRun.transcript,
+  "dialect-cycle corpus refusal measurement was absent or not edge-bearing:\n" +
+    dialectCycleCorpusRun.transcript,
 );
+if (injectDialectCycleCorpusMeasurementLoss) {
+  const probe = runDialectCycleCorpusMeasurementProbe();
+  assert.equal(
+    probe.baselineStatus === 0 && probe.exactTargetMatchCount === 1,
+    true,
+    "dialect-cycle corpus mutation probe did not execute exactly one real producer test: " +
+      JSON.stringify(probe),
+  );
+  assert.equal(
+    probe.detected,
+    false,
+    "injected dependency-edge measurement loss was rejected by the real producer test: " +
+      JSON.stringify(probe),
+  );
+}
 interface ReachabilityCorpusCell {
   readonly fixtureId: string;
   readonly state: "analyzed" | "unanalyzed";
@@ -630,6 +664,110 @@ interface CarrierHopProbe {
   readonly sigkillLeakRisk: string;
 }
 
+interface DialectCycleCorpusMeasurementProbe {
+  readonly baselineStatus: number | null;
+  readonly perturbedStatus: number | null;
+  readonly exactTargetMatchCount: number;
+  readonly mutationAnchorCount: number;
+  readonly perturbedTargetFailed: boolean;
+  readonly cleanupStatus: number | null;
+  readonly detected: boolean;
+  readonly scope: string;
+}
+
+function runDialectCycleCorpusMeasurementProbe(): DialectCycleCorpusMeasurementProbe {
+  const testName =
+    "dialect_cycle_refusal::tests::dialect_cycle_corpus_refusal_measurement_is_edge_bearing";
+  const probeRoot = mkdtempSync(join(tmpdir(), "omena-dialect-cycle-measurement-"));
+  const worktreeRoot = join(probeRoot, "worktree");
+  const add = spawnSync("git", ["worktree", "add", "--detach", "--quiet", worktreeRoot, "HEAD"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  });
+  if (add.status !== 0) {
+    rmSync(probeRoot, { recursive: true, force: true });
+    return {
+      baselineStatus: null,
+      perturbedStatus: null,
+      exactTargetMatchCount: 0,
+      mutationAnchorCount: 0,
+      perturbedTargetFailed: false,
+      cleanupStatus: null,
+      detected: false,
+      scope: "detached HEAD dependencies plus current dialect-cycle producer source",
+    };
+  }
+
+  let baselineStatus: number | null = null;
+  let perturbedStatus: number | null = null;
+  let exactTargetMatchCount = 0;
+  let mutationAnchorCount = 0;
+  let perturbedTargetFailed = false;
+  let cleanupStatus: number | null = null;
+  try {
+    const relativeSourcePath = "rust/crates/omena-diff-test/src/dialect_cycle_refusal.rs";
+    const currentSource = readFileSync(join(repositoryRoot, relativeSourcePath), "utf8");
+    const sourcePath = join(worktreeRoot, relativeSourcePath);
+    writeFileSync(sourcePath, currentSource);
+    const cargoOptions = {
+      cwd: join(worktreeRoot, "rust"),
+      encoding: "utf8" as const,
+      env: {
+        ...process.env,
+        CARGO_TARGET_DIR: join(rustRoot, "target", "dialect-cycle-corpus-measurement-probe"),
+      },
+    };
+    const cargoArgs = ["test", "-p", "omena-diff-test", testName, "--", "--exact", "--nocapture"];
+    const baseline = spawnSync("cargo", cargoArgs, cargoOptions);
+    baselineStatus = baseline.status;
+    const baselineTranscript = `${baseline.stdout ?? ""}\n${baseline.stderr ?? ""}`;
+    exactTargetMatchCount = baselineTranscript.split(`test ${testName} ... ok`).length - 1;
+
+    const measurementAnchor = "        dependency_edge_count += input_dependency_edge_count;";
+    mutationAnchorCount = currentSource.split(measurementAnchor).length - 1;
+    assert.equal(
+      mutationAnchorCount,
+      1,
+      "dialect-cycle measurement probe requires exactly one dependency-edge accounting site",
+    );
+    writeFileSync(
+      sourcePath,
+      currentSource.replace(
+        measurementAnchor,
+        "        let _unmeasured_dependency_edge_count = input_dependency_edge_count;",
+      ),
+    );
+    const perturbed = spawnSync("cargo", cargoArgs, cargoOptions);
+    perturbedStatus = perturbed.status;
+    const perturbedTranscript = `${perturbed.stdout ?? ""}\n${perturbed.stderr ?? ""}`;
+    perturbedTargetFailed = perturbedTranscript.includes(`test ${testName} ... FAILED`);
+  } finally {
+    const cleanup = spawnSync("git", ["worktree", "remove", "--force", worktreeRoot], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+    });
+    cleanupStatus = cleanup.status;
+    rmSync(probeRoot, { recursive: true, force: true });
+  }
+
+  return {
+    baselineStatus,
+    perturbedStatus,
+    exactTargetMatchCount,
+    mutationAnchorCount,
+    perturbedTargetFailed,
+    cleanupStatus,
+    detected:
+      baselineStatus === 0 &&
+      exactTargetMatchCount === 1 &&
+      mutationAnchorCount === 1 &&
+      perturbedStatus !== 0 &&
+      perturbedTargetFailed &&
+      cleanupStatus === 0,
+    scope: "detached HEAD dependencies plus current dialect-cycle producer source",
+  };
+}
+
 function runCarrierHopProbe(): CarrierHopProbe {
   const testName = "tests::external_composes_names_reach_the_sealed_closed_world_bundle";
   const probeRoot = mkdtempSync(join(tmpdir(), "omena-composes-carrier-hop-"));
@@ -807,7 +945,7 @@ process.stdout.write(
         conservativeByteIdenticalInputIds,
         conservativeUnanalyzedCount,
       },
-      dialectCycleRealCorpusDiff: dialectCycleCorpusReport,
+      dialectCycleCorpusMeasurement: dialectCycleCorpusReport,
       composesMatrixTest: "1 passed",
       composesMatrixCommand: matrixRun.command,
       composesMatrixSubprocessRc: matrixRun.status,

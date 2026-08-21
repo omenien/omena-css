@@ -10,40 +10,107 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct DialectCycleRealCorpusRefusalDiffV0 {
+struct DialectCycleCorpusRefusalMeasurementV1 {
     schema_version: &'static str,
     product: &'static str,
     comparison_baseline: &'static str,
+    comparison_baseline_executed: bool,
     current_policy: &'static str,
+    product_corpus_input_count: usize,
+    edge_fixture_input_count: usize,
     input_count: usize,
     module_count: usize,
-    newly_refused_input_count: usize,
+    dependency_edge_count: usize,
+    edge_bearing_input_count: usize,
+    known_acyclic_edge_input_count: usize,
+    known_cyclic_edge_input_count: usize,
+    current_policy_refused_input_count: usize,
     input_ids: Vec<String>,
-    newly_refused_input_ids: Vec<String>,
+    current_policy_refused_input_ids: Vec<String>,
 }
 
-fn summarize_dialect_cycle_real_corpus_refusal_diff_v0()
--> Result<DialectCycleRealCorpusRefusalDiffV0, String> {
+#[derive(Debug, Clone)]
+struct DialectCycleCorpusInputV1 {
+    id: String,
+    entrypoint_paths: Vec<String>,
+    modules: Vec<TransformBundleModuleInputV0>,
+    known_cycle_shape: Option<bool>,
+}
+
+fn dialect_cycle_corpus_inputs_v1() -> (usize, Vec<DialectCycleCorpusInputV1>) {
     let samples = bundler_productization_corpus();
-    let mut module_count = 0;
-    let mut newly_refused_input_ids = Vec::new();
-    for sample in &samples {
-        let mut modules = vec![TransformBundleModuleInputV0::new(
-            sample.path,
-            sample.source.clone(),
-            sample.dialect,
-        )];
-        if sample.name == "next-dashboard-shell-scss" {
-            modules.push(TransformBundleModuleInputV0::new(
-                "tokens.scss",
-                "$accent: #0f766e;",
+    let product_corpus_input_count = samples.len();
+    let mut inputs = samples
+        .into_iter()
+        .map(|sample| DialectCycleCorpusInputV1 {
+            id: sample.name.to_string(),
+            entrypoint_paths: vec![sample.path.to_string()],
+            modules: vec![TransformBundleModuleInputV0::new(
+                sample.path,
+                sample.source,
+                sample.dialect,
+            )],
+            known_cycle_shape: None,
+        })
+        .collect::<Vec<_>>();
+    inputs.push(DialectCycleCorpusInputV1 {
+        id: "css-import-acyclic-edge".to_string(),
+        entrypoint_paths: vec!["fixtures/acyclic/app.css".to_string()],
+        modules: vec![
+            TransformBundleModuleInputV0::new(
+                "fixtures/acyclic/app.css",
+                "@import \"./tokens.css\"; .app { color: var(--brand); }",
+                StyleDialect::Css,
+            ),
+            TransformBundleModuleInputV0::new(
+                "fixtures/acyclic/tokens.css",
+                ":root { --brand: #0f766e; }",
+                StyleDialect::Css,
+            ),
+        ],
+        known_cycle_shape: Some(false),
+    });
+    inputs.push(DialectCycleCorpusInputV1 {
+        id: "scss-use-cycle-edge".to_string(),
+        entrypoint_paths: vec!["fixtures/cyclic/a.scss".to_string()],
+        modules: vec![
+            TransformBundleModuleInputV0::new(
+                "fixtures/cyclic/a.scss",
+                "@use \"./b.scss\"; .a { color: red; }",
                 StyleDialect::Scss,
-            ));
-        }
-        module_count += modules.len();
-        let projections = project_omena_transform_bundle_linker_and_emission_items(&modules, &[]);
+            ),
+            TransformBundleModuleInputV0::new(
+                "fixtures/cyclic/b.scss",
+                "@use \"./a.scss\"; .b { color: blue; }",
+                StyleDialect::Scss,
+            ),
+        ],
+        known_cycle_shape: Some(true),
+    });
+    (product_corpus_input_count, inputs)
+}
+
+fn summarize_dialect_cycle_corpus_refusal_measurement_v1()
+-> Result<DialectCycleCorpusRefusalMeasurementV1, String> {
+    let (product_corpus_input_count, inputs) = dialect_cycle_corpus_inputs_v1();
+    let mut module_count = 0;
+    let mut dependency_edge_count = 0;
+    let mut edge_bearing_input_count = 0;
+    let mut current_policy_refused_input_ids = Vec::new();
+    for input in &inputs {
+        module_count += input.modules.len();
+        let projections =
+            project_omena_transform_bundle_linker_and_emission_items(&input.modules, &[]);
+        let input_dependency_edge_count = projections
+            .linker_projection()
+            .inputs()
+            .iter()
+            .map(|linker_input| linker_input.dependency_edges.len())
+            .sum::<usize>();
+        dependency_edge_count += input_dependency_edge_count;
+        edge_bearing_input_count += usize::from(input_dependency_edge_count > 0);
         match link_omena_transform_bundle_projection_with_emission_items_and_resolved_dependencies_and_options(
-            &[sample.path],
+            &input.entrypoint_paths,
             projections.linker_projection(),
             projections.emission_item_projection(),
             &[],
@@ -53,29 +120,39 @@ fn summarize_dialect_cycle_real_corpus_refusal_diff_v0()
         ) {
             Ok(_) => {}
             Err(TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle { .. }) => {
-                newly_refused_input_ids.push(sample.name.to_string());
+                current_policy_refused_input_ids.push(input.id.clone());
             }
             Err(error) => {
                 return Err(format!(
-                    "real corpus fixture {} failed outside the dialect-cycle boundary: {error:?}",
-                    sample.name
+                    "dialect-cycle corpus fixture {} failed outside the dialect-cycle boundary: {error:?}",
+                    input.id
                 ));
             }
         }
     }
-    Ok(DialectCycleRealCorpusRefusalDiffV0 {
-        schema_version: "0",
-        product: "omena-diff-test.dialect-cycle-real-corpus-refusal-diff",
-        comparison_baseline: "moduleIdentityTieBreakForImportCycles",
+    Ok(DialectCycleCorpusRefusalMeasurementV1 {
+        schema_version: "1",
+        product: "omena-diff-test.dialect-cycle-corpus-refusal-measurement",
+        comparison_baseline: "historicalModuleIdentityTieBreakReferenceOnly",
+        comparison_baseline_executed: false,
         current_policy: "unsupportedDialectEmissionCycleFailsClosed",
-        input_count: samples.len(),
+        product_corpus_input_count,
+        edge_fixture_input_count: inputs.len().saturating_sub(product_corpus_input_count),
+        input_count: inputs.len(),
         module_count,
-        newly_refused_input_count: newly_refused_input_ids.len(),
-        input_ids: samples
-            .into_iter()
-            .map(|sample| sample.name.to_string())
-            .collect(),
-        newly_refused_input_ids,
+        dependency_edge_count,
+        edge_bearing_input_count,
+        known_acyclic_edge_input_count: inputs
+            .iter()
+            .filter(|input| input.known_cycle_shape == Some(false))
+            .count(),
+        known_cyclic_edge_input_count: inputs
+            .iter()
+            .filter(|input| input.known_cycle_shape == Some(true))
+            .count(),
+        current_policy_refused_input_count: current_policy_refused_input_ids.len(),
+        input_ids: inputs.into_iter().map(|input| input.id).collect(),
+        current_policy_refused_input_ids,
     })
 }
 
@@ -84,13 +161,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dialect_cycle_real_corpus_refusal_diff_is_measured() -> Result<(), String> {
-        let report = summarize_dialect_cycle_real_corpus_refusal_diff_v0()?;
-        assert!(report.input_count > 0);
+    fn dialect_cycle_corpus_refusal_measurement_is_edge_bearing() -> Result<(), String> {
+        let report = summarize_dialect_cycle_corpus_refusal_measurement_v1()?;
+        assert_eq!(report.product_corpus_input_count, 3);
+        assert_eq!(report.edge_fixture_input_count, 2);
+        assert_eq!(report.input_count, 5);
         assert!(report.module_count > report.input_count);
-        assert_eq!(report.newly_refused_input_count, 0);
+        assert_eq!(report.dependency_edge_count, 3);
+        assert_eq!(report.edge_bearing_input_count, 2);
+        assert_eq!(report.known_acyclic_edge_input_count, 1);
+        assert_eq!(report.known_cyclic_edge_input_count, 1);
+        assert!(!report.comparison_baseline_executed);
+        assert_eq!(
+            report.current_policy_refused_input_ids,
+            vec!["scss-use-cycle-edge"]
+        );
+        assert_eq!(report.current_policy_refused_input_count, 1);
         eprintln!(
-            "DIALECT_CYCLE_REAL_CORPUS_DIFF={}",
+            "DIALECT_CYCLE_CORPUS_MEASUREMENT={}",
             serde_json::to_string(&report).map_err(|error| error.to_string())?
         );
         Ok(())
