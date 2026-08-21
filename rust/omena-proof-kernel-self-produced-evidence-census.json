@@ -612,7 +612,7 @@
   },
   "exit": {
     "sourceRef": "WORKTREE",
-    "sourceFileSha256": "efb889b9e24dc31075713623b8a5156198150abcdd68dd72379159ebd3dd38b8",
+    "sourceFileSha256": "1ad0ff3df73d347aaf9df9bad9e44aaaa8ba0fedfca52fc1a172dbb561f45e55",
     "rowCount": 17,
     "planeCounts": {
       "cascadeObligation": 12,
@@ -820,7 +820,7 @@
         "site": {
           "sourcePath": "rust/crates/omena-cascade-proof/src/proof_kernel.rs",
           "symbol": "check_rewrite_certificate_v0 -> RewriteIssuanceTokenV0::issue",
-          "lineHint": 826,
+          "lineHint": 798,
           "lineSha256": "a10ba8c32c6d98a971d80a6885175be0dfa0eea458ae36b37471476ccae95f0d"
         },
         "plane": "eGraph",

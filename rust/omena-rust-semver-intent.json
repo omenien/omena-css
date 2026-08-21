@@ -192,8 +192,22 @@
     {
       "crate": "omena-cascade-proof",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor adds an identity-keyed, catalog-sealed module-export preservation certificate and removes arbitrary assumption parameters that were validated but never constrained any proof derivation.",
+      "reason": "The next pre-1.0 minor adds an identity-keyed, catalog-sealed module-export preservation certificate and removes arbitrary assumption parameters plus their orphan schema, carrier, input, and rejection vocabulary because none constrained a proof derivation.",
       "expectedFailures": [
+        {
+          "lint": "enum_no_repr_variant_discriminant_changed",
+          "evidenceNeedles": [
+            "variant RewriteCheckInputV0::SerializedCertificate 5 -> 4",
+            "variant CertificateRejectionKindV0::DuplicateSubstitutionVariable 10 -> 9"
+          ]
+        },
+        {
+          "lint": "enum_variant_missing",
+          "evidenceNeedles": [
+            "variant RewriteCheckInputV0::Assumptions",
+            "variant CertificateRejectionKindV0::DuplicateAssumption"
+          ]
+        },
         {
           "lint": "function_parameter_count_changed",
           "evidenceNeedles": [
@@ -204,6 +218,14 @@
             "omena_cascade_proof::proof_kernel::check_rewrite_certificate_v0 now takes 4 parameters instead of 5",
             "omena_cascade_proof::check_rewrite_certificate_v0 now takes 4 parameters instead of 5"
           ]
+        },
+        {
+          "lint": "pub_module_level_const_missing",
+          "evidenceNeedles": ["CANONICAL_REWRITE_ASSUMPTIONS_SCHEMA_VERSION_V0"]
+        },
+        {
+          "lint": "struct_missing",
+          "evidenceNeedles": ["CanonicalRewriteAssumptionV0", "CanonicalRewriteAssumptionsV0"]
         }
       ],
       "expectedRuntimeValueChanges": [
@@ -229,27 +251,31 @@
     {
       "crate": "omena-cli",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor makes PostCSS compatibility output strict-by-default: only parse-clean, total, Omena-understood semantic changes can replace native build bytes, and the build JSON exposes a typed adoption verdict.",
+      "reason": "The next pre-1.0 minor makes PostCSS compatibility output strict-by-default: only parse-clean candidates whose complete non-whitespace CST differs by independently classified vendor-prefix declaration insertions can replace native build bytes, and build output exposes the typed adoption verdict.",
       "expectedFailures": [],
       "expectedRuntimeValueChanges": [
         {
           "id": "postcss-compat-strict-adoption",
           "kind": "selection-outcome-changing",
           "surface": "omena build CSS output and payload.postcssCompat adoptionVerdict",
-          "reason": "A successful external process is no longer sufficient authority to replace native output; parse errors, incomplete semantic diffs, and passthrough changes produce a typed refusal and retain the native bytes.",
+          "reason": "A successful external process is no longer sufficient authority to replace native output; parse errors, uncovered CST syntax changes, and passthrough changes produce a typed refusal and retain the native bytes.",
           "evidence": [
             {
               "sourcePath": "rust/crates/omena-cli/src/postcss_compat.rs",
               "needles": [
                 "pub(crate) adoption_verdict: PostcssCompatAdoptionVerdictV0",
                 "PostcssCompatAdoptionVerdictV0::Refused",
+                "PostcssCompatAdoptionRefusalCauseV0::UncoveredSyntaxChanges",
                 "PostcssCompatAdoptionRefusalCauseV0::UnunderstoodSemanticChanges",
                 "source_css.to_string()"
               ]
             },
             {
               "sourcePath": "rust/crates/omena-cli/src/build.rs",
-              "needles": ["summary.execution.output_css = execution.output_css.clone()"]
+              "needles": [
+                "summary.execution.output_css = execution.output_css.clone()",
+                "PostCSS compatibility adoption:"
+              ]
             }
           ]
         }
@@ -258,8 +284,14 @@
     {
       "crate": "omena-query",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, and preserves analyzed-empty reachability as a closed-world result instead of treating it as missing analysis.",
+      "reason": "The next pre-1.0 minor removes caller-supplied lexical import hints, requires exact Rust-authored declaration identities for style resolution, preserves analyzed-empty reachability as a closed-world result, and projects typed dialect-cycle evidence instead of a generic pass-unavailable blocker.",
       "expectedFailures": [
+        {
+          "lint": "enum_variant_added",
+          "evidenceNeedles": [
+            "variant OmenaQueryClosedWorldBlockerV0:UnsupportedDialectEmissionCycle"
+          ]
+        },
         {
           "lint": "function_parameter_count_changed",
           "evidenceNeedles": [
@@ -315,23 +347,52 @@
               ]
             }
           ]
+        },
+        {
+          "id": "query-dialect-cycle-evidence-projection",
+          "kind": "wire-value-order-preserving",
+          "surface": "OmenaQueryClosedWorldBlockerV0 unsupportedDialectEmissionCycle payload",
+          "reason": "A dialect import-cycle refusal now reaches query consumers with its dialect, cycle class, and edge kinds instead of collapsing into ClosedWorldPassUnavailable.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-query/src/types.rs",
+              "needles": [
+                "UnsupportedDialectEmissionCycle {",
+                "dialect: OmenaQueryEmissionCycleDialectV0",
+                "edge_kinds: Vec<TransformBundleEdgeKind>"
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-query/src/style/transform.rs",
+              "needles": [
+                "TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle {",
+                "OmenaQueryClosedWorldBlockerV0::UnsupportedDialectEmissionCycle {",
+                "\"kind\": \"unsupportedDialectEmissionCycle\""
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "crate": "omena-transform-passes",
       "releaseClass": "pre1MinorBreaking",
-      "reason": "The next pre-1.0 minor exposes checked module-export preservation evidence, can reject a structural pass candidate whose identity-keyed export observation is not preserved, and returns typed dependency-cycle witnesses from checked pass planning.",
+      "reason": "The next pre-1.0 minor exposes checked module-export preservation evidence, can reject a structural pass candidate whose identity-keyed export observation is not preserved, returns typed dependency-cycle witnesses from checked pass planning, and adds independently measured full-CST coverage to external CSS adoption evidence.",
       "expectedFailures": [
         {
           "lint": "constructible_struct_adds_field",
           "evidenceNeedles": [
+            "field ExternalCssSemanticDiffV0.cst_coverage",
             "field TransformExecutionSummaryV0.module_export_preservation_telemetry"
           ]
         },
         {
           "lint": "enum_variant_added",
-          "evidenceNeedles": ["variant TransformRejectionReasonV0:ModuleExportPreservation"]
+          "evidenceNeedles": [
+            "variant TransformRejectionReasonV0:ModuleExportPreservation",
+            "variant TransformSemanticUnobservedAxisV0:NonStyleRuleDeclarationCarriers",
+            "variant TransformSemanticUnobservedAxisV0:IntraRuleDeclarationOrdering"
+          ]
         }
       ],
       "expectedRuntimeValueChanges": [
@@ -379,6 +440,26 @@
                 "fn constructed_dependency_cycle_is_not_silently_ordered()",
                 "fn default_catalog_has_no_dependency_cycle_across_300k_deterministic_requests()"
               ]
+            }
+          ]
+        },
+        {
+          "id": "external-css-full-cst-adoption-boundary",
+          "kind": "selection-outcome-changing",
+          "surface": "ExternalCssSemanticDiffV0 cstCoverage and external CSS adoption totality",
+          "reason": "The external CSS comparator now proves that every non-whitespace input syntax unit remains in order and permits only independently understood vendor-prefix declaration insertions; changes on disclosed but semantically unobserved axes therefore fail closed.",
+          "evidence": [
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/runtime/semantic_preservation.rs",
+              "needles": [
+                "pub struct ExternalCssCstCoverageV0",
+                "pub fn external_css_adoption_boundary_is_complete_v0(",
+                "fn external_css_cst_coverage("
+              ]
+            },
+            {
+              "sourcePath": "rust/crates/omena-transform-passes/src/model.rs",
+              "needles": ["NonStyleRuleDeclarationCarriers", "IntraRuleDeclarationOrdering"]
             }
           ]
         }
