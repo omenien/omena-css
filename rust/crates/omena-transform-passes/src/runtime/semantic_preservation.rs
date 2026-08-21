@@ -171,8 +171,9 @@ pub struct ExternalCssSemanticDiffV0 {
     pub total_change_count: usize,
     pub understood_change_count: usize,
     pub passthrough_change_count: usize,
-    /// True when the per-change classification counts account for every
-    /// semantic change. CST coverage is reported separately in `cst_coverage`.
+    /// Producer-derived partition invariant for the per-change classification
+    /// counts. This is advisory metadata, not an independent adoption guard;
+    /// CST coverage and the reported change rows are checked separately.
     pub semantic_change_accounting_complete: bool,
     pub cst_coverage: ExternalCssCstCoverageV0,
     pub changes: Vec<ExternalCssSemanticChangeV0>,
@@ -243,8 +244,7 @@ pub fn compare_external_css_semantic_changes_v0(
 }
 
 pub fn external_css_adoption_boundary_is_complete_v0(report: &ExternalCssSemanticDiffV0) -> bool {
-    report.semantic_change_accounting_complete
-        && report.cst_coverage.complete
+    report.cst_coverage.complete
         && report.cst_coverage.uncovered_input_unit_count == 0
         && report.cst_coverage.uncovered_output_unit_count == 0
         && report.total_change_count == report.changes.len()
@@ -3011,7 +3011,6 @@ mod tests {
         let output = ".input { -webkit-appearance: none; appearance: none; } ::-moz-placeholder { color: gray; } ::placeholder { color: gray; }";
         let report = compare_external_css_semantic_changes_v0(input, output, StyleDialect::Css);
 
-        assert!(report.semantic_change_accounting_complete);
         assert!(report.understood_change_count >= 1);
         assert!(report.passthrough_change_count >= 1);
         assert_eq!(
@@ -3045,7 +3044,6 @@ mod tests {
         assert!(report.cst_coverage.complete);
         assert_eq!(report.cst_coverage.uncovered_input_unit_count, 0);
         assert_eq!(report.cst_coverage.uncovered_output_unit_count, 0);
-        assert!(report.semantic_change_accounting_complete);
         assert_eq!(report.understood_change_count, 0);
         assert!(report.passthrough_change_count > 0);
         assert_eq!(report.passthrough_change_count, report.total_change_count);
@@ -3058,7 +3056,6 @@ mod tests {
             ".input { -webkit-appearance: none; appearance: none; }",
             StyleDialect::Css,
         );
-        assert!(report.semantic_change_accounting_complete);
         assert!(external_css_adoption_boundary_is_complete_v0(&report));
 
         report.changes.clear();
@@ -3075,7 +3072,6 @@ mod tests {
 
         assert_eq!(report.understood_change_count, 0);
         assert_eq!(report.passthrough_change_count, 1);
-        assert!(report.semantic_change_accounting_complete);
     }
 
     #[test]

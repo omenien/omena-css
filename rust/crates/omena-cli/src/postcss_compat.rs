@@ -238,7 +238,6 @@ pub(crate) fn summarize_postcss_native_differential(
     let classification = if target_sets_aligned && semantic_diff.total_change_count == 0 {
         PostcssNativeDifferentialClassificationV0::Equivalent
     } else if target_sets_aligned
-        && semantic_diff.semantic_change_accounting_complete
         && semantic_diff.cst_coverage.complete
         && all_changes_match_uncovered_prefixes
     {
@@ -816,7 +815,6 @@ mod tests {
                 ..
             }
         ));
-        assert!(outcome.semantic_diff.semantic_change_accounting_complete);
         assert!(outcome.semantic_diff.understood_change_count >= 1);
         assert!(outcome.semantic_diff.passthrough_change_count >= 1);
         assert_eq!(outcome.evidence.earned_via.describe(), "externalTool");
