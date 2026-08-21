@@ -15,7 +15,20 @@ export type OmenaClosedWorldBlockerV0 =
   | OmenaClosedWorldMissingDependencyBlockerV0
   | OmenaClosedWorldMissingModuleInstanceBlockerV0
   | OmenaClosedWorldMissingModuleDependencyBlockerV0
-  | OmenaClosedWorldPassUnavailableBlockerV0;
+  | OmenaClosedWorldPassUnavailableBlockerV0
+  | OmenaClosedWorldUnsupportedDialectEmissionCycleBlockerV0;
+export type OmenaEmissionCycleDialectV0 = "css" | "scss" | "sass" | "less" | "mixed";
+export type OmenaEmissionCycleClassV0 = "import" | "composition" | "mixed";
+export type OmenaTransformBundleEdgeKindV0 =
+  | "sassUse"
+  | "sassForward"
+  | "sassImport"
+  | "cssImport"
+  | "lessImport"
+  | "cssModuleValueImport"
+  | "cssModuleComposesLocal"
+  | "cssModuleComposesExternal"
+  | "icssImport";
 export type OmenaGuaranteeKindV0 =
   | "floor"
   | "sampledFixtureWitness"
@@ -149,6 +162,12 @@ export interface OmenaClosedWorldMissingModuleDependencyBlockerV0 {
 export interface OmenaClosedWorldPassUnavailableBlockerV0 {
   readonly kind: "closedWorldPassUnavailable";
   readonly requestedPassIds: readonly string[];
+}
+export interface OmenaClosedWorldUnsupportedDialectEmissionCycleBlockerV0 {
+  readonly kind: "unsupportedDialectEmissionCycle";
+  readonly dialect: OmenaEmissionCycleDialectV0;
+  readonly class: OmenaEmissionCycleClassV0;
+  readonly edgeKinds: readonly OmenaTransformBundleEdgeKindV0[];
 }
 export interface OmenaClosedWorldDecisionParityV0 {
   readonly legacyOpenDecision: boolean;

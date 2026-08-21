@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { bundleShardNames } from "../packages/check-orchestrator/src/manifest/shards";
 import { loadCiWorkflowRegistry } from "../packages/check-orchestrator/src/manifest/ci-workflow";
+import { resolveSummaryMemberArgs } from "../packages/check-orchestrator/src/cli/summary-args";
 import { findProductTestCiStructureErrors } from "./lib/product-test-ci-structure";
 import {
   RUST_PRODUCT_TEST_SHARDS,
@@ -23,6 +24,40 @@ assert.equal(
   productScript,
   PRODUCT_SCRIPT_COMMAND,
   `${PRODUCT_SCRIPT_NAME} must delegate to the shared sharded runner`,
+);
+
+const orchestratorMain = readFileSync("packages/check-orchestrator/src/cli/main.ts", "utf8");
+assert.match(
+  orchestratorMain,
+  /const memberArgs = resolveSummaryMemberArgs\(gate, targetSpec, extraArgs\);/u,
+  "summary execution must route member arguments through the tested resolver",
+);
+assert.deepEqual(
+  resolveSummaryMemberArgs(
+    { id: "rust/product-test-execution", kind: "gate" },
+    { target: "rust/product-test-execution" },
+    ["differential"],
+  ),
+  ["differential"],
+  "a summarized leaf gate must receive its CLI shard argument",
+);
+assert.deepEqual(
+  resolveSummaryMemberArgs(
+    { id: "rust/product-tests", kind: "bundle" },
+    { target: "rust/product-test-execution", args: ["workspace"] },
+    ["differential"],
+  ),
+  ["workspace"],
+  "a bundle must not leak its CLI arguments into ordinary dependencies",
+);
+assert.deepEqual(
+  resolveSummaryMemberArgs(
+    { id: "rust/product-tests-alias", kind: "alias" },
+    { target: "rust/product-test-execution", args: ["workspace"] },
+    ["differential"],
+  ),
+  ["workspace", "differential"],
+  "an alias must continue forwarding its CLI arguments to dependencies",
 );
 
 interface CargoMetadata {

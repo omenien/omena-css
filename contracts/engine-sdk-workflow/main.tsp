@@ -311,6 +311,39 @@ model OmenaClosedWorldPassUnavailableBlockerV0 {
   requestedPassIds: string[];
 }
 
+enum OmenaEmissionCycleDialectV0 {
+  css: "css",
+  scss: "scss",
+  sass: "sass",
+  less: "less",
+  mixed: "mixed",
+}
+
+enum OmenaEmissionCycleClassV0 {
+  importEdges: "import",
+  composition: "composition",
+  mixed: "mixed",
+}
+
+enum OmenaTransformBundleEdgeKindV0 {
+  sassUse: "sassUse",
+  sassForward: "sassForward",
+  sassImport: "sassImport",
+  cssImport: "cssImport",
+  lessImport: "lessImport",
+  cssModuleValueImport: "cssModuleValueImport",
+  cssModuleComposesLocal: "cssModuleComposesLocal",
+  cssModuleComposesExternal: "cssModuleComposesExternal",
+  icssImport: "icssImport",
+}
+
+model OmenaClosedWorldUnsupportedDialectEmissionCycleBlockerV0 {
+  kind: "unsupportedDialectEmissionCycle";
+  dialect: OmenaEmissionCycleDialectV0;
+  class: OmenaEmissionCycleClassV0;
+  edgeKinds: OmenaTransformBundleEdgeKindV0[];
+}
+
 union OmenaClosedWorldBlockerV0 {
   emptyEntrypoints: OmenaClosedWorldEmptyEntrypointsBlockerV0,
   missingEntrypoint: OmenaClosedWorldMissingEntrypointBlockerV0,
@@ -319,6 +352,7 @@ union OmenaClosedWorldBlockerV0 {
   missingModuleInstance: OmenaClosedWorldMissingModuleInstanceBlockerV0,
   missingModuleDependency: OmenaClosedWorldMissingModuleDependencyBlockerV0,
   closedWorldPassUnavailable: OmenaClosedWorldPassUnavailableBlockerV0,
+  unsupportedDialectEmissionCycle: OmenaClosedWorldUnsupportedDialectEmissionCycleBlockerV0,
 }
 
 model OmenaModuleQualifiedSymbolSetV0 {

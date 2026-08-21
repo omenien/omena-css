@@ -144,9 +144,12 @@ interface DialectCycleRealCorpusDiff {
   readonly inputIds: readonly string[];
   readonly newlyRefusedInputIds: readonly string[];
 }
-const dialectCycleCorpusRun = diffTest(
-  "linked_emission::tests::dialect_cycle_real_corpus_refusal_diff_is_measured",
-);
+const dialectCycleCorpusTestName = argumentsSet.has(
+  "--inject-dialect-cycle-corpus-measurement-loss",
+)
+  ? "dialect_cycle_refusal::tests::injected_missing_corpus_measurement"
+  : "dialect_cycle_refusal::tests::dialect_cycle_real_corpus_refusal_diff_is_measured";
+const dialectCycleCorpusRun = diffTest(dialectCycleCorpusTestName);
 const dialectCycleCorpusDiff = dialectCycleCorpusRun.transcript
   .split("\n")
   .find((line) => line.startsWith("DIALECT_CYCLE_REAL_CORPUS_DIFF="));
@@ -155,6 +158,7 @@ const dialectCycleCorpusReport = dialectCycleCorpusDiff
       dialectCycleCorpusDiff.slice("DIALECT_CYCLE_REAL_CORPUS_DIFF=".length),
     ) as DialectCycleRealCorpusDiff)
   : null;
+// FALSIFIER: id=closed-world-admission-dialect-cycle-corpus class=accounting via=--inject-dialect-cycle-corpus-measurement-loss producer=can-fail owner=closed-world-admission-tier entry=unmeasured-real-corpus-refusal-delta
 assert.equal(
   dialectCycleCorpusRun.status === 0 &&
     dialectCycleCorpusReport?.product ===

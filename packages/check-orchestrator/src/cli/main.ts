@@ -39,6 +39,7 @@ import { bundleShardNames, resolveShardMembers } from "../manifest/shards";
 import { CI_PROBE_PROFILES, resolveCiProbeProfile } from "../probes";
 import { pnpmRunCommand } from "./commands";
 import { runCapturedCommand, runLiveCommand, type CapturedCommandResult } from "./execution";
+import { resolveSummaryMemberArgs } from "./summary-args";
 
 interface ParsedArgs {
   readonly command: string;
@@ -345,7 +346,7 @@ async function runWithSummary(
   const completed = new Set<string>();
   for (const targetSpec of members) {
     const member = resolveTarget(targetSpec.target);
-    const memberArgs = getDepExtraArgs(gate, targetSpec.args ?? [], extraArgs);
+    const memberArgs = resolveSummaryMemberArgs(gate, targetSpec, extraArgs);
     const memberCompleted = new Set(completed);
     const commands = renderGateCommands(member, memberArgs, memberCompleted);
     const start = performance.now();

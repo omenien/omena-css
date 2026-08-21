@@ -108,6 +108,11 @@
       "firedSiteIds": ["linked-emission-product-run-status"]
     },
     {
+      "perturbation": "--inject-dialect-cycle-corpus-measurement-loss",
+      "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-closed-world-admission-tier.ts --inject-dialect-cycle-corpus-measurement-loss",
+      "firedSiteIds": ["closed-world-admission-dialect-cycle-corpus"]
+    },
+    {
       "perturbation": "--inject-fallback-reason-drift",
       "observedRedCommand": "node --import tsx ./scripts/check-rust-omena-query-linked-source-map-fallback.ts --inject-fallback-reason-drift",
       "firedSiteIds": ["linked-source-map-reason-authority"]

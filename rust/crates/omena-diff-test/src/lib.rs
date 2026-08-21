@@ -82,6 +82,8 @@ use serde::{Deserialize, Serialize};
 mod cache_equivalence;
 mod cascade_driver_conformance;
 mod deletion_stale_reuse;
+#[cfg(test)]
+mod dialect_cycle_refusal;
 mod external_corpus_envelope_idl_generated;
 mod fold_reachability_soundness;
 pub mod hrx;
