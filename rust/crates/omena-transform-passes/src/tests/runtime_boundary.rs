@@ -5,7 +5,7 @@ use crate::{
     CssModuleTokenInterfaceMismatchV0, CssModuleTokenOwnershipCensusV0, CssModuleTokenOwnershipV0,
     TransformExecutionContextV0, TransformExecutionPolicyV0,
     TransformModuleQualifiedExecutionErrorV0, TransformPassDispatchKindV0,
-    TransformStrictPolicyReasonV0, default_transform_pass_registry,
+    TransformPassPlanningErrorV0, TransformStrictPolicyReasonV0, default_transform_pass_registry,
     execute_transform_passes_incremental_with_database,
     execute_transform_passes_on_module_with_dialect_context_and_closed_world_bundle,
     execute_transform_passes_on_module_with_dialect_context_policy_and_closed_world_bundle,
@@ -1179,7 +1179,9 @@ fn planner_rejects_unordered_color_lowering_conflict_without_reordering_other_se
             TransformPassKind::ColorFunctionLowering,
             TransformPassKind::PrintCss,
         ]),
-        Err(conflict_plan.conflicting_unordered_pass_pairs[0].clone())
+        Err(TransformPassPlanningErrorV0::UnorderedPassConflict {
+            conflict: conflict_plan.conflicting_unordered_pass_pairs[0].clone(),
+        })
     );
 
     let accepted_plan = plan_transform_passes(&[

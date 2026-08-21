@@ -119,6 +119,42 @@ pub struct TransformPlanPassConflictV0 {
     pub pass_b: &'static str,
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+/// One dependency edge in a transform-planner cycle witness.
+pub struct TransformPlanDependencyEdgeV0 {
+    pub prerequisite_pass_id: &'static str,
+    pub dependent_pass_id: &'static str,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+/// A closed dependency path that prevents the planner from selecting a next pass.
+pub struct TransformPlanDependencyCycleV0 {
+    /// Pass identifiers in traversal order, with the first identifier repeated at the end.
+    pub cycle_path: Vec<&'static str>,
+    pub dependency_edges: Vec<TransformPlanDependencyEdgeV0>,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+/// Typed failures returned by checked transform-pass planning.
+pub enum TransformPassPlanningErrorV0 {
+    DependencyCycle {
+        cycle: TransformPlanDependencyCycleV0,
+    },
+    UnorderedPassConflict {
+        conflict: TransformPlanPassConflictV0,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformStructuralIrShadowFieldReportV0 {
