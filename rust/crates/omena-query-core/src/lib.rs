@@ -32,9 +32,10 @@ use engine_input_producers::{
 };
 use omena_abstract_value::{
     AbstractClassValueProvenanceV0, ClassValueFlowSealedIncrementalAnalysisV0,
-    SealedClassValueFlowAnalysisArtifactV0, analyze_class_value_flow_incremental_with_artifact,
-    class_value_flow_incremental_input, project_abstract_value_selectors,
-    summarize_omena_abstract_value_domain, summarize_reduced_class_value_product,
+    SealedClassValueFlowAnalysisArtifactV0, analyze_class_value_flow_incremental,
+    analyze_class_value_flow_incremental_with_artifact, class_value_flow_incremental_input,
+    project_abstract_value_selectors, summarize_omena_abstract_value_domain,
+    summarize_reduced_class_value_product,
 };
 pub use omena_abstract_value::{
     AbstractClassValueV0, AbstractPropertyValueCandidateV0, AbstractPropertyValueNarrowingV0,
@@ -296,22 +297,40 @@ impl OmenaQueryExpressionDomainFlowRuntimeV0 {
                     &entry.graph,
                     previous_artifact,
                     revision,
-                )
-                .unwrap_or_else(|_| {
-                    self.artifact_refusal_count = self.artifact_refusal_count.saturating_add(1);
-                    analyze_class_value_flow_incremental_with_artifact(&entry.graph, None, revision)
-                        .expect("a fresh flow analysis cannot refuse an absent artifact")
-                });
-                self.read_set_digest_check_count = self
-                    .read_set_digest_check_count
-                    .saturating_add(sealed_analysis.read_set_digest_check_count);
-                self.analysis_rebuild_count = self
-                    .analysis_rebuild_count
-                    .saturating_add(sealed_analysis.analysis_rebuild_count);
-                let (analysis, next_artifact) =
-                    legacy_flow_analysis_from_sealed(&entry.graph, revision, sealed_analysis);
-                self.artifacts_by_graph_id
-                    .insert(entry.graph_id.clone(), next_artifact);
+                );
+                let (analysis, next_artifact) = match sealed_analysis {
+                    Ok(sealed_analysis) => {
+                        self.read_set_digest_check_count = self
+                            .read_set_digest_check_count
+                            .saturating_add(sealed_analysis.read_set_digest_check_count);
+                        self.analysis_rebuild_count = self
+                            .analysis_rebuild_count
+                            .saturating_add(sealed_analysis.analysis_rebuild_count);
+                        let (analysis, next_artifact) = legacy_flow_analysis_from_sealed(
+                            &entry.graph,
+                            revision,
+                            sealed_analysis,
+                        );
+                        (analysis, Some(next_artifact))
+                    }
+                    Err(_) => {
+                        self.read_set_digest_check_count = self
+                            .read_set_digest_check_count
+                            .saturating_add(usize::from(previous_artifact.is_some()));
+                        self.analysis_rebuild_count = self.analysis_rebuild_count.saturating_add(1);
+                        self.artifact_refusal_count = self.artifact_refusal_count.saturating_add(1);
+                        (
+                            analyze_class_value_flow_incremental(&entry.graph, None, revision),
+                            None,
+                        )
+                    }
+                };
+                if let Some(next_artifact) = next_artifact {
+                    self.artifacts_by_graph_id
+                        .insert(entry.graph_id.clone(), next_artifact);
+                } else {
+                    self.artifacts_by_graph_id.remove(&entry.graph_id);
+                }
 
                 OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0 {
                     graph_id: entry.graph_id,
