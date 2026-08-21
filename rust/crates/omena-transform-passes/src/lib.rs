@@ -99,10 +99,11 @@ pub use runtime::planner::{
     plan_transform_passes_checked, summarize_omena_transform_passes_boundary,
 };
 pub use runtime::semantic_preservation::{
-    ExternalCssSemanticChangeClassificationV0, ExternalCssSemanticChangeKindV0,
-    ExternalCssSemanticChangeV0, ExternalCssSemanticDiffV0, ExternalCssSemanticEntryV0,
-    TransformSemanticPreservationDecisionV0, compare_external_css_semantic_changes_v0,
-    compare_transform_css_semantics_v0, external_css_semantic_diff_is_total_v0,
+    ExternalCssCstCoverageV0, ExternalCssSemanticChangeClassificationV0,
+    ExternalCssSemanticChangeKindV0, ExternalCssSemanticChangeV0, ExternalCssSemanticDiffV0,
+    ExternalCssSemanticEntryV0, TransformSemanticPreservationDecisionV0,
+    compare_external_css_semantic_changes_v0, compare_transform_css_semantics_v0,
+    external_css_adoption_boundary_is_complete_v0, external_css_semantic_diff_is_total_v0,
 };
 pub use runtime::structural_shadow::{
     TransformStructuralIrPipelineShadowFixtureInputV0, TransformStructuralIrShadowFixtureInputV0,

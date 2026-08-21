@@ -45,6 +45,24 @@ function queryTest(testName: string): {
   };
 }
 
+function diffTest(testName: string): {
+  readonly status: number | null;
+  readonly transcript: string;
+} {
+  const run = spawnSync(
+    "cargo",
+    ["test", "-p", "omena-diff-test", testName, "--", "--exact", "--nocapture"],
+    {
+      cwd: rustRoot,
+      encoding: "utf8",
+    },
+  );
+  return {
+    status: run.status,
+    transcript: (run.stdout ?? "") + "\n" + (run.stderr ?? ""),
+  };
+}
+
 function transformPassesTest(testName: string): {
   readonly command: string;
   readonly status: number | null;
@@ -116,6 +134,37 @@ assert.equal(
 
 const reachabilityCorpusRun = queryTest(
   "tests::consumer_reachability::attributed_empty_projection_removes_unreachable_parse_derived_names",
+);
+
+interface DialectCycleRealCorpusDiff {
+  readonly product: string;
+  readonly inputCount: number;
+  readonly moduleCount: number;
+  readonly newlyRefusedInputCount: number;
+  readonly inputIds: readonly string[];
+  readonly newlyRefusedInputIds: readonly string[];
+}
+const dialectCycleCorpusRun = diffTest(
+  "linked_emission::tests::dialect_cycle_real_corpus_refusal_diff_is_measured",
+);
+const dialectCycleCorpusDiff = dialectCycleCorpusRun.transcript
+  .split("\n")
+  .find((line) => line.startsWith("DIALECT_CYCLE_REAL_CORPUS_DIFF="));
+const dialectCycleCorpusReport = dialectCycleCorpusDiff
+  ? (JSON.parse(
+      dialectCycleCorpusDiff.slice("DIALECT_CYCLE_REAL_CORPUS_DIFF=".length),
+    ) as DialectCycleRealCorpusDiff)
+  : null;
+assert.equal(
+  dialectCycleCorpusRun.status === 0 &&
+    dialectCycleCorpusReport?.product ===
+      "omena-diff-test.dialect-cycle-real-corpus-refusal-diff" &&
+    dialectCycleCorpusReport.inputCount > 0 &&
+    dialectCycleCorpusReport.moduleCount > dialectCycleCorpusReport.inputCount &&
+    dialectCycleCorpusReport.newlyRefusedInputCount ===
+      dialectCycleCorpusReport.newlyRefusedInputIds.length,
+  true,
+  "dialect-cycle real-corpus refusal diff was not measured:\n" + dialectCycleCorpusRun.transcript,
 );
 interface ReachabilityCorpusCell {
   readonly fixtureId: string;
@@ -754,6 +803,7 @@ process.stdout.write(
         conservativeByteIdenticalInputIds,
         conservativeUnanalyzedCount,
       },
+      dialectCycleRealCorpusDiff: dialectCycleCorpusReport,
       composesMatrixTest: "1 passed",
       composesMatrixCommand: matrixRun.command,
       composesMatrixSubprocessRc: matrixRun.status,

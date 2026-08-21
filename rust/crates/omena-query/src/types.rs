@@ -754,6 +754,12 @@ pub enum OmenaQueryClosedWorldBlockerV0 {
     ClosedWorldPassUnavailable {
         requested_pass_ids: Vec<String>,
     },
+    UnsupportedDialectEmissionCycle {
+        dialect: OmenaQueryEmissionCycleDialectV0,
+        class: OmenaQueryEmissionCycleClassV0,
+        #[serde(rename = "edgeKinds")]
+        edge_kinds: Vec<TransformBundleEdgeKind>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -5013,9 +5013,17 @@ fn closed_world_blocker_from_link_error(
                 OmenaQueryClosedWorldBlockerV0::MissingModuleDependency { module, dependency }
             }
         },
+        TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle {
+            dialect,
+            class,
+            edge_kinds,
+        } => OmenaQueryClosedWorldBlockerV0::UnsupportedDialectEmissionCycle {
+            dialect,
+            class,
+            edge_kinds,
+        },
         TransformBundleLinkErrorV0::InvalidEmissionPlan { .. }
-        | TransformBundleLinkErrorV0::UnsupportedEmissionCycle { .. }
-        | TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle { .. } => {
+        | TransformBundleLinkErrorV0::UnsupportedEmissionCycle { .. } => {
             OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable {
                 requested_pass_ids: requested_pass_ids.to_vec(),
             }
@@ -6715,7 +6723,7 @@ mod closed_world_link_error_tests {
     };
 
     #[test]
-    fn engine_only_emission_failures_preserve_the_sdk_blocker_contract() {
+    fn engine_only_emission_failures_preserve_product_evidence() -> Result<(), String> {
         let requested_pass_ids = vec!["tree-shake".to_string()];
         let expected = OmenaQueryClosedWorldBlockerV0::ClosedWorldPassUnavailable {
             requested_pass_ids: requested_pass_ids.clone(),
@@ -6728,17 +6736,38 @@ mod closed_world_link_error_tests {
             TransformBundleLinkErrorV0::UnsupportedEmissionCycle {
                 edge_kind: TransformBundleEdgeKind::SassUse,
             },
-            TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle {
-                dialect: EmissionCycleDialectV0::Scss,
-                class: EmissionCycleClassV0::Import,
-                edge_kinds: vec![TransformBundleEdgeKind::SassUse],
-            },
         ] {
             assert_eq!(
                 closed_world_blocker_from_link_error(error, &requested_pass_ids),
                 expected
             );
         }
+
+        let dialect_cycle = TransformBundleLinkErrorV0::UnsupportedDialectEmissionCycle {
+            dialect: EmissionCycleDialectV0::Scss,
+            class: EmissionCycleClassV0::Import,
+            edge_kinds: vec![TransformBundleEdgeKind::SassUse],
+        };
+        let projected = closed_world_blocker_from_link_error(dialect_cycle, &requested_pass_ids);
+        assert_eq!(
+            projected,
+            OmenaQueryClosedWorldBlockerV0::UnsupportedDialectEmissionCycle {
+                dialect: EmissionCycleDialectV0::Scss,
+                class: EmissionCycleClassV0::Import,
+                edge_kinds: vec![TransformBundleEdgeKind::SassUse],
+            }
+        );
+        let serialized = serde_json::to_value(&projected).map_err(|error| error.to_string())?;
+        assert_eq!(
+            serialized,
+            serde_json::json!({
+                "kind": "unsupportedDialectEmissionCycle",
+                "dialect": "scss",
+                "class": "import",
+                "edgeKinds": ["sassUse"],
+            })
+        );
+        Ok(())
     }
 }
 

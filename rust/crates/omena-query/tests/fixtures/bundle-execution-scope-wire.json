@@ -122,6 +122,8 @@
               "valueAxes": ["value", "important"],
               "orderingRules": ["sourceOrder", "importantPrecedence"],
               "unobservedAxes": [
+                "nonStyleRuleDeclarationCarriers",
+                "intraRuleDeclarationOrdering",
                 "interSelectorSpecificityCompetition",
                 "cascadeLayerOrder",
                 "origin",

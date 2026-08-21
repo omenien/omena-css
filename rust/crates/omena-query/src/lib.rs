@@ -280,6 +280,9 @@ pub use omena_query_core::{
 pub use omena_query_core::{derive_cascade_restriction_maps_v0, summarize_cascade_value_family_v0};
 pub use omena_query_transform_runner::{
     CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
+    EmissionCycleClassV0 as OmenaQueryEmissionCycleClassV0,
+    EmissionCycleDialectV0 as OmenaQueryEmissionCycleDialectV0,
+    ExternalCssCstCoverageV0 as OmenaQueryExternalCssCstCoverageV0,
     ExternalCssSemanticChangeClassificationV0 as OmenaQueryExternalCssSemanticChangeClassificationV0,
     ExternalCssSemanticChangeKindV0 as OmenaQueryExternalCssSemanticChangeKindV0,
     ExternalCssSemanticChangeV0 as OmenaQueryExternalCssSemanticChangeV0,
@@ -341,6 +344,7 @@ pub use omena_query_transform_runner::{
     default_minify_pass_classifications as default_omena_query_minify_pass_classifications,
     default_print_options as default_omena_query_transform_print_options,
     execute_built_in_omena_plugin as execute_built_in_omena_query_plugin,
+    external_css_adoption_boundary_is_complete_v0 as omena_query_external_css_adoption_boundary_is_complete_v0,
     external_css_semantic_diff_is_total_v0 as omena_query_external_css_semantic_diff_is_total_v0,
     modern_feature_support as modern_omena_query_target_feature_support,
     print_transform_cst_source_with_dialect_and_pretty_options as print_omena_query_transform_source_with_pretty_options,

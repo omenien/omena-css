@@ -24,7 +24,7 @@ interface BuildEnvelope {
             readonly checks: {
               readonly inputParseErrorCount: number;
               readonly candidateParseErrorCount: number;
-              readonly semanticDiffTotal: boolean;
+              readonly adoptionBoundaryComplete: boolean;
             };
           }
         | {
@@ -32,12 +32,12 @@ interface BuildEnvelope {
             readonly cause:
               | "inputParseErrors"
               | "candidateParseErrors"
-              | "incompleteSemanticDiff"
+              | "uncoveredSyntaxChanges"
               | "ununderstoodSemanticChanges";
             readonly checks: {
               readonly inputParseErrorCount: number;
               readonly candidateParseErrorCount: number;
-              readonly semanticDiffTotal: boolean;
+              readonly adoptionBoundaryComplete: boolean;
             };
           };
       readonly candidateOutputCss: string;
@@ -52,6 +52,14 @@ interface BuildEnvelope {
         readonly understoodChangeCount: number;
         readonly passthroughChangeCount: number;
         readonly allChangesClassified: boolean;
+        readonly cstCoverage: {
+          readonly inputUnitCount: number;
+          readonly outputUnitCount: number;
+          readonly understoodAdditionUnitCount: number;
+          readonly uncoveredInputUnitCount: number;
+          readonly uncoveredOutputUnitCount: number;
+          readonly complete: boolean;
+        };
         readonly changes: readonly unknown[];
       };
     };
@@ -71,6 +79,7 @@ interface BuildEnvelope {
         readonly understoodChangeCount: number;
         readonly passthroughChangeCount: number;
         readonly allChangesClassified: boolean;
+        readonly cstCoverage: { readonly complete: boolean };
       };
     };
   };
@@ -105,6 +114,21 @@ const run = spawnSync(executable, ["build", fixture, "--json"], {
   encoding: "utf8",
 });
 assert.equal(run.status, 0, run.stderr || run.stdout);
+const humanRun = spawnSync(executable, ["build", fixture], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(humanRun.status, 0, humanRun.stderr || humanRun.stdout);
+assert.equal(
+  humanRun.stderr
+    .split(/\r?\n/u)
+    .filter((line) => line.startsWith("PostCSS compatibility adoption:")).length,
+  1,
+);
+assert.match(
+  humanRun.stderr,
+  /PostCSS compatibility adoption: refused cause=ununderstoodSemanticChanges/u,
+);
 const envelope = JSON.parse(run.stdout) as BuildEnvelope;
 const report = envelope.payload.postcssCompat;
 const semantic = report.semanticDiff;
@@ -143,7 +167,7 @@ assert.deepEqual(report.adoptionVerdict, {
   checks: {
     inputParseErrorCount: 0,
     candidateParseErrorCount: 0,
-    semanticDiffTotal: true,
+    adoptionBoundaryComplete: false,
   },
 });
 assert.ok(observedEvidence, "evaluated external output must carry an invocation witness");
@@ -163,7 +187,9 @@ assert.equal(
   semantic.totalChangeCount,
 );
 assert.equal(observedChanges.length, semantic.totalChangeCount);
-assert.equal(semantic.allChangesClassified, true);
+assert.equal(semantic.allChangesClassified, false);
+assert.equal(semantic.cstCoverage.complete, false);
+assert.ok(semantic.cstCoverage.uncoveredOutputUnitCount > 0);
 assert.ok(envelope.payload.readySurfaces.includes("postcssCompatibilityRunner"));
 
 const realCorpusPaths = [
@@ -236,12 +262,17 @@ try {
     assert.equal(differential.nativeTargetQuery, "firefox 20, safari 8");
     assert.deepEqual(differential.stage1Targets, ["Firefox 20", "Safari 8"]);
     assert.equal(differential.targetSetsAligned, true);
-    assert.equal(differential.semanticDiff.allChangesClassified, true);
     assert.ok(candidate.payload.readySurfaces.includes("postcssNativeSemanticDifferential"));
     return differential.classification;
   });
 
   assert.deepEqual(classifications, ["equivalent", "nativeConservative", "investigationRequired"]);
+  assert.deepEqual(
+    cases.map(
+      (candidate) => candidate.payload.postcssNativeDifferential?.semanticDiff.allChangesClassified,
+    ),
+    [true, true, false],
+  );
   const conservative = cases[1].payload.postcssNativeDifferential;
   assert.ok(conservative);
   assert.deepEqual(conservative.matchedUncoveredFeatureIds, ["vendor-prefixing.hyphens"]);

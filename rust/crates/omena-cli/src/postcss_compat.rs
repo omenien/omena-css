@@ -7,7 +7,7 @@ use omena_query::{
     OmenaQueryExternalCssSemanticChangeKindV0, OmenaQueryExternalCssSemanticChangeV0,
     OmenaQueryExternalCssSemanticDiffV0, OmenaQueryStyleFrameRefreshParseCacheV0,
     OmenaQueryTransformTargetQueryPlanV0, compare_omena_query_external_css_semantic_changes_v0,
-    omena_query_external_css_semantic_diff_is_total_v0,
+    omena_query_external_css_adoption_boundary_is_complete_v0,
     summarize_omena_query_style_frame_refresh_facts_with_reuse,
 };
 use serde::{Deserialize, Serialize};
@@ -123,8 +123,19 @@ pub(crate) struct PostcssCompatExecutionV0 {
 pub(crate) enum PostcssCompatAdoptionRefusalCauseV0 {
     InputParseErrors,
     CandidateParseErrors,
-    IncompleteSemanticDiff,
+    UncoveredSyntaxChanges,
     UnunderstoodSemanticChanges,
+}
+
+impl PostcssCompatAdoptionRefusalCauseV0 {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::InputParseErrors => "inputParseErrors",
+            Self::CandidateParseErrors => "candidateParseErrors",
+            Self::UncoveredSyntaxChanges => "uncoveredSyntaxChanges",
+            Self::UnunderstoodSemanticChanges => "ununderstoodSemanticChanges",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -132,7 +143,7 @@ pub(crate) enum PostcssCompatAdoptionRefusalCauseV0 {
 pub(crate) struct PostcssCompatAdoptionChecksV0 {
     pub(crate) input_parse_error_count: usize,
     pub(crate) candidate_parse_error_count: usize,
-    pub(crate) semantic_diff_total: bool,
+    pub(crate) adoption_boundary_complete: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -149,6 +160,15 @@ pub(crate) enum PostcssCompatAdoptionVerdictV0 {
         cause: PostcssCompatAdoptionRefusalCauseV0,
         checks: PostcssCompatAdoptionChecksV0,
     },
+}
+
+impl PostcssCompatAdoptionVerdictV0 {
+    pub(crate) fn human_summary(&self) -> String {
+        match self {
+            Self::Adopted { .. } => "adopted".to_string(),
+            Self::Refused { cause, .. } => format!("refused cause={}", cause.label()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -219,6 +239,7 @@ pub(crate) fn summarize_postcss_native_differential(
         PostcssNativeDifferentialClassificationV0::Equivalent
     } else if target_sets_aligned
         && semantic_diff.all_changes_classified
+        && semantic_diff.cst_coverage.complete
         && all_changes_match_uncovered_prefixes
     {
         PostcssNativeDifferentialClassificationV0::NativeConservative
@@ -453,21 +474,21 @@ fn decide_postcss_compat_adoption(
 ) -> PostcssCompatAdoptionVerdictV0 {
     let input_parse_error_count = postcss_parse_error_count(source_css, dialect);
     let candidate_parse_error_count = postcss_parse_error_count(candidate_output_css, dialect);
-    let semantic_diff_total = semantic_diff.all_changes_classified
-        && omena_query_external_css_semantic_diff_is_total_v0(semantic_diff);
+    let adoption_boundary_complete =
+        omena_query_external_css_adoption_boundary_is_complete_v0(semantic_diff);
     let checks = PostcssCompatAdoptionChecksV0 {
         input_parse_error_count,
         candidate_parse_error_count,
-        semantic_diff_total,
+        adoption_boundary_complete,
     };
     let refusal_cause = if input_parse_error_count > 0 {
         Some(PostcssCompatAdoptionRefusalCauseV0::InputParseErrors)
     } else if candidate_parse_error_count > 0 {
         Some(PostcssCompatAdoptionRefusalCauseV0::CandidateParseErrors)
-    } else if !semantic_diff_total {
-        Some(PostcssCompatAdoptionRefusalCauseV0::IncompleteSemanticDiff)
     } else if semantic_diff.passthrough_change_count > 0 {
         Some(PostcssCompatAdoptionRefusalCauseV0::UnunderstoodSemanticChanges)
+    } else if !adoption_boundary_complete {
+        Some(PostcssCompatAdoptionRefusalCauseV0::UncoveredSyntaxChanges)
     } else {
         None
     };
@@ -795,7 +816,7 @@ mod tests {
                 ..
             }
         ));
-        assert!(outcome.semantic_diff.all_changes_classified);
+        assert!(!outcome.semantic_diff.all_changes_classified);
         assert!(outcome.semantic_diff.understood_change_count >= 1);
         assert!(outcome.semantic_diff.passthrough_change_count >= 1);
         assert_eq!(outcome.evidence.earned_via.describe(), "externalTool");
@@ -961,5 +982,77 @@ mod tests {
                 }
             }
         ));
+    }
+
+    #[test]
+    fn unobserved_css_syntax_changes_refuse_candidate_adoption() {
+        let cases = [
+            (
+                "font-face-deletion",
+                "@font-face { font-family: Demo; src: url(demo.woff2); } .a { color: red; }",
+                ".a { color: red; }",
+            ),
+            (
+                "font-face-modification",
+                "@font-face { font-family: Demo; src: url(demo.woff2); }",
+                "@font-face { font-family: Demo; src: url(poisoned.woff2); }",
+            ),
+            (
+                "counter-style-deletion",
+                r#"@counter-style thumbs { system: cyclic; symbols: "👍"; } .a { color: red; }"#,
+                ".a { color: red; }",
+            ),
+            (
+                "page-deletion",
+                "@page { margin: 1cm; } .a { color: red; }",
+                ".a { color: red; }",
+            ),
+            (
+                "same-rule-shorthand-longhand-reorder",
+                ".box { margin-left: 5px; margin: 0; }",
+                ".box { margin: 0; margin-left: 5px; }",
+            ),
+            (
+                "understood-prefix-does-not-mask-font-face-deletion",
+                "@font-face { font-family: Demo; src: url(demo.woff2); } .a { appearance: none; }",
+                ".a { -webkit-appearance: none; appearance: none; }",
+            ),
+        ];
+
+        let mut silently_adopted = Vec::new();
+        for (name, source, candidate) in cases {
+            let semantic_diff = compare_omena_query_external_css_semantic_changes_v0(
+                source,
+                candidate,
+                OmenaParserStyleDialect::Css,
+            );
+            let verdict = decide_postcss_compat_adoption(
+                source,
+                candidate,
+                OmenaParserStyleDialect::Css,
+                &semantic_diff,
+            );
+
+            if !matches!(
+                verdict,
+                PostcssCompatAdoptionVerdictV0::Refused {
+                    cause: PostcssCompatAdoptionRefusalCauseV0::UncoveredSyntaxChanges,
+                    checks: PostcssCompatAdoptionChecksV0 {
+                        adoption_boundary_complete: false,
+                        ..
+                    }
+                }
+            ) || semantic_diff.cst_coverage.complete
+            {
+                silently_adopted.push(format!(
+                    "{name}: {verdict:?}, totalChangeCount={}",
+                    semantic_diff.total_change_count
+                ));
+            }
+        }
+        assert!(
+            silently_adopted.is_empty(),
+            "unobserved syntax changes were silently adopted: {silently_adopted:#?}"
+        );
     }
 }

@@ -1210,6 +1210,8 @@ pub enum TransformSemanticUnobservedAxisV0 {
     Inheritance,
     CustomPropertyEnvironment,
     AnimationAndTransition,
+    NonStyleRuleDeclarationCarriers,
+    IntraRuleDeclarationOrdering,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

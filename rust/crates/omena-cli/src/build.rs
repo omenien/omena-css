@@ -577,6 +577,10 @@ pub(crate) fn build_file(options: BuildFileOptions) -> Result<(), String> {
     eprintln!("mutations: {}", summary.execution.mutation_count);
     if let Some(report) = postcss_compat_report {
         eprintln!(
+            "PostCSS compatibility adoption: {}",
+            report.adoption_verdict.human_summary()
+        );
+        eprintln!(
             "PostCSS compatibility changes: {} understood, {} passthrough",
             report.semantic_diff.understood_change_count,
             report.semantic_diff.passthrough_change_count

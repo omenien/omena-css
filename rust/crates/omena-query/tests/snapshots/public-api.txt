@@ -61,6 +61,8 @@ pub use omena_query::OmenaQueryCrossFileSummaryEdgeKindCountV0
 pub use omena_query::OmenaQueryCrossFileSummaryEdgeV0
 pub use omena_query::OmenaQueryCrossFileSummaryV0
 pub use omena_query::OmenaQueryCustomPropertyLeastFixedPointSummaryV0
+pub use omena_query::OmenaQueryEmissionCycleClassV0
+pub use omena_query::OmenaQueryEmissionCycleDialectV0
 pub use omena_query::OmenaQueryEngineInputV2
 pub use omena_query::OmenaQueryExpressionDomainFlowRuntimeV0
 pub use omena_query::OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0
@@ -68,6 +70,7 @@ pub use omena_query::OmenaQueryExpressionDomainIncrementalFlowAnalysisV0
 pub use omena_query::OmenaQueryExpressionDomainSelectorPrecisionV0
 pub use omena_query::OmenaQueryExpressionDomainSelectorProjectionEntryV0
 pub use omena_query::OmenaQueryExpressionDomainSelectorProjectionV0
+pub use omena_query::OmenaQueryExternalCssCstCoverageV0
 pub use omena_query::OmenaQueryExternalCssSemanticChangeClassificationV0
 pub use omena_query::OmenaQueryExternalCssSemanticChangeKindV0
 pub use omena_query::OmenaQueryExternalCssSemanticChangeV0
@@ -282,6 +285,7 @@ pub use omena_query::modern_omena_query_target_feature_support
 pub use omena_query::narrow_abstract_property_value_for_cascade_branch
 pub use omena_query::narrow_abstract_property_value_for_pseudo_state
 pub use omena_query::omena_query_checker_rule_code_name_for_diagnostic_v0
+pub use omena_query::omena_query_external_css_adoption_boundary_is_complete_v0
 pub use omena_query::omena_query_external_css_semantic_diff_is_total_v0
 pub use omena_query::omena_query_style_intelligence_completions_at_offset
 pub use omena_query::omena_query_style_intelligence_hover_at_offset
@@ -394,6 +398,10 @@ pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingModuleDependency::depend
 pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingModuleDependency::module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
 pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingModuleInstance
 pub omena_query::OmenaQueryClosedWorldBlockerV0::MissingModuleInstance::module: omena_parser::closed_world::contract::ModuleInstanceKeyV0
+pub omena_query::OmenaQueryClosedWorldBlockerV0::UnsupportedDialectEmissionCycle
+pub omena_query::OmenaQueryClosedWorldBlockerV0::UnsupportedDialectEmissionCycle::class: omena_bundler::emission_order::EmissionCycleClassV0
+pub omena_query::OmenaQueryClosedWorldBlockerV0::UnsupportedDialectEmissionCycle::dialect: omena_bundler::emission_order::EmissionCycleDialectV0
+pub omena_query::OmenaQueryClosedWorldBlockerV0::UnsupportedDialectEmissionCycle::edge_kinds: alloc::vec::Vec<omena_bundler::TransformBundleEdgeKind>
 pub enum omena_query::OmenaQueryClosedWorldOutcomeV0
 pub omena_query::OmenaQueryClosedWorldOutcomeV0::Closed
 pub omena_query::OmenaQueryClosedWorldOutcomeV0::Closed::bundle: alloc::boxed::Box<omena_parser::closed_world::contract::ClosedWorldBundleV0>

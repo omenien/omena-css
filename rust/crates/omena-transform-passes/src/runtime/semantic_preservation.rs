@@ -6,9 +6,9 @@ use omena_cascade::{
 };
 use omena_parser::{
     ClosedWorldBundleV0, ModuleQualifiedSymbolSetV0, ParserDeclarationSyntaxFactV0, StyleDialect,
-    collect_parser_declaration_syntax_facts,
+    collect_parser_declaration_syntax_facts, lex,
 };
-use omena_syntax::css_keyword;
+use omena_syntax::{SyntaxKind, css_keyword};
 use omena_transform_cst::{
     IrBlockSpanV0, IrNodeKindV0, IrNodeV0, TransformIrV0, TransformPassKind,
     lower_transform_ir_from_source, structural_block_spans_for_source,
@@ -16,7 +16,7 @@ use omena_transform_cst::{
 #[cfg(test)]
 use serde::Deserialize;
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::model::{
     TransformSemanticObservationKeyAxisV0, TransformSemanticObservationOrderingRuleV0,
@@ -143,6 +143,23 @@ pub struct ExternalCssSemanticChangeV0 {
     pub after: Option<ExternalCssSemanticEntryV0>,
 }
 
+/// Independent full-CST coverage evidence for an external CSS candidate.
+///
+/// The input's non-whitespace syntax units must remain an ordered subsequence
+/// of the output. The only output-only units admitted by this boundary are
+/// declarations independently classified as understood vendor-prefix
+/// additions. Everything else is counted as uncovered and fails closed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalCssCstCoverageV0 {
+    pub input_unit_count: usize,
+    pub output_unit_count: usize,
+    pub understood_addition_unit_count: usize,
+    pub uncovered_input_unit_count: usize,
+    pub uncovered_output_unit_count: usize,
+    pub complete: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalCssSemanticDiffV0 {
@@ -152,6 +169,7 @@ pub struct ExternalCssSemanticDiffV0 {
     pub understood_change_count: usize,
     pub passthrough_change_count: usize,
     pub all_changes_classified: bool,
+    pub cst_coverage: ExternalCssCstCoverageV0,
     pub changes: Vec<ExternalCssSemanticChangeV0>,
 }
 
@@ -208,11 +226,23 @@ pub fn compare_external_css_semantic_changes_v0(
         }
     }
     changes.sort();
-    external_css_semantic_diff_from_changes(input.len(), output.len(), changes)
+    let cst_coverage = external_css_cst_coverage(
+        input_css,
+        output_css,
+        dialect,
+        &input_ir,
+        &output_ir,
+        changes.as_slice(),
+    );
+    external_css_semantic_diff_from_changes(input.len(), output.len(), changes, cst_coverage)
 }
 
-pub fn external_css_semantic_diff_is_total_v0(report: &ExternalCssSemanticDiffV0) -> bool {
-    report.total_change_count == report.changes.len()
+pub fn external_css_adoption_boundary_is_complete_v0(report: &ExternalCssSemanticDiffV0) -> bool {
+    report.all_changes_classified
+        && report.cst_coverage.complete
+        && report.cst_coverage.uncovered_input_unit_count == 0
+        && report.cst_coverage.uncovered_output_unit_count == 0
+        && report.total_change_count == report.changes.len()
         && report.understood_change_count
             == report
                 .changes
@@ -233,10 +263,16 @@ pub fn external_css_semantic_diff_is_total_v0(report: &ExternalCssSemanticDiffV0
             == report.total_change_count
 }
 
+/// Compatibility name for the independently measured full-CST boundary.
+pub fn external_css_semantic_diff_is_total_v0(report: &ExternalCssSemanticDiffV0) -> bool {
+    external_css_adoption_boundary_is_complete_v0(report)
+}
+
 fn external_css_semantic_diff_from_changes(
     input_entry_count: usize,
     output_entry_count: usize,
     changes: Vec<ExternalCssSemanticChangeV0>,
+    cst_coverage: ExternalCssCstCoverageV0,
 ) -> ExternalCssSemanticDiffV0 {
     let understood_change_count = changes
         .iter()
@@ -245,17 +281,220 @@ fn external_css_semantic_diff_from_changes(
         })
         .count();
     let passthrough_change_count = changes.len().saturating_sub(understood_change_count);
-    let mut report = ExternalCssSemanticDiffV0 {
+    let all_changes_classified = understood_change_count + passthrough_change_count
+        == changes.len()
+        && cst_coverage.complete;
+    ExternalCssSemanticDiffV0 {
         input_entry_count,
         output_entry_count,
         total_change_count: changes.len(),
         understood_change_count,
         passthrough_change_count,
-        all_changes_classified: false,
+        all_changes_classified,
+        cst_coverage,
         changes,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExternalCssCoverageUnitV0 {
+    key: String,
+    understood_addition: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExternalCssDeclarationCoverageSpanV0 {
+    start: usize,
+    end: usize,
+    key: String,
+    understood_addition: bool,
+}
+
+fn external_css_cst_coverage(
+    input_css: &str,
+    output_css: &str,
+    dialect: StyleDialect,
+    input_ir: &TransformIrV0,
+    output_ir: &TransformIrV0,
+    changes: &[ExternalCssSemanticChangeV0],
+) -> ExternalCssCstCoverageV0 {
+    let understood_entries = changes
+        .iter()
+        .filter(|change| {
+            change.kind == ExternalCssSemanticChangeKindV0::Added
+                && change.classification == ExternalCssSemanticChangeClassificationV0::Understood
+        })
+        .filter_map(|change| change.after.clone())
+        .collect::<BTreeSet<_>>();
+    let input_units = external_css_coverage_units(input_css, dialect, input_ir, &BTreeSet::new());
+    let output_units =
+        external_css_coverage_units(output_css, dialect, output_ir, &understood_entries);
+
+    let mut output_index = 0;
+    let mut understood_addition_unit_count = 0;
+    let mut uncovered_input_unit_count = 0;
+    let mut uncovered_output_unit_count = 0;
+
+    for input_unit in &input_units {
+        let mut matched = false;
+        while let Some(output_unit) = output_units.get(output_index) {
+            if output_unit.key == input_unit.key {
+                output_index += 1;
+                matched = true;
+                break;
+            }
+            if output_unit.understood_addition {
+                understood_addition_unit_count += 1;
+            } else {
+                uncovered_output_unit_count += 1;
+            }
+            output_index += 1;
+        }
+        if !matched {
+            uncovered_input_unit_count += 1;
+        }
+    }
+    for output_unit in &output_units[output_index..] {
+        if output_unit.understood_addition {
+            understood_addition_unit_count += 1;
+        } else {
+            uncovered_output_unit_count += 1;
+        }
+    }
+
+    ExternalCssCstCoverageV0 {
+        input_unit_count: input_units.len(),
+        output_unit_count: output_units.len(),
+        understood_addition_unit_count,
+        uncovered_input_unit_count,
+        uncovered_output_unit_count,
+        complete: uncovered_input_unit_count == 0 && uncovered_output_unit_count == 0,
+    }
+}
+
+fn external_css_coverage_units(
+    source: &str,
+    dialect: StyleDialect,
+    ir: &TransformIrV0,
+    understood_entries: &BTreeSet<ExternalCssSemanticEntryV0>,
+) -> Vec<ExternalCssCoverageUnitV0> {
+    let spans = external_css_declaration_coverage_spans(source, dialect, ir, understood_entries);
+    let mut units = Vec::new();
+    let mut cursor = 0;
+    for span in spans {
+        if span.start < cursor || span.end > source.len() {
+            continue;
+        }
+        units.extend(external_css_syntax_units(
+            source.get(cursor..span.start).unwrap_or_default(),
+            dialect,
+        ));
+        units.push(ExternalCssCoverageUnitV0 {
+            key: span.key,
+            understood_addition: span.understood_addition,
+        });
+        cursor = span.end;
+    }
+    units.extend(external_css_syntax_units(
+        source.get(cursor..).unwrap_or_default(),
+        dialect,
+    ));
+    units
+}
+
+fn external_css_declaration_coverage_spans(
+    source: &str,
+    dialect: StyleDialect,
+    ir: &TransformIrV0,
+    understood_entries: &BTreeSet<ExternalCssSemanticEntryV0>,
+) -> Vec<ExternalCssDeclarationCoverageSpanV0> {
+    let mut spans = ir
+        .nodes
+        .iter()
+        .filter(|node| !node.deleted && node.kind == IrNodeKindV0::Declaration)
+        .filter(|node| {
+            node.source_span_start < node.source_span_end && node.source_span_end <= source.len()
+        })
+        .map(|node| {
+            let declaration_entries = external_css_entries_for_declaration(ir, node);
+            let understood_addition = !declaration_entries.is_empty()
+                && declaration_entries
+                    .iter()
+                    .all(|entry| understood_entries.contains(entry));
+            ExternalCssDeclarationCoverageSpanV0 {
+                start: node.source_span_start,
+                end: node.source_span_end,
+                key: external_css_declaration_unit_key(
+                    source
+                        .get(node.source_span_start..node.source_span_end)
+                        .unwrap_or_default(),
+                    dialect,
+                ),
+                understood_addition,
+            }
+        })
+        .collect::<Vec<_>>();
+    spans.sort_by_key(|span| (span.start, span.end));
+    spans.dedup_by(|left, right| left.start == right.start && left.end == right.end);
+    spans
+}
+
+fn external_css_entries_for_declaration(
+    ir: &TransformIrV0,
+    node: &IrNodeV0,
+) -> Vec<ExternalCssSemanticEntryV0> {
+    let Some(declaration) = semantic_declaration_from_ir(ir, node) else {
+        return Vec::new();
     };
-    report.all_changes_classified = external_css_semantic_diff_is_total_v0(&report);
-    report
+    let Some(selector_keys) = nearest_style_ancestor_selector_keys(ir, node) else {
+        return Vec::new();
+    };
+    let context = ancestor_at_rule_context_key(ir, node);
+    selector_keys
+        .into_iter()
+        .filter(|selector| {
+            !selector.eq_ignore_ascii_case(":export") && !selector.starts_with(":import")
+        })
+        .map(|selector| ExternalCssSemanticEntryV0 {
+            selector,
+            property: declaration.property.clone(),
+            context: context.clone(),
+            value: declaration.value.clone(),
+            important: declaration.important,
+        })
+        .collect()
+}
+
+fn external_css_declaration_unit_key(source: &str, dialect: StyleDialect) -> String {
+    format!(
+        "declaration:{}",
+        external_css_normalized_tokens(source, dialect)
+    )
+}
+
+fn external_css_syntax_units(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<ExternalCssCoverageUnitV0> {
+    lex(source, dialect)
+        .tokens()
+        .iter()
+        .filter(|token| token.kind != SyntaxKind::Whitespace)
+        .map(|token| ExternalCssCoverageUnitV0 {
+            key: format!("syntax:{:?}:{}", token.kind, token.text),
+            understood_addition: false,
+        })
+        .collect()
+}
+
+fn external_css_normalized_tokens(source: &str, dialect: StyleDialect) -> String {
+    lex(source, dialect)
+        .tokens()
+        .iter()
+        .filter(|token| token.kind != SyntaxKind::Whitespace)
+        .map(|token| format!("{:?}:{}", token.kind, token.text))
+        .collect::<Vec<_>>()
+        .join("|")
 }
 
 fn classify_external_semantic_change(
@@ -931,6 +1170,8 @@ fn semantic_observation_surface_descriptor() -> TransformSemanticObservationSurf
             TransformSemanticObservationOrderingRuleV0::ImportantPrecedence,
         ],
         unobserved_axes: vec![
+            TransformSemanticUnobservedAxisV0::NonStyleRuleDeclarationCarriers,
+            TransformSemanticUnobservedAxisV0::IntraRuleDeclarationOrdering,
             TransformSemanticUnobservedAxisV0::InterSelectorSpecificityCompetition,
             TransformSemanticUnobservedAxisV0::CascadeLayerOrder,
             TransformSemanticUnobservedAxisV0::Origin,
@@ -2338,7 +2579,17 @@ mod tests {
                 TransformSemanticObservationOrderingRuleV0::ImportantPrecedence,
             ]
         );
-        assert_eq!(descriptor.unobserved_axes.len(), 8);
+        assert_eq!(descriptor.unobserved_axes.len(), 10);
+        assert!(
+            descriptor
+                .unobserved_axes
+                .contains(&TransformSemanticUnobservedAxisV0::NonStyleRuleDeclarationCarriers)
+        );
+        assert!(
+            descriptor
+                .unobserved_axes
+                .contains(&TransformSemanticUnobservedAxisV0::IntraRuleDeclarationOrdering)
+        );
         assert_eq!(
             descriptor.claim_scope,
             TransformSemanticPreservationClaimScopeV0::ObservedSurfaceOnly
@@ -2756,7 +3007,7 @@ mod tests {
         let output = ".input { -webkit-appearance: none; appearance: none; } ::-moz-placeholder { color: gray; } ::placeholder { color: gray; }";
         let report = compare_external_css_semantic_changes_v0(input, output, StyleDialect::Css);
 
-        assert!(report.all_changes_classified);
+        assert!(!report.all_changes_classified);
         assert!(report.understood_change_count >= 1);
         assert!(report.passthrough_change_count >= 1);
         assert_eq!(
@@ -2787,10 +3038,10 @@ mod tests {
             StyleDialect::Css,
         );
         assert!(report.all_changes_classified);
-        assert!(external_css_semantic_diff_is_total_v0(&report));
+        assert!(external_css_adoption_boundary_is_complete_v0(&report));
 
         report.changes.clear();
-        assert!(!external_css_semantic_diff_is_total_v0(&report));
+        assert!(!external_css_adoption_boundary_is_complete_v0(&report));
     }
 
     #[test]
@@ -2803,7 +3054,7 @@ mod tests {
 
         assert_eq!(report.understood_change_count, 0);
         assert_eq!(report.passthrough_change_count, 1);
-        assert!(report.all_changes_classified);
+        assert!(!report.all_changes_classified);
     }
 
     #[test]
