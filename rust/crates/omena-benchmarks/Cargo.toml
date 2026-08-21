@@ -19,7 +19,7 @@ workspace = true
 engine-style-parser = { path = "../engine-style-parser", version = "=0.4.0" }
 omena-abstract-value = { path = "../omena-abstract-value", version = "=0.4.0" }
 omena-cascade = { path = "../omena-cascade", version = "=0.4.0" }
-omena-parser = { path = "../omena-parser", version = "=0.4.0" }
+omena-parser = { path = "../omena-parser", version = "=0.4.0", features = ["test-support"] }
 omena-query = { path = "../omena-query", version = "=0.4.0", features = ["salsa-memo"] }
 omena-semantic = { path = "../omena-semantic", version = "=0.4.0" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "=0.4.0" }
