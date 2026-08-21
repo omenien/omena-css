@@ -2037,8 +2037,8 @@ fn collect_top_level_local_symbol_ids_from_statement(
         Statement::VariableDeclaration(declaration) => {
             collect_top_level_local_symbol_ids_from_variable_declaration(declaration, symbols);
         }
-        Statement::ExportNamedDeclaration(declaration) => {
-            if let Some(Declaration::VariableDeclaration(declaration)) = &declaration.declaration {
+        Statement::ExportDeclaration(export) => {
+            if let Declaration::VariableDeclaration(declaration) = &export.declaration {
                 collect_top_level_local_symbol_ids_from_variable_declaration(declaration, symbols);
             }
         }
@@ -2408,8 +2408,8 @@ fn collect_variant_recipe_bindings_from_statement(
                 out,
             )
         }
-        Statement::ExportNamedDeclaration(declaration) => {
-            if let Some(Declaration::VariableDeclaration(declaration)) = &declaration.declaration {
+        Statement::ExportDeclaration(export) => {
+            if let Declaration::VariableDeclaration(declaration) = &export.declaration {
                 collect_variant_recipe_bindings_from_variable_declaration(
                     source,
                     declaration,
@@ -2786,8 +2786,8 @@ fn collect_vue_use_css_module_bindings_from_statement(
                 bindings,
             );
         }
-        Statement::ExportNamedDeclaration(declaration) => {
-            if let Some(Declaration::VariableDeclaration(declaration)) = &declaration.declaration {
+        Statement::ExportDeclaration(export) => {
+            if let Declaration::VariableDeclaration(declaration) = &export.declaration {
                 collect_vue_use_css_module_bindings_from_variable_declaration(
                     declaration,
                     source,
@@ -2961,11 +2961,11 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
             Statement::ImportDeclaration(import) => {
                 self.collect_import_declaration(import);
             }
-            Statement::ExportNamedDeclaration(export) => {
-                self.collect_export_named_module_specifier(export);
-                if let Some(declaration) = &export.declaration {
-                    self.collect_export_named_declaration(declaration, export.span);
-                }
+            Statement::ExportDeclaration(export) => {
+                self.collect_export_named_declaration(&export.declaration, export.span);
+            }
+            Statement::ExportFromDeclaration(export) => {
+                self.collect_export_from_module_specifier(export);
             }
             Statement::ExportAllDeclaration(export) => {
                 self.collect_export_all_module_specifier(export);
@@ -3088,20 +3088,18 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
         }
     }
 
-    fn collect_export_named_module_specifier(
+    fn collect_export_from_module_specifier(
         &mut self,
-        export: &oxc_ast::ast::ExportNamedDeclaration<'a>,
+        export: &oxc_ast::ast::ExportFromDeclaration<'a>,
     ) {
         if export.export_kind != ImportOrExportKind::Value {
             return;
         }
-        if let Some(source) = &export.source {
-            self.module_specifiers.push(SourceModuleSpecifierFactV0 {
-                kind: "export",
-                specifier: source.value.as_str().to_string(),
-                byte_span: parser_byte_span(source.span),
-            });
-        }
+        self.module_specifiers.push(SourceModuleSpecifierFactV0 {
+            kind: "export",
+            specifier: export.source.value.as_str().to_string(),
+            byte_span: parser_byte_span(export.source.span),
+        });
     }
 
     fn collect_export_all_module_specifier(
@@ -3157,7 +3155,11 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     fn collect_arrow_function(&mut self, function: &oxc_ast::ast::ArrowFunctionExpression<'a>) {
         self.with_binding_scope("function", parser_byte_span(function.span), |collector| {
             collector.collect_function_parameters(&function.params);
-            collector.collect_function_body(Some(&function.body));
+            if let Some(body) = function.body.as_function_body() {
+                collector.collect_function_body(Some(body));
+            } else if let Some(expression) = function.body.as_expression() {
+                collector.collect_expression(expression);
+            }
         });
     }
 
@@ -3308,8 +3310,8 @@ impl<'a, 'b, 's> SourceSyntaxAstCollector<'a, 'b, 's> {
     }
 
     fn collect_class(&mut self, class: &Class<'a>) {
-        if let Some(super_class) = &class.super_class {
-            self.collect_expression(super_class);
+        if let Some(heritage) = &class.heritage {
+            self.collect_expression(&heritage.expression);
         }
         for element in &class.body.body {
             match element {

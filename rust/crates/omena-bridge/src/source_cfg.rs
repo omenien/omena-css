@@ -241,8 +241,8 @@ fn find_function_body_statements_containing_reference<'a>(
 fn function_body_for_statement<'a>(statement: &'a Statement<'a>) -> Option<&'a FunctionBody<'a>> {
     match statement {
         Statement::FunctionDeclaration(function) => function.body.as_deref(),
-        Statement::ExportNamedDeclaration(export) => {
-            if let Some(Declaration::FunctionDeclaration(function)) = &export.declaration {
+        Statement::ExportDeclaration(export) => {
+            if let Declaration::FunctionDeclaration(function) = &export.declaration {
                 function.body.as_deref()
             } else {
                 None
@@ -1433,8 +1433,8 @@ fn function_body_for_named_statement<'a>(
         {
             function.body.as_deref()
         }
-        Statement::ExportNamedDeclaration(export) => {
-            if let Some(Declaration::FunctionDeclaration(function)) = &export.declaration
+        Statement::ExportDeclaration(export) => {
+            if let Declaration::FunctionDeclaration(function) = &export.declaration
                 && function
                     .id
                     .as_ref()

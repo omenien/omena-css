@@ -286,6 +286,8 @@ fn binding_index_collects_module_specifiers_for_source_dependencies() {
     let source = r#"
 import styles from "./Button.module.scss";
 import { tokens } from "./theme";
+export { tokens };
+export { palette } from "./named-reexport";
 export * from "./reexported";
 import legacy = require("./legacy");
 "#;
@@ -298,6 +300,7 @@ import legacy = require("./legacy");
             .map(|fact| (fact.kind, fact.specifier.as_str()))
             .collect::<Vec<_>>(),
         vec![
+            ("export", "./named-reexport"),
             ("export", "./reexported"),
             ("import", "./Button.module.scss"),
             ("import", "./theme"),
